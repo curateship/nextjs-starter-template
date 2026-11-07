@@ -120,6 +120,12 @@ function exchangeUnanswered(): DashboardExchange {
 /** Every preference at its default, for a server that never answered. */
 function coreUnanswered(): DashboardCore {
   return {
+    // Unread pages open locked, so nothing typed can overwrite a saved page
+    // the server could not hand over.
+    pages: {
+      exchange: { body: null, locked: true, coverUrl: null },
+      market: null,
+    },
     folders: [],
     panelRows: DEFAULT_MARKET_PANEL_ROWS,
     lastMarketKey: null,
@@ -385,6 +391,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialCardFolds={core.cardFolds}
       initialQuickOrder={core.quickOrder}
       initialPanelLayouts={core.panelLayouts}
+      initialPages={core.pages}
       initialWallets={wallets}
       selectedKey={shownKey}
       onSelectMarket={(key) => {

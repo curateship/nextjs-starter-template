@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   ChevronRightIcon,
-  FolderIcon,
   PlusIcon,
   SettingsIcon,
 } from "lucide-react"
@@ -12,11 +11,7 @@ import { MarketRowLine } from "@/components/trade/market-list-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { BlockHeadingActions } from "@/components/trade/notes/trade-block-views"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   createFolder,
@@ -29,7 +24,11 @@ import { compareMarketChange24h } from "@/lib/trade/market-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-/** A compact second view of the saved market folders beside the market name. */
+/**
+ * The dashboard's Folders block (the Admin 3 panel design, 7 Nov 2026): the
+ * saved folders and the markets inside them, drawn in place on the
+ * exchange's page. Its plus and cog sit in the block's heading.
+ */
 export function MarketFoldersMenu({
   folders,
   protocol,
@@ -43,10 +42,7 @@ export function MarketFoldersMenu({
   marketsError,
   marketsPending,
   onRetryMarkets,
-  trigger,
 }: {
-  /** A line in the phone's market menu, in place of the icon button. */
-  trigger?: React.ReactElement
   panelRows: MarketPanelRows
   marketsError: string | null
   marketsPending: boolean
@@ -60,7 +56,6 @@ export function MarketFoldersMenu({
   onManage: () => void
   onSelectMarket: (marketKey: string) => void
 }) {
-  const [open, setOpen] = React.useState(false)
   const [expandedId, setExpandedId] = React.useState<string | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState("")
@@ -101,37 +96,13 @@ export function MarketFoldersMenu({
       .finally(() => setBusy(false))
   }
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {trigger ?? (
+  const headerButtons = (
+    <>
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            aria-label="Open folders"
-          >
-            <FolderIcon className="size-4" />
-          </Button>
-        )}
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        collisionPadding={12}
-        sideOffset={8}
-        className="flex w-[calc(100vw-2rem)] max-w-[16.8rem] flex-col gap-0 overflow-hidden p-0"
-        style={{
-          maxHeight: "var(--radix-popover-content-available-height)",
-        }}
-      >
-        <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3 text-sm font-semibold">
-          <FolderIcon className="size-4" />
-          <span className="min-w-0 flex-1">Folders</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 bg-muted/60 dark:bg-muted/60"
+            size="icon-sm"
+            className="text-muted-foreground"
             aria-label="Add folder"
             onClick={() => setCreating((shown) => !shown)}
           >
@@ -139,21 +110,22 @@ export function MarketFoldersMenu({
           </Button>
           <Button
             type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 bg-muted/60 dark:bg-muted/60"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground"
             aria-label="Manage folders"
             onClick={() => {
-              setOpen(false)
               onManage()
             }}
           >
             <SettingsIcon className="size-4" />
           </Button>
-        </div>
+    </>
+  )
+  const list = (
         <ScrollArea
           className="min-h-0"
-          viewportClassName="max-h-[calc(var(--radix-popover-content-available-height)-2.75rem)]"
+          viewportClassName="max-h-80"
         >
           {creating ? (
             <form
@@ -288,8 +260,12 @@ export function MarketFoldersMenu({
             ) : null}
           </div>
         </ScrollArea>
-      </PopoverContent>
-    </Popover>
+  )
+  return (
+    <>
+      <BlockHeadingActions>{headerButtons}</BlockHeadingActions>
+      {list}
+    </>
   )
 }
 

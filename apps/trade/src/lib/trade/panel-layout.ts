@@ -16,10 +16,7 @@ import {
   TRADE_PANEL_LAYOUT_KEYS,
   type TradePanelLayoutKey,
   tradePanelIds,
-  tradePanelLayoutKey,
 } from "@/lib/trade/panel-keys"
-
-export const MAX_NAMED_PANEL_LAYOUTS = 5
 
 export type MarketPanelScope = { protocol: ProtocolId; network: NetworkId }
 
@@ -33,19 +30,6 @@ export type OpenMarketRows = Record<string, string | null>
 /** The drawing rail's place inside the candle area, as shares of its travel. */
 export type ChartToolbarPosition = { x: number; y: number }
 
-export type NamedPanelLayout = {
-  id: string
-  name: string
-  horizontal: Layout
-  vertical: Layout
-  /** The folder row this layout opens on each exchange where it was saved. */
-  openMarketRows: OpenMarketRows
-  /** Older saved layouts leave the current header choice alone. */
-  headerProfitVisible?: boolean
-  /** Older saved layouts leave the drawing rail where it is. */
-  chartToolbarPosition?: ChartToolbarPosition | null
-}
-
 /** Every panel arrangement kept in the account's one preference column. */
 export type TradePanelLayouts = {
   legacyImported: boolean
@@ -56,9 +40,6 @@ export type TradePanelLayouts = {
   headerProfitVisible: boolean
   /** Null is the home position, equally inset from the top and right. */
   chartToolbarPosition: ChartToolbarPosition | null
-  /** The named layout that follows later dashboard changes. */
-  activeNamedId: string | null
-  named: NamedPanelLayout[]
 }
 
 export function emptyTradePanelLayouts(): TradePanelLayouts {
@@ -68,8 +49,6 @@ export function emptyTradePanelLayouts(): TradePanelLayouts {
     openMarketRows: {},
     headerProfitVisible: true,
     chartToolbarPosition: null,
-    activeNamedId: null,
-    named: [],
   }
 }
 
@@ -167,7 +146,7 @@ export function useRememberedPanelLayoutInPlace(
     [panelIds]
   )
 
-  // A first-browser import or a named-layout switch can land after the group
+  // A first-browser import can land after the group
   // has registered. Hand the answer to that same group; never key-remount it.
   useEffectBeforePaint(() => {
     const next = matchingPanelLayout(savedLayout, panelIds)
@@ -264,18 +243,6 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
     if (layout) current[key] = layout
   }
 
-  const named = Array.isArray(record.named)
-    ? record.named
-        .map(readNamedPanelLayout)
-        .filter((layout): layout is NamedPanelLayout => layout !== null)
-        .slice(0, MAX_NAMED_PANEL_LAYOUTS)
-    : []
-  const activeNamedId =
-    typeof record.activeNamedId === "string" &&
-    named.some((layout) => layout.id === record.activeNamedId)
-      ? record.activeNamedId
-      : null
-
   return {
     legacyImported: record.legacyImported === true,
     current,
@@ -286,53 +253,7 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
         : true,
     chartToolbarPosition:
       readChartToolbarPosition(record.chartToolbarPosition) ?? null,
-    activeNamedId,
-    named,
   }
-}
-
-function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return null
-  }
-  const record = value as Record<string, unknown>
-  const name = typeof record.name === "string" ? record.name.trim() : ""
-  const horizontal = matchingPanelLayout(
-    record.horizontal,
-    tradePanelIds[tradePanelLayoutKey.workspaceHorizontal]
-  )
-  const vertical = matchingPanelLayout(
-    record.vertical,
-    tradePanelIds[tradePanelLayoutKey.workspaceVertical]
-  )
-  if (
-    typeof record.id !== "string" ||
-    record.id.length === 0 ||
-    record.id.length > 36 ||
-    name.length === 0 ||
-    name.length > 32 ||
-    !horizontal ||
-    !vertical
-  ) {
-    return null
-  }
-  const layout: NamedPanelLayout = {
-    id: record.id,
-    name,
-    horizontal,
-    vertical,
-    openMarketRows: readOpenMarketRows(record.openMarketRows),
-  }
-  if (typeof record.headerProfitVisible === "boolean") {
-    layout.headerProfitVisible = record.headerProfitVisible
-  }
-  const chartToolbarPosition = readChartToolbarPosition(
-    record.chartToolbarPosition
-  )
-  if (chartToolbarPosition !== undefined) {
-    layout.chartToolbarPosition = chartToolbarPosition
-  }
-  return layout
 }
 
 /** Invalid stored coordinates are ignored; null is the deliberate home spot. */

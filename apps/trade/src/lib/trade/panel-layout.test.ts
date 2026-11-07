@@ -65,9 +65,9 @@ describe("remembered trade panel layouts", () => {
           chart: 58,
           account: 22,
         },
-        [tradePanelLayoutKey.workspaceVertical]: {
+        [tradePanelLayoutKey.flowRunVertical]: {
           workspace: 72,
-          activity: 28,
+          trades: 28,
         },
         "trade-workspace-market-column": {
           folders: 68,
@@ -80,14 +80,16 @@ describe("remembered trade panel layouts", () => {
     expect(
       saved.current[tradePanelLayoutKey.workspaceHorizontal]
     ).toBeUndefined()
-    expect(saved.current[tradePanelLayoutKey.workspaceVertical]).toEqual({
+    expect(saved.current[tradePanelLayoutKey.flowRunVertical]).toEqual({
       workspace: 72,
-      activity: 28,
+      trades: 28,
     })
     expect(saved.current).not.toHaveProperty("trade-workspace-market-column")
   })
 
-  it("reads the active layout and its open folder without dropping old layouts", () => {
+  it("reads the open folder and drops the saved layouts that were removed", () => {
+    // Saved layouts left the dashboard on 7 Nov 2026 (Tyler: "also remove the
+    // saved layout feature"); a row still holding them reads without them.
     const saved = readTradePanelLayouts({
       legacyImported: true,
       current: {},
@@ -95,37 +97,14 @@ describe("remembered trade panel layouts", () => {
       headerProfitVisible: false,
       chartToolbarPosition: { x: 0.25, y: 0.75 },
       activeNamedId: "layout-1",
-      named: [
-        {
-          id: "layout-1",
-          name: "Reading",
-          horizontal: { markets: 20, chart: 58, "smart-orders": 22 },
-          marketColumn: { folders: 68, alerts: 32 },
-          vertical: { workspace: 72, activity: 28 },
-          openMarketRows: { [scope]: "watched", unknown: "all" },
-          headerProfitVisible: false,
-          chartToolbarPosition: null,
-        },
-        {
-          id: "layout-2",
-          name: "Older saved layout",
-          horizontal: { markets: 20, chart: 58, "smart-orders": 22 },
-          vertical: { workspace: 72, activity: 28 },
-        },
-      ],
+      named: [{ id: "layout-1", name: "Reading" }],
     })
 
     expect(saved.openMarketRows).toEqual({ [scope]: null })
     expect(saved.headerProfitVisible).toBe(false)
     expect(saved.chartToolbarPosition).toEqual({ x: 0.25, y: 0.75 })
-    expect(saved.activeNamedId).toBe("layout-1")
-    expect(saved.named[0]?.openMarketRows).toEqual({})
-    expect(saved.named[0]).not.toHaveProperty("marketColumn")
-    expect(saved.named[0]?.headerProfitVisible).toBe(false)
-    expect(saved.named[0]?.chartToolbarPosition).toBeNull()
-    expect(saved.named[1]?.openMarketRows).toEqual({})
-    expect(saved.named[1]?.headerProfitVisible).toBeUndefined()
-    expect(saved.named[1]?.chartToolbarPosition).toBeUndefined()
+    expect(saved).not.toHaveProperty("named")
+    expect(saved).not.toHaveProperty("activeNamedId")
   })
 
   it("ignores unreadable drawing toolbar coordinates", () => {
@@ -135,22 +114,13 @@ describe("remembered trade panel layouts", () => {
     ).toBeNull()
   })
 
-  it("clears an active id that no longer names a readable layout", () => {
-    expect(
-      readTradePanelLayouts({
-        activeNamedId: "missing",
-        named: [],
-      }).activeNamedId
-    ).toBeNull()
-  })
-
   it("reads every valid old browser key and ignores malformed neighbours", () => {
     const values = new Map<string, string>([
       [
         tradePanelLayoutKey.workspaceHorizontal,
-        JSON.stringify({ markets: 20, chart: 58, "smart-orders": 22 }),
+        JSON.stringify({ blocks: 20, chart: 58, market: 22 }),
       ],
-      [tradePanelLayoutKey.workspaceVertical, "not json"],
+      [tradePanelLayoutKey.backtestVertical, "not json"],
       [
         tradePanelLayoutKey.flowRunVertical,
         JSON.stringify({ workspace: 65, trades: 35 }),
@@ -162,9 +132,9 @@ describe("remembered trade panel layouts", () => {
 
     expect(imported).toEqual({
       [tradePanelLayoutKey.workspaceHorizontal]: {
-        markets: 20,
+        blocks: 20,
         chart: 58,
-        "smart-orders": 22,
+        market: 22,
       },
       [tradePanelLayoutKey.flowRunVertical]: { workspace: 65, trades: 35 },
     })

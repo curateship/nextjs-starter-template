@@ -28,11 +28,9 @@ import type { TradeSoundSettings } from "@/lib/trade/trade-sounds"
 import {
   emptyTradePanelLayouts,
   marketPanelScopeKey,
-  MAX_NAMED_PANEL_LAYOUTS,
   matchingPanelLayout,
   readOpenMarketRows,
   readChartToolbarPosition,
-  type ChartToolbarPosition,
   readTradePanelLayouts,
   type MarketPanelScope,
   type TradePanelLayouts,
@@ -40,7 +38,6 @@ import {
 import {
   type TradePanelLayoutKey,
   tradePanelIds,
-  tradePanelLayoutKey,
 } from "@/lib/trade/panel-keys"
 import {
   minimumMarketVolumeSchema,
@@ -773,7 +770,7 @@ export async function loadTradePanelLayouts(
   return readTradePanelLayouts(row?.panelLayouts)
 }
 
-/** Remember the eye choice and carry it into the selected named layout. */
+/** Remember the eye choice. */
 export async function saveHeaderProfitVisibility(
   userId: string,
   visible: boolean,
@@ -782,14 +779,10 @@ export async function saveHeaderProfitVisibility(
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
     headerProfitVisible: visible,
-    named: updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      headerProfitVisible: visible,
-    })),
   }))
 }
 
-/** Remember the drawing rail and carry it into the selected named layout. */
+/** Remember the drawing rail. */
 export async function saveChartToolbarPosition(
   userId: string,
   value: unknown,
@@ -800,43 +793,7 @@ export async function saveChartToolbarPosition(
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
     chartToolbarPosition: position,
-    named: updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      chartToolbarPosition: position,
-    })),
   }))
-}
-
-function updateActiveNamedLayout(
-  layouts: TradePanelLayouts,
-  change: (
-    layout: TradePanelLayouts["named"][number]
-  ) => TradePanelLayouts["named"][number]
-) {
-  if (!layouts.activeNamedId) return layouts.named
-  return layouts.named.map((layout) =>
-    layout.id === layouts.activeNamedId ? change(layout) : layout
-  )
-}
-
-function namedLayoutPanelChange(
-  layouts: TradePanelLayouts,
-  key: TradePanelLayoutKey,
-  layout: Record<string, number>
-) {
-  if (key === tradePanelLayoutKey.workspaceHorizontal) {
-    return updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      horizontal: layout,
-    }))
-  }
-  if (key === tradePanelLayoutKey.workspaceVertical) {
-    return updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      vertical: layout,
-    }))
-  }
-  return layouts.named
 }
 
 /** The two account-owned answers the live-run route needs, in one row read. */
@@ -858,7 +815,7 @@ export async function loadChartWorkspacePrefs(
   }
 }
 
-/** Remember one panel group and update the selected workspace layout. */
+/** Remember one panel group. */
 export async function saveTradePanelLayout(
   userId: string,
   key: TradePanelLayoutKey,
@@ -871,11 +828,10 @@ export async function saveTradePanelLayout(
     ...layouts,
     legacyImported: true,
     current: { ...layouts.current, [key]: layout },
-    named: namedLayoutPanelChange(layouts, key, layout),
   }))
 }
 
-/** Remember the open folder row in both the account and selected layout. */
+/** Remember the open folder row. */
 export async function saveOpenMarketRow(
   userId: string,
   scope: MarketPanelScope,
@@ -887,10 +843,6 @@ export async function saveOpenMarketRow(
     ...layouts,
     legacyImported: true,
     openMarketRows: { ...layouts.openMarketRows, [key]: rowId },
-    named: updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      openMarketRows: { ...named.openMarketRows, [key]: rowId },
-    })),
   }))
 }
 
@@ -932,167 +884,6 @@ export async function importLegacyTradePanelLayouts(
     })
     .returning({ panelLayouts: tradePrefs.panelLayouts })
   return readTradePanelLayouts(row?.panelLayouts)
-}
-
-/** Save the current trade workspace as one of at most five named choices. */
-export async function createNamedTradePanelLayout(
-  userId: string,
-  input: {
-    name: string
-    horizontal: unknown
-    vertical: unknown
-    scope: MarketPanelScope
-    openMarketRowId: unknown
-    headerProfitVisible: boolean
-    chartToolbarPosition: ChartToolbarPosition | null
-  },
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  const name = input.name.trim()
-  const horizontal = matchingPanelLayout(
-    input.horizontal,
-    tradePanelIds[tradePanelLayoutKey.workspaceHorizontal]
-  )
-  const vertical = matchingPanelLayout(
-    input.vertical,
-    tradePanelIds[tradePanelLayoutKey.workspaceVertical]
-  )
-  const chartToolbarPosition = readChartToolbarPosition(
-    input.chartToolbarPosition
-  )
-  if (
-    !name ||
-    name.length > 32 ||
-    !horizontal ||
-    !vertical ||
-    typeof input.headerProfitVisible !== "boolean" ||
-    chartToolbarPosition === undefined
-  ) {
-    throw new Error("PANEL_LAYOUT_INVALID")
-  }
-  const { key: scopeKey, rowId: openMarketRowId } = validOpenMarketRow(
-    input.scope,
-    input.openMarketRowId
-  )
-
-  return database.transaction(async (tx) => {
-    await tx
-      .insert(tradePrefs)
-      .values({ userId, panelLayouts: emptyTradePanelLayouts() })
-      .onConflictDoNothing()
-    const [row] = await tx
-      .select({ panelLayouts: tradePrefs.panelLayouts })
-      .from(tradePrefs)
-      .where(eq(tradePrefs.userId, userId))
-      .for("update")
-    const layouts = readTradePanelLayouts(row?.panelLayouts)
-    if (
-      layouts.named.some(
-        (layout) => layout.name.toLocaleLowerCase() === name.toLocaleLowerCase()
-      )
-    ) {
-      throw new Error("PANEL_LAYOUT_NAME_TAKEN")
-    }
-    if (layouts.named.length >= MAX_NAMED_PANEL_LAYOUTS) {
-      throw new Error("PANEL_LAYOUT_LIMIT")
-    }
-    const id = crypto.randomUUID()
-    const openMarketRows = {
-      ...layouts.openMarketRows,
-      [scopeKey]: openMarketRowId,
-    }
-    const saved: TradePanelLayouts = {
-      legacyImported: true,
-      current: {
-        ...layouts.current,
-        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
-        [tradePanelLayoutKey.workspaceVertical]: vertical,
-      },
-      openMarketRows,
-      headerProfitVisible: input.headerProfitVisible,
-      chartToolbarPosition,
-      activeNamedId: id,
-      named: [
-        ...layouts.named,
-        {
-          id,
-          name,
-          horizontal,
-          vertical,
-          openMarketRows: { [scopeKey]: openMarketRowId },
-          headerProfitVisible: input.headerProfitVisible,
-          chartToolbarPosition,
-        },
-      ],
-    }
-    await tx
-      .update(tradePrefs)
-      .set({ panelLayouts: saved, updatedAt: new Date() })
-      .where(eq(tradePrefs.userId, userId))
-    return saved
-  })
-}
-
-/** Make a named arrangement current in the same write that selects it. */
-export async function applyNamedTradePanelLayout(
-  userId: string,
-  id: string,
-  scope: MarketPanelScope,
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  return updateTradePanelLayouts(userId, database, (layouts) => {
-    const named = layouts.named.find((layout) => layout.id === id)
-    if (!named) throw new Error("PANEL_LAYOUT_NOT_FOUND")
-    const scopeKey = marketPanelScopeKey(scope)
-    const hasOpenRow = Object.prototype.hasOwnProperty.call(
-      named.openMarketRows,
-      scopeKey
-    )
-    return {
-      ...layouts,
-      legacyImported: true,
-      current: {
-        ...layouts.current,
-        [tradePanelLayoutKey.workspaceHorizontal]: named.horizontal,
-        [tradePanelLayoutKey.workspaceVertical]: named.vertical,
-      },
-      openMarketRows: hasOpenRow
-        ? {
-            ...layouts.openMarketRows,
-            [scopeKey]: named.openMarketRows[scopeKey] ?? null,
-          }
-        : layouts.openMarketRows,
-      headerProfitVisible:
-        named.headerProfitVisible ?? layouts.headerProfitVisible,
-      chartToolbarPosition: Object.prototype.hasOwnProperty.call(
-        named,
-        "chartToolbarPosition"
-      )
-        ? (named.chartToolbarPosition ?? null)
-        : layouts.chartToolbarPosition,
-      activeNamedId: id,
-    }
-  })
-}
-
-/** Delete one named arrangement without moving the dividers on screen. */
-export async function deleteNamedTradePanelLayout(
-  userId: string,
-  id: string,
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  return updateTradePanelLayouts(userId, database, (layouts) => {
-    const named = layouts.named.filter((layout) => layout.id !== id)
-    if (named.length === layouts.named.length) {
-      throw new Error("PANEL_LAYOUT_NOT_FOUND")
-    }
-    return {
-      ...layouts,
-      activeNamedId:
-        layouts.activeNamedId === id ? null : layouts.activeNamedId,
-      named,
-    }
-  })
 }
 
 async function updateTradePanelLayouts(

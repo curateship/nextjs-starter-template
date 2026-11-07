@@ -5,14 +5,10 @@
 The same panel parts as the Automation Canvas, not a second system. Anything
 fixed in one is fixed in both.
 
-- The divider between the order panels is gone. Grid, DCA and Manual orders
-  size to their contents and fill the right column between them.
-  The old 60/40 split is no longer saved or read.
-- **Each order panel starts at the height its own rows need.** When the
-  column has height to spare, the lowest panel on screen takes it, so no card
-  ends in empty space above a panel that scrolls. That is Manual orders unless
-  Hide on empty has taken it away, then DCA, then Grid: a Grid panel on its
-  own fills the whole column (Tyler, 8 Oct 2026).
+- **Grid, DCA and Manual orders are blocks on the exchange's page** (the
+  Admin 3 panel design, 7 Nov 2026, `dashboard-blocks.md`). Each block is as
+  tall as its rows up to a cap, then scrolls inside itself, and a folded block
+  is its heading alone.
 - **Every order panel adds its rows up in a row pinned to its bottom**
   (Tyler, 8 Oct 2026). The first cell counts the trades, "3 trades", in place
   of the word Total; then their Value added together and their PnL added
@@ -23,49 +19,14 @@ fixed in one is fixed in both.
   nothing yet; with none it shows a dash. Value shows a dash the moment one
   row has no value yet, since a total missing a row would be wrong rather
   than incomplete. The code is `order-panel-totals.tsx`.
-- **A short column takes height from all three in proportion to what they
-  hold** (Tyler, 6 Oct 2026). An empty Manual orders shrinks to its heading and
-  its one message, and hands the rest to Grid and DCA. Before this, Grid and
-  DCA stopped at 35% of the column each and Manual orders kept a blank box
-  while Grid scrolled.
-- **Each panel has a floor.** Grid and DCA keep 8rem, enough for the heading
-  and a row. Manual orders keeps 11rem, enough for its empty message.
-- **Hide on empty takes an empty panel out of the column** (Tyler, 8 Oct
-  2026). The switch is in the chart's View options, under the heading "Grid,
-  DCA and Manual orders", off until it is turned on, and it follows the
-  account like the rest of that menu. With it on, a panel with no row to show
-  is not drawn, and the panels that do have rows take its height. The panel
-  comes back the moment it has a row: a grid or ladder placed, a price
-  watched, or a coin bought by hand, which Manual orders lists as a row.
-- **"Empty" means nothing to show, never "could not read".** A panel whose
-  read failed stays on screen with its message and Retry button, because a
-  hidden Retry button cannot be pressed. A panel still reading, with nothing
-  remembered from last time, counts as empty and appears when its rows land.
-- **With all three empty, the column says so** in one line, "Nothing is
-  working or waiting", rather than standing as a blank strip that looks like
-  a page that broke. The same rule holds inside the collapsed column's menu
-  and in the narrow-screen side sheet, which draw the same three panels.
-- **The code.** Each panel reports whether it is empty through
-  `onEmptyChange` (`smart-orders-panel.tsx` and `watched-orders-list.tsx`),
-  because only the panel knows what it is listing: the smart-order panels read
-  a cache before the server answers, and Manual orders counts held coins.
-  `trade-workspace.tsx` keeps the three answers and sets the `hidden`
-  attribute on the wrapper of each empty one. A hidden panel stays mounted so
-  it can say when it has a row again. The choice is `hideEmptyOrderPanels` in
-  the saved chart options (`src/lib/trade/chart-options.ts`), so a row saved
-  before the switch existed reads as off.
-- **Worked example, a 859px column:** 13 grids want 567px, 6 ladders 315px and
-  an empty Manual orders 176px, which is 1,058px against 847px of room. Grid
-  gets 431px and shows 10 of its 13 rows, DCA gets 240px and shows 5 of its
-  6, and Manual orders sits on its 176px floor.
-- The dividers beside the chart and above Positions still drag.
+- **"Empty" means nothing to show, never "could not read".** A block whose
+  read failed shows its message and Retry button. A block still reading, with
+  nothing remembered from last time, says so until its rows land.
+- The dividers beside the chart still drag. Each side panel opens at 16% and
+  drags to 36%.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back. **Both
-  edges have one.** On the trade workspace the orders panel had only the menu
-  in the chart header, which says what is in the panel but never that the panel
-  itself can come back, so a panel dragged shut looked gone for good.
-- **The bottom never disappears.** It shuts down to its own tab row, which stays
-  on screen with its counts, and the divider above it stays draggable.
+  edges have one**, so a panel dragged shut never looks gone for good.
 - **Positions open with the most Unrealized P&L first.** The largest current
   profit sits at the top and losses fall underneath it. The Unrealized P&L
   heading shows that order and reverses it when pressed.
@@ -84,27 +45,12 @@ fixed in one is fixed in both.
 - A saved set of panel sizes returns only while its panel names still match the
   current screen. When a redesign replaces a panel, the old sizes are ignored
   and the current layout opens at its defaults instead of stopping the page.
-- **Up to five trade-workspace layouts can have names.** The layout button in
-  the chart header opens the same compact checkbox list used by the market
-  folder picker. The plus creates a name from the panel arrangement on screen.
-  The checked name updates itself after every divider drag, panel collapse,
-  open folder row change and press of the eye in the Active trades window.
-  There is no save button. Pressing any name restores its panels, folder row
-  and eye choice in place.
-- **A named layout includes the open folder row.** The saved name remembers
-  which Folders row is open, or that every row is closed, for each exchange
-  where that name has been saved. Older names that do not contain a folder
-  choice still restore their panel sizes and leave the current folder alone.
-- **The open folder row follows the account even before a layout is named.**
+- **The open folder row follows the account.**
   Opening or closing Watched, Fav, a named folder or All markets returns after
   a reload on that exchange. Another exchange keeps its own open row.
-- **Layout deletion stays out of the way.** A row shows its bin only under the
-  pointer or keyboard focus. The bin is a plain low-emphasis button and asks
-  for confirmation before removing the name. Deleting a name never moves the
-  current panels.
 - **The chart has its own full-screen view.** Press the full-screen button or F
-  while no field is being typed in. The side panels, bottom panel and page
-  chrome leave, while the chart header stays. The full-screen button remains at
+  while no field is being typed in. The side panels, the middle panel's tab
+  row and the page chrome leave, while the chart header stays. The full-screen button remains at
   the plot's bottom-right, just left of the price numbers, as the exit button.
   Press the button again, F again or Escape to restore the exact divider
   positions and shut panels from before. The chart and its panel groups stay mounted, so
@@ -112,43 +58,11 @@ fixed in one is fixed in both.
   viewport-wide frame is removed before the saved percentages are put back;
   otherwise a percentage restored against that wider frame becomes a larger
   pixel width when the shell returns. Nothing animates.
-- **Pressing a tab in the bottom panel grows it to fit that tab's rows.** Six
-  waiting buys means all six on screen without touching the divider. The panel
-  grows through the same resizable panel the divider drags, so there is one
-  thing setting the height rather than two fighting over it.
-- **It grows to the rows or to half the workspace, whichever is smaller.** The
-  chart always keeps the other half. Past that the table scrolls inside the
-  panel; the page itself never scrolls.
-- **The tab you are already on opens the panel too, and closes it again.**
-  Press it and the panel grows to fit that tab's rows; press it once more and
-  it goes back to the height you had dragged the divider to. That is the press
-  you make when the rows you want are already in front of you and there are not
-  enough of them on screen, so it can never be the press that does nothing.
-- **A panel shut down to its tab row opens when its tab is pressed**, to the
-  height the divider was left at. Pressing again then grows it to fit. It opens
-  rather than growing straight to the rows because the panel learns the height
-  to reopen on from whatever height it was shut at, so a panel shut while grown
-  would reopen on the grown height and then remember it, which is the one thing
-  the grown height must never become.
-- **A double-click on blank space shuts the panel from any height**, grown or
-  not, and opens it again on the dragged height. The gesture is told plainly to
-  shut or to open rather than to toggle, because a toggle judging the panel
-  after the growing had already been undone shut it and reopened it in the same
-  motion, on alternate tries.
-- **The grown height is never remembered.** A reload opens on the height the
-  divider was left at, which is what the rule above already promises. Dragging
-  the divider after growing wins: the new height is the one remembered and the
-  one a second press returns to.
-- **Growing never makes the panel smaller.** A tab with two rows in it leaves
-  the divider where it is.
-- **A table still loading grows nothing.** Neither does one whose read failed.
-  Both draw a single message where the rows would be, and fitting the panel to
-  a sentence is not fitting it to the rows.
-- **The panel jumps to the new height, with nothing animating.** So the
-  reduced-motion setting has nothing to switch off here, and a chart in the
-  middle of drawing is not redrawn thirty times on the way.
+- **Positions, Open orders and the Journal are tabs beside the chart** in the
+  middle panel, each filling its height and scrolling inside it. The page
+  itself never scrolls.
 - **The column headings stay on screen while the rows scroll.** All three
-  tables down here pin their heading row to the top of the box it scrolls in,
+  tables pin their heading row to the top of the box it scrolls in,
   so scrolling a long Journal never leaves you reading eleven unlabelled
   columns of dollars. The pinned row is opaque, because rows slide underneath
   it, and it takes the same hairline under it that every other table in the app
@@ -176,7 +90,7 @@ fixed in one is fixed in both.
   from its fills, so nothing about the money moves. Ticking a row never draws
   its trade on the chart, and a tick disappears with its row when a refresh
   takes the trade away, so Remove (n) can only ever mean rows on screen. The
-  Journal is the one table down here with checkboxes on purpose — positions
+  Journal is the one table with checkboxes on purpose — positions
   and open orders are a live readout where a row can close itself between the
   tick and the button, so their actions stay one row at a time.
 
@@ -184,22 +98,13 @@ fixed in one is fixed in both.
 
 Designed with the wide one, not bolted on.
 
-- The middle panel takes the whole width and stays the main thing.
-- Two labelled buttons in the market header slide the side panels in. The
-  Markets sheet holds the full market list. The right sheet holds the separate
-  Smart orders and Manual orders panels. Wallet management stays in
-  the chart header on every width.
-- A sheet closes toward the same edge it opened from. Closing the order panels
-  keeps the sheet on the right until it is gone; it never turns into Markets on
-  the left during the closing animation. The panel completes that exit in
-  150ms instead of drifting a short distance and then disappearing. Reduced
-  motion removes the animation.
-- The bottom panel stays where it is — it already works at any width.
-- Full screen hides that bottom panel and the page chrome. The side panels are
-  already sheets at this width, so any open sheet closes while the chart is
-  full screen and returns on exit.
-- A slid-open sheet closes when the window crosses the width boundary, in
-  either direction.
+- **Under 1280px one panel shows at a time** behind a pill row: Blocks, the
+  market's name, Market (the Admin 3 panel design). It opens on the chart.
+- Picking a coin in a block switches to the chart.
+- On a phone the middle panel's tab row slides sideways, and Close all is a
+  row in the header's ⋮, so the four tabs keep their room.
+- Full screen shows the chart alone at any width, and Escape puts the pill row
+  back.
 
 ## Stand-in figures
 
@@ -235,13 +140,13 @@ not remove the way to choose a market.
   caption, the sheet's "Markets" title is read only by screen readers, and
   Settings has its own Markets tab that the sentence would be confused with.
 - Account — "No account connected yet."
-- Positions / Open orders / Fills — each says what would be there.
+- Positions / Open orders / Journal — each says what would be there.
 
 **A table with nothing in it keeps its column headings.** The empty words are a
 row inside the table, spanning every column, sitting under the real heading
 row. They are never a paragraph drawn instead of the table. Closing your last
-position therefore leaves the headings where they were and the bottom panel
-does not jump, which matters because that jump used to land at the exact moment
+position therefore leaves the headings where they were and the table does not
+jump, which matters because that jump used to land at the exact moment
 a position closed. Still reading and a failed read already worked this way; the
 empty state now matches them, and the three answers stay separate — a table
 never says "nothing here" before a read has really landed.

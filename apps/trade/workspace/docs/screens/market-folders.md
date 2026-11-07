@@ -24,11 +24,12 @@ The market picker uses the same control. Its Favorites view reads Fav only.
 
 ## Opening folders
 
-The chart header's folder menu holds saved folders and All markets. The left
-column now holds the Rules box, and the market scanner is a radar button in
-the chart header, described in `market-scanner.md`. Folder data
-is preserved. The menu's cog opens create, rename, reorder, hide and delete
-controls. The management window ends with a primary Done button.
+The Folders block on the exchange's page (the dashboard's left panel, the
+Admin 3 panel design, 7 Nov 2026, `dashboard-blocks.md`) holds saved folders
+and All markets. The plus in its heading makes a folder, and its cog opens
+create, rename, reorder, hide and delete controls in the left panel. Adding
+the market on the chart to a folder is the Folders row in the market's ⋮ on
+the right panel, which did what the star in the chart header did. The management window ends with a primary Done button.
 
 Markets inside an open folder run from the largest reported 24-hour gain to
 the largest loss. A market whose exchange did not report a 24-hour change sits
@@ -135,13 +136,12 @@ A backtest also reads the folder once at the start. The backtest saves the
 exact market keys it read, so the result still records the coins that produced
 it after the folder changes.
 
-## The folder dropdown
+## The Folders block
 
-The folder button beside the market name opens the same market rows as the left panel.
+The Folders block shows the same market rows as the market list.
 
-- **Visibility:** The dropdown respects each saved folder's visibility setting, including Favorites. Watched and All markets respect their own visibility settings.
+- **Visibility:** The block respects each saved folder's visibility setting, including Favorites. Watched and All markets respect their own visibility settings.
 - **Contents:** Watched uses the same waiting-order list. All markets respects the daily volume cutoff and manually hidden markets.
-- **Rows:** Market rows fill the dropdown width. Symbols, daily volume, change badges and selected states use the left panel's MarketRowLine component.
-- **Size:** The dropdown is at most 16.8rem wide, about 269 pixels at the default text size. The width is 30 percent smaller than the previous 384 pixels.
-- **Scrolling:** Expanded lists use the themed ScrollArea. The folder heading stays visible; the create form and list scroll below it.
-- **Selection:** Choosing a market keeps the dropdown open. Moving the pointer away or pressing Escape closes the dropdown.
+- **Rows:** Market rows fill the block's width. Symbols, daily volume, change badges and selected states use the MarketRowLine component.
+- **Scrolling:** Expanded lists use the themed ScrollArea, at most 20rem tall inside the block.
+- **Selection:** Choosing a market puts it on the chart and leaves the block as it is.

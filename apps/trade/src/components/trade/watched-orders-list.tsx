@@ -94,7 +94,6 @@ export function WatchedOrdersList({
   onRetry,
   onSelectMarket,
   selectedKey,
-  onEmptyChange,
 }: {
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly TradeOrder[]
@@ -127,15 +126,6 @@ export function WatchedOrdersList({
   settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
-  /**
-   * Told whenever the list has no row to show, or has one again, so the
-   * dashboard can leave the Manual orders panel out when Hide on empty is on.
-   * A coin held by hand is a row, so a panel listing one is not empty. A
-   * failed read with nothing listed is never "empty": its Retry button has to
-   * stay reachable. Reported before paint, so the panel is never drawn for a
-   * frame and then taken away.
-   */
-  onEmptyChange?: (empty: boolean) => void
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   /** The market on the chart, so its rows read as the one already open. */
@@ -341,11 +331,6 @@ export function WatchedOrdersList({
     sort,
     walletName,
   ])
-
-  const empty = tableRows.length === 0 && !failed
-  useEffectBeforePaint(() => {
-    onEmptyChange?.(empty)
-  }, [empty, onEmptyChange])
 
   const heading = (column: ManualOrderColumn, label: string) => (
     <TableSortButton

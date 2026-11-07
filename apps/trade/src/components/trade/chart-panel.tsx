@@ -2578,6 +2578,8 @@ export function ChartPanel({
               factsFor={ruleFacts}
               onEditRule={onEditRule}
               idleNote={rulesIdleNote}
+              // The slot is the dashboard's Rules block, whose heading names it.
+              bare
             />,
             rulesSlot
           )

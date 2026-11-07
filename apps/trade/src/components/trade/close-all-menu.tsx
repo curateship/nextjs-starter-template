@@ -1,5 +1,4 @@
 import * as React from "react"
-import { ChevronDownIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -61,9 +60,11 @@ export function CloseAllMenu({
   restingOrders,
   markets,
   realWallets,
-  busy,
   onConfirm,
+  trigger,
 }: {
+  /** Its row in the middle panel's ⋮, which opens it. */
+  trigger: React.ReactElement
   positions: readonly TradePosition[]
   /**
    * How many of those positions a listed ladder or grid is running. Closed
@@ -88,7 +89,6 @@ export function CloseAllMenu({
    * rungs resting on an exchange.
    */
   realWallets: ReadonlySet<string>
-  busy: boolean
   onConfirm: (picked: CloseAllPick) => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -104,21 +104,7 @@ export function CloseAllMenu({
   return (
     <Popover open={open} onOpenChange={openMenu}>
       <PopoverTrigger asChild>
-        {/* It wears the grey the chart's own toolbar buttons wear, and an X
-            rather than the bin the Journal's Remove uses — the two sit side by
-            side on the Journal tab, and one icon meaning "throw these records
-            away" and "sell everything I own" at once is how a fast press goes
-            to the wrong one. */}
-        <Button
-          type="button"
-          variant="outline"
-          className="bg-muted"
-          disabled={busy}
-        >
-          <XIcon className="size-4" />
-          Close all
-          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-        </Button>
+        {trigger}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-2">
         <CloseAllChoices

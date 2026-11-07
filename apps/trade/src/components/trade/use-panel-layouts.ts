@@ -2,9 +2,6 @@ import * as React from "react"
 import type { Layout } from "react-resizable-panels"
 
 import {
-  applyNamedPanelLayout,
-  createNamedPanelLayout,
-  deleteNamedPanelLayout,
   getPanelLayoutErrorMessage,
   importLegacyPanelLayouts,
   saveChartToolbarPosition,
@@ -12,11 +9,9 @@ import {
   savePanelLayout,
 } from "@/lib/api/trade/panel-layouts"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
-import { setHidePnl } from "@/lib/trade/hide-pnl"
 import {
   TRADE_PANEL_LAYOUT_KEYS,
   type TradePanelLayoutKey,
-  tradePanelLayoutKey,
 } from "@/lib/trade/panel-keys"
 import {
   clearLegacyTradePanelLayouts,
@@ -170,106 +165,11 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     [enqueue]
   )
 
-  const createNamed = React.useCallback(
-    async (
-      name: string,
-      horizontal: Layout,
-      vertical: Layout,
-      scope: MarketPanelScope,
-      openMarketRowId: string | null,
-      headerProfitVisible: boolean,
-      chartToolbarPosition: ChartToolbarPosition | null
-    ) => {
-      const saved = await enqueue(() =>
-        createNamedPanelLayout({
-          name,
-          horizontal,
-          vertical,
-          scope,
-          openMarketRowId,
-          headerProfitVisible,
-          chartToolbarPosition,
-        })
-      )
-      // Creating a name does not move the panels. A drag made while the save
-      // was travelling keeps its newer on-screen answer.
-      setLoaded((state) => ({
-        ...state,
-        value: {
-          ...saved,
-          current: state.value.current,
-          openMarketRows: state.value.openMarketRows,
-          chartToolbarPosition: state.value.chartToolbarPosition,
-        },
-      }))
-    },
-    [enqueue]
-  )
-
-  const applyNamed = React.useCallback(
-    async (id: string, scope: MarketPanelScope) => {
-      const versions = { ...currentVersions.current }
-      const scopeKey = marketPanelScopeKey(scope)
-      const openVersion = openMarketRowVersions.current[scopeKey] ?? 0
-      const toolbarVersion = chartToolbarPositionVersion.current
-      const saved = await enqueue(() => applyNamedPanelLayout(id, scope))
-      setLoaded((state) => ({
-        ...state,
-        value: {
-          ...saved,
-          current: keepNewerCurrent(
-            saved.current,
-            state.value.current,
-            versions,
-            currentVersions.current,
-            [
-              tradePanelLayoutKey.workspaceHorizontal,
-              tradePanelLayoutKey.workspaceVertical,
-            ]
-          ),
-          openMarketRows:
-            (openMarketRowVersions.current[scopeKey] ?? 0) === openVersion
-              ? saved.openMarketRows
-              : {
-                  ...saved.openMarketRows,
-                  [scopeKey]: state.value.openMarketRows[scopeKey] ?? null,
-                },
-          chartToolbarPosition:
-            chartToolbarPositionVersion.current === toolbarVersion
-              ? saved.chartToolbarPosition
-              : state.value.chartToolbarPosition,
-        },
-      }))
-      setHidePnl(!saved.headerProfitVisible)
-    },
-    [enqueue]
-  )
-
-  const deleteNamed = React.useCallback(
-    async (id: string) => {
-      const saved = await enqueue(() => deleteNamedPanelLayout(id))
-      // Deleting a name never moves the dividers.
-      setLoaded((state) => ({
-        ...state,
-        value: {
-          ...saved,
-          current: state.value.current,
-          openMarketRows: state.value.openMarketRows,
-          chartToolbarPosition: state.value.chartToolbarPosition,
-        },
-      }))
-    },
-    [enqueue]
-  )
-
   return {
     layouts,
     remember,
     rememberOpenMarketRow,
     rememberChartToolbarPosition,
-    createNamed,
-    applyNamed,
-    deleteNamed,
   }
 }
 

@@ -263,8 +263,6 @@ export const tradePrefs = pgTable("trade_prefs", {
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-      activeNamedId: null,
-      named: [],
     }),
   /**
    * What a plain order does while it waits: rest on the exchange, or be
@@ -2494,5 +2492,33 @@ export const tradeSocialFolderCreators = pgTable(
   (table) => [
     primaryKey({ columns: [table.folderId, table.creatorId] }),
     index("trade_social_folder_creators_creator_idx").on(table.creatorId),
+  ]
+)
+
+/**
+ * The pages on a protocol dashboard (the Admin 3 panel design, 7 Nov 2026):
+ * the exchange's own page on the left, stored with `market_key` "", and one
+ * page per market on the right. Each is the editor's document as JSON text.
+ * No row means the page was never written, so the starting page shows.
+ */
+export const tradePages = pgTable(
+  "trade_pages",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    marketKey: varchar("market_key", { length: 180 }).notNull().default(""),
+    body: text("body").notNull().default(""),
+    // Lock the notes: the page reads only, and the server refuses a save.
+    locked: boolean("locked").notNull().default(false),
+    // The cover photo behind the panel's header; null is none.
+    coverUrl: text("cover_url"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.protocol, table.marketKey] }),
   ]
 )

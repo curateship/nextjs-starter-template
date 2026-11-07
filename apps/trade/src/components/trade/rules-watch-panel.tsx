@@ -107,7 +107,13 @@ export function RulesWatchPanel({
   factsFor,
   idleNote = null,
   onEditRule,
+  bare = false,
 }: {
+  /**
+   * In the dashboard's Rules block, whose heading already says Rules, so the
+   * box drops its own shield and title and keeps the rule picker and cog.
+   */
+  bare?: boolean
   /** Opens the rule's settings window. Without it there is no cog. */
   onEditRule?: (ruleId: string) => void
   marketKey: string
@@ -134,11 +140,13 @@ export function RulesWatchPanel({
   if (switchedOn.length === 0 || idleNote) {
     return (
       <div data-rules-box className={shellClass}>
-        <div className="flex h-12 w-full items-center gap-2 px-4">
-          <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="font-semibold">Rules</span>
-        </div>
-        <p className="border-t px-4 py-3 text-xs text-muted-foreground">
+        {bare ? null : (
+          <div className="flex h-12 w-full items-center gap-2 px-4">
+            <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="font-semibold">Rules</span>
+          </div>
+        )}
+        <p className={cn("px-4 py-3 text-xs text-muted-foreground", !bare && "border-t")}>
           {idleNote ??
             "No trading rules are switched on. Turn one on in Settings, Trading rules."}
         </p>
@@ -160,8 +168,12 @@ export function RulesWatchPanel({
       {/* The header picks the rule and edits it (Tyler, 15 Oct 2026). The
           counts that used to sit here are in the body, under it. */}
       <div className="flex h-12 w-full items-center gap-2 px-4">
-        <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="font-semibold">Rules</span>
+        {bare ? null : (
+          <>
+            <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="font-semibold">Rules</span>
+          </>
+        )}
         <Select value={current.rule.id} onValueChange={pick}>
           <SelectTrigger
             aria-label="Rule shown"

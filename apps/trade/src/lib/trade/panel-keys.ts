@@ -10,10 +10,13 @@
  * so a key from one can never land on the other.
  */
 export const tradePanelLayoutKey = {
-  /** Markets | chart | smart orders, across the workspace. */
-  workspaceHorizontal: "trade-workspace-horizontal",
-  /** The chart row above, the positions row below. */
-  workspaceVertical: "trade-workspace-vertical",
+  /**
+   * The exchange's page | the chart and tables | the market's page, across
+   * the dashboard (the Admin 3 panel design, 7 Nov 2026). The number moved
+   * with the new panels, so a width saved for the old four-panel dashboard
+   * is not applied to the new one. There is no bottom row any more.
+   */
+  workspaceHorizontal: "trade-workspace-horizontal-2",
   /** A backtest run: settings | chart | summary, across the workspace. */
   backtestHorizontal: "trade-backtest-horizontal-2",
   /** The backtest workspace above, its coins and trades below. */
@@ -48,12 +51,7 @@ export const TRADE_PANEL_LAYOUT_KEYS = Object.values(tradePanelLayoutKey)
 
 /** The exact panel names each saved group must contain. */
 export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
-  [tradePanelLayoutKey.workspaceHorizontal]: [
-    "markets",
-    "chart",
-    "smart-orders",
-  ],
-  [tradePanelLayoutKey.workspaceVertical]: ["workspace", "activity"],
+  [tradePanelLayoutKey.workspaceHorizontal]: ["blocks", "chart", "market"],
   [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
   [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
   [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],

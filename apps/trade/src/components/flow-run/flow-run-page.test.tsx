@@ -199,8 +199,6 @@ describe("a live run coin's chart", () => {
             openMarketRows: {},
             headerProfitVisible: true,
             chartToolbarPosition: null,
-            activeNamedId: null,
-            named: [],
           }}
         />
       )

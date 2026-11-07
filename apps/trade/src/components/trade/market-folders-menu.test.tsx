@@ -61,7 +61,7 @@ afterEach(async () => {
   delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
 })
 
-describe("the folders menu", () => {
+describe("the Folders block", () => {
   it.each([false, true])(
     "respects visibility and selects markets, hidden=%s",
     async (hidden) => {
@@ -121,29 +121,13 @@ describe("the folders menu", () => {
         )
       })
 
-      expect(button("Open folders").dataset.slot).toBe("popover-trigger")
-      // A pointer passing over opens nothing; a click opens the menu
-      // (Tyler, 15 Oct 2026).
-      await act(async () => {
-        button("Open folders").dispatchEvent(
-          new MouseEvent("mouseover", { bubbles: true })
-        )
-      })
-      expect(
-        document.body.querySelector('[data-slot="popover-content"]')
-      ).toBeNull()
-      await act(async () => button("Open folders").click())
-      expect(document.body.textContent).toContain("Folders")
+      // Drawn in place as a block's body: nothing to open first.
       expect(document.body.textContent).toContain("Majors")
       expect(document.body.textContent).not.toContain("Watched")
       expect(document.body.textContent?.includes("All markets")).toBe(!hidden)
       expect(document.body.textContent?.includes("Favorites")).toBe(!hidden)
       expect(button("Add folder")).not.toBeNull()
       expect(button("Manage folders")).not.toBeNull()
-      const popover = document.body.querySelector<HTMLElement>(
-        '[data-slot="popover-content"]'
-      )
-      expect(popover?.className).not.toContain("h-[28rem]")
 
       await act(async () => button("Add folder").click())
       expect(
@@ -179,12 +163,9 @@ describe("the folders menu", () => {
       expect(document.body.textContent).toContain("BTC")
       await act(async () => buttonWithText("BTC").click())
       expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:BTC")
-      // The pick puts that coin on the chart and leaves the menu up, so the
-      // next coin in the folder is one press away. Manage folders below is
-      // pressed without reopening anything, which is the proof it stayed.
-      expect(
-        document.body.querySelector('[data-slot="popover-content"]')
-      ).not.toBeNull()
+      // The pick puts that coin on the chart and leaves the folder open, so
+      // the next coin is one press away.
+      expect(document.body.textContent).toContain("BTC")
 
       await act(async () => button("Manage folders").click())
       expect(manage).toHaveBeenCalledTimes(1)

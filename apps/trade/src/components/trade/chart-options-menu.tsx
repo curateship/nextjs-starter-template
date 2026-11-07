@@ -40,14 +40,6 @@ const ACTIVITY_OPTIONS: { key: ChartOptionToggle; label: string }[] = [
   { key: "orderArrows", label: "Order arrows" },
   { key: "drawings", label: "Your drawings" },
 ]
-/**
- * The Grid, DCA and Manual orders panels beside the chart. "Hide on empty" is
- * Tyler's wording (8 Oct 2026): a panel with nothing to list leaves the
- * column, and comes back the moment it has a row.
- */
-const ORDER_PANEL_OPTIONS: { key: ChartOptionToggle; label: string }[] = [
-  { key: "hideEmptyOrderPanels", label: "Hide on empty" },
-]
 
 function ToggleRows({
   options,
@@ -88,13 +80,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function ChartOptionsMenu({
   control,
-  trigger,
-  nested = false,
 }: {
   control: ChartOptionsControl
-  trigger?: React.ReactElement
-  /** Places the dropdown beside a trigger inside another chart menu. */
-  nested?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [trades, setTrades] = React.useState(
@@ -132,18 +119,16 @@ export function ChartOptionsMenu({
 
   return (
     <Popover open={open} onOpenChange={openMenu}>
-      {trigger ? (
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      ) : (
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                // No background and no border, like every button in the chart header.
+                variant="ghost"
                 size="icon"
                 aria-label="View options"
-                className="bg-muted/60 dark:bg-muted/60"
+                className="rounded-lg"
               >
                 <EyeIcon className="size-4" />
               </Button>
@@ -151,11 +136,10 @@ export function ChartOptionsMenu({
           </TooltipTrigger>
           <TooltipContent>View options</TooltipContent>
         </Tooltip>
-      )}
       <PopoverContent
-        side={nested ? "right" : "bottom"}
-        align={nested ? "start" : "end"}
-        sideOffset={nested ? 8 : 4}
+        side="bottom"
+        align="end"
+        sideOffset={4}
         className="w-72 gap-0 p-2"
       >
         <SectionLabel>Chart</SectionLabel>
@@ -212,12 +196,6 @@ export function ChartOptionsMenu({
             />
           </div>
         ) : null}
-        <SectionLabel>Grid, DCA and Manual orders</SectionLabel>
-        <ToggleRows
-          options={ORDER_PANEL_OPTIONS}
-          values={control.options}
-          onChange={setToggle}
-        />
         <SectionLabel>
           <FieldLabel
             htmlFor="chart-option-zone"

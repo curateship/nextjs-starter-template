@@ -43,6 +43,8 @@ import { loadMarketFolders } from "@/server/trade/market-folders"
 import { tradeSoundEventsAfter } from "@/server/trade/notice-links"
 import { loadArmedPriceAlerts } from "@/server/trade/price-alerts"
 import { loadDashboardPrefs, loadLastWalletIds } from "@/server/trade/prefs"
+import { EXCHANGE_PAGE_MARKET } from "@/lib/trade/trade-pages"
+import { loadTradePage } from "@/server/trade/pages"
 import { loadWalletSummaries } from "@/server/trade/wallets"
 
 import { getCandlesErrorMessage } from "./candles"
@@ -106,6 +108,23 @@ export type DashboardCore = {
   }
   /** The wallet the account panel last had active on each exchange. */
   lastWalletIds: Record<string, string>
+  /**
+   * The dashboard's two pages, so both draw on the first paint: the
+   * exchange's own page on the left, and the remembered market's page on the
+   * right. A `body` of null was never written, so the starting page shows.
+   */
+  pages: {
+    exchange: StoredPage
+    market: (StoredPage & { marketKey: string }) | null
+  }
+}
+
+/** One page as the server keeps it. */
+export type StoredPage = {
+  body: string | null
+  locked: boolean
+  /** The cover photo behind the panel's header, or null. */
+  coverUrl: string | null
 }
 
 /** The exchange-facing half, streamed into the page after it has painted. */
@@ -207,6 +226,28 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
         })
       )
     })
+    // A page that cannot be read opens as the starting page, locked, so a
+    // save cannot overwrite words that were only out of reach for a moment.
+    const unreadPage: StoredPage = { body: null, locked: true, coverUrl: null }
+    const pagesPromise = Promise.all([
+      loadTradePage(context.user.id, data.protocol, EXCHANGE_PAGE_MARKET).catch(
+        () => unreadPage
+      ),
+      prefsPromise.then(async (prefs) => {
+        const marketKey = marketOnDashboard(
+          prefs.lastMarketKey,
+          data.protocol,
+          data.network
+        )
+        if (!marketKey) return null
+        const page = await loadTradePage(
+          context.user.id,
+          data.protocol,
+          marketKey
+        ).catch(() => unreadPage)
+        return { ...page, marketKey }
+      }),
+    ]).then(([exchange, market]) => ({ exchange, market }))
     const [
       prefs,
       folders,
@@ -214,6 +255,7 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       priceAlerts,
       tradeSounds,
       lastWalletIds,
+      pages,
     ] = await Promise.all([
       prefsPromise,
       // Losing folders must not keep the rest of the dashboard from opening.
@@ -251,6 +293,7 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       loadLastWalletIds(context.user.id).catch(
         () => ({}) as Record<string, string>
       ),
+      pagesPromise,
     ])
     return {
       folders,
@@ -269,6 +312,7 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       priceAlerts,
       tradeSounds,
       lastWalletIds,
+      pages,
     }
   })
 

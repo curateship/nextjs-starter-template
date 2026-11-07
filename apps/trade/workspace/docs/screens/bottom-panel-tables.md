@@ -1,6 +1,7 @@
-# The bottom panel's one table
+# The middle panel's tables
 
-Positions, Open orders and the Journal use one table frame. Each tab supplies
+Positions, Open orders and the Journal, the middle panel's tabs beside the
+chart (`dashboard-blocks.md`), use one table frame. Each tab supplies
 its own columns, rows, words and row actions. The frame owns the pinned heading
 row and the loading, failed and empty row beneath it.
 

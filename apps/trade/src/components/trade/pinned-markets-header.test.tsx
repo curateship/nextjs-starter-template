@@ -34,11 +34,29 @@ window.matchMedia = ((query: string) =>
   }) as unknown as MediaQueryList) as typeof window.matchMedia
 
 import PinnedMarketsHeader from "@/components/trade/pinned-markets-header"
-import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
+import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const key = (symbol: string) => `hyperliquid:mainnet:${symbol}`
+
+/**
+ * A plain stand-in for the market ⋮'s Pin to top row, driving the same shared
+ * pins store, so these tests stay about the header's chips and the store.
+ */
+function PinButton({ marketKey }: { marketKey: string }) {
+  const { pins, loaded, busy, store } = usePinnedMarkets()
+  const pinned = pins.includes(marketKey)
+  return (
+    <button
+      type="button"
+      aria-label={pinned ? "Unpin from header" : "Pin to header"}
+      aria-pressed={pinned}
+      disabled={!loaded || busy}
+      onClick={() => void store.setPin(marketKey, !pinned)}
+    />
+  )
+}
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let pins: string[]
@@ -57,7 +75,7 @@ async function mount(symbol = "BTC") {
     root.render(
       <TooltipProvider>
         <PinnedMarketsHeader role="admin" fallback={<a href="/home">Home</a>} />
-        <PinnedMarketButton marketKey={key(symbol)} />
+        <PinButton marketKey={key(symbol)} />
       </TooltipProvider>
     )
   })
@@ -151,19 +169,11 @@ describe("header market pins", () => {
         .querySelector('[aria-label="Unpin from header"]')
         ?.getAttribute("aria-pressed")
     ).toBe("true")
-    expect(
-      host
-        .querySelector('[aria-label="Unpin from header"] svg')
-        ?.getAttribute("class")
-    ).toContain("fill-amber-500")
-    expect(
-      host.querySelector('[aria-label="Unpin from header"]')?.className
-    ).toContain("hover:text-amber-700")
     await click("Unpin BTC, hyperliquid, mainnet from header")
     expect(host.textContent).toContain("Home")
     expect(host.textContent).not.toContain("+1.20%")
   })
-  it("fades the pin while it saves and lets the keyboard reach the reason", async () => {
+  it("holds the pin while it saves", async () => {
     await mount()
     let finish = () => {}
     api.save.mockImplementation(
@@ -180,16 +190,11 @@ describe("header market pins", () => {
       'button[aria-label="Unpin from header"]'
     )!
     expect(saving.disabled).toBe(true)
-    // Button's own disabled:opacity-50 does the fading; nothing overrides it.
-    expect(saving.className).not.toContain("disabled:opacity-100")
-    expect(saving.parentElement?.tagName).toBe("SPAN")
-    expect(saving.parentElement?.getAttribute("tabindex")).toBe("0")
     await act(async () => finish())
     const saved = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Unpin from header"]'
     )!
     expect(saved.disabled).toBe(false)
-    expect(saved.parentElement?.getAttribute("tabindex")).toBeNull()
   })
   it("pushes the pins to the far right of the header", async () => {
     await mount()

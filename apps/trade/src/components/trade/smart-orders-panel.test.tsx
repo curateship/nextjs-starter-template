@@ -290,48 +290,6 @@ describe("the Smart orders panel", () => {
   // Hide on empty (Tyler, 8 Oct 2026): the dashboard leaves out a panel that
   // says it is empty, so "empty" has to mean "nothing to show" and never
   // "could not read".
-  it("tells the dashboard when it has nothing to show, and when it has a row again", async () => {
-    ;(
-      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
-    ).IS_REACT_ACT_ENVIRONMENT = true
-    const host = document.createElement("div")
-    const root = createRoot(host)
-    const onEmptyChange = vi.fn()
-    const render = (state: {
-      smartOrders: readonly SmartOrder[]
-      settled: boolean
-      failed: boolean
-    }) =>
-      act(async () => {
-        root.render(
-          <SmartOrdersPanel
-            {...shared}
-            cacheScope="test:empty-report"
-            {...state}
-            onEmptyChange={onEmptyChange}
-          />
-        )
-      })
-
-    await render({ smartOrders: [], settled: true, failed: false })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(true)
-
-    await render({
-      smartOrders: [grid as SmartOrder],
-      settled: true,
-      failed: false,
-    })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(false)
-
-    await render({ smartOrders: [], settled: true, failed: false })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(true)
-
-    // A refused read with nothing listed keeps its Retry button on screen.
-    await render({ smartOrders: [], settled: true, failed: true })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(false)
-    await act(async () => root.unmount())
-  })
-
   it("lists grids under Grid and ladders under DCA", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

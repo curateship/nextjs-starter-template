@@ -1,41 +1,11 @@
-import * as React from "react"
-import { BotIcon, InfoIcon, ListIcon } from "lucide-react"
-
-import { TestnetStrip } from "@/components/trade/market-list-panel"
-import { PinnedMarketButton } from "@/components/trade/pinned-market-button"
-import { MarketPicker } from "@/components/trade/market-picker"
-import { MarketFolderStar } from "@/components/trade/market-folder-star"
-import { PhoneMenuRow } from "@/components/trade/market-phone-menu"
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { useIsMobile } from "@/hooks/use-mobile"
-import {
-  parseMarketKey,
-  type MarketPickerCapabilities,
-  type MarketRow,
-} from "@/lib/protocols/contracts"
-import type {
-  MarketFolder,
-  MarketFolderActions,
-} from "@/lib/trade/market-folders"
+import type { MarketPickerCapabilities, MarketRow } from "@/lib/protocols/contracts"
 import { formatCompactUsd } from "@/lib/trade/format"
 import { minimumOrderLabel } from "@/lib/trade/market-info"
 
 /**
- * What the middle panel is showing.
- *
- * A real market selected for the middle panel. Empty and unavailable charts do
- * not draw substitute headers.
+ * The market on the chart. Its facts are the Market info block on the
+ * market's page (the Admin 3 panel design, 7 Nov 2026); the row that used to
+ * sit over the chart went when the middle panel became one header.
  */
 export type MarketSelection = {
   kind: "market"
@@ -46,288 +16,50 @@ export type MarketSelection = {
 }
 
 /**
- * One row: the chosen market opens the full market picker, its star and its
- * leverage sit beside it, and the chart's own controls stay on the right.
+ * The same facts as name and value rows, for the Market info block on the
+ * market's page (the Admin 3 panel design, 7 Nov 2026).
  */
-export function MarketHeader({
+export function MarketInfoFacts({
   selection,
-  markets,
-  folders,
-  folderActions,
-  onSelectMarket,
-  marketAction,
-  toolbar,
-  note,
-  onOpenMarkets,
-  onOpenSmartOrders,
-  onSearchBeyond,
-  phoneToolbar,
-  phoneMenu,
 }: {
-  selection: MarketSelection
-  markets: MarketRow[]
-  folders: readonly MarketFolder[]
-  folderActions: MarketFolderActions
-  onSelectMarket: (key: string) => void
-  /** One control immediately beside the market group, before right-side tools. */
-  marketAction?: React.ReactNode
-  /** The chart's controls — the interval picker — shown only with a market. */
-  toolbar?: React.ReactNode
-  /** One short line before the controls: where the chart's older bars came from. */
-  note?: React.ReactNode
-  /**
-   * Narrow screens only. The side panels are not on screen there, so the
-   * header opens Markets and Smart orders; passing neither leaves the buttons
-   * off.
-   */
-  onOpenMarkets?: () => void
-  onOpenSmartOrders?: () => void
-  /** The venue's lookup for a market outside the list, where it has one. */
-  onSearchBeyond?: (query: string) => Promise<MarketRow[]>
-  /**
-   * Phone only. The one chart control that stays on the row — the timeframe —
-   * and the three dots holding everything else. Both are built by the
-   * workspace, because the controls inside them are the workspace's.
-   */
-  phoneToolbar?: React.ReactNode
-  phoneMenu?: React.ReactNode
-}) {
-  const phone = useIsMobile()
-  const star = (
-    <MarketFolderStar
-      symbol={selection.row.symbol}
-      marketKey={selection.row.key}
-      folders={folders}
-      busy={folderActions.busy}
-      compact={phone}
-      onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
-      onToggle={(folderId, saved) =>
-        folderActions.toggle(selection.row.key, folderId, saved)
-      }
-      onCreate={(name) => folderActions.create(selection.row.key, name)}
-    />
-  )
-  const picker = (
-    <MarketPicker
-      key={parseMarketKey(selection.row.key)?.protocol}
-      rows={markets}
-      selected={selection.row}
-      capabilities={selection.picker}
-      folders={folders}
-      folderActions={folderActions}
-      onSelect={onSelectMarket}
-      venueLabel={selection.protocolLabel}
-      onSearchBeyond={onSearchBeyond}
-      phone={phone}
-    />
-  )
-  const testnetStrip =
-    parseMarketKey(selection.row.key)?.network === "testnet" ? (
-      <TestnetStrip />
-    ) : null
-
-  // One row on a phone, and every control that is not the market itself, the
-  // timeframe or the two panels has moved into the three dots at the end. The
-  // row used to wrap onto a second line of nine buttons, which took a third of
-  // the screen before the chart began.
-  if (phone) {
-    return (
-      <>
-        <DashboardCardHeader className="flex-nowrap">
-          {onOpenMarkets ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Show markets"
-              onClick={onOpenMarkets}
-            >
-              <ListIcon className="size-4" />
-            </Button>
-          ) : null}
-          <div className="flex h-8 min-w-0 flex-1 items-center rounded-lg bg-muted/60">
-            <span className="flex h-full shrink-0 items-center pl-2">
-              {star}
-            </span>
-            {picker}
-          </div>
-          {phoneToolbar}
-          {onOpenSmartOrders ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Show smart orders"
-              onClick={onOpenSmartOrders}
-            >
-              <BotIcon className="size-4" />
-            </Button>
-          ) : null}
-          {phoneMenu}
-        </DashboardCardHeader>
-        {testnetStrip}
-      </>
-    )
-  }
-
-  const sheetButtons =
-    onOpenMarkets || onOpenSmartOrders ? (
-      <>
-        {onOpenMarkets ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Show markets"
-                onClick={onOpenMarkets}
-              >
-                <ListIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Show markets</TooltipContent>
-          </Tooltip>
-        ) : null}
-        {onOpenSmartOrders ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Show smart orders"
-                onClick={onOpenSmartOrders}
-              >
-                <BotIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Show smart orders</TooltipContent>
-          </Tooltip>
-        ) : null}
-      </>
-    ) : null
-
-  const action =
-    toolbar || sheetButtons ? (
-      <div className="flex items-center gap-2">
-        {note}
-        {toolbar}
-        {sheetButtons}
-      </div>
-    ) : undefined
-
-  return (
-    <>
-      <DashboardCardHeader className="flex-wrap sm:flex-nowrap">
-        {star}
-        <PinnedMarketButton marketKey={selection.row.key} />
-        <div className="flex h-8 min-w-0 items-center rounded-lg bg-muted/60">
-          {picker}
-          <span className="flex h-full shrink-0 items-center">
-            <MarketInfo selection={selection} />
-          </span>
-        </div>
-        {marketAction}
-        {action ? <div className="ml-auto shrink-0">{action}</div> : null}
-      </DashboardCardHeader>
-      {testnetStrip}
-    </>
-  )
-}
-
-/** What the exchange says about this market, one fact to a line. */
-function marketInfoLines(
   selection: Extract<MarketSelection, { kind: "market" }>
-) {
+}) {
   const leverage =
     selection.row.maxLeverage === null
       ? "Not stated publicly"
       : `${selection.row.maxLeverage}×`
-  return [
-    selection.protocolLabel,
-    selection.networkLabel,
-    `Price tick: ${selection.row.priceTick ?? "Exchange rounding rule"}`,
-    "List price: mark price",
-    "Chart bars: traded prices",
-    `Daily volume: ${formatCompactUsd(selection.row.volume24hUsd)}`,
-    selection.row.liquidityUsd != null
-      ? `Pool liquidity: ${formatCompactUsd(selection.row.liquidityUsd)}`
-      : null,
-    minimumOrderLabel(selection.row),
-    `Top leverage: ${leverage}`,
-  ].filter((line): line is string => Boolean(line))
-}
-
-function marketInfoLabel(
-  selection: Extract<MarketSelection, { kind: "market" }>
-) {
-  return `About ${selection.row.symbol} market, ${selection.protocolLabel}, ${selection.networkLabel}`
-}
-
-/**
- * The market's facts, opened with a click (Tyler, 15 Oct 2026: "make it click
- * dropdown instead"). It was a hover tooltip, which opened whenever the
- * pointer crossed the header.
- */
-function MarketInfo({
-  selection,
-}: {
-  selection: Extract<MarketSelection, { kind: "market" }>
-}) {
+  const minimum = minimumOrderLabel(selection.row)
+  const rows: [string, string][] = [
+    ["Exchange", selection.protocolLabel],
+    ["Network", selection.networkLabel],
+    ["Price tick", String(selection.row.priceTick ?? "Exchange rounding rule")],
+    ["List price", "Mark price"],
+    ["Chart bars", "Traded prices"],
+    ["Daily volume", formatCompactUsd(selection.row.volume24hUsd)],
+    ...(selection.row.liquidityUsd != null
+      ? ([["Pool liquidity", formatCompactUsd(selection.row.liquidityUsd)]] as [
+          string,
+          string,
+        ][])
+      : []),
+    ...(minimum ? factRow(minimum) : []),
+    ["Top leverage", leverage],
+  ]
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={marketInfoLabel(selection)}
-          className="h-full rounded-l-none"
-        >
-          <InfoIcon className="size-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={8}
-        collisionPadding={12}
-        className="grid w-auto max-w-80 gap-1 p-3 text-sm"
-      >
-        {marketInfoLines(selection).map((line) => (
-          <span key={line}>{line}</span>
-        ))}
-      </PopoverContent>
-    </Popover>
+    <dl className="grid grid-cols-[minmax(0,1fr)] divide-y text-sm">
+      {rows.map(([name, value]) => (
+        <div key={name} className="flex items-baseline gap-3 px-3 py-2">
+          <dt className="shrink-0 text-muted-foreground">{name}</dt>
+          <dd className="min-w-0 flex-1 truncate text-right">{value}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
-/**
- * The same facts as a line in the phone's market menu.
- *
- * A tooltip needs a pointer to hover, which a phone has not got, so the facts
- * open in a panel of their own instead.
- */
-export function MarketInfoRow({
-  selection,
-}: {
-  selection: Extract<MarketSelection, { kind: "market" }>
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <PhoneMenuRow icon={<InfoIcon />} label="Contract info" />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        collisionPadding={12}
-        aria-label={marketInfoLabel(selection)}
-        className="grid w-[calc(100vw-2rem)] max-w-80 gap-1"
-      >
-        {marketInfoLines(selection).map((line) => (
-          <span key={line}>{line}</span>
-        ))}
-      </PopoverContent>
-    </Popover>
-  )
+/** "Minimum order: $10" as a name and its value. */
+function factRow(line: string): [string, string][] {
+  const at = line.indexOf(": ")
+  if (at < 0) return [["Minimum order", line]]
+  return [[line.slice(0, at), line.slice(at + 2)]]
 }

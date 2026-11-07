@@ -18,7 +18,6 @@ import {
 
 import { CautionBadge } from "@/components/trade/caution-badge"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
-import { MarketIcon } from "@/components/trade/market-icon"
 import { Button } from "@/components/ui/button"
 
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -58,7 +57,6 @@ import {
 } from "@/lib/trade/market-picker-options"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { getMarketsErrorMessage } from "@/lib/api/trade/markets"
-import { focusRing } from "@/lib/layout/focus-ring"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
 import {
@@ -128,12 +126,7 @@ export function MarketPicker({
   folders: readonly MarketFolder[]
   folderActions: MarketFolderActions
   onSelect: (key: string) => void
-  /**
-   * The phone header's shorter name button. The coin's picture and the arrow
-   * both go: the star to the left of the name is the picture's old place, and
-   * nothing else in that row opens a list, so the arrow was saying what the
-   * row only has one of.
-   */
+  /** On a phone the button is its magnifier alone, so the tabs keep their room. */
   phone?: boolean
   /** The venue's printed name, for the lookup button: "Find … on Solana". */
   venueLabel: string
@@ -345,31 +338,14 @@ export function MarketPicker({
       }}
     >
       <PopoverTrigger asChild>
-        <button
-          ref={triggerRef}
-          type="button"
-          aria-label="Choose market"
-          className={cn(
-            "flex h-full max-w-full min-w-0 items-center gap-1.5 px-2.5 font-bold transition-colors hover:bg-muted",
-            phone ? "rounded-r-lg" : "rounded-l-lg",
-            focusRing
-          )}
-        >
-          {phone ? null : (
-            <MarketIcon symbol={selected.symbol} iconUrl={selected.iconUrl} />
-          )}
-          <span className="truncate">
-            {displaySymbol(selected.symbol)}-{selected.quoteAsset}
-          </span>
-          {selected.maxLeverage !== null ? (
-            <span className="shrink-0 text-xs font-medium text-muted-foreground">
-              {selected.maxLeverage}×
-            </span>
-          ) : null}
-          {phone ? null : (
-            <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-        </button>
+        {/* The dashboard's one primary button, at the start of the middle
+            header (Tyler, 7 Nov 2026: "Add another button called "Browse
+            market" to open market picker", then "needs to be an actual button
+            that follows the ui standard. make it primary"). */}
+        <Button ref={triggerRef} type="button" className="shrink-0" aria-label="Browse market">
+          <SearchIcon className="size-4" />
+          <span className={phone ? "sr-only" : undefined}>Browse market</span>
+        </Button>
       </PopoverTrigger>
       {pinnedAt ? <PopoverPrimitive.Anchor virtualRef={anchor} /> : null}
       <PopoverContent

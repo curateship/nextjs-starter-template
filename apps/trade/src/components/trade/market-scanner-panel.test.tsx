@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as React from "react"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { beforeEach, afterEach, expect, it, vi } from "vitest"
@@ -23,6 +24,7 @@ vi.mock("@/lib/protocols/live-registry", () => ({
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: mocks.error }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
+import { BlockHeadingContext } from "@/components/trade/notes/trade-block-views"
 import { MarketScannerMenu } from "./market-scanner-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -58,19 +60,43 @@ async function input(id: string, value: string) {
     node.dispatchEvent(new Event("input", { bubbles: true }))
   })
 }
-function radar() {
-  return document.querySelector<HTMLButtonElement>(
-    '[aria-label^="Open market scanner"]'
-  )!
+/**
+ * A stand-in for the Scanner block around the list: it shows the heading's
+ * count, holds the heading's buttons, and folds or opens the block, as the
+ * page's block card does.
+ */
+function InBlock({
+  startOpen = true,
+  children,
+}: {
+  startOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = React.useState(startOpen)
+  const [count, setCount] = React.useState<number | undefined>(undefined)
+  const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
+  const heading = React.useMemo(
+    () => ({ actions, setCount, open }),
+    [actions, open]
+  )
+  return (
+    <TooltipProvider>
+      <span data-testid="count">{count ?? ""}</span>
+      <span ref={setActions} />
+      <button type="button" aria-label="Fold or open" onClick={() => setOpen(!open)} />
+      <BlockHeadingContext.Provider value={heading}>
+        {children}
+      </BlockHeadingContext.Provider>
+    </TooltipProvider>
+  )
 }
-/** The scanner lives in a menu behind the radar button, so open it first. */
-async function openMenu() {
-  if (radar().getAttribute("aria-expanded") !== "true") {
-    await act(async () => radar().click())
-  }
+function count() {
+  return document.querySelector('[data-testid="count"]')?.textContent
 }
-async function settingsCog() {
-  await openMenu()
+function foldOrOpen() {
+  return document.querySelector<HTMLButtonElement>('[aria-label="Fold or open"]')!
+}
+function settingsCog() {
   return document.querySelector<HTMLButtonElement>(
     '[aria-label="Market scanner settings"]'
   )!
@@ -116,17 +142,17 @@ afterEach(async () => {
 it("opens the real settings modal, validates, saves and restores the cog focus", async () => {
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  const cog = await settingsCog()
+  const cog = settingsCog()
   await act(async () => cog.click())
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
     "Market scanner settings"
@@ -146,9 +172,9 @@ it("opens the real settings modal, validates, saves and restores the cog focus",
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 5))
   })
-  // The cog went with the menu, so focus comes back to the radar.
-  expect(document.activeElement).toBe(radar())
-  const again = await settingsCog()
+  // Focus comes back to the cog in the block's heading.
+  expect(document.activeElement).toBe(settingsCog())
+  const again = settingsCog()
   await act(async () => again.click())
   expect(
     (document.getElementById("scanner-volumeMultiple") as HTMLInputElement)
@@ -158,23 +184,23 @@ it("opens the real settings modal, validates, saves and restores the cog focus",
 it("keeps saved settings when edits are discarded and retains edits after save failure", async () => {
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  const cog = await settingsCog()
+  const cog = settingsCog()
   await act(async () => cog.click())
   await input("scanner-volumeMultiple", "9")
   await act(async () => button("Cancel").click())
   await act(async () => button("Discard changes").click())
   expect(mocks.save).not.toHaveBeenCalled()
-  const again = await settingsCog()
+  const again = settingsCog()
   await act(async () => again.click())
   expect(
     (document.getElementById("scanner-volumeMultiple") as HTMLInputElement)
@@ -244,17 +270,16 @@ it("shows signed movement, unavailable values and exact chart navigation", async
   })
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={market.key}
           onSelectMarket={select}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  await openMenu()
   const rows = document.querySelectorAll("li a")
   expect(rows[0].textContent).toBe("BTC2m ago+2.40%")
   expect(rows[0].lastElementChild?.className).toContain("text-emerald")
@@ -291,17 +316,16 @@ it("offers retry when settings cannot load", async () => {
   mocks.load.mockRejectedValueOnce(new Error("offline"))
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  await openMenu()
   expect(document.body.textContent).toContain("Could not load scanner settings")
   await act(async () => button("Retry").click())
   expect(document.body.textContent).toContain(
@@ -312,17 +336,17 @@ it("offers retry when settings cannot load", async () => {
 it("offers the plain 5% one-minute preset and shows only its controls while preserving saved advanced values", async () => {
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  const cog = await settingsCog()
+  const cog = settingsCog()
   await act(async () => cog.click())
   await act(async () => button("Use 5% rise in 1 minute").click())
   expect(
@@ -357,17 +381,17 @@ it("closes untouched older saved settings without asking to discard", async () =
   })
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  const cog = await settingsCog()
+  const cog = settingsCog()
   await act(async () => cog.click())
   await act(async () => button("Cancel").click())
   expect(document.body.textContent).not.toContain("Discard changes?")
@@ -410,17 +434,16 @@ it("clears every match in one press, and offers no broom with nothing to clear",
   })
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  await openMenu()
   const clear = document.querySelector<HTMLButtonElement>(
     '[aria-label="Clear all scanner matches"]'
   )!
@@ -442,27 +465,27 @@ it("clears every match in one press, and offers no broom with nothing to clear",
   })
   await act(async () =>
     root.render(
-      <TooltipProvider>
+      <InBlock>
         <MarketScannerMenu
           accountId="test-account"
           catalogs={[catalog]}
           selectedMarketKey={null}
           onSelectMarket={vi.fn()}
         />
-      </TooltipProvider>
+      </InBlock>
     )
   )
-  await openMenu()
   expect(
     document.querySelector('[aria-label="Clear all scanner matches"]')
   ).toBeNull()
 })
 
 /**
- * **The radar counts what was found since the menu was last open** (Tyler,
- * 15 Oct 2026), the same way the siren counts fired alerts.
+ * **The heading counts what was found since the block was last open** (Tyler,
+ * 15 Oct 2026, of the radar that held the scanner until 7 Nov 2026), the same
+ * way the Alerts block counts fired alerts.
  */
-it("counts new matches on the radar and clears the count when opened", async () => {
+it("counts new matches on the heading and clears the count when opened", async () => {
   const found = (key: string, since: number) => ({
     market: { ...market, key, symbol: key.split(":").at(-1)! },
     since,
@@ -490,28 +513,23 @@ it("counts new matches on the radar and clears the count when opened", async () 
   const draw = () =>
     act(async () =>
       root.render(
-        <TooltipProvider>
+        <InBlock startOpen={false}>
           <MarketScannerMenu
             accountId="test-account"
             catalogs={[catalog]}
             selectedMarketKey={null}
             onSelectMarket={vi.fn()}
           />
-        </TooltipProvider>
+        </InBlock>
       )
     )
   scanWith([found("hyperliquid:mainnet:BTC", 1), found("hyperliquid:mainnet:ETH", 2)])
   await draw()
-  expect(radar().getAttribute("aria-label")).toBe(
-    "Open market scanner, 2 new"
-  )
-  expect(radar().textContent).toBe("2")
+  expect(count()).toBe("2")
 
-  await openMenu()
-  expect(radar().getAttribute("aria-label")).toBe("Open market scanner")
-  await act(async () =>
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
-  )
+  await act(async () => foldOrOpen().click())
+  expect(count()).toBe("0")
+  await act(async () => foldOrOpen().click())
 
   scanWith([
     found("hyperliquid:mainnet:SOL", 3),
@@ -519,15 +537,11 @@ it("counts new matches on the radar and clears the count when opened", async () 
     found("hyperliquid:mainnet:ETH", 2),
   ])
   await draw()
-  expect(radar().getAttribute("aria-label")).toBe(
-    "Open market scanner, 1 new"
-  )
+  expect(count()).toBe("1")
 
   // What was seen is kept in this browser, so a reload counts nothing old.
   await act(async () => root.unmount())
   root = createRoot(host)
   await draw()
-  expect(radar().getAttribute("aria-label")).toBe(
-    "Open market scanner, 1 new"
-  )
+  expect(count()).toBe("1")
 })

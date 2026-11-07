@@ -18,7 +18,7 @@ Active trades dropdown is gone; there is one switch now, not two.
 
 - **Hidden: what you made or lost.** A position's open profit, the header's
   running total, the wallet's figure beside its balance, the Smart orders PnL
-  column, the Manual orders pills, the bottom panel's Unrealized P&L, If
+  column, the Manual orders pills, the Positions tab's Unrealized P&L, If
   stopped and Journal results, the P&L page's day squares and its cards.
 - **Readable: money you have and money already taken.** Balances, free cash,
   what a position is worth, order sizes and coin prices all stay, because
@@ -60,8 +60,6 @@ that jumps is a row somebody has to find again.
   one per account: at the moment it is read nobody knows yet who is signing in,
   and hiding a figure that did not need hiding is a much smaller mistake than
   showing one that did.
-- **A saved panel layout still carries it.** Applying a named layout sets the
-  switch to what it was when the layout was saved, exactly as before.
 - **The reading happens in the header's pinned-markets control**, not in the
   switch itself. A menu draws nothing until it is opened, so a switch that read
   its own setting would leave every figure readable until somebody opened the

@@ -6,7 +6,7 @@ bullet-point notes that he ticks on the chart before an entry. Each condition
 is something that must hold before he trades. When he places a real-money
 Long, Short, DCA ladder or grid and a rule's conditions do not hold, the rule
 either warns him and lets him confirm, or blocks the entry. The
-Rules box in the left panel shows the same rules and the notes to tick before he
+Rules block on the left panel shows the same rules and the notes to tick before he
 presses anything, and warns when a trade he already holds starts breaking one.
 
 Tyler, 4 Sep 2026: "This is not to completely block me from trading, it just
@@ -159,22 +159,21 @@ condition holding would be enough.
 
 ## The Rules box
 
-The Rules box fills the dashboard's left panel, laid out the way Tyler drew
-it on 15 Oct 2026. Tyler moved it there from the chart's top left the same
-day, into the space the market scanner left when it became a button in the
-chart header.
+The Rules box is the Rules block on the exchange's page, the dashboard's left
+panel (the Admin 3 panel design, 7 Nov 2026, `../screens/dashboard-blocks.md`),
+laid out the way Tyler drew it on 15 Oct 2026. The block's heading says Rules,
+so the box under it starts with the rule picker and the cog.
 
-- **With nothing to check, the left panel still shows the box** and says why:
+- **With nothing to check, the block still shows the box** and says why:
   "No trading rules are switched on", or "Rules only check trades in a
   real-money wallet" on a practice wallet.
-- **With the left panel shut, the box is not shown** (Tyler, 15 Oct 2026:
-  "dont need to see this when collapsed"). A small summary card sits over the
-  chart's top left instead, described under "The summary card on the chart"
-  below. The window before an entry still checks every rule, so a block still
-  stops the order.
-- **Below the wide-screen line** the left panel is a sheet pulled out from the
-  side. The box shows in that sheet while it is out, and nowhere while it is
-  away.
+- **With the left panel shut, in full screen, or with no Rules block on the
+  page, the box is not shown** (Tyler, 15 Oct 2026: "dont need to see this when
+  collapsed"). A small summary card sits over the chart's top left instead,
+  described under "The summary card on the chart" below. The window before an
+  entry still checks every rule, so a block still stops the order.
+- **Below the wide-screen line** the Rules block is on the Blocks pill, and
+  the box shows there.
 
 ```
 Rules            [Main Grid rule  v]  (cog)

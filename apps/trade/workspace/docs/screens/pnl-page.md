@@ -23,7 +23,7 @@ winning patterns and the losing patterns. Any signed-in member can open it.
 - **The sidebar.** The admin adds the link under Settings → Members →
   Sidebar with the address `/pnl`. The page does not put itself in the
   sidebar, because the member sidebar is the admin's list.
-- **The bottom panel.** The Journal tab on every exchange screen has an
+- **The dashboard's Journal tab.** The Journal tab on every exchange screen has an
   Open P&L button at its right-hand end.
 
 ## The three panels
@@ -35,21 +35,21 @@ cards, Journal.
 
 ### The Journal
 
-The same rows the bottom panel draws (`TradesTable` in
+The same rows the dashboard's Journal tab draws (`TradesTable` in
 `src/components/trade/positions-table.tsx`), so the two can never disagree on
 a trade. The differences are only what this page has no way to do:
 
-- **Every exchange and every wallet at once.** The bottom panel shows one
+- **Every exchange and every wallet at once.** The dashboard's Journal tab shows one
   exchange's rows; this one shows them all, practice rows badged Practice
   and testnet rows badged Testnet.
 - **Read-only.** No tick boxes, no bin, and pressing a row does nothing.
   Removing a trade is done on the exchange screen, beside the chart it is
   drawn on.
 - **A History incomplete row stays.** Fills the app cannot pair into a whole
-  trade are listed, as they are in the bottom panel. This page does not ask
+  trade are listed, as they are on the dashboard's Journal tab. This page does not ask
   the exchanges what is open right now, so such a row cannot say whether its
   position is still open; its info mark says so.
-- **Newest ending first**, the same starting order as the bottom panel.
+- **Newest ending first**, the same starting order as the dashboard's Journal tab.
 - **Show older** reads the next page of practice and real history together,
   and says "That is everything" when both are exhausted.
 

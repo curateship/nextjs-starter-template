@@ -25,7 +25,6 @@ describe("chart view options", () => {
         extendTrendlines: false,
         lineAlertsOn: false,
         lineAlertBuffer: 2.5,
-        hideEmptyOrderPanels: true,
         zone: "Europe/London",
       })
     ).toEqual({
@@ -40,7 +39,6 @@ describe("chart view options", () => {
       extendTrendlines: false,
       lineAlertsOn: false,
       lineAlertBuffer: 2.5,
-      hideEmptyOrderPanels: true,
       zone: "Europe/London",
     })
   })
@@ -62,15 +60,14 @@ describe("chart view options", () => {
       extendTrendlines: true,
       lineAlertsOn: true,
       lineAlertBuffer: 1,
-      hideEmptyOrderPanels: false,
       zone: "UTC",
     })
   })
 
-  it("keeps every order panel on screen for a row saved before Hide on empty existed", () => {
-    const saved = { ...DEFAULT_CHART_OPTIONS } as Record<string, unknown>
-    delete saved.hideEmptyOrderPanels
-    expect(readChartOptions(saved).hideEmptyOrderPanels).toBe(false)
+  it("drops Hide on empty from a row saved while it existed", () => {
+    expect(
+      readChartOptions({ ...DEFAULT_CHART_OPTIONS, hideEmptyOrderPanels: true })
+    ).not.toHaveProperty("hideEmptyOrderPanels")
   })
 
   it("keeps a cleared break buffer as none", () => {

@@ -378,7 +378,7 @@ A watched level shows in three places, and all three are drawn from one list
 built in `use-trading.ts`, so they can never disagree.
 
 - **On the chart of its own coin**, as the line the order would have been.
-- **Under Open orders** in the bottom panel, mixed in with real and practice
+- **Under Open orders** in the middle panel's tabs, mixed in with real and practice
   orders, because a watched price IS an open order to the person who placed it.
 - **Under Manual orders**, a separate draggable panel below Smart orders on
   the right. That

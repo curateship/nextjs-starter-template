@@ -1,6 +1,6 @@
 ---
 name: admin-3-panel-design
-description: "Admin - 3 panel design. Turns a chosen dashboard into the three-panel design Tyler built on Project's site admin My dashboard (6 Nov 2026): a left panel with a page under the header and a footer of folding cards, a middle list with a ⋮ toolbar menu, a right record panel with a bell, a tabbed ⋮ menu of grouped rows and Comments as a "/" block in its notes, and My settings as a tabbed ⋮ dropdown. Use when Tyler asks to apply, copy or transform a dashboard into this 3 panel design, or names this skill."
+description: "Admin - 3 panel design. Turns a chosen dashboard into the three-panel design Tyler built on Project's site admin My dashboard (6 Nov 2026): a left panel with a page under the header and a footer of folding cards, a middle list with a ⋮ toolbar menu, a right record panel with a tabbed ⋮ menu of grouped rows and Comments as a "/" block in its notes, and My settings as a tabbed ⋮ dropdown. Use when Tyler asks to apply, copy or transform a dashboard into this 3 panel design, or names this skill."
 ---
 
 # Admin - 3 panel design
@@ -101,7 +101,28 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
   pencil. Settings that used to sit behind a pencil move into My settings.
 - **Banner:** a picture or drawn sky lies faintly behind the header and the
   top of the panel and fades into it (`DailySkyBanner` in `daily-card.tsx`).
-  The header's bottom line goes see-through over it.
+  The header's bottom line goes see-through over it. **Every side panel with a
+  page has a cover photo** (Tyler, 7 Nov 2026, of Trade's two panels: "both
+  panel is missing cover photo"): a "Cover photo" row in the page's ⋮ under a
+  "Page" group, None until one is added, the upload in its small box.
+  Reference: `PageCover` and `CoverRow` in `apps/trade/src/components/trade/notes/`.
+- **A side panel's header line follows Divider lines.** The shell draws a
+  table's line under a header whose next element holds a table, and the
+  tables inside blocks set that off. Wrap the side panel's header in its own
+  `div` so the rule never matches (Tyler, 7 Nov 2026: "this left panel header
+  divider is not wired to the styling setting").
+- **Each side panel's header has a collapse button at its outer edge**: the
+  left starts with `PanelLeftCloseIcon`, the right ends with
+  `PanelRightCloseIcon`, each a ghost icon button with a tooltip that shuts
+  the panel, as a double-click on its blank space does (Tyler, 7 Nov 2026:
+  "add a collasible icon here to collapse the left panel", then the same for
+  the right).
+- **The first and last icon in a side header sit 16px from the panel's
+  edge** (the collapse button with `-ml-1` or `-mr-1`, a record's own icon
+  with `ml-1`), so both side headers line up (Tyler, 7 Nov 2026: "padding is
+  not consistence"). Measure the drawn icon, not the button box.
+- **A record's own icon leads its name** on the right panel, such as a
+  market's icon (Tyler, 7 Nov 2026: "Add the market favicon").
 - **Page under the banner:** the only thing above the footer is a page of the
   person's own with the "/" blocks, saved 700ms after typing stops
   (`AdminPageNotes` and `PageNoteEditor` in `project-page-notes.tsx`, at the
@@ -134,12 +155,73 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
     title.
   - Inside the editor, the page's own heading styles reach the card's `h2`,
     so the heading resets them (`!m-0 !p-0 !text-base !leading-tight`).
-  - The block is one solid light grey box
-    (`bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]`,
-    `rounded-2xl`); cards inside it are white tiles (`rounded-xl
-    bg-background p-3`) with smaller headings, and never repeat the block's
-    title. Reference: `BlockCard` in
-    `apps/project/src/components/project/notes/team-blocks.tsx`.
+  - **Every block card is styled the same** (Tyler, 7 Nov 2026, on Trade's
+    dashboard blocks: "Add this card styling to the skill"). Reference:
+    `BlockCard` in `apps/trade/src/components/trade/notes/trade-block-views.tsx`.
+
+    ```
+    ╭──────────────────────────────╮  grey block, rounded-2xl
+    │ ⊞ Grid trades        ⚙  🗑   │  heading band
+    │╭────────────────────────────╮│  white tile, 3px in
+    ││ Ticker  Type  Value  PnL   ││  white heading row
+    ││────────────────────────────││
+    ││ AMZN    Long  $42   +$0.68 ││  rows
+    ││ 9 trades      $785  -$20.65││  white totals row
+    │╰────────────────────────────╯│
+    ╰──────────────────────────────╯
+    ```
+
+    - **The block:** one solid light grey box,
+      `bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]`,
+      `rounded-2xl`, `overflow-hidden`, with no border of its own.
+    - **The heading band:** `FoldHeading band`, padding `py-2.5 pr-2.5 pl-4`.
+      The icon is `size-4` and muted, then the title in `text-base
+      font-semibold`, then a count on a white patch when there is one. The
+      block's own buttons (a cog, a plus, a broom) sit in the heading row,
+      before the bin. The bin shows while the block is pointed at or
+      focused, and always on a phone. Pressing the title folds the block;
+      there is no arrow.
+    - **The tile:** everything the block shows sits in one white tile,
+      `bg-background`, 3px inside the grey block on its sides and bottom
+      (`px-[3px] pb-[3px]` on the body), a thin grey frame round it. Its
+      corners are the block's less those 3px, `rounded-[calc(1rem-3px)]`, so
+      the frame stays even all the way round (Tyler, 7 Nov 2026: "reduce the
+      padding ehre by 50%", "try 100%", "try it so that we only see a
+      border", "try 90%", then "Make padding 70% instead").
+    - **A table inside the tile is all white.** Its heading row and totals
+      row turn `bg-background` inside the tile; a grey heading melts into the
+      grey block and the tile's corners read as square (Tyler, 7 Nov 2026:
+      "THis should be rounded corner"). The line under the heading row stays.
+    - **Height:** the tile is capped at `max-h-[28rem]` and its list scrolls
+      inside it, so one long block never pushes the rest of the page away.
+    - **Folded,** the block is its heading band alone. The body stays mounted
+      (`forceMount`, hidden while closed), so counts and live reads keep
+      going, and the fold is remembered in this browser per block.
+    - The tile never repeats the block's title: a panel moved into a block
+      drops its own title row (a `bare` form).
+    - Project's team blocks hold several small white cards
+      (`apps/project/src/components/project/notes/team-blocks.tsx`, tiles
+      `rounded-xl bg-background p-3`). They were built before this style;
+      ask Tyler before bringing them onto it.
+- **Block gutters are the panel gutter, 15px, everywhere** (Tyler, 7 Nov 2026:
+  "This should be the gutter size for the blocks"): 15px from the panel's
+  sides, 15px between two blocks, and a block that opens the page sits 15px
+  under the header, never lower.
+  - Each block's frame carries `data-note-block` and takes 15px above and
+    below (`[&_.tiptap_[data-note-block]]:my-3.75`), so two blocks meet in one
+    15px gap. A block that is the page's first takes none above. The writing
+    area adds no padding of its own (`!px-0 !pt-0`).
+  - **An empty line above a block goes with Backspace or Delete**, so a block
+    can always be brought to the very top (Tyler, 7 Nov 2026: "The blocks cant
+    go all the way to the top"). Reference: `EmptyLineAboveBlock` in
+    `apps/trade/src/components/trade/notes/note-block-nodes.ts`.
+  - **The space above the first block is the page's, not the panel's**, so a
+    click there lands in the page: the writing area carries the 15px top edge
+    (`!pt-3.75`, the panel body `pt-0`). A click there, or between two blocks
+    with no line between them, starts a new line at that spot (Tyler, 7 Nov
+    2026: "cant click here"). Reference: `lineBetweenBlocks` in
+    `apps/trade/src/components/trade/notes/saving-document.tsx`.
+  - Measure all four: left, right, top and between, each 15px.
 - **Right-click opens the blocks** in the page, and in the record's notes on
   the right: the same "/" list, at the pointer, putting the block where the
   click was (`openAt` in `notes/use-note-blocks.ts`, the handler on
@@ -239,6 +321,15 @@ Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel
     thing in the header, after the New button, never after the tabs
     (Tyler, 6 Nov 2026, on Travel's trip page: "The 3 dots icon is supposed
     to be here", pointing past "+ Add").
+- **One header only.** The middle panel never gets a second header row under
+  its tabs. Controls that belong to what a tab shows, such as a chart's
+  timeframe, sit in that one header after the tabs (Tyler, 7 Nov 2026, on
+  Trade: "There should only be one middle header"). Reference: Trade's
+  `activity-panel.tsx`: the primary Browse market button before the tabs,
+  then the timeframe, Indicators, View options and a ⋮ with Wallet and Close
+  all. A header slot before the tabs is built from the shell's
+  `DashboardCardHeader` and `TabsList`, never by editing the shell's tab
+  header.
 - **The ⋮ holds Search and Mass select.** They are not buttons in the header.
   - Search opens its box in the header with the cursor in it. Open it from the
     menu's `onCloseAutoFocus`, after the menu has closed, because an open menu
@@ -295,10 +386,9 @@ and the parts built in `task-body.tsx`.
   - Key the page component by its holder's id (the route does
     `key={page.project.id}`), so moving to another project starts fresh and
     never opens the last project's first row.
-- **Header:** the record's title on the left, then a **bell** and the **⋮**.
-  - The bell is a ghost icon button for Follow: `BellIcon`, or `BellRingIcon`
-    while followed, with `aria-pressed` and a tooltip ("Follow this task",
-    "Following. Press to stop"). It has no words.
+- **Header:** the record's title on the left, then the **⋮**. No bell: the
+  bell beside Project's task ⋮ is Project's own Follow, not part of this
+  design (Tyler, 7 Nov 2026: "its only specific to project app").
 - **The record ⋮** is the tabbed menu (see Tabbed ⋮ menu), 20.4rem wide, with
   tabs **General** and **Versions**.
   - **General** is grouped lists (`PickGroup` and `PickRow` in

@@ -1,9 +1,8 @@
 # The market list
 
-The market scanner opens from the radar button in the chart header, and the
-left column holds the Rules box. `market-scanner.md` explains the scanner's
-results and candle coverage.
-Saved folders remain in the chart header's folder menu.
+The market scanner, the Rules box and saved folders are blocks on the
+exchange's page, the dashboard's left panel (`dashboard-blocks.md`).
+`market-scanner.md` explains the scanner's results and candle coverage.
 
 - **Searching lives in the market picker** — the market name at the top of
   the chart opens the whole catalogue with its own search. The panel has no
@@ -151,8 +150,6 @@ at a time on the chart, or mixed in with everything else under Open orders.
 
 When the panel also shows a hand-held position, a muted **Waiting orders**
 header separates the positions already open from prices that have not fired.
-With View options' "Hide on empty" switched on, this panel is not drawn while
-it has nothing to list; `panels-and-loading.md` holds that rule.
 
 - **One row per market.** When several orders wait on the same market, the row
   shows the order nearest today's price. The market keeps the place given to

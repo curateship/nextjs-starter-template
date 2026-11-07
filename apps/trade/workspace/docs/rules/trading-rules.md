@@ -29,8 +29,7 @@ add up to.
 
 - Tyler, 31 Aug 2026: **"Whatever I adjust in the dashboard should
   automatically be saved. I don't need to save them."** Dashboard choices save
-  as they change. A selected named layout updates itself, and its menu has no
-  separate save button.
+  as they change, with no separate save button.
 - Tyler, 3 Sep 2026: **"Don't hide unmatched history. The Journal not showing
   unmatched history is what made me lose money today, not knowing there were
   still trades not showing up in the table."** Every saved fill appears in the

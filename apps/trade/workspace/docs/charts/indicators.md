@@ -1,9 +1,11 @@
 # Chart indicators
 
 **An indicator is a chart control, so it lives in the chart's controls.** There
-is no indicators page and no dashboard behind them. The vertical three-dot
-chart menu sits in the header before the wallet. Its labeled Indicators row
-opens the indicator list and shows the number switched on in a round count.
+is no indicators page and no dashboard behind them. The Indicators button sits
+in the chart's header row, after the timeframe and before View options and the
+wallet (Tyler, 7 Nov 2026: "move the view options and indicatior buttons
+outside of the dropdown"). It opens the indicator list and shows the number
+switched on in a round count.
 
 - **Each indicator has three separate controls.** Its switch turns the drawing
   on or off. A small mark previews its line colours. The settings button opens

@@ -3,13 +3,17 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   BookOpenIcon,
+  CandlestickChartIcon,
   LayersIcon,
   ScrollTextIcon,
   Trash2Icon,
+  WalletIcon,
+  XIcon,
 } from "lucide-react"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import { CloseAllMenu } from "@/components/trade/close-all-menu"
+import { MenuRow, MiddleMenu } from "@/components/trade/middle-menu"
 import { LazyDialogFallback } from "@/components/trade/lazy-window-fallback"
 import {
   OpenOrdersTable,
@@ -20,7 +24,7 @@ import { useCopyNotes } from "@/components/social/use-copy-notes"
 import type { Trading } from "@/components/trade/use-trading"
 import {
   DashboardCardTab,
-  DashboardCardTabsHeader,
+  DashboardCardHeader,
 } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -32,7 +36,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
 import {
   marketSymbol,
   type MarketCatalog,
@@ -75,7 +79,37 @@ const PositionMarginDialog = React.lazy(() =>
  * the answer too: the Journal's trade history is only read from the exchange
  * while the Journal is the tab on screen.
  */
-export type ActivityTab = "positions" | "orders" | "journal"
+export type ActivityTab = "chart" | "positions" | "orders" | "journal"
+
+/**
+ * The shell's tab header (`DashboardCardTabsHeader`) with one more slot, at
+ * its start, built from the same two shell parts so the row matches it
+ * exactly: the primary Browse market button sits before the tabs (Tyler,
+ * 7 Nov 2026: "make it primary and put it here", pointing left of the chart
+ * tab).
+ */
+function TabsHeader({
+  lead,
+  action,
+  children,
+}: {
+  lead?: React.ReactNode
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <DashboardCardHeader>
+      {lead ? <div className="flex shrink-0 items-center">{lead}</div> : null}
+      <TabsList className="min-w-0 justify-start">{children}</TabsList>
+      {action ? (
+        <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>
+      ) : null}
+    </DashboardCardHeader>
+  )
+}
+
+/** Below this width the middle header draws its short forms. */
+const NARROW_HEADER_PX = 1100
 
 /** Whatever is highlighted right now, dropped. */
 function clearHighlight(): void {
@@ -113,13 +147,14 @@ function dropStrayHighlightAfter(): void {
 }
 
 /**
- * The bottom panel: what you are holding, what you have asked for, and how the
- * trades that are finished actually went.
+ * The dashboard's middle panel (the Admin 3 panel design, 7 Nov 2026): the
+ * chart, what you are holding, what you have asked for, and how the trades
+ * that are finished actually went, as tabs (Tyler: "remove the bottom panel
+ * and move into the middle panel as tabs so it looks like this [marketname
+ * chart][positions][journal]", with Open orders kept as its own tab).
  *
- * Its tab row is also its collapsed state — dragging the divider all the way
- * down leaves exactly this header on screen, counts and all, so the panel can
- * always be found and dragged back open. That is why it collapses to a height
- * rather than to nothing the way the side panels do.
+ * The chart tab stays mounted under the others, so its live feed and its
+ * drawings never reload when a table is looked at.
  */
 export function ActivityPanel({
   trading,
@@ -136,7 +171,35 @@ export function ActivityPanel({
   shownTrade,
   onShowTrade,
   fit,
+  chart,
+  controls,
+  wallet,
+  lead,
 }: {
+  /** Before the tabs, at the header's start: the primary Browse market button. */
+  lead?: React.ReactNode
+  /**
+   * The chart's controls in the one middle header (Tyler, 7 Nov 2026: "There
+   * should only be one middle header"): the timeframe, Indicators, View
+   * options and Browse market. Told whether the panel is narrow, so the
+   * timeframe can draw its short form.
+   */
+  controls?: (narrow: boolean) => React.ReactNode
+  /** The wallet menu, opened from its row in the ⋮, and the wallet in use. */
+  wallet?: {
+    name: string | null
+    menu: (trigger: React.ReactElement) => React.ReactNode
+  }
+  /**
+   * The first tab: the market's chart under its header row, named after the
+   * market ("BTC-USD chart").
+   */
+  chart?: {
+    label: string
+    content: React.ReactNode
+    /** Full screen: the chart alone, with the tab row out of sight but the chart never re-drawn. */
+    only?: boolean
+  }
   trading: Trading
   tab: ActivityTab
   onTabChange: (tab: ActivityTab) => void
@@ -297,7 +360,11 @@ export function ActivityPanel({
   // their count. A screen reader still reads the full name of all three.
   const tabProps = (which: ActivityTab, word: string) => ({
     label: (
-      <span className={which === tab ? undefined : "hidden sm:inline"}>
+      <span
+        className={
+          which === tab ? undefined : narrow ? "hidden" : "hidden sm:inline"
+        }
+      >
         {word}
       </span>
     ),
@@ -310,6 +377,19 @@ export function ActivityPanel({
   // does the measuring, because the rows can only be measured once the tab
   // holding them is on screen and an inactive tab holds nothing at all.
   const root = React.useRef<HTMLDivElement | null>(null)
+  // Narrow: the header's tabs keep the word on the open tab only, and the
+  // timeframe draws its short form, so one row holds the tabs and the chart's
+  // controls together. Measured on the panel, which a divider can narrow.
+  const [narrow, setNarrow] = React.useState(false)
+  React.useEffect(() => {
+    const element = root.current
+    if (!element || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(([entry]) =>
+      setNarrow((entry?.contentRect.width ?? 0) < NARROW_HEADER_PX)
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   const [landed, setLanded] = React.useState(0)
   const measured = React.useRef(0)
 
@@ -392,9 +472,14 @@ export function ActivityPanel({
         setLanded((count) => count + 1)
         clearHighlight()
       }}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
+      // The tab row slides sideways rather than running under Close all on a
+      // phone, where four tabs and their counts are wider than the screen.
+      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card [&_[data-slot=tabs-list]]:overflow-x-auto"
     >
-      <DashboardCardTabsHeader
+      {/* Out of sight in full screen, without unmounting the chart's tab. */}
+      <div className={chart?.only ? "hidden" : "contents"}>
+      <TabsHeader
+        lead={lead}
         action={
           <>
             {/* Removes every ticked Journal row at once, through the same
@@ -430,6 +515,17 @@ export function ActivityPanel({
                 <Link to="/pnl">Open P&amp;L</Link>
               </Button>
             ) : null}
+            {controls?.(narrow)}
+            <MiddleMenu>
+              {wallet
+                ? wallet.menu(
+                    <MenuRow
+                      icon={<WalletIcon />}
+                      label="Wallet"
+                      detail={wallet.name ?? undefined}
+                    />
+                  )
+                : null}
             {/* The emergency button: one press opens the list of what can go,
                 a second press does it. Positions, watched prices and smart
                 orders all start ticked, and untick whatever should stay —
@@ -438,6 +534,13 @@ export function ActivityPanel({
                 somebody wants one without the other. */}
             {closable > 0 ? (
               <CloseAllMenu
+                trigger={
+                  <MenuRow
+                    icon={<XIcon />}
+                    label="Close all"
+                    disabled={trading.busy}
+                  />
+                }
                 positions={trading.positions}
                 managed={trading.positions.length - visible.length}
                 watched={trading.watchOrders}
@@ -445,7 +548,6 @@ export function ActivityPanel({
                 restingOrders={trading.orders.length}
                 markets={markets}
                 realWallets={realWallets}
-                busy={trading.busy}
                 onConfirm={(picked) => {
                   // Started together, never queued behind each other. This is
                   // the press somebody makes because the market is moving, so
@@ -457,9 +559,17 @@ export function ActivityPanel({
                 }}
               />
             ) : null}
+            </MiddleMenu>
           </>
         }
       >
+        {chart ? (
+          <DashboardCardTab
+            value="chart"
+            icon={<CandlestickChartIcon className="size-4" />}
+            {...tabProps("chart", chart.label)}
+          />
+        ) : null}
         <PositionsGlance
           positions={visible}
           markets={markets}
@@ -487,7 +597,18 @@ export function ActivityPanel({
           count={countOf(trading.trades.length + unmatchedHistory.length)}
           onPointerDown={pressTab("journal")}
         />
-      </DashboardCardTabsHeader>
+      </TabsHeader>
+      </div>
+
+      {chart ? (
+        <TabsContent
+          value="chart"
+          forceMount
+          className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+        >
+          {chart.content}
+        </TabsContent>
+      ) : null}
 
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full">

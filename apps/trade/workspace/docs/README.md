@@ -45,7 +45,7 @@ screen: anything not written there has not been agreed yet.
   wallets or a fixed amount, what the header button says, what counts as money
   made today, and how often the exchanges are asked.
 
-- `market-scanner.md` — the scanner behind the radar button in the chart header, its count of new matches, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
+- `market-scanner.md` — the Scanner block on the dashboard's left page, its count of new matches, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,
   pins, map, first-seen migration verification, audit coverage and the Moving now widget.
@@ -62,12 +62,15 @@ screen: anything not written there has not been agreed yet.
   `/admin` so a member can open one, the address of each, why protocol rather
   than exchange, why there is one address rather than one per role, and what
   stays admin-only.
-- `dashboard-on-a-phone.md` — the exchange dashboard below 768px: the one-row
 - [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
-  market header, the three-dot sheet holding Indicators, Wallet, Alerts, Pin to
-  top, Watchlists and Contract info, the pinned markets and figures in the
-  header's own three-dot dropdown, and the three tables that slide up over the
-  chart instead of sitting under it.
+- `dashboard-blocks.md` — the protocol dashboard in the Admin 3 panel design:
+  the exchange's page of "/" blocks on the left (Rules, Manual, Grid and DCA
+  trades, Alerts, Scanner, Folders), the market's page on the right with its
+  ⋮ for Folders and Pin to top, the chart and tables as middle tabs, the lock,
+  widths and the narrow-screen pill row.
+- `dashboard-on-a-phone.md` — the exchange dashboard on a phone: the pill row,
+  the folded top row and its three-dot dropdown, the market row and the tables'
+  tab row.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, Long/Short badge columns, and where the navigation lives.
 - `trading-overview.md`: visible profit date labels and empty-history explanations; the signed-in home page and its Active trades menu,
@@ -78,18 +81,18 @@ screen: anything not written there has not been agreed yet.
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, labelled search input, narrow-screen Testnet warning and the Manual orders panel.
-- `panels-and-loading.md` — shared Reading labels and spinners; content-based order-panel sizing where the spare column height goes to the longer of Smart orders and Manual orders, the View options "Hide on empty" switch that takes an empty Grid, DCA or Manual orders panel out of the column, the trade-count row with Value and PnL sums under each of those three tables, how panels behave, narrow screens, stand-in
+- `panels-and-loading.md` — shared Reading labels and spinners; the trade-count row with Value and PnL sums under the Grid, DCA and Manual tables, how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
   The Testnet warning remains in the market header.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
   every number, the text scale, the small badge every table shares, and what an
   open position has cost in fees.
-- `bottom-panel-tables.md` — pinned totals including projected profit and fees for visible Positions and Open orders,
+- `bottom-panel-tables.md` — the middle panel's tables: pinned totals including projected profit and fees for visible Positions and Open orders,
   and the one frame shared by Positions, Open orders and
   the Journal, the safety rules its empty and failed rows keep, and the separate warnings
   for missing position stops and watched stops.
-- `market-folders.md` — the folder dropdown visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
+- `market-folders.md` — the Folders block's visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
 - `notices.md` — stable stop and target notices across split fills and recovery; one per order with total dollars and weighted
   average price, how pushed fills and recovery avoid repeats, what a flow says when it stops or goes quiet on its own, and

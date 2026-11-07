@@ -6,19 +6,16 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { setHidePnl } from "@/lib/trade/hide-pnl"
 import { DEFAULT_TRADING_RULES } from "@/lib/trade/trading-rules"
 
 const {
   chartMounts,
-  createNamedLayout,
   rememberedLayouts,
   rememberedToolbarPosition,
   layoutSetEvents,
   showErrorToast,
 } = vi.hoisted(() => ({
   chartMounts: { count: 0 },
-  createNamedLayout: vi.fn().mockResolvedValue(undefined),
   rememberedLayouts: vi.fn(),
   rememberedToolbarPosition: vi.fn(),
   layoutSetEvents: [] as Array<{
@@ -52,10 +49,13 @@ vi.mock("@/components/trade/use-protocol-abilities", () => ({
 vi.mock("@/components/trade/activity-panel", () => ({
   ActivityPanel: ({
     onAddToPosition,
+    chart,
   }: {
     onAddToPosition: (position: unknown) => void
+    chart?: { label: string; content: React.ReactNode }
   }) => (
-    <div data-testid="activity-panel">
+    <div data-testid="activity-panel" data-chart-tab={chart?.label}>
+      {chart?.content}
       <button
         type="button"
         aria-label="Add BTC test position"
@@ -90,14 +90,6 @@ vi.mock("@/components/trade/smart-orders-panel", () => ({
 }))
 vi.mock("@/components/trade/manual-orders-panel", () => ({
   ManualOrdersPanel: () => <div data-testid="manual-orders-panel" />,
-}))
-vi.mock("@/components/trade/smart-orders-menu", () => ({
-  SmartOrdersMenu: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="smart-orders-menu">
-      <button type="button" aria-label="Open smart and manual orders" />
-      {children}
-    </div>
-  ),
 }))
 vi.mock("@/components/trade/use-trading", () => ({
   useTrading: () => ({
@@ -138,20 +130,6 @@ vi.mock("@/components/trade/wallet-dialogs", () => ({
 }))
 vi.mock("@/components/trade/chart-options-menu", () => ({
   ChartOptionsMenu: () => null,
-}))
-vi.mock("@/components/trade/chart-tools-menu", () => ({
-  ChartToolsMenu: ({
-    layouts,
-  }: {
-    layouts?: { onCreate: (name: string) => void }
-  }) =>
-    layouts ? (
-      <button
-        type="button"
-        aria-label="Save test layout"
-        onClick={() => layouts.onCreate("Eye layout")}
-      />
-    ) : null,
 }))
 vi.mock("@/components/trade/chart-panel", () => ({
   ChartPanel: ({
@@ -206,18 +184,26 @@ vi.mock("@/components/trade/use-chart-options", () => ({
   }),
 }))
 vi.mock("@/components/trade/market-header", () => ({
-  MarketHeader: ({
-    toolbar,
-    marketAction,
-  }: {
-    toolbar: React.ReactNode
-    marketAction?: React.ReactNode
-  }) => (
-    <div data-testid="market-header">
-      {marketAction}
-      {toolbar}
-    </div>
+  MarketHeader: ({ toolbar }: { toolbar: React.ReactNode }) => (
+    <div data-testid="market-header">{toolbar}</div>
   ),
+  MarketInfoFacts: () => null,
+}))
+vi.mock("@/components/trade/notes/trade-page-panel", () => ({
+  useTradePage: () => ({
+    lock: { locked: false, busy: false, setLocked: vi.fn() },
+    cover: { url: null, busy: false, set: vi.fn() },
+  }),
+  TradePageBody: ({ marketKey }: { marketKey: string }) => (
+    <div data-testid="page" data-market={marketKey} />
+  ),
+}))
+vi.mock("@/components/trade/notes/page-menus", () => ({
+  ExchangePageMenu: () => <button type="button" aria-label="My settings" />,
+  MarketPageMenu: () => <button type="button" aria-label="Market menu" />,
+}))
+vi.mock("@/components/trade/market-scanner-panel", () => ({
+  MarketScannerMenu: () => null,
 }))
 vi.mock("@/components/trade/card-folds", () => ({
   CardFolds: ({ children }: { children: React.ReactNode }) => children,
@@ -234,29 +220,16 @@ vi.mock("@/components/trade/market-folders-menu", () => ({
 vi.mock("@/components/trade/price-alerts-menu", () => ({
   PriceAlertsMenu: () => <button type="button" aria-label="Open alerts" />,
 }))
-vi.mock("@/components/trade/panel-layouts-menu", () => ({
-  PanelLayoutsMenu: ({ onCreate }: { onCreate: (name: string) => void }) => (
-    <button
-      type="button"
-      aria-label="Save test layout"
-      onClick={() => onCreate("Eye layout")}
-    />
-  ),
-}))
 vi.mock("@/components/trade/use-panel-layouts", () => ({
   useTradePanelLayouts: (initial: unknown) => ({
     layouts: initial,
     remember: rememberedLayouts,
     rememberOpenMarketRow: vi.fn(),
     rememberChartToolbarPosition: rememberedToolbarPosition,
-    createNamed: createNamedLayout,
-    applyNamed: vi.fn(),
-    deleteNamed: vi.fn(),
   }),
 }))
 
 vi.mock("@/components/ui/resizable", () => ({
-  BOTTOM_COLLAPSED_HEIGHT: "58px",
   // Rendered rather than dropped, so a test can check which edges offer a
   // way back and what each one is called.
   PanelReopenTab: ({
@@ -307,12 +280,6 @@ vi.mock("@/components/ui/resizable", () => ({
     children: React.ReactNode
   }) => <div className={className}>{children}</div>,
 }))
-vi.mock("@/components/ui/sheet", () => ({
-  Sheet: ({ children }: { children: React.ReactNode }) => children,
-  SheetContent: ({ children }: { children: React.ReactNode }) => children,
-  SheetHeader: ({ children }: { children: React.ReactNode }) => children,
-  SheetTitle: ({ children }: { children: React.ReactNode }) => children,
-}))
 
 vi.mock("@/lib/api/trade/market-folders", () => ({
   createFolder: vi.fn(),
@@ -333,7 +300,6 @@ vi.mock("@/lib/remembered-choice", () => ({
     React.useState(initial),
 }))
 vi.mock("@/lib/trade/market-folders", () => ({
-  ALL_ROW: "all",
   favFolder: () => null,
 }))
 vi.mock("@/lib/trade/market-volume", () => ({
@@ -342,6 +308,7 @@ vi.mock("@/lib/trade/market-volume", () => ({
     catalog.rows.find((row) => row.key === key) ?? null,
 }))
 vi.mock("@/lib/layout/wide-screen", () => ({ useWideScreen: () => true }))
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }))
 
 function MockPanelGroup(props: {
   orientation: "horizontal" | "vertical"
@@ -356,13 +323,8 @@ function MockPanelGroup(props: {
   const { orientation, groupRef, onLayoutChanged, children } = props
   const groupName = props["data-panel-group"] ?? orientation
   const opening = React.useMemo<Record<string, number>>(
-    (): Record<string, number> =>
-      groupName === "orders"
-        ? { "managed-orders": 60, "manual-orders": 40 }
-        : orientation === "horizontal"
-          ? { markets: 20, chart: 58, "smart-orders": 22 }
-          : { workspace: 72, activity: 28 },
-    [groupName, orientation]
+    (): Record<string, number> => ({ blocks: 20, chart: 58, market: 22 }),
+    []
   )
   const [layout, setLayout] = React.useState<Record<string, number>>(opening)
   const layoutRef = React.useRef<Record<string, number>>(opening)
@@ -399,12 +361,7 @@ function MockPanelGroup(props: {
         type="button"
         aria-label={`Resize ${groupName} group`}
         onClick={() => {
-          let next: Record<string, number>
-          if (orientation === "horizontal") {
-            next = { markets: 25, chart: 50, "smart-orders": 25 }
-          } else {
-            next = { workspace: 60, activity: 40 }
-          }
+          const next = { blocks: 25, chart: 50, market: 25 }
           layoutRef.current = next
           setLayout(next)
           changed(next, { isUserInteraction: true })
@@ -435,7 +392,6 @@ beforeEach(() => {
   chartMounts.count = 0
   rememberedLayouts.mockClear()
   rememberedToolbarPosition.mockClear()
-  createNamedLayout.mockClear()
   layoutSetEvents.length = 0
 })
 
@@ -445,8 +401,8 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-describe("the trade workspace chart full screen", () => {
-  it("restores both groups without remounting the chart", async () => {
+describe("the trade workspace", () => {
+  it("is three panels whose full screen restores without remounting the chart", async () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
@@ -490,18 +446,19 @@ describe("the trade workspace chart full screen", () => {
             initialPanelLayouts={{
               legacyImported: true,
               current: {
-                "trade-workspace-horizontal": {
-                  markets: 20,
+                "trade-workspace-horizontal-2": {
+                  blocks: 20,
                   chart: 58,
-                  "smart-orders": 22,
+                  market: 22,
                 },
-                "trade-workspace-vertical": { workspace: 72, activity: 28 },
               },
               openMarketRows: {},
               headerProfitVisible: true,
               chartToolbarPosition: null,
-              activeNamedId: null,
-              named: [],
+            }}
+            initialPages={{
+              exchange: { body: null, locked: false, coverUrl: null },
+              market: null,
             }}
             initialWallets={{
               rows: [],
@@ -519,122 +476,51 @@ describe("the trade workspace chart full screen", () => {
     })
 
     expect(chartMounts.count).toBe(1)
-    expect(layoutOf("horizontal")).toEqual({
-      markets: 20,
-      chart: 58,
-      "smart-orders": 22,
-    })
-    expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
-    expect(host.querySelector('[data-panel-group="orders"]')).toBeNull()
-    expect(host.querySelector("[data-order-panels]")?.children).toHaveLength(3)
+    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 58, market: 22 })
+    // No bottom row: the tables are tabs in the middle, beside the chart.
+    expect(host.querySelector('[data-panel-group="vertical"]')).toBeNull()
     expect(
-      host.querySelector('[data-testid="manual-orders-panel"]')
+      host
+        .querySelector('[data-testid="activity-panel"]')
+        ?.getAttribute("data-chart-tab")
+    ).toBe("BTC chart")
+    expect(
+      host.querySelector('[data-testid="activity-panel"] [data-testid="chart"]')
     ).not.toBeNull()
+    // The exchange's page on the left, the market's page on the right.
     expect(
-      host.querySelector("[data-order-panels]")?.parentElement?.className
-    ).toContain("h-full")
-    // Grid sits above DCA. Each panel starts at its own rows; spare height
-    // goes to Manual orders, and a short column takes height from all three
-    // by what they hold, so an empty Manual orders hands its room to Grid.
-    const [gridFrame, dcaFrame, manualFrame] = Array.from(
-      host.querySelector("[data-order-panels]")?.children ?? []
-    )
-    for (const frame of [gridFrame, dcaFrame]) {
-      expect(frame?.className).toContain("flex-[0_1_auto]")
-      expect(frame?.className).not.toContain("max-h-")
-    }
-    expect(
-      gridFrame?.querySelector('[data-testid="smart-orders-panel"]')
-        ?.getAttribute("data-kind")
-    ).toBe("grid")
-    expect(
-      dcaFrame?.querySelector('[data-testid="smart-orders-panel"]')
-        ?.getAttribute("data-kind")
-    ).toBe("dca")
-    expect(manualFrame?.className).toContain("flex-[1_1_auto]")
+      Array.from(host.querySelectorAll('[data-testid="page"]')).map((page) =>
+        page.getAttribute("data-market")
+      )
+    ).toEqual(["", "hyperliquid:mainnet:BTC"])
+    // The chart header has no folder, alert or scanner buttons any more.
     expect(
       host.querySelector(
-        '[data-testid="market-header"] button[aria-label="Open alerts"]'
-      )
-    ).not.toBeNull()
-    const marketActions = Array.from(
-      host.querySelectorAll<HTMLButtonElement>(
         '[data-testid="market-header"] button[aria-label="Open folders"], [data-testid="market-header"] button[aria-label="Open alerts"]'
       )
-    )
-    expect(marketActions.map((button) => button.ariaLabel)).toEqual([
-      "Open folders",
-      "Open alerts",
-    ])
-    expect(host.querySelector('[data-testid="smart-orders-menu"]')).toBeNull()
-    // Nothing is shut, so neither edge offers a way back.
+    ).toBeNull()
     expect(host.querySelector('[data-testid="reopen-right"]')).toBeNull()
 
-    await act(async () => clickButton("Collapse smart-orders panel"))
-    // The orders panel gets the same slim tab the market list has always had.
-    // The menu in the chart header says what is in the panel; only this says
-    // the panel itself can come back.
+    await act(async () => clickButton("Collapse market panel"))
     expect(host.querySelector('[data-testid="reopen-right"]')?.ariaLabel).toBe(
-      "Show orders"
+      "Show market"
     )
-    expect(
-      host.querySelector(
-        '[data-testid="market-header"] button[aria-label="Open smart and manual orders"]'
-      )
-    ).not.toBeNull()
-    expect(
-      host.querySelector(
-        '[data-testid="smart-orders-menu"] [data-testid="smart-orders-panel"]'
-      )
-    ).not.toBeNull()
-    expect(
-      Array.from(
-        host.querySelectorAll<HTMLButtonElement>(
-          '[data-testid="market-header"] button'
-        )
-      ).at(-1)?.ariaLabel
-    ).toBe("Open smart and manual orders")
-    expect(
-      host.querySelector(
-        '[data-testid="market-header"] button[aria-label="Show chart full screen"]'
-      )
-    ).toBeNull()
 
     await act(async () => clickButton("Show chart full screen"))
     expect(
       host.querySelector('[data-chart-fullscreen="true"]')?.className
     ).toContain("bg-background")
-    expect(layoutOf("horizontal")).toEqual({
-      markets: 0,
-      chart: 100,
-      "smart-orders": 0,
-    })
-    expect(layoutOf("vertical")).toEqual({ workspace: 100, activity: 0 })
-    expect(
-      host
-        .querySelector('[data-panel="activity"]')
-        ?.classList.contains("hidden")
-    ).toBe(true)
+    expect(layoutOf("horizontal")).toEqual({ blocks: 0, chart: 100, market: 0 })
     expect(chartMounts.count).toBe(1)
 
     layoutSetEvents.length = 0
     await act(async () => clickButton("Exit full screen"))
-    expect(layoutOf("horizontal")).toEqual({
-      markets: 20,
-      chart: 58,
-      "smart-orders": 22,
-    })
-    expect(layoutOf("vertical")).toEqual({ workspace: 72, activity: 28 })
+    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 58, market: 22 })
     expect(layoutSetEvents).toEqual([
       {
         orientation: "horizontal",
         fullscreen: false,
-        layout: { markets: 20, chart: 58, "smart-orders": 22 },
-      },
-      {
-        orientation: "vertical",
-        fullscreen: false,
-        layout: { workspace: 72, activity: 28 },
+        layout: { blocks: 20, chart: 58, market: 22 },
       },
     ])
     expect(chartMounts.count).toBe(1)
@@ -649,31 +535,14 @@ describe("the trade workspace chart full screen", () => {
     expect(host.querySelector('[data-chart-fullscreen="true"]')).toBeNull()
     expect(chartMounts.count).toBe(1)
 
-    // A layout remembers whether profit was on show when it was saved, so the
-    // switch is turned on before saving one.
-    await act(async () => {
-      setHidePnl(true)
-      clickButton("Save test layout")
-      await Promise.resolve()
-    })
-    expect(createNamedLayout).toHaveBeenCalledWith(
-      "Eye layout",
-      { markets: 20, chart: 58, "smart-orders": 22 },
-      { workspace: 72, activity: 28 },
-      { protocol: "hyperliquid", network: "mainnet" },
-      "all",
-      false,
-      null
-    )
-
     await act(async () => clickButton("Move test toolbar"))
     expect(rememberedToolbarPosition).toHaveBeenCalledWith({ x: 0.2, y: 0.4 })
 
-    await act(async () => clickButton("Resize vertical group"))
-    expect(rememberedLayouts).toHaveBeenCalledWith("trade-workspace-vertical", {
-      workspace: 60,
-      activity: 40,
-    })
+    await act(async () => clickButton("Resize horizontal group"))
+    expect(rememberedLayouts).toHaveBeenCalledWith(
+      "trade-workspace-horizontal-2",
+      { blocks: 25, chart: 50, market: 25 }
+    )
 
     vi.useFakeTimers()
     showErrorToast.mockClear()
@@ -690,7 +559,7 @@ describe("the trade workspace chart full screen", () => {
   })
 })
 
-function layoutOf(group: "horizontal" | "vertical") {
+function layoutOf(group: "horizontal") {
   const value = host
     .querySelector(`[data-panel-group="${group}"]`)
     ?.getAttribute("data-layout")

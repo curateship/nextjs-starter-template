@@ -137,14 +137,6 @@ type SmartOrdersViewProps = {
   onRetry: () => void
   onResumeSmartOrder: (order: SmartOrder) => Promise<boolean>
   onSelectMarket: (marketKey: string) => void
-  /**
-   * Told whenever the panel has no row to show, or has one again, so the
-   * dashboard can leave an empty panel out when Hide on empty is on. A failed
-   * read with nothing listed is never "empty": its Retry button has to stay
-   * reachable. Reported before paint, so a panel is never drawn for a frame
-   * and then taken away.
-   */
-  onEmptyChange?: (empty: boolean) => void
 }
 
 /** The two panels, one per kind of smart order placed by hand. */
@@ -165,8 +157,13 @@ const PANEL_WORDS: Record<SmartOrdersPanelKind, { one: string; many: string }> =
  */
 export function SmartOrdersPanel({
   kind,
+  bare = false,
   ...props
-}: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
+}: SmartOrdersViewProps & {
+  kind: SmartOrdersPanelKind
+  /** In a dashboard block, whose own heading names it, so the panel draws no title row. */
+  bare?: boolean
+}) {
   return (
     // The panel fills the box it was given and scrolls inside it, in its own
     // column and in the collapsed-column menu alike. Both boxes are a flex
@@ -175,7 +172,7 @@ export function SmartOrdersPanel({
       data-smart-orders-panel={kind}
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
     >
-      <DashboardCardTitleHeader
+      {bare ? null : <DashboardCardTitleHeader
         icon={
           kind === "grid" ? (
             <Grid2x2Icon className="size-4" />
@@ -184,7 +181,7 @@ export function SmartOrdersPanel({
           )
         }
         title={kind === "grid" ? "Grid" : "DCA"}
-      />
+      />}
       <SmartOrdersView {...props} kind={kind} />
     </section>
   )
@@ -205,7 +202,6 @@ function SmartOrdersView({
   onRetry,
   onResumeSmartOrder,
   onSelectMarket,
-  onEmptyChange,
   kind,
 }: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
   const [cached, setCached] = React.useState<ReturnType<
@@ -358,11 +354,6 @@ function SmartOrdersView({
       {label}
     </TableSortButton>
   )
-
-  const empty = rows.length === 0 && !failed
-  useEffectBeforePaint(() => {
-    onEmptyChange?.(empty)
-  }, [empty, onEmptyChange])
 
   return (
     <>
