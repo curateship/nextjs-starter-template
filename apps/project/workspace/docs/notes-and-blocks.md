@@ -89,6 +89,14 @@ tasks templates feature too").
   Fold section start on the next line.
 - **After a block with no writing in it** (a picture, a divider, a card),
   the cursor moves to the line under it, so typing on never replaces it.
+- **Above a page's first block** (Tyler, 7 Nov 2026: "i cant click at the
+  very upper editor here to insert content because the block is in it"): on
+  the site admin's page, a project's page and a project's note, a click in
+  the 12px of panel edge above a first block, such as the Daily card, puts a
+  new line there with the cursor in it. On a page that starts with writing,
+  the click puts the cursor at the start of it. A click inside the page, or
+  in a menu or dialog the page opened, never adds a line (`lineAbove` in
+  `project-page-notes.tsx`).
 
 ## The blocks
 
