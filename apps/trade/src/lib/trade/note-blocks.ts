@@ -12,13 +12,15 @@ const id = z.string().min(1).max(36)
 
 /**
  * What a Trade page may hold (the Admin 3 panel design, 7 Nov 2026): the
- * exchange's own page on the dashboard's left, and each market's page on its
- * right. Everything a shell written page may hold (words, headings, lists,
+ * exchange's own page on the dashboard's left, and the All markets page on
+ * its right. Everything a shell written page may hold (words, headings, lists,
  * quotes, links), plus the "/" blocks. The basic blocks and this file's rules
  * are copied from Travel's `note-blocks.ts`. The advanced blocks draw what the
  * dashboard already knows (Tyler, 7 Nov 2026: "we turn rules, folders,
  * scanners, alerts, grid trades, dca trades and manual trades into blocks"),
- * so they keep no values of their own. This runs in the editor on every change
+ * so they keep no values of their own. A block this build no longer has,
+ * such as the Market info block that became a tooltip on 7 Nov 2026, is
+ * dropped. This runs in the editor on every change
  * and on the server on every save.
  */
 
@@ -40,32 +42,17 @@ export const NOTE_BLOCK_TYPES = [
   "noteAlerts",
   "noteScanner",
   "noteFolders",
-  "noteMarketInfo",
 ] as const
 export type NoteBlockType = (typeof NOTE_BLOCK_TYPES)[number]
 
-/** The blocks that draw the open exchange's own things, so only its page (the dashboard's left) holds them. */
-export const EXCHANGE_BLOCK_TYPES = [
-  "noteRules",
-  "noteManualTrades",
-  "noteGridTrades",
-  "noteDcaTrades",
-  "noteAlerts",
-  "noteScanner",
-  "noteFolders",
-] as const satisfies readonly NoteBlockType[]
-
-/** The blocks that draw one market, so only a market's page (the dashboard's right) holds them. */
-export const MARKET_BLOCK_TYPES = ["noteMarketInfo"] as const satisfies readonly NoteBlockType[]
-
-/** Which page a document is: the exchange's, or one market's. */
-export type TradePageKind = "exchange" | "market"
-
-/** A block this page may not hold, such as the Rules block pasted into a market's page. */
-function wrongPage(type: NoteBlockType, page: TradePageKind) {
-  if (page === "exchange") return (MARKET_BLOCK_TYPES as readonly string[]).includes(type)
-  return (EXCHANGE_BLOCK_TYPES as readonly string[]).includes(type)
-}
+/**
+ * Which of the dashboard's two pages a document is: the exchange's own page
+ * on the left, or the "All markets" page on the right, which every market on
+ * the exchange shows (Tyler, 7 Nov 2026: "We should make both left and right
+ * panel all protocol wide"). Both hold the same blocks; they differ only in
+ * how a new one starts.
+ */
+export type TradePageKind = "exchange" | "shared"
 
 /**
  * Blocks that hold writing, from Project's basic blocks (6 Nov 2026): a
@@ -184,7 +171,6 @@ const BLOCK_CLEANERS: Record<NoteBlockType, (attrs: Record<string, unknown>) => 
   noteAlerts: () => ({}),
   noteScanner: () => ({}),
   noteFolders: () => ({}),
-  noteMarketInfo: () => ({}),
 }
 
 function isHolder(type: unknown): type is NoteHolderType {
@@ -194,12 +180,11 @@ function isHolder(type: unknown): type is NoteHolderType {
 function cleanChildren(
   raw: { content?: unknown },
   depth: number,
-  page: TradePageKind,
   keep: (node: NoteNode) => boolean
 ): NoteNode[] {
   if (!Array.isArray(raw.content)) return []
   return raw.content
-    .map((child) => cleanNode(child, depth + 1, page))
+    .map((child) => cleanNode(child, depth + 1))
     .filter((child): child is NoteNode => child !== null && keep(child))
 }
 
@@ -210,17 +195,16 @@ const IN_CALLOUT = new Set(["paragraph", "bulletList", "orderedList"])
 function cleanHolder(
   type: NoteHolderType,
   raw: { attrs?: unknown; content?: unknown },
-  depth: number,
-  page: TradePageKind
+  depth: number
 ): NoteNode | null {
   const attrs = raw.attrs && typeof raw.attrs === "object" && !Array.isArray(raw.attrs) ? (raw.attrs as Record<string, unknown>) : {}
   if (type === "noteCallout") {
     const calloutKind = CALLOUT_KINDS.includes(attrs.kind as CalloutKind) ? (attrs.kind as CalloutKind) : "note"
-    const content = cleanChildren(raw, depth, page, (child) => IN_CALLOUT.has(child.type))
+    const content = cleanChildren(raw, depth, (child) => IN_CALLOUT.has(child.type))
     return { type, attrs: { kind: calloutKind }, content: content.length ? content : [{ type: "paragraph" }] }
   }
   if (type === "taskList") {
-    const content = cleanChildren(raw, depth, page, (child) => child.type === "taskItem")
+    const content = cleanChildren(raw, depth, (child) => child.type === "taskItem")
     return content.length ? { type, content } : null
   }
   if (type === "taskItem") {
@@ -228,14 +212,13 @@ function cleanHolder(
     const content = cleanChildren(
       raw,
       depth,
-      page,
       (child) => !isBlock(child.type) && child.type !== "noteCallout" && child.type !== "noteFold"
     )
     return { type, attrs: { checked: attrs.checked === true }, content: content.length ? content : [{ type: "paragraph" }] }
   }
   // A Fold section is a heading line: its words and marks only, like a paragraph's.
   const foldId = id.safeParse(attrs.id)
-  const content = cleanChildren(raw, depth, page, (child) => child.type === "text" || child.type === "hardBreak")
+  const content = cleanChildren(raw, depth, (child) => child.type === "text" || child.type === "hardBreak")
   return { type, attrs: { id: foldId.success ? foldId.data : "fold" }, ...(content.length ? { content } : {}) }
 }
 
@@ -243,36 +226,35 @@ function isBlock(type: unknown): type is NoteBlockType {
   return NOTE_BLOCK_TYPES.includes(type as NoteBlockType)
 }
 
-function cleanNode(value: unknown, depth: number, page: TradePageKind): NoteNode | null {
+function cleanNode(value: unknown, depth: number): NoteNode | null {
   if (depth > MAX_DEPTH || !value || typeof value !== "object" || Array.isArray(value)) return null
   const raw = value as { type?: unknown; attrs?: unknown; content?: unknown }
   if (isBlock(raw.type)) {
-    if (wrongPage(raw.type, page)) return null
     const attrs = raw.attrs && typeof raw.attrs === "object" ? (raw.attrs as Record<string, unknown>) : {}
     const kept = BLOCK_CLEANERS[raw.type](attrs)
     if (!kept) return null
     return Object.keys(kept).length ? { type: raw.type, attrs: kept } : { type: raw.type }
   }
-  if (isHolder(raw.type)) return cleanHolder(raw.type, raw, depth, page)
+  if (isHolder(raw.type)) return cleanHolder(raw.type, raw, depth)
   // Any other node is cleaned alone by the shell's written-page rules, then its children by these.
   const [alone] = cleanWrittenPageBody({ type: "doc", content: [{ ...raw, content: undefined }] }).content ?? []
   if (!alone) return null
   const node: NoteNode = { ...alone }
   if (Array.isArray(raw.content)) {
     const content = raw.content
-      .map((child) => cleanNode(child, depth + 1, page))
+      .map((child) => cleanNode(child, depth + 1))
       .filter((child): child is NoteNode => child !== null)
     if (content.length) node.content = content
   }
   return node
 }
 
-/** A page's document cleaned to what that Trade page may hold. Anything else becomes an empty page. */
-export function cleanNoteBody(value: unknown, page: TradePageKind = "exchange"): NoteNode {
+/** A page's document cleaned to what a Trade page may hold. Anything else becomes an empty page. */
+export function cleanNoteBody(value: unknown): NoteNode {
   if (!value || typeof value !== "object" || (value as { type?: unknown }).type !== "doc") return emptyWrittenPageBody()
   const content = Array.isArray((value as { content?: unknown }).content)
     ? ((value as { content: unknown[] }).content
-        .map((child) => cleanNode(child, 1, page))
+        .map((child) => cleanNode(child, 1))
         .filter((child): child is NoteNode => child !== null))
     : []
   return content.length ? { type: "doc", content } : { type: "doc", content: [] }

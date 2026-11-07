@@ -159,16 +159,17 @@ condition holding would be enough.
 
 ## The Rules box
 
-The Rules box is the Rules block on the exchange's page, the dashboard's left
-panel (the Admin 3 panel design, 7 Nov 2026, `../screens/dashboard-blocks.md`),
+The Rules box is the Rules block, on the exchange's page on the dashboard's
+left or on the All markets page on its right (the Admin 3 panel design, 7 Nov 2026,
+`../screens/dashboard-blocks.md`); each Rules block on screen gets its own box,
 laid out the way Tyler drew it on 15 Oct 2026. The block's heading says Rules,
 so the box under it starts with the rule picker and the cog.
 
 - **With nothing to check, the block still shows the box** and says why:
   "No trading rules are switched on", or "Rules only check trades in a
   real-money wallet" on a practice wallet.
-- **With the left panel shut, in full screen, or with no Rules block on the
-  page, the box is not shown** (Tyler, 15 Oct 2026: "dont need to see this when
+- **With no Rules block on screen (its panel shut, full screen, or none on
+  either page), the box is not shown** (Tyler, 15 Oct 2026: "dont need to see this when
   collapsed"). A small summary card sits over the chart's top left instead,
   described under "The summary card on the chart" below. The window before an
   entry still checks every rule, so a block still stops the order.

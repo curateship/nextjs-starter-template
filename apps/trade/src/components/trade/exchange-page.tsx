@@ -124,7 +124,7 @@ function coreUnanswered(): DashboardCore {
     // the server could not hand over.
     pages: {
       exchange: { body: null, locked: true, coverUrl: null },
-      market: null,
+      shared: { body: null, locked: true, coverUrl: null },
     },
     folders: [],
     panelRows: DEFAULT_MARKET_PANEL_ROWS,

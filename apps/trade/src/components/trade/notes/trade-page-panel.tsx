@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { SavingDocument } from "@/components/trade/notes/saving-document"
-import type { PageLock } from "@/components/trade/notes/page-menus"
+import type { PageCover, PageLock } from "@/components/trade/notes/page-menus"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import type { StoredPage } from "@/lib/api/trade/dashboard"
@@ -12,18 +12,19 @@ import {
   setPageCover,
 } from "@/lib/api/trade/pages"
 import type { ProtocolId } from "@/lib/protocols/contracts"
-import type { TradePageKind } from "@/lib/trade/note-blocks"
 import {
   defaultTradePage,
-  EXCHANGE_PAGE_MARKET,
+  pageKindOf,
+  type TradePageKey,
 } from "@/lib/trade/trade-pages"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * One page on the trading dashboard (the Admin 3 panel design, 7 Nov 2026):
- * the exchange's own page on the left (`marketKey` "") or the market's page
- * on the right. The pages already read stay in memory for the visit, so
- * moving back to a market shows its page at once.
+ * One of the trading dashboard's two pages (the Admin 3 panel design, 7 Nov
+ * 2026), both one per exchange: the exchange's own page on the left
+ * (`pageKey` "") and the All markets page on the right ("*"), which every
+ * market on the exchange shows (Tyler, 7 Nov 2026: "We should make both left
+ * and right panel all protocol wide").
  */
 
 type PageState =
@@ -31,114 +32,108 @@ type PageState =
   | { state: "loading" }
   | { state: "failed" }
 
-function cacheKey(protocol: ProtocolId, marketKey: string) {
-  return `${protocol}|${marketKey}`
-}
-
 function errorText(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
 /** A page's words as the editor reads them: the starting page when none was ever written. */
-function shownBody(page: StoredPage, kind: TradePageKind) {
-  return page.body ?? JSON.stringify(defaultTradePage(kind))
+function shownBody(page: StoredPage, pageKey: TradePageKey) {
+  return page.body ?? JSON.stringify(defaultTradePage(pageKindOf(pageKey)))
 }
 
 export function useTradePage({
   protocol,
-  marketKey,
+  pageKey,
   initial,
 }: {
   protocol: ProtocolId
-  /** "" for the exchange's page, null when no market is picked. */
-  marketKey: string | null
-  /** What the dashboard's opening answer carried, for the page it named. */
-  initial: { marketKey: string; page: StoredPage } | null
+  pageKey: TradePageKey
+  /** What the dashboard's opening answer carried for this page. */
+  initial: StoredPage
 }) {
-  const kind: TradePageKind =
-    marketKey === EXCHANGE_PAGE_MARKET ? "exchange" : "market"
-  // Filed by exchange and market, because the exchange's own page is market
-  // "" on every exchange: Phemex must never be shown Hyperliquid's page.
-  const cache = React.useRef(
-    new Map<string, StoredPage>(
-      initial ? [[cacheKey(protocol, initial.marketKey), initial.page]] : []
-    )
-  )
-  const keyOf = (market: string) => cacheKey(protocol, market)
-  const [, redraw] = React.useReducer((count: number) => count + 1, 0)
-  const [failedKey, setFailedKey] = React.useState<string | null>(null)
-  const [lockBusy, setLockBusy] = React.useState(false)
-  // Read once per page, and again only after Try again.
+  // Filed by exchange, because both pages' keys are the same on every
+  // exchange: Phemex must never be shown Hyperliquid's page.
+  const [pages, setPages] = React.useState<
+    Partial<Record<ProtocolId, StoredPage>>
+  >(() => ({ [protocol]: initial }))
+  const [failed, setFailed] = React.useState<ProtocolId | null>(null)
   const [attempt, setAttempt] = React.useState(0)
+  const [lockBusy, setLockBusy] = React.useState(false)
+  const [coverBusy, setCoverBusy] = React.useState(false)
+  const page = pages[protocol]
+  const remember = React.useCallback(
+    (from: ProtocolId, change: (was: StoredPage | undefined) => StoredPage) =>
+      setPages((all) => ({ ...all, [from]: change(all[from]) })),
+    []
+  )
 
+  // Another exchange's page, read when the dashboard moves to it without a reload.
   React.useEffect(() => {
-    if (marketKey === null || cache.current.has(cacheKey(protocol, marketKey))) return
+    if (page) return
     let current = true
-    setFailedKey(null)
-    loadPage({ protocol, marketKey }).then(
-      (page) => {
-        cache.current.set(cacheKey(protocol, marketKey), page)
-        if (current) redraw()
+    setFailed(null)
+    loadPage({ protocol, marketKey: pageKey }).then(
+      (loaded) => {
+        if (current) remember(protocol, () => loaded)
       },
       () => {
-        if (current) setFailedKey(marketKey)
+        if (current) setFailed(protocol)
       }
     )
     return () => {
       current = false
     }
-  }, [attempt, marketKey, protocol])
+  }, [attempt, page, pageKey, protocol, remember])
 
-  const page = marketKey === null ? null : cache.current.get(keyOf(marketKey))
   const state: PageState = page
     ? { state: "ready", page }
-    : marketKey !== null && failedKey === marketKey
+    : failed === protocol
       ? { state: "failed" }
       : { state: "loading" }
 
-  /** A save for one page, bound to it, so words typed on a market never land on the next one. */
+  /** Saves one exchange's page, bound to it, so words typed here never land on the next exchange's. */
   const saveFor = React.useCallback(
-    (key: string) => async (body: string) => {
-      // Kept at once, so a page drawn again (locked, or moved back to) shows
+    (from: ProtocolId) => async (body: string) => {
+      // Kept at once, so the page drawn again (locked, or moved back to) shows
       // these words even before the server has answered.
-      const was = cache.current.get(cacheKey(protocol, key))
-      const coverUrl = was?.coverUrl ?? null
-      cache.current.set(cacheKey(protocol, key), {
+      remember(from, (was) => ({
         body,
         locked: was?.locked ?? false,
-        coverUrl,
-      })
+        coverUrl: was?.coverUrl ?? null,
+      }))
       try {
-        const saved = await savePage({ protocol, marketKey: key }, body)
-        cache.current.set(cacheKey(protocol, key), {
+        const saved = await savePage({ protocol: from, marketKey: pageKey }, body)
+        remember(from, (was) => ({
           body: saved.body,
           locked: saved.locked,
-          coverUrl: cache.current.get(cacheKey(protocol, key))?.coverUrl ?? coverUrl,
-        })
+          coverUrl: was?.coverUrl ?? null,
+        }))
       } catch (error) {
         showErrorToast(errorText(error, "The page could not be saved."))
       }
     },
-    [protocol]
+    [pageKey, remember]
   )
 
   const lock: PageLock = {
     locked: page?.locked ?? false,
     busy: lockBusy || !page,
     setLocked: (locked) => {
-      if (marketKey === null || !page) return
-      const key = marketKey
+      if (!page) return
+      const from = protocol
       setLockBusy(true)
-      lockPage({ protocol, marketKey: key }, locked, shownBody(page, kind))
-        .then(() => {
-          const now = cache.current.get(keyOf(key)) ?? page
-          cache.current.set(keyOf(key), {
-            ...now,
-            body: now.body ?? shownBody(page, kind),
+      lockPage(
+        { protocol: from, marketKey: pageKey },
+        locked,
+        shownBody(page, pageKey)
+      )
+        .then(() =>
+          remember(from, (was) => ({
+            body: was?.body ?? shownBody(page, pageKey),
             locked,
-          })
-          redraw()
-        })
+            coverUrl: was?.coverUrl ?? null,
+          }))
+        )
         .catch((error: unknown) =>
           showErrorToast(errorText(error, "The lock could not be saved."))
         )
@@ -146,40 +141,44 @@ export function useTradePage({
     },
   }
 
-  const [coverBusy, setCoverBusy] = React.useState(false)
   /** The cover photo behind the panel's header, set or cleared from the ⋮. */
-  const cover = {
+  const cover: PageCover = {
     url: page?.coverUrl ?? null,
     busy: coverBusy || !page,
-    set: (coverUrl: string | null) => {
-      if (marketKey === null || !page) return
-      const key = marketKey
+    set: (coverUrl) => {
+      if (!page) return
+      const from = protocol
       setCoverBusy(true)
-      setPageCover({ protocol, marketKey: key }, coverUrl, shownBody(page, kind))
-        .then(() => {
-          const now = cache.current.get(keyOf(key)) ?? page
-          cache.current.set(keyOf(key), {
-            ...now,
-            body: now.body ?? shownBody(page, kind),
+      setPageCover(
+        { protocol: from, marketKey: pageKey },
+        coverUrl,
+        shownBody(page, pageKey)
+      )
+        .then(() =>
+          remember(from, (was) => ({
+            body: was?.body ?? shownBody(page, pageKey),
+            locked: was?.locked ?? false,
             coverUrl,
-          })
-          redraw()
-        })
+          }))
+        )
         .catch((error: unknown) =>
-          showErrorToast(errorText(error, "The cover photo could not be saved."))
+          showErrorToast(
+            errorText(error, "The cover photo could not be saved.")
+          )
         )
         .finally(() => setCoverBusy(false))
     },
   }
 
   return {
-    kind,
+    protocol,
+    pageKey,
     state,
     lock,
     cover,
     saveFor,
     retry: () => {
-      setFailedKey(null)
+      setFailed(null)
       setAttempt((count) => count + 1)
     },
   }
@@ -190,10 +189,10 @@ export type TradePage = ReturnType<typeof useTradePage>
 /** The page itself, under the panel's header. */
 export function TradePageBody({
   page,
-  marketKey,
+  placeholder = "Type / for a block",
 }: {
   page: TradePage
-  marketKey: string
+  placeholder?: string
 }) {
   const { state } = page
   if (state.state === "loading") return <LoadingRow label="Reading this page" />
@@ -204,13 +203,12 @@ export function TradePageBody({
   }
   return (
     <SavingDocument
-      // A new editor per page and per lock, each saving to its own page only.
-      key={`${marketKey}:${state.page.locked}`}
-      page={page.kind}
-      value={shownBody(state.page, page.kind)}
+      // A new editor per exchange and per lock, each saving to its own page only.
+      key={`${page.protocol}:${page.pageKey}:${state.page.locked}`}
+      value={shownBody(state.page, page.pageKey)}
       locked={state.page.locked}
-      placeholder="Type / for a block"
-      onSave={page.saveFor(marketKey)}
+      placeholder={placeholder}
+      onSave={page.saveFor(page.protocol)}
     />
   )
 }

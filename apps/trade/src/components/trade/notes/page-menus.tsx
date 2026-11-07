@@ -264,8 +264,9 @@ function PinRow({ marketKey }: { marketKey: string }) {
 }
 
 /**
- * The ⋮ over a market's page: General holds the market's folders, Pin to
- * top, then the page's lock. 20.4rem wide, as a record's menu is.
+ * The ⋮ in the right panel's header: General holds the market on the chart's
+ * folders and Pin to top, then the All markets page's cover photo and lock.
+ * 20.4rem wide, as a record's menu is.
  */
 export function MarketPageMenu({
   marketKey,

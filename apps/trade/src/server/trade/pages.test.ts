@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { EXCHANGE_PAGE_MARKET } from "@/lib/trade/trade-pages"
+import { EXCHANGE_PAGE_MARKET, SHARED_PAGE_MARKET } from "@/lib/trade/trade-pages"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
@@ -25,7 +25,6 @@ afterEach(async () => {
   await client.close()
 })
 
-const btc = "hyperliquid:mainnet:BTC"
 
 function page(...content: unknown[]) {
   return JSON.stringify({ type: "doc", content })
@@ -44,7 +43,7 @@ describe("the dashboard's pages", () => {
     ).toEqual({ body: null, locked: false, coverUrl: null })
   })
 
-  it("keeps the exchange's page and each market's page apart", async () => {
+  it("keeps the exchange's page and All markets apart, and each exchange's own", async () => {
     const { id } = await insertUser(database)
     await saveTradePage(
       id,
@@ -56,8 +55,8 @@ describe("the dashboard's pages", () => {
     await saveTradePage(
       id,
       "hyperliquid",
-      btc,
-      page({ type: "noteMarketInfo" }),
+      SHARED_PAGE_MARKET,
+      page({ type: "noteGridTrades" }),
       database
     )
 
@@ -67,30 +66,20 @@ describe("the dashboard's pages", () => {
       EXCHANGE_PAGE_MARKET,
       database
     )
-    const market = await loadTradePage(id, "hyperliquid", btc, database)
-    expect(JSON.parse(exchange.body!).content[0]).toEqual({ type: "noteRules" })
-    expect(JSON.parse(market.body!).content).toEqual([
-      { type: "noteMarketInfo" },
-    ])
-    // Another exchange's page is its own.
-    expect(
-      (await loadTradePage(id, "phemex", EXCHANGE_PAGE_MARKET, database)).body
-    ).toBeNull()
-  })
-
-  it("drops a block saved onto the wrong page", async () => {
-    const { id } = await insertUser(database)
-    await saveTradePage(
+    const shared = await loadTradePage(
       id,
       "hyperliquid",
-      btc,
-      page({ type: "noteRules" }, { type: "noteMarketInfo" }),
+      SHARED_PAGE_MARKET,
       database
     )
-    const market = await loadTradePage(id, "hyperliquid", btc, database)
-    expect(JSON.parse(market.body!).content).toEqual([
-      { type: "noteMarketInfo" },
+    expect(JSON.parse(exchange.body!).content[0]).toEqual({ type: "noteRules" })
+    expect(JSON.parse(shared.body!).content).toEqual([
+      { type: "noteGridTrades" },
     ])
+    // Another exchange's pages are its own.
+    expect(
+      (await loadTradePage(id, "phemex", SHARED_PAGE_MARKET, database)).body
+    ).toBeNull()
   })
 
   it("refuses a save while the page is locked, and takes one again once unlocked", async () => {
@@ -146,23 +135,23 @@ describe("the dashboard's pages", () => {
 
   it("keeps a cover photo with the page and clears it again", async () => {
     const { id } = await insertUser(database)
-    const shown = page({ type: "noteMarketInfo" })
+    const shown = page({ type: "noteGridTrades" })
     await setTradePageCover(
       id,
       "hyperliquid",
-      btc,
+      SHARED_PAGE_MARKET,
       "https://example.com/cover.jpg",
       shown,
       database
     )
-    expect(await loadTradePage(id, "hyperliquid", btc, database)).toEqual({
+    expect(await loadTradePage(id, "hyperliquid", SHARED_PAGE_MARKET, database)).toEqual({
       body: shown,
       locked: false,
       coverUrl: "https://example.com/cover.jpg",
     })
-    await setTradePageCover(id, "hyperliquid", btc, null, page(words), database)
+    await setTradePageCover(id, "hyperliquid", SHARED_PAGE_MARKET, null, page(words), database)
     // Clearing the cover leaves the page's words as they were.
-    expect(await loadTradePage(id, "hyperliquid", btc, database)).toEqual({
+    expect(await loadTradePage(id, "hyperliquid", SHARED_PAGE_MARKET, database)).toEqual({
       body: shown,
       locked: false,
       coverUrl: null,

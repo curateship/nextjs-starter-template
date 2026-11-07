@@ -43,7 +43,10 @@ import { loadMarketFolders } from "@/server/trade/market-folders"
 import { tradeSoundEventsAfter } from "@/server/trade/notice-links"
 import { loadArmedPriceAlerts } from "@/server/trade/price-alerts"
 import { loadDashboardPrefs, loadLastWalletIds } from "@/server/trade/prefs"
-import { EXCHANGE_PAGE_MARKET } from "@/lib/trade/trade-pages"
+import {
+  EXCHANGE_PAGE_MARKET,
+  SHARED_PAGE_MARKET,
+} from "@/lib/trade/trade-pages"
 import { loadTradePage } from "@/server/trade/pages"
 import { loadWalletSummaries } from "@/server/trade/wallets"
 
@@ -109,13 +112,14 @@ export type DashboardCore = {
   /** The wallet the account panel last had active on each exchange. */
   lastWalletIds: Record<string, string>
   /**
-   * The dashboard's two pages, so both draw on the first paint: the
-   * exchange's own page on the left, and the remembered market's page on the
-   * right. A `body` of null was never written, so the starting page shows.
+   * The dashboard's two pages, both one per exchange, so both draw on the
+   * first paint: the exchange's own page on the left, and the All markets
+   * page on the right. A `body` of null was never written, so the starting
+   * page shows.
    */
   pages: {
     exchange: StoredPage
-    market: (StoredPage & { marketKey: string }) | null
+    shared: StoredPage
   }
 }
 
@@ -233,21 +237,10 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       loadTradePage(context.user.id, data.protocol, EXCHANGE_PAGE_MARKET).catch(
         () => unreadPage
       ),
-      prefsPromise.then(async (prefs) => {
-        const marketKey = marketOnDashboard(
-          prefs.lastMarketKey,
-          data.protocol,
-          data.network
-        )
-        if (!marketKey) return null
-        const page = await loadTradePage(
-          context.user.id,
-          data.protocol,
-          marketKey
-        ).catch(() => unreadPage)
-        return { ...page, marketKey }
-      }),
-    ]).then(([exchange, market]) => ({ exchange, market }))
+      loadTradePage(context.user.id, data.protocol, SHARED_PAGE_MARKET).catch(
+        () => unreadPage
+      ),
+    ]).then(([exchange, shared]) => ({ exchange, shared }))
     const [
       prefs,
       folders,

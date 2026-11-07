@@ -3,9 +3,8 @@ import { formatCompactUsd } from "@/lib/trade/format"
 import { minimumOrderLabel } from "@/lib/trade/market-info"
 
 /**
- * The market on the chart. Its facts are the Market info block on the
- * market's page (the Admin 3 panel design, 7 Nov 2026); the row that used to
- * sit over the chart went when the middle panel became one header.
+ * The market on the chart. Its facts are a tooltip on its name in the right
+ * panel's header (the Admin 3 panel design, 7 Nov 2026).
  */
 export type MarketSelection = {
   kind: "market"
@@ -16,8 +15,10 @@ export type MarketSelection = {
 }
 
 /**
- * The same facts as name and value rows, for the Market info block on the
- * market's page (the Admin 3 panel design, 7 Nov 2026).
+ * The market's facts as name and value rows, in the tooltip on the market's
+ * name in the right panel's header (Tyler, 7 Nov 2026: "move the market info
+ * into a tool top in the header"). Drawn for the tooltip's dark ground: names
+ * at 70% strength, values at full.
  */
 export function MarketInfoFacts({
   selection,
@@ -46,10 +47,12 @@ export function MarketInfoFacts({
     ["Top leverage", leverage],
   ]
   return (
-    <dl className="grid grid-cols-[minmax(0,1fr)] divide-y text-sm">
+    // Fills the tooltip, so each value ends at its right edge with no empty
+    // space after it (Tyler, 7 Nov 2026: "empty space").
+    <dl className="grid w-full min-w-56 grid-cols-[minmax(0,1fr)] py-1 text-xs">
       {rows.map(([name, value]) => (
-        <div key={name} className="flex items-baseline gap-3 px-3 py-2">
-          <dt className="shrink-0 text-muted-foreground">{name}</dt>
+        <div key={name} className="flex items-baseline gap-3 px-3 py-1">
+          <dt className="shrink-0 opacity-70">{name}</dt>
           <dd className="min-w-0 flex-1 truncate text-right">{value}</dd>
         </div>
       ))}

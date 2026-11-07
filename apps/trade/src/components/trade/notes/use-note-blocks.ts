@@ -2,8 +2,8 @@ import * as React from "react"
 import type { Editor, Extensions } from "@tiptap/core"
 import { TextSelection } from "@tiptap/pm/state"
 
-import { BLOCK_NODE_NAMES, BLOCK_NODES, blocksFor, EmptyLineAboveBlock, matchingBlocks, type BlockKey } from "@/components/trade/notes/note-block-nodes"
-import { newFoldId, type TradePageKind } from "@/lib/trade/note-blocks"
+import { BLOCK_NODE_NAMES, BLOCK_NODES, BLOCKS, EmptyLineAboveBlock, matchingBlocks, type BlockKey } from "@/components/trade/notes/note-block-nodes"
+import { newFoldId } from "@/lib/trade/note-blocks"
 import { dismissSlash, noteSlashExtension, type SlashBridge, type SlashMatch } from "@/components/trade/notes/note-slash"
 
 /**
@@ -40,7 +40,6 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   alerts: "noteAlerts",
   scanner: "noteScanner",
   folders: "noteFolders",
-  marketInfo: "noteMarketInfo",
 }
 
 /**
@@ -55,7 +54,6 @@ const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = {
   alerts: "noteAlerts",
   scanner: "noteScanner",
   folders: "noteFolders",
-  marketInfo: "noteMarketInfo",
 }
 
 function hasNode(editor: Editor, type: string) {
@@ -120,14 +118,12 @@ function place(editor: Editor, match: SlashMatch, key: BlockKey) {
 /**
  * The "/" blocks for one page: the pieces to hand the shell's editor, and the
  * state `NoteBlocksMenu` draws the list from. The extensions are made once,
- * since the shell's editor asks for the same ones every render. A market's
- * page offers the Market info block and not the exchange's blocks, and the
- * exchange's page the other way round, so a block pasted onto the wrong page
- * is dropped rather than drawn.
+ * since the shell's editor asks for the same ones every render. Both of the
+ * dashboard's pages offer every block.
  */
-export function useNoteBlocks({ page }: { page: TradePageKind }) {
+export function useNoteBlocks() {
   const [relay] = React.useState(() => new SlashRelay())
-  const [keys] = React.useState(() => blocksFor(page))
+  const [keys] = React.useState(() => BLOCKS.map((block) => block.key))
   const [extensions] = React.useState<Extensions>(() => {
     const names = new Set(keys.flatMap((key) => BLOCK_NODE_NAMES[key]))
     return [noteSlashExtension(relay), ...BLOCK_NODES.filter((node) => node === EmptyLineAboveBlock || names.has(node.name))]

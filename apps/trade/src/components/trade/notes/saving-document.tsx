@@ -5,8 +5,8 @@ import { TextSelection } from "@tiptap/pm/state"
 import { NoteBlocksMenu } from "@/components/trade/notes/note-blocks-menu"
 import { useNoteBlocks } from "@/components/trade/notes/use-note-blocks"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
-import { cleanNoteBody, type NoteNode, type TradePageKind } from "@/lib/trade/note-blocks"
-import { readTradePage } from "@/lib/trade/trade-pages"
+import { cleanNoteBody, type NoteNode } from "@/lib/trade/note-blocks"
+import { readPageBody } from "@/lib/trade/trade-pages"
 import { cn } from "@/lib/utils"
 
 /**
@@ -67,14 +67,13 @@ const TYPING_SAVE_MS = 700
  * saves 700ms after the last letter, when the editor is left, and when it
  * closes. Typing "/" or a right-click opens the list of blocks
  * (`note-block-nodes.ts`). Used for the exchange's page on the dashboard's
- * left and the market's page on its right.
+ * left and the All markets page on its right.
  */
 export function SavingDocument({
   value,
   onSave,
   placeholder = "Write something",
   locked = false,
-  page,
   className,
 }: {
   /** The page's document as JSON text, or "". Read once, when it first shows. */
@@ -87,19 +86,16 @@ export function SavingDocument({
    * shade overlay when the left panel is locked?").
    */
   locked?: boolean
-  /** Which page this is, which decides the blocks it offers. */
-  page: TradePageKind
   className?: string
 }) {
   const readOnly = locked
-  const [start] = React.useState(() => readTradePage(value, page))
+  const [start] = React.useState(() => readPageBody(value))
   // What was last saved, so the editor reporting the same words again (as it does when it is
   // locked and unlocked) sends nothing.
   const saved = React.useRef(JSON.stringify(start))
   const draft = React.useRef<NoteNode | null>(null)
-  const blocks = useNoteBlocks({ page })
+  const blocks = useNoteBlocks()
   const timer = React.useRef(0)
-  const clean = React.useCallback((value: unknown) => cleanNoteBody(value, page), [page])
   const saveRef = React.useRef(onSave)
   React.useEffect(() => {
     saveRef.current = onSave
@@ -190,7 +186,7 @@ export function SavingDocument({
         disabled={readOnly}
         placeholder={placeholder}
         extensions={blocks.extensions}
-        clean={clean}
+        clean={cleanNoteBody}
         onChange={(body) => {
           if (readOnly) return
           draft.current = body
