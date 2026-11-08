@@ -7,7 +7,7 @@ everything in the first card, and the app wrote everything in the second.
 **Platform settings** is every screen the shell draws, in three blocks:
 
 - The admin's own rows first, with no heading, because the card's own title
-  already names them: General settings, Navigation, Widgets, Styling, Email,
+  already names them: General settings, Navigation, Styling, Email,
   Payments, AI. AI holds the AI provider keys card, one key per provider.
 - **Members**: Navigation, the member sidebar and member top right menu.
 - **Public**: Navigation for the signed-out header layout and links, Styling for
@@ -52,8 +52,8 @@ reset button also sits inside its card, beneath the menu items.
 Six cards, in this order. Each collapses on its own and remembers the choice
 per browser.
 
-1. **General settings** — app name, site name, the two home routes, rows per
-   page, toast duration, the logo and the browser tab icon.
+1. **General settings** — app name, site name, the two home routes, the sky
+   city, rows per page, toast duration, the logo and the browser tab icon.
 2. **Notifications** — one switch for whether the bell lights up the moment
    something happens, then the twelve kinds a bell may show. These were two
    cards on two screens before 25 Sep 2026 and are one question.
@@ -62,6 +62,17 @@ per browser.
 4. **Old data** — what the app deletes for itself once a day.
 5. **Cloudflare R2** — where uploaded files are kept.
 6. **Maintenance mode** — last, because it is the one that shuts the app.
+
+**Sky city** (Tyler, 8 Nov 2026: "we need a time zone setting because it
+shows the sun and its almost night here", then picking real sun times for a
+city): a page cover set to Sky follows this city's real sunrise and sunset, so
+its evenings come earlier in winter. Typed and left, the city is looked up
+once by name (Open-Meteo's free geocoding, from the server; `api/notes/sky-city.ts`)
+and kept as its name and place; the line under the field says what was found
+and today's sun times there, in the viewer's time. The sky then works out each
+day's sunrise and sunset itself (`src/lib/notes/sky-city.ts`). Empty, the sky
+uses fixed hours on each viewer's own clock, night from 6 PM. One city for
+the whole app.
 
 Cloudflare R2 on General settings and AI provider keys on the AI row each load
 from the server when their screen opens. Both report their own
@@ -220,10 +231,8 @@ the on-or-off state it was left in.
 Public pages keep their own separate colour-mode button, because a visitor who
 is not signed in has no settings to put in a menu.
 
-Navigation and widget settings can:
-
-- Rename, reorder, hide, and group known navigation items.
-- Change the dashboard arrangement within registered widget choices.
+Navigation settings can rename, reorder, hide, and group known navigation
+items.
 
 A hidden admin link does not make its route public.
 

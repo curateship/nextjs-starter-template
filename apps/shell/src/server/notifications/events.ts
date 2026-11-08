@@ -179,8 +179,8 @@ export async function publishNotificationCreated(
 }
 
 /**
- * The same, for a notice written to many people at once — publishing a
- * changelog entry drops one in every single account's tray. One statement
+ * The same, for a notice written to many people at once, such as an
+ * automation that notifies a whole segment. One statement
  * rather than one per person, so a thousand accounts is still a single round
  * trip to the database.
  */

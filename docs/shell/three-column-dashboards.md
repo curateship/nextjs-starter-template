@@ -17,7 +17,31 @@ All of them are in `src/components/shared/`.
   (`src/lib/layout/panel-layout.ts`). Under 1280px one panel shows at a time
   under a row of pills, and all three stay mounted. `showRightFor` switches a
   narrow screen to the right panel when a record opens; `showMiddleFor` does
-  the same for the middle.
+  the same for the middle. Leaving `right` out makes two panels, the middle
+  taking the right one's room, and `middle.bare` draws the middle with no
+  card, its content straight on the page (Admin's Overview, 8 Nov 2026). A
+  screen that switches between two and three panels keeps a layout key for
+  each. `reopenInHeader` takes away the knobs on the middle's edge;
+  the middle's header then draws `PanelReopenButton`s (Lucide's
+  PanelLeftDashed first, PanelRightDashed last), which show only while that
+  side is shut (Admin, 8 Nov 2026, then the CRM). `CrmListHeader`'s `end`
+  slot holds the right one. `MiddleHeading` draws the left one, then a
+  section's icon and name, and `middleGutterClassName` sets the middle's
+  24px left and right on its header and table, both in `three-panels.tsx`.
+- **One frame for a dashboard of sections.** The Admin dashboard and the CRM
+  each keep one `ThreePanels` while their section changes; a section draws
+  its middle in place, its record into a spot in the right panel through a
+  portal, and tells the frame its rows, so the left page and its ⋮ never
+  draw again on a switch (`TabPanels` in `admin-dashboard.tsx`,
+  `crm-frame.tsx`). `place.section` names the section showing, so
+  `useDashboardPlace` treats each new one as an arrival and opens its first
+  row, as it did when each section had a frame of its own.
+- **`SidePanelCollapseButton`, in `three-panels.tsx`.** The collapse button at
+  a side panel header's outer edge (the Admin 3 panel design; Tyler, 7 Nov
+  2026: "add a collasible icon here to collapse the left panel"). Put it
+  first in the left header and last in the right one. It shuts the panel the
+  way a double-click on blank space does. It draws nothing under 1280px,
+  where one panel shows at a time.
 - **`ThreePanels`' `place`, read by `useDashboardPlace`
   (`src/lib/layout/dashboard-place.ts`).** Required. It takes a key from
   `panelLayoutKey` named `…Place`, the route's own `useSearch()`, and the ids
@@ -85,11 +109,9 @@ All of them are in `src/components/shared/`.
   `DashboardTabButton` is a control drawn as one more tab, such as Project's
   More dropdown. The setting is `ShellStyling.dashboardTabs`
   (`src/lib/layout/styling-values.ts`), optional, so a site saved before it
-  existed reads as pills. The CRM inbox's All / Unread uses it too, and so do
-  the Overview widgets' tabs (Activity, Visitors over time, People joining),
-  which pass `tabClassName` to keep the smaller card-header font. Tyler, 4 Nov
-  2026: "wire the dashboard widgets tabs to the settings tab styling". In a
-  widget header the tabs' box is as tall as the header row, so the line sits on
+  existed reads as pills. The CRM inbox's All / Unread uses it too. Tyler,
+  4 Nov 2026: "wire the dashboard widgets tabs to the settings tab styling". In
+  a card header the tabs' box is as tall as the header row, so the line sits on
   the header's bottom divider ("border to be at the edge").
 - **`saved-views.tsx`, `SavedViewsControls` and `SaveViewDialog`.** Views: a
   person's own named filters on one dashboard, the Views button with its menu
@@ -127,6 +149,10 @@ All of them are in `src/components/shared/`.
 - **Contacts, `/admin/contacts`.** Every piece above.
   `src/components/broadcasts/contacts-dashboard.tsx` is the place to start
   reading.
+- **The CRM, `/admin/crm`.** `ThreePanels`, `SidePanelCollapseButton`,
+  `DashboardTabs`, `FilterPopover`, `SelectedMenu` and the page pieces in
+  `page-blocks.md`, since 7 Nov 2026.
+  `src/components/crm/crm-workspace.tsx` is the place to start reading.
 - **Video's Viral project, `/admin/video-viral/<id>`.** `ThreePanels`,
   `PanelCard`, `DashboardTabs`, `SearchToggle`, `FilterPopover`, mass select,
   `NewRecordDropdown` (the Creators card's +) and saved views, since 20 Oct

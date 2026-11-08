@@ -7,12 +7,10 @@ Dashboard controls follow these shared rules:
   padding.
 - A chart-header tab strip occupies one grid row and lines up with the title and
   icon.
-- Tabs in a widget's card header are `DashboardTabs`, so they follow
+- Tabs in a card header are `DashboardTabs`, so they follow
   Settings → Styling → Dashboard tabs like every other dashboard header: pills,
   or words with a line under the one showing. Tyler, 4 Nov 2026: "wire the
-  dashboard widgets tabs to the settings tab styling". That covers Activity,
-  Visitors over time and People joining. They keep the card-header tab font,
-  with words only and no icons.
+  dashboard widgets tabs to the settings tab styling".
 - An underlined tab's line sits on the header's bottom divider, not floating
   above it (Tyler, 4 Nov 2026: "border to be at the edge"). `CardHeaderRow`
   makes the tabs' box as tall as the header row so the line can reach it.
@@ -44,5 +42,10 @@ Dashboard controls follow these shared rules:
   automation) is `NameDialog` in `src/components/shared/dashboard/name-dialog.tsx`.
   The name box sits in a card with a heading, Enter saves, and the box turns red
   when it is left empty.
-- The AI usage and Traffic pages draw their "per day" bars with
+- Admin's Overview tab draws its "per day" bars with
   `DailyBarChart` in `src/components/shared/dashboard/daily-bar-chart.tsx`.
+- **Remembered panel widths arrive without a rebuild.** A resizable panel
+  group draws at its default sizes and gets this browser's saved widths set on
+  it before the first paint (`useRememberedPanelLayout` in
+  `src/lib/layout/panel-layout.ts`), so its panels are built once on arrival
+  and read their data once.

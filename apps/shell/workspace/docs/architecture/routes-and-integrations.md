@@ -27,7 +27,7 @@ job, not editable public pages.
 
 ## Signed-in pages
 
-Members can open `/home`, `/account`, `/workspaces`, and `/changelog`. Account
+Members can open `/home`, `/account`, and `/workspaces`. Account
 tabs may also open through the `account` search value while the person stays on
 the current page. Admins use their configured home route instead of the member
 home when one is set.
@@ -36,14 +36,18 @@ Admin routes sit under `/admin` and cover:
 
 - Overview, Users, Workspaces, and Membership.
 - Billing and Plans.
-- Contacts and Segments.
-- Newsletters, System emails, and Notifications.
+- CRM, which holds the newsletters, the app's own emails, contacts,
+  segments, leads, the inbox and the Dev outbox. `/admin/newsletter`,
+  `/admin/newsletter/<id>`, `/admin/contacts`, `/admin/segments`,
+  `/admin/system-emails`, `/admin/system-emails/<kind>` and
+  `/admin/dev-outbox` forward into it.
+- Notifications.
 - Announcements, Feedback, Media, and Pages.
 - AI, Automations, and Traffic.
-- Dev outbox and Settings.
+- Settings.
 
-Automation, newsletter, system-email, and settings routes have child addresses
-for the open editor or tab.
+Automation and settings routes have child addresses for the open editor or
+tab.
 
 ## Open endpoints
 

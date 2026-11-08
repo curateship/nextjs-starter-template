@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import {
@@ -8,8 +9,10 @@ import {
   markThreadRead,
   markThreadsRead,
   markThreadUnread,
+  setThreadSaved,
   setThreadStatus,
   setThreadStatuses,
+  waitingCutoff,
 } from "@/server/crm/inbox"
 import { getLead, updateLead } from "@/server/crm/leads"
 import { type CustomShellDb } from "@/server/db"
@@ -283,11 +286,51 @@ describe("the reads the CRM screen makes", () => {
     })
   })
 
-  describe("the two tab counts", () => {
-    it("counts everything and the unread part of it", async () => {
+  /**
+   * The Inbox's Waiting pill: they wrote last, before the cutoff, the
+   * conversation is open, and the lead is not won or lost. The same rule the
+   * Waiting on you block reads, through `waitingConditions`.
+   */
+  describe("the Waiting pill", () => {
+    it("counts and lists the open conversation they wrote last, days ago", async () => {
+      const since = waitingCutoff(3)
+      expect((await countInboxThreads(workspaceId, {}, db, since)).waiting).toBe(1)
+      const rows = await listInboxThreads(workspaceId, { waitingSince: since }, db)
+      expect(rows.map((row) => row.id)).toEqual(["thread-1"])
+    })
+
+    it("does not move when the pill itself is on", async () => {
+      const since = waitingCutoff(3)
+      const off = await countInboxThreads(workspaceId, {}, db, since)
+      const on = await countInboxThreads(workspaceId, { waitingSince: since }, db, since)
+      expect(on).toEqual(off)
+    })
+
+    it("leaves out a lead already won", async () => {
+      await db
+        .update(customShellCrmLeads)
+        .set({ stage: "won" })
+        .where(eq(customShellCrmLeads.id, "lead-1"))
+      expect((await countInboxThreads(workspaceId, {}, db, waitingCutoff(3))).waiting).toBe(0)
+    })
+
+    it("leaves out mail newer than the cutoff", async () => {
+      const since = new Date("2026-09-15T00:00:00.000Z")
+      expect(await listInboxThreads(workspaceId, { waitingSince: since }, db)).toEqual([])
+    })
+
+    it("counts nothing with the chase off", async () => {
+      expect((await countInboxThreads(workspaceId, {}, db)).waiting).toBe(0)
+    })
+  })
+
+  describe("the three tab counts", () => {
+    it("counts everything, the unread part of it and the saved part of it", async () => {
       expect(await countInboxThreads(workspaceId, {}, db)).toEqual({
         all: 2,
         unread: 1,
+        saved: 0,
+        waiting: 0,
       })
     })
 
@@ -304,25 +347,78 @@ describe("the reads the CRM screen makes", () => {
 
     it("still obeys every other filter", async () => {
       const open = await countInboxThreads(workspaceId, { status: "open" }, db)
-      expect(open).toEqual({ all: 1, unread: 1 })
+      expect(open).toEqual({ all: 1, unread: 1, saved: 0, waiting: 0 })
 
       const searched = await countInboxThreads(
         workspaceId,
         { search: "flats" },
         db
       )
-      expect(searched).toEqual({ all: 1, unread: 0 })
+      expect(searched).toEqual({ all: 1, unread: 0, saved: 0, waiting: 0 })
     })
 
     it("never counts another workspace's", async () => {
       const counts = await countInboxThreads(otherWorkspaceId, {}, db)
-      expect(counts).toEqual({ all: 1, unread: 1 })
+      expect(counts).toEqual({ all: 1, unread: 1, saved: 0, waiting: 0 })
     })
 
     it("answers zero rather than nothing when none match", async () => {
       expect(await countInboxThreads(workspaceId, { search: "zzzz" }, db)).toEqual(
-        { all: 0, unread: 0 }
+        { all: 0, unread: 0, saved: 0, waiting: 0 }
       )
+    })
+  })
+
+  describe("the Saved tab", () => {
+    it("saves one conversation for the whole site, and takes it off again", async () => {
+      expect(await setThreadSaved(workspaceId, "thread-2", true, db)).toBe(true)
+      expect((await countInboxThreads(workspaceId, {}, db)).saved).toBe(1)
+      const saved = await listInboxThreads(workspaceId, { savedOnly: true, status: "all" }, db)
+      expect(saved.map((row) => row.id)).toEqual(["thread-2"])
+      expect(saved[0]?.savedAt).toBeInstanceOf(Date)
+
+      expect(await setThreadSaved(workspaceId, "thread-2", false, db)).toBe(true)
+      expect((await countInboxThreads(workspaceId, {}, db)).saved).toBe(0)
+    })
+
+    it("does not change its own count when the Saved tab goes on", async () => {
+      await setThreadSaved(workspaceId, "thread-1", true, db)
+      const off = await countInboxThreads(workspaceId, {}, db)
+      const on = await countInboxThreads(workspaceId, { savedOnly: true }, db)
+      expect(on).toEqual(off)
+    })
+
+    it("never saves another workspace's", async () => {
+      expect(await setThreadSaved(workspaceId, "thread-elsewhere", true, db)).toBe(false)
+      expect((await countInboxThreads(otherWorkspaceId, {}, db)).saved).toBe(0)
+    })
+  })
+
+  describe("the address mail arrived at", () => {
+    beforeEach(async () => {
+      await db
+        .update(customShellCrmThreads)
+        .set({ toAddress: "Support@Inbox.Example.com" })
+        .where(eq(customShellCrmThreads.id, "thread-1"))
+    })
+
+    it("narrows the inbox to one address, capitals aside", async () => {
+      const rows = await listInboxThreads(
+        workspaceId,
+        { status: "all", toAddress: "support@inbox.example.com" },
+        db
+      )
+      expect(rows.map((row) => row.id)).toEqual(["thread-1"])
+      expect(rows[0]?.toAddress).toBe("Support@Inbox.Example.com")
+    })
+
+    it("takes the conversations with no address when asked, for the first address", async () => {
+      const rows = await listInboxThreads(
+        workspaceId,
+        { status: "all", toAddress: "sales@inbox.example.com", toAddressTakesUnknown: true },
+        db
+      )
+      expect(rows.map((row) => row.id)).toEqual(["thread-2"])
     })
   })
 

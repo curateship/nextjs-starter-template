@@ -90,7 +90,7 @@ const ENGINE_CRASH = "test-engine-crash"
 const approval = {
   kind: "waitForApproval",
   settings: {
-    summary: "Sends the changelog email to 42 paying members.",
+    summary: "Sends the weekly email to 42 paying members.",
     timeoutDays: 3,
   },
 }
@@ -741,7 +741,7 @@ describe("approval checkpoints", () => {
     expect(row.status).toBe("waiting_approval")
     expect(row.approvalNodeId).toBe("n1")
     expect(row.approvalSummary).toBe(
-      "Sends the changelog email to 42 paying members."
+      "Sends the weekly email to 42 paying members."
     )
     expect(row.approvalDeadlineAt).not.toBeNull()
     // Nothing is holding it: the claim is back and no decision has been made.
@@ -759,7 +759,7 @@ describe("approval checkpoints", () => {
 
     const page = await getNotificationPage({ currentUser: user, database: db })
     expect(page.notifications[0]?.automation_approval_summary).toBe(
-      "Sends the changelog email to 42 paying members."
+      "Sends the weekly email to 42 paying members."
     )
   })
 

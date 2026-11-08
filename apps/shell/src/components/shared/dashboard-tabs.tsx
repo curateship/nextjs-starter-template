@@ -42,8 +42,7 @@ function useDashboardTabStyle(): DashboardTabStyle {
  *
  * `after` is a tab-shaped control at the end of the row, such as a More
  * dropdown, drawn with `DashboardTabButton`. `style` overrides the setting,
- * for the setting's own preview. `tabClassName` goes on every tab, which is how
- * the Overview widgets keep their smaller card-header font.
+ * for the setting's own preview.
  */
 export function DashboardTabs({
   value,
@@ -52,7 +51,6 @@ export function DashboardTabs({
   after,
   style,
   className,
-  tabClassName,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -60,7 +58,6 @@ export function DashboardTabs({
   after?: React.ReactNode
   style?: DashboardTabStyle
   className?: string
-  tabClassName?: string
 }) {
   const picked = useDashboardTabStyle()
   const shown = style ?? picked
@@ -73,7 +70,6 @@ export function DashboardTabs({
           tabs={tabs}
           after={after}
           className={className}
-          tabClassName={tabClassName}
         />
       ) : (
         <ScrollArea className={cn("min-w-0 flex-1", className)}>
@@ -84,7 +80,6 @@ export function DashboardTabs({
                   key={tab.value}
                   value={tab.value}
                   aria-label={tab.ariaLabel}
-                  className={tabClassName}
                 >
                   {tab.label}
                   {tab.count !== undefined ? <TabsCount>{tab.count}</TabsCount> : null}
@@ -112,14 +107,12 @@ function UnderlineTabs({
   tabs,
   after,
   className,
-  tabClassName,
 }: {
   value: string
   onValueChange: (value: string) => void
   tabs: DashboardTab[]
   after?: React.ReactNode
   className?: string
-  tabClassName?: string
 }) {
   const { trackRef, trackProps, pillProps } = useSlidingPill<HTMLDivElement>({
     selected: '[data-slot="dashboard-tab"][data-state="active"]',
@@ -144,7 +137,7 @@ function UnderlineTabs({
                 value={tab.value}
                 aria-label={tab.ariaLabel}
                 data-slot="dashboard-tab"
-                className={cn(underlineTabClassName, tabClassName)}
+                className={underlineTabClassName}
               >
                 {tab.label}
                 {tab.count !== undefined ? <TabsCount>{tab.count}</TabsCount> : null}

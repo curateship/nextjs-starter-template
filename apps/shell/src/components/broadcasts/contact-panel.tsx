@@ -4,18 +4,19 @@ import {
   Loader2Icon,
   PlusIcon,
   SquareMousePointerIcon,
+  Trash2Icon,
   UserIcon,
+  UserMinusIcon,
+  UserPlusIcon,
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { ContactTagsBox } from "@/components/broadcasts/contact-tags-box"
-import {
-  DashboardCardHeader,
-  DashboardCardTitleHeader,
-} from "@/components/shared/dashboard-card-header"
-import { PanelBox, PanelCard, PanelHeading } from "@/components/shared/panel-card"
-import { Badge } from "@/components/ui/badge"
+import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
+import { PickGroup, PickMenuRow, PickRow } from "@/components/shared/notes/pick-rows"
+import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -24,20 +25,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ErrorRow } from "@/components/ui/error-row"
 import { InlineError } from "@/components/ui/inline-error"
-import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
+  deleteContacts,
   getContactErrorMessage,
   loadContactDetail,
   saveContactNotes,
@@ -94,29 +85,29 @@ export function ContactPanel({
   refreshes,
   onChanged,
   onSegment,
+  onDeleted,
 }: {
   contactId: string | undefined
   /** Every tag in use in the workspace, offered as the tags box is typed in. */
   knownTags: string[]
-  /** Every segment, for the Segments card's +, which lists the hand-picked ones. */
+  /** Every segment, for the Segments row, which adds to the hand-picked ones. */
   segments: SegmentItem[]
   /** Goes up each time the list is read again; the panel reads its person again too. */
   refreshes: number
   /** Re-reads the list after a change made here. */
   onChanged: () => Promise<void>
   onSegment: (segmentId: string) => void
+  /** They were deleted from the ⋮; the list lets go of them. */
+  onDeleted: () => void
 }) {
   if (!contactId) {
     return (
-      <>
-        <DashboardCardTitleHeader icon={<UserIcon className="size-4" />} title="Contact" />
-        <div className="grid flex-1 content-center justify-items-center gap-2 p-6 text-center">
-          <SquareMousePointerIcon className="size-5 text-muted-foreground" aria-hidden />
-          <p className="max-w-56 text-sm text-muted-foreground">
-            Click a contact to see their tags, segments, notes and activity here.
-          </p>
-        </div>
-      </>
+      <EmptyRecord
+        title="Person"
+        icon={<SquareMousePointerIcon aria-hidden />}
+        line="Click a person to see them here."
+        hideLabel="Hide the person"
+      />
     )
   }
   return (
@@ -127,10 +118,23 @@ export function ContactPanel({
       refreshes={refreshes}
       onChanged={onChanged}
       onSegment={onSegment}
+      onDeleted={onDeleted}
     />
   )
 }
 
+/**
+ * One contact on the CRM's right panel, in the frame every record there uses
+ * (`RecordFrame`; Tyler, 7 Nov 2026: "The Ui is all over the place"):
+ *
+ * - **Header:** their initials, name and address, then the ⋮.
+ * - **⋮, General:** Person (address, where they came from, when they joined,
+ *   whether they can sign in), then List (status, tags, segments), each a
+ *   grouped row that saves itself, then Delete in red under a line.
+ * - **Body:** Notes, saved as typed, then Activity: what happened to each
+ *   email they were sent.
+ * - **Footer:** their status in words, and Take off or Put back on the list.
+ */
 function OpenContact({
   contactId,
   knownTags,
@@ -138,6 +142,7 @@ function OpenContact({
   refreshes,
   onChanged,
   onSegment,
+  onDeleted,
 }: {
   contactId: string
   knownTags: string[]
@@ -145,9 +150,13 @@ function OpenContact({
   refreshes: number
   onChanged: () => Promise<void>
   onSegment: (segmentId: string) => void
+  onDeleted: () => void
 }) {
   const [historyPage, setHistoryPage] = React.useState(1)
   const [runStatus, changingStatus] = useAsyncAction(getContactErrorMessage)
+  const [runDelete, deleting] = useAsyncAction(getContactErrorMessage)
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const [deleteAsk, setDeleteAsk] = React.useState(false)
 
   const load = useLoad(
     () => loadContactDetail(contactId, historyPage),
@@ -168,155 +177,199 @@ function OpenContact({
     })
   }
 
+  if (!contact || !detail) {
+    return load.error ? (
+      <EmptyRecord title="Person" icon={<UserIcon aria-hidden />} line={load.error} hideLabel="Hide the person" />
+    ) : (
+      <EmptyRecord title="Person" icon={null} line="" loading hideLabel="Hide the person" />
+    )
+  }
+
+  const name = fullName(contact)
+  const mailable = contact.status === "subscribed" || contact.status === "cold"
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col" role="region" aria-label={contact?.email ?? "Contact"}>
-      <DashboardCardHeader>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {contact ? (
-            <>
-              <Select
-                value={contact.status}
-                onValueChange={(value) => pickStatus(value as ContactSegmentStatus)}
-              >
-                {/* No outline (Tyler, 20 Oct 2026); it shades on hover instead. */}
-                <SelectTrigger
-                  className="w-fit min-w-0 border-transparent hover:bg-muted dark:bg-transparent"
-                  aria-label="Their status"
-                  disabled={changingStatus}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONTACT_SEGMENT_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      <span
-                        aria-hidden
-                        className={cn("size-1.5 shrink-0 rounded-full", segmentStatusDotClassName[status])}
+    <>
+      <RecordFrame
+        avatar={initialsOf(name, contact.email)}
+        title={name || contact.email}
+        line={name ? contact.email : segmentStatusLabels[contact.status]}
+        hideLabel="Hide the person"
+        actions={
+          <TabbedMenu
+            label="Person menu"
+            align="end"
+            width="20.4rem"
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            tabs={[
+              {
+                value: "general",
+                label: "General",
+                content: (
+                  <div className="grid gap-4 p-3">
+                    <PickGroup title="Person">
+                      <PickRow label="Email" value={contact.email} disabled>
+                        {null}
+                      </PickRow>
+                      <PickRow label="Came from" value={contact.source || "Not recorded"} empty={!contact.source} disabled>
+                        {null}
+                      </PickRow>
+                      <PickRow label="Joined" value={formatDate(contact.created_at)} disabled>
+                        {null}
+                      </PickRow>
+                      <PickRow label="Type" value={contact.userId ? "Account" : "Subscriber"} disabled>
+                        {null}
+                      </PickRow>
+                    </PickGroup>
+                    <PickGroup
+                      title="List"
+                      after={<p className="px-0.5 text-xs text-muted-foreground">{segmentStatusHints[contact.status]}</p>}
+                    >
+                      <PickMenuRow
+                        label="Status"
+                        value={segmentStatusLabels[contact.status]}
+                        disabled={changingStatus}
+                        options={CONTACT_SEGMENT_STATUSES.map((status) => ({
+                          value: status,
+                          label: segmentStatusLabels[status],
+                        }))}
+                        selected={contact.status}
+                        onPick={(value) => pickStatus(value as ContactSegmentStatus)}
                       />
-                      {segmentStatusLabels[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {changingStatus ? (
-                <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-              ) : null}
-            </>
-          ) : (
-            <h2 className="text-sm font-medium">Contact</h2>
-          )}
-        </div>
-      </DashboardCardHeader>
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid gap-3 p-3">
-          {load.error ? (
-            <ErrorRow
-              message={load.error}
-              onRetry={() => {
-                // Back to "Loading", not to whoever was open before.
-                load.setData(null)
-                load.retry()
-              }}
-            />
-          ) : !detail ? (
-            <LoadingRow label="Loading this contact…" />
-          ) : contact ? (
-            <>
-              <WhoCard contact={contact} />
-              <TagsCard
-                key={contact.tags.join("\n")}
-                contactId={contact.id}
-                tags={contact.tags}
-                knownTags={knownTags}
-                onSaved={onChanged}
-              />
-              <SegmentsCard
-                contactId={contact.id}
-                theirs={detail.segments}
-                segments={segments}
-                onSegment={onSegment}
-                onChanged={onChanged}
-              />
-              <NotesCard key={contact.id} contactId={contact.id} saved={detail.notes} />
-              <PanelCard storageId="contact-activity" title="Activity">
-                <ActivityList
-                  contact={contact}
-                  history={detail.history}
-                  showJoined={!detail.hasMore}
-                  emptyPage={historyPage > 1}
-                />
-                {/* Outside the list on purpose: a page that comes back empty
-                    would otherwise leave no way back to the ones above it. */}
-                {detail.hasMore || historyPage > 1 ? (
-                  <div className="flex items-center gap-2 border-t pt-3">
-                    <span className="flex-1 text-xs text-muted-foreground">Page {historyPage}</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={historyPage === 1}
-                      onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
-                    >
-                      Newer
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={!detail.hasMore}
-                      onClick={() => setHistoryPage((current) => current + 1)}
-                    >
-                      Older
-                    </Button>
+                      <PickRow
+                        label="Tags"
+                        value={contact.tags.length ? contact.tags.join(", ") : "None"}
+                        empty={!contact.tags.length}
+                      >
+                        <TagsBox
+                          key={contact.tags.join("\n")}
+                          contactId={contact.id}
+                          tags={contact.tags}
+                          knownTags={knownTags}
+                          onSaved={onChanged}
+                        />
+                      </PickRow>
+                      <PickRow
+                        label="Segments"
+                        value={detail.segments.length ? detail.segments.map((one) => one.name).join(", ") : "None"}
+                        empty={!detail.segments.length}
+                      >
+                        <SegmentsBox
+                          contactId={contact.id}
+                          theirs={detail.segments}
+                          segments={segments}
+                          onSegment={(segmentId) => {
+                            setMenuOpen(false)
+                            onSegment(segmentId)
+                          }}
+                          onChanged={onChanged}
+                        />
+                      </PickRow>
+                    </PickGroup>
+                    <div className="grid">
+                      <div aria-hidden className="-mx-3 mb-1.5 border-t" />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full justify-start gap-2 px-2 font-normal text-destructive hover:text-destructive"
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setDeleteAsk(true)
+                        }}
+                      >
+                        <Trash2Icon className="size-4" />
+                        Delete contact
+                      </Button>
+                    </div>
                   </div>
-                ) : null}
-              </PanelCard>
-            </>
-          ) : null}
-        </div>
-      </ScrollArea>
-    </div>
+                ),
+              },
+            ]}
+          />
+        }
+        body={
+          <>
+            <NotesBox key={contact.id} contactId={contact.id} saved={detail.notes} />
+            <section className="grid gap-2" aria-label="Activity">
+              <h3 className="px-0.5 text-sm font-medium text-muted-foreground">Activity</h3>
+              <ActivityList
+                contact={contact}
+                history={detail.history}
+                showJoined={!detail.hasMore}
+                emptyPage={historyPage > 1}
+              />
+              {detail.hasMore || historyPage > 1 ? (
+                <div className="flex items-center gap-2 border-t pt-3">
+                  <span className="flex-1 text-xs text-muted-foreground">Page {historyPage}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={historyPage === 1}
+                    onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
+                  >
+                    Newer
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!detail.hasMore}
+                    onClick={() => setHistoryPage((current) => current + 1)}
+                  >
+                    Older
+                  </Button>
+                </div>
+              ) : null}
+            </section>
+          </>
+        }
+        footer={
+          <>
+            <FooterState>
+              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", segmentStatusDotClassName[contact.status])} />
+              <span className="truncate">{segmentStatusLabels[contact.status]}</span>
+            </FooterState>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={changingStatus}
+              onClick={() => pickStatus(mailable ? "unsubscribed" : "subscribed")}
+            >
+              {mailable ? <UserMinusIcon className="size-4" /> : <UserPlusIcon className="size-4" />}
+              {mailable ? "Take off the list" : "Put back on the list"}
+            </Button>
+          </>
+        }
+      />
+      <ConfirmDialog
+        open={deleteAsk}
+        onOpenChange={setDeleteAsk}
+        title={`Delete ${quoteOneLine(contact.email)}?`}
+        description="They come off the list for good, along with the record of what was already sent to them. To simply stop emailing them, use Take off the list instead."
+        confirmLabel="Delete contact"
+        loading={deleting}
+        onConfirm={() =>
+          void runDelete(async () => {
+            await deleteContacts([contact.id])
+            setDeleteAsk(false)
+            toast.success(`Deleted ${contact.email}.`)
+            onDeleted()
+            await onChanged()
+          })
+        }
+      />
+    </>
   )
 }
 
-/**
- * The opening card: their name, address and what their status means, over
- * four facts in a grid ruled edge to edge. Type is Account for somebody who
- * can sign in, which opens their account, and Subscriber for an address alone.
- */
-function WhoCard({ contact }: { contact: ContactItem }) {
-  const name = fullName(contact)
-  return (
-    <PanelBox className="grid gap-3">
-      <div className="grid min-w-0 gap-0.5">
-        <p className="text-lg leading-tight font-semibold break-words">{name || contact.email}</p>
-        {name ? <p className="text-sm break-words text-muted-foreground">{contact.email}</p> : null}
-      </div>
-      <p className="text-sm text-muted-foreground">{segmentStatusHints[contact.status]}</p>
-      <dl className="-mx-4 -mb-4 grid grid-cols-2 border-t [&>div]:px-4 [&>div]:py-3 [&>div:nth-child(-n+2)]:border-b [&>div:nth-child(odd)]:border-r">
-        <Fact label="Source" value={contact.source || "Not recorded"} />
-        <Fact label="Joined" value={formatDate(contact.created_at)} />
-        <Fact
-          label="Last emailed"
-          value={contact.lastEmailedAt ? formatDate(contact.lastEmailedAt) : "Never"}
-        />
-        <Fact
-          label="Type"
-          value={
-            contact.userId ? (
-              <Link to="/admin/users" search={{ open: contact.userId }} aria-label="Account, open their account">
-                <Badge variant="outline" className="hover:bg-muted">
-                  Account
-                </Badge>
-              </Link>
-            ) : (
-              <Badge variant="outline">Subscriber</Badge>
-            )
-          }
-        />
-      </dl>
-    </PanelBox>
-  )
+/** Two letters for the round badge: the name's first and last, or the address's first. */
+function initialsOf(name: string, email: string) {
+  if (!name) return email.slice(0, 1).toUpperCase()
+  const words = name.split(/\s+/).filter(Boolean)
+  return ((words[0]?.[0] ?? "") + (words.length > 1 ? (words.at(-1)?.[0] ?? "") : "")).toUpperCase()
 }
 
 /**
@@ -326,7 +379,7 @@ function WhoCard({ contact }: { contact: ContactItem }) {
  * the segments again. Keyed by the saved tags, so a save from elsewhere starts
  * the box afresh.
  */
-function TagsCard({
+function TagsBox({
   contactId,
   tags: savedTags,
   knownTags,
@@ -352,16 +405,14 @@ function TagsCard({
   }
 
   return (
-    <PanelCard storageId="contact-tags" title="Tags" meta={tags.length || undefined}>
-      <ContactTagsBox
-        id={`contact-tags-${contactId}`}
-        tags={tags}
-        knownTags={knownTags}
-        disabled={saving}
-        onAdd={(tag) => save([...tags, tag])}
-        onRemove={(tag) => void save(tags.filter((entry) => entry !== tag))}
-      />
-    </PanelCard>
+    <ContactTagsBox
+      id={`contact-tags-${contactId}`}
+      tags={tags}
+      knownTags={knownTags}
+      disabled={saving}
+      onAdd={(tag) => save([...tags, tag])}
+      onRemove={(tag) => void save(tags.filter((entry) => entry !== tag))}
+    />
   )
 }
 
@@ -372,7 +423,7 @@ function TagsCard({
  * segment has no ×, because its rules decide who is in it; its dot is solid
  * where a hand-picked one's is grey, as in the left panel.
  */
-function SegmentsCard({
+function SegmentsBox({
   contactId,
   theirs,
   segments,
@@ -404,56 +455,11 @@ function SegmentsCard({
     })
 
   return (
-    <PanelCard
-      storageId="contact-segments"
-      title="Segments"
-      meta={theirs.length || undefined}
-      actionOpen={menuOpen}
-      action={
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Add to a segment"
-                  disabled={changing}
-                  className="text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
-                >
-                  {changing ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Add to a segment</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuLabel>Add to a hand-picked segment</DropdownMenuLabel>
-            {addable.length ? (
-              addable.map((segment) => (
-                <DropdownMenuItem key={segment.id} onSelect={() => add(segment)}>
-                  <span className="min-w-0 truncate">{segment.name}</span>
-                </DropdownMenuItem>
-              ))
-            ) : (
-              <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                {segments.some((segment) => segment.kind === "static")
-                  ? "They are in every hand-picked segment already."
-                  : "No hand-picked segments yet. Make one with the + beside Segments on the left."}
-              </p>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
-    >
+    <div className="grid gap-3">
       {theirs.length ? (
         <div className="flex flex-wrap gap-2">
           {theirs.map((segment) => (
-            <span
-              key={segment.id}
-              className="inline-flex h-7 items-center rounded-md border bg-background text-sm"
-            >
+            <span key={segment.id} className="inline-flex h-7 items-center rounded-md border bg-background text-sm">
               <button
                 type="button"
                 className="flex h-full items-center gap-1.5 rounded-md pr-1 pl-2 hover:underline"
@@ -462,10 +468,7 @@ function SegmentsCard({
               >
                 <span
                   aria-hidden
-                  className={cn(
-                    "size-1.5 rounded-full",
-                    segment.kind === "static" ? "bg-muted-foreground/50" : "bg-foreground"
-                  )}
+                  className={cn("size-1.5 rounded-full", segment.kind === "static" ? "bg-muted-foreground/50" : "bg-foreground")}
                 />
                 {segment.name}
               </button>
@@ -488,7 +491,31 @@ function SegmentsCard({
       ) : (
         <p className="text-sm text-muted-foreground">They are not in any segment right now.</p>
       )}
-    </PanelCard>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={changing}>
+            {changing ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+            Add to a segment
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuLabel>Add to a hand-picked segment</DropdownMenuLabel>
+          {addable.length ? (
+            addable.map((segment) => (
+              <DropdownMenuItem key={segment.id} onSelect={() => add(segment)}>
+                <span className="min-w-0 truncate">{segment.name}</span>
+              </DropdownMenuItem>
+            ))
+          ) : (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">
+              {segments.some((segment) => segment.kind === "static")
+                ? "They are in every hand-picked segment already."
+                : "No hand-picked segments yet. Save one from Filter."}
+            </p>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
@@ -498,7 +525,7 @@ function SegmentsCard({
  * the panel moves to somebody else. The card's heading says Saving… and then
  * Saved. A refused save keeps what was typed and says why.
  */
-function NotesCard({ contactId, saved }: { contactId: string; saved: string }) {
+function NotesBox({ contactId, saved }: { contactId: string; saved: string }) {
   const [text, setText] = React.useState(saved)
   const [state, setState] = React.useState<"idle" | "saving" | "saved" | "failed">("idle")
   const lastSaved = React.useRef(saved)
@@ -529,22 +556,16 @@ function NotesCard({ contactId, saved }: { contactId: string; saved: string }) {
   React.useEffect(() => () => void flush(true), [flush])
 
   return (
-    <PanelCard
-      storageId="contact-notes"
-      title="Notes"
-      meta={
-        state === "saving"
-          ? "Saving…"
-          : state === "saved"
-            ? "Saved"
-            : state === "failed"
-              ? "Not saved"
-              : undefined
-      }
-    >
+    <section className="grid gap-2" aria-label="Notes">
+      <h3 className="flex items-center gap-2 px-0.5 text-sm font-medium text-muted-foreground">
+        Notes
+        <span className="text-xs font-normal">
+          {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : state === "failed" ? "Not saved" : null}
+        </span>
+      </h3>
       <Textarea
         aria-label="Notes"
-        rows={1}
+        rows={2}
         maxLength={CONTACT_NOTES_MAX}
         value={text}
         placeholder="Anything worth remembering about them."
@@ -556,7 +577,7 @@ function NotesCard({ contactId, saved }: { contactId: string; saved: string }) {
         }}
         onBlur={() => void flush()}
       />
-    </PanelCard>
+    </section>
   )
 }
 
@@ -633,8 +654,8 @@ function ActivityList({
                 {" "}
                 {entry.subject.broadcastId ? (
                   <Link
-                    to="/admin/newsletter/$broadcastId"
-                    params={{ broadcastId: entry.subject.broadcastId }}
+                    to="/admin/crm"
+                    search={{ tab: "broadcasts", view: "sent", open: entry.subject.broadcastId }}
                     className="underline-offset-2 hover:underline"
                   >
                     {quoteOneLine(entry.subject.text)}
@@ -675,16 +696,4 @@ function formatShortDate(iso: string): string {
 
 function fullName(contact: { firstName: string | null; lastName: string | null }) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
-}
-
-/** One labelled fact. A description list, because that is what these are. */
-function Fact({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="grid min-w-0 content-start gap-1">
-      <dt>
-        <PanelHeading>{label}</PanelHeading>
-      </dt>
-      <dd className="min-w-0 text-sm break-words">{value}</dd>
-    </div>
-  )
 }

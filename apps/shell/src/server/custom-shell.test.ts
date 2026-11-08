@@ -25,7 +25,6 @@ import {
 import {
   customShellAnnouncements,
   customShellAuthTokens,
-  customShellChangelogEntries,
   customShellMedia,
   customShellFeedback,
   customShellFeedbackComments,
@@ -35,7 +34,6 @@ import {
   customShellPlans,
   customShellSessions,
   customShellSettings,
-  customShellSubscriptions,
   customShellUsers,
   customShellWorkspaces,
 } from "@/server/schema"
@@ -58,12 +56,6 @@ import {
   type AnnouncementInput,
 } from "@/server/content/announcements"
 import {
-  createChangelogEntry,
-  deleteChangelogEntries,
-  listPublishedChangelogEntries,
-  updateChangelogEntry,
-} from "@/server/content/changelog"
-import {
   canSeeShellEntry,
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
@@ -79,7 +71,6 @@ import {
   type ShellItem,
   type ShellSection,
 } from "@/lib/custom-shell"
-import { loadMembershipSummary } from "@/server/people/membership"
 import { startViewingAs, stopViewingAs } from "@/server/people/view-as"
 import { loadAccountDetail } from "@/server/people/account-detail"
 import { grantManualPlan } from "@/server/people/accounts"
@@ -92,12 +83,7 @@ import {
   readShellGlobals,
   readShellSettings,
 } from "@/server/shell-settings"
-import {
-  canViewAllNotifications,
-  getNotificationPage,
-  listAdminNotifications,
-  type AdminNotificationQuery,
-} from "@/server/notifications/inbox"
+import { getNotificationPage } from "@/server/notifications/inbox"
 import {
   createAuthToken,
   createSessionExpiresAt,
@@ -139,6 +125,9 @@ import {
   addPagesLink,
   addSystemEmailsLink,
   removeMediaChildLinks,
+  removeEmailScreenLinks,
+  foldScreensIntoAdmin,
+  removeMediaLibraryLink,
   removeSegmentsLink,
   foldMembershipIntoOverview,
   createUserWorkspace,
@@ -153,7 +142,6 @@ import {
   updateUserWorkspace,
 } from "@/server/people/workspaces"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
-import { loadFeedsSummary } from "@/server/content/feeds"
 import { createDefaultNotificationTypeVisibility } from "@/lib/notification-types"
 
 /** The platform section keeps its own entries; account and admin sit above it. */
@@ -1295,24 +1283,8 @@ describe("custom shell workspaces", () => {
       "section-administration",
       "section-platform-settings",
     ])
+    // The media library is Admin's Media library section, so it has no link.
     expect(platformEntries(defaultSettings)).toMatchObject([
-      {
-        type: "item",
-        label: "Media",
-        href: "/admin/media",
-        visible: true,
-      },
-      {
-        type: "item",
-        label: "Newsletter",
-        href: "/admin/newsletter",
-        visible: true,
-        children: [
-          { label: "Newsletters", href: "/admin/newsletter" },
-          { label: "Contacts", href: "/admin/contacts" },
-          { label: "System emails", href: "/admin/system-emails" },
-        ],
-      },
       {
         type: "item",
         label: "Automations",
@@ -1332,35 +1304,14 @@ describe("custom shell workspaces", () => {
     expect(adminEntries(defaultSettings)).toMatchObject([
       {
         type: "item",
-        label: "Overview",
+        label: "Admin",
         href: "/admin/dashboard",
         visible: true,
-        children: [
-          { label: "Announcements", href: "/admin/announcements" },
-          { label: "Notifications", href: "/admin/notifications" },
-          { label: "Changelog", href: "/changelog" },
-          { label: "Feedback", href: "/admin/feedback" },
-          { label: "Users", href: "/admin/users" },
-          { label: "Plans", href: "/admin/plans" },
-          { label: "Metered usage", href: "/admin/ai-usage" },
-        ],
       },
       {
         type: "item",
         label: "CRM",
         href: "/admin/crm",
-        visible: true,
-      },
-      {
-        type: "item",
-        label: "AI usage",
-        href: "/admin/ai",
-        visible: true,
-      },
-      {
-        type: "item",
-        label: "Traffic",
-        href: "/admin/traffic",
         visible: true,
       },
       {
@@ -1388,23 +1339,6 @@ describe("custom shell workspaces", () => {
       "section-platform-settings",
     ])
     expect(platformEntries(secondSettings)).toMatchObject([
-      {
-        type: "item",
-        label: "Media",
-        href: "/admin/media",
-        visible: true,
-      },
-      {
-        type: "item",
-        label: "Newsletter",
-        href: "/admin/newsletter",
-        visible: true,
-        children: [
-          { label: "Newsletters", href: "/admin/newsletter" },
-          { label: "Contacts", href: "/admin/contacts" },
-          { label: "System emails", href: "/admin/system-emails" },
-        ],
-      },
       {
         type: "item",
         label: "Automations",
@@ -1744,8 +1678,7 @@ describe("custom shell workspaces", () => {
   })
 
   it("still gives a brand new workspace the default sidebar links", () => {
-    // The feed links live under the Overview now, so the walk has
-    // to look one level down as well.
+    // The walk looks one level down as well, for links under a parent.
     const hrefs = parseWorkspaceSettings(undefined).sections.flatMap((section) =>
       // An entry is either a link or a divider, and a divider has no address.
       section.entries.flatMap((entry) => [
@@ -1757,127 +1690,12 @@ describe("custom shell workspaces", () => {
     )
 
     expect(hrefs).toContain("/admin/dashboard")
-    expect(hrefs).toContain("/admin/announcements")
     expect(hrefs).toContain("/admin/automations")
-    expect(hrefs).toContain("/changelog")
-    // The Feeds page is gone; its links hang off the Overview now.
-    expect(hrefs).not.toContain("/admin/feeds")
-  })
-})
-
-describe("membership section", () => {
-  it("counts everybody once, free plan included", async () => {
-    const createdAt = now()
-    // Free ($0, the default) and Pro ($19 a month, $190 a year) are seeded by
-    // the migrations, the same as a real install.
-    const seeded = await database.select().from(customShellPlans)
-    const proPlanId = seeded.find((plan) => plan.slug === "pro")!.id
-
-    await database.insert(customShellPlans).values({
-      id: uuid(),
-      slug: "retired",
-      name: "Retired",
-      priceMonthlyCents: 900,
-      active: false,
-      sortOrder: 2,
-      createdAt,
-      updatedAt: createdAt,
-    })
-
-    const people = ["admin", "payer", "yearly", "freeloader"] as const
-    const ids = new Map<string, string>()
-    for (const who of people) {
-      const id = uuid()
-      ids.set(who, id)
-      await database.insert(customShellUsers).values({
-        id,
-        email: `${who}@internal.dev`,
-        name: who,
-        role: who === "admin" ? "admin" : "member",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      })
-    }
-
-    await database.insert(customShellSubscriptions).values([
-      {
-        id: uuid(),
-        userId: ids.get("payer")!,
-        planId: proPlanId,
-        status: "active",
-        interval: "monthly",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-        id: uuid(),
-        userId: ids.get("yearly")!,
-        planId: proPlanId,
-        status: "active",
-        interval: "yearly",
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ])
-
-    const summary = await loadMembershipSummary(
-      database as unknown as CustomShellDb
-    )
-
-    expect(summary.admins).toBe(1)
-    expect(summary.members).toBe(3)
-    // Only plans people can still join.
-    expect(summary.livePlans).toBe(2)
-    expect(summary.paidPlans).toBe(1)
-
-    // $19 a month, plus a $190 year counted as a twelfth of itself.
-    expect(summary.revenue.monthlyRecurringCents).toBe(
-      1900 + Math.round(19_000 / 12)
-    )
-
-    const perPlan = Object.fromEntries(
-      summary.planMembership.map((row) => [row.planName, row.people])
-    )
-    // Two paying, and everybody else — including the admin — on free.
-    expect(perPlan).toEqual({ Free: 2, Pro: 2 })
-    expect(
-      summary.planMembership.reduce((total, row) => total + row.people, 0)
-    ).toBe(summary.revenue.totalUsers)
-  })
-
-  it("draws the last 30 days of joining, and the running total", async () => {
-    const DAY_MS = 24 * 60 * 60 * 1000
-    // Two today, one ten days back, and one from before the line starts.
-    const joinedDaysAgo = [0, 0, 10, 45]
-    for (const [index, daysAgo] of joinedDaysAgo.entries()) {
-      const createdAt = new Date(Date.now() - daysAgo * DAY_MS)
-      await database.insert(customShellUsers).values({
-        id: uuid(),
-        email: `line-${index}@internal.dev`,
-        name: `line ${index}`,
-        role: "member",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      })
-    }
-
-    const { last30Days, revenue } = await loadMembershipSummary(
-      database as unknown as CustomShellDb
-    )
-
-    expect(last30Days).toHaveLength(30)
-    expect(last30Days.at(-1)).toMatchObject({
-      joined: 2,
-      people: revenue.totalUsers,
-    })
-    expect(last30Days[29 - 10]).toMatchObject({
-      joined: 1,
-      people: revenue.totalUsers - 2,
-    })
-    // Before the ten-day-old account, only the one from before the line.
-    expect(last30Days[0].people).toBe(revenue.totalUsers - 3)
+    // Users, Plans, Feedback and Announcements are part of Admin; the
+    // Changelog and the Notifications page are gone.
+    expect(hrefs).not.toContain("/admin/announcements")
+    expect(hrefs).not.toContain("/changelog")
+    expect(hrefs).not.toContain("/admin/notifications")
   })
 })
 
@@ -2052,16 +1870,15 @@ describe("metered usage link", () => {
       ).settings
     )
     expect(upgraded.navVersion).toBe(NAVIGATION_VERSION)
+    // 19 adds Metered usage under the Overview, then 23 makes the Overview
+    // Admin and takes out Plans, Metered usage and AI usage, all part of it.
     expect(upgraded.sections[0].entries.map((entry) => entry.id)).toEqual([
       "item-admin-overview",
       "item-crm",
-      "item-admin-ai-usage",
     ])
-    expect(
-      (upgraded.sections[0].entries[0] as ShellItem).children?.map(
-        (child) => child.id
-      )
-    ).toEqual(["item-admin-plans", "item-admin-metered-usage"])
+    const admin = upgraded.sections[0].entries[0] as ShellItem
+    expect(admin.label).toBe("Admin")
+    expect(admin.children).toBeUndefined()
   })
 
   // The oldest menu still live (a Trade site on 3 Nov 2026) is at 12, so this
@@ -2134,15 +1951,17 @@ describe("metered usage link", () => {
     expect(
       entries.map((entry) => [entry.id, entry.children?.map((child) => child.id) ?? []])
     ).toEqual([
-      // 14 folds Membership into Overview; 19 adds Usage billing under it.
-      ["item-admin-overview", ["item-admin-users", "item-admin-plans", "item-admin-metered-usage"]],
+      // 14 folds Membership into Overview; 19 adds Metered usage under it;
+      // 23 makes the Overview Admin and takes Users, Plans, Metered usage
+      // and Traffic out, all part of it.
+      ["item-admin-overview", []],
       ["item-crm", []], // 20
-      ["item-admin-traffic", []],
       ["item-admin-pages", []], // 17, beside Traffic
-      // 13 adds System emails, 21 takes Segments out.
-      ["item-newsletter", ["item-newsletter-all", "item-newsletter-contacts", "item-newsletter-system-emails"]],
+      // 13 adds System emails and 21 takes Segments out; 22 takes the whole
+      // Newsletter link out, its screens being the CRM's now.
       ["item-automations", ["item-automation-templates"]], // 18
-      ["item-media", []], // 15
+      // 15 took Media's children out; 24 takes Media out, its screen being
+      // Admin's Media library section.
     ])
   })
 })
@@ -2563,120 +2382,6 @@ describe("membership folds into the overview", () => {
   })
 })
 
-describe("feeds section", () => {
-  it("adds up the same numbers the pages it links to show", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const DAY_MS = 24 * 60 * 60 * 1000
-    const db = database as unknown as CustomShellDb
-    const createdAt = now()
-    const adminId = uuid()
-    const memberId = uuid()
-
-    await database.insert(customShellUsers).values([
-      {
-        id: adminId,
-        email: "feeds-admin@internal.dev",
-        name: "Feeds Admin",
-        role: "admin",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-        id: memberId,
-        email: "feeds-member@internal.dev",
-        name: "Feeds Member",
-        role: "member",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ])
-
-    // Two published updates. Publishing drops a notice in both people's trays.
-    await createChangelogEntry(workspaceId, { title: "Shipped one", body: "It is out.", published: true },
-      db
-    )
-    await createChangelogEntry(workspaceId, { title: "Shipped two", body: "Also out.", published: true },
-      db
-    )
-
-    // One of the four notices has been read.
-    const [firstNotice] = await database
-      .select()
-      .from(customShellNotifications)
-      .limit(1)
-    await database
-      .update(customShellNotifications)
-      .set({ readAt: now() })
-      .where(eq(customShellNotifications.id, firstNotice.id))
-
-    // One fresh piece of feedback and one from before the seven-day line.
-    const answeredFeedbackId = uuid()
-    await database.insert(customShellFeedback).values([
-      {
-      workspaceId,
-        id: uuid(),
-        userId: memberId,
-        type: "suggestion",
-        message: "More feeds please",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-      workspaceId,
-        id: answeredFeedbackId,
-        userId: memberId,
-        type: "bug_report",
-        message: "An old bug",
-        createdAt: new Date(Date.now() - 8 * DAY_MS),
-        updatedAt: new Date(Date.now() - 8 * DAY_MS),
-      },
-    ])
-
-    // One of the two has been replied to.
-    await database.insert(customShellFeedbackComments).values({
-      id: uuid(),
-      feedbackId: answeredFeedbackId,
-      userId: adminId,
-      message: "Looking at it.",
-      createdAt,
-      updatedAt: createdAt,
-    })
-    const summary = await loadFeedsSummary(workspaceId, db)
-
-    // Publishing wrote a notice per person, but the activity feed is one line
-    // per event: two published updates, not four notices.
-    expect(summary.notifications.latest).toHaveLength(2)
-    expect(summary.notifications.latest.map((item) => item.type)).toEqual([
-      "changelog",
-      "changelog",
-    ])
-    expect(
-      summary.notifications.latest
-        .map((item) => item.changelog_title ?? "")
-        .sort()
-    ).toEqual(["Shipped one", "Shipped two"])
-    // One person opened one of them, so that line counts as opened.
-    expect(
-      summary.notifications.latest.filter((item) => item.read_at).length
-    ).toBe(1)
-
-    expect(summary.feedback).toMatchObject({
-      last7Days: 1,
-      // The eight-day-old one lands in the seven days before this week.
-      previous7Days: 1,
-      // One of the two has been replied to.
-      noReply: 1,
-    })
-    // The line: 30 days ending today, one today and one eight days back.
-    expect(summary.feedback.last30Days).toHaveLength(30)
-    expect(summary.feedback.last30Days.at(-1)).toBe(1)
-    expect(summary.feedback.last30Days[29 - 8]).toBe(1)
-    expect(summary.feedback.last30Days.reduce((a, b) => a + b, 0)).toBe(2)
-  })
-})
-
 describe("member sidebar", () => {
   async function seedPeople() {
     const createdAt = now()
@@ -2737,7 +2442,7 @@ describe("member sidebar", () => {
             type: "item",
             id: "item-member-help",
             label: "Help",
-            href: "/changelog",
+            href: "/pricing",
             icon: "sparkles",
             visible: true,
           },
@@ -2881,12 +2586,10 @@ describe("member sidebar", () => {
     // and members would silently go back to landing on their first link.
     const saved = pickShellGlobals({
       ...createDefaultShellConfig(),
-      memberHomeRoute: "/changelog/whats-new",
+      memberHomeRoute: "/pricing",
     })
 
-    expect(parseShellGlobals(saved).memberHomeRoute).toBe(
-      "/changelog/whats-new"
-    )
+    expect(parseShellGlobals(saved).memberHomeRoute).toBe("/pricing")
     // A row written before the setting existed reads as "not set", not junk.
     expect(parseShellGlobals({ appName: "x" }).memberHomeRoute).toBe("")
   })
@@ -3193,7 +2896,7 @@ describe("top right menu", () => {
       type: "link",
       id: "top-right-link-1",
       label: "Docs",
-      href: "/changelog",
+      href: "/pricing",
       icon: "bookOpen",
     }
 
@@ -3266,7 +2969,7 @@ describe("top right menu", () => {
         type: "link",
         id: "top-right-link-help",
         label: "Help",
-        href: "/changelog",
+        href: "/pricing",
         icon: "sparkles",
       },
     ]
@@ -4196,212 +3899,8 @@ describe("custom shell feedback notifications", () => {
     expect(page.unread_count).toBe(1)
   })
 
-  it("allows only admins to list all notifications", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const createdAt = now()
-    const adminId = uuid()
-    const ownerId = uuid()
-    const actorId = uuid()
-    const feedbackId = uuid()
-    const notificationId = uuid()
-
-    expect(canViewAllNotifications({ role: "admin" })).toBe(true)
-    expect(canViewAllNotifications({ role: "member" })).toBe(false)
-
-    await database.insert(customShellUsers).values([
-      {
-        id: adminId,
-        email: "notification-admin@internal.dev",
-        name: "Admin",
-        role: "admin",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-        id: ownerId,
-        email: "notification-owner@internal.dev",
-        name: "Owner",
-        role: "member",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      {
-        id: actorId,
-        email: "notification-actor@internal.dev",
-        name: "Actor",
-        role: "member",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ])
-    await database.insert(customShellFeedback).values({
-      workspaceId,
-      id: feedbackId,
-      userId: ownerId,
-      type: "suggestion",
-      message: "Admin visible feedback",
-      createdAt,
-      updatedAt: createdAt,
-    })
-    await database.insert(customShellNotifications).values({
-      id: notificationId,
-      recipientUserId: ownerId,
-      actorUserId: actorId,
-      feedbackId,
-      type: "feedback_comment",
-      createdAt,
-    })
-
-    // A member's own page never shows somebody else's notice, whoever asks.
-    const ownerPage = await getNotificationPage({
-      currentUser: { id: actorId },
-      database: database as unknown as CustomShellDb,
-    })
-    expect(ownerPage.notifications).toEqual([])
-
-    const adminPage = await listAdminNotifications(
-      adminNotificationQuery(),
-      database as unknown as CustomShellDb
-    )
-    expect(adminPage.total).toBe(1)
-    expect(adminPage.notifications).toMatchObject([
-      {
-        id: notificationId,
-        actor_name: "Actor",
-        recipient_name: "Owner",
-      },
-    ])
-
-    const [notification] = await database
-      .select()
-      .from(customShellNotifications)
-      .where(eq(customShellNotifications.id, notificationId))
-    expect(notification.readAt).toBeNull()
-  })
-
-  it("searches, filters and sorts the whole admin list, not one page", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const createdAt = now()
-    const recipientId = uuid()
-    const votersIds = [uuid(), uuid(), uuid()]
-    const feedbackIds = [uuid(), uuid(), uuid()]
-    const notificationIds = [uuid(), uuid(), uuid()]
-
-    await database.insert(customShellUsers).values([
-      {
-        id: recipientId,
-        email: "whole-list-owner@internal.dev",
-        name: "Zoe Owner",
-        role: "member",
-        passwordHash: "hash",
-        createdAt,
-        updatedAt: createdAt,
-      },
-      // Named so alphabetical order and newest-first order disagree: the
-      // buried one is both the oldest and the first by name.
-      ...["Buried Person", "Middle Person", "Recent Person"].map(
-        (name, index) => ({
-          id: votersIds[index],
-          email: `whole-list-actor-${index}@internal.dev`,
-          name,
-          role: "member",
-          passwordHash: "hash",
-          createdAt,
-          updatedAt: createdAt,
-        })
-      ),
-    ])
-    await database.insert(customShellFeedback).values(
-      feedbackIds.map((id, index) => ({
-        id,
-        workspaceId,
-        userId: recipientId,
-        type: "suggestion",
-        message: ["Zulu feedback", "Feedback 1", "Alpha feedback"][index],
-        createdAt,
-        updatedAt: createdAt,
-      }))
-    )
-    await database.insert(customShellNotifications).values(
-      notificationIds.map((id, index) => ({
-        id,
-        recipientUserId: recipientId,
-        actorUserId: votersIds[index],
-        feedbackId: feedbackIds[index],
-        type: index === 0 ? "feedback_comment" : "feedback_vote",
-        // The oldest one is last by date, so a one-row page never reaches it.
-        createdAt: new Date(createdAt.getTime() + index * 1000),
-        readAt: index === 2 ? createdAt : null,
-      }))
-    )
-
-    const list = (query: Partial<AdminNotificationQuery>) =>
-      listAdminNotifications(
-        adminNotificationQuery(query),
-        database as unknown as CustomShellDb
-      )
-
-    // The buried row is oldest, so a page of one newest-first would miss it.
-    const buried = await list({ search: "buried", pageSize: 1 })
-    expect(buried.total).toBe(1)
-    expect(buried.notifications.map((item) => item.id)).toEqual([
-      notificationIds[0],
-    ])
-
-    // Searching the feedback text and the recipient's name works the same way.
-    expect((await list({ search: "Feedback 1" })).total).toBe(1)
-    expect((await list({ search: "zoe owner" })).total).toBe(3)
-
-    expect((await list({ read: "unread" })).total).toBe(2)
-    expect((await list({ read: "read" })).total).toBe(1)
-    expect((await list({ type: "feedback_comment" })).total).toBe(1)
-
-    // The count is the whole match, not the page — three matches, one row.
-    const firstPage = await list({ pageSize: 1 })
-    expect(firstPage.total).toBe(3)
-    expect(firstPage.notifications).toHaveLength(1)
-    expect(firstPage.notifications[0].id).toBe(notificationIds[2])
-
-    const secondPage = await list({ pageSize: 1, page: 2 })
-    expect(secondPage.notifications.map((item) => item.id)).toEqual([
-      notificationIds[1],
-    ])
-
-    const byActivity = await list({ sort: "activity", direction: "asc" })
-    expect(byActivity.notifications.map((item) => item.id)).toEqual([
-      notificationIds[2],
-      notificationIds[1],
-      notificationIds[0],
-    ])
-
-    // Type sorts by the words on screen: "Comment" before "Thumbs up".
-    const byType = await list({ sort: "type", direction: "asc" })
-    expect(byType.notifications[0].id).toBe(notificationIds[0])
-
-    // Unread first, because that is the row you still have to deal with.
-    const byStatus = await list({ sort: "status", direction: "asc" })
-    expect(byStatus.notifications.at(-1)?.id).toBe(notificationIds[2])
-  })
 })
 
-/** The list query with every filter off, so a test only states what it changes. */
-function adminNotificationQuery(
-  overrides: Partial<AdminNotificationQuery> = {}
-): AdminNotificationQuery {
-  return {
-    search: "",
-    read: "all",
-    type: "all",
-    page: 1,
-    pageSize: 25,
-    sort: "created",
-    direction: "desc",
-    ...overrides,
-  }
-}
 
 describe("member home page", () => {
   /**
@@ -4893,212 +4392,6 @@ describe("custom shell media helpers", () => {
         },
       ],
     })
-  })
-})
-
-describe("custom shell changelog", () => {
-  async function seedReader(email = "reader@internal.dev") {
-    const userId = uuid()
-    const createdAt = now()
-
-    await database.insert(customShellUsers).values({
-      id: userId,
-      email,
-      name: "Reader",
-      role: "member",
-      passwordHash: await hash("password123"),
-      createdAt,
-      updatedAt: createdAt,
-    })
-
-    return userId
-  }
-
-  async function countNotices(changelogEntryId: string) {
-    const rows = await database
-      .select({ id: customShellNotifications.id })
-      .from(customShellNotifications)
-      .where(eq(customShellNotifications.changelogEntryId, changelogEntryId))
-
-    return rows.length
-  }
-
-  it("keeps drafts out of the panel and lists published entries newest first", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-
-    const older = await createChangelogEntry(workspaceId, { title: "Older", body: "Shipped a while ago", published: true },
-      db
-    )
-    await createChangelogEntry(workspaceId, { title: "Draft", body: "Not ready", published: false },
-      db
-    )
-    const newer = await createChangelogEntry(workspaceId, { title: "Newer", body: "Shipped just now", published: true },
-      db
-    )
-    // Two entries created in the same test can share a timestamp, so space them
-    // out rather than asserting on an order the database never promised.
-    await database
-      .update(customShellChangelogEntries)
-      .set({ publishedAt: new Date(Date.now() - 60_000) })
-      .where(eq(customShellChangelogEntries.id, older.id))
-
-    const published = await listPublishedChangelogEntries(workspaceId, 20, db)
-
-    expect(published.map((entry) => entry.title)).toEqual(["Newer", "Older"])
-    expect(newer.publishedAt).not.toBeNull()
-  })
-
-  it("drops a notice in every person's tray when an update is published", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-    const readerId = await seedReader()
-    const otherId = await seedReader("second@internal.dev")
-
-    const entry = await createChangelogEntry(workspaceId, { title: "First", body: "Something shipped", published: true },
-      db
-    )
-
-    const notices = await database
-      .select()
-      .from(customShellNotifications)
-      .where(eq(customShellNotifications.changelogEntryId, entry.id))
-
-    expect(notices).toHaveLength(2)
-    expect(notices.map((row) => row.recipientUserId).sort()).toEqual(
-      [readerId, otherId].sort()
-    )
-    // A changelog notice is about nobody and about no feedback, and starts
-    // unread so the tray's own dot does the announcing.
-    expect(notices.every((row) => row.actorUserId === null)).toBe(true)
-    expect(notices.every((row) => row.feedbackId === null)).toBe(true)
-    expect(notices.every((row) => row.readAt === null)).toBe(true)
-  })
-
-  it("says nothing when a draft is saved, and announces it when published", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-    await seedReader()
-
-    const entry = await createChangelogEntry(workspaceId, { title: "Draft", body: "Not ready", published: false },
-      db
-    )
-    await expect(countNotices(entry.id)).resolves.toBe(0)
-
-    await updateChangelogEntry(workspaceId,
-      entry.id,
-      { title: "Draft", body: "Now it is ready", published: true },
-      db
-    )
-    await expect(countNotices(entry.id)).resolves.toBe(1)
-  })
-
-  it("does not announce an edit to an update that is already out", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-    await seedReader()
-
-    const entry = await createChangelogEntry(workspaceId, { title: "Typo", body: "Teh feature shipped", published: true },
-      db
-    )
-    await updateChangelogEntry(workspaceId,
-      entry.id,
-      { title: "Typo", body: "The feature shipped", published: true },
-      db
-    )
-
-    await expect(countNotices(entry.id)).resolves.toBe(1)
-  })
-
-  it("takes the notices back when an update is pulled", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-    await seedReader()
-
-    const entry = await createChangelogEntry(workspaceId, { title: "Too early", body: "Not shipped after all", published: true },
-      db
-    )
-    await expect(countNotices(entry.id)).resolves.toBe(1)
-
-    await updateChangelogEntry(workspaceId,
-      entry.id,
-      { title: "Too early", body: "Not shipped after all", published: false },
-      db
-    )
-    await expect(countNotices(entry.id)).resolves.toBe(0)
-  })
-
-  it("clears the notices when the update itself is deleted", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-    await seedReader()
-
-    const entry = await createChangelogEntry(workspaceId, { title: "Gone", body: "Deleted later", published: true },
-      db
-    )
-    await expect(countNotices(entry.id)).resolves.toBe(1)
-
-    await deleteChangelogEntries(workspaceId, [entry.id], db)
-    await expect(countNotices(entry.id)).resolves.toBe(0)
-  })
-
-  it("keeps the original date when a published entry is edited", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-
-    const entry = await createChangelogEntry(workspaceId, { title: "Typo", body: "Teh feature shipped", published: true },
-      db
-    )
-    const firstPublishedAt = entry.publishedAt
-
-    const fixed = await updateChangelogEntry(workspaceId,
-      entry.id,
-      { title: "Typo", body: "The feature shipped", published: true },
-      db
-    )
-
-    expect(fixed.publishedAt?.toISOString()).toBe(
-      firstPublishedAt?.toISOString()
-    )
-  })
-
-  it("clears the date when an entry goes back to a draft", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-
-    const entry = await createChangelogEntry(workspaceId, { title: "Too early", body: "Not shipped after all", published: true },
-      db
-    )
-
-    const pulled = await updateChangelogEntry(workspaceId,
-      entry.id,
-      { title: "Too early", body: "Not shipped after all", published: false },
-      db
-    )
-
-    expect(pulled.publishedAt).toBeNull()
-    await expect(listPublishedChangelogEntries(workspaceId, 20, db)).resolves.toEqual([])
-  })
-
-  it("refuses an entry with no title or no details", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-
-    await expect(
-      createChangelogEntry(workspaceId, { title: "  ", body: "Body", published: true }, db)
-    ).rejects.toThrow("CHANGELOG_TITLE_REQUIRED")
-    await expect(
-      createChangelogEntry(workspaceId, { title: "Title", body: "  ", published: true }, db)
-    ).rejects.toThrow("CHANGELOG_BODY_REQUIRED")
-  })
-
-  it("reports a delete that matched nothing instead of passing silently", async () => {
-    const workspaceId = (await insertWorkspace(database)).id
-    const db = database as unknown as CustomShellDb
-
-    await expect(deleteChangelogEntries(workspaceId, [uuid()], db)).rejects.toThrow(
-      "CHANGELOG_ENTRY_NOT_FOUND"
-    )
   })
 })
 
@@ -5814,5 +5107,245 @@ describe("custom shell account detail", () => {
       cancelAtPeriodEnd: false,
     })
     expect(detail.subscription.currentPeriodEnd).toBe(endsAt.toISOString())
+  })
+})
+
+describe("email screen links", () => {
+  const item = (id: string, label: string, href: string, children?: ShellChildItem[]): ShellItem => ({
+    type: "item",
+    id,
+    label,
+    href,
+    icon: "mail",
+    visible: true,
+    ...(children ? { children } : {}),
+  })
+
+  it("takes the Newsletter link and its screens out, whatever it was called", () => {
+    const sections: ShellSection[] = [
+      {
+        id: "section-platform",
+        title: "Platform",
+        entries: [
+          // Tyler's own sidebar calls it Broadcast.
+          item("item-8576ee16", "Broadcast", "/admin/newsletter", [
+            { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
+            { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+          ]),
+          item("item-automations", "Automations", "/admin/automations"),
+          item("item-tools", "Tools", "/admin/media", [
+            { id: "item-outbox", label: "Outbox", href: "/admin/dev-outbox" },
+            { id: "item-traffic", label: "Traffic", href: "/admin/traffic" },
+          ]),
+        ],
+      },
+    ]
+    const [section] = removeEmailScreenLinks(sections)
+    expect((section.entries as ShellItem[]).map((entry) => [entry.label, entry.children?.map((child) => child.label) ?? []])).toEqual([
+      ["Automations", []],
+      ["Tools", ["Traffic"]],
+    ])
+  })
+
+  it("leaves a sidebar without them exactly as it was", () => {
+    const sections: ShellSection[] = [
+      { id: "section-platform", title: "Platform", entries: [item("item-automations", "Automations", "/admin/automations")] },
+    ]
+    expect(removeEmailScreenLinks(sections)).toBe(sections)
+  })
+})
+
+describe("media library link", () => {
+  const item = (id: string, label: string, href: string, children?: ShellChildItem[]): ShellItem => ({
+    type: "item",
+    id,
+    label,
+    href,
+    icon: "image",
+    visible: true,
+    ...(children ? { children } : {}),
+  })
+  const labels = (sections: ShellSection[]) =>
+    sections.map((section) => [
+      section.title,
+      (section.entries as ShellItem[]).map((entry) => [entry.label, entry.children?.map((child) => child.label) ?? []]),
+    ])
+
+  it("takes the Media link out, keeping links hung under it in its place", () => {
+    const sections: ShellSection[] = [
+      {
+        id: "section-platform-settings",
+        title: "Platform settings",
+        entries: [
+          item("item-media", "Media", "/admin/media", [{ id: "item-brand", label: "Brand kit", href: "/admin/pages" }]),
+          item("item-settings", "Settings", "/admin/settings"),
+        ],
+      },
+    ]
+    expect(labels(removeMediaLibraryLink(sections))).toEqual([
+      ["Platform settings", [["Brand kit", []], ["Settings", []]]],
+    ])
+  })
+
+  it("finds it by its address, under another link too, and drops a section it emptied", () => {
+    const sections: ShellSection[] = [
+      { id: "s1", title: "Files", entries: [item("item-mine", "My files", "/admin/media")] },
+      {
+        id: "s2",
+        title: "Tools",
+        entries: [item("item-tools", "Tools", "/admin/pages", [{ id: "x", label: "Library", href: "/admin/media" }])],
+      },
+    ]
+    expect(labels(removeMediaLibraryLink(sections))).toEqual([["Tools", [["Tools", []]]]])
+  })
+
+  it("leaves a sidebar without it exactly as it was", () => {
+    const sections: ShellSection[] = [
+      { id: "s", title: "Platform", entries: [item("item-settings", "Settings", "/admin/settings")] },
+    ]
+    expect(removeMediaLibraryLink(sections)).toBe(sections)
+  })
+})
+
+describe("admin link", () => {
+  const item = (id: string, label: string, href: string, children?: ShellChildItem[], visible = true): ShellItem => ({
+    type: "item",
+    id,
+    label,
+    href,
+    icon: "chart-line",
+    visible,
+    ...(children ? { children } : {}),
+  })
+  const shape = (sections: ShellSection[]) =>
+    (sections[0].entries as ShellItem[]).map((entry) => [
+      entry.label,
+      entry.href,
+      entry.children?.map((child) => child.label) ?? [],
+    ])
+
+  it("turns the Overview into Admin and takes the screens Admin holds out", () => {
+    const sections: ShellSection[] = [
+      {
+        id: "section-administration",
+        title: "Administration",
+        entries: [
+          item("item-admin-overview", "Overview", "/admin/dashboard", [
+            { id: "item-admin-announcements", label: "Announcements", href: "/admin/announcements" },
+            { id: "item-notifications", label: "Notifications", href: "/admin/notifications" },
+            { id: "item-changelog", label: "Changelog", href: "/changelog" },
+            { id: "item-feedback", label: "Feedback", href: "/admin/feedback" },
+            { id: "item-admin-users", label: "Users", href: "/admin/users" },
+            { id: "item-admin-plans", label: "Plans", href: "/admin/plans" },
+            { id: "item-my-report", label: "Report", href: "/admin/pages" },
+          ]),
+          item("item-crm", "CRM", "/admin/crm"),
+          item("item-admin-analytics", "Analytics", "/admin/analytics"),
+          item("item-admin-pages", "Pages", "/admin/pages"),
+        ],
+      },
+    ]
+    expect(shape(foldScreensIntoAdmin(sections))).toEqual([
+      ["Admin", "/admin/dashboard", ["Report"]],
+      ["CRM", "/admin/crm", []],
+      ["Pages", "/admin/pages", []],
+    ])
+  })
+
+  it("keeps a name somebody gave the Overview link, and drops its children when none are left", () => {
+    const renamed = foldScreensIntoAdmin([
+      {
+        id: "s",
+        title: "Admin",
+        entries: [
+          item("item-admin-overview", "Home base", "/admin/dashboard", [
+            { id: "item-admin-users", label: "Users", href: "/admin/users" },
+          ]),
+        ],
+      },
+    ])
+    expect(shape(renamed)).toEqual([["Home base", "/admin/dashboard", []]])
+    expect((renamed[0].entries[0] as ShellItem).children).toBeUndefined()
+  })
+
+  it("puts Admin where the first of its screens was when there is no Overview link, keeping it hidden", () => {
+    const folded = foldScreensIntoAdmin([
+      {
+        id: "s",
+        title: "Admin",
+        entries: [
+          item("item-crm", "CRM", "/admin/crm"),
+          item("item-admin-traffic", "Traffic", "/admin/traffic", undefined, false),
+          item("item-feedback", "Feedback", "/admin/feedback"),
+        ],
+      },
+    ])
+    expect(shape(folded)).toEqual([
+      ["CRM", "/admin/crm", []],
+      ["Admin", "/admin/dashboard", []],
+    ])
+    expect((folded[0].entries[1] as ShellItem).visible).toBe(false)
+  })
+
+  it("puts Admin after the link that held them when every one was a child, and drops a section left empty", () => {
+    const folded = foldScreensIntoAdmin([
+      {
+        id: "s-tools",
+        title: "Tools",
+        entries: [
+          item("item-tools", "Tools", "/admin/media", [
+            { id: "item-admin-users", label: "Users", href: "/admin/users" },
+          ]),
+        ],
+      },
+      { id: "s-old", title: "Old", entries: [item("item-feedback", "Feedback", "/admin/feedback")] },
+    ])
+    // The Feedback link is a link of its own, so Admin takes its place and
+    // the Tools link only loses its child.
+    expect(folded.map((section) => section.id)).toEqual(["s-tools", "s-old"])
+    expect(shape([folded[0]])).toEqual([["Tools", "/admin/media", []]])
+    expect(shape([folded[1]])).toEqual([["Admin", "/admin/dashboard", []]])
+
+    const childOnly = foldScreensIntoAdmin([
+      {
+        id: "s",
+        title: "Admin",
+        entries: [
+          item("item-tools", "Tools", "/admin/media", [
+            { id: "item-admin-plans", label: "Plans", href: "/admin/plans" },
+          ]),
+        ],
+      },
+      { id: "s-empty", title: "Gone", entries: [item("item-changelog", "Changelog", "/changelog")] },
+    ])
+    expect(childOnly.map((section) => section.id)).toEqual(["s", "s-empty"])
+    expect(shape([childOnly[1]])).toEqual([["Admin", "/admin/dashboard", []]])
+
+    const emptied = foldScreensIntoAdmin([
+      { id: "s", title: "Admin", entries: [item("item-admin-overview", "Overview", "/admin/dashboard")] },
+      { id: "s-gone", title: "Updates", entries: [item("item-notifications", "Notifications", "/admin/notifications")] },
+    ])
+    expect(emptied.map((section) => section.id)).toEqual(["s"])
+
+    const underParent = foldScreensIntoAdmin([
+      {
+        id: "s",
+        title: "Admin",
+        entries: [
+          item("item-tools", "Tools", "/admin/media", [
+            { id: "item-admin-plans", label: "Plans", href: "/admin/plans" },
+          ]),
+        ],
+      },
+    ])
+    expect(shape(underParent)).toEqual([
+      ["Tools", "/admin/media", []],
+      ["Admin", "/admin/dashboard", []],
+    ])
+  })
+
+  it("leaves a sidebar with none of them exactly as it was", () => {
+    const none: ShellSection[] = [{ id: "s", title: "Admin", entries: [item("item-crm", "CRM", "/admin/crm")] }]
+    expect(foldScreensIntoAdmin(none)).toBe(none)
   })
 })

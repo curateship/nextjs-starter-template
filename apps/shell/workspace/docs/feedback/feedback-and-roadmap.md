@@ -35,4 +35,4 @@ the list. New comments, status changes, and merges can also create notifications
 for the people involved.
 
 The feedback system is the product's roadmap conversation. It does not publish
-a release. Published product changes belong in the changelog.
+a release.

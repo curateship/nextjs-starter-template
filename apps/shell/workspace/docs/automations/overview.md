@@ -11,10 +11,17 @@ The editor has a node palette, a canvas, an inspector, and a resizable Runs
 panel. Changes save after 700 milliseconds of quiet time. The editor compiles
 and validates the graph before a run can start.
 
-The automation editor and the email editor share one frame
-(`src/components/broadcasts/editor-frame.tsx`) and one auto-save
-(`src/lib/hooks/use-auto-save.ts`). Each editor keeps its own saved panel
-widths. The automation editor still refuses to save a flow with no name and
+The automation editor's frame is `src/components/broadcasts/editor-frame.tsx`,
+and it saves with `src/lib/hooks/use-auto-save.ts`.
+
+A Send email step's "Open email builder" opens the same email page a
+newsletter is written on in the CRM (`send-email-editor.tsx`, on
+`src/components/crm/email-page.tsx`; Tyler, 7 Nov 2026, chose to move it
+over). The subject, the preview line and Rich text are typed in place, and
+each block's options are behind the cog in its bar. The header holds Back to
+flow, which saves first, and the email's ⋮: General (subject, preview line,
+From name), Who gets it, and Runs, the history the old editor drew along its
+bottom. The step's settings are stored as before. The automation editor still refuses to save a flow with no name and
 says so in the top bar.
 
 Every step that picks a segment, the Audience step included, uses the same

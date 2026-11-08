@@ -231,6 +231,11 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
 - **Every panel starts with `DashboardCardHeader`** (57px). The left panel's is
   `DashboardCardTitleHeader`: a back arrow or an icon, the title, then the pin
   and the cog. Tabs sit inside a header, never in a second row under it.
+  - **A tab's own choices are a dropdown in the header, never a second
+    row.** Tyler, 7 Nov 2026, on the CRM: "We dont need a second subnav. Just
+    put it as a dropdown filter here", between Filter and the New button. It
+    names the choice showing and its count, and lists every choice with its
+    count. It is the shell's `ViewMenu` (`src/components/shared/view-menu.tsx`).
 - **A left panel about one record has a banner and an avatar**, drawn as the
   project page does (`project-details-panel.tsx`). A record is one project,
   team, person, creator and the like.

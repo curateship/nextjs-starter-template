@@ -18,7 +18,7 @@ import { ErrorRow } from "@/components/ui/error-row"
  * Every admin route builds its error component from this one call, passing the
  * message helper for whatever it loads:
  *
- *   errorComponent: routeErrorComponent(getAdminOverviewErrorMessage)
+ *   errorComponent: routeErrorComponent(getCrmErrorMessage)
  *
  * A real-height card matters here: an empty surface is a one-pixel hairline
  * under the header, which looks like a rendering mistake instead of an error.

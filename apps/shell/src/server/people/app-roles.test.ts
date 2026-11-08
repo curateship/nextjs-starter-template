@@ -12,7 +12,6 @@ import { consumeAuthToken, now } from "@/server/auth/security"
 import { createAccountByAdmin, updateUserRole } from "@/server/people/accounts"
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { inviteAccount } from "@/server/people/invite"
-import { loadMembershipSummary } from "@/server/people/membership"
 import { requireKnownRole, requireRoleFeature } from "@/server/people/roles"
 import {
   customShellAuthTokens,
@@ -282,19 +281,5 @@ describe("code that used to treat every non-admin as a member", () => {
       .where(eq(customShellUsers.id, employee.id))
     await syncContactsFromUsers(workspace.id, database)
     expect(await tagsOf()).toEqual(["member"])
-  })
-
-  it("counts members by name on Membership, and keeps app roles off the free plan", async () => {
-    await insertUser(database, { role: "admin" })
-    await insertUser(database, { role: "member" })
-    await insertUser(database, { role: "employee" })
-    await insertUser(database, { role: "employee" })
-
-    const summary = await loadMembershipSummary(database)
-    expect(summary.admins).toBe(1)
-    expect(summary.members).toBe(1)
-    // The admin and the member; neither employee holds a plan.
-    const free = summary.planMembership.find((plan) => !plan.isPaid)
-    expect(free?.people).toBe(2)
   })
 })

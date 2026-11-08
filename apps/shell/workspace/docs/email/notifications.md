@@ -3,7 +3,7 @@
 Notifications are private, in-app messages for one user. They cover:
 
 - Feedback activity.
-- Changelog entries and announcements.
+- Announcements.
 - AI allowance warnings.
 - Account updates and system email failures.
 - Automation approvals and failures.
@@ -67,20 +67,13 @@ a small update signal, then the browser loads the current list and unread count
 through the normal guarded server function. A reconnect loads current state
 rather than assuming no notifications arrived while the connection was away.
 
-## Admin and personal settings
+## Settings
 
 Every row shows its own second line: the person who set the notice off, or,
 when the app wrote it, the notice's own second sentence.
 
-The Notifications dashboard lets an admin:
-
-- Search, filter, sort, and page through notifications.
-- Delete selected records.
-- Clear all records in the active workspace.
-- Send a test notice to their own bell with **Send test**. It lands as
-  "Test notification" in the tray and puts the red number on the bell, so the
-  bell can be checked without waiting for a real notice. Tyler asked for it on
-  7 Nov 2026.
+There is no admin page listing everybody's notifications. Each person sees
+their own, in the bell and on their home page.
 
 Platform settings control which notification types the product may create.
 Account preferences control what an individual wants to receive where the type

@@ -11,8 +11,6 @@ const failedNotification: NotificationItem = {
   recipient_name: "Admin",
   feedback_id: null,
   feedback_message: null,
-  changelog_entry_id: null,
-  changelog_title: null,
   announcement_id: null,
   announcement_title: null,
   announcement_body: null,

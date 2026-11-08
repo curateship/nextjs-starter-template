@@ -126,8 +126,9 @@ page.
   so the key never becomes a file and no row is written. A picture or a sound
   file has neither Pause nor Cancel: one short request cannot be stopped part
   way.
-- **The Media library page** keeps a batch's count, "1 of 3 uploaded", and a
-  Cancel that stops the rest of the batch, beside its Upload button. The file
+- **The Admin dashboard's Media library** keeps a batch's count, "1 of 3
+  uploaded", and a Cancel that stops the rest of the batch, beside its Upload
+  button. The file
   going up now is on the line. One file shows only on the line.
 - **Media picker window:** unchanged. Its button reads "Uploading, 42%", and
   closing the window cancels, because the window is waiting for that file to
@@ -164,8 +165,9 @@ carries on from the last finished piece.
 
 ## Storage used and its cost
 
-The Media library's toolbar reads "212 GB stored, about $3.18 a month", for
-everybody's files or the one owner picked. Pointing at it lists the parts.
+The Media library's header reads "212 GB stored, about $3.18 a month", for
+everybody's files or the one owner picked, once the middle is wide enough to
+hold it. Pointing at it lists the parts.
 
 - **The price is Cloudflare's $0.015 per GB a month**
   (`src/lib/media/storage-cost.ts`), so 100GB reads "about $1.50 a month". The

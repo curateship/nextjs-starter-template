@@ -3,6 +3,8 @@ import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { skyCitySchema } from "@/lib/notes/sky-city"
+
 import { appPublicTheme } from "@/lib/app-options"
 import { ROLE_ID_PATTERN } from "@/lib/role-id"
 import {
@@ -21,7 +23,6 @@ import {
   SOCIAL_CARD_TYPES,
   normalizeShareImage,
 } from "@/lib/pages/public-metadata"
-import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import {
   brandImagesAreCurrent,
   type BrandImages,
@@ -250,6 +251,15 @@ const shellStylingSchema = z.object({
   dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
   sidebarShade: z.number().int().min(0).max(100).optional(),
   pageShade: z.number().int().min(0).max(100).optional(),
+  blockRadius: z.number().int().min(0).max(32).optional(),
+  blockShade: z.number().int().min(0).max(100).optional(),
+  blockInset: z.number().int().min(0).max(16).optional(),
+  widgetRadius: z.number().int().min(0).max(32).optional(),
+  widgetShade: z.number().int().min(0).max(100).optional(),
+  widgetInset: z.number().int().min(0).max(16).optional(),
+  panelCardBackground: shellBackgroundSchema.optional(),
+  panelCardBorderWidth: z.number().int().min(0).max(3).optional(),
+  panelCardBorderColor: shellBackgroundSchema.optional(),
 })
 
 const publicNavigationLinkSchema = z.object({
@@ -408,26 +418,6 @@ const publicThemePresetsSchema = z
   )
   .max(MAX_PUBLIC_THEME_PRESETS)
 
-
-/**
- * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
- * the handler is what decides which ids survive, and it drops anything no
- * widget answers to along with any widget placed twice.
- *
- * Deliberately not an enum of today's widget ids. A tab left open from before a
- * widget was retired would then fail this whole request — taking every other
- * settings edit on the page down with it — where dropping the dead id quietly
- * is both safer and what the row ends up holding either way. The lengths are
- * capped because this is the only door into that row.
- */
-const widgetSlotSchema = z.array(z.string().max(64)).max(50)
-
-const dashboardWidgetsSchema = z.object({
-  top: widgetSlotSchema,
-  left: widgetSlotSchema,
-  right: widgetSlotSchema,
-})
-
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -453,6 +443,9 @@ const shellConfigSchema = z.object({
   topLeftShortcuts: z.array(shellTopLeftShortcutSchema).max(50).optional(),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
+  // Optional, and the saved city is kept when it is missing, so a settings
+  // tab opened before the field existed cannot wipe it on its next save.
+  skyCity: skyCitySchema.nullable().optional(),
   workspaceLogo: z.string().trim().max(2048),
   workspaceShareImage: z.string().trim().max(2048),
   // The one brand image. It is the signed-out logo and the browser-tab icon,
@@ -555,7 +548,6 @@ const shellConfigSchema = z.object({
     idleMinutes: z.number().int().min(0),
   }),
   styling: shellStylingSchema,
-  dashboardWidgets: dashboardWidgetsSchema,
 })
 
 /**
@@ -670,7 +662,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
-            dashboardWidgets: normalizeDashboardWidgets(data.dashboardWidgets),
           },
           updatedAt,
         })
@@ -758,6 +749,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           topLeftShortcuts:
             data.topLeftShortcuts ?? existingGlobals.topLeftShortcuts,
           roleSections: data.roleSections ?? existingGlobals.roleSections,
+          skyCity: data.skyCity === undefined ? existingGlobals.skyCity : data.skyCity,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {
