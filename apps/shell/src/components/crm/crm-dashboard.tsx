@@ -131,6 +131,11 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
       onOpenSystemEmail={(kind) =>
         goTo(crmTabSearch("broadcasts", { system: kind, view: search.tab === "broadcasts" ? search.view : undefined }))
       }
+      onNewsletterCreated={(broadcastId) =>
+        // Read the list again first, then open the new one, as the Broadcasts
+        // tab's own New newsletter does: the other way round the row raced in.
+        void router.invalidate().then(() => goTo(crmTabSearch("broadcasts", { open: broadcastId })))
+      }
       blocks={{
         activeAddress: blocks.activeAddress ?? "",
         activeStage: blocks.activeStage ?? "all",

@@ -82,8 +82,14 @@ to use trade's card design though").
 Three panels, and each has one job:
 
 - **Left, the page.** One page per site, written on like any page in the
-  design, holding "/" blocks. The header's **+** adds an address mail arrives
-  at.
+  design, holding "/" blocks. The header's **+** opens a menu of three:
+  **Add a person** (an address mail arrives at, in a small window),
+  **Add a segment** (moves to People and opens the new segment window) and
+  **Add a newsletter** (a name, then it opens on Broadcasts to write). Tyler,
+  7 Nov 2026: "make this open to a dropdown that I can select add an email,
+  add a segment and add a newsletter", then "rename add an email to add a
+  person". `AddMenuButton` in
+  `src/components/crm/crm-page-panel.tsx`.
 - **Middle, the inbox.** One row per conversation, under the All, Unread,
   Saved and Waiting views.
 - **Right, the conversation.** The back-and-forth oldest first, and the box
