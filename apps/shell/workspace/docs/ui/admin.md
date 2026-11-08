@@ -173,8 +173,8 @@ The left panel stays put while the section changes: only the middle and
 
 ## How the lists look
 
-Every list in a block or widget is drawn the same way (`SideRows` in
-`admin-parts.tsx`):
+Every list in a block or widget is drawn the same way, here and on the CRM's
+page (`SideRows` in `components/shared/notes/side-rows.tsx`):
 
 - **One line a row**, with no line between rows. The name, then a coloured
   dot and a muted line where the row has them, then its figure at the right
@@ -186,8 +186,12 @@ Every list in a block or widget is drawn the same way (`SideRows` in
   for one on the pricing page, amber for hidden, grey for archived.
 - **The Plans block** has New plan in its ⋮, above Delete block. The Admin
   ⋮'s Plans tab still ends with New plan.
-- **Pressed rows** shade while pointed at. The Dashboards block is drawn its
-  own way, as above.
+- **Pressed rows** shade while pointed at.
+- **A list that picks** (the CRM's Stages, Segments, Follow up today and
+  Waiting on you) takes the Dashboards block's look instead: grey names, the
+  picked one dark with the same sliding bar before it, no shade (Tyler,
+  8 Nov 2026, of the CRM's blocks: "Only the dashboard ones are the new
+  ui"). A row's own ⋯ shows in its pill's place while it is pointed at.
 - **Headings:** a block's and a widget's heading are as tall as the panel's
   header, 57px (Tyler, 8 Nov 2026: "Make the block header the same height as
   the panel's header"), so Overview's top row of headings lines up with the
@@ -305,9 +309,16 @@ moving any link hung under it into its place.
   `src/lib/admin-dashboard/overview-figures.ts`.
 - Screen: `src/components/admin-dashboard/`: the frame
   (`admin-dashboard.tsx`), the page (`admin-page-panel.tsx`), its blocks
-  (`admin-blocks.tsx`), one file per section, the widgets (`overview-tab.tsx`,
-  `widget-card.tsx`, `widget-menus.tsx`, `use-widget-layout.ts`) and the file
-  panel (`media-file-panel.tsx`).
+  (`admin-blocks.tsx`), one file per section, the shell's nine widgets
+  (`overview-tab.tsx`) and the file panel (`media-file-panel.tsx`).
+- Shared with the CRM's Overview since 8 Nov 2026
+  (`workspace/docs/crm/inbox-and-leads.md`): the Dashboards block's rows
+  (`components/shared/notes/dashboards-rows.tsx`), the fixed-block rule
+  (`lib/notes/fixed-block.ts`), the middle's heading and 24px gutter
+  (`MiddleHeading`, `middleGutterClassName` in
+  `components/shared/three-panels.tsx`), and the widgets
+  (`components/shared/widgets/`: the grid, the card, the menus, the layout
+  hook and the boundary round an app's own).
 - Two panels: `ThreePanels` with no `right` and a `bare` middle
   (`components/shared/three-panels.tsx`).
 - Page: `src/server/admin-dashboard/page.ts`, table `admin_pages`, one row
@@ -315,7 +326,8 @@ moving any link hung under it into its place.
   `src/lib/admin-dashboard/admin-page.ts`.
 - Widgets: the layout rules in `src/lib/admin-dashboard/overview-widgets.ts`,
   stored by `src/server/admin-dashboard/widgets.ts` in `admin_widget_layouts`,
-  one row per site (migration 0107).
+  one row per site and dashboard (migration 0107; the `board` column, `admin`
+  or `crm`, from 0110).
 - Counts: `src/server/admin-dashboard/section-counts.ts`.
 - An app's own blocks and widgets: `admin.blocks` and `admin.widgets` in its
   `src/app/options.ts` (`src/lib/admin-dashboard/admin-additions.ts`).

@@ -62,9 +62,14 @@ All of them are in `src/components/shared/notes/`, with their rules in
   `note-block-nodes.ts` makes the editor refuse any change that takes the
   block off the page or makes a second one, and `offered: false` on its
   `AppBlock` leaves it out of the "/" list. The server has to put it back
-  too, for a page saved without it. Admin's Dashboards block is the one
-  user (Tyler, 8 Nov 2026: "It can be a fixed block but I'd need to be able
-  to move it too").
+  too, for a page saved without it: `withFixedBlock` in
+  `src/lib/notes/fixed-block.ts` puts it at the top and drops a second one.
+  The Dashboards blocks on the Admin page and the CRM's are the users (Tyler,
+  8 Nov 2026: "It can be a fixed block but I'd need to be able to move it
+  too"). Both draw `DashboardsRows` (`dashboards-rows.tsx`): a row per
+  section, names grey and the picked one dark, a count in the lightest grey
+  pill, and a small bar that grows in before the picked name over 220ms, the
+  section switching once it has grown.
 - **`tabbed-menu.tsx`, `pick-rows.tsx` and `page-rows.tsx`.** The tabbed ⋮
   and its grouped rows: `PickGroup`, `PickMenuRow` (one press picks),
   `PickDayRow` (a month that opens from the row, with Clear), and `PickRow` (a
@@ -80,6 +85,19 @@ All of them are in `src/components/shared/notes/`, with their rules in
   city in Settings → General → Sky city, golden hour the 90 minutes before
   sunset and sunset the hour after; with no city, fixed hours on the viewer's
   clock, night from 6 PM (`src/lib/notes/sky-city.ts`).
+- **The right panel carries the cover on** (Tyler, 8 Nov 2026: "Add the same
+  cover image pattern as in the left panel for the right panel too but for
+  the sky default bg, make it an extension of the left panel. Meaning that we
+  don't have the sun and moon on the right"). On the Admin dashboard and the
+  CRM, the left page's cover lies behind the open record's header too: the
+  same picture, or the same sky with no sun or moon (`CoverSky`'s `lights`
+  off). The dashboard hands it down with `RightCoverProvider`; `RecordFrame`,
+  `EmptyRecord` and the conversation panel draw `RightPanelCover` behind
+  everything in them (the frame is `isolate`, the cover `-z-10`), and their
+  header line goes clear over it, as the left page's does. Nothing in a
+  record may paint its own white under the header, or the cover stops in a
+  hard line there; the newsletter editor's canvas has no colour of its own
+  in the panel for that reason.
 - **`CoverRow`'s tiles.** The Cover photo row opens square tiles: None, Sky,
   each picture the page has had, then + to add one from the media library
   ("I also want to add custom images too and make the ui like this"). The

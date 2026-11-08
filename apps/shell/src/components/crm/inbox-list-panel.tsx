@@ -93,8 +93,8 @@ export type InboxRowActions = {
  * answered three times would otherwise fill the list with four near-identical
  * rows and bury the new mail underneath them.
  *
- * **One header, one pill row** (`CrmListHeader`, the same on every CRM tab):
- * the Broadcasts, Inbox and People tabs, the "N selected" menu while rows are
+ * **One header, one pill row** (`CrmListHeader`, the same on every CRM
+ * section): the section's icon and name, the "N selected" menu while rows are
  * ticked, Filter, New email, then the ⋮ holding Search and Mass select. Under
  * it the All, Unread, Saved and Waiting pills, and Outbox on a laptop.
  *
@@ -119,7 +119,8 @@ export function InboxListPanel({
   outbox,
   openOutboxId,
   onOpenOutbox,
-  tabs,
+  heading,
+  headingEnd,
   newMail,
   onShowNewMail,
   loading,
@@ -165,8 +166,10 @@ export function InboxListPanel({
   outbox: DevOutboxItem[] | null
   openOutboxId: string | null
   onOpenOutbox: (emailId: string) => void
-  /** The Broadcasts, Inbox and People tabs, first in the header. */
-  tabs: React.ReactNode
+  /** The start of the header: the section's icon and name. */
+  heading: React.ReactNode
+  /** The end of the header: the button that reopens a shut right panel. */
+  headingEnd: React.ReactNode
   /** Conversations with mail that came since the list was drawn (CRM task 33). */
   newMail: number
   /** Redraws the list with the new mail in it. */
@@ -267,7 +270,8 @@ export function InboxListPanel({
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <CrmListHeader
-        tabs={tabs}
+        tabs={heading}
+        end={headingEnd}
         selected={
           massSelect.on && ticked.size > 0 ? (
             <SelectedMenu
@@ -324,6 +328,9 @@ export function InboxListPanel({
             count={filterCount}
             onClear={clearFilters}
             save={null}
+            // 240px, as every Admin list's (Tyler, 8 Nov 2026: "filter
+            // dropdown is too wide").
+            contentClassName="w-60"
           >
             <FilterRow id="inbox-status" label="Which conversations">
               <Select
@@ -792,10 +799,10 @@ function InboxRow({
           {thread.snippet ?? thread.subject ?? ""}
         </span>
       </TableCell>
-      <TableCell column="preview" className="hidden @2xl:table-cell">
+      <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
         <Chip muted={thread.leadStage === "new"}>{CRM_STAGE_LABELS[thread.leadStage]}</Chip>
       </TableCell>
-      <TableCell column="preview" className="hidden @4xl:table-cell">
+      <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
         <span className="flex items-center gap-1">
           {thread.status !== "open" ? <Chip muted>{CRM_THREAD_STATUS_LABELS[thread.status]}</Chip> : null}
           {addressLabel ? <Chip muted>To {addressLabel}</Chip> : null}
@@ -821,8 +828,11 @@ function INBOX_COLUMNS(sort: CrmInboxSort): TableHeaderColumn<"who" | "words" | 
     // col closer to the from col and rename latest to Email").
     { key: "who", label: "From", sortable: false, column: "main", className: "w-px min-w-40" },
     { key: "words", label: "Email", sortable: false, column: "preview", className: "w-full max-w-none min-w-56" },
-    { key: "stage", label: "Stage", sortable: false, column: "preview", className: "hidden @2xl:table-cell" },
-    { key: "more", label: "Tags", sortable: false, column: "preview", className: "hidden @4xl:table-cell" },
+    // `md:hidden` takes away a preview column's own `md:table-cell`, which
+    // showed it on any laptop however narrow the middle, running the table
+    // past it. Each shows only once there is room for every column before it.
+    { key: "stage", label: "Stage", sortable: false, column: "preview", className: "hidden md:hidden @4xl:table-cell" },
+    { key: "more", label: "Tags", sortable: false, column: "preview", className: "hidden md:hidden @5xl:table-cell" },
     { key: "when", label: "When", column: "meta" },
   ]
 }

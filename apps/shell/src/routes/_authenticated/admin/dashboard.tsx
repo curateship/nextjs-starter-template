@@ -71,7 +71,7 @@ async function loadAdmin(
     const { owner } = readAdminMediaSearch(search)
     return { tab, media: await loadAdminMediaPage({ page: 1, ownerId: owner ?? "all" }) }
   }
-  const [figures, widgets] = await Promise.all([loadOverviewFigures(range), loadOverviewWidgets()])
+  const [figures, widgets] = await Promise.all([loadOverviewFigures(range), loadOverviewWidgets("admin")])
   return { tab: "overview", figures, widgets }
 }
 

@@ -4,7 +4,7 @@ import { BarChartIcon } from "lucide-react"
 import { appBlockNodeName, type AdminAddition } from "@/lib/admin-dashboard/admin-additions"
 import { SHELL_ADMIN_BLOCK_KEYS } from "@/lib/admin-dashboard/admin-page"
 import { SHELL_WIDGET_IDS } from "@/lib/admin-dashboard/overview-widgets"
-import { appAdminBlocks, appAdminWidgets } from "@/lib/app-options"
+import { appAdminBlocks, appAdminWidgets, appCrmWidgets } from "@/lib/app-options"
 
 const addition = (key: string): AdminAddition => ({
   key,
@@ -39,6 +39,13 @@ describe("an app's Admin blocks and widgets", () => {
     expect(() => appAdminBlocks(SHELL_ADMIN_BLOCK_KEYS, { admin: { blocks: [addition("Trip_Count")] } })).toThrow(
       /not allowed/
     )
+  })
+
+  it("reads the CRM's Overview widgets on their own, with none of the shell's to clash with", () => {
+    expect(appCrmWidgets({})).toEqual([])
+    const options = { crm: { widgets: [addition("views"), addition("deals")] } }
+    expect(appCrmWidgets(options).map((widget) => widget.key)).toEqual(["views", "deals"])
+    expect(() => appCrmWidgets({ crm: { widgets: [addition("deals"), addition("deals")] } })).toThrow(/Two CRM widgets/)
   })
 
   it("names an app block's node from its key", () => {

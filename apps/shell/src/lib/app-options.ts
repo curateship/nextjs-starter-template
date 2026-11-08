@@ -70,6 +70,7 @@ export type AppOptions = {
   homeScreen?: HomeScreenOptions
   media?: MediaOptions
   admin?: AdminOptions
+  crm?: CrmOptions
   /**
    * The app's own kinds of account, beside the shell's admin and member.
    *
@@ -710,6 +711,15 @@ type AdminOptions = {
   widgets?: readonly AdminAddition[]
 }
 
+/**
+ * The app's own widgets on the CRM dashboard's Overview, written as Admin's
+ * are (`admin-additions.ts`). The shell has none of its own there yet, so
+ * unset leaves the CRM's Overview with nothing to pick.
+ */
+type CrmOptions = {
+  widgets?: readonly AdminAddition[]
+}
+
 type MediaOptions = {
   /**
    * The biggest video one upload may be, in bytes. Unset is 5GB. `"bucket"`
@@ -1189,6 +1199,11 @@ export function appAdminWidgets(
   options: AppOptions = appOptions
 ): readonly AdminAddition[] {
   return checkAdminAdditions("widget", options.admin?.widgets ?? [], shellKeys)
+}
+
+/** The app's own CRM Overview widgets, or none, checked as Admin's are. */
+export function appCrmWidgets(options: AppOptions = appOptions): readonly AdminAddition[] {
+  return checkAdminAdditions("widget", options.crm?.widgets ?? [], [], "CRM")
 }
 
 /**

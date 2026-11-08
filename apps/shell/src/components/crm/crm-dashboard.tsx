@@ -1,12 +1,21 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
+import { InboxIcon, MegaphoneIcon, UsersIcon, type LucideIcon } from "lucide-react"
 
 import { CrmBroadcastsTab } from "@/components/crm/crm-broadcasts-tab"
+import { CrmSegmentActionsContext, useCrmFrame, type CrmSegmentActions } from "@/components/crm/crm-frame"
 import { CrmPagePanel } from "@/components/crm/crm-page-panel"
 import { askForNewSegment, CrmPeopleTab } from "@/components/crm/crm-people-tab"
 import { CrmWorkspace } from "@/components/crm/crm-workspace"
 import type { InboxFilters } from "@/components/crm/inbox-list-panel"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
+import { useWidgetLayout } from "@/components/shared/widgets/use-widget-layout"
+import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
+import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { ErrorRow } from "@/components/ui/error-row"
+import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import { ANALYTICS_DEFAULT_RANGE } from "@/lib/analytics/range"
 import type { InboxPage } from "@/lib/api/crm/inbox"
 import {
   getCrmPageErrorMessage,
@@ -22,16 +31,21 @@ import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import { CRM_DEFAULT_INBOX_SORT, type CrmStage } from "@/lib/crm/crm"
 import {
   CRM_DEFAULT_STATUS,
+  CRM_TAB_LABELS,
   crmTabOf,
   crmTabSearch,
   type CrmSearch,
   type CrmTab,
 } from "@/lib/crm/crm-search"
+import { panelLayoutKey } from "@/lib/layout/panel-layout"
+import { useLoad } from "@/lib/hooks/use-load"
+import { useListSearchNavigate } from "@/lib/nav/list-search"
 import type { StoredPage } from "@/lib/notes/page-body"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
-/** What the route's loader read, for the tab showing. */
+/** What the route's loader read, for the section showing. */
 export type CrmLoaded =
+  | { tab: "overview"; widgets: WidgetLayout }
   | { tab: "inbox"; inbox: InboxPage; outbox: DevOutboxItem[] | null }
   | { tab: "people"; people: ContactsPage }
   | {
@@ -44,66 +58,61 @@ export type CrmLoaded =
       blockDefaults: BroadcastBlockDefaults
     }
 
-/** The left page, drawn for whichever tab is showing with what its blocks point at there. */
-export type CrmLeft = (blocks: {
-  activeAddress?: string
-  activeStage?: CrmStage | "all"
-  activeSegment?: string
-  openThreadId?: string | null
-  onAddress?: (address: string) => void
-  onStage?: (stage: CrmStage | "all") => void
-  onSegment?: (segmentId: string) => void
-  /** Only on the People tab, which holds the segment window. */
-  onEditSegment?: (segmentId: string) => void
-  onDeleteSegment?: (segmentId: string) => void
-  onNewSegment?: () => void
-  onOpenThread?: (threadId: string) => void
-}) => React.ReactNode
+/** Each section's icon, at the start of the middle's header. Overview has no header. */
+const SECTION_ICONS: Record<Exclude<CrmTab, "overview">, LucideIcon> = {
+  inbox: InboxIcon,
+  people: UsersIcon,
+  broadcasts: MegaphoneIcon,
+}
+
+/** What the record panel is called before the section showing has said. */
+const RECORD_LABELS: Record<Exclude<CrmTab, "overview">, string> = {
+  inbox: "Conversation",
+  people: "Person",
+  broadcasts: "Newsletter",
+}
 
 /**
  * The CRM dashboard: one screen for all the app's email (Part C of the CRM
  * task; Tyler, 7 Nov 2026: "I want to consolidate them all into one CRM
- * dashboard ... [broadcast][inbox][contacts]", then of the first pass: "We
- * need to consolidate this into the CRM dashboard too and not linked it
- * outside. The Ui is all over the place as well").
+ * dashboard"), laid out as the Admin dashboard since 8 Nov 2026 ("We need to
+ * get the CRM dashboard up to date with the new admin dashboard. We dont have
+ * any CRM widgets so lets leave it empty for now").
  *
- * - **Left:** the site's page of blocks, the same on every tab, read once
- *   here. Its ⋮ holds the System emails tab.
- * - **Middle:** one header on every tab (`CrmListHeader`), a pill row, and
- *   a table of one shape (`CrmTable`), laid out as Project's.
- * - **Right:** the open record in one frame (`RecordFrame`): a conversation,
- *   a person, a newsletter being written, a template, a system email.
+ * - **Left:** the site's page of blocks. Its fixed Dashboards block picks
+ *   the section: Overview, Inbox, People or Broadcasts. Its ⋮ holds General,
+ *   Emails, System emails and Widgets.
+ * - **Middle:** one header (the section's icon and name, then its own
+ *   toolbar), a pill row, and a table of one shape (`CrmTable`). Overview
+ *   has no middle panel: its widgets sit straight on the dashboard and take
+ *   the right panel's room too, as on Admin. The CRM has no widgets of its
+ *   own yet, so its spots say so until an app adds one (`crm.widgets`).
+ * - **Right:** the open record in one frame (`RecordFrame`): a
+ *   conversation, a person, a newsletter being written, a template, a system
+ *   email.
  *
- * Each tab is its own `ThreePanels`, so its open record and its first-row
- * opening start again on a switch. They share one layout key, so a panel
- * dragged wider stays wider on every tab. A block pressed on a tab it does
- * not belong to goes to the tab it does.
+ * The frame stays while the section changes: only the middle and the record
+ * on the right are the section's (`crm-frame.tsx`), so the left page, its ⋮
+ * and anything typed there carry on across a switch. A shut side panel comes
+ * back from a button in the middle's header; Overview, with no header, keeps
+ * the knob. A block pressed on a section it does not belong to goes to the
+ * section it does.
  */
 export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: CrmSearch }) {
   const navigate = useNavigate({ from: "/admin/crm" })
   const router = useRouter()
+  const setListSearch = useListSearchNavigate()
   const tab = crmTabOf(search)
+  const overview = loaded.tab === "overview"
 
-  const [crmPage, setCrmPage] = React.useState<StoredPage | null>(null)
+  // The left page, and the figures its blocks draw, read once here.
   const [figures, setFigures] = React.useState<CrmBlockFigures | null>(null)
-  React.useEffect(() => {
-    let cancelled = false
-    loadCrmPage()
-      .then((read) => {
-        if (cancelled) return
-        setCrmPage(read.page)
-        setFigures(read.figures)
-      })
-      .catch((error) => {
-        if (!cancelled) showErrorToast(getCrmPageErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  // Each fresh read of the tab reads the figures again too, so a count on the
-  // left never disagrees with the list beside it. The first is skipped: the
-  // page's own read brought them.
+  const pageRead = useLoad(loadCrmPage, getCrmPageErrorMessage, { onLoad: (read) => setFigures(read.figures) })
+  const crmPage = pageRead.data?.page ?? null
+  const setCrmPage = (page: StoredPage) => pageRead.setData((current) => (current ? { ...current, page } : current))
+  // Each fresh read of the section reads the figures again too, so a count
+  // on the left never disagrees with the list beside it. The first is
+  // skipped: the page's own read brought them.
   const firstLoad = React.useRef(loaded)
   React.useEffect(() => {
     if (loaded === firstLoad.current) return
@@ -118,73 +127,15 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
     }
   }, [loaded])
 
+  // Overview's widgets, held here so the left ⋮'s Widgets tab can set them
+  // on every section, and the Dashboards block can count them.
+  const widgets = useWidgetLayout("crm", loaded.tab === "overview" ? loaded.widgets : null)
+
+  // People's segment windows, while People shows (`useHandSegmentActions`).
+  const [segmentActions, setSegmentActions] = React.useState<CrmSegmentActions | null>(null)
+
   const goTo = (next: CrmSearch) => void navigate({ search: next })
   const reload = () => void router.invalidate()
-
-  const left: CrmLeft = (blocks) => (
-    <CrmPagePanel
-      page={crmPage}
-      figures={figures}
-      onPageChange={setCrmPage}
-      onFiguresChanged={reload}
-      openSystemEmail={tab === "broadcasts" ? (search.system ?? null) : null}
-      onOpenSystemEmail={(kind) =>
-        goTo(crmTabSearch("broadcasts", { system: kind, view: search.tab === "broadcasts" ? search.view : undefined }))
-      }
-      onNewsletterCreated={(broadcastId) =>
-        // Read the list again first, then open the new one, as the Broadcasts
-        // tab's own New newsletter does: the other way round the row raced in.
-        void router.invalidate().then(() => goTo(crmTabSearch("broadcasts", { open: broadcastId })))
-      }
-      blocks={{
-        activeAddress: blocks.activeAddress ?? "",
-        activeStage: blocks.activeStage ?? "all",
-        activeSegment: blocks.activeSegment ?? "",
-        openThreadId: blocks.openThreadId ?? null,
-        onAddress:
-          blocks.onAddress ?? ((address) => goTo(crmTabSearch("inbox", { to: address || undefined }))),
-        onStage:
-          blocks.onStage ??
-          ((stage) => goTo(crmTabSearch("inbox", { stage: stage === "all" ? undefined : stage }))),
-        onSegment:
-          blocks.onSegment ??
-          ((segmentId) => goTo(crmTabSearch("people", { segment: segmentId || undefined }))),
-        onEditSegment: blocks.onEditSegment,
-        onDeleteSegment: blocks.onDeleteSegment,
-        onNewSegment:
-          blocks.onNewSegment ??
-          (() => {
-            askForNewSegment()
-            goTo(crmTabSearch("people"))
-          }),
-        onOpenThread:
-          blocks.onOpenThread ?? ((threadId) => goTo(crmTabSearch("inbox", { open: threadId }))),
-      }}
-    />
-  )
-
-  const tabs = <CrmSectionTabs tab={tab} onTab={(next) => goTo(crmTabSearch(next))} />
-
-  if (loaded.tab === "people") {
-    return (
-      <CrmPeopleTab key="people" data={loaded.people} search={search} figures={figures} tabs={tabs} left={left} />
-    )
-  }
-
-  if (loaded.tab === "broadcasts") {
-    return (
-      <CrmBroadcastsTab
-        key="broadcasts"
-        page={loaded.broadcasts}
-        templates={loaded.templates}
-        segments={loaded.segments}
-        blockDefaults={loaded.blockDefaults}
-        search={search}
-        tabs={tabs}
-        left={left}
-      />
-    )
-  }
 
   const filters: InboxFilters = {
     search: search.q ?? "",
@@ -228,48 +179,196 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
     })
   }
 
-  return (
-    <CrmWorkspace
-      key="inbox"
-      page={loaded.inbox}
-      outbox={loaded.outbox}
-      filters={filters}
-      search={search}
-      openThreadId={search.open ?? null}
-      tabs={tabs}
-      left={left}
-      onFiltersChange={changeFilters}
-      onOpenThread={(threadId) =>
-        void navigate({
-          search: (previous) => ({ ...previous, open: threadId ?? undefined }),
-          replace: true,
-        })
-      }
-      onReloadInbox={reload}
-    />
-  )
-}
+  const openThread = (threadId: string | null) =>
+    void navigate({
+      search: (previous) => ({ ...previous, open: threadId ?? undefined }),
+      replace: true,
+    })
 
-const TAB_LABELS: Record<CrmTab, string> = {
-  broadcasts: "Broadcasts",
-  inbox: "Inbox",
-  people: "People",
-}
+  // What the left page's blocks point at. On Inbox they narrow the list in
+  // place, keeping its other filters; on People a segment shows in place,
+  // the open person staying open. Anywhere else a block goes to the section
+  // it belongs to, starting that section's address afresh.
+  const onInbox = loaded.tab === "inbox"
+  const onPeople = loaded.tab === "people"
+  const blocks = {
+    section: tab,
+    onPickSection: (next: CrmTab) => goTo(crmTabSearch(next)),
+    widgetCount: widgets.layout ? widgetsShown(widgets.layout) : null,
+    activeAddress: onInbox ? filters.toAddress.toLowerCase() : "",
+    activeStage: onInbox ? filters.stage : ("all" as const),
+    openThreadId: onInbox && filters.view !== "outbox" ? (search.open ?? null) : null,
+    activeSegment: onPeople ? (search.segment ?? "") : "",
+    onAddress: (address: string) =>
+      onInbox ? changeFilters({ toAddress: address }) : goTo(crmTabSearch("inbox", { to: address || undefined })),
+    onStage: (stage: CrmStage | "all") =>
+      onInbox
+        ? changeFilters({ stage })
+        : goTo(crmTabSearch("inbox", { stage: stage === "all" ? undefined : stage })),
+    onOpenThread: (threadId: string) => {
+      if (!onInbox) return goTo(crmTabSearch("inbox", { open: threadId }))
+      // A conversation pressed on the left opens in the inbox, so the Outbox
+      // pill gives way to it.
+      if (filters.view === "outbox") changeFilters({ view: "all" })
+      openThread(threadId)
+    },
+    onSegment: (segmentId: string) =>
+      onPeople
+        ? setListSearch(
+            segmentId
+              ? // Its people as saved: the search goes too, so the list holds
+                // the number the segment's row shows.
+                { filter: undefined, segment: segmentId, q: undefined, page: undefined }
+              : { filter: undefined, segment: undefined, page: undefined }
+          )
+        : goTo(crmTabSearch("people", { segment: segmentId || undefined })),
+    onEditSegment: segmentActions?.onEdit,
+    onDeleteSegment: segmentActions?.onDelete,
+    onNewSegment:
+      segmentActions?.onNew ??
+      (() => {
+        askForNewSegment()
+        goTo(crmTabSearch("people"))
+      }),
+  }
 
-/**
- * The middle header's tabs: what the panel holds, in Tyler's order
- * "[broadcast][inbox][contacts]", with contacts named People because it holds
- * leads too.
- */
-export function CrmSectionTabs({ tab, onTab }: { tab: CrmTab; onTab: (tab: CrmTab) => void }) {
+  const { place, frame, setRightSpot } = useCrmFrame(loaded.tab)
+  const recordLabel = place?.rightLabel ?? (overview ? "" : RECORD_LABELS[loaded.tab])
+  const recordShowLabel = place?.rightShowLabel ?? `Show the ${recordLabel.toLowerCase()}`
+  const heading = overview ? null : <MiddleHeading icon={SECTION_ICONS[loaded.tab]} label={CRM_TAB_LABELS[loaded.tab]} />
+  // The end of the middle's header: the button that reopens a shut right panel.
+  const headingEnd = <PanelReopenButton side="right" label={recordShowLabel} />
+
+  let middle: React.ReactNode
+  if (loaded.tab === "people") {
+    middle = (
+      <CrmPeopleTab
+        key="people"
+        data={loaded.people}
+        search={search}
+        figures={figures}
+        heading={heading}
+        headingEnd={headingEnd}
+        frame={frame}
+      />
+    )
+  } else if (loaded.tab === "broadcasts") {
+    middle = (
+      <CrmBroadcastsTab
+        key="broadcasts"
+        page={loaded.broadcasts}
+        templates={loaded.templates}
+        segments={loaded.segments}
+        blockDefaults={loaded.blockDefaults}
+        search={search}
+        heading={heading}
+        headingEnd={headingEnd}
+        frame={frame}
+      />
+    )
+  } else if (loaded.tab === "inbox") {
+    middle = (
+      <CrmWorkspace
+        key="inbox"
+        page={loaded.inbox}
+        outbox={loaded.outbox}
+        filters={filters}
+        openThreadId={search.open ?? null}
+        heading={heading}
+        headingEnd={headingEnd}
+        frame={frame}
+        onFiltersChange={changeFilters}
+        onOpenThread={openThread}
+        onReloadInbox={reload}
+      />
+    )
+  } else {
+    middle = widgets.layout ? (
+      <WidgetGrid board="crm" layout={widgets.layout} days={ANALYTICS_DEFAULT_RANGE} onChange={widgets.change} />
+    ) : widgets.error ? (
+      <ErrorRow message={widgets.error} onRetry={widgets.retry} />
+    ) : null
+  }
+
   return (
-    <DashboardTabs
-      value={tab}
-      onValueChange={(value) => onTab(value as CrmTab)}
-      tabs={(["broadcasts", "inbox", "people"] as const).map((value) => ({
-        value,
-        label: TAB_LABELS[value],
-      }))}
-    />
+    <CrmSegmentActionsContext.Provider value={setSegmentActions}>
+      {/* The left page's cover carries on behind the record on the right. */}
+      <RightCoverProvider value={crmPage?.coverUrl ?? null}>
+      <ThreePanels
+        // Overview is two panels, with a layout of its own.
+        layoutKey={overview ? panelLayoutKey.crmOverview : panelLayoutKey.crmWorkspace}
+        place={{
+          key: panelLayoutKey.crmPlace,
+          search,
+          ids: place?.ids ?? [],
+          // Until the section showing has said which rows it shows.
+          ready: overview || place !== null,
+          section: loaded.tab,
+        }}
+        showMiddleFor={`${loaded.tab}|${place?.showMiddleFor ?? ""}`}
+        showRightFor={place?.showRightFor}
+        reopenInHeader={!overview}
+        left={{
+          label: "Page",
+          showLabel: "Show the page",
+          content: (
+            <CrmPagePanel
+              page={crmPage}
+              error={pageRead.error}
+              onRetry={pageRead.retry}
+              figures={figures}
+              onPageChange={setCrmPage}
+              onFiguresChanged={reload}
+              openSystemEmail={loaded.tab === "broadcasts" ? (search.system ?? null) : null}
+              onOpenSystemEmail={(kind) =>
+                goTo(crmTabSearch("broadcasts", { system: kind, view: search.tab === "broadcasts" ? search.view : undefined }))
+              }
+              onNewsletterCreated={(broadcastId) =>
+                // Read the list again first, then open the new one, as the
+                // Broadcasts section's own New newsletter does: the other way
+                // round the row raced in.
+                void router.invalidate().then(() => goTo(crmTabSearch("broadcasts", { open: broadcastId })))
+              }
+              blocks={blocks}
+              widgets={
+                <WidgetSettings
+                  board="crm"
+                  layout={widgets.layout}
+                  error={widgets.error}
+                  onRetry={widgets.retry}
+                  onChange={widgets.change}
+                />
+              }
+            />
+          ),
+        }}
+        middle={{
+          label: CRM_TAB_LABELS[loaded.tab],
+          bare: overview,
+          content: (
+            // The container its tables measure, so their columns drop out as
+            // the middle narrows.
+            <div
+              className={cn(
+                "@container flex h-full min-h-0 flex-col overflow-hidden",
+                !overview && ["bg-card", middleGutterClassName]
+              )}
+            >
+              {middle}
+            </div>
+          ),
+        }}
+        right={
+          overview
+            ? undefined
+            : {
+                label: recordLabel,
+                showLabel: recordShowLabel,
+                content: <div ref={setRightSpot} className="flex h-full min-h-0 flex-col" />,
+              }
+        }
+      />
+      </RightCoverProvider>
+    </CrmSegmentActionsContext.Provider>
   )
 }

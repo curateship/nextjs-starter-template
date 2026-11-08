@@ -11,6 +11,7 @@ import { CrmRecordMenu } from "@/components/crm/crm-record-menu"
 import { ForwardDialog } from "@/components/crm/forward-dialog"
 import { ReplyComposer } from "@/components/crm/reply-composer"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -106,6 +107,7 @@ export function ConversationPanel({
   onDraft: () => Promise<string>
 }) {
   const endRef = React.useRef<HTMLDivElement | null>(null)
+  const cover = useRightCover()
   const [blockOpen, setBlockOpen] = React.useState(false)
   const [blocking, setBlocking] = React.useState(false)
   const [summarising, setSummarising] = React.useState(false)
@@ -131,9 +133,10 @@ export function ConversationPanel({
     // No ×, never emptied by hand: the dashboard opens the first row on
     // arrival, so this shows only while that loads or when there is no mail.
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+        <RightPanelCover />
         <div>
-          <DashboardCardHeader className="gap-2.5">
+          <DashboardCardHeader className={cn("gap-2.5", cover && "border-b-transparent")}>
             <h2 className="font-heading min-w-0 flex-1 truncate text-[0.891rem] leading-snug font-medium">
               Conversation
             </h2>
@@ -157,11 +160,12 @@ export function ConversationPanel({
   const who = leadName?.trim() || leadEmail || "This conversation"
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+    <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <RightPanelCover />
       {/* Wrapped in its own div, so the shell's table line under a header
           never matches this side panel's header (the Admin 3 panel design). */}
       <div>
-        <DashboardCardHeader className="gap-2">
+        <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
           <Avatar className="shrink-0">
             <AvatarFallback className="text-xs font-medium">
               {initialsFor(leadName, leadEmail ?? "")}

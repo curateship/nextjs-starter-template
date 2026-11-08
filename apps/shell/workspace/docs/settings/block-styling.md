@@ -13,6 +13,16 @@ adjust to rounded corner, the gray shade bg and this padding."
 - **Grey shade**, 0 to 100%, 50% unless changed: how much of the theme's light
   grey is mixed into the block behind its white tile. 0% is white. It works
   the same in light and dark mode.
+- **See-through:** the grey box is drawn at 60% (75% until Tyler's "a bit
+  more see through" the same day), so a page's cover shows
+  faintly through it, as through the CRM email box's header (Tyler, 8 Nov
+  2026: "I like how the email box header as a bit of transparent, can you do
+  that to the dashboard block", then "thats too transparent" of a box that
+  was the grey alone at the shade set). What shows through is blurred 12px,
+  like frosted glass ("how about we make it gassuan blur like a glass
+  effect"); over the drawn sky, a smooth gradient, the blur barely shows, and
+  over a picture it does. The white tile stays solid. On a plain panel the
+  grey reads a shade lighter than the setting alone gives.
 - **Edge around the tile**, 0 to 16px, 3px unless changed: how much grey shows
   between the block's edge and its white tile, at the sides and the bottom.
 
@@ -27,8 +37,8 @@ the thumb; every real block changes live too.
 ## Widgets
 
 Settings → Styling → Widgets is the same three settings for the widgets on
-the Admin dashboard's Overview (`WidgetCard` in
-`src/components/admin-dashboard/widget-card.tsx`). Tyler split them off on
+the Admin dashboard's Overview and the CRM's (`WidgetCard` in
+`src/components/shared/widgets/widget-card.tsx`). Tyler split them off on
 8 Nov 2026: "Because the widget sits in a shaded background it needs its own
 block styling options". Overview has no middle panel, so its widgets sit on
 the page's shade, where a block's grey reads differently than inside a white

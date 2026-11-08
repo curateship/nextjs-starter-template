@@ -1,7 +1,7 @@
 import * as React from "react"
 
-import { MemberName, SideRows, type SideRow } from "@/components/admin-dashboard/admin-parts"
-import { AdditionBoundary } from "@/components/admin-dashboard/addition-boundary"
+import { MemberName } from "@/components/admin-dashboard/admin-parts"
+import { SideRows, type SideRow } from "@/components/shared/notes/side-rows"
 import {
   deviceRows,
   EMPTY_TEXT,
@@ -11,45 +11,32 @@ import {
   referrerRows,
   topPageRows,
 } from "@/components/admin-dashboard/figure-rows"
-import { WidgetCard } from "@/components/admin-dashboard/widget-card"
-import { EmptySpot, WidgetMenu, type Spot } from "@/components/admin-dashboard/widget-menus"
+import { WidgetCard } from "@/components/shared/widgets/widget-card"
+import { WidgetGrid, type WidgetMenuProps } from "@/components/shared/widgets/widget-grid"
+import { WidgetMenu } from "@/components/shared/widgets/widget-menus"
 import { EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import { DailyBarChart } from "@/components/shared/dashboard/daily-bar-chart"
 import { SortableTableHeader, type SortableColumn } from "@/components/shared/sortable-table-header"
 import type { ChartConfig } from "@/components/ui/chart"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
-import type { AdminAdditionProps } from "@/lib/admin-dashboard/admin-additions"
 import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
 import {
-  appWidgetId,
-  SHELL_WIDGET_IDS,
   SHELL_WIDGETS,
   type ShellWidgetId,
   type WidgetLayout,
-  type WidgetRowName,
 } from "@/lib/admin-dashboard/overview-widgets"
 import type { AnalyticsRange } from "@/lib/analytics/range"
-import { appAdminWidgets } from "@/lib/app-options"
 import { shade } from "@/lib/dashboard/chart-colours"
 import { formatDate } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
 import { sortRows, useTableSort, type SortKey } from "@/lib/hooks/use-table-sort"
-import { cn } from "@/lib/utils"
 
 /**
- * Admin, Overview: widgets in up to two rows (Tyler, 8 Nov 2026: "I want top
- * row to have 2 col and bottom row to have 3 col (2 row max)"), straight on
- * the dashboard beside the left panel, with no panel or header of their own
- * ("Take it widgets out of its overview container"). The rows and spots are
- * set in the Widgets tab of the Admin ⋮; a widget's own ⋮ swaps or removes
- * it; an empty spot is pressed to add one there. Saved for the site.
- *
- * - **Wide:** the rows share the height, so the whole of Overview fits with
- *   no page scroll, and a long list scrolls inside its own card ("Fill the
- *   panel").
- * - **Narrow, or a phone:** one widget under another at its own height, and
- *   Overview scrolls.
+ * Admin, Overview: the shell's widgets and the app's in the shared grid
+ * (`widget-grid.tsx`), set in the Widgets tab of the Admin ⋮; a widget's own
+ * ⋮ swaps or removes it; an empty spot is pressed to add one there. Saved
+ * for the site ("Take it widgets out of its overview container").
  *
  * Every figure counts the range picked in the Admin ⋮'s General tab.
  */
@@ -64,99 +51,23 @@ export function OverviewTab({
   layout: WidgetLayout
   onChange: (layout: WidgetLayout) => void
 }) {
-  const names: WidgetRowName[] = layout.bottom.columns > 0 ? ["top", "bottom"] : ["top"]
-  const rows = names.map((name) => ({ name, ...layout[name] }))
   return (
-    <div className="@container min-h-0 flex-1 overflow-y-auto @3xl:overflow-hidden">
-      <div
-        className={cn(
-          // The site gap between the cards, and none round them: the cards'
-          // own edges line up with the left panel's.
-          "grid grid-cols-[minmax(0,1fr)] gap-3.75 @3xl:h-full",
-          rows.length === 2 ? "@3xl:grid-rows-2" : "@3xl:grid-rows-1"
-        )}
-      >
-        {rows.map((row) => (
-          <div
-            key={row.name}
-            className="grid grid-cols-[minmax(0,1fr)] gap-3.75 @3xl:min-h-0 @3xl:[grid-template-columns:repeat(var(--widget-columns),minmax(0,1fr))]"
-            style={{ "--widget-columns": row.columns } as React.CSSProperties}
-          >
-            {row.spots.map((id, index) => {
-              const spot = { row: row.name, index }
-              return id ? (
-                <Widget key={id} id={id} figures={figures} days={days} menu={{ layout, spot, onChange }} />
-              ) : (
-                <EmptySpot key={`empty-${index}`} layout={layout} spot={spot} onChange={onChange} />
-              )
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
+    <WidgetGrid
+      board="admin"
+      layout={layout}
+      days={days}
+      onChange={onChange}
+      drawWidget={(id, menu) => {
+        const shell = SHELL_WIDGET_BY_ID.get(id)
+        return shell ? <ShellWidget id={shell.id} figures={figures} menu={menu} /> : null
+      }}
+    />
   )
 }
-
-/** What a widget's ⋮ needs: the layout, its spot, and the change. */
-type WidgetMenuProps = { layout: WidgetLayout; spot: Spot; onChange: (layout: WidgetLayout) => void }
 
 const SHELL_WIDGET_BY_ID = new Map<string, (typeof SHELL_WIDGETS)[number]>(
   SHELL_WIDGETS.map((widget) => [widget.id, widget])
 )
-
-/** One spot's widget: one of the shell's nine, or one the app added. */
-function Widget({
-  id,
-  figures,
-  days,
-  menu,
-}: {
-  id: string
-  figures: OverviewFigures
-  days: AnalyticsRange
-  menu: WidgetMenuProps
-}) {
-  const shell = SHELL_WIDGET_BY_ID.get(id)
-  if (shell) return <ShellWidget id={shell.id} figures={figures} menu={menu} />
-  return <AppWidget id={id} days={days} menu={menu} />
-}
-
-const appWidgetsMade = new Map<
-  string,
-  { label: string; icon: React.ReactNode; Lazy: React.LazyExoticComponent<React.ComponentType<AdminAdditionProps>> }
->()
-
-/**
- * The app's widgets (`admin.widgets` in its `src/app/options.ts`), each
- * loaded the first time it shows. A widget the app took away is never in a
- * layout: `cleanWidgetLayout` empties its spot.
- */
-function appWidget(id: string) {
-  if (appWidgetsMade.size === 0) {
-    for (const widget of appAdminWidgets(SHELL_WIDGET_IDS)) {
-      const Icon = widget.icon
-      appWidgetsMade.set(appWidgetId(widget.key), { label: widget.label, icon: <Icon />, Lazy: React.lazy(widget.load) })
-    }
-  }
-  return appWidgetsMade.get(id)
-}
-
-function AppWidget({ id, days, menu }: { id: string; days: AnalyticsRange; menu: WidgetMenuProps }) {
-  const made = appWidget(id)
-  if (!made) return <EmptySpot {...menu} />
-  const { Lazy } = made
-  return (
-    <WidgetCard title={made.label} icon={made.icon} menu={<WidgetMenu title={made.label} {...menu} />}>
-      <AdditionBoundary kind="widget">
-        <React.Suspense fallback={<p className="p-3 text-sm text-muted-foreground">Reading…</p>}>
-          <ScrollArea className="min-h-0 flex-1">
-            <Lazy days={days} />
-          </ScrollArea>
-        </React.Suspense>
-      </AdditionBoundary>
-    </WidgetCard>
-  )
-}
 
 // One hue, two lightness steps. Which is which also rides on the legend and
 // the tooltip, never on the colour alone.

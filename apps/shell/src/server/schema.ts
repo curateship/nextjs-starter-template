@@ -2637,19 +2637,26 @@ export const customShellAdminPages = pgTable(
 )
 
 /**
- * Overview's widgets on the Admin dashboard, one layout per site: up to two
- * rows, each with its own columns, each column one widget or Empty
+ * The widgets on a dashboard's Overview, one layout per site and dashboard
+ * (the Admin dashboard's and the CRM's): up to two rows, each with its own
+ * columns, each column one widget or Empty
  * (`src/lib/admin-dashboard/overview-widgets.ts`). Every read and write goes
  * through `cleanWidgetLayout`, so what is stored is always a layout that
  * draws. No row: the default layout.
  */
-export const customShellAdminWidgetLayouts = pgTable("admin_widget_layouts", {
-  workspaceId: varchar("workspace_id", { length: 36 })
-    .primaryKey()
-    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-  layout: jsonb("layout").$type<WidgetLayout>().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const customShellAdminWidgetLayouts = pgTable(
+  "admin_widget_layouts",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** Which dashboard's Overview: `WIDGET_BOARDS`, 'admin' or 'crm'. */
+    board: varchar("board", { length: 20 }).notNull().default("admin"),
+    layout: jsonb("layout").$type<WidgetLayout>().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ name: "admin_widget_layouts_pkey", columns: [table.workspaceId, table.board] })]
+)
 
 /**
  * One back-and-forth with one lead.

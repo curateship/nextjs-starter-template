@@ -11,6 +11,7 @@ import {
 } from "@/server/crm/page"
 import { type CustomShellDb } from "@/server/db"
 import {
+  customShellBroadcasts,
   customShellCrmLeads,
   customShellCrmThreads,
   customShellWorkspaces,
@@ -37,9 +38,10 @@ describe("the CRM's left page", () => {
     })
   })
 
-  it("starts with the Follow up today block", async () => {
+  it("starts with the Dashboards block, then Follow up today", async () => {
     const page = await getCrmPage(workspaceId, db)
     expect(JSON.parse(page.body).content.map((node: { type: string }) => node.type)).toEqual([
+      "noteCrmSections",
       "noteCrmFollowUps",
       "paragraph",
     ])
@@ -61,7 +63,28 @@ describe("the CRM's left page", () => {
       updatedAt: new Date(),
     })
     const page = await getCrmPage(workspaceId, db)
-    expect(JSON.parse(page.body).content.map((node: { type: string }) => node.type)).toEqual(["paragraph"])
+    // The Dashboards block comes back at the top of a page saved before it.
+    expect(JSON.parse(page.body).content.map((node: { type: string }) => node.type)).toEqual([
+      "noteCrmSections",
+      "paragraph",
+    ])
+  })
+
+  it("keeps one Dashboards block where it was moved to", async () => {
+    await saveCrmPageBody(
+      workspaceId,
+      JSON.stringify({
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "Above it" }] },
+          { type: "noteCrmSections" },
+          { type: "noteCrmSections" },
+        ],
+      }),
+      db
+    )
+    const saved = JSON.parse((await getCrmPage(workspaceId, db)).body)
+    expect(saved.content.map((node: { type: string }) => node.type)).toEqual(["paragraph", "noteCrmSections"])
   })
 
   it("keeps the CRM's own blocks and words, and drops a block it does not know", async () => {
@@ -79,6 +102,7 @@ describe("the CRM's left page", () => {
     )
     const saved = JSON.parse((await getCrmPage(workspaceId, db)).body)
     expect(saved.content).toEqual([
+      { type: "noteCrmSections" },
       { type: "noteCrmStages" },
       { type: "paragraph", content: [{ type: "text", text: "Call the plumber" }] },
     ])
@@ -133,12 +157,24 @@ describe("the CRM's left page", () => {
       thread("t-closed", "support@inbox.example.com", "closed"),
     ])
 
+    await db.insert(customShellBroadcasts).values({
+      id: "b-1",
+      workspaceId,
+      name: "November news",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
     const figures = await getCrmBlockFigures(workspaceId, db)
     expect(figures.emails.map(({ address, open }) => [address, open])).toEqual([
       ["sales@inbox.example.com", 1],
       ["support@inbox.example.com", 1],
     ])
     expect(figures.openCount).toBe(2)
+    // The Dashboards block's counts: everybody once (the lead, no contacts
+    // yet), and the newsletters.
+    expect(figures.peopleCount).toBe(1)
+    expect(figures.broadcastCount).toBe(1)
     expect(figures.stages.quoted).toBe(1)
     expect(figures.followUps).toHaveLength(1)
     expect(figures.followUps[0]).toMatchObject({ email: "jane@example.com", note: "Ask about the quote" })

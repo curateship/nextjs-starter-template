@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { CrmDashboard, type CrmLoaded } from "@/components/crm/crm-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { loadOverviewWidgets } from "@/lib/api/admin-dashboard"
 import { getCrmErrorMessage, loadInbox } from "@/lib/api/crm/inbox"
 import {
   loadBroadcastBlockDefaults,
@@ -22,9 +23,9 @@ import {
 
 /**
  * The CRM: one screen for all the app's email (Tyler, 7 Nov 2026: "I want to
- * consolidate them all into one CRM dashboard"). The middle panel's tabs are
- * Broadcasts, Inbox and People; `src/lib/crm/crm-search.ts` says which
- * address keys belong to which.
+ * consolidate them all into one CRM dashboard"). The left page's Dashboards
+ * block picks the section: Overview, Inbox, People or Broadcasts;
+ * `src/lib/crm/crm-search.ts` says which address keys belong to which.
  */
 export const Route = createFileRoute("/_authenticated/admin/crm")({
   validateSearch: readCrmSearch,
@@ -38,6 +39,10 @@ export const Route = createFileRoute("/_authenticated/admin/crm")({
 
 async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
   const tab = crmTabOf(search)
+
+  if (tab === "overview") {
+    return { tab, widgets: await loadOverviewWidgets("crm") }
+  }
 
   if (tab === "people") {
     return {

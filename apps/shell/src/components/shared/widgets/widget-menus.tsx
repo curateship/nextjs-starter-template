@@ -17,6 +17,7 @@ import {
   setRowColumns,
   TOP_ROW_COLUMNS,
   widgetChoices,
+  type WidgetBoard,
   type WidgetLayout,
   type WidgetRowName,
 } from "@/lib/admin-dashboard/overview-widgets"
@@ -33,23 +34,36 @@ function columnsLabel(columns: number) {
   return columns === 1 ? "1 column" : `${columns} columns`
 }
 
+/**
+ * What a dashboard with no widgets to offer says, in place of a list: the
+ * CRM's, until an app adds one (Tyler, 8 Nov 2026: "We dont have any CRM
+ * widgets so lets leave it empty for now").
+ */
+const NO_WIDGETS: Record<WidgetBoard, string> = {
+  admin: "No widgets yet.",
+  crm: "No CRM widgets yet.",
+}
+
 /** Every widget on the dashboard now, for marking the ones a pick would move. */
 function placedIds(layout: WidgetLayout) {
   return new Set([...layout.top.spots, ...layout.bottom.spots].filter((id): id is string => id !== null))
 }
 
 /**
- * The Widgets tab of the Admin ⋮, after Plans (Tyler, 8 Nov 2026: "Move the
- * widgets into the right panel dropdown beside plans"). It sets each row's
- * columns, then which widget sits in each spot. Every pick saves on its own,
- * with no Save button, as every tabbed menu in the design.
+ * The Widgets tab of a dashboard's ⋮, after Plans on Admin (Tyler, 8 Nov
+ * 2026: "Move the widgets into the right panel dropdown beside plans"). It
+ * sets each row's columns, then which widget sits in each spot. Every pick
+ * saves on its own, with no Save button, as every tabbed menu in the design.
+ * With no widgets to offer, the spots are left out and it says so.
  */
 export function WidgetSettings({
+  board,
   layout,
   error,
   onRetry,
   onChange,
 }: {
+  board: WidgetBoard
   /** Null while it is read, or when the read failed. */
   layout: WidgetLayout | null
   error: string | null
@@ -63,7 +77,7 @@ export function WidgetSettings({
       <p className="p-3 text-sm text-muted-foreground">Reading…</p>
     )
   }
-  const choices = widgetChoices()
+  const choices = widgetChoices(board)
   const labelOf = (id: string | null) => choices.find((choice) => choice.id === id)?.label
   const spotOptions = [
     { value: EMPTY, label: "Empty" },
@@ -89,7 +103,8 @@ export function WidgetSettings({
           onPick={(value) => onChange(setRowColumns(layout, "bottom", Number(value)))}
         />
       </PickGroup>
-      {rows.map((name) => (
+      {choices.length === 0 ? <p className="px-1 text-sm text-muted-foreground">{NO_WIDGETS[board]}</p> : null}
+      {(choices.length === 0 ? [] : rows).map((name) => (
         <PickGroup key={name} title={ROW_TITLES[name]}>
           {layout[name].spots.map((id, index) => (
             <PickMenuRow
@@ -120,11 +135,13 @@ export type Spot = { row: WidgetRowName; index: number }
  */
 export function WidgetMenu({
   title,
+  board,
   layout,
   spot,
   onChange,
 }: {
   title: string
+  board: WidgetBoard
   layout: WidgetLayout
   spot: Spot
   onChange: (layout: WidgetLayout) => void
@@ -144,7 +161,7 @@ export function WidgetMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" collisionPadding={16} className="max-h-[min(60vh,24rem)] w-max min-w-60">
-        <WidgetChoices layout={layout} current={current} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
+        <WidgetChoices board={board} layout={layout} current={current} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => onChange(placeWidget(layout, spot.row, spot.index, null))}>
           <Trash2Icon className="size-4" />
@@ -157,18 +174,29 @@ export function WidgetMenu({
 
 /**
  * An empty spot, pressed to put a widget right there (Tyler, 8 Nov 2026:
- * "This part should be clickable to add a widget right there").
+ * "This part should be clickable to add a widget right there"). On a
+ * dashboard with no widgets to offer it is only the dashed box saying so,
+ * with nothing to press.
  */
 export function EmptySpot({
+  board,
   layout,
   spot,
   onChange,
 }: {
+  board: WidgetBoard
   layout: WidgetLayout
   spot: Spot
   onChange: (layout: WidgetLayout) => void
 }) {
   const [open, setOpen] = React.useState(false)
+  if (widgetChoices(board).length === 0) {
+    return (
+      <div className="grid min-h-32 place-items-center rounded-[var(--shell-widget-radius,1rem)] border border-dashed p-4 text-sm text-muted-foreground">
+        {NO_WIDGETS[board]}
+      </div>
+    )
+  }
   return (
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
       <DropdownMenuTrigger asChild>
@@ -187,7 +215,7 @@ export function EmptySpot({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center" collisionPadding={16} className="max-h-[min(60vh,24rem)] w-max min-w-60">
-        <WidgetChoices layout={layout} current={null} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
+        <WidgetChoices board={board} layout={layout} current={null} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -198,10 +226,12 @@ export function EmptySpot({
  * elsewhere says so, and picking it moves it here.
  */
 function WidgetChoices({
+  board,
   layout,
   current,
   onPick,
 }: {
+  board: WidgetBoard
   layout: WidgetLayout
   current: string | null
   onPick: (id: string) => void
@@ -209,7 +239,7 @@ function WidgetChoices({
   const placed = placedIds(layout)
   return (
     <>
-      {widgetChoices().map((choice) => {
+      {widgetChoices(board).map((choice) => {
         const Icon = choice.icon
         return (
           // One line a row: the menu is as wide as its longest name and

@@ -4,7 +4,7 @@ import { CopyIcon, LayoutTemplateIcon, MailIcon, PlusIcon, Trash2Icon } from "lu
 import { toast } from "sonner"
 
 import { BroadcastRecord, BROADCAST_STATUS_LABELS, broadcastProgress, TemplateRecord } from "@/components/crm/broadcast-records"
-import type { CrmLeft } from "@/components/crm/crm-dashboard"
+import type { CrmFrame } from "@/components/crm/crm-frame"
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmGroupRow, CrmTable, CrmTableRow, Dot, DOT, MainCell, useFolds } from "@/components/crm/crm-table"
 import { TableCell } from "@/components/ui/table"
@@ -13,7 +13,6 @@ import { SystemEmailRecord } from "@/components/crm/system-email-record"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { ViewMenu, type ViewChoice } from "@/components/shared/view-menu"
-import { ThreePanels } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
@@ -42,7 +41,6 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -66,16 +64,21 @@ export function CrmBroadcastsTab({
   segments,
   blockDefaults,
   search,
-  tabs,
-  left,
+  heading,
+  headingEnd,
+  frame,
 }: {
   page: BroadcastsPage
   templates: BroadcastTemplateItem[]
   segments: SegmentChoice[]
   blockDefaults: BroadcastBlockDefaults
   search: CrmSearch
-  tabs: React.ReactNode
-  left: CrmLeft
+  /** The start of the middle's header: the section's icon and name. */
+  heading: React.ReactNode
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  headingEnd: React.ReactNode
+  /** Draws the section into the dashboard's one frame. */
+  frame: CrmFrame
 }) {
   const router = useRouter()
   // The reader left only this tab's keys in the address (`readCrmSearch`).
@@ -157,7 +160,8 @@ export function CrmBroadcastsTab({
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <CrmListHeader
-        tabs={tabs}
+        tabs={heading}
+        end={headingEnd}
         selected={
           massSelect && ticked.length ? (
             <SelectedMenu
@@ -219,7 +223,7 @@ export function CrmBroadcastsTab({
           columns={[
             { key: "name", label: "Template", sortable: false, column: "main", className: "min-w-40" },
             { key: "blocks", label: "Blocks", sortable: false, column: "preview" },
-            { key: "default", label: "Starts new ones", sortable: false, column: "preview", className: "hidden @2xl:table-cell" },
+            { key: "default", label: "Starts new ones", sortable: false, column: "preview", className: "hidden md:hidden @2xl:table-cell" },
             { key: "changed", label: "Changed", sortable: false, column: "meta" },
           ]}
           sort="changed"
@@ -241,7 +245,7 @@ export function CrmBroadcastsTab({
                   {template.blocks.length} {plural(template.blocks.length, "block")}
                 </Chip>
               </TableCell>
-              <TableCell column="preview" className="hidden @2xl:table-cell">
+              <TableCell column="preview" className="hidden md:hidden @2xl:table-cell">
                 {template.isDefault ? <Chip>Yes</Chip> : <span className="text-muted-foreground">No</span>}
               </TableCell>
               <TableCell column="mutedMeta">{formatInboxTime(template.updated_at)}</TableCell>
@@ -254,7 +258,7 @@ export function CrmBroadcastsTab({
             { key: "name", label: "Newsletter", sortable: false, column: "main", className: "min-w-40" },
             { key: "subject", label: "Subject", sortable: false, column: "preview", className: "min-w-48" },
             { key: "status", label: "Status", sortable: false, column: "preview" },
-            { key: "sent", label: "Sent", sortable: false, column: "preview", className: "hidden @3xl:table-cell" },
+            { key: "sent", label: "Sent", sortable: false, column: "preview", className: "hidden md:hidden @4xl:table-cell" },
             { key: "changed", label: view === "drafts" ? "Changed" : view === "scheduled" ? "Goes" : view === "sent" ? "Went" : "When", sortable: false, column: "meta" },
           ]}
           sort="changed"
@@ -314,7 +318,7 @@ export function CrmBroadcastsTab({
               <TableCell column="preview">
                 <Chip muted={item.status === "draft"}>{BROADCAST_STATUS_LABELS[item.status]}</Chip>
               </TableCell>
-              <TableCell column="mutedMeta" className="hidden @3xl:table-cell">
+              <TableCell column="mutedMeta" className="hidden @4xl:table-cell">
                 <span className="block max-w-56 truncate">{broadcastProgress(item)}</span>
               </TableCell>
               <TableCell column="mutedMeta">
@@ -390,72 +394,68 @@ export function CrmBroadcastsTab({
     />
   )
 
-  return (
-    <ThreePanels
-      layoutKey={panelLayoutKey.crmWorkspace}
-      place={{ key: panelLayoutKey.crmPlace, search: listSearch, ids }}
-      showMiddleFor={view}
-      showRightFor={listSearch.system ?? openId}
-      left={{ label: "Page", showLabel: "Show the page", content: left({}) }}
-      middle={{ label: "Broadcasts", content: middle }}
-      right={{
-        label: listSearch.system ? "Email" : view === "templates" ? "Template" : "Newsletter",
-        showLabel: "Show the newsletter",
-        content: right,
-      }}
-    >
-      <ConfirmDialog
-        open={deleteTargets !== null}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setDeleteTargets(null)
-        }}
-        title={
-          closingDeleteTargets && closingDeleteTargets.length === 1
-            ? `Delete ${quoteOneLine(closingDeleteTargets[0]!.name)}?`
-            : `Delete ${closingDeleteTargets?.length ?? 0} newsletters?`
-        }
-        description="The email and everything in it goes for good. Anything already sent stays sent: this cannot unsend it."
-        confirmLabel="Delete"
-        loading={deleting}
-        onConfirm={() => {
-          const targets = deleteTargets
-          if (!targets) return
-          void runDelete(async () => {
-            const { deleted } = await deleteBroadcasts(targets.map((item) => item.id))
-            setDeleteTargets(null)
-            selection.clear()
-            toast.success(
-              describeBulkResult({ done: deleted, kept: targets.length - deleted, one: "newsletter", many: "newsletters", verb: "deleted" })
-            )
-            // The list first, then letting go of the open one, for the same
-            // reason as `copy`: the other way round the row stayed on screen.
-            await refresh()
-            if (openId && targets.some((item) => item.id === openId)) setListSearch({ open: undefined })
-          })
-        }}
-      />
-      <ConfirmDialog
-        open={templateDelete !== null}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setTemplateDelete(null)
-        }}
-        title={templateDelete ? `Delete ${quoteOneLine(templateDelete.name)}?` : "Delete this template?"}
-        description="The template goes for good. Newsletters already started from it keep their words."
-        confirmLabel="Delete"
-        onConfirm={() => {
-          const target = templateDelete
-          if (!target) return
-          void deleteBroadcastTemplates([target.id])
-            .then(async () => {
-              setTemplateDelete(null)
+  const rightLabel = listSearch.system ? "Email" : view === "templates" ? "Template" : "Newsletter"
+  return frame({
+    ids,
+    showMiddleFor: view,
+    showRightFor: listSearch.system ?? openId,
+    middle,
+    right: { label: rightLabel, showLabel: `Show the ${rightLabel.toLowerCase()}`, content: right },
+    windows: (
+      <>
+        <ConfirmDialog
+          open={deleteTargets !== null}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setDeleteTargets(null)
+          }}
+          title={
+            closingDeleteTargets && closingDeleteTargets.length === 1
+              ? `Delete ${quoteOneLine(closingDeleteTargets[0]!.name)}?`
+              : `Delete ${closingDeleteTargets?.length ?? 0} newsletters?`
+          }
+          description="The email and everything in it goes for good. Anything already sent stays sent: this cannot unsend it."
+          confirmLabel="Delete"
+          loading={deleting}
+          onConfirm={() => {
+            const targets = deleteTargets
+            if (!targets) return
+            void runDelete(async () => {
+              const { deleted } = await deleteBroadcasts(targets.map((item) => item.id))
+              setDeleteTargets(null)
+              selection.clear()
+              toast.success(
+                describeBulkResult({ done: deleted, kept: targets.length - deleted, one: "newsletter", many: "newsletters", verb: "deleted" })
+              )
+              // The list first, then letting go of the open one, for the same
+              // reason as `copy`: the other way round the row stayed on screen.
               await refresh()
-              setListSearch({ open: undefined })
+              if (openId && targets.some((item) => item.id === openId)) setListSearch({ open: undefined })
             })
-            .catch((error) => showErrorToast(getBroadcastErrorMessage(error)))
-        }}
-      />
-    </ThreePanels>
-  )
+          }}
+        />
+        <ConfirmDialog
+          open={templateDelete !== null}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setTemplateDelete(null)
+          }}
+          title={templateDelete ? `Delete ${quoteOneLine(templateDelete.name)}?` : "Delete this template?"}
+          description="The template goes for good. Newsletters already started from it keep their words."
+          confirmLabel="Delete"
+          onConfirm={() => {
+            const target = templateDelete
+            if (!target) return
+            void deleteBroadcastTemplates([target.id])
+              .then(async () => {
+                setTemplateDelete(null)
+                await refresh()
+                setListSearch({ open: undefined })
+              })
+              .catch((error) => showErrorToast(getBroadcastErrorMessage(error)))
+          }}
+        />
+      </>
+    ),
+  })
 }
 
 /**

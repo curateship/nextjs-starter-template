@@ -91,7 +91,8 @@ function fullName(contact: ContactItem) {
 export function CrmPeopleList({
   data,
   listSearch,
-  tabs,
+  heading,
+  headingEnd,
   pills,
   pill,
   onPill,
@@ -106,7 +107,10 @@ export function CrmPeopleList({
 }: {
   data: ContactsPage
   listSearch: CrmPeopleSearch
-  tabs: React.ReactNode
+  /** The start of the header: the section's icon and name. */
+  heading: React.ReactNode
+  /** The end of the header: the button that reopens a shut right panel. */
+  headingEnd: React.ReactNode
   pills: ViewChoice[]
   /** Which pill is lit, or "" when Filter's rules match none of them. */
   pill: string
@@ -172,11 +176,15 @@ export function CrmPeopleList({
         </TableSortButton>
       ),
     },
-    { key: "email", label: "Email", column: "preview", className: "hidden @xl:table-cell" },
+    { key: "email", label: "Email", column: "preview", className: "hidden md:hidden @xl:table-cell" },
     { key: "kind", label: "Kind", sortable: false, column: "preview" },
-    { key: "status", label: "Status", column: "preview", className: "hidden @2xl:table-cell" },
-    { key: "tags", label: "Tags", sortable: false, column: "preview", className: "hidden @3xl:table-cell" },
-    { key: "opened", label: "Opened", sortable: false, column: "meta", className: "hidden @4xl:table-cell" },
+    { key: "status", label: "Status", column: "preview", className: "hidden md:hidden @4xl:table-cell" },
+    // Each column shows only once the middle is wide enough for every one
+    // before it as well, so the table never runs past the panel. `md:hidden`
+    // takes away a preview column's own `md:table-cell`, which would show it
+    // on any laptop otherwise, as on the Admin lists.
+    { key: "tags", label: "Tags", sortable: false, column: "preview", className: "hidden md:hidden @5xl:table-cell" },
+    { key: "opened", label: "Opened", sortable: false, column: "meta", className: "hidden @6xl:table-cell" },
     { key: "created", label: "Added", column: "meta" },
   ]
   const contactById = new Map(data.contacts.map((contact) => [contact.id, contact]))
@@ -245,7 +253,8 @@ export function CrmPeopleList({
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <CrmListHeader
-        tabs={tabs}
+        tabs={heading}
+        end={headingEnd}
         selected={
           massSelect && (selectedIds.length || allMatching) ? (
             <ContactBulkMenu
@@ -361,19 +370,19 @@ export function CrmPeopleList({
                 onRightClick={(x, y) => setRightClick({ id: lead.id, x, y })}
               >
                 <MainCell name={name} lead={<Dot className={DOT.stage[lead.stage]} label={CRM_STAGE_LABELS[lead.stage]} />} />
-                <TableCell column="preview" className="hidden @xl:table-cell">
+                <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
                   <span className="block max-w-64 truncate text-muted-foreground">{lead.email}</span>
                 </TableCell>
                 <TableCell column="preview">
                   <Chip>{lead.contactId ? "Lead + Subscriber" : "Lead"}</Chip>
                 </TableCell>
-                <TableCell column="preview" className="hidden @2xl:table-cell">
+                <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
                   <Chip muted>{CRM_STAGE_LABELS[lead.stage]}</Chip>
                 </TableCell>
-                <TableCell column="preview" className="hidden @3xl:table-cell">
+                <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
                   <TagChips tags={lead.tags} />
                 </TableCell>
-                <TableCell column="mutedMeta" className="hidden @4xl:table-cell">
+                <TableCell column="mutedMeta" className="hidden @6xl:table-cell">
                   Not sent any
                 </TableCell>
                 <TableCell column="mutedMeta">{formatInboxTime(lead.created_at)}</TableCell>
@@ -406,19 +415,19 @@ export function CrmPeopleList({
               >
                 {contact.userId ? <Chip muted>Account</Chip> : null}
               </MainCell>
-              <TableCell column="preview" className="hidden @xl:table-cell">
+              <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
                 <span className="block max-w-64 truncate text-muted-foreground">{contact.email}</span>
               </TableCell>
               <TableCell column="preview">
                 <Chip>{row.leadId ? "Lead + Subscriber" : "Subscriber"}</Chip>
               </TableCell>
-              <TableCell column="preview" className="hidden @2xl:table-cell">
+              <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
                 <Chip muted>{segmentStatusLabels[contact.status]}</Chip>
               </TableCell>
-              <TableCell column="preview" className="hidden @3xl:table-cell">
+              <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
                 <TagChips tags={contact.tags} />
               </TableCell>
-              <TableCell column="mutedMeta" className="hidden @4xl:table-cell">
+              <TableCell column="mutedMeta" className="hidden @6xl:table-cell">
                 {contact.emailsSent ? `Opened ${contact.emailsOpened} of ${contact.emailsSent}` : "Not sent any"}
               </TableCell>
               <TableCell column="mutedMeta">{formatInboxTime(contact.created_at)}</TableCell>

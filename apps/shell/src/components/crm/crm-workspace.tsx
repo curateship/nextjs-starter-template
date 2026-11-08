@@ -2,14 +2,13 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { ConversationPanel } from "@/components/crm/conversation-panel"
-import type { CrmLeft } from "@/components/crm/crm-dashboard"
+import type { CrmFrame } from "@/components/crm/crm-frame"
 import { OutboxEmailPanel } from "@/components/crm/outbox-panels"
 import {
   InboxListPanel,
   type InboxFilters,
   type InboxRowActions,
 } from "@/components/crm/inbox-list-panel"
-import { ThreePanels } from "@/components/shared/three-panels"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   blockAddress,
@@ -47,25 +46,24 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { STREAM_NUDGE_EVENT } from "@/lib/hooks/use-notification-stream"
-import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The CRM dashboard in the Admin 3 panel design (7 Nov 2026,
- * `workspace/tasks/features/crm/36-crm-admin-3-panel.md`): the site's page
- * of blocks on the left, the inbox in the middle, and the open conversation
- * with who it is with on the right. `ThreePanels` draws the frame, remembers
- * the widths, opens the first conversation on arrival and goes back to the
- * last address.
+ * The CRM's Inbox section, in the Admin 3 panel design (7 Nov 2026,
+ * `workspace/tasks/features/crm/36-crm-admin-3-panel.md`): the inbox in the
+ * middle, and the open conversation with who it is with on the right. The
+ * dashboard's one frame (`crm-frame.tsx`) holds the left page, remembers the
+ * widths, opens the first conversation on arrival and goes back to the last
+ * address.
  */
 export function CrmWorkspace({
   page,
   outbox,
   filters,
-  search,
   openThreadId: openId,
-  tabs,
-  left,
+  heading,
+  headingEnd,
+  frame,
   onFiltersChange,
   onOpenThread,
   onReloadInbox,
@@ -73,13 +71,13 @@ export function CrmWorkspace({
   page: InboxPage
   /** The local development outbox, read only while its pill is picked. */
   outbox: DevOutboxItem[] | null
-  /** The Broadcasts, Inbox and People tabs, for the middle header. */
-  tabs: React.ReactNode
-  /** The left page, given what its blocks point at on this tab. */
-  left: CrmLeft
+  /** The start of the middle's header: the section's icon and name. */
+  heading: React.ReactNode
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  headingEnd: React.ReactNode
+  /** Draws the section into the dashboard's one frame. */
+  frame: CrmFrame
   filters: InboxFilters
-  /** The route's whole search, which `ThreePanels` keeps to come back to. */
-  search: Record<string, unknown>
   openThreadId: string | null
   onFiltersChange: (next: Partial<InboxFilters>) => void
   onOpenThread: (threadId: string | null) => void
@@ -521,7 +519,8 @@ export function CrmWorkspace({
       outbox={outbox}
       openOutboxId={filters.view === "outbox" ? openId : null}
       onOpenOutbox={(emailId) => onOpenThread(emailId)}
-      tabs={tabs}
+      heading={heading}
+      headingEnd={headingEnd}
       newMail={live?.news ?? 0}
       onShowNewMail={onReloadInbox}
       loading={false}
@@ -627,48 +626,22 @@ export function CrmWorkspace({
     />
   )
 
-  const leftPage = left({
-    activeAddress: filters.toAddress.toLowerCase(),
-    onAddress: (toAddress) => onFiltersChange({ toAddress }),
-    activeStage: filters.stage,
-    onStage: (stage) => onFiltersChange({ stage }),
-    openThreadId,
-    onOpenThread: (threadId) => {
-      // A conversation pressed on the left opens in the inbox, so the Outbox
-      // pill gives way to it.
-      if (filters.view === "outbox") onFiltersChange({ view: "all" })
-      onOpenThread(threadId)
+  return frame({
+    ids: filters.view === "outbox" ? (outbox ?? []).map((email) => email.id) : threads.map((thread) => thread.id),
+    showMiddleFor: `${filters.toAddress}|${filters.stage}`,
+    showRightFor: openId ?? undefined,
+    middle: inbox,
+    right: {
+      label: filters.view === "outbox" ? "Email" : "Conversation",
+      showLabel: filters.view === "outbox" ? "Show the email" : "Show the conversation",
+      content:
+        filters.view === "outbox" ? (
+          <OutboxEmailPanel email={(outbox ?? []).find((email) => email.id === openId) ?? null} />
+        ) : (
+          right
+        ),
     },
-  })
-
-  return (
-    <ThreePanels
-      layoutKey={panelLayoutKey.crmWorkspace}
-      place={{
-        key: panelLayoutKey.crmPlace,
-        search,
-        ids:
-          filters.view === "outbox"
-            ? (outbox ?? []).map((email) => email.id)
-            : threads.map((thread) => thread.id),
-      }}
-      showMiddleFor={`${filters.toAddress}|${filters.stage}`}
-      showRightFor={openId ?? undefined}
-      left={{ label: "Page", showLabel: "Show the page", content: leftPage }}
-      middle={{ label: "Inbox", content: inbox }}
-      right={{
-        label: filters.view === "outbox" ? "Email" : "Conversation",
-        showLabel: filters.view === "outbox" ? "Show the email" : "Show the conversation",
-        content:
-          filters.view === "outbox" ? (
-            <OutboxEmailPanel
-              email={(outbox ?? []).find((email) => email.id === openId) ?? null}
-            />
-          ) : (
-            right
-          ),
-      }}
-    >
+    windows: (
       <ConfirmDialog
         open={blockAsk !== null}
         onOpenChange={(open) => (open ? undefined : setBlockAsk(null))}
@@ -686,6 +659,6 @@ export function CrmWorkspace({
           })
         }}
       />
-    </ThreePanels>
-  )
+    ),
+  })
 }

@@ -13,16 +13,29 @@ import { isSystemEmailKind, type SystemEmailKind } from "@/lib/system-emails/kin
 
 /**
  * The CRM dashboard's address (Part C of the CRM task, 7 Nov 2026: one screen
- * for all the app's email). `?tab=` picks what the middle panel holds,
- * `?view=` the pill under it, and the rest belongs to that tab alone.
+ * for all the app's email). `?tab=` picks the section, from the left page's
+ * Dashboards block, `?view=` the pill under it, and the rest belongs to that
+ * section alone. Overview owns no keys.
  *
  * **Each tab reads only its own keys.** The inbox and the people list both use
  * `open`, `q` and `sort`, and they mean different things: a contact's id is
  * not a conversation. So picking a tab starts the address again with the new
  * tab alone, and the reader below drops every key the tab showing does not own.
  */
-export const CRM_TABS = ["broadcasts", "inbox", "people"] as const
+export const CRM_TABS = ["overview", "inbox", "people", "broadcasts"] as const
 export type CrmTab = (typeof CRM_TABS)[number]
+
+/**
+ * Each section's name in the Dashboards block, in its order (Tyler, 8 Nov
+ * 2026: picked "Overview, Inbox, People, Broadcasts"). Contacts are named
+ * People because the list holds leads too.
+ */
+export const CRM_TAB_LABELS: Record<CrmTab, string> = {
+  overview: "Overview",
+  inbox: "Inbox",
+  people: "People",
+  broadcasts: "Broadcasts",
+}
 
 /**
  * What the inbox shows when nobody has chosen: the open conversations. Named
@@ -94,6 +107,7 @@ export type CrmSearch = {
 
 export function readCrmSearch(search: Record<string, unknown>): CrmSearch {
   const tab = readOneOf(search.tab, CRM_TABS)
+  if (tab === "overview") return { tab }
   if (tab === "people") {
     return { tab, ...readContactsSearch(search), view: readOneOf(search.view, CRM_PEOPLE_VIEWS) }
   }
@@ -121,13 +135,17 @@ export function readCrmSearch(search: Record<string, unknown>): CrmSearch {
 }
 
 
-/** The tab showing, Inbox when the address does not say. */
+/**
+ * The section showing, Inbox when the address does not say: an Overview with
+ * no widgets is no place to land.
+ */
 export function crmTabOf(search: CrmSearch): CrmTab {
   return search.tab ?? "inbox"
 }
 
 /**
- * The whole address for a tab picked in the header: the tab and nothing else.
+ * The whole address for a section picked in the Dashboards block: the section
+ * and nothing else.
  * Inbox is written out too, because a bare `/admin/crm` is what sends the
  * dashboard back to where it last was, and picking Inbox must not do that.
  */

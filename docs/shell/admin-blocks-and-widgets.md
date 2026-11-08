@@ -57,7 +57,8 @@ export default function BookingsWidget({ days }: AdminAdditionProps) {
   `src/lib/api` (`shell-and-apps.md`).
 - **A member's name** can be `MemberName` from
   `components/admin-dashboard/admin-parts.tsx`, which opens that person in
-  Users. `SideRows` there draws the narrow rows the shell's own lists use.
+  Users. `SideRows` (`components/shared/notes/side-rows.tsx`) draws the
+  narrow rows the shell's own lists use.
 - **A widget** sits in the shell's `WidgetCard`, with its label, icon and the
   widget's ⋮ on the heading, and scrolls inside the card. Draw only what goes
   on the white tile.
@@ -66,6 +67,29 @@ export default function BookingsWidget({ days }: AdminAdditionProps) {
 - **One that throws** says "This widget could not be drawn." or "This block
   could not be drawn." in its own card, and the rest of the dashboard
   carries on.
+
+## Widgets on the CRM's Overview
+
+The CRM dashboard has an Overview of widgets too, laid out as Admin's (Tyler,
+8 Nov 2026: "We need to get the CRM dashboard up to date with the new admin
+dashboard. We dont have any CRM widgets so lets leave it empty for now"). The
+shell has none of its own there, so it says "No CRM widgets yet." until an
+app adds some, in the same shape under `crm`:
+
+```ts
+export const appOptions: AppOptions = {
+  crm: {
+    widgets: [
+      { key: "deals-won", label: "Deals won", icon: TrophyIcon, load: () => import("./crm/deals-won-widget") },
+    ],
+  },
+}
+```
+
+A CRM widget gets the same props. The CRM has no Date range of its own, so
+`days` is always the default range, 30. Its layout is kept apart from
+Admin's (`admin_widget_layouts`, board `crm`), and its keys only have to
+differ from each other.
 
 ## What the shell does with them
 

@@ -4,11 +4,10 @@ import { toast } from "sonner"
 
 import { ContactPanel } from "@/components/broadcasts/contact-panel"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
-import type { CrmLeft } from "@/components/crm/crm-dashboard"
+import { useHandSegmentActions, type CrmFrame } from "@/components/crm/crm-frame"
 import { CrmPeopleList } from "@/components/crm/crm-people-list"
 import { LeadRecord } from "@/components/crm/lead-record"
 import type { ViewChoice } from "@/components/shared/view-menu"
-import { ThreePanels } from "@/components/shared/three-panels"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   contactFilterOptions,
@@ -33,7 +32,6 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useLastValue } from "@/lib/hooks/use-last-value"
-import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -80,14 +78,19 @@ export function CrmPeopleTab({
   data,
   search,
   figures,
-  tabs,
-  left,
+  heading,
+  headingEnd,
+  frame,
 }: {
   data: ContactsPage
   search: CrmSearch
   figures: CrmBlockFigures | null
-  tabs: React.ReactNode
-  left: CrmLeft
+  /** The start of the middle's header: the section's icon and name. */
+  heading: React.ReactNode
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  headingEnd: React.ReactNode
+  /** Draws the section into the dashboard's one frame. */
+  frame: CrmFrame
 }) {
   const router = useRouter()
   // The reader left only this tab's keys in the address (`readCrmSearch`).
@@ -247,134 +250,122 @@ export function CrmPeopleTab({
     else setListSearch(base)
   }
 
-  return (
-    <ThreePanels
-      layoutKey={panelLayoutKey.crmWorkspace}
-      place={{
-        key: panelLayoutKey.crmPlace,
-        search: listSearch,
-        ids: data.rows.map((row) => row.id),
-      }}
-      showMiddleFor={`${listSearch.view ?? ""}|${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`}
-      showRightFor={openId}
-      left={{
-        label: "Page",
-        showLabel: "Show the page",
-        content: left({
-          activeSegment: openSegment?.id ?? "",
-          onSegment: (segmentId) =>
-            segmentId
-              ? showSegment(segmentId)
-              : setListSearch({ filter: undefined, segment: undefined, page: undefined }),
-          onEditSegment: (segmentId) => {
-            const segment = data.segments.find((entry) => entry.id === segmentId)
-            if (segment) setSegmentWindow({ mode: "edit", segment })
-          },
-          onDeleteSegment: (segmentId) => {
-            const segment = data.segments.find((entry) => entry.id === segmentId)
-            if (segment) setDeleteTarget(segment)
-          },
-          onNewSegment: () => setSegmentWindow({ mode: "new" }),
-        }),
-      }}
-      middle={{
-        label: "People",
-        content: (
-          <CrmPeopleList
-            data={data}
-            listSearch={listSearch}
-            tabs={tabs}
-            pills={pills}
-            pill={pill}
-            onPill={pressPill}
-            rules={rules}
-            openSegment={openSegment}
-            segmentChanged={segmentChanged}
-            openId={openId}
-            onRules={setRules}
-            onOpen={setOpenContact}
-            onSaveAsSegment={(saved, searchExcluded) =>
-              setSegmentWindow({ mode: "new", rules: saved, searchExcluded })
-            }
-            onRefresh={refresh}
-          />
-        ),
-      }}
-      right={{
-        label: "Person",
-        showLabel: "Show the person",
-        content: openLead ? (
-          <LeadRecord
-            key={openLead.id}
-            leadId={openLead.id}
-            newestThreadId={openLead.newestThreadId}
-            onOpenContact={(contactId) => setOpenContact(contactId)}
-            onChanged={refresh}
-          />
-        ) : (
-          <ContactPanel
-            key={openId ?? "none"}
-            contactId={openId}
-            knownTags={data.tags}
-            segments={data.segments}
-            refreshes={refreshes}
-            onChanged={refresh}
-            onSegment={showSegment}
-            onDeleted={() => setOpenContact(undefined)}
-          />
-        ),
-      }}
-    >
-      <SegmentDialog
-        key={
-          shownSegmentWindow?.mode === "edit"
-            ? shownSegmentWindow.segment.id
-            : shownSegmentWindow
-              ? `new-${JSON.stringify(shownSegmentWindow.rules ?? null)}`
-              : "closed"
+  // The Segments block's ⋯ and Add a segment, on the left page, open this
+  // section's windows while it shows.
+  useHandSegmentActions({
+    onEdit: (segmentId) => {
+      const segment = data.segments.find((entry) => entry.id === segmentId)
+      if (segment) setSegmentWindow({ mode: "edit", segment })
+    },
+    onDelete: (segmentId) => {
+      const segment = data.segments.find((entry) => entry.id === segmentId)
+      if (segment) setDeleteTarget(segment)
+    },
+    onNew: () => setSegmentWindow({ mode: "new" }),
+  })
+
+  return frame({
+    ids: data.rows.map((row) => row.id),
+    showMiddleFor: `${listSearch.view ?? ""}|${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`,
+    showRightFor: openId,
+    middle: (
+      <CrmPeopleList
+        data={data}
+        listSearch={listSearch}
+        heading={heading}
+        headingEnd={headingEnd}
+        pills={pills}
+        pill={pill}
+        onPill={pressPill}
+        rules={rules}
+        openSegment={openSegment}
+        segmentChanged={segmentChanged}
+        openId={openId}
+        onRules={setRules}
+        onOpen={setOpenContact}
+        onSaveAsSegment={(saved, searchExcluded) =>
+          setSegmentWindow({ mode: "new", rules: saved, searchExcluded })
         }
-        open={segmentWindow !== null}
-        segment={shownSegmentWindow?.mode === "edit" ? shownSegmentWindow.segment : null}
-        options={options}
-        prefill={
-          shownSegmentWindow?.mode === "new" && shownSegmentWindow.rules
-            ? {
-                rules: shownSegmentWindow.rules,
-                searchExcluded: Boolean(shownSegmentWindow.searchExcluded),
-              }
-            : undefined
-        }
-        onClose={() => setSegmentWindow(null)}
-        onSaved={async (id) => {
-          const made = segmentWindow?.mode === "new"
-          setSegmentWindow(null)
-          await refresh()
-          // A new segment is the list now, so it opens already applied. An
-          // edited one that was open shows its rules as just saved.
-          if (made || id === listSearch.segment) {
-            setListSearch({ filter: undefined, segment: id, page: undefined })
+        onRefresh={refresh}
+      />
+    ),
+    right: {
+      label: "Person",
+      showLabel: "Show the person",
+      content: openLead ? (
+        <LeadRecord
+          key={openLead.id}
+          leadId={openLead.id}
+          newestThreadId={openLead.newestThreadId}
+          onOpenContact={(contactId) => setOpenContact(contactId)}
+          onChanged={refresh}
+        />
+      ) : (
+        <ContactPanel
+          key={openId ?? "none"}
+          contactId={openId}
+          knownTags={data.tags}
+          segments={data.segments}
+          refreshes={refreshes}
+          onChanged={refresh}
+          onSegment={showSegment}
+          onDeleted={() => setOpenContact(undefined)}
+        />
+      ),
+    },
+    windows: (
+      <>
+        <SegmentDialog
+          key={
+            shownSegmentWindow?.mode === "edit"
+              ? shownSegmentWindow.segment.id
+              : shownSegmentWindow
+                ? `new-${JSON.stringify(shownSegmentWindow.rules ?? null)}`
+                : "closed"
           }
-        }}
-      />
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
-        }}
-        title={
-          closingDeleteTarget
-            ? `Delete ${quoteOneLine(closingDeleteTarget.name)}?`
-            : "Delete this segment?"
-        }
-        description="The segment goes for good. Nobody is deleted: the contacts stay exactly as they are. A segment another segment or an automation uses cannot be deleted until that stops pointing at it."
-        confirmLabel="Delete segment"
-        loading={deleting}
-        onConfirm={() => {
-          if (deleteTarget) void removeSegment(deleteTarget)
-        }}
-      />
-    </ThreePanels>
-  )
+          open={segmentWindow !== null}
+          segment={shownSegmentWindow?.mode === "edit" ? shownSegmentWindow.segment : null}
+          options={options}
+          prefill={
+            shownSegmentWindow?.mode === "new" && shownSegmentWindow.rules
+              ? {
+                  rules: shownSegmentWindow.rules,
+                  searchExcluded: Boolean(shownSegmentWindow.searchExcluded),
+                }
+              : undefined
+          }
+          onClose={() => setSegmentWindow(null)}
+          onSaved={async (id) => {
+            const made = segmentWindow?.mode === "new"
+            setSegmentWindow(null)
+            await refresh()
+            // A new segment is the list now, so it opens already applied. An
+            // edited one that was open shows its rules as just saved.
+            if (made || id === listSearch.segment) {
+              setListSearch({ filter: undefined, segment: id, page: undefined })
+            }
+          }}
+        />
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null)
+          }}
+          title={
+            closingDeleteTarget
+              ? `Delete ${quoteOneLine(closingDeleteTarget.name)}?`
+              : "Delete this segment?"
+          }
+          description="The segment goes for good. Nobody is deleted: the contacts stay exactly as they are. A segment another segment or an automation uses cannot be deleted until that stops pointing at it."
+          confirmLabel="Delete segment"
+          loading={deleting}
+          onConfirm={() => {
+            if (deleteTarget) void removeSegment(deleteTarget)
+          }}
+        />
+      </>
+    ),
+  })
 }
 
 /** Which segment refused to go, and what is still pointing at it. */

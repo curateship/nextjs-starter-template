@@ -60,22 +60,24 @@ export function appBlockNodeName(key: string) {
 export function checkAdminAdditions(
   kind: "block" | "widget",
   additions: readonly AdminAddition[],
-  shellKeys: readonly string[]
+  shellKeys: readonly string[],
+  /** Which dashboard, for the messages. */
+  dashboard: "Admin" | "CRM" = "Admin"
 ): readonly AdminAddition[] {
   const seen = new Set<string>()
   for (const addition of additions) {
     if (!KEY_PATTERN.test(addition.key)) {
       throw new Error(
-        `The Admin ${kind} key "${addition.key}" is not allowed. Use lower-case letters, digits and single dashes, starting with a letter.`
+        `The ${dashboard} ${kind} key "${addition.key}" is not allowed. Use lower-case letters, digits and single dashes, starting with a letter.`
       )
     }
     if (shellKeys.includes(addition.key)) {
       throw new Error(
-        `"${addition.key}" is one of the shell's own Admin ${kind}s. An app's own ${kind} needs a key the shell isn't already using.`
+        `"${addition.key}" is one of the shell's own ${dashboard} ${kind}s. An app's own ${kind} needs a key the shell isn't already using.`
       )
     }
     if (seen.has(addition.key)) {
-      throw new Error(`Two Admin ${kind}s both call themselves "${addition.key}". Each one needs its own key.`)
+      throw new Error(`Two ${dashboard} ${kind}s both call themselves "${addition.key}". Each one needs its own key.`)
     }
     seen.add(addition.key)
   }

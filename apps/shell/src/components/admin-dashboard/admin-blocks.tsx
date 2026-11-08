@@ -1,9 +1,10 @@
 import * as React from "react"
 import { LayoutDashboardIcon, PackageIcon, PlusIcon, type LucideIcon } from "lucide-react"
 
-import { SideRows } from "@/components/admin-dashboard/admin-parts"
-import { AdditionBoundary } from "@/components/admin-dashboard/addition-boundary"
+import { AdditionBoundary } from "@/components/shared/widgets/addition-boundary"
 import { blockView, useBlockMenu } from "@/components/shared/notes/block-card"
+import { DashboardsRows } from "@/components/shared/notes/dashboards-rows"
+import { SideRows } from "@/components/shared/notes/side-rows"
 import { blockNode, keepOnPage, type AppBlock } from "@/components/shared/notes/note-block-nodes"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -60,9 +61,6 @@ function Reading() {
   return <p className="p-3 text-xs text-muted-foreground">Reading…</p>
 }
 
-/** How long the Dashboards block's bar takes to grow; `SideRows`' `nav` transition. */
-const SECTION_BAR_MS = 220
-
 const SECTION_COUNT: Record<AdminTab, keyof AdminSectionCounts | null> = {
   overview: null,
   users: "users",
@@ -77,47 +75,22 @@ const SECTION_COUNT: Record<AdminTab, keyof AdminSectionCounts | null> = {
  */
 export function SectionsBlock() {
   const blocks = React.useContext(AdminBlocksContext)
-  // The row pressed is picked at once, and the section switch waits for its
-  // bar to finish growing (Tyler, 8 Nov 2026: "animation is not smooth").
-  // Drawing a new section keeps the browser busy for 100 to 185ms, and a bar
-  // growing at the same time skipped most of its frames. The address takes
-  // over once it says something new.
-  const [pressed, setPressed] = React.useState<{ tab: AdminTab; from: AdminTab } | null>(null)
-  if (pressed && blocks && blocks.tab !== pressed.from) setPressed(null)
-  const timer = React.useRef(0)
-  React.useEffect(() => () => window.clearTimeout(timer.current), [])
   if (!blocks) return <Unplaced />
-  const shown = pressed?.tab ?? blocks.tab
   return (
-    <SideRows
-      nav
-      empty=""
-      rows={ADMIN_TABS.map((tab) => {
+    <DashboardsRows
+      current={blocks.tab}
+      onPick={blocks.onPickTab}
+      sections={ADMIN_TABS.map((tab) => {
         const counted = SECTION_COUNT[tab]
         return {
           key: tab,
-          name: ADMIN_TAB_LABELS[tab],
+          label: ADMIN_TAB_LABELS[tab],
           value:
             tab === "overview"
               ? blocks.widgetCount?.toLocaleString()
               : counted && blocks.counts
                 ? blocks.counts[counted].toLocaleString()
                 : undefined,
-          picked: tab === shown,
-          onPress: () => {
-            window.clearTimeout(timer.current)
-            if (tab === blocks.tab) {
-              setPressed(null)
-              return
-            }
-            setPressed({ tab, from: blocks.tab })
-            const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            // Switches only if the page is still where it was pressed.
-            const from = window.location.href
-            timer.current = window.setTimeout(() => {
-              if (window.location.href === from) blocks.onPickTab(tab)
-            }, still ? 0 : SECTION_BAR_MS)
-          },
         }
       })}
     />

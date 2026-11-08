@@ -1,11 +1,12 @@
 import * as React from "react"
 
-import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import type { WidgetBoard, WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { getAdminErrorMessage, loadOverviewWidgets, saveOverviewWidgets } from "@/lib/api/admin-dashboard"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Overview's widget layout, held by the whole dashboard: the left ⋮'s
+ * An Overview's widget layout (`board`: the Admin dashboard's or the CRM's),
+ * held by the whole dashboard: the left ⋮'s
  * Widgets tab sets it on every section, and Overview's widgets change it from
  * their own ⋮ and from an empty spot.
  *
@@ -15,7 +16,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  *   before it, so the database ends on the last change even when two are sent
  *   close together. A save that fails puts back the layout last stored.
  */
-export function useWidgetLayout(seed: WidgetLayout | null) {
+export function useWidgetLayout(board: WidgetBoard, seed: WidgetLayout | null) {
   const [layout, setLayout] = React.useState<WidgetLayout | null>(seed)
   const [error, setError] = React.useState<string | null>(null)
   const [attempt, setAttempt] = React.useState(0)
@@ -32,7 +33,7 @@ export function useWidgetLayout(seed: WidgetLayout | null) {
   React.useEffect(() => {
     if (layout) return
     let active = true
-    loadOverviewWidgets()
+    loadOverviewWidgets(board)
       .then((read) => {
         if (!active) return
         stored.current = read
@@ -45,21 +46,21 @@ export function useWidgetLayout(seed: WidgetLayout | null) {
     return () => {
       active = false
     }
-  }, [layout, attempt])
+  }, [board, layout, attempt])
 
   const change = React.useCallback((next: WidgetLayout) => {
     const request = ++latest.current
     setLayout(next)
     queue.current = queue.current.then(async () => {
       try {
-        stored.current = await saveOverviewWidgets(next)
+        stored.current = await saveOverviewWidgets(board, next)
         if (request === latest.current) setLayout(stored.current)
       } catch (saveError) {
         if (request === latest.current) setLayout(stored.current)
         showErrorToast(getAdminErrorMessage(saveError))
       }
     })
-  }, [])
+  }, [board])
 
-  return { layout, error, retry: () => setAttempt((count) => count + 1), change }
+  return { board, layout, error, retry: () => setAttempt((count) => count + 1), change }
 }

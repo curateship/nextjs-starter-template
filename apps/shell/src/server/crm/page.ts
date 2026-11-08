@@ -1,6 +1,6 @@
 import { and, asc, count, eq, inArray, isNotNull, isNull, lte, notInArray, sql } from "drizzle-orm"
 
-import { CRM_PAGE_BLOCK_TYPES, defaultCrmPage } from "@/lib/crm/crm-page"
+import { CRM_PAGE_BLOCK_TYPES, defaultCrmPage, withCrmSectionsBlock } from "@/lib/crm/crm-page"
 import type { CrmStage } from "@/lib/crm/crm"
 import { PAGE_MAX_LENGTH, storedPageBody, type StoredPage } from "@/lib/notes/page-body"
 import { readCoverImages } from "@/lib/notes/page-cover"
@@ -10,7 +10,9 @@ import { waitingConditions, waitingCutoff } from "@/server/crm/inbox"
 import { listWorkspaceSegments } from "@/server/people/contact-segments"
 import { getEmailSettings } from "@/server/email/settings"
 import { db, type CustomShellDb } from "@/server/db"
+import { countPeople } from "@/server/crm/people"
 import {
+  customShellBroadcasts,
   customShellCrmLeads,
   customShellCrmPages,
   customShellCrmThreads,
@@ -25,6 +27,21 @@ import {
 export const CRM_PAGE_LOCKED = "CRM_PAGE_LOCKED"
 export const CRM_PAGE_TOO_LONG = "CRM_PAGE_TOO_LONG"
 
+/** A page with nothing on it: one empty line. */
+const EMPTY_PAGE = JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+
+/**
+ * A page's words cleaned to what it may hold. It always keeps its Dashboards
+ * block, put back at the top if it is missing, since it is the only way
+ * between the sections. A page with every other block taken off and nothing
+ * typed is still a choice, so it is kept rather than read as a page never
+ * written on.
+ */
+function cleanPage(text: string) {
+  const stored = storedPageBody(text, CRM_PAGE_BLOCK_TYPES) || EMPTY_PAGE
+  return JSON.stringify(withCrmSectionsBlock(JSON.parse(stored)))
+}
+
 export async function getCrmPage(
   workspaceId: string,
   database: CustomShellDb = db
@@ -36,7 +53,7 @@ export async function getCrmPage(
     .limit(1)
   // Read through the same cleaning a save runs, so a block that has since
   // left the page (the Emails block, 7 Nov 2026) is not handed to the editor.
-  const body = row?.body ? storedPageBody(row.body, CRM_PAGE_BLOCK_TYPES) : ""
+  const body = row?.body ? cleanPage(row.body) : ""
   return {
     body: body || JSON.stringify(defaultCrmPage()),
     locked: row?.locked ?? false,
@@ -73,11 +90,7 @@ export async function saveCrmPageBody(
   if (body.length > PAGE_MAX_LENGTH) throw new Error(CRM_PAGE_TOO_LONG)
   const page = await getCrmPage(workspaceId, database)
   if (page.locked) throw new Error(CRM_PAGE_LOCKED)
-  const stored = storedPageBody(body, CRM_PAGE_BLOCK_TYPES)
-  // A page with every block taken off and nothing typed is still a choice, so
-  // it is kept as an empty document rather than "" (which is the start page).
-  const kept = stored || JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
-  await upsertPage(workspaceId, { body: kept }, database)
+  await upsertPage(workspaceId, { body: cleanPage(body) }, database)
 }
 
 export async function setCrmPageLock(
@@ -112,8 +125,12 @@ export type CrmBlockFigures = {
   }[]
   /** How many leads are at each stage. */
   stages: Record<CrmStage, number>
-  /** Every open conversation, for the panel's muted line. */
+  /** Every open conversation: the panel's muted line, and Inbox's count in the Dashboards block. */
   openCount: number
+  /** Everybody once, contacts and leads, as People's All pill: People's count. */
+  peopleCount: number
+  /** Every newsletter, sent or not, templates aside: Broadcasts' count. */
+  broadcastCount: number
   /** After how many days the bell chases unanswered mail; 0 is off. */
   unansweredDays: number
   /**
@@ -144,7 +161,7 @@ export async function getCrmBlockFigures(
   const unansweredDays = settings?.crmUnansweredDays ?? 3
   const waitedSince = waitingCutoff(unansweredDays)
 
-  const [addresses, openByAddress, due, stageRows, waiting, segments] = await Promise.all([
+  const [addresses, openByAddress, due, stageRows, waiting, segments, people, [broadcasts]] = await Promise.all([
     listInboundAddresses(workspaceId, database),
     database
       .select({
@@ -207,6 +224,11 @@ export async function getCrmBlockFigures(
           .limit(FOLLOW_UPS_SHOWN)
       : Promise.resolve([]),
     listWorkspaceSegments(workspaceId, database),
+    countPeople(workspaceId, database),
+    database
+      .select({ total: count() })
+      .from(customShellBroadcasts)
+      .where(eq(customShellBroadcasts.workspaceId, workspaceId)),
   ])
 
   // Each lead's newest conversation, which pressing the row opens.
@@ -278,6 +300,8 @@ export async function getCrmBlockFigures(
     ),
     stages,
     openCount: Number(openRow?.open ?? 0),
+    peopleCount: people.all,
+    broadcastCount: Number(broadcasts?.total ?? 0),
     unansweredDays,
     waiting: waiting.map((row) => ({ ...row, lastMessageAt: row.lastMessageAt.toISOString() })),
     segments: segments.map((row) => ({

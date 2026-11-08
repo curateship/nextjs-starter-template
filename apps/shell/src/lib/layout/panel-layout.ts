@@ -116,9 +116,12 @@ export const panelLayoutKey = {
   // the right, each side at its narrowest 16%.
   crmWorkspace: "crm-workspace-horizontal-4",
   // Not a layout: where the CRM dashboard was, for `useDashboardPlace`. Every
-  // `ThreePanels` screen has one, named `…Place`. All three CRM tabs share it,
-  // so a bare `/admin/crm` goes back to the tab last open.
+  // `ThreePanels` screen has one, named `…Place`. All the CRM's sections share
+  // it, so a bare `/admin/crm` goes back to the section last open.
   crmPlace: "crm-workspace-place",
+  // The CRM's Overview, two panels: the left page and the widgets, which take
+  // the right panel's room, as Admin's Overview has its own key.
+  crmOverview: "crm-overview-horizontal-1",
   // The Admin dashboard (8 Nov 2026): Users, Feedback and Media library as
   // three panels, each side at its narrowest 16%.
   admin: "admin-horizontal-1",

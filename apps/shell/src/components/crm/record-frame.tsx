@@ -1,6 +1,7 @@
 import type * as React from "react"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -45,10 +46,12 @@ export function RecordFrame({
   /** "Hide the person". */
   hideLabel: string
 }) {
+  const cover = useRightCover()
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+    <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <RightPanelCover />
       <div>
-        <DashboardCardHeader className="gap-2">
+        <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
           {typeof avatar === "string" ? (
             // 32px, up from 24 (Tyler, 7 Nov 2026: "increase avatar size").
             <Avatar className="shrink-0">
@@ -112,10 +115,12 @@ export function EmptyRecord({
   loading?: boolean
   hideLabel: string
 }) {
+  const cover = useRightCover()
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+    <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <RightPanelCover />
       <div>
-        <DashboardCardHeader className="gap-2.5">
+        <DashboardCardHeader className={cn("gap-2.5", cover && "border-b-transparent")}>
           <h2 className="font-heading min-w-0 flex-1 truncate text-[0.891rem] leading-snug font-medium">{title}</h2>
           <SidePanelCollapseButton side="right" label={hideLabel} />
         </DashboardCardHeader>

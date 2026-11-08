@@ -1,5 +1,6 @@
 import { appBlockNodeName } from "@/lib/admin-dashboard/admin-additions"
 import { appAdminBlocks } from "@/lib/app-options"
+import { withFixedBlock } from "@/lib/notes/fixed-block"
 import type { NoteNode } from "@/lib/notes/note-blocks"
 
 /**
@@ -48,21 +49,7 @@ export function defaultAdminPage(): NoteNode {
   }
 }
 
-/**
- * The page with its Dashboards block: a page saved before the block
- * existed, or one that lost it some other way, gets it back at the top, and
- * a second one is dropped. A page already holding exactly one comes back as
- * it was, the block wherever it was moved to.
- */
+/** The page with its one Dashboards block (`withFixedBlock`). */
 export function withSectionsBlock(body: NoteNode): NoteNode {
-  const content = body.content ?? []
-  let seen = false
-  const kept = content.filter((node) => {
-    if (node.type !== ADMIN_SECTIONS_NODE) return true
-    if (seen) return false
-    seen = true
-    return true
-  })
-  if (seen) return kept.length === content.length ? body : { ...body, content: kept }
-  return { ...body, content: [{ type: ADMIN_SECTIONS_NODE }, ...kept] }
+  return withFixedBlock(body, ADMIN_SECTIONS_NODE)
 }

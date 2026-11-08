@@ -614,7 +614,7 @@ export const BLOCK_STYLE_VAR_NAMES = ["--shell-block-radius", "--shell-block-sha
 
 /**
  * Overview's widgets' look (Settings → Styling → Widgets), on the root as the
- * blocks' is (`WidgetCard` in `src/components/admin-dashboard/widget-card.tsx`).
+ * blocks' is (`WidgetCard` in `src/components/shared/widgets/widget-card.tsx`).
  */
 export function getWidgetStyleVars(styling: ShellStyling): Record<string, string> {
   return {

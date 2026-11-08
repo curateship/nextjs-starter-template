@@ -6,21 +6,22 @@ import { ImageIcon, LayoutDashboardIcon, MessageSquareIcon, PlusIcon, type Lucid
 import type { AdminBlocks } from "@/components/admin-dashboard/admin-blocks"
 import { PlanRows } from "@/components/admin-dashboard/admin-blocks"
 import { AdminPagePanel } from "@/components/admin-dashboard/admin-page-panel"
-import { OpenPersonProvider, SideRows } from "@/components/admin-dashboard/admin-parts"
+import { OpenPersonProvider } from "@/components/admin-dashboard/admin-parts"
+import { SideRows } from "@/components/shared/notes/side-rows"
 import { FeedbackTab, type FeedbackLoaded } from "@/components/admin-dashboard/feedback-tab"
 import { MediaTab, type MediaLoaded } from "@/components/admin-dashboard/media-tab"
 import { OverviewTab } from "@/components/admin-dashboard/overview-tab"
-import { useWidgetLayout } from "@/components/admin-dashboard/use-widget-layout"
-import { WidgetSettings } from "@/components/admin-dashboard/widget-menus"
+import { useWidgetLayout } from "@/components/shared/widgets/use-widget-layout"
+import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
 import { UsersTab, type UsersLoaded } from "@/components/admin-dashboard/users-tab"
 import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
 import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { AnnouncementDialog } from "@/components/admin/announcement-dialog"
 import { PlanDialog } from "@/components/admin/plan-dialog"
-import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
-import { PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import {
@@ -180,7 +181,7 @@ export function AdminDashboard({
 
   // Overview's widgets, held here so the left ⋮'s Widgets tab can set them
   // on every section, and the Dashboards block can count them.
-  const widgets = useWidgetLayout(loaded.tab === "overview" ? loaded.widgets : null)
+  const widgets = useWidgetLayout("admin", loaded.tab === "overview" ? loaded.widgets : null)
 
   const blocks: AdminBlocks = {
     tab,
@@ -231,13 +232,7 @@ export function AdminDashboard({
         />
       </>
     ) : (
-      <span className="flex min-w-0 shrink items-center gap-2">
-        <PanelReopenButton side="left" label="Show the page" />
-        <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
-          <SectionIcon />
-        </span>
-        <h2 className={cn("min-w-0 shrink truncate", dashboardCardHeadingClassName)}>{ADMIN_TAB_LABELS[tab]}</h2>
-      </span>
+      <MiddleHeading icon={SectionIcon} label={ADMIN_TAB_LABELS[tab]} />
     )
 
   const setPage = (page: StoredPage) => pagesRead.setData((current) => (current ? { ...current, left: page } : current))
@@ -304,10 +299,12 @@ export function AdminDashboard({
 
   return (
     <OpenPersonProvider value={openPerson}>
+      {/* The left page's cover carries on behind the record on the right. */}
+      <RightCoverProvider value={pages?.left?.coverUrl ?? null}>
       <ThreePanels
         // Overview is two panels, with a layout of its own.
         layoutKey={overview ? panelLayoutKey.adminOverview : panelLayoutKey.admin}
-        place={{ key: panelLayoutKey.adminPlace, search, ids: place.ids, ready: place.ready }}
+        place={{ key: panelLayoutKey.adminPlace, search, ids: place.ids, ready: place.ready, section: loaded.tab }}
         showMiddleFor={tab}
         // Only a record the address names. A section's first row stands in
         // for an empty `?open=` until the place opens it quietly, and handing
@@ -392,6 +389,7 @@ export function AdminDashboard({
                   label: "Widgets",
                   content: (
                     <WidgetSettings
+                      board="admin"
                       layout={widgets.layout}
                       error={widgets.error}
                       onRetry={widgets.retry}
@@ -414,12 +412,7 @@ export function AdminDashboard({
                 "@container flex h-full min-h-0 flex-col overflow-hidden",
                 !overview && [
                   "bg-card",
-                  // 24px at the left and right, up from 16 (Tyler, 8 Nov 2026:
-                  // "Add more padding on left and right side for middle
-                  // panel"): the header (20px, its first icon or tab 4px in),
-                  // and the table's first and last columns, so they line up.
-                  "[&_[data-slot=dashboard-card-header]]:px-5",
-                  "[&_td:first-child]:!pl-6 [&_th:first-child]:!pl-6 [&_td:last-child]:!pr-5 [&_th:last-child]:!pr-5",
+                  middleGutterClassName,
                 ]
               )}
             >
@@ -458,6 +451,7 @@ export function AdminDashboard({
           }}
         />
       </ThreePanels>
+      </RightCoverProvider>
     </OpenPersonProvider>
   )
 }

@@ -2,7 +2,7 @@ import * as React from "react"
 import { ChevronRightIcon, MailIcon, NewspaperIcon, PlusIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { CRM_APP_BLOCKS, CrmBlocksProvider, type CrmBlocks } from "@/components/crm/crm-blocks"
+import { CRM_APP_BLOCKS, CrmBlocksProvider, CrmSectionsBlock, type CrmBlocks } from "@/components/crm/crm-blocks"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { PageCover } from "@/components/shared/notes/page-cover"
 import { CoverRow, LockRow } from "@/components/shared/notes/page-rows"
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   DropdownMenu,
@@ -57,27 +58,37 @@ import { cn } from "@/lib/utils"
  * CRM so we'd need to add a + in the top header").
  *
  * - **Header:** the collapse button, "CRM" with its open conversations, the
- *   **+** that adds an address mail arrives at, and the ⋮ (CRM settings: the
- *   cover photo, and Lock the notes).
+ *   **+** that adds an address mail arrives at, and the ⋮ (CRM settings:
+ *   General, Emails, System emails, and Widgets for Overview).
  * - **Page:** one per site, written on like any page in the design, with the
- *   "/" blocks: the basic ones, and the CRM's Emails, Follow up today and
- *   Stages (`crm-blocks.tsx`). A new site starts with Emails and Follow up
- *   today.
+ *   fixed Dashboards block that picks the section, and the "/" blocks: the
+ *   basic ones, and the CRM's Follow up today, Waiting on you, Segments and
+ *   Stages (`crm-blocks.tsx`). A new site starts with Dashboards and Follow
+ *   up today. While the page is read, or when it could not be, the
+ *   Dashboards block is drawn on its own: it is the only way between the
+ *   sections.
  */
 export function CrmPagePanel({
   page,
+  error,
+  onRetry,
   figures,
   blocks,
+  widgets,
   onPageChange,
   onFiguresChanged,
   onOpenSystemEmail,
   openSystemEmail,
   onNewsletterCreated,
 }: {
-  /** Null while the page is first read. */
+  /** Null while the page is first read, or when the read failed. */
   page: StoredPage | null
+  error: string | null
+  onRetry: () => void
   figures: CrmBlockFigures | null
   blocks: Omit<CrmBlocks, "figures">
+  /** The ⋮'s Widgets tab: Overview's rows and spots. */
+  widgets: React.ReactNode
   onPageChange: (page: StoredPage) => void
   /** Reads the figures again, and the inbox with them, after an address changed. */
   onFiguresChanged: () => void
@@ -156,6 +167,9 @@ export function CrmPagePanel({
               // panel's left edge (Tyler, 7 Nov 2026: "align settings
               // dropdown to the right").
               align="start"
+              // Wide enough for General, Emails, System emails and Widgets on
+              // one row, as the Admin ⋮, which the usual 22.7rem cuts short.
+              width="25rem"
               open={menuOpen}
               onOpenChange={setMenuOpen}
               tabs={[
@@ -319,6 +333,7 @@ export function CrmPagePanel({
                     </div>
                   ),
                 },
+                { value: "widgets", label: "Widgets", content: widgets },
               ]}
             />
           ) : null}
@@ -348,7 +363,14 @@ export function CrmPagePanel({
               />
             </CrmBlocksProvider>
           ) : (
-            <LoadingRow label="Reading the page…" />
+            <>
+              <div className="mt-3.75 overflow-hidden rounded-[var(--shell-block-radius,1rem)] border">
+                <CrmBlocksProvider value={provided}>
+                  <CrmSectionsBlock />
+                </CrmBlocksProvider>
+              </div>
+              {error ? <ErrorRow message={error} onRetry={onRetry} /> : <LoadingRow label="Reading the page…" />}
+            </>
           )}
         </div>
       </ScrollArea>

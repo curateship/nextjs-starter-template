@@ -2,8 +2,9 @@
 
 The CRM is one screen at `/admin/crm` for all the app's email. Its Inbox
 reads mail that comes in, answers it, and keeps a record of who it was with so
-they can be chased later. Its Broadcasts and People tabs hold the newsletters,
-the app's own emails, and the people they go to.
+they can be chased later. Its People and Broadcasts sections hold the people
+the mail goes to, the newsletters and the app's own emails. Its Overview is a
+page of widgets, empty until there are CRM widgets.
 
 ## One screen for all the app's email
 
@@ -13,10 +14,38 @@ consolidate them all into one CRM dashboard". Then, of the first try: "We
 need to consolidate this [the newsletter editor] into the CRM dashboard too
 and not linked it outside. The Ui is all over the place as well."
 
-- **One middle header on every tab** (`CrmListHeader` in
-  `src/components/crm/crm-row.tsx`): the Broadcasts, Inbox and People tabs,
-  "N selected" while rows are ticked, Filter, the view dropdown, the one New …
-  button, then the ⋮ with Search and Mass select (and People's Import).
+- **Sections, picked on the left, laid out as the Admin dashboard** (Tyler,
+  8 Nov 2026: "We need to get the CRM dashboard up to date with the new admin
+  dashboard. We dont have any CRM widgets so lets leave it empty for now").
+  The middle header's tabs became the left page's fixed **Dashboards** block:
+  Overview, Inbox, People and Broadcasts, in that order, each with a count
+  (Overview its widgets, Inbox its open conversations, People everybody
+  once, Broadcasts every newsletter). It is the Admin page's block, the same
+  rows and the same sliding bar (`DashboardsRows` in
+  `src/components/shared/notes/dashboards-rows.tsx`).
+- **One frame for every section** (`src/components/crm/crm-frame.tsx`): the
+  left page, its ⋮ and anything typed there stay put while the section
+  changes; only the middle and the record on the right are the section's,
+  as on the Admin dashboard.
+- **Overview** is the Admin dashboard's widget grid with no middle panel,
+  two panels with a layout of their own, its rows and spots set in the CRM
+  ⋮'s **Widgets** tab and saved for the site (`admin_widget_layouts`, board
+  `crm`). The CRM has no widgets of its own, so a new site starts with one
+  row of two spots, each saying "No CRM widgets yet.", and the Widgets tab
+  shows only the rows. An app adds CRM widgets through `crm.widgets` in its
+  `src/app/options.ts` (`docs/shell/admin-blocks-and-widgets.md`). A bare
+  `/admin/crm` on a browser that never opened the CRM lands on Inbox, not on
+  an empty Overview.
+- **One middle header on every section** (`CrmListHeader` in
+  `src/components/crm/crm-row.tsx`): the section's icon and name, "N
+  selected" while rows are ticked, Filter, the view dropdown, the one New …
+  button, the ⋮ with Search and Mass select (and People's Import), and last
+  the button that reopens a shut right panel. A shut left panel comes back
+  from a button before the icon. The edge knobs are gone except on Overview,
+  which has no header. The header and the tables sit 24px in from the
+  middle's edges. Inbox's Filter opens 240px wide, as the Admin lists' do;
+  People's is the segment rule builder, three boxes to a rule, and stays
+  480px.
 - **The view dropdown** (`ViewMenu` in `src/components/shared/view-menu.tsx`)
   picks which part of the tab's list shows, with a count on each. It sat as a
   row of pills under the header until Tyler, 7 Nov 2026: "We dont need a
@@ -38,7 +67,13 @@ and not linked it outside. The Ui is all over the place as well."
     (`DOT` in `crm-table.tsx`): blue unread or scheduled, grey read or
     nothing to do, a lead's stage colour, a newsletter's state colour. Then
     the name with its small badges, each fact as a chip in its own column,
-    and the open button. Columns drop out as the panel narrows.
+    and the open button. Columns drop out as the panel narrows, each only
+    once there is room for every column before it too, so a table never runs
+    past the panel (checked from 1280 to 2240px wide). A preview column's
+    rule is `hidden md:hidden @4xl:table-cell`, as on the Admin lists:
+    without `md:hidden` the table's own `md:table-cell` showed it on any
+    laptop however narrow the middle was, which cut off the Actions column
+    at 1440px until 8 Nov 2026.
   - **The open row** (Tyler, 8 Nov 2026: "I want to add the pill sliding in
     ui to the table items"): a small dark bar grows in before its dot, its
     width and margin over 220ms on cubic-bezier(0.2, 0.8, 0.2, 1), while the
@@ -49,10 +84,12 @@ and not linked it outside. The Ui is all over the place as well."
     while open ("change the items to gray and if hover over it turns black
     and when selected it stays black"). The same rows draw the Admin
     dashboard's Users, Feedback and Media library lists.
-  - Inbox: From, Email, Stage, Tags, When. From is only as wide as the
-    names and Email takes the rest, so the words sit next to who sent them. People: Person, Email, Kind,
-    Status, Tags, Opened, Added (Person, Email, Status and Added sort).
-    Broadcasts: Newsletter, Subject, Status, Sent, Changed. Templates and the
+  - Inbox: From, Email, Stage (from a 896px middle), Tags (from 1024px),
+    When. From is only as wide as the names and Email takes the rest, so the
+    words sit next to who sent them. People: Person, Email, Kind, Status
+    (from 896px), Tags (from 1024px), Opened (from 1152px), Added (Person,
+    Email, Status and Added sort).
+    Broadcasts: Newsletter, Subject, Status, Sent (from 896px), Changed. Templates and the
     Outbox have the same shape.
   - Every row right-clicks: Mass select first, the row's own actions, the
     destructive one under a line. Mass select adds a tick column only as
@@ -62,24 +99,28 @@ and not linked it outside. The Ui is all over the place as well."
   themselves), the collapse button; the body; a footer with its state and its
   main button. A conversation, a contact, a lead, a newsletter, a template, a
   system email and an outbox email all use it.
-- **The left page is the same on every tab.** A block pressed on the wrong
-  tab goes to the right one: an address or a stage opens Inbox, a segment
-  opens People. The CRM settings ⋮ opens to the right, over the list. It has
-  an **Emails** tab, the addresses mail arrives at (each narrows the inbox,
+- **The left page is the same on every section.** A block pressed on the
+  wrong section goes to the right one: an address or a stage opens Inbox, a
+  segment opens People. On Inbox an address or a stage narrows the list in
+  place, keeping its other filters; on People a segment shows in place, the
+  open person staying open. A segment row's ⋯ (Edit, Delete) shows only on
+  People, whose windows they open. The CRM settings ⋮ opens to the right,
+  over the list, 25rem wide so its four tabs fit on one row. It has an
+  **Emails** tab, the addresses mail arrives at (each narrows the inbox,
   with Rename and Remove; they were a block on the page until Tyler, 7 Nov
-  2026: "move the email block to the settings"), and a **System emails**
-  tab; pressing one opens it on the right.
+  2026: "move the email block to the settings"), a **System emails**
+  tab, pressing one opens it on the right, and the **Widgets** tab.
 - **Nothing leads outside.** A newsletter, a template and a system email are
   written on the right panel (`workspace/docs/email/newsletters-and-broadcasts.md`).
   `/admin/newsletter`, `/admin/newsletter/<id>`, `/admin/contacts`,
   `/admin/segments`, `/admin/system-emails`, `/admin/system-emails/<kind>` and
   `/admin/dev-outbox` all forward into the CRM, and navigation version 22
   takes their links out of the left menu (`removeEmailScreenLinks`).
-- **Each tab reads only its own address keys** (`src/lib/crm/crm-search.ts`).
-  Inbox and People both use `open`, `q` and `sort`, and a contact's id is not
-  a conversation's, so picking a tab starts the address again with
-  `?tab=<name>` alone. A bare `/admin/crm` goes back to the tab and row it
-  last had.
+- **Each section reads only its own address keys**
+  (`src/lib/crm/crm-search.ts`); Overview owns none. Inbox and People both
+  use `open`, `q` and `sort`, and a contact's id is not a conversation's, so
+  picking a section starts the address again with `?tab=<name>` alone. A
+  bare `/admin/crm` goes back to the section and row it last had.
 
 It is drawn in the Admin 3 panel design
 (`.agents/skills/Design/admin-3-panel-design/SKILL.md`) since 7 Nov 2026.
@@ -114,9 +155,24 @@ that list.
 
 The page is the shell's page with "/" blocks (`docs/shell/page-blocks.md`),
 kept in `crm_pages`, one row per site. A site that has not written on it yet
-sees the Follow up today block. An Emails block saved before 7 Nov 2026 is
+sees the Dashboards block, then Follow up today.
+
+**Dashboards** is fixed, as the Admin page's is: it is never in the "/"
+list, the editor refuses any change that would take it off (Backspace, cut,
+select all and delete), the server puts it back at the top of a page saved
+without it and drops a second one (`withFixedBlock` in
+`src/lib/notes/fixed-block.ts`), and its ⋮ holds only Move up and Move down.
+While the page is read, or when it could not be, the block is drawn on its
+own above the "Reading the page…" line or the error, because it is the only
+way between the sections. An Emails block saved before 7 Nov 2026 is
 left out when the page is read; the addresses are in the CRM settings ⋮. The CRM adds three blocks of its
-own to the "/" list, in `src/components/crm/crm-blocks.tsx`:
+own to the "/" list, in `src/components/crm/crm-blocks.tsx`. Every one draws
+its rows as the Dashboards block does (Tyler, 8 Nov 2026: "segment and stages
+blocks are not changed ... other blocks too. Only the dashboard ones are the
+new ui"): grey names, the picked one dark with the sliding bar, no lines
+between rows, and counts in the soft grey pill (`SideRows`). Stages show each
+stage's dot from the tables; Waiting on you shows how long in the pill; a
+segment's ⋯ takes its pill's place while the row is pointed at.
 
 - **Follow up today.** Leads whose chase date has come, soonest first, never
   one already Won or Lost. Pressing one opens their newest conversation.
@@ -131,7 +187,8 @@ own to the "/" list, in `src/components/crm/crm-blocks.tsx`:
   block").
 
 The header holds the collapse button, "CRM" with the number of open
-conversations under it, the **+**, and the ⋮ (CRM settings). The ⋮'s General
+conversations under it, the **+**, and the ⋮ (CRM settings: General, Emails,
+System emails, Widgets). The ⋮'s General
 tab has the cover photo and Lock the notes. Locked, the page reads only, and
 the server refuses a save.
 

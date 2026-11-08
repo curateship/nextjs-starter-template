@@ -1,7 +1,14 @@
 import * as React from "react"
-import { PanelLeftCloseIcon, PanelLeftDashedIcon, PanelRightCloseIcon, PanelRightDashedIcon } from "lucide-react"
+import {
+  PanelLeftCloseIcon,
+  PanelLeftDashedIcon,
+  PanelRightCloseIcon,
+  PanelRightDashedIcon,
+  type LucideIcon,
+} from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
+import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -66,6 +73,36 @@ export function PanelReopenButton({ side, label }: { side: "left" | "right"; lab
     </Tooltip>
   )
 }
+
+/**
+ * The start of a middle panel's header on a dashboard of sections (the Admin
+ * dashboard's and the CRM's): the button that reopens a shut left panel, then
+ * the section's icon and name (Tyler, 8 Nov 2026: "Every panel needs an
+ * icon"). A header holding tabs draws those instead and has no icon
+ * ("dashboards with middle header tabs does not [need] icon").
+ */
+export function MiddleHeading({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <span className="flex min-w-0 shrink items-center gap-2">
+      <PanelReopenButton side="left" label="Show the page" />
+      <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
+        <Icon />
+      </span>
+      <h2 className={cn("min-w-0 shrink truncate", dashboardCardHeadingClassName)}>{label}</h2>
+    </span>
+  )
+}
+
+/**
+ * 24px at a middle panel's left and right (Tyler, 8 Nov 2026: "Add more
+ * padding on left and right side for middle panel"): its header (20px, its
+ * first icon or tab 4px in) and a table's first and last columns, so they
+ * line up. Set on the box round the middle's content.
+ */
+export const middleGutterClassName = [
+  "[&_[data-slot=dashboard-card-header]]:px-5",
+  "[&_td:first-child]:!pl-6 [&_th:first-child]:!pl-6 [&_td:last-child]:!pr-5 [&_th:last-child]:!pr-5",
+].join(" ")
 
 /**
  * The collapse button at a side panel header's outer edge (the Admin 3 panel
@@ -145,6 +182,8 @@ export function ThreePanels({
     search: Record<string, unknown>
     ids: string[]
     ready?: boolean
+    /** On a dashboard of sections in one frame, the one showing: a new one opens its first row. */
+    section?: string
   }
   left: Side
   /**
@@ -200,6 +239,7 @@ export function ThreePanels({
     search: place.search,
     ids: place.ids,
     ready: place.ready,
+    section: place.section,
     onQuietOpen: setQuietRight,
   })
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)

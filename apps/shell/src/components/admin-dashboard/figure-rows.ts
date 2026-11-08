@@ -1,4 +1,4 @@
-import type { SideRow } from "@/components/admin-dashboard/admin-parts"
+import type { SideRow } from "@/components/shared/notes/side-rows"
 import type { AiUsageDashboard } from "@/lib/api/ai"
 import type { AdminUsageSummary } from "@/lib/api/billing/usage"
 import type { TrafficSummary } from "@/lib/api/traffic"

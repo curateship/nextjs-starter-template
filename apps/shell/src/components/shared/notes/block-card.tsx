@@ -179,8 +179,17 @@ export function BlockCard({
       open={open}
       onOpenChange={setOpen}
       // Corners, grey and edge from Settings → Styling → Blocks; the
-      // fallbacks are the look blocks had before the setting existed.
-      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] [background:color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))]"
+      // fallbacks are the look blocks had before the setting existed. The
+      // grey is a little see-through, 60% of the solid one, so a page's
+      // cover shows faintly through it, as through the CRM email box's
+      // header (Tyler, 8 Nov 2026: "I like how the email box header as a bit
+      // of transparent, can you do that to the dashboard block", then of
+      // the muted grey alone: "thats too transparent"; 75% then, and "a bit
+      // more see through" made it 60%). On a plain panel it
+      // reads a shade lighter than the solid grey. What shows through is
+      // blurred, like frosted glass ("how about we make it gassuan blur like
+      // a glass effect"). The white tile under the heading stays solid.
+      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] backdrop-blur-md [background:color-mix(in_oklab,color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))_60%,transparent)]"
     >
       <BlockHeadingContext.Provider value={heading}>
         <FoldHeading

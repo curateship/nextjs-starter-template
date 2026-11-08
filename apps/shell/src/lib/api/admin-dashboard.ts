@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { ADMIN_PAGE_SIDES, type AdminPageSide } from "@/lib/admin-dashboard/admin-page"
-import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import { WIDGET_BOARDS, type WidgetBoard, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { PAGE_MAX_LENGTH, type StoredPage } from "@/lib/notes/page-body"
 import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
 import {
@@ -72,11 +72,14 @@ const loadCountsFn = createServerFn({ method: "GET" })
     return adminSectionCounts(workspaceId)
   })
 
+const boardSchema = z.enum(WIDGET_BOARDS)
+
 const loadWidgetsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<WidgetLayout> => {
+  .inputValidator(z.object({ board: boardSchema }))
+  .handler(async ({ data, context }): Promise<WidgetLayout> => {
     const workspaceId = await workspaceIdForRequest(context.user.id)
-    return getWidgetLayout(workspaceId)
+    return getWidgetLayout(workspaceId, data.board)
   })
 
 // The shape only; `saveWidgetLayout` cleans the values (columns in range,
@@ -88,22 +91,23 @@ const rowSchema = z.object({
 
 const saveWidgetsFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ top: rowSchema, bottom: rowSchema }))
+  .inputValidator(z.object({ board: boardSchema, layout: z.object({ top: rowSchema, bottom: rowSchema }) }))
   .handler(async ({ data, context }): Promise<WidgetLayout> => {
     const workspaceId = await workspaceIdForRequest(context.user.id)
-    return saveWidgetLayout(workspaceId, data)
+    return saveWidgetLayout(workspaceId, data.board, data.layout)
   })
 
 export function loadAdminSectionCounts() {
   return loadCountsFn()
 }
 
-export function loadOverviewWidgets() {
-  return loadWidgetsFn()
+/** A dashboard's Overview widgets: the Admin dashboard's, or the CRM's. */
+export function loadOverviewWidgets(board: WidgetBoard) {
+  return loadWidgetsFn({ data: { board } })
 }
 
-export function saveOverviewWidgets(layout: WidgetLayout) {
-  return saveWidgetsFn({ data: layout })
+export function saveOverviewWidgets(board: WidgetBoard, layout: WidgetLayout) {
+  return saveWidgetsFn({ data: { board, layout } })
 }
 
 export function loadAdminPages() {

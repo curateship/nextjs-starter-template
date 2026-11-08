@@ -24,8 +24,18 @@ All of them are in `src/components/shared/`.
   each. `reopenInHeader` takes away the knobs on the middle's edge;
   the middle's header then draws `PanelReopenButton`s (Lucide's
   PanelLeftDashed first, PanelRightDashed last), which show only while that
-  side is shut (Admin, 8 Nov 2026). `CrmListHeader`'s `end` slot holds the
-  right one.
+  side is shut (Admin, 8 Nov 2026, then the CRM). `CrmListHeader`'s `end`
+  slot holds the right one. `MiddleHeading` draws the left one, then a
+  section's icon and name, and `middleGutterClassName` sets the middle's
+  24px left and right on its header and table, both in `three-panels.tsx`.
+- **One frame for a dashboard of sections.** The Admin dashboard and the CRM
+  each keep one `ThreePanels` while their section changes; a section draws
+  its middle in place, its record into a spot in the right panel through a
+  portal, and tells the frame its rows, so the left page and its ⋮ never
+  draw again on a switch (`TabPanels` in `admin-dashboard.tsx`,
+  `crm-frame.tsx`). `place.section` names the section showing, so
+  `useDashboardPlace` treats each new one as an arrival and opens its first
+  row, as it did when each section had a frame of its own.
 - **`SidePanelCollapseButton`, in `three-panels.tsx`.** The collapse button at
   a side panel header's outer edge (the Admin 3 panel design; Tyler, 7 Nov
   2026: "add a collasible icon here to collapse the left panel"). Put it

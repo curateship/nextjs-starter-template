@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { appAdminWidgets } from "@/lib/app-options"
+import { appAdminWidgets, appCrmWidgets } from "@/lib/app-options"
 
 /**
  * Overview's widgets and where each sits (Tyler, 8 Nov 2026: "I want to make
@@ -23,11 +23,18 @@ import { appAdminWidgets } from "@/lib/app-options"
  * - Each column is a spot holding one widget, or nothing (Empty). A widget
  *   shows once: placing it in a second spot takes it out of the first.
  * - The layout is the site's, one for every admin, saved in
- *   `admin_widget_layouts`.
+ *   `admin_widget_layouts`, one per dashboard (`WidgetBoard`).
  *
- * The shell's nine are below; an app adds its own through `admin.widgets` in
- * its `src/app/options.ts`, keyed `app:<key>` so they never meet the shell's.
+ * Two dashboards have an Overview of widgets: the Admin dashboard's, with the
+ * shell's nine below, and the CRM's, with none of the shell's yet (Tyler,
+ * 8 Nov 2026: "We dont have any CRM widgets so lets leave it empty for now").
+ * An app adds its own through `admin.widgets` and `crm.widgets` in its
+ * `src/app/options.ts`, keyed `app:<key>` so they never meet the shell's.
  */
+
+/** The dashboards with an Overview of widgets, each with a layout of its own. */
+export const WIDGET_BOARDS = ["admin", "crm"] as const
+export type WidgetBoard = (typeof WIDGET_BOARDS)[number]
 
 export const SHELL_WIDGETS = [
   { id: "views", label: "Views per day", icon: TrendingUpIcon },
@@ -50,17 +57,19 @@ export function appWidgetId(key: string) {
   return `app:${key}`
 }
 
-/** One widget the Widgets tab offers: the shell's nine, then the app's. */
+/** One widget the Widgets tab offers. */
 export type WidgetChoice = { id: string; label: string; icon: LucideIcon }
 
-export function widgetChoices(): WidgetChoice[] {
+/**
+ * Every widget a dashboard offers: on Admin the shell's nine, then the app's;
+ * on the CRM only the app's, so none until an app adds one.
+ */
+export function widgetChoices(board: WidgetBoard): WidgetChoice[] {
+  const shell: readonly WidgetChoice[] = board === "admin" ? SHELL_WIDGETS : []
+  const app = board === "admin" ? appAdminWidgets(SHELL_WIDGET_IDS) : appCrmWidgets()
   return [
-    ...SHELL_WIDGETS,
-    ...appAdminWidgets(SHELL_WIDGET_IDS).map((widget) => ({
-      id: appWidgetId(widget.key),
-      label: widget.label,
-      icon: widget.icon,
-    })),
+    ...shell,
+    ...app.map((widget) => ({ id: appWidgetId(widget.key), label: widget.label, icon: widget.icon })),
   ]
 }
 
@@ -72,10 +81,20 @@ export type WidgetRow = { columns: number; spots: (string | null)[] }
 export type WidgetLayout = { top: WidgetRow; bottom: WidgetRow }
 export type WidgetRowName = keyof WidgetLayout
 
-/** What a site starts with: two charts on top, three lists under them. */
+/** What a site's Admin Overview starts with: two charts on top, three lists under them. */
 export const DEFAULT_WIDGET_LAYOUT: WidgetLayout = {
   top: { columns: 2, spots: ["views", "ai-spend"] },
   bottom: { columns: 3, spots: ["top-pages", "ai-features", "by-person"] },
+}
+
+/** What the CRM's Overview starts with: one row of two empty spots. */
+export const DEFAULT_CRM_WIDGET_LAYOUT: WidgetLayout = {
+  top: { columns: 2, spots: [null, null] },
+  bottom: { columns: 0, spots: [] },
+}
+
+export function defaultWidgetLayout(board: WidgetBoard): WidgetLayout {
+  return board === "admin" ? DEFAULT_WIDGET_LAYOUT : DEFAULT_CRM_WIDGET_LAYOUT
 }
 
 function readColumns(value: unknown, allowed: readonly number[], fallback: number) {
@@ -87,17 +106,23 @@ function readColumns(value: unknown, allowed: readonly number[], fallback: numbe
  * spot per column, widgets nobody knows (an app's that was taken away)
  * emptied, and a widget shown twice kept only in its first spot.
  * `known` is every widget id there is; the server passes the same list.
+ * `defaults` is the dashboard's starting layout, which a row never saved
+ * reads as.
  */
-export function cleanWidgetLayout(value: unknown, known: readonly string[]): WidgetLayout {
+export function cleanWidgetLayout(
+  value: unknown,
+  known: readonly string[],
+  defaults: WidgetLayout = DEFAULT_WIDGET_LAYOUT
+): WidgetLayout {
   const raw = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>
   const seen = new Set<string>()
   const row = (name: WidgetRowName, allowed: readonly number[]): WidgetRow => {
     // A row never saved reads as the default row, widgets and all.
-    const stored = (typeof raw[name] === "object" && raw[name] !== null ? raw[name] : DEFAULT_WIDGET_LAYOUT[name]) as Record<
+    const stored = (typeof raw[name] === "object" && raw[name] !== null ? raw[name] : defaults[name]) as Record<
       string,
       unknown
     >
-    const columns = readColumns(stored.columns, allowed, DEFAULT_WIDGET_LAYOUT[name].columns)
+    const columns = readColumns(stored.columns, allowed, defaults[name].columns)
     const given = Array.isArray(stored.spots) ? stored.spots : []
     const spots = Array.from({ length: columns }, (_, index) => {
       const id = given[index]

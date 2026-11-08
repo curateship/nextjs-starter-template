@@ -62,8 +62,20 @@ function useSkyPhase(): SkyPhase | null {
   return phase
 }
 
-/** The sky drawn edge to edge in its box, for now or for a `phase` given. */
-export function CoverSky({ phase: given, className }: { phase?: SkyPhase; className?: string }) {
+/**
+ * The sky drawn edge to edge in its box, for now or for a `phase` given.
+ * Without `lights` it has no sun or moon, as the right panel's carrying on
+ * the left page's sky.
+ */
+export function CoverSky({
+  phase: given,
+  className,
+  lights = true,
+}: {
+  phase?: SkyPhase
+  className?: string
+  lights?: boolean
+}) {
   const gradientId = React.useId()
   const now = useSkyPhase()
   const phase = given ?? now
@@ -88,9 +100,13 @@ export function CoverSky({ phase: given, className }: { phase?: SkyPhase; classN
       {phase === "night"
         ? STARS.map(([x, y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={1.1} fill="#f8fafc" opacity={0.85} />)
         : null}
-      <circle cx={light.x} cy={light.y} r={light.r * 1.8} fill={light.color} opacity={0.25} />
-      <circle cx={light.x} cy={light.y} r={light.r} fill={light.color} />
-      {phase === "night" ? <circle cx={light.x + 5} cy={light.y - 3} r={light.r} fill={top} /> : null}
+      {lights ? (
+        <>
+          <circle cx={light.x} cy={light.y} r={light.r * 1.8} fill={light.color} opacity={0.25} />
+          <circle cx={light.x} cy={light.y} r={light.r} fill={light.color} />
+          {phase === "night" ? <circle cx={light.x + 5} cy={light.y - 3} r={light.r} fill={top} /> : null}
+        </>
+      ) : null}
     </svg>
   )
 }

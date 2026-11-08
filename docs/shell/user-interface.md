@@ -104,6 +104,15 @@
   border settings the same way it does for modals. A component never copies a
   computed border across by hand.
 
+## The selected link in the left menu and the top bar
+
+The link for the page showing, and a link pointed at, sit on the theme's light
+grey at half strength, about `#fafafa`, in the left menu
+(`sidebarMenuButtonVariants` in `src/components/ui/sidebar.tsx`, and a folding
+group's row in `sidebar-group-collapsible.tsx`) and in the top bar's links
+(`sticky-header-left-nav.tsx`). Tyler, 8 Nov 2026: "make sidebar and topnav
+selected to light gray", picking the lighter grey over today's full one.
+
 ## Workspace panels
 
 - Every panel header renders through `DashboardCardHeader` in

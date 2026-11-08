@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   appWidgetId,
   cleanWidgetLayout,
+  DEFAULT_CRM_WIDGET_LAYOUT,
   DEFAULT_WIDGET_LAYOUT,
   placeWidget,
   setRowColumns,
@@ -16,7 +17,7 @@ const known = SHELL_WIDGET_IDS
 /** Overview's widget layout: up to two rows, each with its own columns. */
 describe("Overview's widget layout", () => {
   it("offers the shell's nine widgets when the app adds none", () => {
-    expect(widgetChoices().map((choice) => choice.id)).toEqual([
+    expect(widgetChoices("admin").map((choice) => choice.id)).toEqual([
       "views",
       "ai-spend",
       "by-person",
@@ -27,6 +28,17 @@ describe("Overview's widget layout", () => {
       "ai-models",
       "meters",
     ])
+  })
+
+  it("offers the CRM nothing when the app adds none", () => {
+    expect(widgetChoices("crm")).toEqual([])
+  })
+
+  it("reads a CRM row never saved as the CRM's own empty default", () => {
+    expect(cleanWidgetLayout(undefined, [], DEFAULT_CRM_WIDGET_LAYOUT)).toEqual({
+      top: { columns: 2, spots: [null, null] },
+      bottom: { columns: 0, spots: [] },
+    })
   })
 
   it("starts with two charts on top and three lists under them", () => {
