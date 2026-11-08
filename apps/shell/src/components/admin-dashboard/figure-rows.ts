@@ -7,11 +7,7 @@ import { formatSharePercent, formatTokenCount } from "@/lib/format/format-number
 import { formatMoney } from "@/lib/format/money"
 import { plural } from "@/lib/format/plural"
 
-/**
- * Overview's smaller lists as rows, one list each. The charts' More details
- * tabs and the "/" blocks of the same names draw from these, so a list reads
- * the same wherever it shows.
- */
+/** Overview's smaller lists as rows, one widget each. */
 
 const DEVICE_LABELS: Record<string, string> = {
   phone: "Phone",

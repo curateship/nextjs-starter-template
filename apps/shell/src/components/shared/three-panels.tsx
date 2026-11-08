@@ -1,5 +1,5 @@
 import * as React from "react"
-import { PanelLeftCloseIcon, PanelRightCloseIcon } from "lucide-react"
+import { PanelLeftCloseIcon, PanelLeftDashedIcon, PanelRightCloseIcon, PanelRightDashedIcon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { Button } from "@/components/ui/button"
@@ -21,11 +21,51 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { cn } from "@/lib/utils"
 
 type Side = { label: string; content: React.ReactNode; showLabel: string }
 
-/** What a side panel's header can reach: the press that shuts each side, on a wide screen only. */
-const SideToggles = React.createContext<{ left: () => void; right: () => void } | null>(null)
+/**
+ * What a panel's header can reach: the press that shuts or opens each side,
+ * and whether each is shut, on a wide screen only.
+ */
+const SideToggles = React.createContext<{
+  left: () => void
+  right: () => void
+  leftCollapsed: boolean
+  rightCollapsed: boolean
+} | null>(null)
+
+/**
+ * In the middle panel's header, the button that brings a shut side panel
+ * back, in place of the knob on the middle's edge (Tyler, 8 Nov 2026: "Put
+ * the uncollapse icon here ... and remove this knob", with Lucide's
+ * PanelLeftDashed and PanelRightDashed). Nothing while that side is open, or
+ * on a narrow screen. The left one goes first in the header, the right one
+ * last; the frame takes the knobs away when given `reopenInHeader`.
+ */
+export function PanelReopenButton({ side, label }: { side: "left" | "right"; label: string }) {
+  const toggles = React.useContext(SideToggles)
+  if (!toggles || !(side === "left" ? toggles.leftCollapsed : toggles.rightCollapsed)) return null
+  const Icon = side === "left" ? PanelLeftDashedIcon : PanelRightDashedIcon
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          className={side === "left" ? "-ml-1 shrink-0 rounded-lg" : "-mr-1 shrink-0 rounded-lg"}
+          onClick={toggles[side]}
+        >
+          <Icon className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 /**
  * The collapse button at a side panel header's outer edge (the Admin 3 panel
@@ -58,6 +98,11 @@ export function SidePanelCollapseButton({ side, label }: { side: "left" | "right
   )
 }
 
+/** A middle with no card: its content sits straight on the page. */
+function BareMiddle({ className, ...props }: React.ComponentProps<"div">) {
+  return <div data-slot="bare-middle" className={cn("h-full min-h-0", className)} {...props} />
+}
+
 /**
  * The three-column dashboard every app shares (UI standard, "Three-column
  * dashboards"): each side opens at its narrowest, 16%, and the middle takes
@@ -83,6 +128,7 @@ export function ThreePanels({
   right,
   showMiddleFor,
   showRightFor,
+  reopenInHeader = false,
   children,
 }: {
   layoutKey: string
@@ -101,8 +147,17 @@ export function ThreePanels({
     ready?: boolean
   }
   left: Side
-  middle: { label: string; content: React.ReactNode }
-  right: Side
+  /**
+   * `bare` draws the middle with no card of its own, its content straight on
+   * the page, as the Admin dashboard's Overview widgets are.
+   */
+  middle: { label: string; content: React.ReactNode; bare?: boolean }
+  /**
+   * Left out, the dashboard has two panels: the left one and the middle,
+   * which takes the right one's room (Tyler, 8 Nov 2026, of Admin's
+   * Overview: "Remove the right panel for overview dashboard").
+   */
+  right?: Side
   /**
    * On a narrow screen, each new value here switches to the middle panel's
    * pill: a list picked in the left panel shows at once.
@@ -114,6 +169,12 @@ export function ThreePanels({
    * record does.
    */
   showRightFor?: string
+  /**
+   * The middle's header draws `PanelReopenButton`s, so a shut side panel
+   * comes back from there rather than from a knob on the middle's edge. Off,
+   * the knobs stay, as on a middle with no header of its own.
+   */
+  reopenInHeader?: boolean
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
@@ -131,7 +192,7 @@ export function ThreePanels({
   if (showRightFor !== rightFor) {
     setRightFor(showRightFor)
     if (showRightFor && showRightFor === quietRight) setQuietRight(undefined)
-    else if (showRightFor) setNarrowView("right")
+    else if (showRightFor && right) setNarrowView("right")
     else if (narrowView === "right") setNarrowView("middle")
   }
   useDashboardPlace({
@@ -150,7 +211,16 @@ export function ThreePanels({
   const toggleRight = usePanelToggle(rightRef)
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
-  const toggles = React.useMemo(() => ({ left: toggleLeft, right: toggleRight }), [toggleLeft, toggleRight])
+  const hasRight = Boolean(right)
+  const toggles = React.useMemo(
+    () => ({
+      left: toggleLeft,
+      right: toggleRight,
+      leftCollapsed: leftState.collapsed,
+      rightCollapsed: hasRight && rightState.collapsed,
+    }),
+    [toggleLeft, toggleRight, leftState.collapsed, rightState.collapsed, hasRight]
+  )
 
   if (!wide) {
     return (
@@ -159,18 +229,22 @@ export function ThreePanels({
           <TabsList>
             <TabsTrigger value="middle">{middle.label}</TabsTrigger>
             <TabsTrigger value="left">{left.label}</TabsTrigger>
-            <TabsTrigger value="right">{right.label}</TabsTrigger>
+            {right ? <TabsTrigger value="right">{right.label}</TabsTrigger> : null}
           </TabsList>
         </Tabs>
-        {(["middle", "left", "right"] as const).map((side) => (
-          <WorkspacePanel
-            key={side}
-            className={narrowView === side ? "flex min-w-0 flex-1 flex-col" : "hidden"}
-            inert={narrowView !== side}
-          >
-            {side === "middle" ? middle.content : side === "left" ? left.content : right.content}
-          </WorkspacePanel>
-        ))}
+        {(["middle", "left", "right"] as const).map((side) => {
+          if (side === "right" && !right) return null
+          const Box = side === "middle" && middle.bare ? BareMiddle : WorkspacePanel
+          return (
+            <Box
+              key={side}
+              className={narrowView === side ? "flex min-w-0 flex-1 flex-col" : "hidden"}
+              inert={narrowView !== side}
+            >
+              {side === "middle" ? middle.content : side === "left" ? left.content : right?.content}
+            </Box>
+          )
+        })}
         {children}
       </div>
     )
@@ -204,36 +278,42 @@ export function ThreePanels({
           </WorkspacePanel>
         </ResizablePanel>
         <ResizableHandle gap collapsed={leftState.collapsed} />
-        <ResizablePanel id="middle" defaultSize="68%" minSize="32%">
-          <WorkspacePanel className="relative flex flex-col">
-            {middle.content}
-            {leftState.collapsed ? (
-              <PanelReopenTab side="left" label={left.showLabel} onClick={toggleLeft} />
-            ) : null}
-            {rightState.collapsed ? (
-              <PanelReopenTab side="right" label={right.showLabel} onClick={toggleRight} />
-            ) : null}
-          </WorkspacePanel>
+        <ResizablePanel id="middle" defaultSize={right ? "68%" : "84%"} minSize="32%">
+          {React.createElement(
+            middle.bare ? BareMiddle : WorkspacePanel,
+            { className: "relative flex flex-col" },
+            middle.content,
+            leftState.collapsed && !reopenInHeader ? (
+              <PanelReopenTab key="reopen-left" side="left" label={left.showLabel} onClick={toggleLeft} />
+            ) : null,
+            right && rightState.collapsed && !reopenInHeader ? (
+              <PanelReopenTab key="reopen-right" side="right" label={right.showLabel} onClick={toggleRight} />
+            ) : null
+          )}
         </ResizablePanel>
-        <ResizableHandle gap collapsed={rightState.collapsed} />
-        <ResizablePanel
-          id="right"
-          panelRef={rightRef}
-          collapsible
-          collapsedSize="0%"
-          defaultSize="16%"
-          minSize="16%"
-          maxSize="36%"
-          onResize={rightState.onResize}
-        >
-          <WorkspacePanel
-            collapsed={rightState.collapsed}
-            onDoubleClick={rightDoubleClick}
-            className="flex flex-col"
-          >
-            {right.content}
-          </WorkspacePanel>
-        </ResizablePanel>
+        {right ? (
+          <>
+            <ResizableHandle gap collapsed={rightState.collapsed} />
+            <ResizablePanel
+              id="right"
+              panelRef={rightRef}
+              collapsible
+              collapsedSize="0%"
+              defaultSize="16%"
+              minSize="16%"
+              maxSize="36%"
+              onResize={rightState.onResize}
+            >
+              <WorkspacePanel
+                collapsed={rightState.collapsed}
+                onDoubleClick={rightDoubleClick}
+                className="flex flex-col"
+              >
+                {right.content}
+              </WorkspacePanel>
+            </ResizablePanel>
+          </>
+        ) : null}
       </ResizablePanelGroup>
       {children}
     </div>

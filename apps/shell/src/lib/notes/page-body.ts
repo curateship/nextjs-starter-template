@@ -38,5 +38,8 @@ export type StoredPage = {
   /** The saved document as JSON text, or the starting page when none was saved. */
   body: string
   locked: boolean
+  /** None, `SKY_COVER`, or a picture (`src/lib/notes/page-cover.ts`). */
   coverUrl: string | null
+  /** The page's own pictures, each a tile in the Cover photo row. */
+  coverImages: string[]
 }

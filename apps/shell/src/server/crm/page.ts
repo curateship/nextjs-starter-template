@@ -3,6 +3,7 @@ import { and, asc, count, eq, inArray, isNotNull, isNull, lte, notInArray, sql }
 import { CRM_PAGE_BLOCK_TYPES, defaultCrmPage } from "@/lib/crm/crm-page"
 import type { CrmStage } from "@/lib/crm/crm"
 import { PAGE_MAX_LENGTH, storedPageBody, type StoredPage } from "@/lib/notes/page-body"
+import { readCoverImages } from "@/lib/notes/page-cover"
 import { now } from "@/server/auth/security"
 import { listInboundAddresses } from "@/server/crm/addresses"
 import { waitingConditions, waitingCutoff } from "@/server/crm/inbox"
@@ -40,12 +41,13 @@ export async function getCrmPage(
     body: body || JSON.stringify(defaultCrmPage()),
     locked: row?.locked ?? false,
     coverUrl: row?.coverUrl ?? null,
+    coverImages: readCoverImages(row?.coverImages),
   }
 }
 
 async function upsertPage(
   workspaceId: string,
-  values: Partial<{ body: string; locked: boolean; coverUrl: string | null }>,
+  values: Partial<{ body: string; locked: boolean; coverUrl: string | null; coverImages: string[] }>,
   database: CustomShellDb
 ) {
   const at = now()
@@ -86,12 +88,13 @@ export async function setCrmPageLock(
   await upsertPage(workspaceId, { locked }, database)
 }
 
+/** The cover picked (none, the sky or a picture) and the page's pictures, saved together. */
 export async function setCrmPageCover(
   workspaceId: string,
-  coverUrl: string | null,
+  cover: { coverUrl: string | null; coverImages: string[] },
   database: CustomShellDb = db
 ) {
-  await upsertPage(workspaceId, { coverUrl }, database)
+  await upsertPage(workspaceId, cover, database)
 }
 
 /** What the left page's blocks draw. */

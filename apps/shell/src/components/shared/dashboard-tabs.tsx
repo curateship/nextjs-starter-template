@@ -51,7 +51,6 @@ export function DashboardTabs({
   after,
   style,
   className,
-  handoff,
 }: {
   value: string
   onValueChange: (value: string) => void
@@ -59,12 +58,6 @@ export function DashboardTabs({
   after?: React.ReactNode
   style?: DashboardTabStyle
   className?: string
-  /**
-   * Names a tab row that is drawn afresh for each tab, as a dashboard whose
-   * header each tab builds. The new row's pill or line starts where the last
-   * one's was and slides to the tab picked.
-   */
-  handoff?: string
 }) {
   const picked = useDashboardTabStyle()
   const shown = style ?? picked
@@ -77,12 +70,11 @@ export function DashboardTabs({
           tabs={tabs}
           after={after}
           className={className}
-          handoff={handoff}
         />
       ) : (
         <ScrollArea className={cn("min-w-0 flex-1", className)}>
           <Tabs value={value} onValueChange={onValueChange} className="w-max">
-            <TabsList handoff={handoff}>
+            <TabsList>
               {tabs.map((tab) => (
                 <TabsTrigger
                   key={tab.value}
@@ -115,21 +107,18 @@ function UnderlineTabs({
   tabs,
   after,
   className,
-  handoff,
 }: {
   value: string
   onValueChange: (value: string) => void
   tabs: DashboardTab[]
   after?: React.ReactNode
   className?: string
-  handoff?: string
 }) {
   const { trackRef, trackProps, pillProps } = useSlidingPill<HTMLDivElement>({
     selected: '[data-slot="dashboard-tab"][data-state="active"]',
     observe: '[data-slot="dashboard-tab"]',
     attributes: ["data-state"],
     variant: "underline",
-    handoff,
   })
   return (
     <TabsPrimitive.Root

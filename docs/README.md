@@ -39,6 +39,9 @@ sat in thirteen app folders, and nothing read them.
 - `page-blocks.md` — the page with "/" blocks every Admin 3 panel design
   side panel holds: the editor, the block card, the tabbed ⋮ and its rows,
   and how an app adds blocks of its own.
+- `admin-blocks-and-widgets.md` — how an app adds its own "/" blocks to the
+  Admin dashboard's pages and its own widgets to Overview, from its
+  `src/app/options.ts`, without editing the shell.
 - `settings-saving.md` — how the Settings screen saves: the 700ms auto-save,
   the queue, and the two rules that stop one card's save undoing another
   card's edit.

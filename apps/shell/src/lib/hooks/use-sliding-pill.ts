@@ -11,15 +11,6 @@ export const slidingPillMotionClassName =
 
 type PillBox = { left: number; top: number; width: number; height: number }
 
-/**
- * Where each named control's pill last sat, so a control drawn afresh in the
- * same place (a dashboard whose header is rebuilt for each tab) starts there
- * and slides to the new choice instead of appearing on it. Kept for the page's
- * life only, and empty on the server, so the first paint never differs from
- * the server's.
- */
-const lastPill = new Map<string, PillBox>()
-
 function readPill(track: HTMLElement, selected: string): PillBox | null {
   const chosen = track.querySelector<HTMLElement>(selected)
   if (!chosen) return null
@@ -52,11 +43,6 @@ function readPill(track: HTMLElement, selected: string): PillBox | null {
  * `selected` finds the chosen button, `observe` finds all of them, and
  * `attributes` names the attribute that marks the choice, so the pill moves
  * the moment it changes.
- *
- * `handoff` names a control that is rebuilt in the same spot, such as the
- * Admin dashboard's tabs, whose header each tab draws anew. The new one starts
- * where the last one's pill was and slides from there (Tyler, 8 Nov 2026: "the
- * tabs doesnt use tabs animation").
  */
 export function useSlidingPill<T extends HTMLElement>({
   selected,
@@ -64,22 +50,18 @@ export function useSlidingPill<T extends HTMLElement>({
   attributes,
   className,
   variant = "pill",
-  handoff,
 }: {
   selected: string
   observe: string
   attributes: string[]
   className?: string
   variant?: "pill" | "underline"
-  handoff?: string
 }) {
   const trackRef = React.useRef<T | null>(null)
-  const handedOff = handoff ? (lastPill.get(handoff) ?? null) : null
-  const [pill, setPill] = React.useState<PillBox | null>(handedOff)
+  const [pill, setPill] = React.useState<PillBox | null>(null)
   // The first placement jumps into position. Only later moves slide, otherwise
-  // the pill flies in from the left edge every time the control mounts. One
-  // handed a place by the control before it slides from that place at once.
-  const [slides, setSlides] = React.useState(handedOff !== null)
+  // the pill flies in from the left edge every time the control mounts.
+  const [slides, setSlides] = React.useState(false)
 
   React.useLayoutEffect(() => {
     const track = trackRef.current
@@ -87,11 +69,7 @@ export function useSlidingPill<T extends HTMLElement>({
 
     // jsdom has no ResizeObserver, and a component test that renders one of
     // these controls should not fail over the pill following a resize.
-    const place = () => {
-      const box = readPill(track, selected)
-      setPill(box)
-      if (handoff && box) lastPill.set(handoff, box)
-    }
+    const place = () => setPill(readPill(track, selected))
     const sizes =
       typeof ResizeObserver === "function"
         ? new ResizeObserver(place)
@@ -116,13 +94,10 @@ export function useSlidingPill<T extends HTMLElement>({
     })
 
     watchButtons()
-    // A pill handed a place is drawn there first, and moves a frame later so
-    // the browser has the old place to slide from.
-    const moved = handedOff ? requestAnimationFrame(place) : (place(), 0)
+    place()
     const settle = requestAnimationFrame(() => setSlides(true))
 
     return () => {
-      cancelAnimationFrame(moved)
       cancelAnimationFrame(settle)
       choice.disconnect()
       sizes?.disconnect()

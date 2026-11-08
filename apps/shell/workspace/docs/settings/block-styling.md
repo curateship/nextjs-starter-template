@@ -1,4 +1,4 @@
-# Block styling
+# Block, widget and panel card styling
 
 Settings → Styling → Blocks sets how every page block looks, on every page:
 the CRM's left page, Project's pages, Trade's dashboard blocks, anywhere a
@@ -23,3 +23,45 @@ them on the page root as `--shell-block-radius`, `--shell-block-shade` and
 before, because the block card falls back to those numbers. The card in
 Settings has a preview drawn from the sliders' own numbers, so it moves with
 the thumb; every real block changes live too.
+
+## Widgets
+
+Settings → Styling → Widgets is the same three settings for the widgets on
+the Admin dashboard's Overview (`WidgetCard` in
+`src/components/admin-dashboard/widget-card.tsx`). Tyler split them off on
+8 Nov 2026: "Because the widget sits in a shaded background it needs its own
+block styling options". Overview has no middle panel, so its widgets sit on
+the page's shade, where a block's grey reads differently than inside a white
+panel.
+
+- **The settings:** Rounded corners, Grey shade and Edge around the tile, with
+  the blocks' ranges.
+- **Unset, they follow the blocks' settings**, so the widgets look as they did
+  before the card existed until one of its sliders is moved.
+- **Stored** as `widgetRadius`, `widgetShade` and `widgetInset`, and put on
+  the page root as `--shell-widget-radius`, `--shell-widget-shade` and
+  `--shell-widget-inset`.
+- **The preview** sits on the page's own shade, as the widgets do.
+
+## Panel cards
+
+Settings → Styling → Panel cards sets the background and the line of the grey
+folding cards in a right panel, such as a person's Profile and Plan on the
+Admin dashboard (`PanelCard` and `PanelBox` in
+`src/components/shared/panel-card.tsx`). Tyler asked for it on 8 Nov 2026:
+"Add styling options for this card ui ... I want to change border and bg".
+
+- **Background:** Theme default (the theme's light grey at 40%, the look the
+  cards always had), a strength of the theme's grey, or a colour of its own.
+- **Border:** 0 to 3px, 1px unless changed; 0 removes it.
+- **Border color:** Theme default (the Divider lines colour every plain line
+  uses), a strength of the theme's text grey, or a colour of its own.
+- **Stored** as `panelCardBackground`, `panelCardBorderWidth` and
+  `panelCardBorderColor`, and put on the page root as
+  `--shell-panel-card-bg`, `--shell-panel-card-border-width` and
+  `--shell-panel-card-border-color`. A colour left to the theme sets no
+  variable, so the rule's own fallback shows.
+- **The rule** is `[data-slot="panel-card"]` in theme.css, in the components
+  layer, so a class a screen puts on one card still wins.
+- **The preview** is a real panel card, so it reads the values the way every
+  card does.

@@ -1,28 +1,30 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "@tanstack/react-router"
-import { PlusIcon } from "lucide-react"
+import { ImageIcon, LayoutDashboardIcon, MessageSquareIcon, PlusIcon, type LucideIcon } from "lucide-react"
 
 import type { AdminBlocks } from "@/components/admin-dashboard/admin-blocks"
 import { PlanRows } from "@/components/admin-dashboard/admin-blocks"
 import { AdminPagePanel } from "@/components/admin-dashboard/admin-page-panel"
 import { OpenPersonProvider, SideRows } from "@/components/admin-dashboard/admin-parts"
 import { FeedbackTab, type FeedbackLoaded } from "@/components/admin-dashboard/feedback-tab"
-import { loadOverviewFigures, type OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
+import { MediaTab, type MediaLoaded } from "@/components/admin-dashboard/media-tab"
 import { OverviewTab } from "@/components/admin-dashboard/overview-tab"
+import { useWidgetLayout } from "@/components/admin-dashboard/use-widget-layout"
+import { WidgetSettings } from "@/components/admin-dashboard/widget-menus"
 import { UsersTab, type UsersLoaded } from "@/components/admin-dashboard/users-tab"
+import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
+import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { AnnouncementDialog } from "@/components/admin/announcement-dialog"
 import { PlanDialog } from "@/components/admin/plan-dialog"
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
+import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
-import { ThreePanels } from "@/components/shared/three-panels"
+import { PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ADMIN_FIGURE_BLOCK_TYPES, type AdminPageSide } from "@/lib/admin-dashboard/admin-page"
 import {
   ADMIN_TAB_LABELS,
-  ADMIN_TABS,
   adminRangeOf,
   adminTabOf,
   adminTabSearch,
@@ -40,28 +42,38 @@ import {
   ANALYTICS_RANGES,
   type AnalyticsRange,
 } from "@/lib/analytics/range"
-import { getAdminErrorMessage, loadAdminPages } from "@/lib/api/admin-dashboard"
+import { getAdminErrorMessage, loadAdminPages, loadAdminSectionCounts } from "@/lib/api/admin-dashboard"
 import { loadAdminPlans, type AdminPlan } from "@/lib/api/billing/admin-plans"
 import { loadAdminAnnouncements, type Announcement } from "@/lib/api/content/announcements"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import type { StoredPage } from "@/lib/notes/page-body"
 import { useLoad } from "@/lib/hooks/use-load"
+import { allRoles } from "@/lib/roles"
 import { cn } from "@/lib/utils"
 
-/** What the route's loader read, for the tab showing. */
+/** Each section's icon, at the start of the middle's header; Users has tabs there instead. */
+const SECTION_ICONS: Record<Exclude<AdminTab, "users">, LucideIcon> = {
+  overview: LayoutDashboardIcon,
+  feedback: MessageSquareIcon,
+  media: ImageIcon,
+}
+
+/** What the route's loader read, for the section showing. */
 export type AdminLoaded =
-  | { tab: "overview"; figures: OverviewFigures }
+  | { tab: "overview"; figures: OverviewFigures; widgets: WidgetLayout }
   | { tab: "users"; users: UsersLoaded }
   | { tab: "feedback"; feedback: FeedbackLoaded }
+  | { tab: "media"; media: MediaLoaded }
 
 /**
- * What a tab hands the frame to draw (each tab draws itself into it):
+ * What a section hands the frame to draw (each section draws itself into it):
  *
- * - `header`: the middle's one header, starting with the `tabs` it was given.
+ * - `header`: the middle's one header, starting with the `heading` it was
+ *   given, the section's name. Overview has none.
  * - `middle`: what sits under it.
- * - `right`: a record panel, on a tab that opens records. Overview leaves it
- *   out and the right panel is the Notes page.
+ * - `right`: a record panel, on a section that opens records. Overview
+ *   leaves it out and has no right panel.
  * - `ids` and `openId`: the rows shown, first first, and the one open, so a
  *   bare address goes back to it and arrival opens the first.
  */
@@ -99,22 +111,29 @@ function samePlace(a: TabPlace | null, b: TabPlace) {
 }
 
 /**
- * Admin: the Overview, Users, Plans, Feedback, Announcements and Analytics
- * screens as one three-panel dashboard (Tyler, 8 Nov 2026,
- * `workspace/tasks/features/admin/admin.md`).
+ * Admin: the Overview, Users, Plans, Feedback, Announcements, Analytics and
+ * Media library screens as one three-panel dashboard (Tyler, 8 Nov 2026,
+ * `workspace/tasks/features/admin/admin.md`, then
+ * `workspace/tasks/admin-changes.md`).
  *
- * - **Left:** the site's Admin page, beside every tab. Its ⋮ holds General
- *   (cover photo, Lock the notes), Announcements and Plans.
- * - **Middle:** one header (the tabs, then the tab's own toolbar), then the
- *   tab. Edge to edge.
- * - **Right:** on Overview, the site's Notes page of "/" blocks. On Users, the
- *   person open; on Feedback, the thread open.
+ * - **Left:** the site's Admin page, beside every section. Its fixed
+ *   Dashboards block picks the section: Overview, Users, Feedback or Media
+ *   library. Its ⋮ holds General (cover photo, Lock the notes),
+ *   Announcements and Plans.
+ *   Its ⋮ also holds Overview's date range (General) and its widgets
+ *   (Widgets).
+ * - **Middle:** one header (the section's name, then its own toolbar), then
+ *   the section, edge to edge. Overview has no middle panel: its widgets sit
+ *   straight on the dashboard and take the right panel's room too (Tyler,
+ *   8 Nov 2026: "Remove the right panel for overview dashboard").
+ * - **Right:** on Users, the person open; on Feedback, the thread open; on
+ *   Media library, the file.
  *
- * The three panels stay put while the tab changes: only the middle and the
- * record on the right are the tab's, so the left page, its ⋮ and anything
- * typed there carry on across a switch. Plans and announcements open their
- * windows over the dashboard. A member's name, wherever it shows, opens them
- * in the Users tab.
+ * The left panel stays put while the section changes: only the middle and
+ * the record on the right are the section's, so the left page, its ⋮ and
+ * anything typed there carry on across a switch. Plans and announcements open
+ * their windows over the dashboard. A member's name, wherever it shows, opens
+ * them in Users.
  */
 export function AdminDashboard({
   loaded,
@@ -141,39 +160,14 @@ export function AdminDashboard({
   // When the dashboard opened, so an announcement's Showing or Ended is read once.
   const [openedAt] = React.useState(() => Date.now())
 
-  // Overview's figures for the blocks. Overview's own tab brought them; on
-  // another tab they are read only when the left page holds a figure block.
-  const leftHoldsFigures = pages
-    ? ADMIN_FIGURE_BLOCK_TYPES.some((type) => pages.left.body.includes(`"${type}"`))
-    : false
-  const needFigures = loaded.tab !== "overview" && leftHoldsFigures
-  const figuresRead = useLoad(
-    async () => (needFigures ? { days, figures: await loadOverviewFigures(days) } : null),
-    getAdminErrorMessage,
-    { keys: [needFigures, days] }
-  )
-  const figures =
-    loaded.tab === "overview"
-      ? loaded.figures
-      : figuresRead.data?.days === days
-        ? figuresRead.data.figures
-        : null
-
-  const blocks: AdminBlocks = {
-    figures,
-    figuresError: loaded.tab === "overview" ? null : figuresRead.error,
-    onRetryFigures: figuresRead.retry,
-    plans: plansRead.data,
-    plansError: plansRead.error,
-    onRetryPlans: plansRead.retry,
-    onOpenPlan: (plan) => setPlanOpen(plan),
-    onNewPlan: () => setPlanOpen("new"),
-  }
+  // The counts beside the Dashboards block's rows, read again on each
+  // section switch, after whatever was changed in the last one.
+  const countsRead = useLoad(loadAdminSectionCounts, getAdminErrorMessage, { keys: [loaded.tab] })
 
   const pickTab = (next: AdminTab) => void navigate({ search: adminTabSearch(next, days) })
   const pickRange = (next: AnalyticsRange) =>
     void navigate({
-      // The tab is written too, so the address is never a bare one, which
+      // The section is written too, so the address is never a bare one, which
       // would send the dashboard back to the place it last had.
       search: (previous: AdminSearch) => ({
         ...previous,
@@ -184,19 +178,69 @@ export function AdminDashboard({
   const openPerson = (userId: string) =>
     void navigate({ search: { ...adminTabSearch("users", days), open: userId } })
 
-  const tabs = (
-    <DashboardTabs
-      // Each tab draws its own header, so this row is built afresh on every
-      // switch; the handoff lets its line slide over from the last tab.
-      handoff="admin-tabs"
-      value={tab}
-      onValueChange={(value) => pickTab(value as AdminTab)}
-      tabs={ADMIN_TABS.map((value) => ({ value, label: ADMIN_TAB_LABELS[value] }))}
-    />
-  )
+  // Overview's widgets, held here so the left ⋮'s Widgets tab can set them
+  // on every section, and the Dashboards block can count them.
+  const widgets = useWidgetLayout(loaded.tab === "overview" ? loaded.widgets : null)
 
-  const setPage = (side: AdminPageSide) => (page: StoredPage) =>
-    pagesRead.setData((current) => (current ? { ...current, [side]: page } : current))
+  const blocks: AdminBlocks = {
+    tab,
+    widgetCount: widgets.layout ? widgetsShown(widgets.layout) : null,
+    onPickTab: pickTab,
+    counts: countsRead.data,
+    days,
+    plans: plansRead.data,
+    plansError: plansRead.error,
+    onRetryPlans: plansRead.retry,
+    onOpenPlan: (plan) => setPlanOpen(plan),
+    onNewPlan: () => setPlanOpen("new"),
+  }
+
+  // A role picked from Users' tabs. The list starts at its first page, and
+  // its first row opens.
+  const pickRole = (role: string) =>
+    void navigate({
+      search: (previous: AdminSearch) => ({
+        ...previous,
+        tab: "users",
+        role: role === "all" ? undefined : (role as AdminSearch["role"]),
+        page: undefined,
+        open: undefined,
+      }),
+      replace: true,
+    })
+
+  // The start of the middle's header: the button that reopens a shut left
+  // panel, then the section's icon and name (Tyler, 8 Nov 2026: "Every panel
+  // needs an icon"). Users has its role tabs instead ("for users, make this
+  // into tabs for roles. First tab "All roles""), and a header with tabs has
+  // no icon ("dashboards with middle header tabs does not [need] icon"). The
+  // tabs sit straight in the header, so their underline reaches its bottom
+  // edge ("underline should be at the edge").
+  const SectionIcon = tab === "users" ? null : SECTION_ICONS[tab]
+  const heading =
+    !SectionIcon ? (
+      <>
+        <PanelReopenButton side="left" label="Show the page" />
+        <DashboardTabs
+          value={search.role ?? "all"}
+          onValueChange={pickRole}
+          tabs={[
+            { value: "all", label: "All roles" },
+            ...allRoles().map((role) => ({ value: role.id, label: role.label })),
+          ]}
+        />
+      </>
+    ) : (
+      <span className="flex min-w-0 shrink items-center gap-2">
+        <PanelReopenButton side="left" label="Show the page" />
+        <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
+          <SectionIcon />
+        </span>
+        <h2 className={cn("min-w-0 shrink truncate", dashboardCardHeadingClassName)}>{ADMIN_TAB_LABELS[tab]}</h2>
+      </span>
+    )
+
+  const setPage = (page: StoredPage) => pagesRead.setData((current) => (current ? { ...current, left: page } : current))
 
   // Where a tab's record panel is drawn: a spot in the right panel that stays
   // while the tab changes, and what the tab says about its rows.
@@ -208,6 +252,11 @@ export function AdminDashboard({
   )
   const place: TabPlace =
     reported?.tab === loaded.tab ? reported : { tab: loaded.tab, ids: [], ready: loaded.tab === "overview" }
+
+  const recordLabel =
+    place.rightLabel ?? (loaded.tab === "users" ? "Person" : loaded.tab === "media" ? "File" : "Thread")
+  // The end of the middle's header: the button that reopens a shut right panel.
+  const headingEnd = <PanelReopenButton side="right" label={`Show ${recordLabel.toLowerCase()}`} />
 
   const frame: AdminFrame = (panels) => (
     <TabPanels tab={loaded.tab} panels={panels} rightSpot={rightSpot} onReport={report} />
@@ -221,57 +270,83 @@ export function AdminDashboard({
         loaded={loaded.users}
         search={search}
         currentUserId={currentUserId}
-        tabs={tabs}
+        heading={heading}
+        headingEnd={headingEnd}
         frame={frame}
       />
     )
   } else if (loaded.tab === "feedback") {
-    middle = <FeedbackTab key="feedback" loaded={loaded.feedback} search={search} tabs={tabs} frame={frame} />
+    middle = <FeedbackTab key="feedback" loaded={loaded.feedback} search={search} heading={heading} headingEnd={headingEnd} frame={frame} />
+  } else if (loaded.tab === "media") {
+    middle = (
+      <MediaTab
+        key="media"
+        loaded={loaded.media}
+        search={search}
+        currentUserId={currentUserId}
+        heading={heading}
+        headingEnd={headingEnd}
+        frame={frame}
+      />
+    )
   } else {
     middle = frame({
-      header: (
-        <DashboardCardHeader className="@container gap-2">
-          {tabs}
-          <Select value={String(days)} onValueChange={(value) => pickRange(Number(value) as AnalyticsRange)}>
-            <SelectTrigger aria-label="Date range" className="ml-auto shrink-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              {ANALYTICS_RANGES.map((range) => (
-                <SelectItem key={range} value={String(range)}>
-                  {ANALYTICS_RANGE_LABELS[range]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </DashboardCardHeader>
-      ),
-      middle: <OverviewTab figures={loaded.figures} days={days} />,
+      header: null,
+      middle: widgets.layout ? (
+        <OverviewTab figures={loaded.figures} days={days} layout={widgets.layout} onChange={widgets.change} />
+      ) : widgets.error ? (
+        <ErrorRow message={widgets.error} onRetry={widgets.retry} />
+      ) : null,
     })
   }
+  const overview = loaded.tab === "overview"
 
-  const recordLabel = place.rightLabel ?? (loaded.tab === "users" ? "Person" : "Thread")
 
   return (
     <OpenPersonProvider value={openPerson}>
       <ThreePanels
-        layoutKey={panelLayoutKey.admin}
+        // Overview is two panels, with a layout of its own.
+        layoutKey={overview ? panelLayoutKey.adminOverview : panelLayoutKey.admin}
         place={{ key: panelLayoutKey.adminPlace, search, ids: place.ids, ready: place.ready }}
         showMiddleFor={tab}
-        showRightFor={place.openId}
+        // Only a record the address names. A section's first row stands in
+        // for an empty `?open=` until the place opens it quietly, and handing
+        // that over first read as a press, so a phone jumped to the record
+        // (the UI standard: "On a narrow screen the list stays in front").
+        showRightFor={search.orphan ?? search.open}
+        // A shut side panel comes back from a button in the middle's header,
+        // not a knob on its edge. Overview has no middle panel and keeps the
+        // knob (Tyler, 8 Nov 2026).
+        reopenInHeader={!overview}
         left={{
           label: "Page",
           showLabel: "Show the page",
           content: (
             <AdminPagePanel
-              side="left"
               title="Admin"
               menuLabel="Admin settings"
               page={pages?.left ?? null}
               error={pagesRead.error}
               onRetry={pagesRead.retry}
               blocks={blocks}
-              onPageChange={setPage("left")}
+              onPageChange={setPage}
+              general={
+                // Overview's range, in place of the select in its old header
+                // (Tyler, 8 Nov 2026: "move the date filter into general
+                // settings options").
+                <PickGroup title="Overview">
+                  <PickMenuRow
+                    label="Date range"
+                    value={ANALYTICS_RANGE_LABELS[days]}
+                    options={ANALYTICS_RANGES.map((range) => ({
+                      value: String(range),
+                      label: ANALYTICS_RANGE_LABELS[range],
+                    }))}
+                    selected={String(days)}
+                    onPick={(value) => pickRange(Number(value) as AnalyticsRange)}
+                  />
+                </PickGroup>
+              }
               menuTabs={[
                 {
                   value: "announcements",
@@ -312,36 +387,49 @@ export function AdminDashboard({
                     <p className="p-3 text-sm text-muted-foreground">Reading…</p>
                   ),
                 },
+                {
+                  value: "widgets",
+                  label: "Widgets",
+                  content: (
+                    <WidgetSettings
+                      layout={widgets.layout}
+                      error={widgets.error}
+                      onRetry={widgets.retry}
+                      onChange={widgets.change}
+                    />
+                  ),
+                },
               ]}
             />
           ),
         }}
         middle={{
           label: ADMIN_TAB_LABELS[tab],
+          bare: overview,
           content: (
             // The container its tables and charts measure, so their columns
             // drop out as the middle narrows, as the CRM's do.
-            <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">{middle}</div>
+            <div
+              className={cn(
+                "@container flex h-full min-h-0 flex-col overflow-hidden",
+                !overview && [
+                  "bg-card",
+                  // 24px at the left and right, up from 16 (Tyler, 8 Nov 2026:
+                  // "Add more padding on left and right side for middle
+                  // panel"): the header (20px, its first icon or tab 4px in),
+                  // and the table's first and last columns, so they line up.
+                  "[&_[data-slot=dashboard-card-header]]:px-5",
+                  "[&_td:first-child]:!pl-6 [&_th:first-child]:!pl-6 [&_td:last-child]:!pr-5 [&_th:last-child]:!pr-5",
+                ]
+              )}
+            >
+              {middle}
+            </div>
           ),
         }}
         right={
-          loaded.tab === "overview"
-            ? {
-                label: "Notes",
-                showLabel: "Show the notes",
-                content: (
-                  <AdminPagePanel
-                    side="right"
-                    title="Notes"
-                    menuLabel="Notes settings"
-                    page={pages?.right ?? null}
-                    error={pagesRead.error}
-                    onRetry={pagesRead.retry}
-                    blocks={blocks}
-                    onPageChange={setPage("right")}
-                  />
-                ),
-              }
+          overview
+            ? undefined
             : {
                 label: recordLabel,
                 showLabel: `Show ${recordLabel.toLowerCase()}`,
@@ -437,7 +525,7 @@ function MenuList({
           type="button"
           variant="ghost"
           size="sm"
-          className={cn("m-1.5 justify-self-start", focusRingInset)}
+          className={cn("justify-self-start", focusRingInset)}
           onClick={onNew}
         >
           <PlusIcon className="size-4" />

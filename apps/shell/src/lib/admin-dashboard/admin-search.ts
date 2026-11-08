@@ -10,21 +10,26 @@ import { allRoles } from "@/lib/roles"
  * Admin in place of the Overview, Users, Plans, Feedback, Announcements and
  * the Analytics screens; `workspace/tasks/features/admin/admin.md`).
  *
- * - `?tab=` picks the middle tab: Overview, Users or Feedback.
- * - `?range=` is the days Overview's cards and every page's figure blocks
- *   count. It is the one key that outlives a tab switch, because the left
- *   page's blocks show on every tab and follow it there too.
+ * - `?tab=` picks the section the middle shows: Overview, Users, Feedback or
+ *   Media library. The left page's Dashboards block picks it (Tyler, 8 Nov
+ *   2026: "we're moving the 3 tabs ... to the left side as a block and we
+ *   add media library to it too"); the key kept its old name so saved places
+ *   and old links still land.
+ * - `?range=` is the days Overview's widgets count, and what an app's own
+ *   blocks are handed. It is the one key that outlives a section switch,
+ *   because the left page's blocks show beside every section.
  * - Every other key belongs to one tab: Users' and Feedback's list state and
  *   the record open on the right (`?open=`). Picking a tab starts the address
  *   again with that tab alone, so a search on Users never filters Feedback.
  */
-export const ADMIN_TABS = ["overview", "users", "feedback"] as const
+export const ADMIN_TABS = ["overview", "users", "feedback", "media"] as const
 export type AdminTab = (typeof ADMIN_TABS)[number]
 
 export const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   overview: "Overview",
   users: "Users",
   feedback: "Feedback",
+  media: "Media library",
 }
 
 const USER_STATUS_FILTERS = [
@@ -76,6 +81,18 @@ export type AdminFeedbackSearch = {
 }
 
 /**
+ * Media library's keys: the file open on the right, or the orphan open (an
+ * orphan has no record, so it is known by its key), and whose files show.
+ * Its search, type, sort and page stay in the library's own state, as they
+ * did on its own page.
+ */
+export type AdminMediaSearch = {
+  open?: string
+  orphan?: string
+  owner?: string
+}
+
+/**
  * Every key the address can hold. Only the open tab's are ever set
  * (`readAdminSearch`); a tab reads its own back with its reader below.
  */
@@ -92,6 +109,8 @@ export type AdminSearch = {
   role?: AdminUsersSearch["role"]
   status?: UserStatusFilter
   type?: FeedbackTypeFilter
+  orphan?: string
+  owner?: string
 }
 
 export function readAdminUsersSearch(search: Record<string, unknown>): AdminUsersSearch {
@@ -118,12 +137,26 @@ function readAdminFeedbackSearch(search: Record<string, unknown>): AdminFeedback
   }
 }
 
+/** An owner is an id, at most 36 characters; an orphan's key is a storage path. */
+function readText(value: unknown, longest: number) {
+  return typeof value === "string" && value.length > 0 && value.length <= longest ? value : undefined
+}
+
+export function readAdminMediaSearch(search: Record<string, unknown>): AdminMediaSearch {
+  return {
+    ...readOpenSearch(search),
+    orphan: readText(search.orphan, 512),
+    owner: readText(search.owner, 36),
+  }
+}
+
 /** Every value is checked before use; a key the open tab does not own is dropped. */
 export function readAdminSearch(search: Record<string, unknown>): AdminSearch {
   const tab = readOneOf(search.tab, ADMIN_TABS)
   const range = readAnalyticsRange(search.range)
   if (tab === "users") return { tab, range, ...readAdminUsersSearch(search) }
   if (tab === "feedback") return { tab, range, ...readAdminFeedbackSearch(search) }
+  if (tab === "media") return { tab, range, ...readAdminMediaSearch(search) }
   return { tab, range }
 }
 
@@ -136,7 +169,7 @@ export function adminRangeOf(search: AdminSearch): AnalyticsRange {
 }
 
 /**
- * The address for a tab picked in the header: the tab and the range, nothing
+ * The address for a section picked in the Dashboards block: the section and the range, nothing
  * else. The tab is always written, Overview too: an address with no tab is a
  * bare one, which sends the dashboard back to the place it last had, so
  * picking Overview would land back on the tab it was picked from.

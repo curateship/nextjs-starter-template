@@ -202,8 +202,8 @@ Raw provider status and who caused the change never reach the browser.
 
 The same Billing tab shows the signed-in member's total units, totals by meter,
 and recent usage. Admins see the platform's usage on the Overview tab of
-[Admin](../ui/admin.md): metered units by member in its By person table and by
-meter in Daily AI spend's More details, for the one date range, plus Stripe
+[Admin](../ui/admin.md): metered units by member in its By person widget and by
+meter in its By meter widget, for the one date range, plus Stripe
 reports from any month that still need attention. The old `/admin/ai-usage`
 address forwards there.
 

@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
+
+import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
 import { z } from "zod"
 
 import type { StoredPage } from "@/lib/notes/page-body"
@@ -68,24 +70,17 @@ const setLockFn = createServerFn({ method: "POST" })
     return { locked: data.locked }
   })
 
-/**
- * A cover is a picture the media library or a pasted address gave: https, or
- * a path on this site. Never `//…`, which a browser reads as another site.
- */
-const coverSchema = z
-  .string()
-  .trim()
-  .max(1000)
-  .refine((value) => /^\/(?!\/)/.test(value) || /^https:\/\//.test(value))
-  .nullable()
-
+// The cover picked and the page's pictures, checked by the shared rules
+// (`src/lib/notes/page-cover.ts`): none, the sky, or a picture at https or a
+// path on this site.
 const setCoverFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(z.object({ coverUrl: coverSchema }))
+  .inputValidator(z.object({ coverUrl: coverSchema, coverImages: coverImagesSchema }))
   .handler(async ({ data, context }) => {
     const workspaceId = await currentWorkspaceId(context.user.id)
-    await setCrmPageCover(workspaceId, data.coverUrl || null)
-    return { coverUrl: data.coverUrl || null }
+    const cover = { coverUrl: data.coverUrl || null, coverImages: data.coverImages }
+    await setCrmPageCover(workspaceId, cover)
+    return cover
   })
 
 const addAddressFn = createServerFn({ method: "POST" })
@@ -163,8 +158,8 @@ export function lockCrmPage(locked: boolean) {
   return setLockFn({ data: { locked } })
 }
 
-export function setCrmPageCoverPhoto(coverUrl: string | null) {
-  return setCoverFn({ data: { coverUrl } })
+export function setCrmPageCoverPhoto(cover: { coverUrl: string | null; coverImages: string[] }) {
+  return setCoverFn({ data: cover })
 }
 
 export function addCrmAddress(address: string, label?: string) {

@@ -7,7 +7,7 @@ import { FeedbackThreadPanel } from "@/components/admin-dashboard/feedback-threa
 import { EditFeedbackModal, MergeFeedbackDialog } from "@/components/admin-dashboard/feedback-windows"
 import { FilterRow } from "@/components/admin-dashboard/list-parts"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
-import { Chip, CrmTable, CrmTableRow, Dot } from "@/components/crm/crm-table"
+import { Chip, CrmTable, CrmTableRow, Dot, OpenBar } from "@/components/crm/crm-table"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -68,12 +68,15 @@ const STATUS_DOT: Record<FeedbackStatus, string> = {
 export function FeedbackTab({
   loaded,
   search,
-  tabs,
+  heading,
+  headingEnd,
   frame,
 }: {
   loaded: FeedbackLoaded
   search: AdminSearch
-  tabs: React.ReactNode
+  heading: React.ReactNode
+  /** Last in the header: the button that reopens the right panel. */
+  headingEnd: React.ReactNode
   frame: AdminFrame
 }) {
   const router = useRouter()
@@ -203,7 +206,8 @@ export function FeedbackTab({
   return frame({
     header: (
       <CrmListHeader
-        tabs={tabs}
+        tabs={heading}
+        end={headingEnd}
         selected={
           massSelect && tickedCount ? (
             <SelectedMenu
@@ -237,6 +241,8 @@ export function FeedbackTab({
         }
         filter={
           <FilterPopover
+            // Narrow: a label and a select a row (Tyler, 8 Nov 2026: "filter dropdown is too wide").
+            contentClassName="w-60"
             count={typeFilter === "all" ? 0 : 1}
             onClear={() => setListSearch({ type: undefined, page: undefined })}
             save={null}
@@ -332,8 +338,11 @@ export function FeedbackTab({
                   short there, rather than pushing the table past the panel. */}
               <TableCell column="main" className="w-full max-w-0 min-w-40">
                 <span className="flex min-w-0 items-center gap-2">
+                  <OpenBar />
                   <Dot className={STATUS_DOT[item.status]} label={feedbackStatusLabels[item.status]} />
-                  <span className="truncate font-medium">{item.message.replace(/\s+/g, " ").trim()}</span>
+                  <span data-row-name="" className="truncate font-medium">
+                    {item.message.replace(/\s+/g, " ").trim()}
+                  </span>
                 </span>
               </TableCell>
               <TableCell column="preview">

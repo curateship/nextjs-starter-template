@@ -127,6 +127,7 @@ import {
   removeMediaChildLinks,
   removeEmailScreenLinks,
   foldScreensIntoAdmin,
+  removeMediaLibraryLink,
   removeSegmentsLink,
   foldMembershipIntoOverview,
   createUserWorkspace,
@@ -1282,13 +1283,8 @@ describe("custom shell workspaces", () => {
       "section-administration",
       "section-platform-settings",
     ])
+    // The media library is Admin's Media library section, so it has no link.
     expect(platformEntries(defaultSettings)).toMatchObject([
-      {
-        type: "item",
-        label: "Media",
-        href: "/admin/media",
-        visible: true,
-      },
       {
         type: "item",
         label: "Automations",
@@ -1343,12 +1339,6 @@ describe("custom shell workspaces", () => {
       "section-platform-settings",
     ])
     expect(platformEntries(secondSettings)).toMatchObject([
-      {
-        type: "item",
-        label: "Media",
-        href: "/admin/media",
-        visible: true,
-      },
       {
         type: "item",
         label: "Automations",
@@ -1970,7 +1960,8 @@ describe("metered usage link", () => {
       // 13 adds System emails and 21 takes Segments out; 22 takes the whole
       // Newsletter link out, its screens being the CRM's now.
       ["item-automations", ["item-automation-templates"]], // 18
-      ["item-media", []], // 15
+      // 15 took Media's children out; 24 takes Media out, its screen being
+      // Admin's Media library section.
     ])
   })
 })
@@ -5161,6 +5152,58 @@ describe("email screen links", () => {
       { id: "section-platform", title: "Platform", entries: [item("item-automations", "Automations", "/admin/automations")] },
     ]
     expect(removeEmailScreenLinks(sections)).toBe(sections)
+  })
+})
+
+describe("media library link", () => {
+  const item = (id: string, label: string, href: string, children?: ShellChildItem[]): ShellItem => ({
+    type: "item",
+    id,
+    label,
+    href,
+    icon: "image",
+    visible: true,
+    ...(children ? { children } : {}),
+  })
+  const labels = (sections: ShellSection[]) =>
+    sections.map((section) => [
+      section.title,
+      (section.entries as ShellItem[]).map((entry) => [entry.label, entry.children?.map((child) => child.label) ?? []]),
+    ])
+
+  it("takes the Media link out, keeping links hung under it in its place", () => {
+    const sections: ShellSection[] = [
+      {
+        id: "section-platform-settings",
+        title: "Platform settings",
+        entries: [
+          item("item-media", "Media", "/admin/media", [{ id: "item-brand", label: "Brand kit", href: "/admin/pages" }]),
+          item("item-settings", "Settings", "/admin/settings"),
+        ],
+      },
+    ]
+    expect(labels(removeMediaLibraryLink(sections))).toEqual([
+      ["Platform settings", [["Brand kit", []], ["Settings", []]]],
+    ])
+  })
+
+  it("finds it by its address, under another link too, and drops a section it emptied", () => {
+    const sections: ShellSection[] = [
+      { id: "s1", title: "Files", entries: [item("item-mine", "My files", "/admin/media")] },
+      {
+        id: "s2",
+        title: "Tools",
+        entries: [item("item-tools", "Tools", "/admin/pages", [{ id: "x", label: "Library", href: "/admin/media" }])],
+      },
+    ]
+    expect(labels(removeMediaLibraryLink(sections))).toEqual([["Tools", [["Tools", []]]]])
+  })
+
+  it("leaves a sidebar without it exactly as it was", () => {
+    const sections: ShellSection[] = [
+      { id: "s", title: "Platform", entries: [item("item-settings", "Settings", "/admin/settings")] },
+    ]
+    expect(removeMediaLibraryLink(sections)).toBe(sections)
   })
 })
 

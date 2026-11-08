@@ -68,7 +68,25 @@ export function CrmTable<Column extends string>({
   children: React.ReactNode
 }) {
   const colSpan = columns.length + (select ? 2 : 1)
+  const [pressed, setPressed] = React.useState<object | null>(null)
+  // The one record waiting to open: a new press cancels it, and so does the
+  // table going away (found by the audit, 8 Nov 2026).
+  const pending = React.useRef<number[]>([])
+  const cancel = React.useCallback(() => {
+    pending.current.forEach((timer) => window.clearTimeout(timer))
+    pending.current = []
+  }, [])
+  React.useEffect(() => cancel, [cancel])
+  const schedule = React.useCallback(
+    (timers: number[]) => {
+      cancel()
+      pending.current = timers
+    },
+    [cancel]
+  )
+  const presses = React.useMemo(() => ({ pressed, setPressed, schedule, cancel }), [pressed, schedule, cancel])
   return (
+    <RowPress.Provider value={presses}>
     <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
       <Table
         containerClassName="overflow-visible"
@@ -110,6 +128,7 @@ export function CrmTable<Column extends string>({
       {after ? <div className="grid justify-items-center p-2">{after}</div> : null}
       <ScrollBar orientation="horizontal" />
     </ScrollArea>
+    </RowPress.Provider>
   )
 }
 
@@ -161,6 +180,48 @@ export function CrmGroupRow({
   )
 }
 
+/** Whether the row drawing a cell is the one open on the right, for `OpenBar`. */
+const RowOpen = React.createContext(false)
+
+/**
+ * The row pressed, shown open at once while the record waits to open, held
+ * by the table so every other row's bar can shrink at the same moment.
+ */
+const RowPress = React.createContext<{
+  pressed: object | null
+  setPressed: React.Dispatch<React.SetStateAction<object | null>>
+  /** Keeps the timers of the press waiting to open its record, cancelling any before. */
+  schedule: (timers: number[]) => void
+  cancel: () => void
+} | null>(null)
+
+/** How long a row's bar takes to grow; the record opens after it. */
+const BAR_MS = 220
+
+/**
+ * The small dark bar before an open row's name, grown in as Admin's
+ * Dashboards block does (Tyler, 8 Nov 2026: "For the table like the users. I
+ * want to add the pill sliding in ui to the table items"). Every row has one,
+ * with no width until its row opens: then its width grows over 220ms on
+ * cubic-bezier(0.2, 0.8, 0.2, 1), sliding the name over, while the last
+ * row's shrinks away. Closed, its margin cancels the cell's 8px gap, so the
+ * name sits where it always did. `flex: none`, so it never shrinks. Put it
+ * first in a main cell's row of parts; `MainCell` does.
+ */
+export function OpenBar() {
+  const open = React.useContext(RowOpen)
+  return (
+    <span
+      aria-hidden
+      data-open-bar=""
+      className={cn(
+        "h-1.5 flex-none rounded-full bg-foreground transition-[width,margin-right] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+        open ? "mr-0 w-3" : "-mr-2 w-0"
+      )}
+    />
+  )
+}
+
 /**
  * One row. Pressing it opens the record on the right. A right-click opens the row's own menu at the
  * pointer, unless words are selected, when the browser's own menu stays for
@@ -187,14 +248,58 @@ export function CrmTableRow({
   onRightClick?: (x: number, y: number) => void
   children: React.ReactNode
 }) {
+  // Pressed, a row shows open at once and the record opens after the bar
+  // has grown (Tyler, 8 Nov 2026: "the pill sliding in ui to the table
+  // items"). Opening a record redraws the right panel, which kept the
+  // browser busy for about 170ms and froze a bar growing at the same time.
+  // With less motion asked for, it opens at once.
+  const presses = React.useContext(RowPress)
+  // This row's own mark, made once, which the table holds while it is pressed.
+  const [token] = React.useState(() => ({}))
+  const shownOpen = presses?.pressed ? presses.pressed === token : open
+  const setPressed = presses?.setPressed
+  React.useEffect(() => {
+    if (open && presses?.pressed === token) setPressed?.(null)
+  }, [open, presses?.pressed, setPressed, token])
+  const press = () => {
+    if (!presses || !setPressed || open || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // Straight away: any other press waiting is dropped, and nothing is
+      // left looking open that is not.
+      presses?.cancel()
+      setPressed?.(null)
+      onOpen()
+      return
+    }
+    const row = token
+    setPressed(row)
+    // Opens only if the page is still where it was pressed: Back or a link
+    // taken meanwhile wins.
+    const from = window.location.href
+    presses.schedule([
+      window.setTimeout(() => {
+        if (window.location.href === from) onOpen()
+      }, BAR_MS),
+      // A record that never opens lets the address show the truth again.
+      window.setTimeout(() => setPressed((current) => (current === row ? null : current)), BAR_MS + 2000),
+    ])
+  }
   return (
     <TableRow
-      // Drawn exactly as Project's rows are: no line between rows, no shade
-      // or bar on the open one (Tyler, 7 Nov 2026: "THe one you made is
-      // inconsistence and a bit off"). The open one says so to a screen reader.
+      // Drawn as Project's rows are: no line between rows and no shade on the
+      // open one (Tyler, 7 Nov 2026: "THe one you made is inconsistence and a
+      // bit off"). The open one has `OpenBar` before its name (8 Nov 2026),
+      // and says so to a screen reader.
       aria-current={open ? "true" : undefined}
-      className={cn("group [&>td]:py-1", tick?.ticked && "bg-muted/40")}
-      rowAction={tick?.shown && !tick.none ? tick.onToggle : onOpen}
+      className={cn(
+        "group [&>td]:py-1",
+        tick?.ticked && "bg-muted/40",
+        // The name grey, black while pointed at and while open (Tyler,
+        // 8 Nov 2026: "change the items to gray and if hover over it turns
+        // black and when selected it stays black").
+        "[&_[data-row-name]]:text-muted-foreground [&_[data-row-name]]:transition-colors hover:[&_[data-row-name]]:text-foreground",
+        shownOpen && "[&_[data-row-name]]:text-foreground"
+      )}
+      rowAction={tick?.shown && !tick.none ? tick.onToggle : press}
       onContextMenu={(event) => {
         if (!onRightClick) return
         const selected = window.getSelection()
@@ -210,9 +315,9 @@ export function CrmTableRow({
           )}
         </TableCell>
       ) : null}
-      {children}
+      <RowOpen.Provider value={shownOpen}>{children}</RowOpen.Provider>
       <TableCell column="actions">
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open ${label}`} onClick={onOpen}>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open ${label}`} onClick={press}>
           <SettingsIcon className="size-4" />
         </Button>
         {onDelete ? (
@@ -248,8 +353,11 @@ export function MainCell({
   return (
     <TableCell column="main" className="min-w-40">
       <span className="flex min-w-0 items-center gap-2">
+        <OpenBar />
         {lead}
-        <span className={cn("truncate", strong ? "font-semibold" : "font-medium")}>{name}</span>
+        <span data-row-name="" className={cn("truncate", strong ? "font-semibold" : "font-medium")}>
+          {name}
+        </span>
         {children}
       </span>
     </TableCell>

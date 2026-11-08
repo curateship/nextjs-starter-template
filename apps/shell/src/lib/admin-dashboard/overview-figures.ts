@@ -5,8 +5,8 @@ import { loadTrafficSummary, type TrafficSummary } from "@/lib/api/traffic"
 
 /**
  * What the Admin dashboard's Overview reads for one range: traffic, AI spend
- * and metered units. The route reads it for the Overview tab, and the
- * dashboard reads it on another tab when the left page holds a figure block.
+ * and metered units, which the shell's nine widgets draw from. The route
+ * reads it with the widget layout when Overview shows.
  */
 export type OverviewFigures = {
   traffic: TrafficSummary

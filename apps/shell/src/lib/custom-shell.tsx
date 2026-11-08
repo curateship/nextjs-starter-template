@@ -1,3 +1,4 @@
+import type { SkyCity } from "@/lib/notes/sky-city"
 import {
   DynamicIcon,
   iconNames,
@@ -470,6 +471,12 @@ export type ShellConfig = {
    * link in the sidebar an admin built for them.
    */
   memberHomeRoute: string
+  /**
+   * The city whose real sunrise and sunset the cover sky follows, found by
+   * name in Settings → General (`src/lib/notes/sky-city.ts`). Null: fixed
+   * hours on the viewer's clock.
+   */
+  skyCity: SkyCity | null
   /** App-wide browser-tab image selected from the media library. */
   favicon: string
   /** Image overrides for the current site. Empty uses app-wide branding. */
@@ -888,6 +895,7 @@ export function createDefaultShellConfig(): ShellConfig {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
     memberHomeRoute: "",
+    skyCity: null,
     favicon: "",
     workspaceLogo: "",
     workspaceShareImage: "",

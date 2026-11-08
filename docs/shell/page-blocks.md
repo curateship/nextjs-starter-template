@@ -39,7 +39,10 @@ All of them are in `src/components/shared/notes/`, with their rules in
 - **`block-card.tsx`.** The card every app block draws in, Trade's style: a
   light grey block, its title on a band, and its contents on a tile the colour
   of the panel it sits on (white, or the panel grey in dark mode) 3px
-  inside it. Pressing the title folds the card, and this browser remembers
+  inside it. Its heading band is as tall as a panel's header, 57px
+  (`--dashboard-card-header-height`; Tyler, 8 Nov 2026: "Make the block
+  header the same height as the panel's header"), and its title is dark grey
+  ("blocks header should be dark gray"). Pressing the title folds the card, and this browser remembers
   the fold. `blockView({ kind, title, icon, Draw })` makes an app block's
   view. `Draw` is the app's own component, and it reads its figures from a
   context of the app's own. `BlockHeadingActions` puts buttons in the
@@ -48,11 +51,20 @@ All of them are in `src/components/shared/notes/`, with their rules in
   is pointed at (Tyler, 7 Nov 2026: "All blocks should be replaed with the 3
   dot dropdown", and "hover over the item should only show the item 3 dot,
   not the header too"). It holds Delete block, and `useBlockMenu` adds the
-  block's own rows above it. `BlockCard` on
+  block's own rows above it. A fixed block (`blockView({ ..., fixed: true })`)
+  has Move up and Move down in place of Delete block, each offered only when
+  there is something on that side. `BlockCard` on
   its own draws the same card outside a page, as the CRM's Contact card does.
 - **`use-note-blocks.ts` and `note-blocks-menu.tsx`.** The "/" list. Basic
   blocks come first, then the app's under "Advanced blocks". An app block
   shows once per page. Picking it again only takes away the "/".
+- **A block the page always keeps.** `keepOnPage(node)` in
+  `note-block-nodes.ts` makes the editor refuse any change that takes the
+  block off the page or makes a second one, and `offered: false` on its
+  `AppBlock` leaves it out of the "/" list. The server has to put it back
+  too, for a page saved without it. Admin's Dashboards block is the one
+  user (Tyler, 8 Nov 2026: "It can be a fixed block but I'd need to be able
+  to move it too").
 - **`tabbed-menu.tsx`, `pick-rows.tsx` and `page-rows.tsx`.** The tabbed ⋮
   and its grouped rows: `PickGroup`, `PickMenuRow` (one press picks),
   `PickDayRow` (a month that opens from the row, with Clear), and `PickRow` (a
@@ -60,8 +72,22 @@ All of them are in `src/components/shared/notes/`, with their rules in
   every page's ⋮ holds. Project's `PickDayRow` also has quick days above its
   month. The shell's has the month alone, until a screen here needs the quick
   days.
-- **`page-cover.tsx`, `PageCover`.** The cover photo, lying faintly behind
-  the panel header.
+- **`page-cover.tsx`, `PageCover`, and `cover-sky.tsx`.** The cover, lying
+  faintly behind the panel header: a picture, or the sky. The sky is
+  Project's Daily card sky (sunrise, day, golden hour, sunset, night with
+  stars), without Project's scenes or weather (Tyler, 8 Nov 2026: "add that
+  but only use the sky one"). It follows the real sunrise and sunset of the
+  city in Settings → General → Sky city, golden hour the 90 minutes before
+  sunset and sunset the hour after; with no city, fixed hours on the viewer's
+  clock, night from 6 PM (`src/lib/notes/sky-city.ts`).
+- **`CoverRow`'s tiles.** The Cover photo row opens square tiles: None, Sky,
+  each picture the page has had, then + to add one from the media library
+  ("I also want to add custom images too and make the ui like this"). The
+  picked tile has a dark ring; a picture's tile has an × to take it off. A
+  page keeps up to 8 pictures (`cover_images`, migration 0109), and starts on
+  None. A picture set before pages kept them shows as the first tile. The
+  stored cover is null, `"sky"` or the picture's address; the rules are in
+  `src/lib/notes/page-cover.ts`, shared by the server and the screen.
 - **`fold-heading.tsx`, `note-folds.ts`, `note-slash.ts` and
   `note-block-views.tsx`.** The folding heading, the Fold section's state,
   the "/" trigger, and how the basic blocks look.
@@ -95,3 +121,7 @@ The CRM is the worked example: `apps/shell/src/components/crm/crm-blocks.tsx`.
 - **The CRM's left page, `/admin/crm`**, since 7 Nov 2026, with the Emails,
   Follow up today and Stages blocks. The right panel's Contact card is a
   `BlockCard`.
+- **The Admin dashboard's left page, `/admin/dashboard`**, since 8 Nov 2026,
+  with the fixed Dashboards block and Plans, whose New plan is a row in its
+  ⋮. An app adds its own blocks there without editing the shell:
+  `admin-blocks-and-widgets.md`.

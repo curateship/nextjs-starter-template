@@ -1,6 +1,7 @@
 import type * as React from "react"
 import { Extension, Node, mergeAttributes, type Editor, type Extensions } from "@tiptap/core"
-import { TextSelection } from "@tiptap/pm/state"
+import { Plugin, TextSelection } from "@tiptap/pm/state"
+import type { Node as PmNode } from "@tiptap/pm/model"
 import { TaskItem, TaskList } from "@tiptap/extension-list"
 import { ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react"
 import {
@@ -58,8 +59,17 @@ export type BlockDef = { key: BlockKey; label: string; icon: LucideIcon; group: 
 /**
  * An app's own block: its "/" row, and its editor node (made with
  * `blockNode` and `blockView`). It keeps no values and shows once per page.
+ * `offered: false` leaves it out of the "/" list: the page keeps it on its
+ * own, as Admin's fixed Dashboards block (`keepOnPage`).
  */
-export type AppBlock = { key: string; label: string; icon: LucideIcon; node: string; extension: Node }
+export type AppBlock = {
+  key: string
+  label: string
+  icon: LucideIcon
+  node: string
+  extension: Node
+  offered?: boolean
+}
 
 /**
  * In the list's order, Project's basic blocks. The Link card that reads a
@@ -79,7 +89,12 @@ export const BASIC_BLOCKS: BlockDef[] = [
 
 /** Every block one page offers: the basic ones, then the app's. */
 export function pageBlocks(appBlocks: readonly AppBlock[]): BlockDef[] {
-  return [...BASIC_BLOCKS, ...appBlocks.map(({ key, label, icon }) => ({ key, label, icon, group: "advanced" as const }))]
+  return [
+    ...BASIC_BLOCKS,
+    ...appBlocks
+      .filter((block) => block.offered !== false)
+      .map(({ key, label, icon }) => ({ key, label, icon, group: "advanced" as const })),
+  ]
 }
 
 /** The blocks whose name starts with what was typed after the "/". */
@@ -107,6 +122,41 @@ export function blockNode(name: string, defaults: Record<string, unknown>, view:
     },
     addNodeView() {
       return ReactNodeViewRenderer(view)
+    },
+  })
+}
+
+function countNodes(doc: PmNode, name: string) {
+  let found = 0
+  doc.descendants((node) => {
+    if (node.type.name === name) found += 1
+    return false
+  })
+  return found
+}
+
+/**
+ * A block node the page keeps once, whatever the writer does: Backspace,
+ * Delete, cut or select-all and type all leave it where it is, and a paste
+ * never makes a second (Tyler, 8 Nov 2026, of Admin's Dashboards block: "It
+ * can be a fixed block"). It still moves, in one step that takes it out and
+ * puts it back (`blockView`'s `fixed`). Only top-level blocks are counted,
+ * which is where a block lives.
+ */
+export function keepOnPage(node: Node) {
+  return node.extend({
+    addProseMirrorPlugins() {
+      const name = this.name
+      return [
+        new Plugin({
+          filterTransaction: (tr, state) => {
+            if (!tr.docChanged) return true
+            const before = countNodes(state.doc, name)
+            const after = countNodes(tr.doc, name)
+            return !(after < before && after === 0) && !(after > before && after > 1)
+          },
+        }),
+      ]
     },
   })
 }

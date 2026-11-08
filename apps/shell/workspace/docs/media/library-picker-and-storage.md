@@ -72,9 +72,14 @@ row. The original the admin picked is not in that folder and is never swept.
 
 ## Admin and cleanup
 
-The Media dashboard can see files across the workspace, their owners, current
-storage use, and records that no longer have a valid owner. Admin cleanup can
-remove confirmed orphaned files from both the database and object storage.
+Every account's files are the Media library section of the Admin dashboard
+(`/admin/dashboard?tab=media`, picked from the left page's Dashboards block;
+`ui/admin.md` says what each panel holds). It lists files across the
+workspace, their owners, current storage use, and records that no longer have
+a valid owner. Pressing a file opens it in the right panel, where its ⋮ holds
+its alt text and Delete. Admin cleanup can remove confirmed orphaned files
+from both the database and object storage. `/admin/media` forwards to the
+section, keeping `?owner=`, `?media=` and `?orphan=`.
 
 Deleting a normal file checks ownership and removes its stored object. A screen
 that still refers to the deleted id must handle the missing media state rather

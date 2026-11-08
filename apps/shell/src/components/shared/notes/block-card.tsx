@@ -1,7 +1,7 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { EllipsisVerticalIcon, Trash2Icon } from "lucide-react"
+import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, Trash2Icon } from "lucide-react"
 
 import { FoldHeading } from "@/components/shared/notes/fold-heading"
 import { Button } from "@/components/ui/button"
@@ -145,13 +145,20 @@ export function BlockFrame({
 export function BlockCard({
   editable,
   onRemove,
+  moves,
   kind,
   title,
   icon,
   children,
 }: {
   editable: boolean
-  onRemove: () => void
+  /** Left out for a fixed block, which has no Delete block. */
+  onRemove?: () => void
+  /**
+   * A fixed block's Move up and Move down, worked out as its ⋮ opens, so
+   * only a move that can happen is offered.
+   */
+  moves?: () => BlockMenuItem[]
   kind: string
   title: string
   icon: React.ReactNode
@@ -182,7 +189,10 @@ export function BlockCard({
           title={title}
           count={count || undefined}
           open={open}
-          className="[&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold"
+          // As tall as the panel's own header, its title dark grey (Tyler,
+          // 8 Nov 2026: "Make the block header the same height as the
+          // panel's header", then "blocks header should be dark gray").
+          className="min-h-[var(--dashboard-card-header-height,57px)] [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
         >
           {/* The panel's own buttons, shown while the block is open. */}
           <span
@@ -195,7 +205,7 @@ export function BlockCard({
               heading is pointed at, never for a row inside the tile ("hover
               over the item should only show the item 3 dot, not the header
               too"). */}
-          {menu?.length || editable ? (
+          {menu?.length || (editable && (onRemove || moves)) ? (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -215,7 +225,8 @@ export function BlockCard({
                     {item.label}
                   </DropdownMenuItem>
                 ))}
-                {editable ? (
+                {editable && moves ? <MoveRows moves={moves} after={Boolean(menu?.length)} /> : null}
+                {editable && onRemove ? (
                   <>
                     {menu?.length ? <DropdownMenuSeparator /> : null}
                     <DropdownMenuItem variant="destructive" onSelect={onRemove}>
@@ -251,6 +262,24 @@ export function BlockCard({
   )
 }
 
+/** A fixed block's moves, under any rows of the block's own. */
+function MoveRows({ moves, after }: { moves: () => BlockMenuItem[]; after: boolean }) {
+  // Worked out once as the menu opens: the rows are drawn only while it is open.
+  const [rows] = React.useState(moves)
+  if (rows.length === 0) return null
+  return (
+    <>
+      {after ? <DropdownMenuSeparator /> : null}
+      {rows.map((item) => (
+        <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
+          {item.icon}
+          {item.label}
+        </DropdownMenuItem>
+      ))}
+    </>
+  )
+}
+
 type BlockSpec = {
   /** The block's own name, which its fold is remembered under. */
   kind: string
@@ -258,19 +287,58 @@ type BlockSpec = {
   icon: React.ReactNode
   /** What the tile holds, drawn by the app from its own context. */
   Draw: React.ComponentType
+  /**
+   * A block the page always keeps, such as Admin's Dashboards (Tyler,
+   * 8 Nov 2026: "It can be a fixed block but I'd need to be able to move it
+   * too"). Its ⋮ has Move up and Move down in place of Delete block. The
+   * node itself refuses to be taken off; see `keepOnPage`.
+   */
+  fixed?: boolean
+}
+
+/**
+ * Move up or Move down for the top-level block at `pos`: it swaps places
+ * with the line or block beside it. Null when there is nothing on that side.
+ */
+function moveBlock(editor: NodeViewProps["editor"], pos: number, direction: -1 | 1) {
+  const { doc } = editor.state
+  const $pos = doc.resolve(pos)
+  if ($pos.depth !== 0) return null
+  const index = $pos.index(0)
+  const node = doc.child(index)
+  const neighbourIndex = index + direction
+  if (neighbourIndex < 0 || neighbourIndex >= doc.childCount) return null
+  const neighbour = doc.child(neighbourIndex)
+  return () => {
+    // One step, so the editor never sees the page without the block.
+    const tr = editor.state.tr.delete(pos, pos + node.nodeSize)
+    const at = direction === -1 ? pos - neighbour.nodeSize : pos + neighbour.nodeSize
+    editor.view.dispatch(tr.insert(at, node).scrollIntoView())
+  }
 }
 
 /**
  * The editor view for one app block: the frame, the card, and the app's
  * `Draw` on the tile. Pass the result to `blockNode`.
  */
-export function blockView({ kind, title, icon, Draw }: BlockSpec) {
-  return function PageBlockView({ editor, selected, deleteNode }: NodeViewProps) {
+export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec) {
+  return function PageBlockView({ editor, selected, deleteNode, getPos }: NodeViewProps) {
+    const moves = () => {
+      const pos = getPos()
+      if (typeof pos !== "number") return []
+      const up = moveBlock(editor, pos, -1)
+      const down = moveBlock(editor, pos, 1)
+      return [
+        ...(up ? [{ label: "Move up", icon: <ArrowUpIcon className="size-4" />, onSelect: up }] : []),
+        ...(down ? [{ label: "Move down", icon: <ArrowDownIcon className="size-4" />, onSelect: down }] : []),
+      ]
+    }
     return (
       <BlockFrame selected={selected} name={kind}>
         <BlockCard
           editable={editor.isEditable}
-          onRemove={deleteNode}
+          onRemove={fixed ? undefined : deleteNode}
+          moves={fixed ? moves : undefined}
           kind={kind}
           title={title}
           icon={icon}

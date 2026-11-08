@@ -17,7 +17,15 @@ All of them are in `src/components/shared/`.
   (`src/lib/layout/panel-layout.ts`). Under 1280px one panel shows at a time
   under a row of pills, and all three stay mounted. `showRightFor` switches a
   narrow screen to the right panel when a record opens; `showMiddleFor` does
-  the same for the middle.
+  the same for the middle. Leaving `right` out makes two panels, the middle
+  taking the right one's room, and `middle.bare` draws the middle with no
+  card, its content straight on the page (Admin's Overview, 8 Nov 2026). A
+  screen that switches between two and three panels keeps a layout key for
+  each. `reopenInHeader` takes away the knobs on the middle's edge;
+  the middle's header then draws `PanelReopenButton`s (Lucide's
+  PanelLeftDashed first, PanelRightDashed last), which show only while that
+  side is shut (Admin, 8 Nov 2026). `CrmListHeader`'s `end` slot holds the
+  right one.
 - **`SidePanelCollapseButton`, in `three-panels.tsx`.** The collapse button at
   a side panel header's outer edge (the Admin 3 panel design; Tyler, 7 Nov
   2026: "add a collasible icon here to collapse the left panel"). Put it

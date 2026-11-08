@@ -1,8 +1,9 @@
 import * as React from "react"
 
 import {
-  ADMIN_APP_BLOCKS,
+  adminBlocks,
   AdminBlocksProvider,
+  SectionsBlock,
   type AdminBlocks,
 } from "@/components/admin-dashboard/admin-blocks"
 import {
@@ -18,7 +19,6 @@ import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { AdminPageSide } from "@/lib/admin-dashboard/admin-page"
 import {
   getAdminPageErrorMessage,
   lockAdminPage,
@@ -33,18 +33,19 @@ import { cn } from "@/lib/utils"
 type MenuTab = React.ComponentProps<typeof TabbedMenu>["tabs"][number]
 
 /**
- * One of the Admin dashboard's two side pages (the Admin 3 panel design):
+ * The Admin dashboard's left page (the Admin 3 panel design):
  *
- * - **Header:** the collapse button at the panel's outer edge, the title with
- *   one muted line, and the ⋮: General (Cover photo, Lock the notes), then
- *   any tabs the side adds (the left one's Announcements and Plans).
+ * - **Header:** the collapse button at the panel's outer edge, the title, and
+ *   the ⋮: General (Cover photo, Lock the notes, then what the dashboard
+ *   adds, Overview's date range), then the dashboard's own tabs.
  * - **Page:** one per site, written on like any page in the design, with the
- *   basic "/" blocks and the Admin ones (`admin-blocks.tsx`).
+ *   basic "/" blocks and the Admin ones (`admin-blocks.tsx`), and the fixed
+ *   Dashboards block.
  */
 export function AdminPagePanel({
-  side,
   title,
   menuLabel,
+  general,
   menuTabs = [],
   page,
   error,
@@ -52,9 +53,10 @@ export function AdminPagePanel({
   blocks,
   onPageChange,
 }: {
-  side: AdminPageSide
   title: string
   menuLabel: string
+  /** Under the page's own rows in General. */
+  general?: React.ReactNode
   /** Tabs after General in the ⋮. */
   menuTabs?: MenuTab[]
   /** Null while the page is first read, or when the read failed. */
@@ -67,6 +69,8 @@ export function AdminPagePanel({
 }) {
   const [busy, setBusy] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
+  // Made once: the editor's blocks must not change while the page shows.
+  const [pageBlocks] = React.useState(adminBlocks)
 
   const change = async (values: Partial<StoredPage>, save: () => Promise<unknown>) => {
     if (!page) return
@@ -81,12 +85,6 @@ export function AdminPagePanel({
     }
   }
 
-  const collapse = (
-    <SidePanelCollapseButton
-      side={side}
-      label={side === "left" ? "Hide the page" : "Hide the notes"}
-    />
-  )
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-card">
@@ -95,14 +93,17 @@ export function AdminPagePanel({
           never matches this side panel's header. */}
       <div className="relative shrink-0">
         <DashboardCardHeader className={cn("gap-1", page?.coverUrl && "border-b-transparent")}>
-          {side === "left" ? collapse : null}
+          <SidePanelCollapseButton side="left" label="Hide the page" />
           <span className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>{title}</span>
           {page ? (
             <TabbedMenu
               label={menuLabel}
-              // The left one opens to the right, over the middle, rather than
-              // past the panel's left edge; the right one the other way.
-              align={side === "left" ? "start" : "end"}
+              // Opens to the right, over the middle, rather than past the
+              // panel's left edge.
+              align="start"
+              // Wide enough for General, Announcements, Plans and Widgets on
+              // one row, which the usual 22.7rem cuts short.
+              width="25rem"
               open={menuOpen}
               onOpenChange={setMenuOpen}
               tabs={[
@@ -115,17 +116,21 @@ export function AdminPagePanel({
                         <CoverRow
                           cover={{
                             url: page.coverUrl,
+                            images: page.coverImages,
                             busy,
-                            set: (coverUrl) =>
-                              void change({ coverUrl }, () => setAdminPageCoverPhoto(side, coverUrl)),
+                            set: ({ url, images }) => {
+                              const cover = { coverUrl: url, coverImages: images }
+                              void change(cover, () => setAdminPageCoverPhoto("left", cover))
+                            },
                           }}
                         />
                       </PickGroup>
                       <LockRow
                         locked={page.locked}
                         busy={busy}
-                        onLock={(locked) => void change({ locked }, () => lockAdminPage(side, locked))}
+                        onLock={(locked) => void change({ locked }, () => lockAdminPage("left", locked))}
                       />
+                      {general}
                     </div>
                   ),
                 },
@@ -133,7 +138,6 @@ export function AdminPagePanel({
               ]}
             />
           ) : null}
-          {side === "right" ? collapse : null}
         </DashboardCardHeader>
       </div>
 
@@ -147,24 +151,31 @@ export function AdminPagePanel({
                 key={page.locked ? "locked" : "open"}
                 value={page.body}
                 locked={page.locked}
-                appBlocks={ADMIN_APP_BLOCKS}
+                appBlocks={pageBlocks}
                 placeholder="Write something, or type / for blocks"
                 onSave={async (body) => {
                   // Kept before the save goes, so anything drawing the page
                   // afresh while it is on its way starts from what was typed.
                   onPageChange({ ...page, body })
                   try {
-                    await saveAdminPage(side, body)
+                    await saveAdminPage("left", body)
                   } catch (saveError) {
                     showErrorToast(getAdminPageErrorMessage(saveError))
                   }
                 }}
               />
             </AdminBlocksProvider>
-          ) : error ? (
-            <ErrorRow message={error} onRetry={onRetry} />
           ) : (
-            <LoadingRow label="Reading the page…" />
+            <>
+              {/* The sections stay reachable while the page is read, or when
+                  it could not be: the Dashboards block is their only way in. */}
+              <div className="mt-3.75 overflow-hidden rounded-[var(--shell-block-radius,1rem)] border">
+                <AdminBlocksProvider value={blocks}>
+                  <SectionsBlock />
+                </AdminBlocksProvider>
+              </div>
+              {error ? <ErrorRow message={error} onRetry={onRetry} /> : <LoadingRow label="Reading the page…" />}
+            </>
           )}
         </div>
       </ScrollArea>

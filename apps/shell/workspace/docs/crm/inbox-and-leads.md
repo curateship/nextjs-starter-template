@@ -39,6 +39,16 @@ and not linked it outside. The Ui is all over the place as well."
     nothing to do, a lead's stage colour, a newsletter's state colour. Then
     the name with its small badges, each fact as a chip in its own column,
     and the open button. Columns drop out as the panel narrows.
+  - **The open row** (Tyler, 8 Nov 2026: "I want to add the pill sliding in
+    ui to the table items"): a small dark bar grows in before its dot, its
+    width and margin over 220ms on cubic-bezier(0.2, 0.8, 0.2, 1), while the
+    last open row's shrinks away (`OpenBar` in `crm-table.tsx`). A pressed
+    row shows open at once and the record opens after the bar, because
+    drawing the record froze a bar growing at the same time; with less motion
+    asked for it opens at once. Names are grey, black while pointed at and
+    while open ("change the items to gray and if hover over it turns black
+    and when selected it stays black"). The same rows draw the Admin
+    dashboard's Users, Feedback and Media library lists.
   - Inbox: From, Email, Stage, Tags, When. From is only as wide as the
     names and Email takes the rest, so the words sit next to who sent them. People: Person, Email, Kind,
     Status, Tags, Opened, Added (Person, Email, Status and Added sort).

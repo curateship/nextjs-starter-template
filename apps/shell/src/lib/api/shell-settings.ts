@@ -3,6 +3,8 @@ import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { skyCitySchema } from "@/lib/notes/sky-city"
+
 import { appPublicTheme } from "@/lib/app-options"
 import { ROLE_ID_PATTERN } from "@/lib/role-id"
 import {
@@ -252,6 +254,12 @@ const shellStylingSchema = z.object({
   blockRadius: z.number().int().min(0).max(32).optional(),
   blockShade: z.number().int().min(0).max(100).optional(),
   blockInset: z.number().int().min(0).max(16).optional(),
+  widgetRadius: z.number().int().min(0).max(32).optional(),
+  widgetShade: z.number().int().min(0).max(100).optional(),
+  widgetInset: z.number().int().min(0).max(16).optional(),
+  panelCardBackground: shellBackgroundSchema.optional(),
+  panelCardBorderWidth: z.number().int().min(0).max(3).optional(),
+  panelCardBorderColor: shellBackgroundSchema.optional(),
 })
 
 const publicNavigationLinkSchema = z.object({
@@ -435,6 +443,9 @@ const shellConfigSchema = z.object({
   topLeftShortcuts: z.array(shellTopLeftShortcutSchema).max(50).optional(),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
+  // Optional, and the saved city is kept when it is missing, so a settings
+  // tab opened before the field existed cannot wipe it on its next save.
+  skyCity: skyCitySchema.nullable().optional(),
   workspaceLogo: z.string().trim().max(2048),
   workspaceShareImage: z.string().trim().max(2048),
   // The one brand image. It is the signed-out logo and the browser-tab icon,
@@ -738,6 +749,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           topLeftShortcuts:
             data.topLeftShortcuts ?? existingGlobals.topLeftShortcuts,
           roleSections: data.roleSections ?? existingGlobals.roleSections,
+          skyCity: data.skyCity === undefined ? existingGlobals.skyCity : data.skyCity,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {

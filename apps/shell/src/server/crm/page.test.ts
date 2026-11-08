@@ -85,7 +85,11 @@ describe("the CRM's left page", () => {
   })
 
   it("refuses a save while locked, and keeps the cover", async () => {
-    await setCrmPageCover(workspaceId, "https://images.example.com/cover.jpg", db)
+    await setCrmPageCover(
+      workspaceId,
+      { coverUrl: "https://images.example.com/cover.jpg", coverImages: ["https://images.example.com/cover.jpg"] },
+      db
+    )
     await setCrmPageLock(workspaceId, true, db)
     await expect(saveCrmPageBody(workspaceId, JSON.stringify({ type: "doc", content: [] }), db)).rejects.toThrow(
       CRM_PAGE_LOCKED

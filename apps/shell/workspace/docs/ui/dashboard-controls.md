@@ -44,11 +44,6 @@ Dashboard controls follow these shared rules:
   when it is left empty.
 - Admin's Overview tab draws its "per day" bars with
   `DailyBarChart` in `src/components/shared/dashboard/daily-bar-chart.tsx`.
-- **A tab row rebuilt in the same spot still slides.** A dashboard whose
-  header each tab draws anew (Admin) builds its tab row afresh on every
-  switch. `DashboardTabs`' `handoff` names the row, so the new one starts its
-  pill or line where the last one's was and slides to the tab picked
-  (`useSlidingPill` in `src/lib/hooks/use-sliding-pill.ts`).
 - **Remembered panel widths arrive without a rebuild.** A resizable panel
   group draws at its default sizes and gets this browser's saved widths set on
   it before the first paint (`useRememberedPanelLayout` in

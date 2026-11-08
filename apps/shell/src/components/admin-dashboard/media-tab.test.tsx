@@ -13,7 +13,12 @@ const toasts = vi.hoisted(() => {
   return { toast, showError: vi.fn() }
 })
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }))
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+  getRouteApi: () => ({ useLoaderData: () => ({}) }),
+  Link: () => null,
+  useRouter: () => ({ invalidate: vi.fn() }),
+}))
 vi.mock("sonner", () => ({ toast: toasts.toast }))
 vi.mock("@/lib/toast/error-toast", () => ({
   dismissErrorToast: vi.fn(),
@@ -33,7 +38,8 @@ vi.mock("@/lib/api/media/admin-media", () => ({
   loadOrphans: vi.fn(),
 }))
 
-import { MediaLibraryPage } from "@/components/media/media-library-page"
+import type { AdminFrame } from "@/components/admin-dashboard/admin-dashboard"
+import { MediaTab } from "@/components/admin-dashboard/media-tab"
 import { UploadLine } from "@/components/media/upload-line"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { PauseGate } from "@/lib/media/upload-in-parts"
@@ -51,7 +57,15 @@ type UploadOptions = {
   gate: PauseGate
 }
 
-/** The page, and the upload line the shell layout draws beside every page. */
+/** The Admin frame, cut down to the section's header and middle. */
+const frame: AdminFrame = (panels) => (
+  <>
+    {panels.header}
+    {panels.middle}
+  </>
+)
+
+/** The section, and the upload line the shell layout draws beside every page. */
 function renderPage(host: HTMLElement, { withPage = true } = {}) {
   const root = createRoot(host)
   const draw = (page: boolean) =>
@@ -59,10 +73,13 @@ function renderPage(host: HTMLElement, { withPage = true } = {}) {
       // The app shell provides this around every page.
       <TooltipProvider>
         {page ? (
-          <MediaLibraryPage
-            initialData={emptyPage}
-            initialOwnerId="all"
+          <MediaTab
+            loaded={emptyPage}
+            search={{ tab: "media" }}
             currentUserId="admin-1"
+            heading={<h2>Media library</h2>}
+            headingEnd={null}
+            frame={frame}
           />
         ) : null}
         <UploadLine />
@@ -85,7 +102,7 @@ async function pickFiles(host: HTMLElement, files: File[]) {
 const uploadLine = (host: HTMLElement) =>
   host.querySelector('[aria-label="Uploads"]')?.textContent ?? null
 
-describe("MediaLibraryPage uploads", () => {
+describe("the Media library's uploads", () => {
   beforeEach(() => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

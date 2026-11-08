@@ -106,12 +106,12 @@ export function CrmPagePanel({
     }
   }
 
-  const setCover = async (coverUrl: string | null) => {
+  const setCover = async (cover: { coverUrl: string | null; coverImages: string[] }) => {
     if (!page) return
     setBusy(true)
     try {
-      await setCrmPageCoverPhoto(coverUrl)
-      onPageChange({ ...page, coverUrl })
+      await setCrmPageCoverPhoto(cover)
+      onPageChange({ ...page, ...cover })
     } catch (error) {
       showErrorToast(getCrmPageErrorMessage(error))
     } finally {
@@ -194,7 +194,12 @@ export function CrmPagePanel({
                       </PickGroup>
                       <PickGroup title="Page">
                         <CoverRow
-                          cover={{ url: page.coverUrl, busy, set: (url) => void setCover(url) }}
+                          cover={{
+                            url: page.coverUrl,
+                            images: page.coverImages,
+                            busy,
+                            set: ({ url, images }) => void setCover({ coverUrl: url, coverImages: images }),
+                          }}
                         />
                       </PickGroup>
                       <LockRow

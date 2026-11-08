@@ -84,7 +84,7 @@ local setup docs.
 - [The dark mode shade](settings/dark-mode-shade.md)
 - [The left menu shade](settings/left-menu-shade.md)
 - [The gutter shade](settings/page-shade.md)
-- [Block styling: corners, grey and edge](settings/block-styling.md)
+- [Block, widget and panel card styling](settings/block-styling.md)
 - [The app canvas](settings/the-app-canvas.md)
 - [Public theme presets](settings/public-theme-presets.md)
 

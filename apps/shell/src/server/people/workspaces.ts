@@ -257,7 +257,7 @@ function systemEmailsChildLink(): ShellChildItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 23
+export const NAVIGATION_VERSION = 24
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1090,6 +1090,9 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 23) {
     sections = foldScreensIntoAdmin(sections)
   }
+  if (settings.navVersion < 24) {
+    sections = removeMediaLibraryLink(sections)
+  }
 
   const [updated] = await database
     .update(customShellWorkspaces)
@@ -1528,6 +1531,50 @@ export function foldScreensIntoAdmin(sections: ShellSection[]): ShellSection[] {
     }))
     .filter((section, index) => section.entries.length > 0 || sections[index].entries.length === 0)
 
+  return changed ? result : sections
+}
+
+const MEDIA_LINK_ID = "item-media"
+const MEDIA_HREF = "/admin/media"
+
+/**
+ * Takes the Media link out (Tyler, 8 Nov 2026: the Admin dashboard's
+ * sections are a block on its left page, "and we add media library to it
+ * too"). The library is Admin's Media library section, and `/admin/media`
+ * forwards there, so the link would only open Admin. Links someone hung
+ * under it move up into its place rather than going with it, and a section
+ * left with nothing in it goes.
+ */
+export function removeMediaLibraryLink(sections: ShellSection[]): ShellSection[] {
+  const isMedia = (link: { id: string; href?: string }) => link.id === MEDIA_LINK_ID || link.href === MEDIA_HREF
+  let changed = false
+  const result = sections
+    .map((section) => ({
+      ...section,
+      entries: section.entries.flatMap((entry): ShellEntry[] => {
+        if (!isShellItem(entry)) return [entry]
+        if (isMedia(entry)) {
+          changed = true
+          return (entry.children ?? [])
+            .filter((child) => !isMedia(child))
+            .map((child) => ({
+              type: "item" as const,
+              id: child.id,
+              label: child.label,
+              href: child.href,
+              icon: child.icon ?? entry.icon,
+              visible: child.visible ?? true,
+              ...(child.roles ? { roles: child.roles } : {}),
+            }))
+        }
+        const children = entry.children ?? []
+        const kept = children.filter((child) => !isMedia(child))
+        if (kept.length === children.length) return [entry]
+        changed = true
+        return [kept.length ? { ...entry, children: kept } : stripChildren(entry)]
+      }),
+    }))
+    .filter((section, index) => section.entries.length > 0 || sections[index].entries.length === 0)
   return changed ? result : sections
 }
 
@@ -2141,14 +2188,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       id: "section-platform-settings",
       title: "Platform settings",
       entries: [
-        {
-          type: "item",
-          id: "item-media",
-          label: "Media",
-          href: "/admin/media",
-          icon: "image",
-          visible: true,
-        },
+        // The media library is Admin's Media library section (8 Nov 2026).
         { ...AUTOMATIONS_LINK },
         {
           type: "item",

@@ -16,6 +16,10 @@ import {
 } from "@/lib/public-theme"
 import type { AppFrontPageRowSettings } from "@/lib/pages/front-page"
 import type { AppSettingsTab } from "@/lib/settings-tab"
+import {
+  checkAdminAdditions,
+  type AdminAddition,
+} from "@/lib/admin-dashboard/admin-additions"
 import type { ShellSection, ShellTopRightAppAction } from "@/lib/custom-shell"
 import {
   isShellRole,
@@ -65,6 +69,7 @@ export type AppOptions = {
   signIn?: SignInOptions
   homeScreen?: HomeScreenOptions
   media?: MediaOptions
+  admin?: AdminOptions
   /**
    * The app's own kinds of account, beside the shell's admin and member.
    *
@@ -692,6 +697,19 @@ type HomeScreenOptions = {
   shareTarget?: { path: `/${string}` }
 }
 
+/**
+ * The app's own blocks and widgets on the Admin dashboard
+ * (`src/lib/admin-dashboard/admin-additions.ts` says what each entry holds,
+ * and `docs/shell/admin-blocks-and-widgets.md` how to write one). Unset adds
+ * none, so the dashboard is the shell's alone.
+ */
+type AdminOptions = {
+  /** "/" blocks on the Admin page, after the shell's. */
+  blocks?: readonly AdminAddition[]
+  /** Overview widgets, offered after the shell's nine. */
+  widgets?: readonly AdminAddition[]
+}
+
 type MediaOptions = {
   /**
    * The biggest video one upload may be, in bytes. Unset is 5GB. `"bucket"`
@@ -1149,6 +1167,28 @@ export function appSettingsTabs(
   }
 
   return tabs
+}
+
+/**
+ * The app's own Admin "/" blocks, or none. `shellKeys` are the shell's own
+ * blocks' keys, which an app's may not reuse.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour.
+ */
+export function appAdminBlocks(
+  shellKeys: readonly string[],
+  options: AppOptions = appOptions
+): readonly AdminAddition[] {
+  return checkAdminAdditions("block", options.admin?.blocks ?? [], shellKeys)
+}
+
+/** The app's own Overview widgets, or none, checked as the blocks are. */
+export function appAdminWidgets(
+  shellKeys: readonly string[],
+  options: AppOptions = appOptions
+): readonly AdminAddition[] {
+  return checkAdminAdditions("widget", options.admin?.widgets ?? [], shellKeys)
 }
 
 /**

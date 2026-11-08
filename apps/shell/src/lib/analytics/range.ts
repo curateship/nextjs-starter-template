@@ -53,10 +53,3 @@ export function analyticsRangeStart(days: AnalyticsRange, at: Date): Date {
 export function analyticsRangeEnd(at: Date): Date {
   return new Date(`${new Date(at.getTime() + DAY_MS).toISOString().slice(0, 10)}T00:00:00Z`)
 }
-
-/** The range as a card's muted note: "Last 30 days", "Today". */
-export function rangeNote(days: AnalyticsRange) {
-  if (days === 1) return "Today"
-  if (days === 365) return "Last year"
-  return `Last ${days} days`
-}

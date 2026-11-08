@@ -26,18 +26,13 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
 function TabsList({
   className,
   children,
-  handoff,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.List> & {
-  /** Names a list rebuilt in the same spot, so its pill slides on from the last one's place (`useSlidingPill`). */
-  handoff?: string
-}) {
+}: React.ComponentProps<typeof TabsPrimitive.List>) {
   const { trackRef, trackProps, pillProps } = useSlidingPill<HTMLDivElement>({
     selected: '[data-slot="tabs-trigger"][data-state="active"]',
     observe: '[data-slot="tabs-trigger"]',
     attributes: ["data-state"],
     className: "rounded-md",
-    handoff,
   })
 
   return (

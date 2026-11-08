@@ -1,7 +1,7 @@
 import * as React from "react"
-import { UsersIcon } from "lucide-react"
 
-import { MemberName, MiddleBody, SideRows, type SideRow } from "@/components/admin-dashboard/admin-parts"
+import { MemberName, SideRows, type SideRow } from "@/components/admin-dashboard/admin-parts"
+import { AdditionBoundary } from "@/components/admin-dashboard/addition-boundary"
 import {
   deviceRows,
   EMPTY_TEXT,
@@ -11,100 +11,150 @@ import {
   referrerRows,
   topPageRows,
 } from "@/components/admin-dashboard/figure-rows"
-import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
+import { WidgetCard } from "@/components/admin-dashboard/widget-card"
+import { EmptySpot, WidgetMenu, type Spot } from "@/components/admin-dashboard/widget-menus"
 import { EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import { DailyBarChart } from "@/components/shared/dashboard/daily-bar-chart"
-import { DashboardTable } from "@/components/shared/dashboard-table"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { SortableTableHeader, type SortableColumn } from "@/components/shared/sortable-table-header"
-import { useShellRuntime } from "@/components/shell/shell-layout"
 import type { ChartConfig } from "@/components/ui/chart"
-import { TableCell, TableRow } from "@/components/ui/table"
-import { rangeNote, type AnalyticsRange } from "@/lib/analytics/range"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
+import type { AdminAdditionProps } from "@/lib/admin-dashboard/admin-additions"
+import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
+import {
+  appWidgetId,
+  SHELL_WIDGET_IDS,
+  SHELL_WIDGETS,
+  type ShellWidgetId,
+  type WidgetLayout,
+  type WidgetRowName,
+} from "@/lib/admin-dashboard/overview-widgets"
+import type { AnalyticsRange } from "@/lib/analytics/range"
+import { appAdminWidgets } from "@/lib/app-options"
 import { shade } from "@/lib/dashboard/chart-colours"
 import { formatDate } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
-import { useClientPage } from "@/lib/hooks/use-client-page"
 import { sortRows, useTableSort, type SortKey } from "@/lib/hooks/use-table-sort"
-import { useRememberedChoice } from "@/lib/remembered-choice"
+import { cn } from "@/lib/utils"
 
 /**
- * Admin, Overview tab (Tyler, 8 Nov 2026: "Rename analytic to overview", then
- * "remove the usage tab ... This can just go under overview"). Top to bottom,
- * edge to edge:
+ * Admin, Overview: widgets in up to two rows (Tyler, 8 Nov 2026: "I want top
+ * row to have 2 col and bottom row to have 3 col (2 row max)"), straight on
+ * the dashboard beside the left panel, with no panel or header of their own
+ * ("Take it widgets out of its overview container"). The rows and spots are
+ * set in the Widgets tab of the Admin ⋮; a widget's own ⋮ swaps or removes
+ * it; an empty spot is pressed to add one there. Saved for the site.
  *
- * - **Views per day**, with a More details tab holding Top pages, Devices
- *   and Top referrers ("these should be a part of the views per day panel.
- *   Maybe put it in a "More details" tab?").
- * - **Daily AI spend**, with a More details tab holding By feature, By model
- *   and By meter.
- * - **By person:** AI spend and metered units side by side, one row each. A
- *   name opens that person in the Users tab.
+ * - **Wide:** the rows share the height, so the whole of Overview fits with
+ *   no page scroll, and a long list scrolls inside its own card ("Fill the
+ *   panel").
+ * - **Narrow, or a phone:** one widget under another at its own height, and
+ *   Overview scrolls.
  *
- * Every figure counts the range picked in the header.
+ * Every figure counts the range picked in the Admin ⋮'s General tab.
  */
-export function OverviewTab({ figures, days }: { figures: OverviewFigures; days: AnalyticsRange }) {
-  const { traffic, ai, metered } = figures
-  const note = rangeNote(days)
+export function OverviewTab({
+  figures,
+  days,
+  layout,
+  onChange,
+}: {
+  figures: OverviewFigures
+  days: AnalyticsRange
+  layout: WidgetLayout
+  onChange: (layout: WidgetLayout) => void
+}) {
+  const names: WidgetRowName[] = layout.bottom.columns > 0 ? ["top", "bottom"] : ["top"]
+  const rows = names.map((name) => ({ name, ...layout[name] }))
   return (
-    <MiddleBody>
-      <DetailsSection
-        kind="views"
-        title="Views per day"
-        meta={traffic.siteName ? `${note} on ${traffic.siteName}` : note}
-        legend={
-          <>
-            <LegendDot colour={MEMBER_COLOUR} label="Members" />
-            <LegendDot colour={VISITOR_COLOUR} label="Visitors" />
-          </>
-        }
-        chart={
-          traffic.totals.views > 0 ? (
-            <DailyBarChart
-              daily={traffic.daily}
-              config={viewsConfig}
-              bars={[
-                { key: "visitorViews", value: (point) => point.visitorViews },
-                { key: "memberViews", value: (point) => point.memberViews },
-              ]}
-              yAxisWidth={36}
-            />
-          ) : (
-            <EmptyChart message="No visits have been counted yet. They start appearing as soon as somebody opens a page." />
-          )
-        }
-        lists={[
-          { title: "Top pages", rows: topPageRows(traffic), empty: EMPTY_TEXT.pages },
-          { title: "Devices", rows: deviceRows(traffic), empty: EMPTY_TEXT.devices },
-          { title: "Top referrers", rows: referrerRows(traffic), empty: EMPTY_TEXT.referrers },
-        ]}
-      />
-      <DetailsSection
-        kind="ai-spend"
-        title="Daily AI spend"
-        meta={note}
-        chart={
-          ai.totals.calls > 0 ? (
-            <DailyBarChart
-              daily={ai.daily}
-              config={spendConfig}
-              bars={[{ key: "spend", value: (point) => point.costCents / 100 }]}
-              yAxisWidth={44}
-              fewDaysLabelInterval={2}
-              formatValue={(value) => formatMoney(value * 100)}
-            />
-          ) : (
-            <EmptyChart message="Nothing has used AI yet." />
-          )
-        }
-        lists={[
-          { title: "By feature", rows: featureRows(ai), empty: EMPTY_TEXT.features },
-          { title: "By model", rows: modelRows(ai), empty: EMPTY_TEXT.models },
-          { title: "By meter", rows: meterRows(metered), empty: EMPTY_TEXT.meters },
-        ]}
-      />
-      <PersonTable figures={figures} note={note} />
-    </MiddleBody>
+    <div className="@container min-h-0 flex-1 overflow-y-auto @3xl:overflow-hidden">
+      <div
+        className={cn(
+          // The site gap between the cards, and none round them: the cards'
+          // own edges line up with the left panel's.
+          "grid grid-cols-[minmax(0,1fr)] gap-3.75 @3xl:h-full",
+          rows.length === 2 ? "@3xl:grid-rows-2" : "@3xl:grid-rows-1"
+        )}
+      >
+        {rows.map((row) => (
+          <div
+            key={row.name}
+            className="grid grid-cols-[minmax(0,1fr)] gap-3.75 @3xl:min-h-0 @3xl:[grid-template-columns:repeat(var(--widget-columns),minmax(0,1fr))]"
+            style={{ "--widget-columns": row.columns } as React.CSSProperties}
+          >
+            {row.spots.map((id, index) => {
+              const spot = { row: row.name, index }
+              return id ? (
+                <Widget key={id} id={id} figures={figures} days={days} menu={{ layout, spot, onChange }} />
+              ) : (
+                <EmptySpot key={`empty-${index}`} layout={layout} spot={spot} onChange={onChange} />
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** What a widget's ⋮ needs: the layout, its spot, and the change. */
+type WidgetMenuProps = { layout: WidgetLayout; spot: Spot; onChange: (layout: WidgetLayout) => void }
+
+const SHELL_WIDGET_BY_ID = new Map<string, (typeof SHELL_WIDGETS)[number]>(
+  SHELL_WIDGETS.map((widget) => [widget.id, widget])
+)
+
+/** One spot's widget: one of the shell's nine, or one the app added. */
+function Widget({
+  id,
+  figures,
+  days,
+  menu,
+}: {
+  id: string
+  figures: OverviewFigures
+  days: AnalyticsRange
+  menu: WidgetMenuProps
+}) {
+  const shell = SHELL_WIDGET_BY_ID.get(id)
+  if (shell) return <ShellWidget id={shell.id} figures={figures} menu={menu} />
+  return <AppWidget id={id} days={days} menu={menu} />
+}
+
+const appWidgetsMade = new Map<
+  string,
+  { label: string; icon: React.ReactNode; Lazy: React.LazyExoticComponent<React.ComponentType<AdminAdditionProps>> }
+>()
+
+/**
+ * The app's widgets (`admin.widgets` in its `src/app/options.ts`), each
+ * loaded the first time it shows. A widget the app took away is never in a
+ * layout: `cleanWidgetLayout` empties its spot.
+ */
+function appWidget(id: string) {
+  if (appWidgetsMade.size === 0) {
+    for (const widget of appAdminWidgets(SHELL_WIDGET_IDS)) {
+      const Icon = widget.icon
+      appWidgetsMade.set(appWidgetId(widget.key), { label: widget.label, icon: <Icon />, Lazy: React.lazy(widget.load) })
+    }
+  }
+  return appWidgetsMade.get(id)
+}
+
+function AppWidget({ id, days, menu }: { id: string; days: AnalyticsRange; menu: WidgetMenuProps }) {
+  const made = appWidget(id)
+  if (!made) return <EmptySpot {...menu} />
+  const { Lazy } = made
+  return (
+    <WidgetCard title={made.label} icon={made.icon} menu={<WidgetMenu title={made.label} {...menu} />}>
+      <AdditionBoundary kind="widget">
+        <React.Suspense fallback={<p className="p-3 text-sm text-muted-foreground">Reading…</p>}>
+          <ScrollArea className="min-h-0 flex-1">
+            <Lazy days={days} />
+          </ScrollArea>
+        </React.Suspense>
+      </AdditionBoundary>
+    </WidgetCard>
   )
 }
 
@@ -122,60 +172,92 @@ const spendConfig: ChartConfig = {
   spend: { label: "Spend", color: "var(--primary)" },
 }
 
-const DETAILS_CHOICES = ["chart", "details"] as const
+/** A chart fills its card in a wide middle, and keeps a chart's height when stacked. */
+const CHART_FILL = "h-60 w-full min-w-0 @3xl:h-full @3xl:min-h-32"
 
-/**
- * A chart and its More details tab, edge to edge. More details holds the
- * chart's smaller lists, side by side when the middle is wide and stacked
- * when it is narrow. The tab picked is remembered in this browser.
- */
-function DetailsSection({
-  kind,
-  title,
-  meta,
-  legend,
-  chart,
-  lists,
-}: {
-  /** Plain characters; names the remembered tab. */
-  kind: string
-  title: string
-  meta: string
-  legend?: React.ReactNode
-  chart: React.ReactNode
-  lists: { title: string; rows: SideRow[]; empty: string }[]
-}) {
-  const [shown, setShown] = useRememberedChoice(`custom-shell-admin-${kind}-tab`, "chart", DETAILS_CHOICES)
+/** A list widget's rows, scrolling inside the card. */
+function ListBody({ rows, empty }: { rows: SideRow[]; empty: string }) {
   return (
-    <section aria-label={title} className="@container grid min-w-0">
-      <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
-        <DashboardTabs
-          value={shown}
-          onValueChange={(value) => setShown(value as (typeof DETAILS_CHOICES)[number])}
-          tabs={[
-            { value: "chart", label: title },
-            { value: "details", label: "More details" },
-          ]}
-        />
-        <span className="ml-auto flex min-w-0 items-center gap-4 text-xs text-muted-foreground">
-          {shown === "chart" && legend ? <span className="hidden items-center gap-4 sm:flex">{legend}</span> : null}
-          <span className="truncate">{meta}</span>
-        </span>
-      </div>
-      {shown === "chart" ? (
-        <div className="px-4 pb-4">{chart}</div>
-      ) : (
-        <div className="grid grid-cols-1 divide-y border-t @2xl:grid-cols-3 @2xl:divide-x @2xl:divide-y-0">
-          {lists.map((list) => (
-            <div key={list.title} className="grid min-w-0 content-start">
-              <h3 className="px-3 pt-3 pb-1 text-sm font-semibold">{list.title}</h3>
-              <SideRows rows={list.rows} empty={list.empty} />
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+    <ScrollArea className="min-h-0 flex-1">
+      <SideRows rows={rows} empty={empty} />
+    </ScrollArea>
   )
+}
+
+function ShellWidget({ id, figures, menu }: { id: ShellWidgetId; figures: OverviewFigures; menu: WidgetMenuProps }) {
+  const { traffic, ai, metered } = figures
+  const widget = SHELL_WIDGET_BY_ID.get(id)!
+  const Icon = widget.icon
+  const card = (body: React.ReactNode, count?: number) => (
+    <WidgetCard
+      title={widget.label}
+      icon={<Icon />}
+      count={count}
+      menu={<WidgetMenu title={widget.label} {...menu} />}
+    >
+      {body}
+    </WidgetCard>
+  )
+
+  switch (id) {
+    case "views":
+      return card(
+        <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+          <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground">
+            <LegendDot colour={MEMBER_COLOUR} label="Members" />
+            <LegendDot colour={VISITOR_COLOUR} label="Visitors" />
+          </div>
+          {traffic.totals.views > 0 ? (
+            <DailyBarChart
+              className={CHART_FILL}
+              daily={traffic.daily}
+              config={viewsConfig}
+              bars={[
+                { key: "visitorViews", value: (point) => point.visitorViews },
+                { key: "memberViews", value: (point) => point.memberViews },
+              ]}
+              yAxisWidth={36}
+            />
+          ) : (
+            <EmptyChart message="No visits have been counted yet. They start appearing as soon as somebody opens a page." />
+          )}
+        </div>
+      )
+    case "ai-spend":
+      return card(
+        <div className="flex min-h-0 flex-1 flex-col p-3">
+          {ai.totals.calls > 0 ? (
+            <DailyBarChart
+              className={CHART_FILL}
+              daily={ai.daily}
+              config={spendConfig}
+              bars={[{ key: "spend", value: (point) => point.costCents / 100 }]}
+              yAxisWidth={44}
+              fewDaysLabelInterval={2}
+              formatValue={(value) => formatMoney(value * 100)}
+            />
+          ) : (
+            <EmptyChart message="Nothing has used AI yet." />
+          )}
+        </div>
+      )
+    case "by-person": {
+      const rows = personRows(figures)
+      return card(<PersonTable rows={rows} />, rows.length)
+    }
+    case "top-pages":
+      return card(<ListBody rows={topPageRows(traffic)} empty={EMPTY_TEXT.pages} />)
+    case "devices":
+      return card(<ListBody rows={deviceRows(traffic)} empty={EMPTY_TEXT.devices} />)
+    case "referrers":
+      return card(<ListBody rows={referrerRows(traffic)} empty={EMPTY_TEXT.referrers} />)
+    case "ai-features":
+      return card(<ListBody rows={featureRows(ai)} empty={EMPTY_TEXT.features} />)
+    case "ai-models":
+      return card(<ListBody rows={modelRows(ai)} empty={EMPTY_TEXT.models} />)
+    case "meters":
+      return card(<ListBody rows={meterRows(metered)} empty={EMPTY_TEXT.meters} />)
+  }
 }
 
 /** One person's AI spend and metered units over the range. */
@@ -241,14 +323,15 @@ function personRows({ ai, metered }: OverviewFigures): PersonRow[] {
 
 type PersonSort = "person" | "spend" | "calls" | "allowance" | "units" | "last"
 
+// Columns drop out as the card narrows, the least needed first. The card is
+// the container they measure (`@container` on the table's box).
 const personColumns: SortableColumn<PersonSort>[] = [
   { key: "person", label: "Person", column: "main" },
   { key: "spend", label: "AI spend", column: "meta" },
-  // Columns drop out as the middle narrows, the least needed first.
   { key: "calls", label: "AI calls", column: "meta", className: "hidden @2xl:table-cell" },
   // Always this calendar month, whatever the range: the ceiling is monthly.
   { key: "allowance", label: "Allowance, this month", column: "meta", className: "hidden @4xl:table-cell" },
-  { key: "units", label: "Metered units", column: "meta" },
+  { key: "units", label: "Metered units", column: "meta", className: "hidden @sm:table-cell" },
   { key: "last", label: "Last used", column: "meta", className: "hidden @3xl:table-cell" },
 ]
 
@@ -280,49 +363,44 @@ function formatAllowance(row: PersonRow) {
   return `${formatMoney(row.monthSpentCents)} of ${formatMoney(row.allowanceCents)}`
 }
 
-/** The middle's tables sit straight on the panel: no frame, no corners. */
-const EDGE_TABLE = "rounded-none bg-transparent ring-0"
-
-function PersonTable({ figures, note }: { figures: OverviewFigures; note: string }) {
-  const runtime = useShellRuntime()
+/**
+ * By person: every row, sorted by a column's heading, scrolling inside the
+ * card. A name opens that person in Users.
+ */
+function PersonTable({ rows }: { rows: PersonRow[] }) {
   const { sort, direction, toggleSort } = useTableSort<PersonSort>("spend", "desc", personSortDirection)
-  const rows = React.useMemo(() => personRows(figures), [figures])
   const sorted = React.useMemo(() => sortRows(rows, { sort, direction }, personSortKeys), [rows, sort, direction])
-  const { visible, footer } = useClientPage(sorted, runtime.config.dashboardRowsPerPage, `${sort}|${direction}`)
-
+  if (sorted.length === 0) {
+    return <p className="p-3 text-sm text-muted-foreground">Nobody has used AI or a metered feature in this range.</p>
+  }
   return (
-    <DashboardTable
-      className={EDGE_TABLE}
-      title={`By person (${note})`}
-      icon={<UsersIcon className="text-muted-foreground" />}
-      count={sorted.length}
-      header={<SortableTableHeader columns={personColumns} sort={sort} direction={direction} onSort={toggleSort} />}
-      isEmpty={visible.length === 0}
-      emptyText="Nobody has used AI or a metered feature in this range."
-      emptyColSpan={personColumns.length}
-      footer={footer}
-    >
-      {visible.map((row) => (
-        <TableRow key={row.key}>
-          <TableCell column="main">
-            <MemberName userId={row.userId} name={row.name} className="text-sm" />
-            {row.email ? <span className="block truncate text-xs text-muted-foreground">{row.email}</span> : null}
-          </TableCell>
-          <TableCell column="meta">{formatMoney(row.aiCostCents)}</TableCell>
-          <TableCell column="mutedMeta" className="hidden @2xl:table-cell">
-            {row.aiCalls.toLocaleString()}
-          </TableCell>
-          <TableCell column="mutedMeta" className="hidden @4xl:table-cell">
-            {formatAllowance(row)}
-          </TableCell>
-          <TableCell column="meta" className="tabular-nums">
-            {row.units.toLocaleString()}
-          </TableCell>
-          <TableCell column="mutedMeta" className="hidden @3xl:table-cell">
-            {formatDate(new Date(row.lastUsedAt))}
-          </TableCell>
-        </TableRow>
-      ))}
-    </DashboardTable>
+    <div className="@container flex min-h-0 flex-1 flex-col">
+      <Table containerClassName="min-h-0 flex-1 overflow-auto">
+        <SortableTableHeader columns={personColumns} sort={sort} direction={direction} onSort={toggleSort} />
+        <TableBody>
+          {sorted.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell column="main">
+                <MemberName userId={row.userId} name={row.name} className="text-sm" />
+                {row.email ? <span className="block truncate text-xs text-muted-foreground">{row.email}</span> : null}
+              </TableCell>
+              <TableCell column="meta">{formatMoney(row.aiCostCents)}</TableCell>
+              <TableCell column="mutedMeta" className="hidden @2xl:table-cell">
+                {row.aiCalls.toLocaleString()}
+              </TableCell>
+              <TableCell column="mutedMeta" className="hidden @4xl:table-cell">
+                {formatAllowance(row)}
+              </TableCell>
+              <TableCell column="meta" className="hidden tabular-nums @sm:table-cell">
+                {row.units.toLocaleString()}
+              </TableCell>
+              <TableCell column="mutedMeta" className="hidden @3xl:table-cell">
+                {formatDate(new Date(row.lastUsedAt))}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

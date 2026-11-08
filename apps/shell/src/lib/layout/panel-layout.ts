@@ -23,7 +23,12 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
  */
 export function useRememberedPanelLayout(key: string) {
   const [group, groupRef] = useGroupCallbackRef()
-  const [loaded, setLoaded] = React.useState(false)
+  // The key whose saved layout is on the group now. Nothing is saved for a
+  // key until then: a group that adds or drops a panel (Admin's Overview has
+  // two, its other sections three) reports its default layout while it
+  // settles, and saving that wiped the widths kept for the key it moved to
+  // (found by the audit, 8 Nov 2026).
+  const [appliedKey, setAppliedKey] = React.useState<string | null>(null)
   // Set once each time the group appears, and once per key: setting it again
   // on a later render would undo a drag.
   const appliedFor = React.useRef<string | null>(null)
@@ -35,27 +40,46 @@ export function useRememberedPanelLayout(key: string) {
     }
     if (appliedFor.current === key) return
     appliedFor.current = key
+    let saved: Layout | null = null
     try {
-      const saved = localStorage.getItem(key)
-      if (saved) group.setLayout(JSON.parse(saved) as Layout)
+      const text = localStorage.getItem(key)
+      saved = text ? (JSON.parse(text) as Layout) : null
     } catch {
-      // A layout that cannot be read or no longer fits the panels leaves the
-      // defaults standing.
-    } finally {
-      setLoaded(true)
+      // Storage that cannot be read leaves the defaults standing.
     }
+    let frame = 0
+    let tries = 0
+    const apply = () => {
+      if (!saved) {
+        setAppliedKey(key)
+        return
+      }
+      try {
+        group.setLayout(saved)
+        setAppliedKey(key)
+      } catch {
+        // The group is still registering a panel added or taken away: try
+        // again next frame. A layout that never fits (the panels changed for
+        // good) leaves the defaults standing after a few tries.
+        tries += 1
+        if (tries < 20) frame = requestAnimationFrame(apply)
+        else setAppliedKey(key)
+      }
+    }
+    apply()
+    return () => cancelAnimationFrame(frame)
   }, [key, group])
 
   const onLayoutChanged = React.useCallback(
     (layout: Layout) => {
-      if (!loaded) return
+      if (appliedKey !== key) return
       try {
         localStorage.setItem(key, JSON.stringify(layout))
       } catch {
         // Storage may be blocked; resizing still works for this session.
       }
     },
-    [key, loaded]
+    [key, appliedKey]
   )
 
   return { groupRef, onLayoutChanged }
@@ -95,11 +119,15 @@ export const panelLayoutKey = {
   // `ThreePanels` screen has one, named `…Place`. All three CRM tabs share it,
   // so a bare `/admin/crm` goes back to the tab last open.
   crmPlace: "crm-workspace-place",
-  // The Admin dashboard (8 Nov 2026): Overview, Users and Feedback as one
-  // three-panel screen, each side at its narrowest 16%.
+  // The Admin dashboard (8 Nov 2026): Users, Feedback and Media library as
+  // three panels, each side at its narrowest 16%.
   admin: "admin-horizontal-1",
-  // Not a layout: where Admin was, for `useDashboardPlace`: the tab, the
-  // range, and on Users and Feedback the list and the record open.
+  // Admin's Overview, two panels: the left page and the widgets, which take
+  // the right panel's room. Its own key, because a layout kept for three
+  // panels does not fit two.
+  adminOverview: "admin-overview-horizontal-1",
+  // Not a layout: where Admin was, for `useDashboardPlace`: the section, the
+  // range, and on the other sections the list and the record open.
   adminPlace: "admin-place",
   // One key: the front page editor has no bottom panel, so there is no second
   // group whose height needs remembering.

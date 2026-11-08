@@ -1,3 +1,4 @@
+import { readSkyCity } from "@/lib/notes/sky-city"
 import { eq } from "drizzle-orm"
 
 import { appPublicTheme, appUsesSiteBranding } from "@/lib/app-options"
@@ -546,6 +547,7 @@ export function parseShellGlobals(value: unknown) {
       typeof settings.memberHomeRoute === "string"
         ? settings.memberHomeRoute
         : fallback.memberHomeRoute,
+    skyCity: readSkyCity(settings.skyCity),
     // Saved is saved, empty included: an admin who deletes every member link
     // means it, and handing the starter set back on read would undo that. The
     // starter only fills in a row that has never had a member sidebar at all.
@@ -629,6 +631,7 @@ export function pickShellGlobals(
     | "topLeftShortcuts"
     | "adminRoute"
     | "memberHomeRoute"
+    | "skyCity"
     | "memberSections"
     | "roleSections"
     | "memberTopRightNavigation"
@@ -680,6 +683,7 @@ export function pickShellGlobals(
     topLeftShortcuts: settings.topLeftShortcuts,
     adminRoute: settings.adminRoute,
     memberHomeRoute: settings.memberHomeRoute,
+    skyCity: settings.skyCity,
     memberSections: settings.memberSections,
     roleSections: settings.roleSections,
     memberTopRightNavigation: settings.memberTopRightNavigation,

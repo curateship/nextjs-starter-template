@@ -14,8 +14,8 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 const typesOf = (body: string) =>
   (JSON.parse(body) as { content: { type: string }[] }).content.map((node) => node.type)
 
-/** The Admin dashboard's left and right pages, against a real database. */
-describe("the Admin pages", () => {
+/** The Admin dashboard's page, against a real database. */
+describe("the Admin page", () => {
   let db: CustomShellDb
   const workspaceId = "ws-admin"
 
@@ -33,20 +33,22 @@ describe("the Admin pages", () => {
     })
   })
 
-  it("starts the left page with the Plans block and the right page empty", async () => {
-    const left = await getAdminPage(workspaceId, "left", db)
-    expect(typesOf(left.body)).toEqual(["noteAdminPlans", "paragraph"])
-    expect(left).toMatchObject({ locked: false, coverUrl: null })
-    expect(typesOf((await getAdminPage(workspaceId, "right", db)).body)).toEqual(["paragraph"])
+  it("starts the page with Dashboards and Plans", async () => {
+    const page = await getAdminPage(workspaceId, "left", db)
+    expect(typesOf(page.body)).toEqual(["noteAdminSections", "noteAdminPlans", "paragraph"])
+    expect(page).toMatchObject({ locked: false, coverUrl: null })
   })
 
-  it("keeps its own blocks and words, drops a block it does not know, and keeps an emptied page empty", async () => {
+  it("keeps its own blocks and words, and drops a block it does not know", async () => {
     await saveAdminPageBody(
       workspaceId,
-      "right",
+      "left",
       JSON.stringify({
         type: "doc",
         content: [
+          { type: "noteAdminSections" },
+          { type: "noteAdminPlans" },
+          // A figure block from before Overview became widgets, and another dashboard's.
           { type: "noteAdminTopPages" },
           { type: "noteCrmStages" },
           { type: "paragraph", content: [{ type: "text", text: "Check spend on Mondays" }] },
@@ -54,21 +56,54 @@ describe("the Admin pages", () => {
       }),
       db
     )
-    expect(typesOf((await getAdminPage(workspaceId, "right", db)).body)).toEqual(["noteAdminTopPages", "paragraph"])
-
-    await saveAdminPageBody(workspaceId, "left", JSON.stringify({ type: "doc", content: [] }), db)
-    expect(typesOf((await getAdminPage(workspaceId, "left", db)).body)).toEqual(["paragraph"])
+    expect(typesOf((await getAdminPage(workspaceId, "left", db)).body)).toEqual([
+      "noteAdminSections",
+      "noteAdminPlans",
+      "paragraph",
+    ])
   })
 
-  it("keeps each page's lock and cover to itself", async () => {
+  it("keeps the Dashboards block, wherever it was moved, and only once", async () => {
+    // Emptied, the page still has its way between the sections.
+    await saveAdminPageBody(workspaceId, "left", JSON.stringify({ type: "doc", content: [] }), db)
+    expect(typesOf((await getAdminPage(workspaceId, "left", db)).body)).toEqual(["noteAdminSections", "paragraph"])
+
+    // Moved under a line, it stays there; a second copy goes.
+    await saveAdminPageBody(
+      workspaceId,
+      "left",
+      JSON.stringify({
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "Read me first" }] },
+          { type: "noteAdminSections" },
+          { type: "noteAdminSections" },
+        ],
+      }),
+      db
+    )
+    expect(typesOf((await getAdminPage(workspaceId, "left", db)).body)).toEqual(["paragraph", "noteAdminSections"])
+  })
+
+  it("keeps the page's lock and cover, and refuses a save while locked", async () => {
     await setAdminPageLock(workspaceId, "left", true, db)
-    await setAdminPageCover(workspaceId, "right", "/media/cover.jpg", db)
+    await setAdminPageCover(workspaceId, "left", { coverUrl: "/media/cover.jpg", coverImages: ["/media/cover.jpg"] }, db)
     await expect(
       saveAdminPageBody(workspaceId, "left", JSON.stringify({ type: "doc", content: [] }), db)
     ).rejects.toThrow(ADMIN_PAGE_LOCKED)
+    expect(await getAdminPage(workspaceId, "left", db)).toMatchObject({
+      locked: true,
+      coverUrl: "/media/cover.jpg",
+      coverImages: ["/media/cover.jpg"],
+    })
+  })
 
-    expect(await getAdminPage(workspaceId, "left", db)).toMatchObject({ locked: true, coverUrl: null })
-    expect(await getAdminPage(workspaceId, "right", db)).toMatchObject({ locked: false, coverUrl: "/media/cover.jpg" })
-    await saveAdminPageBody(workspaceId, "right", JSON.stringify({ type: "doc", content: [] }), db)
+  it("keeps the sky as a cover, and the pictures it had", async () => {
+    expect(await getAdminPage(workspaceId, "left", db)).toMatchObject({ coverUrl: null, coverImages: [] })
+    await setAdminPageCover(workspaceId, "left", { coverUrl: "sky", coverImages: ["/media/a.jpg", "/media/b.jpg"] }, db)
+    expect(await getAdminPage(workspaceId, "left", db)).toMatchObject({
+      coverUrl: "sky",
+      coverImages: ["/media/a.jpg", "/media/b.jpg"],
+    })
   })
 })

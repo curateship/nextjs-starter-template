@@ -93,8 +93,11 @@ export function CrmListHeader({
   search,
   massSelect,
   menuItems,
+  end,
 }: {
   tabs: React.ReactNode
+  /** After the ⋮, last in the header: a button that reopens the right panel. */
+  end?: React.ReactNode
   /** The "N selected" menu, while rows are ticked. */
   selected?: React.ReactNode
   filter?: React.ReactNode
@@ -197,6 +200,7 @@ export function CrmListHeader({
             </MenuAction>
           ))}
         </FoldingMenu>
+        {end}
       </div>
     </DashboardCardHeader>
   )

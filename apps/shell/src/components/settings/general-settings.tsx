@@ -1,4 +1,6 @@
 import * as React from "react"
+
+import { SkyCityField } from "@/components/settings/sky-city-field"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { NotificationSettings } from "@/components/settings/notification-settings"
@@ -64,6 +66,15 @@ export function GeneralSettings({
   // shell-layout.tsx), so say so on blur rather than letting the edit sit on
   // screen looking saved.
 
+  // The sky city arrives after its lookup, which can take a few seconds; it
+  // goes onto the settings as they are then, so an edit made meanwhile stays
+  // (found by the audit, 8 Nov 2026).
+  const latestConfig = React.useRef(config)
+  React.useEffect(() => {
+    latestConfig.current = config
+  })
+  const setSkyCity = (skyCity: ShellConfig["skyCity"]) => onConfigChange({ ...latestConfig.current, skyCity })
+
   const workspaceNameMissing = !config.workspaceName.trim()
   // An app that serves one website has one logo and nothing to choose between.
   // An app that serves several gives each site its own, and the app-wide one
@@ -126,7 +137,7 @@ export function GeneralSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="admin-route"
-            hint="Where the home page and /admin open for admins, for example /admin/media. Empty opens the Overview dashboard. It has to be a real route — an unknown path will 404."
+            hint="Where the home page and /admin open for admins, for example /admin/crm. Empty opens the Admin dashboard. It has to be a real route — an unknown path will 404."
           >
             Admin home route
           </FieldLabel>
@@ -139,7 +150,7 @@ export function GeneralSettings({
                 adminRoute: event.target.value,
               })
             }
-            placeholder="Leave empty for the Overview"
+            placeholder="Leave empty for the Admin dashboard"
           />
         </div>
 
@@ -162,6 +173,8 @@ export function GeneralSettings({
             placeholder="Leave empty for their own home page"
           />
         </div>
+
+        <SkyCityField city={config.skyCity} onChange={(skyCity) => setSkyCity(skyCity)} />
 
         <div className="grid gap-2">
           <Label htmlFor="dashboard-rows-per-page">

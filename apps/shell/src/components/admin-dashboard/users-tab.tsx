@@ -43,7 +43,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useListSort, useOpenRecord } from "@/lib/nav/list-search"
-import { allRoles, roleLabel } from "@/lib/roles"
+import { roleLabel } from "@/lib/roles"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** What the route's loader read for the Users tab: the first page, from the address. */
@@ -81,13 +81,16 @@ export function UsersTab({
   loaded,
   search,
   currentUserId,
-  tabs,
+  heading,
+  headingEnd,
   frame,
 }: {
   loaded: UsersLoaded
   search: AdminSearch
   currentUserId: string
-  tabs: React.ReactNode
+  heading: React.ReactNode
+  /** Last in the header: the button that reopens the right panel. */
+  headingEnd: React.ReactNode
   frame: AdminFrame
 }) {
   // The reader left only this tab's keys in the address (`readAdminSearch`).
@@ -203,8 +206,21 @@ export function UsersTab({
     column === "created" ? "desc" : "asc"
   )
   const columns: TableHeaderColumn<UserSortColumn>[] = [
-    { key: "name", label: "Name", column: "main", className: "min-w-40" },
-    { key: "email", label: "Email", column: "preview", className: "hidden md:hidden @2xl:table-cell" },
+    // Name only as wide as it needs and Email takes the rest, as the CRM's
+    // Inbox lays out From and Email (Tyler, 8 Nov 2026: "there is a lot more
+    // space for the email to show more").
+    { key: "name", label: "Name", column: "main", className: "w-px min-w-40" },
+    {
+      key: "email",
+      label: "Email",
+      column: "preview",
+      // Right-aligned, so the address sits beside Role rather than leaving
+      // the gap after it (Tyler, 8 Nov 2026: "align email to right").
+      // The sort button sits at the right edge with its arrow before the word,
+      // so "Email" ends where the addresses do.
+      className:
+        "hidden w-full max-w-none min-w-40 text-right md:hidden @2xl:table-cell [&_button]:ml-auto [&_button]:w-fit [&_button]:flex-row-reverse",
+    },
     { key: "role", label: "Role", column: "preview", className: "hidden md:hidden @4xl:table-cell" },
     { key: "status", label: "Status", column: "preview" },
     { key: "plan", label: "Plan", column: "preview", className: "hidden md:hidden @3xl:table-cell" },
@@ -245,14 +261,16 @@ export function UsersTab({
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const filterCount = (role === "all" ? 0 : 1) + (status === "all" ? 0 : 1)
+  // Role is the header's tabs, so Filter holds Status alone.
+  const filterCount = status === "all" ? 0 : 1
   const rightClicked = rightClick ? accounts.find((account) => account.id === rightClick.id) : undefined
   const openId = listSearch.open ?? accounts[0]?.id
 
   return frame({
     header: (
       <CrmListHeader
-        tabs={tabs}
+        tabs={heading}
+        end={headingEnd}
         selected={
           massSelect && ticked.length ? (
             <SelectedMenu
@@ -290,28 +308,12 @@ export function UsersTab({
         }
         filter={
           <FilterPopover
+            // Narrow: a label and a select a row (Tyler, 8 Nov 2026: "filter dropdown is too wide").
+            contentClassName="w-60"
             count={filterCount}
-            onClear={() => setListSearch({ role: undefined, status: undefined, page: undefined })}
+            onClear={() => setListSearch({ status: undefined, page: undefined })}
             save={null}
           >
-            <FilterRow id="admin-users-role" label="Role">
-              <Select
-                value={role}
-                onValueChange={(value) => setListSearch({ role: value === "all" ? undefined : value, page: undefined })}
-              >
-                <SelectTrigger id="admin-users-role" className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All roles</SelectItem>
-                  {allRoles().map((one) => (
-                    <SelectItem key={one.id} value={one.id}>
-                      {one.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterRow>
             <FilterRow id="admin-users-status" label="Status">
               <Select
                 value={status}
@@ -382,11 +384,14 @@ export function UsersTab({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setListSearch({ q: undefined, role: undefined, status: undefined, page: undefined })}
+                  // The role is the header's tab, not a filter, so it stays.
+                  onClick={() => setListSearch({ q: undefined, status: undefined, page: undefined })}
                 >
                   Clear filters
                 </Button>
               </span>
+            ) : role !== "all" ? (
+              `Nobody has the ${roleLabel(role)} role.`
             ) : (
               "No accounts yet."
             )
@@ -417,19 +422,20 @@ export function UsersTab({
                 <MainCell name={account.name} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
                   {own ? <Chip muted>You</Chip> : null}
                 </MainCell>
-                <TableCell column="preview" className="hidden md:hidden @2xl:table-cell">
-                  <span className="block max-w-64 truncate text-muted-foreground">{account.email}</span>
+                <TableCell column="preview" className="hidden w-full max-w-0 min-w-40 text-right md:hidden @2xl:table-cell">
+                  <span className="block truncate text-muted-foreground">{account.email}</span>
                 </TableCell>
                 <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
                   <Chip muted={account.role !== "admin"}>{roleLabel(account.role)}</Chip>
                 </TableCell>
                 <TableCell column="preview">
-                  <Chip>{words.label}</Chip>
+                  {/* Grey, as every chip in the list but an admin's role (Tyler, 8 Nov 2026: "the status col and these are not gray"). */}
+                  <Chip muted>{words.label}</Chip>
                 </TableCell>
                 {/* The plan's name alone: whether it was granted or is ending
                     is on the right panel. */}
                 <TableCell column="preview" className="hidden md:hidden @3xl:table-cell">
-                  <Chip muted={!account.planIsPaid}>{planCellLabel(account)}</Chip>
+                  <Chip muted>{planCellLabel(account)}</Chip>
                 </TableCell>
                 <TableCell column="preview" className="hidden md:hidden @6xl:table-cell">
                   <TagChips tags={account.tags} />

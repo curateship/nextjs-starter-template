@@ -241,7 +241,7 @@ function UserCards({ detail }: { detail: AccountDetail }) {
           <DetailRow label="Space used" value={formatFileSize(storage.bytes)} />
         </Rows>
         <Button asChild variant="outline" size="sm" className="justify-self-start bg-background">
-          <Link to="/admin/media" search={{ owner: profile.id, media: undefined, orphan: undefined }}>
+          <Link to="/admin/dashboard" search={{ tab: "media", owner: profile.id }}>
             <HardDriveIcon className="size-4" />
             {storage.files ? "Open their files" : "Open the library"}
           </Link>

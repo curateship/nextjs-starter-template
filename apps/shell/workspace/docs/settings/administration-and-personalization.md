@@ -52,8 +52,8 @@ reset button also sits inside its card, beneath the menu items.
 Six cards, in this order. Each collapses on its own and remembers the choice
 per browser.
 
-1. **General settings** — app name, site name, the two home routes, rows per
-   page, toast duration, the logo and the browser tab icon.
+1. **General settings** — app name, site name, the two home routes, the sky
+   city, rows per page, toast duration, the logo and the browser tab icon.
 2. **Notifications** — one switch for whether the bell lights up the moment
    something happens, then the twelve kinds a bell may show. These were two
    cards on two screens before 25 Sep 2026 and are one question.
@@ -62,6 +62,17 @@ per browser.
 4. **Old data** — what the app deletes for itself once a day.
 5. **Cloudflare R2** — where uploaded files are kept.
 6. **Maintenance mode** — last, because it is the one that shuts the app.
+
+**Sky city** (Tyler, 8 Nov 2026: "we need a time zone setting because it
+shows the sun and its almost night here", then picking real sun times for a
+city): a page cover set to Sky follows this city's real sunrise and sunset, so
+its evenings come earlier in winter. Typed and left, the city is looked up
+once by name (Open-Meteo's free geocoding, from the server; `api/notes/sky-city.ts`)
+and kept as its name and place; the line under the field says what was found
+and today's sun times there, in the viewer's time. The sky then works out each
+day's sunrise and sunset itself (`src/lib/notes/sky-city.ts`). Empty, the sky
+uses fixed hours on each viewer's own clock, night from 6 PM. One city for
+the whole app.
 
 Cloudflare R2 on General settings and AI provider keys on the AI row each load
 from the server when their screen opens. Both report their own

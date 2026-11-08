@@ -1,0 +1,98 @@
+# An app's own Admin blocks and widgets
+
+An app adds "/" blocks to the Admin dashboard's left page, and widgets to its
+Overview, from its own `src/app/options.ts`. It never edits a shell file to do
+it. Tyler asked for this on 8 Nov 2026: "We also need to build it in a way
+that each individual app can add its own block and widget without having to
+modify shell". What the Admin dashboard is, panel by panel, is in the shell's
+`apps/shell/workspace/docs/ui/admin.md`.
+
+## What an app writes
+
+Two lists under `admin` in the app's options, one entry per block or widget:
+
+```ts
+// src/app/options.ts
+import { CalendarIcon, PlaneIcon } from "lucide-react"
+import type { AppOptions } from "@/lib/app-options"
+
+export const appOptions: AppOptions = {
+  admin: {
+    blocks: [
+      { key: "trips-today", label: "Trips today", icon: PlaneIcon, load: () => import("./admin/trips-today") },
+    ],
+    widgets: [
+      { key: "bookings", label: "Bookings", icon: CalendarIcon, load: () => import("./admin/bookings-widget") },
+    ],
+  },
+}
+```
+
+- **`key`:** lower-case letters, digits and single dashes, starting with a
+  letter. It names what is saved: a block on a page, or a widget in the
+  Overview layout. Changing it later loses every one already placed.
+- **`label` and `icon`:** the "/" row or the widget's heading, and its
+  lucide icon.
+- **`load`:** a function returning an import of the file whose default export
+  is the component. It is a pointer, never the component itself, for the same
+  reason a Settings tab's `panel` is: the component reads its figures through
+  `@/lib/api/*`, and the options are reachable from the server. The file is
+  fetched the first time the block or widget shows.
+
+## What the component gets
+
+```tsx
+// src/app/admin/bookings-widget.tsx
+import type { AdminAdditionProps } from "@/lib/admin-dashboard/admin-additions"
+
+export default function BookingsWidget({ days }: AdminAdditionProps) {
+  // Read the app's own figures for the range, through its own src/lib/api/ reader.
+}
+```
+
+- **`days`** is the Date range picked in the Admin ⋮'s General tab: 1, 7,
+  30, 90 or 365.
+- **It reads its own data** through a server function the app declares in
+  `src/lib/api/`, never in `src/app/`, because the guard test only walks
+  `src/lib/api` (`shell-and-apps.md`).
+- **A member's name** can be `MemberName` from
+  `components/admin-dashboard/admin-parts.tsx`, which opens that person in
+  Users. `SideRows` there draws the narrow rows the shell's own lists use.
+- **A widget** sits in the shell's `WidgetCard`, with its label, icon and the
+  widget's ⋮ on the heading, and scrolls inside the card. Draw only what goes
+  on the white tile.
+- **A block** sits in the shell's `BlockCard`, which folds by its title and
+  has Delete block in its ⋮.
+- **One that throws** says "This widget could not be drawn." or "This block
+  could not be drawn." in its own card, and the rest of the dashboard
+  carries on.
+
+## What the shell does with them
+
+- **The "/" list** on the Admin page offers the shell's Plans, then the
+  app's blocks, under Advanced blocks. An app block's saved node name comes
+  from its key (`trip-count` is `noteAdminAppTripCount`), so the app never
+  names one, and the server keeps it on a saved page because it reads the
+  same keys.
+- **The Widgets tab** of the Admin ⋮, each widget's own ⋮ and an empty
+  spot's "Add a widget" offer the shell's nine widgets, then the app's. An app widget is stored in the layout as `app:<key>`. If the app
+  later drops it, its spot reads as Empty.
+- **Refused out loud:** a key the shell already uses (the blocks `sections`
+  and `plans`; the nine widget ids in `overview-widgets.ts`), a key used
+  twice, or one that is not plain. The Admin dashboard fails to load with the reason,
+  the way a clashing Settings tab does, rather than one quietly never
+  showing.
+- **With nothing set,** the dashboard is the shell's alone. The shell's own
+  `src/app/options.ts` stays empty.
+
+## Where it lives
+
+- The entry's type and the key checks: `src/lib/admin-dashboard/admin-additions.ts`.
+- The option and its readers, `appAdminBlocks` and `appAdminWidgets`:
+  `src/lib/app-options.ts`.
+- Blocks: `adminBlocks()` in `src/components/admin-dashboard/admin-blocks.tsx`,
+  and the names the server cleans a page with, `adminPageBlockTypes()` in
+  `src/lib/admin-dashboard/admin-page.ts`.
+- Widgets: `widgetChoices()` in `src/lib/admin-dashboard/overview-widgets.ts`,
+  drawn by `src/components/admin-dashboard/overview-tab.tsx`.
+- Tests: `src/lib/admin-dashboard/admin-additions.test.ts`.

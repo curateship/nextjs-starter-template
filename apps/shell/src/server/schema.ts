@@ -35,6 +35,7 @@ import {
 } from "drizzle-orm/pg-core"
 import type { WorkspaceStatus } from "@/lib/workspaces/status"
 import type { AdminPageSide } from "@/lib/admin-dashboard/admin-page"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 
 export const customShellUsers = pgTable(
   "users",
@@ -2604,15 +2605,17 @@ export const customShellCrmPages = pgTable("crm_pages", {
     .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
   body: text("body").notNull().default(""),
   coverUrl: text("cover_url"),
+  // The page's own cover pictures, kept as tiles (migration 0109).
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   locked: boolean("locked").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
 /**
- * The Admin dashboard's two pages, one of each per site (Tyler, 8 Nov 2026):
- * the left page beside every tab and the right page beside Overview, each
- * with what is written on it, its cover photo, and its lock. The same shape
- * as `crm_pages`, keyed by side as well.
+ * The Admin dashboard's page, one per site (Tyler, 8 Nov 2026): the left page
+ * beside every section, with what is written on it, its cover and cover
+ * pictures, and its lock. The same shape as `crm_pages`, keyed by side as
+ * well; only `left` is used since Overview's right page went (migration 0108).
  */
 export const customShellAdminPages = pgTable(
   "admin_pages",
@@ -2623,6 +2626,7 @@ export const customShellAdminPages = pgTable(
     side: varchar("side", { length: 8 }).$type<AdminPageSide>().notNull(),
     body: text("body").notNull().default(""),
     coverUrl: text("cover_url"),
+    coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
     locked: boolean("locked").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -2631,6 +2635,21 @@ export const customShellAdminPages = pgTable(
     check("admin_pages_side_check", sql`${table.side} IN ('left', 'right')`),
   ]
 )
+
+/**
+ * Overview's widgets on the Admin dashboard, one layout per site: up to two
+ * rows, each with its own columns, each column one widget or Empty
+ * (`src/lib/admin-dashboard/overview-widgets.ts`). Every read and write goes
+ * through `cleanWidgetLayout`, so what is stored is always a layout that
+ * draws. No row: the default layout.
+ */
+export const customShellAdminWidgetLayouts = pgTable("admin_widget_layouts", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  layout: jsonb("layout").$type<WidgetLayout>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
 
 /**
  * One back-and-forth with one lead.
