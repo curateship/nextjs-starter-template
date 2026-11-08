@@ -23,6 +23,7 @@ import {
   setThreadSaved,
   setThreadStatus,
   setThreadStatuses,
+  waitingCutoff,
   type ManyThreadsResult,
 } from "@/server/crm/inbox"
 import { listInboundAddresses } from "@/server/crm/addresses"
@@ -33,6 +34,8 @@ import { listWorkspaceLeadTags } from "@/server/crm/lead-tags"
 import { fillMessageBody, MAX_BODY_ATTEMPTS } from "@/server/crm/inbound"
 import { sendCrmReply } from "@/server/crm/reply"
 import { getCrmReplySender } from "@/server/crm/sender"
+import { devOutboxIsAvailable } from "@/server/email/dev-outbox"
+import { getEmailSettings } from "@/server/email/settings"
 import { adminGet, adminPost } from "@/server/guards"
 import { currentWorkspaceId } from "@/server/people/workspaces"
 
@@ -76,6 +79,12 @@ export type InboxPage = {
   allCount: number
   unreadCount: number
   savedCount: number
+  /** The Waiting pill: they wrote last and nobody answered for `unansweredDays`. */
+  waitingCount: number
+  /** After how many days a conversation is waiting; 0 is off, and the pill hides. */
+  unansweredDays: number
+  /** Whether this server keeps a development outbox, which is what shows the Outbox pill. */
+  outboxAvailable: boolean
   /** Every address mail arrives at, oldest first, for the row labels and the filter. */
   addresses: { address: string; label: string }[]
   /** Every tag the site's leads carry, for the filter. */
@@ -165,6 +174,8 @@ const listSchema = z.object({
   stage: z.enum([...CRM_STAGES, "all"]).optional(),
   unreadOnly: z.boolean().optional(),
   savedOnly: z.boolean().optional(),
+  /** The Waiting pill. Ignored while chasing is off. */
+  waitingOnly: z.boolean().optional(),
   toAddress: z.string().trim().max(255).optional(),
   followUpDue: z.boolean().optional(),
   tag: z.string().trim().max(60).optional(),
@@ -199,11 +210,19 @@ const loadInboxFn = createServerFn({ method: "GET" })
   .inputValidator(listSchema)
   .handler(async ({ data, context }): Promise<InboxPage> => {
     const workspaceId = await currentWorkspaceId(context.user.id)
-    const addresses = await listInboundAddresses(workspaceId)
+    const [addresses, settings] = await Promise.all([
+      listInboundAddresses(workspaceId),
+      getEmailSettings(workspaceId),
+    ])
+    // The same default the chase job and the Waiting on you block use.
+    const unansweredDays = settings?.crmUnansweredDays ?? 3
+    const waitingSince = unansweredDays > 0 ? waitingCutoff(unansweredDays) : null
     // The first address also takes the conversations from before the list,
     // which have none recorded: it was the only one then.
+    const { waitingOnly, ...rest } = data
     const filter = {
-      ...data,
+      ...rest,
+      waitingSince: waitingOnly ? (waitingSince ?? undefined) : undefined,
       toAddressTakesUnknown:
         Boolean(data.toAddress) &&
         addresses[0]?.address.toLowerCase() === data.toAddress?.toLowerCase(),
@@ -214,7 +233,7 @@ const loadInboxFn = createServerFn({ method: "GET" })
         limit: CRM_INBOX_PAGE_SIZE,
         offset: ((data.page ?? 1) - 1) * CRM_INBOX_PAGE_SIZE,
       }),
-      countInboxThreads(workspaceId, filter),
+      countInboxThreads(workspaceId, filter, undefined, waitingSince),
       getCrmReplySender(workspaceId),
       listWorkspaceLeadTags(workspaceId),
     ])
@@ -223,14 +242,19 @@ const loadInboxFn = createServerFn({ method: "GET" })
       // Worked out from the three counts rather than asked for again: the
       // list's filters are the tab filters plus the tab's own, so it is always
       // one of these three.
-      total: data.savedOnly
-        ? counts.saved
-        : data.unreadOnly
-          ? counts.unread
-          : counts.all,
+      total: filter.waitingSince
+        ? counts.waiting
+        : data.savedOnly
+          ? counts.saved
+          : data.unreadOnly
+            ? counts.unread
+            : counts.all,
       allCount: counts.all,
       unreadCount: counts.unread,
       savedCount: counts.saved,
+      waitingCount: counts.waiting,
+      unansweredDays,
+      outboxAvailable: devOutboxIsAvailable(),
       addresses: addresses.map(({ address, label }) => ({ address, label })),
       tags,
       inboundAddress: sender?.address ?? null,

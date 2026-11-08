@@ -5,6 +5,8 @@ import type { CrmStage } from "@/lib/crm/crm"
 import { PAGE_MAX_LENGTH, storedPageBody, type StoredPage } from "@/lib/notes/page-body"
 import { now } from "@/server/auth/security"
 import { listInboundAddresses } from "@/server/crm/addresses"
+import { waitingConditions, waitingCutoff } from "@/server/crm/inbox"
+import { listWorkspaceSegments } from "@/server/people/contact-segments"
 import { getEmailSettings } from "@/server/email/settings"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -31,8 +33,11 @@ export async function getCrmPage(
     .from(customShellCrmPages)
     .where(eq(customShellCrmPages.workspaceId, workspaceId))
     .limit(1)
+  // Read through the same cleaning a save runs, so a block that has since
+  // left the page (the Emails block, 7 Nov 2026) is not handed to the editor.
+  const body = row?.body ? storedPageBody(row.body, CRM_PAGE_BLOCK_TYPES) : ""
   return {
-    body: row?.body || JSON.stringify(defaultCrmPage()),
+    body: body || JSON.stringify(defaultCrmPage()),
     locked: row?.locked ?? false,
     coverUrl: row?.coverUrl ?? null,
   }
@@ -119,6 +124,11 @@ export type CrmBlockFigures = {
     subject: string
     lastMessageAt: string
   }[]
+  /**
+   * Every saved segment of contacts with how many are in it, A to Z: the
+   * Segments block, and the People tab's pills after its fixed ones.
+   */
+  segments: { id: string; name: string; total: number }[]
 }
 
 const FOLLOW_UPS_SHOWN = 20
@@ -129,9 +139,9 @@ export async function getCrmBlockFigures(
 ): Promise<CrmBlockFigures> {
   const settings = await getEmailSettings(workspaceId, database)
   const unansweredDays = settings?.crmUnansweredDays ?? 3
-  const waitedSince = new Date(now().getTime() - unansweredDays * 86_400_000)
+  const waitedSince = waitingCutoff(unansweredDays)
 
-  const [addresses, openByAddress, due, stageRows, waiting] = await Promise.all([
+  const [addresses, openByAddress, due, stageRows, waiting, segments] = await Promise.all([
     listInboundAddresses(workspaceId, database),
     database
       .select({
@@ -187,15 +197,13 @@ export async function getCrmBlockFigures(
           .where(
             and(
               eq(customShellCrmThreads.workspaceId, workspaceId),
-              eq(customShellCrmThreads.status, "open"),
-              eq(customShellCrmThreads.lastDirection, "in"),
-              lte(customShellCrmThreads.lastMessageAt, waitedSince),
-              notInArray(customShellCrmLeads.stage, ["won", "lost"])
+              waitingConditions(waitedSince)
             )
           )
           .orderBy(asc(customShellCrmThreads.lastMessageAt))
           .limit(FOLLOW_UPS_SHOWN)
       : Promise.resolve([]),
+    listWorkspaceSegments(workspaceId, database),
   ])
 
   // Each lead's newest conversation, which pressing the row opens.
@@ -269,5 +277,10 @@ export async function getCrmBlockFigures(
     openCount: Number(openRow?.open ?? 0),
     unansweredDays,
     waiting: waiting.map((row) => ({ ...row, lastMessageAt: row.lastMessageAt.toISOString() })),
+    segments: segments.map((row) => ({
+      id: row.segment.id,
+      name: row.segment.name,
+      total: row.total,
+    })),
   }
 }

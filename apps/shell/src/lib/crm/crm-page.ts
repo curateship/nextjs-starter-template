@@ -8,19 +8,22 @@ import type { NoteNode } from "@/lib/notes/note-blocks"
  * dropped on save.
  */
 export const CRM_PAGE_BLOCK_TYPES = [
-  "noteCrmEmails",
   "noteCrmFollowUps",
   "noteCrmStages",
   "noteCrmWaiting",
+  "noteCrmSegments",
 ] as const
 export type CrmPageBlockType = (typeof CRM_PAGE_BLOCK_TYPES)[number]
 
-/** A page nobody has written on starts with the Emails and Follow up today blocks. */
+/**
+ * A page nobody has written on starts with the Follow up today block. The
+ * addresses mail arrives at moved from a block here into the CRM settings ⋮'s
+ * Emails tab (Tyler, 7 Nov 2026: "move the email block to the settings").
+ */
 export function defaultCrmPage(): NoteNode {
   return {
     type: "doc",
     content: [
-      { type: "noteCrmEmails" },
       { type: "noteCrmFollowUps" },
       { type: "paragraph" },
     ],

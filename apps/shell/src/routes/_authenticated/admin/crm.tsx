@@ -1,166 +1,104 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 
-import { CrmWorkspace } from "@/components/crm/crm-workspace"
-import type { InboxFilters } from "@/components/crm/inbox-list-panel"
+import { CrmDashboard, type CrmLoaded } from "@/components/crm/crm-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { getCrmErrorMessage, loadInbox } from "@/lib/api/crm/inbox"
 import {
-  getCrmErrorMessage,
-  loadInbox,
-} from "@/lib/api/crm/inbox"
+  loadBroadcastBlockDefaults,
+  loadBroadcastsPage,
+  loadBroadcastTemplates,
+} from "@/lib/api/email/broadcasts"
+import { loadDevOutbox } from "@/lib/api/email/dev-outbox"
+import { loadSegmentChoices } from "@/lib/api/people/contact-segments"
+import { loadContactsPage } from "@/lib/api/people/contacts"
+import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
+import type { CrmInboxSort } from "@/lib/crm/crm"
 import {
-  CRM_DEFAULT_INBOX_SORT,
-  CRM_INBOX_SORTS,
-  CRM_STAGES,
-  CRM_THREAD_STATUSES,
-  type CrmInboxSort,
-  type CrmStage,
-  type CrmThreadStatus,
-} from "@/lib/crm/crm"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import { readOneOf, readSearchText } from "@/lib/nav/list-search"
-
-type CrmSearch = {
-  /** Which conversation is open in the right panel. */
-  open?: string
-  q?: string
-  status?: CrmThreadStatus | "all"
-  stage?: CrmStage | "all"
-  unread?: boolean
-  /** The Saved tab. */
-  saved?: boolean
-  /** Only mail that arrived at this address, picked in the Emails block. */
-  to?: string
-  /** Only leads with this tag. */
-  tag?: string
-  due?: boolean
-  sort?: CrmInboxSort
-}
+  CRM_DEFAULT_STATUS,
+  crmTabOf,
+  readCrmSearch,
+  type CrmSearch,
+} from "@/lib/crm/crm-search"
 
 /**
- * The screen's state, read off the address so a reload keeps it and a filtered
- * view can be handed to somebody else. Everything is checked against a fixed
- * list, so a hand-edited address can only fall back to the default.
+ * The CRM: one screen for all the app's email (Tyler, 7 Nov 2026: "I want to
+ * consolidate them all into one CRM dashboard"). The middle panel's tabs are
+ * Broadcasts, Inbox and People; `src/lib/crm/crm-search.ts` says which
+ * address keys belong to which.
  */
-function readCrmSearch(search: Record<string, unknown>): CrmSearch {
-  return {
-    ...readOpenSearch(search),
-    q: readSearchText(search.q),
-    status: readOneOf(search.status, [...CRM_THREAD_STATUSES, "all"] as const),
-    stage: readOneOf(search.stage, [...CRM_STAGES, "all"] as const),
-    unread: search.unread === true || search.unread === "true" ? true : undefined,
-    saved: search.saved === true || search.saved === "true" ? true : undefined,
-    to: readSearchText(search.to),
-    tag: readSearchText(search.tag),
-    due: search.due === true || search.due === "true" ? true : undefined,
-    sort: readOneOf(search.sort, CRM_INBOX_SORTS),
-  }
-}
-
-/**
- * What the inbox shows when nobody has chosen: the open conversations.
- *
- * An inbox that also shows the closed ones is an archive, and the question
- * this screen answers is what needs doing. Named once because the loader and
- * the filter control both have to use it — when they disagreed, the control
- * said "Open" and the list showed everything.
- */
-const DEFAULT_STATUS = "open" as const
-
 export const Route = createFileRoute("/_authenticated/admin/crm")({
   validateSearch: readCrmSearch,
-  // Everything except which conversation is open. Opening one must not refetch
-  // the list underneath it — the middle panel fetches its own thread.
-  loaderDeps: ({ search }) => ({ ...search, open: undefined }),
-  loader: ({ deps }) =>
-    loadInbox({
-      search: deps.q,
-      // The same default the filter control shows. Leaving it undefined asked
-      // the server for everything while the control read "Open", so a snoozed
-      // conversation sat in the inbox it had been snoozed out of.
-      status: deps.status ?? DEFAULT_STATUS,
-      stage: deps.stage,
-      unreadOnly: deps.unread,
-      savedOnly: deps.saved,
-      toAddress: deps.to,
-      tag: deps.tag,
-      followUpDue: deps.due,
-      sort: deps.sort,
-    }),
+  // Everything except which record is open. Opening one must not refetch the
+  // list underneath it: the right panel fetches its own.
+  loaderDeps: ({ search }) => ({ ...search, open: undefined, system: undefined }),
+  loader: ({ deps }) => loadCrm(deps),
   component: AdminCrmRoute,
   errorComponent: routeErrorComponent(getCrmErrorMessage),
 })
 
-function AdminCrmRoute() {
-  const page = Route.useLoaderData()
-  const search = Route.useSearch()
-  const navigate = useNavigate({ from: Route.fullPath })
-  const router = useRouter()
+async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
+  const tab = crmTabOf(search)
 
-  const filters: InboxFilters = {
-    search: search.q ?? "",
-    status: search.status ?? DEFAULT_STATUS,
-    stage: search.stage ?? "all",
-    unreadOnly: search.unread ?? false,
-    savedOnly: search.saved ?? false,
-    toAddress: search.to ?? "",
-    tag: search.tag ?? "",
-    followUpDue: search.due ?? false,
-    sort: search.sort ?? CRM_DEFAULT_INBOX_SORT,
-  }
-
-  const changeFilters = (next: Partial<InboxFilters>) => {
-    void navigate({
-      search: (previous) => ({
-        ...previous,
-        ...(next.search !== undefined
-          ? { q: next.search || undefined }
-          : {}),
-        ...(next.status !== undefined ? { status: next.status } : {}),
-        ...(next.stage !== undefined ? { stage: next.stage } : {}),
-        ...(next.unreadOnly !== undefined
-          ? { unread: next.unreadOnly || undefined }
-          : {}),
-        ...(next.savedOnly !== undefined
-          ? { saved: next.savedOnly || undefined }
-          : {}),
-        ...(next.toAddress !== undefined
-          ? { to: next.toAddress || undefined }
-          : {}),
-        ...(next.tag !== undefined ? { tag: next.tag || undefined } : {}),
-        ...(next.followUpDue !== undefined
-          ? { due: next.followUpDue || undefined }
-          : {}),
-        // The default order stays out of the address, so a plain `/admin/crm`
-        // link is the newest-first inbox rather than one carrying `?sort=`.
-        ...(next.sort !== undefined
-          ? {
-              sort:
-                next.sort === CRM_DEFAULT_INBOX_SORT ? undefined : next.sort,
-            }
-          : {}),
+  if (tab === "people") {
+    return {
+      tab,
+      people: await loadContactsPage({
+        search: search.q,
+        rules: search.filter,
+        sort: search.sort as ContactSortColumn | undefined,
+        direction: search.direction,
+        page: search.page,
+        limit: search.size,
+        segmentId: search.segment,
+        people: search.view === "leads" ? "leads" : undefined,
       }),
-      // A filter change is not a place to come back to with Back.
-      replace: true,
-    })
+    }
   }
 
-  return (
-    <CrmWorkspace
-      page={page}
-      filters={filters}
-      search={search}
-      openThreadId={search.open ?? null}
-      onFiltersChange={changeFilters}
-      onOpenThread={(threadId) =>
-        void navigate({
-          search: (previous) => ({ ...previous, open: threadId ?? undefined }),
-          replace: true,
-        })
-      }
-      // The loader is the only thing that reads this list, so redrawing it is
-      // asking the router to run that loader again rather than fetching a
-      // second copy from the page.
-      onReloadInbox={() => void router.invalidate()}
-    />
-  )
+  if (tab === "broadcasts") {
+    const templatesPill = search.view === "templates"
+    // All at once, as the old editor page did: the newsletters, the segments
+    // they can go to by name, and how new blocks start out. The saved block
+    // setups are a convenience, so a failure there falls back to the
+    // built-in ones.
+    const [broadcasts, templates, segments, defaults] = await Promise.all([
+      loadBroadcastsPage({
+        search: search.q,
+        limit: 200,
+        // All, and Templates, read every newsletter; the others one state.
+        group:
+          search.view === "drafts" || search.view === "scheduled" || search.view === "sent"
+            ? search.view
+            : undefined,
+      }),
+      templatesPill ? loadBroadcastTemplates().then((read) => read.templates) : Promise.resolve([]),
+      loadSegmentChoices(),
+      loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
+    ])
+    return { tab, broadcasts, templates, segments, blockDefaults: defaults.defaults }
+  }
+
+  const view = search.view
+  const [inbox, outbox] = await Promise.all([
+    loadInbox({
+      search: search.q,
+      // The same default the filter control shows.
+      status: search.status ?? CRM_DEFAULT_STATUS,
+      stage: search.stage,
+      unreadOnly: view === "unread" || undefined,
+      savedOnly: view === "saved" || undefined,
+      waitingOnly: view === "waiting" || undefined,
+      toAddress: search.to,
+      tag: search.tag,
+      followUpDue: search.due,
+      sort: search.sort as CrmInboxSort | undefined,
+    }),
+    // Only where the server keeps one; anywhere else the pill is not drawn.
+    view === "outbox" ? loadDevOutbox().catch(() => []) : Promise.resolve(null),
+  ])
+  return { tab: "inbox", inbox, outbox }
+}
+
+function AdminCrmRoute() {
+  return <CrmDashboard loaded={Route.useLoaderData()} search={Route.useSearch()} />
 }

@@ -319,34 +319,12 @@ const SEGMENTS_HREF = "/admin/segments"
 const SYSTEM_EMAILS_LINK_ID = "item-newsletter-system-emails"
 const SYSTEM_EMAILS_HREF = "/admin/system-emails"
 
-/**
- * Writing and sending a newsletter, with the list of people it goes to, the
- * named groups of them, and the app's own emails hanging off it — questions
- * always asked in the same sitting, and a parent with children is what draws
- * the row of chips along the top of the page.
- */
-function newsletterChildLinks(): ShellChildItem[] {
-  return [
-    newsletterSelfChildLink(),
-    contactsChildLink(),
-    systemEmailsChildLink(),
-  ]
-}
-
-// One function each rather than positions in the list above: the upgrade steps
-// below reach for individual children, and a step that said "the third one"
-// would quietly start meaning something else the day a fourth was added.
+// The Newsletter link and its Contacts child are gone from the default sidebar
+// since 7 Nov 2026: those screens are the CRM's tabs (`removeEmailScreenLinks`).
+// System emails stays as a child an old step can still hang somewhere.
 
 function newsletterSelfChildLink(): ShellChildItem {
-  return {
-    id: `${NEWSLETTER_LINK_ID}-all`,
-    label: "Newsletters",
-    href: NEWSLETTER_HREF,
-  }
-}
-
-function contactsChildLink(): ShellChildItem {
-  return { id: CONTACTS_LINK_ID, label: "Contacts", href: CONTACTS_HREF }
+  return { id: `${NEWSLETTER_LINK_ID}-all`, label: "Newsletters", href: NEWSLETTER_HREF }
 }
 
 function systemEmailsChildLink(): ShellChildItem {
@@ -357,25 +335,12 @@ function systemEmailsChildLink(): ShellChildItem {
   }
 }
 
-function newsletterLink(): ShellItem {
-  return {
-    type: "item",
-    id: NEWSLETTER_LINK_ID,
-    label: "Newsletter",
-    href: NEWSLETTER_HREF,
-    icon: "mail",
-    visible: true,
-    roles: ["admin"],
-    children: newsletterChildLinks(),
-  }
-}
-
 /**
  * Bumped when the default sidebar is restructured in a way an existing
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 21
+export const NAVIGATION_VERSION = 22
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1204,6 +1169,9 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 21) {
     sections = removeSegmentsLink(sections)
   }
+  if (settings.navVersion < 22) {
+    sections = removeEmailScreenLinks(sections)
+  }
 
   const [updated] = await database
     .update(customShellWorkspaces)
@@ -1504,6 +1472,47 @@ export function removeSegmentsLink(sections: ShellSection[]): ShellSection[] {
       if (!isShellItem(entry) || !entry.children?.length) return [entry]
       const children = entry.children.filter((child) => !isSegments(child))
       if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [children.length ? { ...entry, children } : stripChildren(entry)]
+    }),
+  }))
+
+  return changed ? result : sections
+}
+
+/** The addresses whose screens became tabs, pills and panels of the CRM on 7 Nov 2026. */
+const EMAIL_SCREEN_HREFS = new Set([
+  NEWSLETTER_HREF,
+  CONTACTS_HREF,
+  SEGMENTS_HREF,
+  SYSTEM_EMAILS_HREF,
+  "/admin/dev-outbox",
+])
+const EMAIL_SCREEN_IDS = new Set([NEWSLETTER_LINK_ID, CONTACTS_LINK_ID, SEGMENTS_LINK_ID, SYSTEM_EMAILS_LINK_ID])
+
+/**
+ * Takes the Newsletters, Contacts, Segments, System emails and Dev outbox
+ * links out of a sidebar, because each is part of the CRM now (Tyler,
+ * 7 Nov 2026: "I want to consolidate them all into one CRM dashboard", then
+ * "not linked it outside"). The old addresses still forward into the CRM, so
+ * a bookmark keeps working. The Newsletter link goes with everything under
+ * it, which was those screens alone.
+ */
+export function removeEmailScreenLinks(sections: ShellSection[]): ShellSection[] {
+  let changed = false
+  const isEmailScreen = (link: { id: string; href?: string }) =>
+    EMAIL_SCREEN_IDS.has(link.id) || (link.href !== undefined && EMAIL_SCREEN_HREFS.has(link.href))
+
+  const result = sections.map((section) => ({
+    ...section,
+    entries: section.entries.flatMap((entry): ShellEntry[] => {
+      if (!isShellItem(entry)) return [entry]
+      if (isEmailScreen(entry)) {
+        changed = true
+        return []
+      }
+      const children = (entry.children ?? []).filter((child) => !isEmailScreen(child))
+      if (children.length === (entry.children ?? []).length) return [entry]
       changed = true
       return [children.length ? { ...entry, children } : stripChildren(entry)]
     }),
@@ -2143,7 +2152,6 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           icon: "image",
           visible: true,
         },
-        newsletterLink(),
         { ...AUTOMATIONS_LINK },
         {
           type: "item",

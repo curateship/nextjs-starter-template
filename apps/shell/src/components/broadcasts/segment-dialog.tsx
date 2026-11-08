@@ -455,10 +455,7 @@ function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
         <CardTitle>Live count</CardTitle>
         <CardDescription>
           {state.status === "counting" ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Counting…
-            </span>
+            <span className="sr-only">Counting</span>
           ) : state.status === "error" ? (
             "We could not count these conditions right now."
           ) : state.matching === 0 ? (
@@ -502,10 +499,7 @@ function ChosenPeopleCount({
         <CardTitle>Live count</CardTitle>
         <CardDescription>
           {members.status === "loading" ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Counting…
-            </span>
+            <span className="sr-only">Counting</span>
           ) : members.status === "failed" ? (
             "We could not count who is in this segment right now."
           ) : count ? (
@@ -634,10 +628,7 @@ function ContactPicker({
           ))}
 
           {loading ? (
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2Icon className="size-4 animate-spin" />
-              Looking…
-            </span>
+            <span className="sr-only">Looking</span>
           ) : results.length === 0 ? (
             <span className="text-sm text-muted-foreground">
               Nobody matches that.

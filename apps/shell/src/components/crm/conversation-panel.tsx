@@ -1,38 +1,28 @@
 import * as React from "react"
 import {
-  ArchiveIcon,
-  ArchiveRestoreIcon,
-  ClockIcon,
   ForwardIcon,
   InboxIcon,
   PaperclipIcon,
   SparklesIcon,
   StarIcon,
-  UserIcon,
 } from "lucide-react"
 
 import { CrmRecordMenu } from "@/components/crm/crm-record-menu"
 import { ForwardDialog } from "@/components/crm/forward-dialog"
 import { ReplyComposer } from "@/components/crm/reply-composer"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { BlockCard } from "@/components/shared/notes/block-card"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { LoadingRow } from "@/components/ui/loading-row"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Conversation, ConversationFile, ConversationMessage } from "@/lib/api/crm/inbox"
 import type { LeadPanel as LeadRecord } from "@/lib/api/crm/leads"
 import {
-  CRM_STAGE_LABELS,
   CRM_THREAD_STATUS_LABELS,
   type CrmThreadStatus,
 } from "@/lib/crm/crm"
-import { centsToDollars } from "@/lib/crm/money"
 import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { htmlToText, splitQuotedText } from "@/lib/crm/message-text"
@@ -151,9 +141,9 @@ export function ConversationPanel({
           </DashboardCardHeader>
         </div>
         <div className="grid min-h-0 flex-1 place-items-center p-6">
-          {loading || !emptyLine ? (
-            <LoadingRow label="Opening…" />
-          ) : (
+          {/* Nothing while it opens, never a loading circle (Tyler, 7 Nov
+              2026: "remove the loading circle... in the right panel"). */}
+          {loading || !emptyLine ? null : (
             <div className="grid justify-items-center gap-2 text-center text-sm text-muted-foreground">
               <InboxIcon className="size-6" aria-hidden />
               <p>{emptyLine}</p>
@@ -331,12 +321,18 @@ export function ConversationPanel({
         }}
       />
 
-      <footer className="shrink-0 border-t">
-        <div className="px-3.75 pt-3.75">
-          <ContactCard lead={lead} />
-        </div>
+      {/* The reply box, then one last line: the state on the left, and Draft
+          with AI, Attach and Send on the right. Snooze and Close are in the
+          ⋮'s Conversation group; the lead's facts are in its General tab. */}
+      {/* Light grey, the reply box white on it (Tyler, 7 Nov 2026: "make the
+          whole footer light gray"). */}
+      <footer className="shrink-0 border-t bg-muted/50">
         <ReplyComposer
-          className="border-t-0"
+          status={
+            conversation.status === "snoozed" && conversation.snoozed_until
+              ? `Snoozed until ${formatDate(conversation.snoozed_until)}`
+              : CRM_THREAD_STATUS_LABELS[conversation.status]
+          }
           threadId={conversation.id}
           body={replyDraft}
           canSend={canSend}
@@ -345,133 +341,11 @@ export function ConversationPanel({
           onSent={onSent}
           onDraft={onDraft}
         />
-        <StatusRow conversation={conversation} onStatusChange={onStatusChange} />
       </footer>
     </div>
   )
 }
 
-/**
- * The conversation's state and its main actions, pinned to the foot (the
- * Admin 3 panel design: "the record's state and its main actions"). Close is
- * the press made most often in an inbox, so it is one press here, with
- * Snooze beside it; the ⋮ has both too.
- */
-function StatusRow({
-  conversation,
-  onStatusChange,
-}: {
-  conversation: Conversation
-  onStatusChange: (status: CrmThreadStatus, snoozedUntil?: string | null) => void
-}) {
-  const [snoozeOpen, setSnoozeOpen] = React.useState(false)
-  const closed = conversation.status === "closed"
-  const snoozed = conversation.status === "snoozed"
-  return (
-    <div className="flex items-center gap-2 border-t px-3.75 py-2.5">
-      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-        {snoozed && conversation.snoozed_until
-          ? `Snoozed until ${formatDate(conversation.snoozed_until)}`
-          : CRM_THREAD_STATUS_LABELS[conversation.status]}
-      </span>
-      {closed ? null : (
-        <Popover open={snoozeOpen} onOpenChange={setSnoozeOpen}>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" className={cn(snoozeOpen && "bg-muted")}>
-              <ClockIcon className="size-4" />
-              {snoozed ? "Change" : "Snooze"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto p-0">
-            <Calendar
-              mode="single"
-              autoFocus
-              selected={
-                snoozed && conversation.snoozed_until
-                  ? new Date(conversation.snoozed_until)
-                  : undefined
-              }
-              onSelect={(date) => {
-                if (!date) return
-                setSnoozeOpen(false)
-                onStatusChange("snoozed", date.toISOString())
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-      )}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => onStatusChange(closed || snoozed ? "open" : "closed", null)}
-      >
-        {closed || snoozed ? (
-          <ArchiveRestoreIcon className="size-4" />
-        ) : (
-          <ArchiveIcon className="size-4" />
-        )}
-        {closed ? "Reopen" : snoozed ? "Bring back" : "Close"}
-      </Button>
-    </div>
-  )
-}
-
-/**
- * The contact at a glance, above the reply box (Tyler, 7 Nov 2026: the facts
- * in the ⋮, "plus a folding Contact card"). Trade's block card ("we need to
- * use trade's card design though"): it folds by its title, and the fold is
- * remembered in this browser. Changing a fact is the ⋮'s job, so the card
- * only reads. Three facts, the ones a reply turns on: the status is the row
- * under the reply box, and the rest is in the ⋮, because every line here is
- * a line the conversation above loses.
- */
-function ContactCard({ lead }: { lead: LeadRecord | null }) {
-  return (
-    <BlockCard
-      editable={false}
-      onRemove={() => undefined}
-      kind="crm-contact"
-      title="Contact"
-      icon={<UserIcon />}
-      removeLabel="Remove contact"
-    >
-      {lead ? (
-        <dl className="grid grid-cols-[minmax(0,1fr)] divide-y text-sm">
-          <FactRow name="Stage" value={CRM_STAGE_LABELS[lead.stage]} />
-          <FactRow
-            name="Worth"
-            value={lead.valueCents ? `$${centsToDollars(lead.valueCents)}` : null}
-          />
-          <FactRow
-            name="Follow up"
-            value={lead.follow_up_at ? formatDate(lead.follow_up_at) : null}
-          />
-
-        </dl>
-      ) : (
-        <p className="p-3 text-xs text-muted-foreground">Reading…</p>
-      )}
-    </BlockCard>
-  )
-}
-
-/** A fact: its name muted on the left, its value on the right, "None" when empty. */
-function FactRow({ name, value }: { name: string; value: string | null }) {
-  return (
-    <div className="flex items-center gap-3 px-3 py-2">
-      <dt className="shrink-0 text-muted-foreground">{name}</dt>
-      <dd
-        className={cn(
-          "min-w-0 flex-1 truncate text-right",
-          !value && "text-muted-foreground/70"
-        )}
-      >
-        {value ?? "None"}
-      </dd>
-    </div>
-  )
-}
 
 function MessageBubble({
   message,

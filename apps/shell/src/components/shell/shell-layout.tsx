@@ -56,6 +56,8 @@ import {
   getDarkShadeVars,
   getModalStyleVars,
   getPageShadeVars,
+  getBlockStyleVars,
+  BLOCK_STYLE_VAR_NAMES,
   getSidebarShadeVars,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
@@ -275,6 +277,7 @@ export function ShellLayout({
   useDarkShadeVars(config.styling)
   useSidebarShadeVars(config.styling)
   usePageShadeVars(config.styling)
+  useBlockStyleVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -978,6 +981,15 @@ function useSidebarShadeVars(styling: ShellStyling) {
 function usePageShadeVars(styling: ShellStyling) {
   React.useEffect(
     () => applyRootStyleVars(PAGE_SHADE_VAR_NAMES, getPageShadeVars(styling)),
+    [styling]
+  )
+}
+
+// The page blocks' corners, grey and edge (Settings → Styling → Blocks), on the
+// root for the same reason: blocks sit in panels, popovers and pages alike.
+function useBlockStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(BLOCK_STYLE_VAR_NAMES, getBlockStyleVars(styling)),
     [styling]
   )
 }

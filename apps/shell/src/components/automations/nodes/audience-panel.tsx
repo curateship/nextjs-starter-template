@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { Loader2Icon } from "lucide-react"
 
 import {
   InspectorCard,
@@ -343,10 +342,7 @@ function AudiencePreviewNote({
   return (
     <InspectorNote>
       {loading ? (
-        <span className="flex items-center gap-2" role="status">
-          <Loader2Icon className="size-3.5 animate-spin" />
-          Counting who this matches…
-        </span>
+        <span className="sr-only" role="status">Counting who this matches</span>
       ) : null}
 
       {error ? (
@@ -402,12 +398,19 @@ function AudiencePreviewNote({
           <p>
             Counted just now. A run works it out again every time it goes, so
             this is what it would match if it went this moment.{" "}
-            <Link
-              to={audience === "tag" ? "/admin/users" : "/admin/contacts"}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Look people up in {audience === "tag" ? "Accounts" : "Contacts"}
-            </Link>
+            {audience === "tag" ? (
+              <Link to="/admin/users" className="underline underline-offset-2 hover:text-foreground">
+                Look people up in Accounts
+              </Link>
+            ) : (
+              <Link
+                to="/admin/crm"
+                search={{ tab: "people" }}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Look people up in CRM, People
+              </Link>
+            )}
             .
           </p>
         </div>

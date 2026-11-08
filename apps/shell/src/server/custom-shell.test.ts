@@ -139,6 +139,7 @@ import {
   addPagesLink,
   addSystemEmailsLink,
   removeMediaChildLinks,
+  removeEmailScreenLinks,
   removeSegmentsLink,
   foldMembershipIntoOverview,
   createUserWorkspace,
@@ -1304,17 +1305,6 @@ describe("custom shell workspaces", () => {
       },
       {
         type: "item",
-        label: "Newsletter",
-        href: "/admin/newsletter",
-        visible: true,
-        children: [
-          { label: "Newsletters", href: "/admin/newsletter" },
-          { label: "Contacts", href: "/admin/contacts" },
-          { label: "System emails", href: "/admin/system-emails" },
-        ],
-      },
-      {
-        type: "item",
         label: "Automations",
         href: "/admin/automations",
         visible: true,
@@ -1393,17 +1383,6 @@ describe("custom shell workspaces", () => {
         label: "Media",
         href: "/admin/media",
         visible: true,
-      },
-      {
-        type: "item",
-        label: "Newsletter",
-        href: "/admin/newsletter",
-        visible: true,
-        children: [
-          { label: "Newsletters", href: "/admin/newsletter" },
-          { label: "Contacts", href: "/admin/contacts" },
-          { label: "System emails", href: "/admin/system-emails" },
-        ],
       },
       {
         type: "item",
@@ -2139,8 +2118,8 @@ describe("metered usage link", () => {
       ["item-crm", []], // 20
       ["item-admin-traffic", []],
       ["item-admin-pages", []], // 17, beside Traffic
-      // 13 adds System emails, 21 takes Segments out.
-      ["item-newsletter", ["item-newsletter-all", "item-newsletter-contacts", "item-newsletter-system-emails"]],
+      // 13 adds System emails and 21 takes Segments out; 22 takes the whole
+      // Newsletter link out, its screens being the CRM's now.
       ["item-automations", ["item-automation-templates"]], // 18
       ["item-media", []], // 15
     ])
@@ -5814,5 +5793,50 @@ describe("custom shell account detail", () => {
       cancelAtPeriodEnd: false,
     })
     expect(detail.subscription.currentPeriodEnd).toBe(endsAt.toISOString())
+  })
+})
+
+describe("email screen links", () => {
+  const item = (id: string, label: string, href: string, children?: ShellChildItem[]): ShellItem => ({
+    type: "item",
+    id,
+    label,
+    href,
+    icon: "mail",
+    visible: true,
+    ...(children ? { children } : {}),
+  })
+
+  it("takes the Newsletter link and its screens out, whatever it was called", () => {
+    const sections: ShellSection[] = [
+      {
+        id: "section-platform",
+        title: "Platform",
+        entries: [
+          // Tyler's own sidebar calls it Broadcast.
+          item("item-8576ee16", "Broadcast", "/admin/newsletter", [
+            { id: "item-newsletter-all", label: "Newsletters", href: "/admin/newsletter" },
+            { id: "item-newsletter-contacts", label: "Contacts", href: "/admin/contacts" },
+          ]),
+          item("item-automations", "Automations", "/admin/automations"),
+          item("item-tools", "Tools", "/admin/media", [
+            { id: "item-outbox", label: "Outbox", href: "/admin/dev-outbox" },
+            { id: "item-traffic", label: "Traffic", href: "/admin/traffic" },
+          ]),
+        ],
+      },
+    ]
+    const [section] = removeEmailScreenLinks(sections)
+    expect((section.entries as ShellItem[]).map((entry) => [entry.label, entry.children?.map((child) => child.label) ?? []])).toEqual([
+      ["Automations", []],
+      ["Tools", ["Traffic"]],
+    ])
+  })
+
+  it("leaves a sidebar without them exactly as it was", () => {
+    const sections: ShellSection[] = [
+      { id: "section-platform", title: "Platform", entries: [item("item-automations", "Automations", "/admin/automations")] },
+    ]
+    expect(removeEmailScreenLinks(sections)).toBe(sections)
   })
 })

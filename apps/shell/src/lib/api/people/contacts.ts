@@ -16,7 +16,6 @@ import {
 } from "@/lib/contacts/contact-segments"
 import {
   CONTACT_SHORTCUTS,
-  NEW_CONTACT_DAYS,
   type ContactShortcutKey,
 } from "@/lib/contacts/contact-shortcuts"
 import { CONTACT_IMPORT_BATCH, CONTACT_NOTES_MAX } from "@/lib/contacts/contact-csv"
@@ -24,7 +23,6 @@ import type { SegmentItem } from "@/lib/api/people/contact-segments"
 
 import {
   countContactEmails,
-  countRecentContactChanges,
   deleteWorkspaceContacts,
   deleteWorkspaceContactsMatching,
   getWorkspaceContact,
@@ -44,6 +42,15 @@ import {
   listWorkspaceContactSources,
   listWorkspaceSegments,
 } from "@/server/people/contact-segments"
+import {
+  countPeople,
+  getLeadPeople,
+  leadsForContacts,
+  listLeadPeople,
+  listPeopleOrder,
+  type LeadPersonRow,
+} from "@/server/crm/people"
+import type { CrmStage } from "@/lib/crm/crm"
 import { listContactDeliveries } from "@/server/email/deliveries"
 import { adminGet, adminPost } from "@/server/guards"
 import { listPlans } from "@/server/billing/plans"
@@ -94,8 +101,40 @@ export type ContactItem = {
 /** The one list of sortable columns, kept browser-safe — see `lib/contact-sort`. */
 export type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 
+/** A lead on the CRM People list (`src/server/crm/people.ts`). */
+export type LeadPersonItem = {
+  id: string
+  email: string
+  name: string | null
+  company: string | null
+  source: string | null
+  stage: CrmStage
+  valueCents: number
+  follow_up_at: string | null
+  created_at: string
+  tags: string[]
+  /** Their newest conversation, or null when nobody has written yet. */
+  newestThreadId: string | null
+  /** The contact with the same address, so the row reads "Lead + Subscriber". */
+  contactId: string | null
+}
+
+/**
+ * One row of the People list, in the order drawn. A contact row points into
+ * `contacts` and names the lead with the same address when there is one; a
+ * lead row carries the lead.
+ */
+export type PersonRow =
+  | { kind: "contact"; id: string; leadId: string | null }
+  | { kind: "lead"; id: string; lead: LeadPersonItem }
+
 export type ContactsPage = {
+  /** The contacts on this page, in no order of their own: `rows` is the order. */
   contacts: ContactItem[]
+  /** Every row on this page, contacts and leads, in the order drawn. */
+  rows: PersonRow[]
+  /** The All and Leads pills: everybody once, and every lead. */
+  peopleCounts: { all: number; leads: number }
   total: number
   tags: string[]
   /**
@@ -112,8 +151,6 @@ export type ContactsPage = {
   segments: SegmentItem[]
   /** How many people each row of the People card holds, counted by its rules. */
   shortcuts: Record<ContactShortcutKey, number>
-  /** The "Last 30 days" card: joined, opted out and bounced in that time. */
-  recent: { joined: number; optedOut: number; bounced: number }
   /** The address named a segment that is not there any more. */
   segmentMissing: boolean
   /**
@@ -202,6 +239,11 @@ const listSchema = contactFilterSchema.extend({
   page: z.number().int().min(1).max(10_000).optional(),
   /** A segment to show when there are no rules of its own: see `ContactsPage.rules`. */
   segmentId: z.string().min(1).max(36).optional(),
+  /**
+   * The CRM People tab's Leads pill. Without it, a list with no rules and no
+   * segment is the All pill: contacts and the leads who are not contacts.
+   */
+  people: z.enum(["leads"]).optional(),
 })
 
 const idsSchema = z.object({
@@ -248,14 +290,63 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
         : undefined
     const rules: SegmentRules | undefined =
       data.rules ?? (named ? rulesShowingSegment(named) : undefined)
-    const [{ contacts, total }, tags, sources, shortcutTotals, segments, recent] =
+    const offset = ((data.page ?? 1) - 1) * pageSize
+    // Leads join the list only where segment rules are not in play: the
+    // rules are about contacts, and a lead has none of what they read.
+    const mixed = !data.people && !rules && !data.segmentId
+    const listRead = data.people === "leads"
+      ? listLeadPeople(workspaceId, { ...data, limit: pageSize, offset }).then(
+          ({ leads, total }) => ({
+            contacts: [] as Awaited<ReturnType<typeof listWorkspaceContacts>>["contacts"],
+            total,
+            rows: leads.map((lead): PersonRow => ({
+              kind: "lead",
+              id: lead.id,
+              lead: toLeadPersonItem(lead),
+            })),
+          })
+        )
+      : mixed
+        ? listPeopleOrder(workspaceId, { ...data, limit: pageSize, offset }).then(
+            async ({ rows: order, total }) => {
+              const contactIds = order.filter((row) => row.kind === "contact").map((row) => row.id)
+              const leadIds = order.filter((row) => row.kind === "lead").map((row) => row.id)
+              const [{ contacts }, leads] = await Promise.all([
+                contactIds.length
+                  ? listWorkspaceContacts(workspaceId, { onlyIds: contactIds, limit: contactIds.length })
+                  : Promise.resolve({ contacts: [] as Awaited<ReturnType<typeof listWorkspaceContacts>>["contacts"] }),
+                getLeadPeople(workspaceId, leadIds),
+              ])
+              const leadById = new Map(leads.map((lead) => [lead.id, lead]))
+              const known = new Set(contacts.map((contact) => contact.id))
+              return {
+                contacts,
+                total,
+                rows: order.flatMap((row): PersonRow[] => {
+                  if (row.kind === "contact") {
+                    return known.has(row.id) ? [{ kind: "contact", id: row.id, leadId: null }] : []
+                  }
+                  const lead = leadById.get(row.id)
+                  return lead ? [{ kind: "lead", id: lead.id, lead: toLeadPersonItem(lead) }] : []
+                }),
+              }
+            }
+          )
+        : listWorkspaceContacts(workspaceId, { ...data, rules, limit: pageSize, offset }).then(
+            ({ contacts, total }) => ({
+              contacts,
+              total,
+              rows: contacts.map((contact): PersonRow => ({
+                kind: "contact",
+                id: contact.id,
+                leadId: null,
+              })),
+            })
+          )
+
+    const [listed, tags, sources, shortcutTotals, segments, peopleCounts] =
       await Promise.all([
-        listWorkspaceContacts(workspaceId, {
-          ...data,
-          rules,
-          limit: pageSize,
-          offset: ((data.page ?? 1) - 1) * pageSize,
-        }),
+        listRead,
         listWorkspaceTags(workspaceId),
         listWorkspaceContactSources(workspaceId),
         countContactsMatchingEach(
@@ -263,11 +354,18 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
           CONTACT_SHORTCUTS.map((shortcut) => shortcut.rules)
         ),
         segmentsRead,
-        countRecentContactChanges(workspaceId, NEW_CONTACT_DAYS),
+        countPeople(workspaceId),
       ])
+    const { contacts, total } = listed
+    // A contact who is a lead too says so on their row.
+    const leadOf = await leadsForContacts(workspaceId, contacts)
+    const rows = listed.rows.map((row) =>
+      row.kind === "contact" ? { ...row, leadId: leadOf.get(row.id) ?? null } : row
+    )
     return {
       total,
-      recent,
+      rows,
+      peopleCounts,
       pageSize,
       tags,
       sources,
@@ -285,6 +383,23 @@ const loadContactsPageFn = createServerFn({ method: "GET" })
       contacts: contacts.map(toContactItem),
     }
   })
+
+function toLeadPersonItem(lead: LeadPersonRow): LeadPersonItem {
+  return {
+    id: lead.id,
+    email: lead.email,
+    name: lead.name,
+    company: lead.company,
+    source: lead.source,
+    stage: lead.stage,
+    valueCents: lead.valueCents,
+    follow_up_at: lead.followUpAt?.toISOString() ?? null,
+    created_at: lead.createdAt.toISOString(),
+    tags: lead.tags,
+    newestThreadId: lead.newestThreadId,
+    contactId: lead.contactId,
+  }
+}
 
 function toSegmentItem({
   segment,

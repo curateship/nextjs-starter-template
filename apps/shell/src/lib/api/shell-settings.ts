@@ -250,6 +250,9 @@ const shellStylingSchema = z.object({
   dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
   sidebarShade: z.number().int().min(0).max(100).optional(),
   pageShade: z.number().int().min(0).max(100).optional(),
+  blockRadius: z.number().int().min(0).max(32).optional(),
+  blockShade: z.number().int().min(0).max(100).optional(),
+  blockInset: z.number().int().min(0).max(16).optional(),
 })
 
 const publicNavigationLinkSchema = z.object({

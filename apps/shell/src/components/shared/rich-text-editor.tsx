@@ -8,6 +8,7 @@ import {
   type Editor,
   type Extensions,
 } from "@tiptap/react"
+import { TextSelection } from "@tiptap/pm/state"
 import { BubbleMenu } from "@tiptap/react/menus"
 import StarterKit from "@tiptap/starter-kit"
 import {
@@ -370,7 +371,15 @@ export function RichTextEditor({
   placeholder = "Write your email…",
   mergeTags = false,
   allowImages = false,
+  inline = false,
 }: {
+  /**
+   * Written straight into the thing it is part of, such as a Rich text block
+   * in the CRM's email page (Tyler, 7 Nov 2026: "This block should let me
+   * inline writes with tiptap"): no box, no toolbar, no tag strip. Bold,
+   * headings and lists still come from the keyboard (Cmd+B, "## ", "- ").
+   */
+  inline?: boolean
   value: string
   onChange: (html: string) => void
   disabled?: boolean
@@ -430,8 +439,8 @@ export function RichTextEditor({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-md border bg-background",
-        disabled && "opacity-60"
+        inline ? "broadcast-rte-inline" : "overflow-hidden rounded-md border bg-background",
+        disabled && !inline && "opacity-60"
       )}
     >
       <style>{`
@@ -446,15 +455,16 @@ export function RichTextEditor({
         .broadcast-rte .tiptap blockquote { border-left: 3px solid var(--border); padding-left: 0.75em; color: var(--muted-foreground); margin: 0 0 0.6em 0; }
         .broadcast-rte .tiptap a { color: var(--primary); text-decoration: underline; }
         .broadcast-rte .tiptap img { max-width: 100%; height: auto; border-radius: 6px; }
+        .broadcast-rte-inline .broadcast-rte .tiptap { min-height: 1.6em; padding: 0; font-size: 15px; }
         .broadcast-rte .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--muted-foreground); float: left; height: 0; pointer-events: none; }
       `}</style>
-      {editor && !disabled ? (
+      {editor && !disabled && !inline ? (
         <Toolbar editor={editor} allowImages={allowImages} />
       ) : null}
       <div className="broadcast-rte">
         <EditorContent editor={editor} />
       </div>
-      {editor && !disabled && mergeTags ? (
+      {editor && !disabled && mergeTags && !inline ? (
         <div className="border-t bg-muted/30 p-2">
           <p className="mb-1.5 px-0.5 text-xs text-muted-foreground">
             Drop one of these in and each person gets their own.
@@ -521,6 +531,16 @@ function SelectionToolbar({ editor, onBody = false }: { editor: Editor; onBody?:
       // holds cannot cut the toolbar off (a 180px side panel holds 333px of
       // toolbar). Not by default: inside a window, the body is behind it.
       appendTo={onBody ? () => document.body : undefined}
+      // Only over selected words (Tyler, 7 Nov 2026: "the toolbar kept showing
+      // up when I click around the blocks. It should only show up on selecting
+      // a text"). Pressing a block selects the whole block, which the default
+      // rule took as something to format.
+      shouldShow={({ editor: current, state, from, to }) =>
+        current.isEditable &&
+        state.selection instanceof TextSelection &&
+        from !== to &&
+        state.doc.textBetween(from, to, " ").trim().length > 0
+      }
       options={{ placement: "top", offset: 10, shift: true, flip: true }}
       className={cn(
         "flex items-center gap-1 rounded-lg border bg-background/95 p-1 shadow-lg backdrop-blur",

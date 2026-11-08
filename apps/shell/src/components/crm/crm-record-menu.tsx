@@ -104,79 +104,7 @@ export function CrmRecordMenu({
           label: "General",
           content: lead ? (
             <div className="grid gap-4 p-3">
-              <PickGroup title="Person">
-                <TextPickRow
-                  label="Name"
-                  value={lead.name ?? ""}
-                  onCommit={(name) => save({ name: name || null })}
-                />
-                <PickRow label="Email" value={lead.email} disabled>
-                  {null}
-                </PickRow>
-                <TextPickRow
-                  label="Company"
-                  value={lead.company ?? ""}
-                  onCommit={(company) => save({ company: company || null })}
-                />
-                <TextPickRow
-                  label="Phone"
-                  value={lead.phone ?? ""}
-                  inputMode="tel"
-                  onCommit={(phone) => save({ phone: phone || null })}
-                />
-              </PickGroup>
-
-              <PickGroup title="Deal">
-                <PickMenuRow
-                  label="Stage"
-                  value={CRM_STAGE_LABELS[lead.stage]}
-                  options={CRM_STAGES.map((stage) => ({
-                    value: stage,
-                    label: CRM_STAGE_LABELS[stage],
-                  }))}
-                  selected={lead.stage}
-                  onPick={(stage) => void save({ stage: stage as CrmStage })}
-                />
-                <MoneyPickRow
-                  cents={lead.valueCents}
-                  onCommit={(valueCents) => save({ valueCents })}
-                />
-                <TagsPickRow
-                  leadId={lead.id}
-                  tags={lead.tags}
-                  siteTags={siteTags}
-                  onChanged={onLeadChanged}
-                />
-              </PickGroup>
-
-              <PickGroup
-                title="Follow up"
-                after={
-                  <p className="px-0.5 text-xs text-muted-foreground">
-                    On the day, a notice appears in the bell with the note.
-                  </p>
-                }
-              >
-                <PickDayRow
-                  label="Date"
-                  value={lead.follow_up_at ? formatDate(lead.follow_up_at) : "None"}
-                  empty={!lead.follow_up_at}
-                  day={lead.follow_up_at ? new Date(lead.follow_up_at) : null}
-                  clearLabel="Clear the date"
-                  onPick={(day) =>
-                    void save({ followUpAt: day ? day.toISOString() : null })
-                  }
-                />
-                <TextPickRow
-                  label="Note"
-                  value={lead.followUpNote ?? ""}
-                  multiline
-                  placeholder="Ask whether they got the quote"
-                  onCommit={(followUpNote) =>
-                    save({ followUpNote: followUpNote || null })
-                  }
-                />
-              </PickGroup>
+              <LeadFactGroups lead={lead} siteTags={siteTags} save={save} onLeadChanged={onLeadChanged} />
 
               <PickGroup title="Conversation">
                 <PickMenuRow
@@ -311,8 +239,103 @@ export function CrmRecordMenu({
   )
 }
 
+/**
+ * A lead's facts as grouped rows: Person, Deal, Follow up. The conversation ⋮
+ * and the People tab's lead ⋮ both draw these, so a lead's facts are changed
+ * the same way wherever it is open. Every row saves itself, on its own.
+ */
+export function LeadFactGroups({
+  lead,
+  siteTags,
+  save,
+  onLeadChanged,
+}: {
+  lead: LeadRecord
+  siteTags: string[]
+  save: (patch: Omit<Parameters<typeof saveLead>[0], "leadId">) => Promise<void>
+  onLeadChanged: () => void
+}) {
+  return (
+    <>
+      <PickGroup title="Person">
+        <TextPickRow
+          label="Name"
+          value={lead.name ?? ""}
+          onCommit={(name) => save({ name: name || null })}
+        />
+        <PickRow label="Email" value={lead.email} disabled>
+          {null}
+        </PickRow>
+        <TextPickRow
+          label="Company"
+          value={lead.company ?? ""}
+          onCommit={(company) => save({ company: company || null })}
+        />
+        <TextPickRow
+          label="Phone"
+          value={lead.phone ?? ""}
+          inputMode="tel"
+          onCommit={(phone) => save({ phone: phone || null })}
+        />
+      </PickGroup>
+
+      <PickGroup title="Deal">
+        <PickMenuRow
+          label="Stage"
+          value={CRM_STAGE_LABELS[lead.stage]}
+          options={CRM_STAGES.map((stage) => ({
+            value: stage,
+            label: CRM_STAGE_LABELS[stage],
+          }))}
+          selected={lead.stage}
+          onPick={(stage) => void save({ stage: stage as CrmStage })}
+        />
+        <MoneyPickRow
+          cents={lead.valueCents}
+          onCommit={(valueCents) => save({ valueCents })}
+        />
+        <TagsPickRow
+          leadId={lead.id}
+          tags={lead.tags}
+          siteTags={siteTags}
+          onChanged={onLeadChanged}
+        />
+      </PickGroup>
+
+      <PickGroup
+        title="Follow up"
+        after={
+          <p className="px-0.5 text-xs text-muted-foreground">
+            On the day, a notice appears in the bell with the note.
+          </p>
+        }
+      >
+        <PickDayRow
+          label="Date"
+          value={lead.follow_up_at ? formatDate(lead.follow_up_at) : "None"}
+          empty={!lead.follow_up_at}
+          day={lead.follow_up_at ? new Date(lead.follow_up_at) : null}
+          clearLabel="Clear the date"
+          onPick={(day) =>
+            void save({ followUpAt: day ? day.toISOString() : null })
+          }
+        />
+        <TextPickRow
+          label="Note"
+          value={lead.followUpNote ?? ""}
+          multiline
+          placeholder="Ask whether they got the quote"
+          onCommit={(followUpNote) =>
+            save({ followUpNote: followUpNote || null })
+          }
+        />
+      </PickGroup>
+    </>
+  )
+}
+
 /** A ghost row under the groups, as every record ⋮ in the design ends. */
-function ActionRow({
+export function ActionRow({
   icon,
   destructive = false,
   disabled = false,
@@ -347,7 +370,7 @@ function ActionRow({
  * Writing to you is not asking for a newsletter, so this row is the only way
  * a lead joins the list (`workspace/docs/crm/inbox-and-leads.md`).
  */
-function AddToContactsRow({
+export function AddToContactsRow({
   leadId,
   onAdded,
 }: {
@@ -377,7 +400,7 @@ function AddToContactsRow({
 }
 
 /** A typed value: the row shows it, or "None", and its small box holds the field. Leaving the field saves it. */
-function TextPickRow({
+export function TextPickRow({
   label,
   value,
   placeholder,

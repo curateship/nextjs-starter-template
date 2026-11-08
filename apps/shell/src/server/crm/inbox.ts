@@ -10,6 +10,7 @@ import {
   isNull,
   lte,
   not,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm"
@@ -42,6 +43,11 @@ export type InboxFilter = {
   toAddressTakesUnknown?: boolean
   /** Only threads whose lead has a chase date that has already passed. */
   followUpDue?: boolean
+  /**
+   * Only the Waiting pill's conversations: they wrote last, before this
+   * moment, and nobody has answered (`waitingConditions`).
+   */
+  waitingSince?: Date
   /** Only leads carrying this tag (CRM task 27). */
   tag?: string
   /** Which end of the conversation list comes first. Newest when unsaid. */
@@ -72,6 +78,26 @@ export type InboxThreadRow = {
   tags: string[]
 }
 
+/**
+ * "Waiting on you": an open conversation where their message is the last one,
+ * it came before `waitedSince`, and the lead is not won or lost. One
+ * definition for the Inbox's Waiting pill, its count, and the left page's
+ * Waiting on you block, so the three always name the same conversations.
+ */
+export function waitingConditions(waitedSince: Date) {
+  return and(
+    eq(customShellCrmThreads.status, "open"),
+    eq(customShellCrmThreads.lastDirection, "in"),
+    lte(customShellCrmThreads.lastMessageAt, waitedSince),
+    notInArray(customShellCrmLeads.stage, ["won", "lost"])
+  )!
+}
+
+/** The moment a conversation has to be older than to count as waiting. */
+export function waitingCutoff(unansweredDays: number): Date {
+  return new Date(now().getTime() - unansweredDays * 86_400_000)
+}
+
 function filterConditions(workspaceId: string, filter: InboxFilter) {
   const conditions = [eq(customShellCrmThreads.workspaceId, workspaceId)]
 
@@ -97,6 +123,9 @@ function filterConditions(workspaceId: string, filter: InboxFilter) {
   }
   if (filter.followUpDue) {
     conditions.push(lte(customShellCrmLeads.followUpAt, now()))
+  }
+  if (filter.waitingSince) {
+    conditions.push(waitingConditions(filter.waitingSince))
   }
   const tag = filter.tag?.trim().toLowerCase()
   if (tag) {
@@ -151,13 +180,22 @@ function filterConditions(workspaceId: string, filter: InboxFilter) {
 export async function countInboxThreads(
   workspaceId: string,
   filter: InboxFilter = {},
-  database: CustomShellDb = db
-): Promise<{ all: number; unread: number; saved: number }> {
+  database: CustomShellDb = db,
+  /**
+   * The Waiting pill's cutoff, or null when chasing is off and the pill has
+   * nothing to count. Separate from `filter.waitingSince`, because a pill's
+   * count must not move when it is pressed.
+   */
+  waitingSince: Date | null = null
+): Promise<{ all: number; unread: number; saved: number; waiting: number }> {
   const [row] = await database
     .select({
       all: count(),
       unread: sql<number>`count(*) filter (where ${customShellCrmThreads.readAt} is null)`,
       saved: sql<number>`count(*) filter (where ${customShellCrmThreads.savedAt} is not null)`,
+      waiting: waitingSince
+        ? sql<number>`count(*) filter (where ${waitingConditions(waitingSince)})`
+        : sql<number>`0`,
     })
     .from(customShellCrmThreads)
     .innerJoin(
@@ -169,6 +207,7 @@ export async function countInboxThreads(
         ...filter,
         unreadOnly: false,
         savedOnly: false,
+        waitingSince: undefined,
       })
     )
 
@@ -176,6 +215,7 @@ export async function countInboxThreads(
     all: Number(row?.all ?? 0),
     unread: Number(row?.unread ?? 0),
     saved: Number(row?.saved ?? 0),
+    waiting: Number(row?.waiting ?? 0),
   }
 }
 

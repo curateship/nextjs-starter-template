@@ -4,7 +4,7 @@ import {
   EllipsisIcon,
   HourglassIcon,
   LayersIcon,
-  MailIcon,
+  UsersIcon,
 } from "lucide-react"
 
 import {
@@ -40,13 +40,18 @@ export type CrmBlocks = {
   /** The address the inbox is narrowed to, lowered, or "". */
   activeAddress: string
   onAddress: (address: string) => void
-  onRenameAddress: (id: string, current: string) => void
-  onRemoveAddress: (id: string, address: string) => void
   activeStage: CrmStage | "all"
   onStage: (stage: CrmStage | "all") => void
   /** The conversation open on the right, so its row looks picked. */
   openThreadId: string | null
   onOpenThread: (threadId: string) => void
+  /** The segment the People tab is showing, or "". */
+  activeSegment: string
+  /** Shows a segment's people on the People tab; "" lets it go. */
+  onSegment: (segmentId: string) => void
+  /** A segment row's ⋯, drawn only where these are given: the People tab. */
+  onEditSegment?: (segmentId: string) => void
+  onDeleteSegment?: (segmentId: string) => void
 }
 
 const CrmBlocksContext = React.createContext<CrmBlocks | null>(null)
@@ -126,6 +131,42 @@ function BlockRow({
   )
 }
 
+/** A block row's ⋯, shown on hover: Rename and Remove, Edit and Delete. */
+function RowMenu({
+  label,
+  items,
+}: {
+  label: string
+  items: { label: string; destructive?: boolean; onSelect: () => void }[]
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          <EllipsisIcon className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.label}
+            variant={item.destructive ? "destructive" : undefined}
+            onSelect={item.onSelect}
+          >
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function ShowAll({
   total,
   shown,
@@ -146,76 +187,6 @@ function ShowAll({
     >
       {shown ? "Show fewer" : `Show all ${total}`}
     </Button>
-  )
-}
-
-/**
- * Emails: every address mail arrives at, with its open conversations.
- * Pressing one narrows the inbox to that address; pressing it again lets it
- * go. The + in the panel's header adds one.
- */
-function EmailsBlock() {
-  const blocks = useCrmBlocks()
-  const emails = blocks?.figures?.emails
-  useBlockCount(emails?.length || undefined)
-  const [all, setAll] = React.useState(false)
-  if (!blocks) return <NotHere />
-  if (!emails) return <p className="p-3 text-xs text-muted-foreground">Reading…</p>
-  if (emails.length === 0) {
-    return (
-      <p className="p-3 text-sm text-muted-foreground">
-        No address yet. The + at the top adds the one mail arrives at.
-      </p>
-    )
-  }
-  const shown = all ? emails : emails.slice(0, ROWS_SHOWN)
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)] divide-y overflow-y-auto">
-      {shown.map((email) => {
-        const lowered = email.address.toLowerCase()
-        return (
-          <BlockRow
-            key={email.id}
-            picked={blocks.activeAddress === lowered}
-            title={email.label || email.address}
-            line={email.label ? email.address : null}
-            count={email.open}
-            onClick={() =>
-              blocks.onAddress(blocks.activeAddress === lowered ? "" : lowered)
-            }
-            after={
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`More for ${email.address}`}
-                    className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
-                  >
-                    <EllipsisIcon className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem
-                    onSelect={() => blocks.onRenameAddress(email.id, email.label)}
-                  >
-                    Rename
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => blocks.onRemoveAddress(email.id, email.address)}
-                  >
-                    Remove
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            }
-          />
-        )
-      })}
-      <ShowAll total={emails.length} shown={all} onToggle={() => setAll(!all)} />
-    </div>
   )
 }
 
@@ -296,6 +267,54 @@ function WaitingBlock() {
   )
 }
 
+/**
+ * Segments: every saved segment of contacts with how many are in it. Pressing
+ * one shows its people on the People tab; pressing it again lets it go. New
+ * ones are saved from the People tab's Filter. On that tab a row's ⋯ has Edit
+ * and Delete.
+ */
+function SegmentsBlock() {
+  const blocks = useCrmBlocks()
+  const segments = blocks?.figures?.segments
+  useBlockCount(segments?.length || undefined)
+  const [all, setAll] = React.useState(false)
+  if (!blocks) return <NotHere />
+  if (!segments) return <p className="p-3 text-xs text-muted-foreground">Reading…</p>
+  if (segments.length === 0) {
+    return (
+      <p className="p-3 text-sm text-muted-foreground">
+        No segment yet. People, then Filter, then Save as segment makes one.
+      </p>
+    )
+  }
+  const shown = all ? segments : segments.slice(0, ROWS_SHOWN)
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] divide-y overflow-y-auto">
+      {shown.map((segment) => (
+        <BlockRow
+          key={segment.id}
+          picked={blocks.activeSegment === segment.id}
+          title={segment.name}
+          count={segment.total}
+          onClick={() => blocks.onSegment(blocks.activeSegment === segment.id ? "" : segment.id)}
+          after={
+            blocks.onEditSegment && blocks.onDeleteSegment ? (
+              <RowMenu
+                label={`More for ${segment.name}`}
+                items={[
+                  { label: "Edit", onSelect: () => blocks.onEditSegment?.(segment.id) },
+                  { label: "Delete", destructive: true, onSelect: () => blocks.onDeleteSegment?.(segment.id) },
+                ]}
+              />
+            ) : undefined
+          }
+        />
+      ))}
+      <ShowAll total={segments.length} shown={all} onToggle={() => setAll(!all)} />
+    </div>
+  )
+}
+
 /** Stages: how many leads are at each one. Pressing one narrows the inbox to it; pressing it again lets it go. */
 function StagesBlock() {
   const blocks = useCrmBlocks()
@@ -317,13 +336,6 @@ function StagesBlock() {
   )
 }
 
-const EmailsBlockView = blockView({
-  kind: "crm-emails",
-  title: "Emails",
-  icon: <MailIcon />,
-  Draw: EmailsBlock,
-})
-
 const FollowUpsBlockView = blockView({
   kind: "crm-follow-ups",
   title: "Follow up today",
@@ -336,6 +348,13 @@ const WaitingBlockView = blockView({
   title: "Waiting on you",
   icon: <HourglassIcon />,
   Draw: WaitingBlock,
+})
+
+const SegmentsBlockView = blockView({
+  kind: "crm-segments",
+  title: "Segments",
+  icon: <UsersIcon />,
+  Draw: SegmentsBlock,
 })
 
 const StagesBlockView = blockView({
@@ -352,13 +371,6 @@ const StagesBlockView = blockView({
  */
 export const CRM_APP_BLOCKS: readonly AppBlock[] = [
   {
-    key: "crmEmails",
-    label: "Emails",
-    icon: MailIcon,
-    node: "noteCrmEmails",
-    extension: blockNode("noteCrmEmails", {}, EmailsBlockView),
-  },
-  {
     key: "crmFollowUps",
     label: "Follow up today",
     icon: BellRingIcon,
@@ -371,6 +383,13 @@ export const CRM_APP_BLOCKS: readonly AppBlock[] = [
     icon: HourglassIcon,
     node: "noteCrmWaiting",
     extension: blockNode("noteCrmWaiting", {}, WaitingBlockView),
+  },
+  {
+    key: "crmSegments",
+    label: "Segments",
+    icon: UsersIcon,
+    node: "noteCrmSegments",
+    extension: blockNode("noteCrmSegments", {}, SegmentsBlockView),
   },
   {
     key: "crmStages",

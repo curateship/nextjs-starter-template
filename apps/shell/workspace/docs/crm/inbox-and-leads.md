@@ -1,9 +1,75 @@
 # The CRM: the inbox, and the leads it makes
 
-The CRM is one screen at `/admin/crm` for mail that comes in. It reads it,
-answers it, and keeps a record of who it was with so they can be chased later.
-Everything else in the app sends mail outward; this is the only part that
-receives any.
+The CRM is one screen at `/admin/crm` for all the app's email. Its Inbox
+reads mail that comes in, answers it, and keeps a record of who it was with so
+they can be chased later. Its Broadcasts and People tabs hold the newsletters,
+the app's own emails, and the people they go to.
+
+## One screen for all the app's email
+
+Tyler, 7 Nov 2026: "The broadcast, contacts, outbox and systems email. They
+all are related but yet they're currantly in separate dashboard ... I want to
+consolidate them all into one CRM dashboard". Then, of the first try: "We
+need to consolidate this [the newsletter editor] into the CRM dashboard too
+and not linked it outside. The Ui is all over the place as well."
+
+- **One middle header on every tab** (`CrmListHeader` in
+  `src/components/crm/crm-row.tsx`): the Broadcasts, Inbox and People tabs,
+  "N selected" while rows are ticked, Filter, the view dropdown, the one New …
+  button, then the ⋮ with Search and Mass select (and People's Import).
+- **The view dropdown** (`ViewMenu` in `src/components/shared/view-menu.tsx`)
+  picks which part of the tab's list shows, with a count on each. It sat as a
+  row of pills under the header until Tyler, 7 Nov 2026: "We dont need a
+  second subnav. Just put it as a dropdown filter here". Its choices:
+  - **Broadcasts:** Drafts, Scheduled, Sent, Templates.
+  - **Inbox:** All, Unread, Saved, Waiting, and Outbox on a laptop.
+  - **People:** All, Leads, Subscribers, Opted out, then each saved segment.
+- **One table on every tab, laid out as Project's middle panel is** (Tyler,
+  7 Nov 2026: "look at the design patter of project middle panel especially
+  how the table are laid out"; `CrmTable` in `src/components/crm/crm-table.tsx`,
+  after `apps/project/src/components/project/task-list.tsx`):
+  - Column headings straight under the header, the first column 16px in and
+    the last 12px in, lined up with the header.
+  - Group headings across the table with a muted count and Project's fold
+    button, folding the rows under them. The Inbox groups by Today, Yesterday, This week and Earlier.
+  - One line per row, no line between rows, and no shade on the open one,
+    exactly as Project draws them (Tyler: "THe one you made is inconsistence
+    and a bit off"). Each row starts with Project's 10px dot, in one palette
+    (`DOT` in `crm-table.tsx`): blue unread or scheduled, grey read or
+    nothing to do, a lead's stage colour, a newsletter's state colour. Then
+    the name with its small badges, each fact as a chip in its own column,
+    and the open button. Columns drop out as the panel narrows.
+  - Inbox: From, Email, Stage, Tags, When. From is only as wide as the
+    names and Email takes the rest, so the words sit next to who sent them. People: Person, Email, Kind,
+    Status, Tags, Opened, Added (Person, Email, Status and Added sort).
+    Broadcasts: Newsletter, Subject, Status, Sent, Changed. Templates and the
+    Outbox have the same shape.
+  - Every row right-clicks: Mass select first, the row's own actions, the
+    destructive one under a line. Mass select adds a tick column only as
+    wide as the box.
+- **One right-panel shape** (`RecordFrame` in `record-frame.tsx`): the
+  record's avatar, name and muted line, its ⋮ (grouped rows that save
+  themselves), the collapse button; the body; a footer with its state and its
+  main button. A conversation, a contact, a lead, a newsletter, a template, a
+  system email and an outbox email all use it.
+- **The left page is the same on every tab.** A block pressed on the wrong
+  tab goes to the right one: an address or a stage opens Inbox, a segment
+  opens People. The CRM settings ⋮ opens to the right, over the list. It has
+  an **Emails** tab, the addresses mail arrives at (each narrows the inbox,
+  with Rename and Remove; they were a block on the page until Tyler, 7 Nov
+  2026: "move the email block to the settings"), and a **System emails**
+  tab; pressing one opens it on the right.
+- **Nothing leads outside.** A newsletter, a template and a system email are
+  written on the right panel (`workspace/docs/email/newsletters-and-broadcasts.md`).
+  `/admin/newsletter`, `/admin/newsletter/<id>`, `/admin/contacts`,
+  `/admin/segments`, `/admin/system-emails`, `/admin/system-emails/<kind>` and
+  `/admin/dev-outbox` all forward into the CRM, and navigation version 22
+  takes their links out of the left menu (`removeEmailScreenLinks`).
+- **Each tab reads only its own address keys** (`src/lib/crm/crm-search.ts`).
+  Inbox and People both use `open`, `q` and `sort`, and a contact's id is not
+  a conversation's, so picking a tab starts the address again with
+  `?tab=<name>` alone. A bare `/admin/crm` goes back to the tab and row it
+  last had.
 
 It is drawn in the Admin 3 panel design
 (`.agents/skills/Design/admin-3-panel-design/SKILL.md`) since 7 Nov 2026.
@@ -18,30 +84,31 @@ Three panels, and each has one job:
 - **Left, the page.** One page per site, written on like any page in the
   design, holding "/" blocks. The header's **+** adds an address mail arrives
   at.
-- **Middle, the inbox.** One row per conversation, under the All, Unread and
-  Saved tabs.
-- **Right, the conversation.** The back-and-forth oldest first, the folding
-  Contact card, and the box to answer it at the foot. The ⋮ holds who they
-  are and where they are up to.
+- **Middle, the inbox.** One row per conversation, under the All, Unread,
+  Saved and Waiting views.
+- **Right, the conversation.** The back-and-forth oldest first, and the box
+  to answer it at the foot. The ⋮ holds who they are and where they are up
+  to.
 
-There is no bottom panel. The email and automation editors use one to show a
-list of things that happened to the thing above it, and a conversation already
-is that list.
+There is no bottom panel. The automation editor uses one to show a list of
+things that happened to the thing above it, and a conversation already is
+that list.
 
 ## The left page
 
 The page is the shell's page with "/" blocks (`docs/shell/page-blocks.md`),
 kept in `crm_pages`, one row per site. A site that has not written on it yet
-sees the Emails and Follow up today blocks. The CRM adds three blocks of its
+sees the Follow up today block. An Emails block saved before 7 Nov 2026 is
+left out when the page is read; the addresses are in the CRM settings ⋮. The CRM adds three blocks of its
 own to the "/" list, in `src/components/crm/crm-blocks.tsx`:
 
-- **Emails.** Every address mail arrives at, with its open conversations.
-  Pressing one narrows the inbox to that address (`?to=`), and pressing it
-  again lets go. A row's ⋯ has Rename and Remove.
 - **Follow up today.** Leads whose chase date has come, soonest first, never
   one already Won or Lost. Pressing one opens their newest conversation.
 - **Stages.** How many leads are at each stage. Pressing one narrows the
   inbox to it.
+- **Segments.** Every saved segment of contacts with how many are in it.
+  Pressing one shows its people on the People tab, where a row's ⋯ has Edit
+  and Delete.
 
 The header holds the collapse button, "CRM" with the number of open
 conversations under it, the **+**, and the ⋮ (CRM settings). The ⋮'s General
@@ -79,8 +146,11 @@ Tyler set the look on 2 Oct 2026 with a picture:
 [the mockup](../assets/pasted-image-1790966797817093000.png). Four things in it
 are decisions, not decoration.
 
-**The inbox has one header.** All, Unread and Saved, each carrying its own
-count, then "N selected" while rows are ticked, then Filter, then the ⋮. The
+**The inbox has one header.** It is the CRM's one header (above). Its view
+dropdown holds All, Unread, Saved and Waiting, each with its count, then
+Outbox on a laptop. They were the header's tabs until 7 Nov 2026 and are
+`?view=` now; an old `?unread=true` or `?saved=true` link
+opens All. The
 ⋮ holds Search and Mass select. Search opens its box in the header with the
 cursor in it. Filter holds the status, the stage, the address when there is
 more than one, the order and the follow-up filter, and counts what is on. A
@@ -101,10 +171,10 @@ it is warning about something. Tyler set this on 3 Oct 2026 with
 [a picture](../assets/pasted-image-1790999823792568000.png). The digits are
 fixed-width with a minimum width, so the pill does not jump going from 9 to 10.
 
-**No count moves when you press another tab.** All three obey every filter
-except the tabs' own, so a search for "kitchen" answers how many of those
-there are, how many are unread and how many are saved. `countInboxThreads`
-works all three out in one query, which is why they can never disagree. Counting the list instead
+**No count moves when you pick another view.** All four obey every filter
+except the views' own, so a search for "kitchen" answers how many of those
+there are, and how many are unread, saved and waiting. `countInboxThreads`
+works all four out in one query, which is why they can never disagree. Counting the list instead
 made All read 6 and then 2 the moment Unread was pressed, because the list it
 was counting had become the unread one.
 
@@ -622,8 +692,14 @@ of days is the CRM settings ⋮'s "Unanswered mail" row: Off, or after 1, 2,
   ignored twice is chased twice.
 - **Snoozed and closed ones are skipped**, since snoozed already means "not
   now", and so are leads already Won or Lost.
-- **On screen:** the row says "Waiting 4 days", and the left page's Waiting
-  on you block lists them, the longest waiting first.
+- **On screen:** the row says "Waiting 4 days", the left page's Waiting on
+  you block lists them, the longest waiting first, and the **Waiting pill**
+  shows them all. The pill, its count and the block read one rule,
+  `waitingConditions` in `src/server/crm/inbox.ts`. With the chase off the
+  pill is not drawn.
+- **The Outbox pill** sits after Waiting on a laptop only: the mail this
+  server would have sent, one row each, the open one on the right as it
+  would have arrived (`outbox-panels.tsx`). A live server keeps none.
 
 ## A notice when mail lands
 
@@ -715,12 +791,14 @@ date and its note, and Add to contacts. They are rows in the conversation's
 people editing the same lead cannot have one of them write a stale copy over
 the other's change. Money is stored in cents and shown in dollars.
 
-**The Contact card above the reply box shows three of them at a glance**:
-stage, worth and follow-up date. It folds by its title. Changing a fact is
-the ⋮'s job, so the card only reads. Three, because every line in the
-footer is a line the conversation above loses: at 900px tall the footer once
-took 522 of 822px. The status is the row under the reply box, with Snooze
-and Close beside it, because closing is the press made most often.
+**The footer is the reply box and one line under it** (Tyler, 7 Nov 2026:
+"clean up the right panel footer"). The box holds the words, any files, and
+"Sent as …" at its bottom left. The line under it has the conversation's
+state on the left where there is room, and Draft with AI, Attach and Send
+together on the right; in a narrow panel Draft with AI keeps its icon alone.
+The folding Contact card that sat above the box is gone ("We dont need this
+build in block"): the lead's stage, worth and follow-up date are in the ⋮'s
+General tab, and so are Snooze and Close, in its Conversation group.
 
 **Tags say what kind of lead it is** (CRM task 27), beside the stage, which
 says how far along. The ⋮'s Deal group has a Tags row: type one and press

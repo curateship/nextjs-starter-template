@@ -5,27 +5,23 @@ import {
   ClockIcon,
   ListChecksIcon,
   MailOpenIcon,
-  SearchIcon,
   StarIcon,
 } from "lucide-react"
 
 import { NewEmailButton } from "@/components/crm/new-email-button"
 import { PointAnchor } from "@/components/crm/point-anchor"
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { EmptyRow } from "@/components/shared/feed-card"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { Chip, CrmGroupRow, CrmTable, CrmTableRow, Dot, DOT, MainCell, useFolds } from "@/components/crm/crm-table"
+import { OutboxTable } from "@/components/crm/outbox-panels"
+import { ViewMenu, type ViewChoice } from "@/components/shared/view-menu"
 import { FilterPopover } from "@/components/shared/filter-popover"
-import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { LoadMoreButton } from "@/components/shared/load-more-button"
 import {
   SelectedMenu,
   SelectedMenuRow,
 } from "@/components/shared/mass-select"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +32,6 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -44,7 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
+import { TableCell } from "@/components/ui/table"
 import type { InboxThread } from "@/lib/api/crm/inbox"
+import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
+import type { CrmInboxView } from "@/lib/crm/crm-search"
 import {
   CRM_DEFAULT_INBOX_SORT,
   CRM_INBOX_SORT_LABELS,
@@ -57,19 +56,16 @@ import {
   type CrmStage,
   type CrmThreadStatus,
 } from "@/lib/crm/crm"
-import { formatInboxTime, initialsFor } from "@/lib/crm/inbox-time"
-import { hasReplyDraft, type ReplyDrafts } from "@/lib/crm/reply-drafts"
-import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
-import { focusRing } from "@/lib/layout/focus-ring"
+import { formatInboxTime } from "@/lib/crm/inbox-time"
 import { cn } from "@/lib/utils"
+import { hasReplyDraft, type ReplyDrafts } from "@/lib/crm/reply-drafts"
 
 export type InboxFilters = {
   search: string
   status: CrmThreadStatus | "all"
   stage: CrmStage | "all"
-  unreadOnly: boolean
-  /** The Saved tab. */
-  savedOnly: boolean
+  /** The pill under the header: All, Unread, Saved, Waiting, or the local Outbox. */
+  view: CrmInboxView
   /** Only mail that arrived at this address; "" is every address. */
   toAddress: string
   /** Only leads with this tag; "" is any. */
@@ -97,9 +93,10 @@ export type InboxRowActions = {
  * answered three times would otherwise fill the list with four near-identical
  * rows and bury the new mail underneath them.
  *
- * **One header:** the All, Unread and Saved tabs, the "N selected" menu while
- * rows are ticked, Filter, then the ⋮ holding Search and Mass select, always
- * last. Search opens its box in the header with the cursor in it.
+ * **One header, one pill row** (`CrmListHeader`, the same on every CRM tab):
+ * the Broadcasts, Inbox and People tabs, the "N selected" menu while rows are
+ * ticked, Filter, New email, then the ⋮ holding Search and Mass select. Under
+ * it the All, Unread, Saved and Waiting pills, and Outbox on a laptop.
  *
  * Rows are built by hand rather than with `DashboardTable`. That component's
  * main column is fixed at 320px, which in a panel this size clips the
@@ -116,6 +113,13 @@ export function InboxListPanel({
   allCount,
   unreadCount,
   savedCount,
+  waitingCount,
+  waitingShown,
+  outboxShown,
+  outbox,
+  openOutboxId,
+  onOpenOutbox,
+  tabs,
   newMail,
   onShowNewMail,
   loading,
@@ -151,6 +155,18 @@ export function InboxListPanel({
   allCount: number
   unreadCount: number
   savedCount: number
+  /** The Waiting pill's count, worked out the same way. */
+  waitingCount: number
+  /** False while the chase is off (0 days), which hides the Waiting pill. */
+  waitingShown: boolean
+  /** True where the server keeps a development outbox, which draws its pill. */
+  outboxShown: boolean
+  /** The outbox's emails, read only while its pill is picked. */
+  outbox: DevOutboxItem[] | null
+  openOutboxId: string | null
+  onOpenOutbox: (emailId: string) => void
+  /** The Broadcasts, Inbox and People tabs, first in the header. */
+  tabs: React.ReactNode
   /** Conversations with mail that came since the list was drawn (CRM task 33). */
   newMail: number
   /** Redraws the list with the new mail in it. */
@@ -196,42 +212,13 @@ export function InboxListPanel({
   onSnoozeTicked: (until: Date) => void
   onLoadMore: () => void
 }) {
-  // Typing writes straight to the box and the search itself is debounced, so
-  // the caret never jumps while a request is in flight. The box follows the
-  // address when the address changes, which is what fills it in when a
-  // filtered link is opened.
   const appliedSearch = filters.search
-  const [searchText, setSearchText] = useSyncedDraft(appliedSearch)
-  // Open while there is something in it, so a search arriving in the address
-  // is not hidden behind a menu nobody has opened.
-  const [searchOpen, setSearchOpen] = React.useState(appliedSearch.length > 0)
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  // Set by the menu's Search row, read once the menu has closed: an open menu
-  // keeps the focus, so the box only gets the cursor after it shuts.
-  const searchAsked = React.useRef(false)
+  const folds = useFolds()
   const [rightClick, setRightClick] = React.useState<{
     thread: InboxThread
     x: number
     y: number
   } | null>(null)
-
-  // The owner rebuilds `onFiltersChange` every render, so it is held in a ref
-  // rather than listed as a dependency. In the deps, any redraw would clear
-  // and restart the timer, and a page that redrew every 300ms would never
-  // search at all.
-  const changeFiltersRef = React.useRef(onFiltersChange)
-  React.useEffect(() => {
-    changeFiltersRef.current = onFiltersChange
-  })
-
-  React.useEffect(() => {
-    if (searchText === appliedSearch) return
-    const timer = setTimeout(
-      () => changeFiltersRef.current({ search: searchText }),
-      300
-    )
-    return () => clearTimeout(timer)
-  }, [searchText, appliedSearch])
 
   // What Filter holds, so its button can count what is on. The tabs are not
   // counted: they have their own place in the header.
@@ -250,8 +237,7 @@ export function InboxListPanel({
 
   const filtered =
     narrowed > 0 ||
-    filters.unreadOnly ||
-    filters.savedOnly ||
+    filters.view !== "all" ||
     appliedSearch.length > 0
 
   const clearFilters = () =>
@@ -264,44 +250,26 @@ export function InboxListPanel({
       sort: CRM_DEFAULT_INBOX_SORT,
     })
 
-  const tab = filters.savedOnly ? "saved" : filters.unreadOnly ? "unread" : "all"
+  // The pills (Part C of the CRM task: "inbox will have subnav for unread,
+  // saved etc..."). Each count obeys every filter but the pills' own, so none
+  // moves when another is pressed.
+  const pills: ViewChoice[] = [
+    { value: "all", label: "All", count: allCount },
+    { value: "unread", label: "Unread", count: unreadCount },
+    { value: "saved", label: "Saved", count: savedCount },
+    ...(waitingShown || filters.view === "waiting"
+      ? [{ value: "waiting", label: "Waiting", count: waitingCount }]
+      : []),
+    ...(outboxShown ? [{ value: "outbox", label: "Outbox" }] : []),
+  ]
   const shownAddresses = addressLabels.size > 1
 
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <DashboardCardHeader className="gap-2">
-        <DashboardTabs
-          value={tab}
-          onValueChange={(value) =>
-            onFiltersChange({
-              unreadOnly: value === "unread",
-              savedOnly: value === "saved",
-            })
-          }
-          tabs={[
-            {
-              value: "all",
-              label: "All",
-              count: allCount,
-              ariaLabel: `All conversations, ${allCount}`,
-            },
-            {
-              value: "unread",
-              label: "Unread",
-              count: unreadCount,
-              ariaLabel: `Unread conversations, ${unreadCount}`,
-            },
-            {
-              value: "saved",
-              label: "Saved",
-              count: savedCount,
-              ariaLabel: `Saved conversations, ${savedCount}`,
-            },
-          ]}
-        />
-
-        <div className="ml-auto flex min-w-0 shrink items-center gap-1">
-          {massSelect.on && ticked.size > 0 ? (
+      <CrmListHeader
+        tabs={tabs}
+        selected={
+          massSelect.on && ticked.size > 0 ? (
             <SelectedMenu
               count={ticked.size}
               busy={tickedBusy}
@@ -349,29 +317,9 @@ export function InboxListPanel({
                 },
               }}
             />
-          ) : null}
-
-          {searchOpen || searchText ? (
-            <DashboardToolbarSearch
-              autoFocus={searchOpen}
-              className="min-w-0 shrink"
-              inputClassName="sm:w-40 lg:w-48"
-              name="crm-search"
-              aria-label="Search the inbox"
-              placeholder="Search mail"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              onBlur={() => setSearchOpen(false)}
-              onKeyDown={(event) => {
-                if (event.key !== "Escape") return
-                // Escape clears first and closes second, which is the order
-                // somebody pressing it twice expects.
-                if (searchText) setSearchText("")
-                else setSearchOpen(false)
-              }}
-            />
-          ) : null}
-
+          ) : null
+        }
+        filter={
           <FilterPopover
             count={filterCount}
             onClear={clearFilters}
@@ -506,46 +454,29 @@ export function InboxListPanel({
               </Select>
             </FilterRow>
           </FilterPopover>
+        }
+        view={
+          <ViewMenu
+        label="Which conversations"
+        value={filters.view}
+        onValueChange={(value) => onFiltersChange({ view: value as CrmInboxView })}
+        choices={pills}
+        />
+        }
+        primary={<NewEmailButton addresses={addresses} onSent={onStarted} />}
+        menuLabel="More for the inbox"
+        search={{
+          name: "crm-search",
+          label: "Search the inbox",
+          placeholder: "Search mail",
+          value: appliedSearch,
+          onChange: (search) => onFiltersChange({ search }),
+        }}
+        massSelect={{ on: massSelect.on, onToggle: () => massSelect.onToggle() }}
+      />
 
-          {/* The header's one primary button, before the ⋮. */}
-          <NewEmailButton addresses={addresses} onSent={onStarted} />
 
-          {/* Always last in the header. It holds Search and Mass select. */}
-          <FoldingMenu
-            label="More for the inbox"
-            fit
-            open={menuOpen}
-            onOpenChange={setMenuOpen}
-            onCloseAutoFocus={(event) => {
-              if (!searchAsked.current) return
-              searchAsked.current = false
-              event.preventDefault()
-              setSearchOpen(true)
-            }}
-          >
-            <MenuAction
-              icon={<SearchIcon className="size-4" />}
-              onClick={() => {
-                searchAsked.current = true
-                setMenuOpen(false)
-              }}
-            >
-              Search
-            </MenuAction>
-            <MenuAction
-              icon={<ListChecksIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                massSelect.onToggle()
-              }}
-            >
-              {massSelect.on ? "Hide select" : "Mass select"}
-            </MenuAction>
-          </FoldingMenu>
-        </div>
-      </DashboardCardHeader>
-
-      {newMail > 0 ? (
+      {newMail > 0 && filters.view !== "outbox" ? (
         <div className="shrink-0 border-b px-2 py-1.5" aria-live="polite">
           <Button
             type="button"
@@ -559,27 +490,52 @@ export function InboxListPanel({
         </div>
       ) : null}
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5 p-2">
-          {loading && threads.length === 0 ? (
-            <LoadingRow label="Reading the inbox…" />
-          ) : threads.length === 0 ? (
-            filtered ? (
-              <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-                <p>
-                  {appliedSearch
-                    ? `No conversations match "${appliedSearch}".`
-                    : filters.savedOnly
-                      ? "No conversation is saved."
+      {filters.view === "outbox" ? (
+        <OutboxTable emails={outbox ?? []} openId={openOutboxId} onOpen={onOpenOutbox} />
+      ) : (
+        <CrmTable
+          columns={INBOX_COLUMNS(filters.sort)}
+          sort="when"
+          direction={filters.sort === "oldest" ? "asc" : "desc"}
+          onSort={() => onFiltersChange({ sort: filters.sort === "oldest" ? "newest" : "oldest" })}
+          select={
+            massSelect.on
+              ? {
+                  noun: "conversations",
+                  disabled: threads.length === 0,
+                  checked:
+                    threads.length > 0 && threads.every((thread) => ticked.has(thread.id))
+                      ? true
+                      : threads.some((thread) => ticked.has(thread.id))
+                        ? "indeterminate"
+                        : false,
+                  onToggle: () => {
+                    const all = threads.every((thread) => ticked.has(thread.id))
+                    for (const thread of threads) {
+                      if (all === ticked.has(thread.id)) onToggleTick(thread.id)
+                    }
+                  },
+                }
+              : null
+          }
+          empty={
+            loading && threads.length === 0 ? (
+              <LoadingRow label="Reading the inbox…" />
+            ) : threads.length > 0 ? null : filtered ? (
+              <span className="grid justify-items-center gap-2">
+                {appliedSearch
+                  ? `No conversations match "${appliedSearch}".`
+                  : filters.view === "saved"
+                    ? "No conversation is saved."
+                    : filters.view === "waiting"
+                      ? "Nobody is waiting on you."
                       : "No conversations match."}
-                </p>
                 {narrowed > 0 || appliedSearch ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setSearchText("")
+                    onClick={() =>
                       onFiltersChange({
                         search: "",
                         status: "open",
@@ -588,50 +544,55 @@ export function InboxListPanel({
                         tag: "",
                         followUpDue: false,
                       })
-                    }}
+                    }
                   >
                     Clear filters
                   </Button>
                 ) : null}
-              </div>
+              </span>
+            ) : inboundAddress ? (
+              `Nothing has arrived at ${inboundAddress} yet.`
             ) : (
-              <EmptyRow>
-                {inboundAddress
-                  ? `Nothing has arrived at ${inboundAddress} yet.`
-                  : "No address is set for mail to arrive at. The + on the left adds one."}
-              </EmptyRow>
+              "No address is set for mail to arrive at. The + on the left adds one."
             )
-          ) : (
-            threads.map((thread) => (
-              <InboxRow
-                key={thread.id}
-                thread={thread}
-                open={thread.id === openThreadId}
-                showTick={massSelect.on}
-                ticked={ticked.has(thread.id)}
-                addressLabel={
-                  shownAddresses && thread.toAddress
-                    ? (addressLabels.get(thread.toAddress.toLowerCase()) ?? null)
-                    : null
-                }
-                hasDraft={hasReplyDraft(replyDrafts, thread.id)}
-                unansweredDays={unansweredDays}
-                onOpen={() => onOpen(thread)}
-                onToggleTick={() => onToggleTick(thread.id)}
-                onRightClick={(x, y) => setRightClick({ thread, x, y })}
+          }
+          after={
+            hasMore ? <LoadMoreButton loading={loadingMore} onClick={onLoadMore} /> : null
+          }
+        >
+          {groupByDay(threads).map((group) => (
+            <React.Fragment key={group.key}>
+              <CrmGroupRow
+                label={group.label}
+                count={group.threads.length}
+                folded={folds.folded(group.key)}
+                onToggle={() => folds.toggle(group.key)}
               />
-            ))
-          )}
-
-          {hasMore ? (
-            <LoadMoreButton
-              loading={loadingMore}
-              onClick={onLoadMore}
-              className="mt-1 justify-self-center"
-            />
-          ) : null}
-        </div>
-      </ScrollArea>
+              {folds.folded(group.key)
+                ? null
+                : group.threads.map((thread) => (
+                    <InboxRow
+                      key={thread.id}
+                      thread={thread}
+                      open={thread.id === openThreadId}
+                      showTick={massSelect.on}
+                      ticked={ticked.has(thread.id)}
+                      addressLabel={
+                        shownAddresses && thread.toAddress
+                          ? (addressLabels.get(thread.toAddress.toLowerCase()) ?? null)
+                          : null
+                      }
+                      hasDraft={hasReplyDraft(replyDrafts, thread.id)}
+                      unansweredDays={unansweredDays}
+                      onOpen={() => onOpen(thread)}
+                      onToggleTick={() => onToggleTick(thread.id)}
+                      onRightClick={(x, y) => setRightClick({ thread, x, y })}
+                    />
+                  ))}
+            </React.Fragment>
+          ))}
+        </CrmTable>
+      )}
 
       {rightClick ? (
         <RowRightClickMenu
@@ -802,151 +763,97 @@ function InboxRow({
       : 0
   const waiting = waitedDays >= unansweredDays && unansweredDays > 0
 
-  // The tick box sits on top of the avatar rather than beside it, so ticking a
-  // row never moves the name under the pointer. It is a sibling of the row
-  // button and not a child of it, because a button inside a button is invalid
-  // and the inner one swallows the outer one's click.
-  const tickLayer = (
-    <span
-      className={cn(
-        "pointer-events-none absolute flex size-8 items-center justify-center transition-opacity",
-        // The row's own padding and the avatar's nudge, repeated so the box
-        // lands exactly where the initials were.
-        "top-2 left-2.5 mt-0.5",
-        showTick ? "opacity-100" : "hidden"
-      )}
-    >
-      <Checkbox
-        className="pointer-events-auto"
-        checked={ticked}
-        onCheckedChange={onToggleTick}
-        aria-label={`Tick the conversation with ${who}`}
-      />
-    </span>
-  )
-
   return (
-    <div
-      className="group/row relative"
-      onContextMenu={(event) => {
-        // With words selected, the browser's own menu stays, for Copy.
-        const selected = window.getSelection()
-        if (selected && !selected.isCollapsed) return
-        event.preventDefault()
-        onRightClick(event.clientX, event.clientY)
-      }}
+    <CrmTableRow
+      open={open}
+      label={`the conversation with ${who}`}
+      tick={{ shown: showTick, ticked, onToggle: onToggleTick }}
+      onOpen={onOpen}
+      onRightClick={onRightClick}
     >
-      <button
-        type="button"
-        onClick={showTick ? onToggleTick : onOpen}
-        aria-current={open ? "true" : undefined}
-        className={cn(
-          "flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left transition-colors",
-          // The open conversation is the darker fill. A ticked row takes the
-          // hover fill, because the tick box itself is what says it is ticked
-          // and two rows cannot both look like the one being read.
-          open
-            ? "bg-muted shadow-[inset_2px_0_0_var(--foreground)]"
-            : ticked
-              ? "bg-muted/60"
-              : "hover:bg-muted/60",
-          focusRing
-        )}
+      <MainCell
+        name={who}
+        strong={thread.unread}
+        lead={<Dot className={thread.unread ? DOT.unread : DOT.read} label={thread.unread ? "Unread" : "Read"} />}
       >
-        <Avatar
-          className={cn(
-            "mt-0.5",
-            // Hidden rather than removed, so the row keeps its shape.
-            showTick && "invisible"
-          )}
-        >
-          <AvatarFallback className="text-xs font-medium">
-            {initialsFor(thread.leadName, thread.leadEmail)}
-          </AvatarFallback>
-        </Avatar>
-
-        <span className="grid min-w-0 flex-1 gap-0.5">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-sm",
-                thread.unread
-                  ? "font-semibold text-foreground"
-                  : "font-medium text-foreground"
-              )}
-            >
-              {who}
-            </span>
-            {thread.saved ? (
-              <StarIcon
-                aria-label="Saved"
-                className="size-3.5 shrink-0 self-center fill-amber-400 text-amber-500"
-              />
-            ) : null}
-            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-              {formatInboxTime(thread.last_message_at)}
-            </span>
-          </span>
-
-          <span className="flex min-w-0 items-center gap-2">
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-sm",
-                thread.unread ? "text-foreground" : "text-muted-foreground"
-              )}
-            >
-              {/* An answer of ours reads as a reply rather than as their words. */}
-              {thread.lastDirection === "out" ? "You: " : null}
-              {thread.snippet ?? thread.subject ?? ""}
-            </span>
-            {/* The dot and the weight both, so unread never rests on colour. */}
-            {thread.unread ? (
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full bg-primary"
-              />
-            ) : null}
-          </span>
-
-          {hasDraft || followUpDue || waiting || thread.status !== "open" || addressLabel || thread.tags.length ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              {/* In words, not a coloured dot, because "you left this half
-                  written" is not something a shade can say. */}
-              {hasDraft ? (
-                <span className="font-medium text-foreground">Unsent draft</span>
-              ) : null}
-              {followUpDue ? (
-                <span className="font-medium text-foreground">To follow up</span>
-              ) : null}
-              {waiting ? (
-                <span className="font-medium text-foreground">
-                  Waiting {waitedDays} {waitedDays === 1 ? "day" : "days"}
-                </span>
-              ) : null}
-              {thread.status !== "open" ? (
-                <span>{CRM_THREAD_STATUS_LABELS[thread.status]}</span>
-              ) : null}
-              {addressLabel ? (
-                <span className="min-w-0 truncate">To {addressLabel}</span>
-              ) : null}
-              {thread.tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className="max-w-24 shrink-0 truncate rounded-md bg-muted px-1.5 py-0.5"
-                >
-                  {tag}
-                </span>
-              ))}
-            </span>
+        {thread.saved ? (
+          <StarIcon aria-label="Saved" className="size-3.5 shrink-0 fill-amber-400 text-amber-500" />
+        ) : null}
+        {/* In words, not a coloured dot, because "you left this half
+            written" is not something a shade can say. */}
+        {hasDraft ? <Chip>Unsent draft</Chip> : null}
+        {waiting ? <Chip>Waiting {waitedDays} {waitedDays === 1 ? "day" : "days"}</Chip> : null}
+        {followUpDue ? <Chip>To follow up</Chip> : null}
+      </MainCell>
+      <TableCell column="preview" className="w-full max-w-0 min-w-56">
+        <span className={cn("block truncate", thread.unread ? "text-foreground" : "text-muted-foreground")}>
+          {/* An answer of ours reads as a reply rather than as their words. */}
+          {thread.lastDirection === "out" ? "You: " : null}
+          {thread.snippet ?? thread.subject ?? ""}
+        </span>
+      </TableCell>
+      <TableCell column="preview" className="hidden @2xl:table-cell">
+        <Chip muted={thread.leadStage === "new"}>{CRM_STAGE_LABELS[thread.leadStage]}</Chip>
+      </TableCell>
+      <TableCell column="preview" className="hidden @4xl:table-cell">
+        <span className="flex items-center gap-1">
+          {thread.status !== "open" ? <Chip muted>{CRM_THREAD_STATUS_LABELS[thread.status]}</Chip> : null}
+          {addressLabel ? <Chip muted>To {addressLabel}</Chip> : null}
+          {thread.tags.slice(0, 2).map((tag) => (
+            <Chip key={tag} muted>{tag}</Chip>
+          ))}
+          {thread.status === "open" && !addressLabel && thread.tags.length === 0 ? (
+            <span className="text-muted-foreground">None</span>
           ) : null}
         </span>
-
-        <span className="sr-only">
-          {thread.subject || "No subject"}. {thread.unread ? "Unread." : ""}
-          {hasDraft ? "Has an unsent draft." : ""}
-        </span>
-      </button>
-      {tickLayer}
-    </div>
+      </TableCell>
+      <TableCell column="mutedMeta">{formatInboxTime(thread.last_message_at)}</TableCell>
+    </CrmTableRow>
   )
+}
+
+/** The inbox's columns, as Project's list has them: the name, then the words, then the facts. */
+function INBOX_COLUMNS(sort: CrmInboxSort): TableHeaderColumn<"who" | "words" | "stage" | "more" | "when">[] {
+  void sort
+  return [
+    // From takes only what the names need and Email takes the rest, so the
+    // words sit next to who sent them (Tyler, 7 Nov 2026: "move the latest
+    // col closer to the from col and rename latest to Email").
+    { key: "who", label: "From", sortable: false, column: "main", className: "w-px min-w-40" },
+    { key: "words", label: "Email", sortable: false, column: "preview", className: "w-full max-w-none min-w-56" },
+    { key: "stage", label: "Stage", sortable: false, column: "preview", className: "hidden @2xl:table-cell" },
+    { key: "more", label: "Tags", sortable: false, column: "preview", className: "hidden @4xl:table-cell" },
+    { key: "when", label: "When", column: "meta" },
+  ]
+}
+
+/**
+ * The inbox's group headings: Today, Yesterday, This week, then Earlier, by
+ * when the newest message came. Empty ones are left out, and the rows keep
+ * the order the list came in, so Longest waiting first still reads oldest
+ * first inside each heading.
+ */
+function groupByDay(threads: InboxThread[]) {
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  const day = 86_400_000
+  const keyOf = (iso: string) => {
+    const at = new Date(iso).getTime()
+    if (at >= startOfToday.getTime()) return "today"
+    if (at >= startOfToday.getTime() - day) return "yesterday"
+    if (at >= startOfToday.getTime() - 6 * day) return "week"
+    return "earlier"
+  }
+  const labels = { today: "Today", yesterday: "Yesterday", week: "This week", earlier: "Earlier" } as const
+  const order: (keyof typeof labels)[] = []
+  const byKey = new Map<keyof typeof labels, InboxThread[]>()
+  for (const thread of threads) {
+    const key = keyOf(thread.last_message_at)
+    if (!byKey.has(key)) {
+      byKey.set(key, [])
+      order.push(key)
+    }
+    byKey.get(key)!.push(thread)
+  }
+  return order.map((key) => ({ key, label: labels[key], threads: byKey.get(key)! }))
 }

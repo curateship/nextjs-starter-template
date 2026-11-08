@@ -28,11 +28,16 @@ import { type ShellConfig } from "@/lib/custom-shell"
 import {
   DARK_SHADES,
   darkShade,
+  DEFAULT_BLOCK_INSET,
+  DEFAULT_BLOCK_RADIUS,
+  DEFAULT_BLOCK_SHADE,
   DEFAULT_DASHBOARD_TABS,
   DEFAULT_PAGE_SHADE,
   DEFAULT_SIDEBAR_SHADE,
   isDarkShadeId,
   isDashboardTabStyle,
+  MAX_BLOCK_INSET,
+  MAX_BLOCK_RADIUS,
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
@@ -59,6 +64,9 @@ export function StylingSettings({
   const shade = darkShade(styling.darkShade)
   const sidebarShade = styling.sidebarShade ?? DEFAULT_SIDEBAR_SHADE
   const pageShade = styling.pageShade ?? DEFAULT_PAGE_SHADE
+  const blockRadius = styling.blockRadius ?? DEFAULT_BLOCK_RADIUS
+  const blockShade = styling.blockShade ?? DEFAULT_BLOCK_SHADE
+  const blockInset = styling.blockInset ?? DEFAULT_BLOCK_INSET
   // The page is drawn from the slider's own number rather than the live
   // --shell-canvas, so the preview moves with the thumb even before the
   // root variable catches up. The rail preview mixes from this page too.
@@ -306,6 +314,72 @@ export function StylingSettings({
                 A card, sitting on the page.
               </CardContent>
             </Card>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      {/* Tyler, 7 Nov 2026: "I want to add blocks styling to styling
+          settings. I want to adjust to rounded corner, the gray shade bg and
+          this padding". The preview is drawn from the sliders' own numbers,
+          so it moves with the thumb. */}
+      <CollapsibleSettingsCard
+        storageId="styling-blocks"
+        title="Blocks"
+        description="The cards a page's blocks are drawn in, such as the CRM's Stages and Segments. Every block on every page changes live as you adjust these."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Rounded corners"
+          value={blockRadius}
+          min={0}
+          max={MAX_BLOCK_RADIUS}
+          valueLabel={blockRadius === DEFAULT_BLOCK_RADIUS ? `${blockRadius}px · Default` : `${blockRadius}px`}
+          onChange={(value) => update({ blockRadius: value })}
+          help="0px is square. The white tile inside keeps an even edge whatever you pick."
+        />
+        <SliderRow
+          label="Grey shade"
+          value={blockShade}
+          min={0}
+          max={100}
+          valueLabel={blockShade === DEFAULT_BLOCK_SHADE ? `${blockShade}% · Default` : `${blockShade}%`}
+          onChange={(value) => update({ blockShade: value })}
+          help="The grey around the white tile. 0% is white, 100% the theme's light grey, in light and dark mode."
+        />
+        <SliderRow
+          label="Edge around the tile"
+          value={blockInset}
+          min={0}
+          max={MAX_BLOCK_INSET}
+          valueLabel={blockInset === DEFAULT_BLOCK_INSET ? `${blockInset}px · Default` : `${blockInset}px`}
+          onChange={(value) => update({ blockInset: value })}
+          help="How much grey shows between the block's edge and its white tile, at the sides and the bottom."
+        />
+
+        <FieldGroup label="Preview" className="gap-2">
+          <div className="max-w-xs rounded-lg border bg-card p-3">
+            <div
+              className="overflow-hidden"
+              style={{
+                borderRadius: blockRadius,
+                background: `color-mix(in oklab, var(--muted) ${blockShade}%, var(--card))`,
+              }}
+            >
+              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold">Stages</p>
+              <div style={{ padding: `0 ${blockInset}px ${blockInset}px` }}>
+                <div
+                  className="divide-y overflow-hidden bg-card text-sm"
+                  style={{ borderRadius: Math.max(0, blockRadius - blockInset) }}
+                >
+                  {["New", "Contacted", "Quoted"].map((stage, index) => (
+                    <div key={stage} className="flex justify-between px-3 py-2">
+                      {stage}
+                      <span className="text-muted-foreground">{index + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </FieldGroup>
       </CollapsibleSettingsCard>

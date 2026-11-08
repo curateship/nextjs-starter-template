@@ -24,7 +24,9 @@ All of them are in `src/components/shared/notes/`, with their rules in
 `src/lib/notes/`.
 
 - **`saving-document.tsx`, `SavingDocument`.** The page. It is the shell's
-  editor, with a toolbar over selected words. It saves 700ms after typing
+  editor, with a toolbar over selected words only: pressing a block or placing
+  the cursor never shows it (Tyler, 7 Nov 2026: "It should only show up on
+  selecting a text"). It saves 700ms after typing
   stops, when the page is left, and when it closes. A click above the first
   block, or between two blocks, starts a new line there. `locked` shows the
   page at full strength and stops it taking any writing. `appBlocks` lists the
@@ -35,7 +37,8 @@ All of them are in `src/components/shared/notes/`, with their rules in
   page, Links. Two parts here help an app make its own blocks. `blockNode`
   makes an app block's editor node. `AppBlock` is its row in the "/" list.
 - **`block-card.tsx`.** The card every app block draws in, Trade's style: a
-  light grey block, its title on a band, and its contents on a white tile 3px
+  light grey block, its title on a band, and its contents on a tile the colour
+  of the panel it sits on (white, or the panel grey in dark mode) 3px
   inside it. Pressing the title folds the card, and this browser remembers
   the fold. `blockView({ kind, title, icon, Draw })` makes an app block's
   view. `Draw` is the app's own component, and it reads its figures from a

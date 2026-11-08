@@ -131,7 +131,9 @@ export function BlockCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]"
+      // Corners, grey and edge from Settings → Styling → Blocks; the
+      // fallbacks are the look blocks had before the setting existed.
+      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] [background:color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))]"
     >
       <BlockHeadingContext.Provider value={heading}>
         <FoldHeading
@@ -173,13 +175,13 @@ export function BlockCard({
           // 3px of the grey block round its white tile, 70% less than the 10px
           // it was (Tyler, 7 Nov 2026: "reduce the padding ehre by 50%", "try
           // 100%", "try 90%", then "Make padding 70% instead").
-          className="min-w-0 px-[3px] pb-[3px] data-[state=closed]:hidden"
+          className="min-w-0 px-[var(--shell-block-inset,3px)] pb-[var(--shell-block-inset,3px)] data-[state=closed]:hidden"
         >
           {/* One white tile with rounded corners (Tyler, 7 Nov 2026: "THis should
               be rounded corner"). A table's grey heading and totals rows turn
               white inside it, or they melt into the grey block around the tile
               and its corners read as square. */}
-          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(1rem-3px)] bg-background text-sm [&_tfoot_td]:!bg-background [&_tfoot_tr]:!bg-background [&_thead_th]:!bg-background">
+          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card">
             {children}
           </div>
         </CollapsibleContent>

@@ -465,7 +465,7 @@ export function AutomationEditor({
           return saveNow()
         }}
         onBack={() => setEditingEmailNodeId(null)}
-        bottomPanel={runsPanel}
+        runsPanel={runsPanel}
       />
     )
   }

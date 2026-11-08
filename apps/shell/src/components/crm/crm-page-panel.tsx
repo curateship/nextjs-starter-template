@@ -1,5 +1,5 @@
 import * as React from "react"
-import { PlusIcon } from "lucide-react"
+import { ChevronRightIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CRM_APP_BLOCKS, CrmBlocksProvider, type CrmBlocks } from "@/components/crm/crm-blocks"
@@ -41,6 +41,8 @@ import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-car
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { focusRingInset } from "@/lib/layout/focus-ring"
+import { SYSTEM_EMAIL_KINDS, SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
 import { cn } from "@/lib/utils"
 
 /**
@@ -62,16 +64,23 @@ export function CrmPagePanel({
   blocks,
   onPageChange,
   onFiguresChanged,
+  onOpenSystemEmail,
+  openSystemEmail,
 }: {
   /** Null while the page is first read. */
   page: StoredPage | null
   figures: CrmBlockFigures | null
-  blocks: Omit<CrmBlocks, "figures" | "onRenameAddress" | "onRemoveAddress">
+  blocks: Omit<CrmBlocks, "figures">
   onPageChange: (page: StoredPage) => void
   /** Reads the figures again, and the inbox with them, after an address changed. */
   onFiguresChanged: () => void
+  /** Opens one of the app's own emails on the right, from the System emails tab. */
+  onOpenSystemEmail: (kind: SystemEmailKind) => void
+  /** The one open on the right, so its row looks picked. */
+  openSystemEmail: SystemEmailKind | null
 }) {
   const [busy, setBusy] = React.useState(false)
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const [renaming, setRenaming] = React.useState<{ id: string; label: string } | null>(null)
   const [removing, setRemoving] = React.useState<{ id: string; address: string } | null>(null)
 
@@ -104,8 +113,6 @@ export function CrmPagePanel({
   const provided: CrmBlocks = {
     ...blocks,
     figures,
-    onRenameAddress: (id, label) => setRenaming({ id, label }),
-    onRemoveAddress: (id, address) => setRemoving({ id, address }),
   }
 
   const openCount = figures?.openCount
@@ -132,7 +139,12 @@ export function CrmPagePanel({
           {page ? (
             <TabbedMenu
               label="CRM settings"
-              align="end"
+              // Opens to the right, over the list, rather than past the
+              // panel's left edge (Tyler, 7 Nov 2026: "align settings
+              // dropdown to the right").
+              align="start"
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
               tabs={[
                 {
                   value: "general",
@@ -177,6 +189,115 @@ export function CrmPagePanel({
                         busy={busy}
                         onLock={(locked) => void setLocked(locked)}
                       />
+                    </div>
+                  ),
+                },
+                {
+                  // The addresses mail arrives at, moved here from a block on
+                  // the page (Tyler, 7 Nov 2026: "move the email block to the
+                  // settings"). Pressing one narrows the inbox to it.
+                  value: "emails",
+                  label: "Emails",
+                  content: (
+                    <div className="grid gap-3 p-3">
+                      <PickGroup
+                        title="Mail arrives at"
+                        after={
+                          <p className="px-0.5 text-xs text-muted-foreground">
+                            The + at the top adds another. Pressing one shows only its mail in the inbox.
+                          </p>
+                        }
+                      >
+                        {(figures?.emails ?? []).length === 0 ? (
+                          <p className="px-3 py-2.5 text-sm text-muted-foreground">No address yet.</p>
+                        ) : (
+                          (figures?.emails ?? []).map((email) => {
+                            const lowered = email.address.toLowerCase()
+                            const picked = blocks.activeAddress === lowered
+                            return (
+                              <div key={email.id} className={cn("flex min-h-11 items-center gap-1 pr-1.5", picked && "bg-muted")}>
+                                <button
+                                  type="button"
+                                  aria-current={picked ? "true" : undefined}
+                                  onClick={() => {
+                                    setMenuOpen(false)
+                                    blocks.onAddress(picked ? "" : lowered)
+                                  }}
+                                  className={cn("grid min-w-0 flex-1 px-3 py-2 text-left text-sm hover:bg-muted", focusRingInset)}
+                                >
+                                  <span className="truncate">{email.label || email.address}</span>
+                                  {email.label ? (
+                                    <span className="truncate text-xs text-muted-foreground">{email.address}</span>
+                                  ) : null}
+                                </button>
+                                <span className="text-xs text-muted-foreground tabular-nums">{email.open} open</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setMenuOpen(false)
+                                    setRenaming({ id: email.id, label: email.label })
+                                  }}
+                                >
+                                  Rename
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => {
+                                    setMenuOpen(false)
+                                    setRemoving({ id: email.id, address: email.address })
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            )
+                          })
+                        )}
+                      </PickGroup>
+                    </div>
+                  ),
+                },
+                {
+                  // Tyler, 7 Nov 2026: system emails are "a tab in the CRM
+                  // settings ⋮. Opening a kind puts its editor in the right
+                  // panel."
+                  value: "system",
+                  label: "System emails",
+                  content: (
+                    <div className="grid gap-3 p-3">
+                      <PickGroup
+                        title="Sent by the app"
+                        after={
+                          <p className="px-0.5 text-xs text-muted-foreground">
+                            The app sends these itself. Pressing one opens it on the right to change its words.
+                          </p>
+                        }
+                      >
+                        {SYSTEM_EMAIL_KINDS.map((kind) => (
+                          <button
+                            key={kind}
+                            type="button"
+                            aria-current={openSystemEmail === kind ? "true" : undefined}
+                            onClick={() => {
+                              setMenuOpen(false)
+                              onOpenSystemEmail(kind)
+                            }}
+                            className={cn(
+                              "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted",
+                              openSystemEmail === kind && "bg-muted",
+                              focusRingInset
+                            )}
+                          >
+                            <span className="min-w-0 flex-1 truncate">{SYSTEM_EMAIL_META[kind].name}</span>
+                            <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
+                          </button>
+                        ))}
+                      </PickGroup>
                     </div>
                   ),
                 },

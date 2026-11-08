@@ -1,11 +1,13 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { ContactPanel } from "@/components/broadcasts/contact-panel"
-import { ContactsLeftPanel } from "@/components/broadcasts/contacts-left-panel"
-import { ContactsListPanel } from "@/components/broadcasts/contacts-list-panel"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
+import type { CrmLeft } from "@/components/crm/crm-dashboard"
+import { CrmPeopleList } from "@/components/crm/crm-people-list"
+import { LeadRecord } from "@/components/crm/lead-record"
+import type { ViewChoice } from "@/components/shared/view-menu"
 import { ThreePanels } from "@/components/shared/three-panels"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -18,12 +20,15 @@ import {
   getSegmentErrorMessage,
   type SegmentItem,
 } from "@/lib/api/people/contact-segments"
+import type { CrmBlockFigures } from "@/lib/api/crm/page"
 import {
   cleanSegmentRules,
   rulesShowingSegment,
   sameSegmentRules,
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
+import { CONTACT_SHORTCUTS, shortcutIsOn } from "@/lib/contacts/contact-shortcuts"
+import type { CrmPeopleSearch, CrmSearch } from "@/lib/crm/crm-search"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -32,8 +37,6 @@ import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
-const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
-
 /** One shared empty list, so "no filters" is the same object every render. */
 const EMPTY_RULES: SegmentRules = { conditions: [] }
 
@@ -41,27 +44,44 @@ type SegmentWindow =
   | { mode: "new"; rules?: SegmentRules; searchExcluded?: boolean }
   | { mode: "edit"; segment: SegmentItem }
 
+/** The two status pills, as Filter writes them, so a pill lights when its rules are on. */
+const SUBSCRIBED = CONTACT_SHORTCUTS.find((entry) => entry.key === "subscribed")!
+const OPTED_OUT = CONTACT_SHORTCUTS.find((entry) => entry.key === "unsubscribed")!
+
 /**
- * Contacts and Segments as one three-column dashboard (Tyler, 19 Oct 2026:
- * "We have to combine both the contacts and segment into one 3 col
- * dashboard"). The left panel counts people by status and lists every
- * segment, the middle lists the contacts, and the right shows the one that is
- * open.
+ * The CRM's People tab (Part C of the CRM task, 7 Nov 2026): the Contacts
+ * dashboard moved into the CRM, with leads beside the contacts.
  *
- * Segments work like saved views: pressing one applies its rules to the list,
- * and Filter saves the list's rules as a new segment or, with one open,
- * updates it. A hand-picked segment is applied as "in this segment", and its
- * people change through mass select.
+ * - **Pills:** All, Leads, Subscribers, Opted out, then every saved segment
+ *   (Tyler: "Its pills: All, Leads, Subscribers, Opted out, then the saved
+ *   segments"). All is everybody once; somebody who wrote in and is on the
+ *   list too shows once, marked as both.
+ * - **Segments** work like saved views: a pill or the left page's Segments
+ *   block applies one, and Filter saves the list's rules as a new segment or,
+ *   with one open, updates it. Segment rules read contacts only, so a segment
+ *   or a filter shows contacts and no leads.
+ * - **Right:** the open contact, or the open lead, in the CRM's one record
+ *   frame.
  *
- * The search, the filters, the open segment, the sort, the page and the open
- * person all live in the address, so a reload keeps the view and a link opens
- * it for somebody else. Opened from the left menu, the page goes back to
- * where it was last time, and opens the list's first person when nobody is
- * open, so the right panel always has someone in it (`useDashboardPlace`).
+ * Everything lives in the address, so a reload keeps the view and a link opens
+ * it for somebody else.
  */
-export function ContactsDashboard({ data }: { data: ContactsPage }) {
+export function CrmPeopleTab({
+  data,
+  search,
+  figures,
+  tabs,
+  left,
+}: {
+  data: ContactsPage
+  search: CrmSearch
+  figures: CrmBlockFigures | null
+  tabs: React.ReactNode
+  left: CrmLeft
+}) {
   const router = useRouter()
-  const listSearch = contactsRoute.useSearch()
+  // The reader left only this tab's keys in the address (`readCrmSearch`).
+  const listSearch = search as CrmPeopleSearch
   const setListSearch = useListSearchNavigate()
   const openId = listSearch.open
   const openSegment =
@@ -131,34 +151,7 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
     [setListSearch]
   )
 
-  /** A Segments card row: pressing the open, unchanged one shows everybody again. */
-  const pressSegment = React.useCallback(
-    (segment: SegmentItem) => {
-      if (openSegment?.id === segment.id && !segmentChanged) {
-        setListSearch({ filter: undefined, segment: undefined, page: undefined })
-        return
-      }
-      showSegment(segment.id)
-    },
-    [openSegment, segmentChanged, setListSearch, showSegment]
-  )
 
-  /**
-   * A People card row: its rules alone, or nothing when it was already on.
-   * All people has no rules, so it clears the filter rather than writing an
-   * empty one into the address. The search goes too, so the list holds the
-   * number the row shows.
-   */
-  const applyShortcut = React.useCallback(
-    (shortcutRules: SegmentRules, on: boolean) =>
-      setListSearch({
-        filter: on || shortcutRules.conditions.length === 0 ? undefined : cleanSegmentRules(shortcutRules),
-        segment: undefined,
-        q: undefined,
-        page: undefined,
-      }),
-    [setListSearch]
-  )
 
   /**
    * The open person goes in the address with a history entry of its own, so
@@ -200,43 +193,91 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
 
   const shownSegmentWindow = segmentWindow ?? closingSegmentWindow
 
+  // The lead open on the right, when the open row is one.
+  const openRow = data.rows.find((row) => row.id === openId)
+  const openLead = openRow?.kind === "lead" ? openRow.lead : null
+
+  const segmentTotals = new Map((figures?.segments ?? []).map((entry) => [entry.id, entry.total]))
+  const pills: ViewChoice[] = [
+    { value: "all", label: "All", count: data.peopleCounts.all },
+    { value: "leads", label: "Leads", count: data.peopleCounts.leads },
+    { value: "subscribed", label: "Subscribers", count: data.shortcuts.subscribed },
+    { value: "unsubscribed", label: "Opted out", count: data.shortcuts.unsubscribed },
+    ...data.segments.map((segment) => ({
+      value: `segment:${segment.id}`,
+      label: segment.name,
+      count: segmentTotals.get(segment.id) ?? segment.total,
+    })),
+  ]
+  // Which pill is lit. Rules picked in Filter that match no pill light none.
+  const pill =
+    listSearch.view === "leads"
+      ? "leads"
+      : openSegment && !segmentChanged
+        ? `segment:${openSegment.id}`
+        : rules.conditions.length === 0 && !openSegment
+          ? "all"
+          : shortcutIsOn(SUBSCRIBED, rules)
+            ? "subscribed"
+            : shortcutIsOn(OPTED_OUT, rules)
+              ? "unsubscribed"
+              : ""
+
+  /** A pill pressed: its people, from the first page. The open person stays open. */
+  const pressPill = (value: string) => {
+    const base = { view: undefined, filter: undefined, segment: undefined, page: undefined }
+    if (value === "leads") setListSearch({ ...base, view: "leads" })
+    else if (value === "subscribed") setListSearch({ ...base, filter: cleanSegmentRules(SUBSCRIBED.rules) })
+    else if (value === "unsubscribed") setListSearch({ ...base, filter: cleanSegmentRules(OPTED_OUT.rules) })
+    else if (value.startsWith("segment:")) setListSearch({ ...base, segment: value.slice("segment:".length) })
+    else setListSearch(base)
+  }
+
   return (
     <ThreePanels
-      layoutKey={panelLayoutKey.contactsWorkspace}
+      layoutKey={panelLayoutKey.crmWorkspace}
       place={{
-        key: panelLayoutKey.contactsPlace,
+        key: panelLayoutKey.crmPlace,
         search: listSearch,
-        ids: data.contacts.map((contact) => contact.id),
+        ids: data.rows.map((row) => row.id),
       }}
-      showMiddleFor={`${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`}
+      showMiddleFor={`${listSearch.view ?? ""}|${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`}
       showRightFor={openId}
       left={{
-        label: "Segments",
-        showLabel: "Show the counts and segments",
-        content: (
-          <ContactsLeftPanel
-            data={data}
-            rules={rules}
-            openSegmentId={openSegment?.id}
-            onShortcut={applyShortcut}
-            onSegment={pressSegment}
-            onNewSegment={() => setSegmentWindow({ mode: "new" })}
-            onEditSegment={(segment) => setSegmentWindow({ mode: "edit", segment })}
-            onDeleteSegment={setDeleteTarget}
-          />
-        ),
+        label: "Page",
+        showLabel: "Show the page",
+        content: left({
+          activeSegment: openSegment?.id ?? "",
+          onSegment: (segmentId) =>
+            segmentId
+              ? showSegment(segmentId)
+              : setListSearch({ filter: undefined, segment: undefined, page: undefined }),
+          onEditSegment: (segmentId) => {
+            const segment = data.segments.find((entry) => entry.id === segmentId)
+            if (segment) setSegmentWindow({ mode: "edit", segment })
+          },
+          onDeleteSegment: (segmentId) => {
+            const segment = data.segments.find((entry) => entry.id === segmentId)
+            if (segment) setDeleteTarget(segment)
+          },
+        }),
       }}
       middle={{
-        label: "Contacts",
+        label: "People",
         content: (
-          <ContactsListPanel
+          <CrmPeopleList
             data={data}
+            listSearch={listSearch}
+            tabs={tabs}
+            pills={pills}
+            pill={pill}
+            onPill={pressPill}
             rules={rules}
             openSegment={openSegment}
             segmentChanged={segmentChanged}
-            openContactId={openId}
+            openId={openId}
             onRules={setRules}
-            onOpenContact={setOpenContact}
+            onOpen={setOpenContact}
             onSaveAsSegment={(saved, searchExcluded) =>
               setSegmentWindow({ mode: "new", rules: saved, searchExcluded })
             }
@@ -245,9 +286,17 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
         ),
       }}
       right={{
-        label: "Contact",
-        showLabel: "Show the contact",
-        content: (
+        label: "Person",
+        showLabel: "Show the person",
+        content: openLead ? (
+          <LeadRecord
+            key={openLead.id}
+            leadId={openLead.id}
+            newestThreadId={openLead.newestThreadId}
+            onOpenContact={(contactId) => setOpenContact(contactId)}
+            onChanged={refresh}
+          />
+        ) : (
           <ContactPanel
             key={openId ?? "none"}
             contactId={openId}
@@ -256,6 +305,7 @@ export function ContactsDashboard({ data }: { data: ContactsPage }) {
             refreshes={refreshes}
             onChanged={refresh}
             onSegment={showSegment}
+            onDeleted={() => setOpenContact(undefined)}
           />
         ),
       }}

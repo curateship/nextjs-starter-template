@@ -75,6 +75,17 @@ export type ShellStyling = {
    * (`DEFAULT_PAGE_SHADE`). Optional for the same reason as `dashboardTabs`.
    */
   pageShade?: number
+  /**
+   * The page blocks' look (Tyler, 7 Nov 2026: "I want to add blocks styling to
+   * styling settings ... rounded corner, the gray shade bg and this padding"):
+   * how round a block's corners are in px, how grey the block is behind its
+   * white tile (0 white to 100 the theme's muted grey), and how far in from
+   * the grey the tile sits, in px. Unset reads as the look blocks have always
+   * had. Optional for the same reason as `dashboardTabs`.
+   */
+  blockRadius?: number
+  blockShade?: number
+  blockInset?: number
 }
 
 /**
@@ -197,6 +208,12 @@ export const DEFAULT_MODAL_OVERLAY_OPACITY = 8
 export const DEFAULT_SIDEBAR_SHADE = 50
 /** Halfway between a card and the deepest page grey: the page it has always been. */
 export const DEFAULT_PAGE_SHADE = 50
+/** The block card as Tyler set it on 7 Nov 2026: rounded-2xl, muted at 50%, a 3px edge. */
+export const DEFAULT_BLOCK_RADIUS = 16
+export const MAX_BLOCK_RADIUS = 32
+export const DEFAULT_BLOCK_SHADE = 50
+export const DEFAULT_BLOCK_INSET = 3
+export const MAX_BLOCK_INSET = 16
 // Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
 export const SHELL_BACKGROUND_MODES: readonly ShellBackgroundMode[] = [
@@ -236,6 +253,18 @@ export function clampSidebarShade(value: unknown): number {
 
 export function clampPageShade(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_PAGE_SHADE)
+}
+
+export function clampBlockRadius(value: unknown): number {
+  return clampInt(value, 0, MAX_BLOCK_RADIUS, DEFAULT_BLOCK_RADIUS)
+}
+
+export function clampBlockShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_BLOCK_SHADE)
+}
+
+export function clampBlockInset(value: unknown): number {
+  return clampInt(value, 0, MAX_BLOCK_INSET, DEFAULT_BLOCK_INSET)
 }
 
 // The out-of-the-box look for a new workspace/app and every reset. These are the
@@ -341,6 +370,9 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.pageShade === undefined
       ? {}
       : { pageShade: clampPageShade(styling.pageShade) }),
+    ...(styling.blockRadius === undefined ? {} : { blockRadius: clampBlockRadius(styling.blockRadius) }),
+    ...(styling.blockShade === undefined ? {} : { blockShade: clampBlockShade(styling.blockShade) }),
+    ...(styling.blockInset === undefined ? {} : { blockInset: clampBlockInset(styling.blockInset) }),
   }
 }
 
@@ -531,3 +563,18 @@ export function getPageShadeVars(styling: ShellStyling): Record<string, string> 
 
 /** The page-shade CSS variable names, used to clear stale values. */
 export const PAGE_SHADE_VAR_NAMES = ["--shell-page-depth"] as const
+
+/**
+ * The page blocks' look, on the document root so every block on every page
+ * reads it (`BlockCard` in `src/components/shared/notes/block-card.tsx`).
+ */
+export function getBlockStyleVars(styling: ShellStyling): Record<string, string> {
+  return {
+    "--shell-block-radius": `${clampBlockRadius(styling.blockRadius)}px`,
+    "--shell-block-shade": `${clampBlockShade(styling.blockShade)}%`,
+    "--shell-block-inset": `${clampBlockInset(styling.blockInset)}px`,
+  }
+}
+
+/** The block CSS variable names, used to clear stale values. */
+export const BLOCK_STYLE_VAR_NAMES = ["--shell-block-radius", "--shell-block-shade", "--shell-block-inset"] as const

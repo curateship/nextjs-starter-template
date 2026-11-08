@@ -14,6 +14,7 @@ import {
   customShellCrmLeads,
   customShellCrmThreads,
   customShellWorkspaces,
+  customShellCrmPages,
 } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -36,14 +37,31 @@ describe("the CRM's left page", () => {
     })
   })
 
-  it("starts with the Emails and Follow up today blocks", async () => {
+  it("starts with the Follow up today block", async () => {
     const page = await getCrmPage(workspaceId, db)
     expect(JSON.parse(page.body).content.map((node: { type: string }) => node.type)).toEqual([
-      "noteCrmEmails",
       "noteCrmFollowUps",
       "paragraph",
     ])
     expect(page).toMatchObject({ locked: false, coverUrl: null })
+  })
+
+  it("leaves out an Emails block saved before the addresses moved to the settings", async () => {
+    await db.insert(customShellCrmPages).values({
+      workspaceId,
+      body: JSON.stringify({
+        type: "doc",
+        content: [
+          { type: "noteCrmEmails" },
+          { type: "paragraph", content: [{ type: "text", text: "Kept" }] },
+        ],
+      }),
+      locked: false,
+      coverUrl: null,
+      updatedAt: new Date(),
+    })
+    const page = await getCrmPage(workspaceId, db)
+    expect(JSON.parse(page.body).content.map((node: { type: string }) => node.type)).toEqual(["paragraph"])
   })
 
   it("keeps the CRM's own blocks and words, and drops a block it does not know", async () => {

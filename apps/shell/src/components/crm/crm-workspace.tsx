@@ -2,7 +2,8 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { ConversationPanel } from "@/components/crm/conversation-panel"
-import { CrmPagePanel } from "@/components/crm/crm-page-panel"
+import type { CrmLeft } from "@/components/crm/crm-dashboard"
+import { OutboxEmailPanel } from "@/components/crm/outbox-panels"
 import {
   InboxListPanel,
   type InboxFilters,
@@ -33,12 +34,7 @@ import {
   type ManyThreadsResult,
 } from "@/lib/api/crm/inbox"
 import { loadLead, type LeadBundle } from "@/lib/api/crm/leads"
-import {
-  getCrmPageErrorMessage,
-  loadCrmBlockFigures,
-  loadCrmPage,
-  type CrmBlockFigures,
-} from "@/lib/api/crm/page"
+import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
 import { CRM_MAX_THREADS_PER_PRESS, type CrmThreadStatus } from "@/lib/crm/crm"
 import {
   applyReplyDraft,
@@ -52,7 +48,6 @@ import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { STREAM_NUDGE_EVENT } from "@/lib/hooks/use-notification-stream"
 import { panelLayoutKey } from "@/lib/layout/panel-layout"
-import type { StoredPage } from "@/lib/notes/page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -65,14 +60,23 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  */
 export function CrmWorkspace({
   page,
+  outbox,
   filters,
   search,
-  openThreadId,
+  openThreadId: openId,
+  tabs,
+  left,
   onFiltersChange,
   onOpenThread,
   onReloadInbox,
 }: {
   page: InboxPage
+  /** The local development outbox, read only while its pill is picked. */
+  outbox: DevOutboxItem[] | null
+  /** The Broadcasts, Inbox and People tabs, for the middle header. */
+  tabs: React.ReactNode
+  /** The left page, given what its blocks point at on this tab. */
+  left: CrmLeft
   filters: InboxFilters
   /** The route's whole search, which `ThreePanels` keeps to come back to. */
   search: Record<string, unknown>
@@ -82,6 +86,9 @@ export function CrmWorkspace({
   /** Sends the route's loader round again, which is what redraws the list. */
   onReloadInbox: () => void
 }) {
+  // Under the Outbox pill `?open=` names an outbox email, never a
+  // conversation, so nothing below reads it as one.
+  const openThreadId = filters.view === "outbox" ? null : openId
   // The ticked rows. They live here rather than in the panel, for the same
   // reason the open conversation does: this component survives every redraw
   // the panel below it does not.
@@ -100,41 +107,6 @@ export function CrmWorkspace({
     if (tickId) ticks.setSelected(new Set([tickId]))
   }
 
-  // The left page and what its blocks draw. Read once here, and the figures
-  // again whenever the inbox is, so a count never disagrees with the list.
-  const [crmPage, setCrmPage] = React.useState<StoredPage | null>(null)
-  const [figures, setFigures] = React.useState<CrmBlockFigures | null>(null)
-  React.useEffect(() => {
-    let cancelled = false
-    loadCrmPage()
-      .then((loaded) => {
-        if (cancelled) return
-        setCrmPage(loaded.page)
-        setFigures(loaded.figures)
-      })
-      .catch((error) => {
-        if (!cancelled) showErrorToast(getCrmPageErrorMessage(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  // Each fresh inbox (a filter, a press, a reply) reads the figures again.
-  // The first inbox is skipped: the page's own read above brought them.
-  const firstPage = React.useRef(page)
-  React.useEffect(() => {
-    if (page === firstPage.current) return
-    let cancelled = false
-    loadCrmBlockFigures()
-      .then((next) => {
-        if (!cancelled) setFigures(next)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [page])
-
   // Changing a filter, the search or the unread tab clears the ticks, because
   // the rows they pointed at are no longer the rows on screen. Same hook as
   // every dashboard table.
@@ -144,8 +116,7 @@ export function CrmWorkspace({
       filters.search,
       filters.status,
       filters.stage,
-      filters.unreadOnly,
-      filters.savedOnly,
+      filters.view,
       filters.toAddress,
       filters.tag,
       filters.followUpDue,
@@ -279,7 +250,7 @@ export function CrmWorkspace({
   // the live bell off there is no nudge, and the screen is what it was.
   const [live, setLive] = React.useState<{
     news: number
-    counts: { all: number; unread: number; saved: number }
+    counts: { all: number; unread: number; saved: number; waiting: number }
   } | null>(null)
   const liveRef = React.useRef({ threads, filters, openThreadId, pageSize: page.pageSize })
   React.useEffect(() => {
@@ -293,8 +264,9 @@ export function CrmWorkspace({
         search: current.search || undefined,
         status: current.status,
         stage: current.stage,
-        unreadOnly: current.unreadOnly || undefined,
-        savedOnly: current.savedOnly || undefined,
+        unreadOnly: current.view === "unread" || undefined,
+        savedOnly: current.view === "saved" || undefined,
+        waitingOnly: current.view === "waiting" || undefined,
         toAddress: current.toAddress || undefined,
         tag: current.tag || undefined,
         followUpDue: current.followUpDue || undefined,
@@ -308,7 +280,12 @@ export function CrmWorkspace({
           )
           setLive({
             news: news.length,
-            counts: { all: fresh.allCount, unread: fresh.unreadCount, saved: fresh.savedCount },
+            counts: {
+              all: fresh.allCount,
+              unread: fresh.unreadCount,
+              saved: fresh.savedCount,
+              waiting: fresh.waitingCount,
+            },
           })
           if (open && news.some((row) => row.id === open)) reloadThread()
         })
@@ -340,8 +317,9 @@ export function CrmWorkspace({
         search: filters.search || undefined,
         status: filters.status,
         stage: filters.stage,
-        unreadOnly: filters.unreadOnly || undefined,
-        savedOnly: filters.savedOnly || undefined,
+        unreadOnly: filters.view === "unread" || undefined,
+        savedOnly: filters.view === "saved" || undefined,
+        waitingOnly: filters.view === "waiting" || undefined,
         toAddress: filters.toAddress || undefined,
         tag: filters.tag || undefined,
         followUpDue: filters.followUpDue || undefined,
@@ -537,6 +515,13 @@ export function CrmWorkspace({
       allCount={live?.counts.all ?? page.allCount}
       unreadCount={live?.counts.unread ?? page.unreadCount}
       savedCount={live?.counts.saved ?? page.savedCount}
+      waitingCount={live?.counts.waiting ?? page.waitingCount}
+      waitingShown={page.unansweredDays > 0}
+      outboxShown={page.outboxAvailable}
+      outbox={outbox}
+      openOutboxId={filters.view === "outbox" ? openId : null}
+      onOpenOutbox={(emailId) => onOpenThread(emailId)}
+      tabs={tabs}
       newMail={live?.news ?? 0}
       onShowNewMail={onReloadInbox}
       loading={false}
@@ -551,7 +536,7 @@ export function CrmWorkspace({
       actions={rowActions}
       addresses={page.addresses}
       siteTags={page.tags}
-      unansweredDays={figures?.unansweredDays ?? 0}
+      unansweredDays={page.unansweredDays}
       onStarted={(threadId) => {
         onReloadInbox()
         onOpenThread(threadId)
@@ -596,9 +581,11 @@ export function CrmWorkspace({
       emptyLine={
         threads.length > 0
           ? null
-          : filters.savedOnly
+          : filters.view === "saved"
             ? "No conversation is saved."
-            : filters.unreadOnly ||
+            : filters.view === "waiting"
+              ? "Nobody is waiting on you."
+              : filters.view === "unread" ||
                 filters.search ||
                 filters.stage !== "all" ||
                 filters.toAddress ||
@@ -640,22 +627,19 @@ export function CrmWorkspace({
     />
   )
 
-  const left = (
-    <CrmPagePanel
-      page={crmPage}
-      figures={figures}
-      onPageChange={setCrmPage}
-      onFiguresChanged={onReloadInbox}
-      blocks={{
-        activeAddress: filters.toAddress.toLowerCase(),
-        onAddress: (toAddress) => onFiltersChange({ toAddress }),
-        activeStage: filters.stage,
-        onStage: (stage) => onFiltersChange({ stage }),
-        openThreadId,
-        onOpenThread: (threadId) => onOpenThread(threadId),
-      }}
-    />
-  )
+  const leftPage = left({
+    activeAddress: filters.toAddress.toLowerCase(),
+    onAddress: (toAddress) => onFiltersChange({ toAddress }),
+    activeStage: filters.stage,
+    onStage: (stage) => onFiltersChange({ stage }),
+    openThreadId,
+    onOpenThread: (threadId) => {
+      // A conversation pressed on the left opens in the inbox, so the Outbox
+      // pill gives way to it.
+      if (filters.view === "outbox") onFiltersChange({ view: "all" })
+      onOpenThread(threadId)
+    },
+  })
 
   return (
     <ThreePanels
@@ -663,16 +647,26 @@ export function CrmWorkspace({
       place={{
         key: panelLayoutKey.crmPlace,
         search,
-        ids: threads.map((thread) => thread.id),
+        ids:
+          filters.view === "outbox"
+            ? (outbox ?? []).map((email) => email.id)
+            : threads.map((thread) => thread.id),
       }}
       showMiddleFor={`${filters.toAddress}|${filters.stage}`}
-      showRightFor={openThreadId ?? undefined}
-      left={{ label: "Page", showLabel: "Show the page", content: left }}
+      showRightFor={openId ?? undefined}
+      left={{ label: "Page", showLabel: "Show the page", content: leftPage }}
       middle={{ label: "Inbox", content: inbox }}
       right={{
-        label: "Conversation",
-        showLabel: "Show the conversation",
-        content: right,
+        label: filters.view === "outbox" ? "Email" : "Conversation",
+        showLabel: filters.view === "outbox" ? "Show the email" : "Show the conversation",
+        content:
+          filters.view === "outbox" ? (
+            <OutboxEmailPanel
+              email={(outbox ?? []).find((email) => email.id === openId) ?? null}
+            />
+          ) : (
+            right
+          ),
       }}
     >
       <ConfirmDialog

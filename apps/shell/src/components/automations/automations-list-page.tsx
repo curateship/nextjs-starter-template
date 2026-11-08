@@ -875,14 +875,13 @@ function LiveCell({
       >
         <Switch
           checked={automation.enabled}
-          disabled={blocked || disabled}
+          // Held while its change saves; no circle beside it, because a loading
+          // circle sits only in a button (Tyler, 7 Nov 2026).
+          disabled={blocked || disabled || busy}
           aria-label={`${automation.enabled ? "Stop" : "Start"} ${automation.name} reacting to ${automation.trigger_name}`}
           onCheckedChange={onChange}
         />
       </DisabledReason>
-      {busy ? (
-        <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" />
-      ) : null}
       {stalled ? (
         <span className="truncate text-xs text-destructive">
           On, but not running

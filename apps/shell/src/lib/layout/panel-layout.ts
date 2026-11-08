@@ -70,14 +70,6 @@ export function useRememberedPanelLayout(key: string) {
 export const panelLayoutKey = {
   automationEditorHorizontal: "automation-editor-horizontal-2",
   automationEditorVertical: "automation-editor-vertical",
-  broadcastEditorHorizontal: "broadcast-editor-horizontal-2",
-  broadcastEditorVertical: "broadcast-editor-vertical",
-  // Its own keys, not the newsletter's. The bottom panel holds a different
-  // thing and wants a different height, and a newsletter's sizing should not
-  // follow you into an email you cannot send.
-  systemEmailEditorHorizontal: "system-email-editor-horizontal-2",
-  systemEmailEditorVertical: "system-email-editor-vertical",
-  automationEmailEditorHorizontal: "automation-email-editor-horizontal-2",
   // One key, not two: the CRM has no bottom panel, so there is no second
   // group whose height needs remembering.
   //
@@ -90,17 +82,13 @@ export const panelLayoutKey = {
   // design), the left a page, the inbox in the middle, the conversation on
   // the right, each side at its narrowest 16%.
   crmWorkspace: "crm-workspace-horizontal-4",
-  // Not a layout: where the CRM dashboard was, for `useDashboardPlace`.
+  // Not a layout: where the CRM dashboard was, for `useDashboardPlace`. Every
+  // `ThreePanels` screen has one, named `…Place`. All three CRM tabs share it,
+  // so a bare `/admin/crm` goes back to the tab last open.
   crmPlace: "crm-workspace-place",
-  // Contacts with its segments, the shell's first `ThreePanels` screen.
-  contactsWorkspace: "contacts-workspace-horizontal-2",
-  // Not a layout: where the Contacts dashboard was, for `useDashboardPlace`.
-  // Every `ThreePanels` screen has one, named `…Place`.
-  contactsPlace: "contacts-workspace-place",
   // One key: the front page editor has no bottom panel, so there is no second
   // group whose height needs remembering.
   frontPageEditor: "front-page-editor-horizontal-2",
-  automationEmailEditorVertical: "automation-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
     `custom-shell-${page}-${side}-${cards}`,

@@ -12,6 +12,7 @@ import {
   setThreadSaved,
   setThreadStatus,
   setThreadStatuses,
+  waitingCutoff,
 } from "@/server/crm/inbox"
 import { getLead, updateLead } from "@/server/crm/leads"
 import { type CustomShellDb } from "@/server/db"
@@ -285,12 +286,51 @@ describe("the reads the CRM screen makes", () => {
     })
   })
 
+  /**
+   * The Inbox's Waiting pill: they wrote last, before the cutoff, the
+   * conversation is open, and the lead is not won or lost. The same rule the
+   * Waiting on you block reads, through `waitingConditions`.
+   */
+  describe("the Waiting pill", () => {
+    it("counts and lists the open conversation they wrote last, days ago", async () => {
+      const since = waitingCutoff(3)
+      expect((await countInboxThreads(workspaceId, {}, db, since)).waiting).toBe(1)
+      const rows = await listInboxThreads(workspaceId, { waitingSince: since }, db)
+      expect(rows.map((row) => row.id)).toEqual(["thread-1"])
+    })
+
+    it("does not move when the pill itself is on", async () => {
+      const since = waitingCutoff(3)
+      const off = await countInboxThreads(workspaceId, {}, db, since)
+      const on = await countInboxThreads(workspaceId, { waitingSince: since }, db, since)
+      expect(on).toEqual(off)
+    })
+
+    it("leaves out a lead already won", async () => {
+      await db
+        .update(customShellCrmLeads)
+        .set({ stage: "won" })
+        .where(eq(customShellCrmLeads.id, "lead-1"))
+      expect((await countInboxThreads(workspaceId, {}, db, waitingCutoff(3))).waiting).toBe(0)
+    })
+
+    it("leaves out mail newer than the cutoff", async () => {
+      const since = new Date("2026-09-15T00:00:00.000Z")
+      expect(await listInboxThreads(workspaceId, { waitingSince: since }, db)).toEqual([])
+    })
+
+    it("counts nothing with the chase off", async () => {
+      expect((await countInboxThreads(workspaceId, {}, db)).waiting).toBe(0)
+    })
+  })
+
   describe("the three tab counts", () => {
     it("counts everything, the unread part of it and the saved part of it", async () => {
       expect(await countInboxThreads(workspaceId, {}, db)).toEqual({
         all: 2,
         unread: 1,
         saved: 0,
+        waiting: 0,
       })
     })
 
@@ -307,24 +347,24 @@ describe("the reads the CRM screen makes", () => {
 
     it("still obeys every other filter", async () => {
       const open = await countInboxThreads(workspaceId, { status: "open" }, db)
-      expect(open).toEqual({ all: 1, unread: 1, saved: 0 })
+      expect(open).toEqual({ all: 1, unread: 1, saved: 0, waiting: 0 })
 
       const searched = await countInboxThreads(
         workspaceId,
         { search: "flats" },
         db
       )
-      expect(searched).toEqual({ all: 1, unread: 0, saved: 0 })
+      expect(searched).toEqual({ all: 1, unread: 0, saved: 0, waiting: 0 })
     })
 
     it("never counts another workspace's", async () => {
       const counts = await countInboxThreads(otherWorkspaceId, {}, db)
-      expect(counts).toEqual({ all: 1, unread: 1, saved: 0 })
+      expect(counts).toEqual({ all: 1, unread: 1, saved: 0, waiting: 0 })
     })
 
     it("answers zero rather than nothing when none match", async () => {
       expect(await countInboxThreads(workspaceId, { search: "zzzz" }, db)).toEqual(
-        { all: 0, unread: 0, saved: 0 }
+        { all: 0, unread: 0, saved: 0, waiting: 0 }
       )
     })
   })
