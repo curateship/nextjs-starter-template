@@ -421,7 +421,6 @@ export async function readShellSettings(
       ? globals.topLeftShortcuts
       : shortcutsForRole(globals.topLeftShortcuts, user.role),
     styling: workspaceSettings.styling,
-    dashboardWidgets: workspaceSettings.dashboardWidgets,
     // Which pages are hidden is a per-site decision — Alpha closing its
     // pricing page must not close Beta's.
     pages: workspaceSettings.pages,
@@ -431,7 +430,7 @@ export async function readShellSettings(
 /**
  * The left menu this role is drawn: the admin's own, the members' one, or
  * the app role's own. An app role never falls back to the members' menu,
- * which holds Changelog and the member home an app role does not get. A role
+ * which holds the member home an app role does not get. A role
  * the app no longer declares gets no menu at all.
  */
 export function sectionsForRole(
@@ -591,8 +590,8 @@ export function shellGlobalsForWrite(value: unknown) {
 /**
  * Takes the fields it reads rather than a whole `ShellConfig`: the settings save
  * hands it a validated request, and the parts of that request which are not
- * app-wide — the widget arrangement — are checked on their own way into the
- * workspace row, in their own shape.
+ * app-wide are checked on their own way into the workspace row, in their own
+ * shape.
  */
 export function pickShellGlobals(
   settings: Pick<

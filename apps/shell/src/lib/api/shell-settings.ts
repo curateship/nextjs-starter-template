@@ -21,7 +21,6 @@ import {
   SOCIAL_CARD_TYPES,
   normalizeShareImage,
 } from "@/lib/pages/public-metadata"
-import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import {
   brandImagesAreCurrent,
   type BrandImages,
@@ -411,26 +410,6 @@ const publicThemePresetsSchema = z
   )
   .max(MAX_PUBLIC_THEME_PRESETS)
 
-
-/**
- * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
- * the handler is what decides which ids survive, and it drops anything no
- * widget answers to along with any widget placed twice.
- *
- * Deliberately not an enum of today's widget ids. A tab left open from before a
- * widget was retired would then fail this whole request — taking every other
- * settings edit on the page down with it — where dropping the dead id quietly
- * is both safer and what the row ends up holding either way. The lengths are
- * capped because this is the only door into that row.
- */
-const widgetSlotSchema = z.array(z.string().max(64)).max(50)
-
-const dashboardWidgetsSchema = z.object({
-  top: widgetSlotSchema,
-  left: widgetSlotSchema,
-  right: widgetSlotSchema,
-})
-
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -558,7 +537,6 @@ const shellConfigSchema = z.object({
     idleMinutes: z.number().int().min(0),
   }),
   styling: shellStylingSchema,
-  dashboardWidgets: dashboardWidgetsSchema,
 })
 
 /**
@@ -673,7 +651,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
-            dashboardWidgets: normalizeDashboardWidgets(data.dashboardWidgets),
           },
           updatedAt,
         })

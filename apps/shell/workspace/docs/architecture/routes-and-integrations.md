@@ -27,7 +27,7 @@ job, not editable public pages.
 
 ## Signed-in pages
 
-Members can open `/home`, `/account`, `/workspaces`, and `/changelog`. Account
+Members can open `/home`, `/account`, and `/workspaces`. Account
 tabs may also open through the `account` search value while the person stays on
 the current page. Admins use their configured home route instead of the member
 home when one is set.

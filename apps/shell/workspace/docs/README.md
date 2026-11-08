@@ -35,11 +35,10 @@ local setup docs.
 ## Billing
 
 - [Plans, subscriptions, and entitlements](billing/plans-subscriptions-and-entitlements.md), including in-app plan changes and their test path
-- [Referral program](billing/referral-program.md)
 
 ## Content
 
-- [Announcements and changelog](content/announcements-and-changelog.md)
+- [Announcements](content/announcements.md)
 - [Public pages, search, and SEO](content/public-pages-search-and-seo.md)
 - [Public page load errors](content/public-page-load-errors.md)
 - [Building a page](content/building-the-front-page.md)
@@ -94,6 +93,7 @@ local setup docs.
 - [App shell and navigation](ui/app-shell-and-navigation.md)
 - [Home and dashboards](ui/home-and-dashboards.md)
 - [Dashboard controls](ui/dashboard-controls.md)
+- [Admin](ui/admin.md), the one admin dashboard: Overview, Users and Feedback, with Plans and Announcements in its ⋮
 - [Forms, tables, dialogs, and accessibility](ui/forms-tables-dialogs-and-accessibility.md)
 - [The bar while a page loads](ui/page-loading-bar.md)
 

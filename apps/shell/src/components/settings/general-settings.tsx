@@ -46,7 +46,7 @@ type SessionPolicyProps = {
 
 /**
  * General settings — the one screen for everything app-wide that is not
- * navigation, widgets, styling, email or payments.
+ * navigation, styling, email or payments.
  *
  * Security, Notifications, Storage and AI were four more rows in the settings
  * rail until 25 Sep 2026. Each was a single card, so each is a card here. They
@@ -146,7 +146,7 @@ export function GeneralSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="member-home-route"
-            hint="Where the home page opens for everybody who is not an admin, for example /changelog/whats-new. Empty shows them their own home page: their plan, their notices and their feedback. It has to be a real route — an unknown path will 404."
+            hint="Where the home page opens for everybody who is not an admin, for example /pricing. Empty shows them their own home page: their plan, their notices and their feedback. It has to be a real route — an unknown path will 404."
           >
             Member home route
           </FieldLabel>

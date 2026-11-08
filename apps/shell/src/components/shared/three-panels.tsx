@@ -180,10 +180,9 @@ export function ThreePanels({
     <SideToggles.Provider value={toggles}>
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
-        key={layout.layoutKey}
+        groupRef={layout.groupRef}
         orientation="horizontal"
         className="min-h-0 flex-1"
-        defaultLayout={layout.defaultLayout}
         onLayoutChanged={layout.onLayoutChanged}
       >
         <ResizablePanel

@@ -70,7 +70,7 @@ export type AppOptions = {
    *
    * Everyone signs in on the one `/login`. What an app role sees is only what
    * its `features` list gives it, and an app role starts with none: no billing,
-   * plan or Upgrade, no AI usage, no Feedback, no Changelog, no workspaces, and
+   * plan or Upgrade, no AI usage, no Feedback, no workspaces, and
    * an Account window holding a name, a photo and a password. The server
    * refuses the same things, not just the screen. Unset means the app has no
    * roles of its own, so every account is an admin or a member, as before.

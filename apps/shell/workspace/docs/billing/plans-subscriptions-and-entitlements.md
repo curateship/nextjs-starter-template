@@ -173,12 +173,6 @@ events. That early invoice event is the recovery point for waiting meter events;
 the endpoint returns an error while more rows remain so Stripe delivers it
 again.
 
-The referral program also needs `invoice.payment_succeeded` and
-`charge.refunded`. The first event records a referred member's first real
-subscription payment. The second takes back a pending or granted reward after a
-full refund. [Referral program](referral-program.md) explains the attribution
-and free-month rules.
-
 The Stripe webhook verifies its signature before updating subscriptions,
 billing events, and subscription history. Repeated webhook deliveries must not
 apply the same change twice. An admin can inspect billing and subscription
@@ -207,12 +201,11 @@ event kind, plan names, any date needed by the wording, and when it happened.
 Raw provider status and who caused the change never reach the browser.
 
 The same Billing tab shows the signed-in member's total units, totals by meter,
-and recent usage. The admin usage page at `/admin/ai-usage` shows this month's
-platform totals, totals by meter and member, and Stripe reports from any month
-that still need attention. Admins can open it from the Dashboard group's
-top-left menu or the Plans dashboard. The navigation upgrade moves any saved
-copy of the link into that group and changes an absolute address to the internal
-route, so the shell recognizes the group on the Metered usage page.
+and recent usage. Admins see the platform's usage on the Overview tab of
+[Admin](../ui/admin.md): metered units by member in its By person table and by
+meter in Daily AI spend's More details, for the one date range, plus Stripe
+reports from any month that still need attention. The old `/admin/ai-usage`
+address forwards there.
 
 Stripe decides how a meter adds or prices its units. Tier rules and unit names
 are configured in Stripe rather than copied into this app. A shell plan supports

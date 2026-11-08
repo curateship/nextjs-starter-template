@@ -34,6 +34,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 import type { WorkspaceStatus } from "@/lib/workspaces/status"
+import type { AdminPageSide } from "@/lib/admin-dashboard/admin-page"
 
 export const customShellUsers = pgTable(
   "users",
@@ -108,20 +109,11 @@ export const customShellUsers = pgTable(
      * person. Null falls back to `DEFAULT_SIDEBAR_WIDTH`.
      */
     sidebarWidth: integer("sidebar_width"),
-    /**
-     * The stable public code in this account's invite link. Postgres supplies
-     * it for every account creation path, including admin-created accounts and
-     * test fixtures, so no caller can accidentally make an account without one.
-     */
-    referralCode: varchar("referral_code", { length: 32 })
-      .notNull()
-      .default(sql`replace(gen_random_uuid()::text, '-', '')`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("ix_users_email").on(table.email),
-    uniqueIndex("ux_users_referral_code").on(table.referralCode),
     index("ix_users_current_workspace").on(table.currentWorkspaceId),
     index("ix_users_deleted_at")
       .on(table.deletedAt)
@@ -392,12 +384,12 @@ export const customShellNotifications = pgTable(
     recipientUserId: varchar("recipient_user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    /** Null on a changelog notice: an update is posted by the product, not a person. */
+    /** Null on a notice the product posts itself, such as an announcement. */
     actorUserId: varchar("actor_user_id", { length: 36 }).references(
       () => customShellUsers.id,
       { onDelete: "cascade" }
     ),
-    /** Null on a changelog notice, which is not about a piece of feedback. */
+    /** Null on a notice that is not about a piece of feedback. */
     feedbackId: varchar("feedback_id", { length: 36 }).references(
       () => customShellFeedback.id,
       { onDelete: "cascade" }
@@ -418,11 +410,6 @@ export const customShellNotifications = pgTable(
     }).references(() => customShellFeedbackComments.id, {
       onDelete: "cascade",
     }),
-    /** Set on a changelog notice; deleting the update clears the notices too. */
-    changelogEntryId: varchar("changelog_entry_id", { length: 36 }).references(
-      () => customShellChangelogEntries.id,
-      { onDelete: "cascade" }
-    ),
     /** Set on an announcement notice; retiring or deleting it clears them too. */
     announcementId: varchar("announcement_id", { length: 36 }).references(
       () => customShellAnnouncements.id,
@@ -465,7 +452,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up', 'crm_mail_arrived')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up', 'crm_mail_arrived')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -474,7 +461,6 @@ export const customShellNotifications = pgTable(
     index("ix_notifications_feedback_id").on(table.feedbackId),
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
     index("ix_notifications_comment_id").on(table.feedbackCommentId),
-    index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
     index("ix_notifications_automation_run_id").on(table.automationRunId),
     // The bell's own question, asked once a minute per open tab: how many
     // notices are waiting that this person has not been shown yet. Partial,
@@ -977,87 +963,6 @@ export const customShellSubscriptionEvents = pgTable(
   ]
 )
 
-/**
- * One person-to-person invite from registration through its first real paid
- * invoice and any free-month credit earned from it.
- *
- * Names and emails are copied at registration so deleting either account does
- * not erase or damage the other person's reward record. The user references
- * clear on deletion instead of cascading for the same reason.
- */
-export const customShellReferrals = pgTable(
-  "referrals",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    referrerUserId: varchar("referrer_user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
-    referredUserId: varchar("referred_user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
-    referrerName: varchar("referrer_name", { length: 255 }).notNull(),
-    referrerEmail: varchar("referrer_email", { length: 255 }).notNull(),
-    referredName: varchar("referred_name", { length: 255 }).notNull(),
-    referredEmail: varchar("referred_email", { length: 255 }).notNull(),
-    status: varchar("status", { length: 20 }).notNull().default("invited"),
-    rewardStatus: varchar("reward_status", { length: 20 })
-      .notNull()
-      .default("not_earned"),
-    stripeInvoiceId: varchar("stripe_invoice_id", { length: 120 }).unique(),
-    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 120 }),
-    rewardAmountCents: integer("reward_amount_cents"),
-    rewardCurrency: varchar("reward_currency", { length: 10 }),
-    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }),
-    stripeBalanceTransactionId: varchar("stripe_balance_transaction_id", {
-      length: 120,
-    }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    joinedAt: timestamp("joined_at", { withTimezone: true }),
-    convertedAt: timestamp("converted_at", { withTimezone: true }),
-    grantedAt: timestamp("granted_at", { withTimezone: true }),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    check(
-      "referrals_status_check",
-      sql`${table.status} in ('invited', 'joined', 'converted')`
-    ),
-    check(
-      "referrals_reward_status_check",
-      sql`${table.rewardStatus} in ('not_earned', 'pending', 'granted', 'revoked')`
-    ),
-    check(
-      "referrals_reward_amount_check",
-      sql`${table.rewardAmountCents} is null or ${table.rewardAmountCents} > 0`
-    ),
-    check(
-      "referrals_progress_check",
-      sql`(${table.status} = 'invited' and ${table.joinedAt} is null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'joined' and ${table.joinedAt} is not null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'converted' and ${table.joinedAt} is not null and ${table.convertedAt} is not null and ${table.rewardStatus} in ('pending', 'granted', 'revoked'))`
-    ),
-    check(
-      "referrals_grant_check",
-      sql`${table.rewardStatus} <> 'granted' or (${table.rewardAmountCents} is not null and ${table.rewardCurrency} is not null and ${table.stripeCustomerId} is not null and ${table.stripeBalanceTransactionId} is not null and ${table.grantedAt} is not null)`
-    ),
-    uniqueIndex("ux_referrals_referred_user")
-      .on(table.referredUserId)
-      .where(sql`${table.referredUserId} is not null`),
-    index("ix_referrals_referrer_created").on(
-      table.referrerUserId,
-      table.createdAt.desc()
-    ),
-    index("ix_referrals_reward_status").on(
-      table.rewardStatus,
-      table.convertedAt.desc()
-    ),
-    index("ix_referrals_payment_intent")
-      .on(table.stripePaymentIntentId)
-      .where(sql`${table.stripePaymentIntentId} is not null`),
-  ]
-)
-
 export const customShellAutomations = pgTable(
   "automations",
   {
@@ -1480,29 +1385,6 @@ export const customShellPageBlocks = pgTable(
       table.workspaceId,
       table.path,
       table.position
-    ),
-  ]
-)
-
-export const customShellChangelogEntries = pgTable(
-  "changelog_entries",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    /** The site whose updates these are. */
-    workspaceId: varchar("workspace_id", { length: 36 })
-      .notNull()
-      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-    title: varchar("title", { length: 200 }).notNull(),
-    body: text("body").notNull(),
-    /** Null while the entry is a draft. Only published entries reach members. */
-    publishedAt: timestamp("published_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index("ix_changelog_entries_workspace_published").on(
-      table.workspaceId,
-      table.publishedAt
     ),
   ]
 )
@@ -2727,6 +2609,30 @@ export const customShellCrmPages = pgTable("crm_pages", {
 })
 
 /**
+ * The Admin dashboard's two pages, one of each per site (Tyler, 8 Nov 2026):
+ * the left page beside every tab and the right page beside Overview, each
+ * with what is written on it, its cover photo, and its lock. The same shape
+ * as `crm_pages`, keyed by side as well.
+ */
+export const customShellAdminPages = pgTable(
+  "admin_pages",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    side: varchar("side", { length: 8 }).$type<AdminPageSide>().notNull(),
+    body: text("body").notNull().default(""),
+    coverUrl: text("cover_url"),
+    locked: boolean("locked").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "admin_pages_pkey", columns: [table.workspaceId, table.side] }),
+    check("admin_pages_side_check", sql`${table.side} IN ('left', 'right')`),
+  ]
+)
+
+/**
  * One back-and-forth with one lead.
  *
  * The newest message's time and the message count are kept on the row rather
@@ -2939,8 +2845,6 @@ export const customShellCrmBlockedSenders = pgTable(
 )
 
 export type CustomShellUser = typeof customShellUsers.$inferSelect
-export type CustomShellChangelogEntry =
-  typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect
 export type CustomShellSubscription =
   typeof customShellSubscriptions.$inferSelect
@@ -2953,7 +2857,6 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
-export type CustomShellReferral = typeof customShellReferrals.$inferSelect
 export type CustomShellUsageEvent = typeof customShellUsageEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
 export type CustomShellAutomationRun =

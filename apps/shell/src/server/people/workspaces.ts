@@ -24,11 +24,6 @@ import {
 } from "@/lib/layout/styling-values"
 import { cleanAutomationPaletteKeys } from "@/lib/automations/node-registry"
 import {
-  createDefaultDashboardWidgets,
-  normalizeDashboardWidgets,
-  type DashboardWidgetLayout,
-} from "@/lib/dashboard/dashboard-widgets"
-import {
   cleanBroadcastBlockDefaults,
   type BroadcastBlock,
   type BroadcastBlockDefaults,
@@ -95,74 +90,37 @@ const MEDIA_ORPHANS_LINK_ID = "item-media-orphans"
 const MEDIA_ORPHANS_HREF = "/admin/media/orphans"
 
 /**
- * The admin's front door — what needs doing, what has happened, and how the
- * app is going, above the pages that go into each of those in full.
+ * Admin: the one admin dashboard, with Overview, Users and Feedback as its
+ * tabs and Plans and Announcements in its ⋮ (Tyler, 8 Nov 2026). It keeps the
+ * Overview link's id and address, so a sidebar that moved or hid it keeps
+ * that.
  */
 const OVERVIEW_LINK_ID = "item-admin-overview"
 const OVERVIEW_HREF = "/admin/dashboard"
 
-function overviewLink(children?: ShellChildItem[]): ShellItem {
+function adminLink(): ShellItem {
   return {
     type: "item",
     id: OVERVIEW_LINK_ID,
-    label: "Overview",
+    label: "Admin",
     href: OVERVIEW_HREF,
     icon: "layoutDashboard",
     visible: true,
     roles: ["admin"],
-    // Only when it is handed some, so a link meant to have none carries no
-    // empty `children: []` key.
-    ...(children ? { children } : {}),
   }
 }
 
 /**
- * The retired Membership parent. Its page is gone — the Overview shows the
- * members and the money — and Users and Plans hang off the Overview now.
- *
- * The id, the address and the two builders below stay here anyway, the same way
- * the Feeds ones did: a sidebar saved before any of this ran goes through the
- * whole chain in one pass, and the early steps still *create* this parent from
- * loose links, and anchor the Overview, AI usage and Traffic links on it,
- * before the last step takes it away again.
+ * The retired Membership parent. Its page is gone, and the step for version
+ * 14 still folds a saved one into the Overview link.
  */
 const MEMBERSHIP_LINK_ID = "item-admin-membership"
 const MEMBERSHIP_HREF = "/admin/membership"
 
 
-function membershipChildLinks(): ShellChildItem[] {
-  return [
-    {
-      id: "item-admin-users",
-      label: "Users",
-      href: "/admin/users",
-      icon: "users",
-      roles: ["admin"],
-    },
-    {
-      id: "item-admin-plans",
-      label: "Plans",
-      href: "/admin/plans",
-      icon: "package",
-      roles: ["admin"],
-    },
-  ]
-}
 
 const AI_USAGE_LINK_ID = "item-admin-ai-usage"
 const AI_USAGE_HREF = "/admin/ai"
-
-function aiUsageLink(): ShellItem {
-  return {
-    type: "item",
-    id: AI_USAGE_LINK_ID,
-    label: "AI usage",
-    href: AI_USAGE_HREF,
-    icon: "sparkles",
-    visible: true,
-    roles: ["admin"],
-  }
-}
 
 const METERED_USAGE_LINK_ID = "item-admin-metered-usage"
 const METERED_USAGE_HREF = "/admin/ai-usage"
@@ -192,17 +150,9 @@ function meteredUsageLink(): ShellItem {
 const TRAFFIC_LINK_ID = "item-admin-traffic"
 const TRAFFIC_HREF = "/admin/traffic"
 
-function trafficLink(): ShellItem {
-  return {
-    type: "item",
-    id: TRAFFIC_LINK_ID,
-    label: "Traffic",
-    href: TRAFFIC_HREF,
-    icon: "chart-line",
-    visible: true,
-    roles: ["admin"],
-  }
-}
+const ANALYTICS_LINK_ID = "item-admin-analytics"
+const ANALYTICS_HREF = "/admin/analytics"
+
 
 const CRM_LINK_ID = "item-crm"
 const CRM_HREF = "/admin/crm"
@@ -242,46 +192,13 @@ function pagesLink(): ShellItem {
 }
 
 
-/**
- * The four feed links. These are the Overview's children now, and they are
- * still what the old grouping step gathers under the retired Feeds parent —
- * one list, so the two can never drift apart.
- *
- * Built fresh per call, like `membershipChildLinks`: a shared array would be
- * handed to every workspace to save into its own settings. The changelog pair
- * is deliberately not role-gated — What's new is the page a changelog notice
- * opens and everyone gets those notices, and Changelog sends anyone who cannot
- * write updates straight to it.
- */
-function feedsChildLinks(): ShellChildItem[] {
-  return [
-    {
-      id: "item-admin-announcements",
-      label: "Announcements",
-      href: "/admin/announcements",
-      icon: "megaphone",
-      roles: ["admin"],
-    },
-    {
-      id: "item-notifications",
-      label: "Notifications",
-      href: "/admin/notifications",
-      icon: "bell",
-    },
-    {
-      id: "item-changelog",
-      label: "Changelog",
-      href: "/changelog",
-      icon: "sparkles",
-    },
-    {
-      id: "item-feedback",
-      label: "Feedback",
-      href: "/admin/feedback",
-      icon: "messageSquarePlus",
-    },
-  ]
-}
+/** Screens that became part of Admin on 8 Nov 2026, or went with it. */
+const FEEDBACK_HREF = "/admin/feedback"
+const ANNOUNCEMENTS_HREF = "/admin/announcements"
+const NOTIFICATIONS_HREF = "/admin/notifications"
+const CHANGELOG_HREF = "/changelog"
+const USERS_HREF = "/admin/users"
+const PLANS_HREF = "/admin/plans"
 
 
 
@@ -340,7 +257,7 @@ function systemEmailsChildLink(): ShellChildItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 22
+export const NAVIGATION_VERSION = 23
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -374,8 +291,6 @@ export type WorkspaceSettings = {
   navVersion: number
   // Visual styling (spacing, card border, backgrounds), saved per-workspace.
   styling: ShellStyling
-  // Which cards the Overview dashboard draws, and where, saved per-workspace.
-  dashboardWidgets: DashboardWidgetLayout
   // Starred palette nodes in the automation editor, saved per-workspace.
   automationFavoriteNodeKeys: string[]
   // How each kind of newsletter block starts out, saved per-workspace.
@@ -1003,7 +918,7 @@ export async function switchUserWorkspace(
  *
  * "Everything" grew with `0050_custom_shell_workspace_content.sql`: the
  * contacts, segments, broadcasts and email settings it always took, and now its
- * announcements, changelog, feedback and media rows too. **The media files
+ * announcements, feedback and media rows too. **The media files
  * themselves stay in the bucket** — no foreign key reaches outside the
  * database. They show up on the storage screen as objects nothing points at,
  * which is the same state a deleted account's files end in, and the same button
@@ -1171,6 +1086,9 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 22) {
     sections = removeEmailScreenLinks(sections)
+  }
+  if (settings.navVersion < 23) {
+    sections = foldScreensIntoAdmin(sections)
   }
 
   const [updated] = await database
@@ -1517,6 +1435,98 @@ export function removeEmailScreenLinks(sections: ShellSection[]): ShellSection[]
       return [children.length ? { ...entry, children } : stripChildren(entry)]
     }),
   }))
+
+  return changed ? result : sections
+}
+
+/**
+ * The links whose screens are part of Admin now, or were removed with it on
+ * 8 Nov 2026: Users, Plans, Feedback, Announcements, Analytics and its four
+ * old screens, Notifications, Changelog and What's new.
+ */
+const ADMIN_SCREEN_IDS = new Set([
+  "item-admin-users",
+  "item-admin-plans",
+  "item-feedback",
+  "item-admin-announcements",
+  "item-notifications",
+  "item-changelog",
+  "item-referrals",
+  ANALYTICS_LINK_ID,
+  AI_USAGE_LINK_ID,
+  METERED_USAGE_LINK_ID,
+  TRAFFIC_LINK_ID,
+])
+const ADMIN_SCREEN_HREFS = new Set([
+  USERS_HREF,
+  PLANS_HREF,
+  FEEDBACK_HREF,
+  ANNOUNCEMENTS_HREF,
+  NOTIFICATIONS_HREF,
+  CHANGELOG_HREF,
+  "/changelog/whats-new",
+  "/admin/referrals",
+  ANALYTICS_HREF,
+  AI_USAGE_HREF,
+  METERED_USAGE_HREF,
+  TRAFFIC_HREF,
+])
+
+/**
+ * Folds the admin screens into one Admin link (Tyler, 8 Nov 2026: "consolidate
+ * analytics with everything else (except images) into a dashboard called
+ * "Admin""). The Overview link becomes Admin: it keeps its place, its shown
+ * or hidden and a name somebody gave it, and loses the links hung under it
+ * that went into Admin. Every other link to one of those screens goes, and a
+ * section left with nothing in it goes too. A sidebar with no Overview link
+ * gets Admin where the first of them was, keeping that one's shown or hidden;
+ * when every one of them was under another link, Admin goes right after that
+ * link. A sidebar with none of them is left as it is.
+ */
+export function foldScreensIntoAdmin(sections: ShellSection[]): ShellSection[] {
+  const isAdminScreen = (link: { id: string; href?: string }) =>
+    ADMIN_SCREEN_IDS.has(link.id) || (link.href !== undefined && ADMIN_SCREEN_HREFS.has(link.href))
+  const isAdmin = (link: { id: string; href?: string }) =>
+    link.id === OVERVIEW_LINK_ID || link.href === OVERVIEW_HREF
+
+  let placed = sections.some((section) =>
+    section.entries.some(
+      (entry) => isAdmin(entry) || (isShellItem(entry) && (entry.children ?? []).some(isAdmin))
+    )
+  )
+  // A link of its own wins over one under another link, wherever each sits.
+  const topLevel = sections.some((section) =>
+    section.entries.some((entry) => isShellItem(entry) && isAdminScreen(entry))
+  )
+  let changed = false
+
+  const result = sections
+    .map((section) => ({
+      ...section,
+      entries: section.entries.flatMap((entry): ShellEntry[] => {
+        if (!isShellItem(entry)) return [entry]
+        if (isAdmin(entry)) {
+          changed = true
+          const children = (entry.children ?? []).filter((child) => !isAdminScreen(child))
+          const renamed = { ...entry, label: entry.label === "Overview" ? "Admin" : entry.label }
+          return [children.length ? { ...renamed, children } : stripChildren(renamed)]
+        }
+        if (isAdminScreen(entry)) {
+          changed = true
+          if (placed) return []
+          placed = true
+          return [{ ...adminLink(), visible: entry.visible ?? true }]
+        }
+        const children = (entry.children ?? []).filter((child) => !isAdminScreen(child))
+        if (children.length === (entry.children ?? []).length) return [entry]
+        changed = true
+        const kept = children.length ? { ...entry, children } : stripChildren(entry)
+        if (placed || topLevel) return [kept]
+        placed = true
+        return [kept, adminLink()]
+      }),
+    }))
+    .filter((section, index) => section.entries.length > 0 || sections[index].entries.length === 0)
 
   return changed ? result : sections
 }
@@ -1963,9 +1973,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       navVersion:
         typeof settings.navVersion === "number" ? settings.navVersion : 0,
       styling: normalizeStyling(settings.styling),
-      // A workspace saved before widgets existed has none, and gets the
-      // arrangement it was already looking at.
-      dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
       automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
         settings.automationFavoriteNodeKeys
       ),
@@ -2019,7 +2026,6 @@ function cleanWorkspaceSettings(
         ? settings.navVersion
         : fallback.navVersion,
     styling: normalizeStyling(settings.styling),
-    dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
@@ -2107,7 +2113,6 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     // nothing to be brought forward.
     navVersion: NAVIGATION_VERSION,
     styling: normalizeStyling(undefined),
-    dashboardWidgets: createDefaultDashboardWidgets(),
     automationFavoriteNodeKeys: [],
     broadcastBlockDefaults: {},
     // Nothing hidden. A new site shows every page it has.
@@ -2125,18 +2130,10 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       id: "section-administration",
       title: "Administration",
       entries: [
-        // Users and Plans hang off the Overview beside the feed links, in the
-        // order `foldMembershipIntoOverview` leaves them for a sidebar that
-        // still had the Membership parent when it was last saved — so a new
-        // workspace and an upgraded one read the same.
-        overviewLink([
-          ...feedsChildLinks(),
-          ...membershipChildLinks(),
-          meteredUsageChildLink(),
-        ]),
+        // Admin holds Users, Plans, Feedback and Announcements, so the
+        // links that once hung under the Overview are gone (8 Nov 2026).
+        adminLink(),
         crmLink(),
-        aiUsageLink(),
-        trafficLink(),
         pagesLink(),
       ],
     },

@@ -54,9 +54,16 @@ export function DailyBarChart<Point extends { day: string }>({
             tickLine={false}
             tick={{ fontSize: 10 }}
             dy={8}
-            // A month of days is too many labels to read; a quarter even more so.
+            // A month of days is too many labels to read; a quarter even more
+            // so, and a year is read a month at a time.
             interval={
-              data.length > 45 ? 13 : data.length > 20 ? 5 : fewDaysLabelInterval
+              data.length > 120
+                ? 30
+                : data.length > 45
+                  ? 13
+                  : data.length > 20
+                    ? 5
+                    : fewDaysLabelInterval
             }
           />
           <YAxis

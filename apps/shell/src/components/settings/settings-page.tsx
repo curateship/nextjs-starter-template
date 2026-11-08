@@ -17,7 +17,6 @@ import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
-import { WidgetSettings } from "@/components/settings/widget-settings"
 import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
 import { TopLeftShortcutsSettings } from "@/components/settings/top-left-shortcuts-settings"
 import { CardGroup } from "@/components/ui/card"
@@ -51,7 +50,6 @@ import {
 const settingsTabs = [
   { id: "general", label: "General settings" },
   { id: "navigation", label: "Navigation" },
-  { id: "widgets", label: "Widgets" },
   { id: "styling", label: "Styling" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
@@ -498,14 +496,6 @@ export function SettingsPage({
               onSaveConfig={onSaveConfig}
             />
           </CardGroup>
-        ) : null}
-        {activeTab === "widgets" ? (
-          <WidgetSettings
-            layout={config.dashboardWidgets}
-            onLayoutChange={(dashboardWidgets) =>
-              changeConfig({ dashboardWidgets })
-            }
-          />
         ) : null}
         {activeTab === "styling" ? (
           <StylingSettings config={config} onConfigChange={onConfigChange} />

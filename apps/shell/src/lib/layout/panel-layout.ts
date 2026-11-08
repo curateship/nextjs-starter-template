@@ -1,37 +1,50 @@
 import * as React from "react"
-import type { Layout } from "react-resizable-panels"
+import { useGroupCallbackRef, type Layout } from "react-resizable-panels"
 
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 
 /**
  * Where this browser last left the dividers of a resizable panel group.
  *
- * Spread the three values it returns onto the group: `key` so the group is
- * built once with the saved layout already in hand rather than rebuilt on
- * screen a beat later, `defaultLayout` as the starting point, and
- * `onLayoutChanged` to write every drag back.
+ * Put `groupRef` and `onLayoutChanged` on the group. The group draws its
+ * panels at their default sizes, and the saved layout is set on it before the
+ * first paint, so nothing is seen moving. The group is never rebuilt to take
+ * it: rebuilding meant building every panel and all it holds a second time on
+ * arrival, which read each panel's data twice (found by the Admin dashboard's
+ * audit, 8 Nov 2026).
  *
  * localStorage is only readable after hydration — the server has none, and
  * reading it during the first render would make the two renders disagree — so
- * the saved layout lands via state, before the paint.
+ * the saved layout is set once the group is on screen. A group that shows
+ * later, a narrow screen widening say, gets it when it appears.
  *
  * The layout is saved per browser, not per account. Every key belongs in
  * `panelLayoutKey` below so they cannot collide or drift.
  */
 export function useRememberedPanelLayout(key: string) {
-  const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
+  const [group, groupRef] = useGroupCallbackRef()
   const [loaded, setLoaded] = React.useState(false)
+  // Set once each time the group appears, and once per key: setting it again
+  // on a later render would undo a drag.
+  const appliedFor = React.useRef<string | null>(null)
 
   useEffectBeforePaint(() => {
+    if (!group) {
+      appliedFor.current = null
+      return
+    }
+    if (appliedFor.current === key) return
+    appliedFor.current = key
     try {
       const saved = localStorage.getItem(key)
-      setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
+      if (saved) group.setLayout(JSON.parse(saved) as Layout)
     } catch {
-      setDefaultLayout(undefined)
+      // A layout that cannot be read or no longer fits the panels leaves the
+      // defaults standing.
     } finally {
       setLoaded(true)
     }
-  }, [key])
+  }, [key, group])
 
   const onLayoutChanged = React.useCallback(
     (layout: Layout) => {
@@ -45,11 +58,7 @@ export function useRememberedPanelLayout(key: string) {
     [key, loaded]
   )
 
-  return {
-    defaultLayout,
-    onLayoutChanged,
-    layoutKey: loaded ? JSON.stringify(defaultLayout ?? {}) : "loading",
-  }
+  return { groupRef, onLayoutChanged }
 }
 
 /**
@@ -86,6 +95,12 @@ export const panelLayoutKey = {
   // `ThreePanels` screen has one, named `…Place`. All three CRM tabs share it,
   // so a bare `/admin/crm` goes back to the tab last open.
   crmPlace: "crm-workspace-place",
+  // The Admin dashboard (8 Nov 2026): Overview, Users and Feedback as one
+  // three-panel screen, each side at its narrowest 16%.
+  admin: "admin-horizontal-1",
+  // Not a layout: where Admin was, for `useDashboardPlace`: the tab, the
+  // range, and on Users and Feedback the list and the record open.
+  adminPlace: "admin-place",
   // One key: the front page editor has no bottom panel, so there is no second
   // group whose height needs remembering.
   frontPageEditor: "front-page-editor-horizontal-2",

@@ -250,7 +250,7 @@ the guess that one might:
   Project's `employee` or CMS's `venue_owner`. Each has an id (stored in
   `users.role`), a label, a `landing` page, the `features` of the shell it
   gets, and the left `menu` a fresh install gives it. An app role starts with
-  none of billing, AI usage, Feedback, Changelog, workspaces, the full Security
+  none of billing, AI usage, Feedback, workspaces, the full Security
   tab or email change, and the server refuses those to it through `featureGet`
   and `featurePost`. Everyone signs in on the one `/login`; `/home` sends an
   app role to its landing page. The app's invite endpoint makes the account

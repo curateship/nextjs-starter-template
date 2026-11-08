@@ -10,7 +10,6 @@ const notificationSettingLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up on feedback",
   feedback_comment: "Comments on feedback",
   feedback_merged: "Merged feedback",
-  changelog: "Product updates",
   announcement: "Announcements",
   ai_limit_warning: "AI allowance warnings",
   ai_limit_reached: "AI allowance reached",

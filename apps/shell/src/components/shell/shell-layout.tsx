@@ -121,7 +121,6 @@ import {
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import { buildHeaderBreadcrumb } from "@/lib/nav/header-breadcrumb"
 import { knownRoutePageTitle, routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
@@ -887,7 +886,6 @@ function normalizeConfig(
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
     pages: normalizePageOverrides(settings.pages),
     styling: normalizeStyling(settings.styling),
-    dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }
 }
 

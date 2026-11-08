@@ -58,7 +58,7 @@ export default function WaitForApprovalFields({
           value={summary}
           rows={1}
           maxLength={APPROVAL_SUMMARY_MAX}
-          placeholder="e.g. Sends the changelog email to every paying member."
+          placeholder="e.g. Sends the weekly email to every paying member."
           className="text-xs"
           onChange={(event) => setSettings({ summary: event.target.value })}
         />

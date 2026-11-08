@@ -171,7 +171,7 @@ same password with `restore: true`; that flag is the only thing that brings an
 account back through sign-in. An account an *admin* deleted is refused even then
 (`DELETED_BY_ADMIN`) — a member must not be able to reverse a moderation
 decision — so a Google-only account, having no password to offer, is always an
-admin's to restore. Admins restore from `/admin/users`, one row at a time or a
+admin's to restore. Admins restore from Admin's Users tab, one row at a time or a
 whole selection at once. An account always comes back **active**: the deletion
 clock took the status column, so a suspended account that was then deleted
 returns unsuspended. The restore confirmation says so.
@@ -218,7 +218,7 @@ yourself from the users table.
 
 ## 5. Plans
 
-Code: `src/server/plans.ts`, admin screen at `/admin/plans`.
+Code: `src/server/plans.ts`, edited from the Plans tab in the Admin dashboard's ⋮.
 
 Prices shown to people come from the plan row. What they are actually charged
 comes from the Stripe price id on that row. The browser only ever sends a plan
@@ -376,21 +376,22 @@ them cleanly.
 devices, delete account), `/account/billing` (plan, renewal or cancellation
 state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 
-**Admin:** `/admin/users` (search, filter, sort, paging, mass delete, mass
-restore, edit modal for role / status / granted plan / cancelling a paid plan,
-plus a "Locked out" window showing who the rate limiter is currently blocking,
-with one-click unblock), `/admin/plans` (create, edit, archive),
-`/admin/ai-usage` (metered units by meter and account, plus Stripe reporting
-status). The shell adds Metered usage to the saved Dashboard group as part of
-its navigation upgrade. That group supplies the top-left menu on the page. The
-upgrade also moves an existing copy from another saved group, changes an
-absolute address for this page to its internal route, and removes duplicates.
+**Admin:** one three-panel dashboard at `/admin/dashboard`
+(`apps/shell/workspace/docs/ui/admin.md`). Its Overview tab holds traffic, AI
+spend and metered units for one date range. Its Users tab is every account
+(search, filter, sort, paging, mass delete, mass restore, and a Locked out
+status showing who the rate limiter is blocking), with the person picked on the right
+(role, status, granted plan, cancelling a paid plan). Its Feedback tab is every
+piece of feedback, with the thread picked and a reply box on the right. Plans
+(create, edit, archive) and Announcements are tabs in its left panel's ⋮. The
+navigation upgrade's version 23 step folds the old Overview, Users, Plans,
+Feedback, Announcements, Notifications, Changelog and Analytics links into one
+Admin link, and the old addresses forward to Admin.
 
-The editable Users and Plans tables follow `.agents/skills/Ui-standards`: a
-selection column with select-all, an interactive title that opens the edit
-modal, every data column sortable, the multi-selection action first in the
-toolbar and the primary button last, and each row ending with the same two ghost
-icon buttons — settings then delete.
+The Users and Feedback tables follow `.agents/skills/Ui-standards`'s
+three-column dashboards: one header holding the tabs and the tab's toolbar, Mass
+select for ticking rows, every data column sortable, and a row press opening the
+record on the right.
 
 **Navigation.** New workspaces get an Account section, an admin-only
 Administration section, and the existing Platform Settings section
@@ -468,7 +469,7 @@ pnpm --filter shell exec tsc -p tsconfig.app.json --noEmit
 
 **Browser.** Drive the real app with Playwright: sign-up, the verification link
 and its rejection on reuse, an unverified sign-in being refused, a member seeing
-only their own area and being bounced off `/admin/users`, and an admin clicking
+only their own area and being bounced off `/admin/dashboard`, and an admin clicking
 through every page.
 
 Because link tokens are stored hashed, a test cannot read one out of the
@@ -478,8 +479,8 @@ database. Plant a row whose hash matches a token the test knows, then visit
 ## 13. When something looks wrong
 
 **"Too many attempts."** The rate limiter is doing its job — likely you during
-testing. Open the "Locked out" window from the Users page (`/admin/users`) and
-unblock the row, or clear everything with `delete from rate_limits;` locally.
+testing. Filter Admin's Users tab by the Locked out status to see who is
+blocked, and clear them with `delete from rate_limits;` locally.
 
 **Someone paid but is still on Free.** Check `billing_events` for the event id,
 then `subscriptions.status` and `current_period_end`. A lapsed period reads as
@@ -496,7 +497,7 @@ the `0003` backfill rather than by signing in. That backfill is now guarded by
 from the current defaults.
 
 **Admin pages redirect to `/account`.** That account is not an admin. Roles are
-in `users.role`; change it from `/admin/users`.
+in `users.role`; change it from Admin's Users tab.
 
 ## 14. Adopting this in another app
 

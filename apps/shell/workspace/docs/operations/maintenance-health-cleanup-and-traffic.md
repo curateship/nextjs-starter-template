@@ -61,4 +61,5 @@ For the active workspace, the beacon stores:
 The server hashes the IP address and user agent with a salt that changes each
 day. It never stores the raw IP in traffic records. Detailed visit rows last
 seven days. Daily totals remain after visitor hashes and finished daily salts
-are removed. The Traffic dashboard reads those totals and the retained facts.
+are removed. The Overview tab of [Admin](../ui/admin.md) reads those
+totals and the retained facts.

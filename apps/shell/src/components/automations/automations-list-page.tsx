@@ -6,7 +6,6 @@ import {
   CreditCardIcon,
   Loader2Icon,
   MailIcon,
-  NewspaperIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -81,7 +80,6 @@ type CreateChoice = "blank" | AutomationTemplateKey
 
 const TEMPLATE_ICONS = {
   "welcome-members": MailIcon,
-  "changelog-approval": NewspaperIcon,
   "payment-recovery": CreditCardIcon,
 } satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
@@ -685,7 +683,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   id="automation-name"
                   value={createName}
                   maxLength={80}
-                  placeholder="Weekly changelog email"
+                  placeholder="Weekly product email"
                   onChange={(event) => setCreateName(event.target.value)}
                   onBlur={() => setCreateNameTouched(true)}
                   aria-invalid={
@@ -740,7 +738,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         value={renameName}
         onValueChange={setRenameName}
         maxLength={80}
-        placeholder="Weekly changelog email"
+        placeholder="Weekly product email"
         dirty={renameName.trim() !== (renameTarget?.name ?? "")}
         busy={renaming}
         submitLabel="Save name"

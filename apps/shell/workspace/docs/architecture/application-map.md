@@ -3,7 +3,7 @@
 Custom Shell is both a working SaaS application and the shared base for Trade,
 CMS, and Video. It owns accounts, workspaces, billing, navigation, settings,
 email, notifications, media, feedback, public pages, and automations. Each app
-adds product routes, widgets, automation nodes, workers, and public content
+adds product routes, automation nodes, workers, and public content
 through the shell configuration instead of copying shell code.
 
 Custom Shell, Trade, and Video each have one public site. Their public-page,
@@ -18,7 +18,7 @@ The route tree has three clear audiences:
 
 - Signed-out routes cover registration, sign in, password recovery, email
   verification, pricing, public search, maintenance, and published pages.
-- Member routes cover Home, Account, Workspaces, Changelog, and any app pages
+- Member routes cover Home, Account, Workspaces, and any app pages
   allowed by the active role.
 - Admin routes cover people, billing, content, communication, feedback, media,
   AI, automations, traffic, and platform settings.
@@ -51,7 +51,7 @@ The database schema is in `src/server/schema.ts`. It tracks:
 The app extension files split browser and server work:
 
 - `src/app/options.ts` supplies browser-safe app choices such as navigation,
-  dashboard widgets, search results, automation nodes, and extra settings tabs.
+  search results, automation nodes, and extra settings tabs.
 - `src/app/server-options.ts` supplies automation executors and background
   workers.
 - Public pages use routes with a matching `*.page.ts` declaration.

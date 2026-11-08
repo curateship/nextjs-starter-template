@@ -167,12 +167,12 @@ export default function AudienceFields({
           </Select>
           {noPlans ? (
             <InspectorNote className="mt-1">
-              There are no paid plans yet. Add one in{" "}
+              There are no paid plans yet. Add one in the{" "}
               <Link
-                to="/admin/plans"
+                to="/admin/dashboard"
                 className="underline underline-offset-2 hover:text-foreground"
               >
-                Plans
+                Admin dashboard's Plans
               </Link>{" "}
               before this flow runs.
             </InspectorNote>
@@ -399,7 +399,7 @@ function AudiencePreviewNote({
             Counted just now. A run works it out again every time it goes, so
             this is what it would match if it went this moment.{" "}
             {audience === "tag" ? (
-              <Link to="/admin/users" className="underline underline-offset-2 hover:text-foreground">
+              <Link to="/admin/dashboard" search={{ tab: "users" }} className="underline underline-offset-2 hover:text-foreground">
                 Look people up in Accounts
               </Link>
             ) : (

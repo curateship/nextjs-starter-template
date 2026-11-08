@@ -7,7 +7,7 @@ everything in the first card, and the app wrote everything in the second.
 **Platform settings** is every screen the shell draws, in three blocks:
 
 - The admin's own rows first, with no heading, because the card's own title
-  already names them: General settings, Navigation, Widgets, Styling, Email,
+  already names them: General settings, Navigation, Styling, Email,
   Payments, AI. AI holds the AI provider keys card, one key per provider.
 - **Members**: Navigation, the member sidebar and member top right menu.
 - **Public**: Navigation for the signed-out header layout and links, Styling for
@@ -220,10 +220,8 @@ the on-or-off state it was left in.
 Public pages keep their own separate colour-mode button, because a visitor who
 is not signed in has no settings to put in a menu.
 
-Navigation and widget settings can:
-
-- Rename, reorder, hide, and group known navigation items.
-- Change the dashboard arrangement within registered widget choices.
+Navigation settings can rename, reorder, hide, and group known navigation
+items.
 
 A hidden admin link does not make its route public.
 

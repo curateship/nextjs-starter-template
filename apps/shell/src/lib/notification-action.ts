@@ -13,7 +13,6 @@ import {
  */
 export type NotificationAction =
   | { kind: "none" }
-  | { kind: "changelog" }
   | { kind: "billing" }
   | { kind: "feedback"; feedbackId: string }
   | {
@@ -59,7 +58,6 @@ export function isOwnAppHref(href: string): boolean {
 
 export function notificationAction(item: NotificationItem): NotificationAction {
   if (item.type === "announcement") return { kind: "none" }
-  if (item.type === "changelog") return { kind: "changelog" }
   // The buttons live in the flow's own editor, in the panel under the canvas,
   // so the notice opens the run there rather than repeating what it says.
   if (

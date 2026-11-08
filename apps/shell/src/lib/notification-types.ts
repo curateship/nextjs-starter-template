@@ -18,7 +18,6 @@ export type NotificationType =
   | "feedback_vote"
   | "feedback_comment"
   | "feedback_merged"
-  | "changelog"
   | "announcement"
   | "ai_limit_warning"
   | "ai_limit_reached"
@@ -34,7 +33,6 @@ export const NOTIFICATION_TYPES = [
   "feedback_vote",
   "feedback_comment",
   "feedback_merged",
-  "changelog",
   "announcement",
   "ai_limit_warning",
   "ai_limit_reached",
@@ -50,7 +48,7 @@ export const NOTIFICATION_TYPES = [
 /**
  * The notices that carry their own words in `message` and `detail`, written
  * when the notice was sent. Every other kind borrows its words from the thing
- * it points at: a feedback post, an update, a flow.
+ * it points at: a feedback post, a flow.
  *
  * One list, read by the bell, the Notifications table and the table's search.
  * `crm_follow_up` was added to the types on 3 Oct 2026 but not to the three
@@ -96,29 +94,6 @@ export function visibleNotificationTypes(
   visibility: NotificationTypeVisibility
 ): NotificationType[] {
   return NOTIFICATION_TYPES.filter((type) => visibility[type])
-}
-
-/**
- * What each kind of notice is called on screen. Kept here rather than in the
- * table because the server sorts the Type column by these words too — sorting
- * by the stored value would put "Announcement, Update, Comment, Thumbs up" in
- * that order and look random.
- */
-export const notificationTypeLabels: Record<NotificationType, string> = {
-  feedback_vote: "Thumbs up",
-  feedback_comment: "Comment",
-  feedback_merged: "Merged",
-  changelog: "Update",
-  announcement: "Announcement",
-  ai_limit_warning: "AI warning",
-  ai_limit_reached: "AI limit reached",
-  automation_approval: "Approval",
-  automation_failed: "Automation failed",
-  account_update: "Account update",
-  system_email_failed: "Email failed",
-  app_activity: "Activity",
-  crm_follow_up: "Follow up",
-  crm_mail_arrived: "New mail",
 }
 
 /**
