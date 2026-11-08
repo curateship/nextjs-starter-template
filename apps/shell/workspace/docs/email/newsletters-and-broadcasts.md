@@ -124,3 +124,6 @@ In the CRM's right panel the email sits on a faint grey of the theme's own.
 In dark mode its white grounds and dark words give way to the theme's, so it
 reads as part of the dashboard (Tyler, 7 Nov 2026: "this is not theme
 sensative"). What is sent is unchanged: a reader still gets the white email.
+The space round the email is the panel's own colour, the same grey as the
+list beside it, never the page's near black (Tyler, 7 Nov 2026: "why is this
+bg black").

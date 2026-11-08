@@ -185,7 +185,11 @@ export function BroadcastCanvas({
   }
 
   return (
-    <ScrollArea className={cn("h-full min-h-0 flex-1", inPanel ? "bg-background" : "bg-muted/30")}>
+    // In the CRM's right panel the space round the email is the panel's own
+    // colour. It was the page's, which dark mode draws near black, so the
+    // panel went black under the email (Tyler, 7 Nov 2026: "why is this bg
+    // black").
+    <ScrollArea className={cn("h-full min-h-0 flex-1", inPanel ? "bg-card" : "bg-muted/30")}>
       <div
         // In the CRM's panel the space above the email is the space at its
         // sides (Tyler, 7 Nov 2026: "top padding must match sides").
