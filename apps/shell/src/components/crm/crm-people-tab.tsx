@@ -40,6 +40,16 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 /** One shared empty list, so "no filters" is the same object every render. */
 const EMPTY_RULES: SegmentRules = { conditions: [] }
 
+/**
+ * Add a segment pressed on another tab: it moves to People, and People opens
+ * the new segment window when it arrives. A flag for that one hand-over, not a
+ * key in the address, so a reload or the Back button never reopens it.
+ */
+let newSegmentAsked = false
+export function askForNewSegment() {
+  newSegmentAsked = true
+}
+
 type SegmentWindow =
   | { mode: "new"; rules?: SegmentRules; searchExcluded?: boolean }
   | { mode: "edit"; segment: SegmentItem }
@@ -159,7 +169,11 @@ export function CrmPeopleTab({
    */
   const setOpenContact = useOpenRecord()
 
-  const [segmentWindow, setSegmentWindow] = React.useState<SegmentWindow | null>(null)
+  const [segmentWindow, setSegmentWindow] = React.useState<SegmentWindow | null>(() => {
+    if (!newSegmentAsked) return null
+    newSegmentAsked = false
+    return { mode: "new" }
+  })
   const closingSegmentWindow = useLastValue(segmentWindow)
   const [deleteTarget, setDeleteTarget] = React.useState<SegmentItem | null>(null)
   const closingDeleteTarget = useLastValue(deleteTarget)
@@ -260,6 +274,7 @@ export function CrmPeopleTab({
             const segment = data.segments.find((entry) => entry.id === segmentId)
             if (segment) setDeleteTarget(segment)
           },
+          onNewSegment: () => setSegmentWindow({ mode: "new" }),
         }),
       }}
       middle={{

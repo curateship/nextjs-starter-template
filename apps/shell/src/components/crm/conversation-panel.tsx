@@ -162,8 +162,8 @@ export function ConversationPanel({
           never matches this side panel's header (the Admin 3 panel design). */}
       <div>
         <DashboardCardHeader className="gap-2">
-          <Avatar size="sm" className="ml-1 shrink-0">
-            <AvatarFallback className="text-[0.6875rem] font-medium">
+          <Avatar className="shrink-0">
+            <AvatarFallback className="text-xs font-medium">
               {initialsFor(leadName, leadEmail ?? "")}
             </AvatarFallback>
           </Avatar>

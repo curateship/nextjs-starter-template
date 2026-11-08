@@ -3,7 +3,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { CrmBroadcastsTab } from "@/components/crm/crm-broadcasts-tab"
 import { CrmPagePanel } from "@/components/crm/crm-page-panel"
-import { CrmPeopleTab } from "@/components/crm/crm-people-tab"
+import { askForNewSegment, CrmPeopleTab } from "@/components/crm/crm-people-tab"
 import { CrmWorkspace } from "@/components/crm/crm-workspace"
 import type { InboxFilters } from "@/components/crm/inbox-list-panel"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
@@ -56,6 +56,7 @@ export type CrmLeft = (blocks: {
   /** Only on the People tab, which holds the segment window. */
   onEditSegment?: (segmentId: string) => void
   onDeleteSegment?: (segmentId: string) => void
+  onNewSegment?: () => void
   onOpenThread?: (threadId: string) => void
 }) => React.ReactNode
 
@@ -145,6 +146,12 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
           ((segmentId) => goTo(crmTabSearch("people", { segment: segmentId || undefined }))),
         onEditSegment: blocks.onEditSegment,
         onDeleteSegment: blocks.onDeleteSegment,
+        onNewSegment:
+          blocks.onNewSegment ??
+          (() => {
+            askForNewSegment()
+            goTo(crmTabSearch("people"))
+          }),
         onOpenThread:
           blocks.onOpenThread ?? ((threadId) => goTo(crmTabSearch("inbox", { open: threadId }))),
       }}

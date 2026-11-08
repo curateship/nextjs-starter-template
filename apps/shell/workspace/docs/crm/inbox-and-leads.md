@@ -107,8 +107,12 @@ own to the "/" list, in `src/components/crm/crm-blocks.tsx`:
 - **Stages.** How many leads are at each stage. Pressing one narrows the
   inbox to it.
 - **Segments.** Every saved segment of contacts with how many are in it.
-  Pressing one shows its people on the People tab, where a row's ⋯ has Edit
-  and Delete.
+  Pressing one shows its people on the People tab, where a row's ⋮ has Edit
+  and Delete. The block's own ⋮ holds **Add a
+  segment**, which opens the new segment window on the People tab, and
+  **Delete block** (Tyler, 7 Nov 2026: "replace this trashcan icon with a
+  vertical 3 dot to open a dropdown that show add a segment and delete
+  block").
 
 The header holds the collapse button, "CRM" with the number of open
 conversations under it, the **+**, and the ⋮ (CRM settings). The ⋮'s General

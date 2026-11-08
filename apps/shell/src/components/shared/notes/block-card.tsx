@@ -1,19 +1,21 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { Trash2Icon } from "lucide-react"
+import { EllipsisVerticalIcon, Trash2Icon } from "lucide-react"
 
 import { FoldHeading } from "@/components/shared/notes/fold-heading"
 import { Button } from "@/components/ui/button"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Collapsible,
   CollapsibleContent,
 } from "@/components/ui/collapsible"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -38,13 +40,21 @@ import { cn } from "@/lib/utils"
 export type BlockHeading = {
   actions: HTMLElement | null
   setCount: (count: number | undefined) => void
+  setMenu: (items: BlockMenuItem[] | undefined) => void
   open: boolean
+}
+
+/** One row a panel adds to its block's ⋮, above Delete block. */
+export type BlockMenuItem = {
+  label: string
+  icon?: React.ReactNode
+  onSelect: () => void
 }
 
 /** Exported so a panel's tests can stand in for the block around it. */
 export const BlockHeadingContext = React.createContext<BlockHeading | null>(null)
 
-/** Puts its children in the block's heading row, before the bin. Outside a block it draws them where it is. */
+/** Puts its children in the block's heading row, before the ⋮. Outside a block it draws them where it is. */
 export function BlockHeadingActions({
   children,
 }: {
@@ -66,6 +76,37 @@ export function useBlockCount(count: number | undefined) {
   React.useEffect(() => {
     setCount?.(count)
   }, [count, setCount])
+}
+
+/**
+ * Rows for the block's ⋮, above Delete block (Tyler, 7 Nov 2026, on the CRM's
+ * Segments block: "a vertical 3 dot to open a dropdown that show add a
+ * segment and delete block"). The rows are read when the menu opens, so a
+ * caller may hand a new array every render.
+ */
+export function useBlockMenu(items: BlockMenuItem[] | undefined) {
+  const heading = React.useContext(BlockHeadingContext)
+  const setMenu = heading?.setMenu
+  const latest = React.useRef(items)
+  React.useEffect(() => {
+    latest.current = items
+  })
+  // Keyed on the labels, so a new array with the same rows changes nothing.
+  const labels = JSON.stringify(items?.map((item) => item.label) ?? [])
+  React.useEffect(() => {
+    if (!setMenu) return
+    // The effect above has already stored this render's rows.
+    const rows = latest.current
+    setMenu(
+      rows?.length
+        ? rows.map((item, index) => ({
+            ...item,
+            onSelect: () => latest.current?.[index]?.onSelect(),
+          }))
+        : undefined
+    )
+    return () => setMenu(undefined)
+  }, [setMenu, labels])
 }
 
 /** Whether the block holding this panel is open, or true outside a block. */
@@ -98,7 +139,7 @@ export function BlockFrame({
 /**
  * Every block is one card, as Project's team blocks are: a solid light
  * grey box whose heading row holds the title, the panel's own buttons and
- * the bin, with no fold arrow. Pressing the title folds it, and the fold is
+ * the ⋮, with no fold arrow. Pressing the title folds it, and the fold is
  * remembered in this browser per block. The panel sits in one white tile.
  */
 export function BlockCard({
@@ -107,7 +148,6 @@ export function BlockCard({
   kind,
   title,
   icon,
-  removeLabel,
   children,
 }: {
   editable: boolean
@@ -115,7 +155,6 @@ export function BlockCard({
   kind: string
   title: string
   icon: React.ReactNode
-  removeLabel: string
   children: React.ReactNode
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(
@@ -123,8 +162,9 @@ export function BlockCard({
   )
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
   const [count, setCount] = React.useState<number | undefined>(undefined)
+  const [menu, setMenu] = React.useState<BlockMenuItem[] | undefined>(undefined)
   const heading = React.useMemo(
-    () => ({ actions, setCount, open }),
+    () => ({ actions, setCount, setMenu, open }),
     [actions, open]
   )
   return (
@@ -149,22 +189,43 @@ export function BlockCard({
             ref={setActions}
             className={cn("flex shrink-0 items-center gap-1", !open && "hidden")}
           />
-          {editable ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
+          {/* Every block's ⋮, in place of the bin it had (Tyler, 7 Nov 2026:
+              "All blocks should be replaed with the 3 dot dropdown"): the
+              block's own rows, then Delete block. Shown only while the
+              heading is pointed at, never for a row inside the tile ("hover
+              over the item should only show the item 3 dot, not the header
+              too"). */}
+          {menu?.length || editable ? (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={removeLabel}
-                  className="text-muted-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                  onClick={onRemove}
+                  aria-label={`More for ${title}`}
+                  className="text-muted-foreground opacity-0 group-hover/fold:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
                 >
-                  <Trash2Icon className="size-4" />
+                  <EllipsisVerticalIcon className="size-4" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>{removeLabel}</TooltipContent>
-            </Tooltip>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {(menu ?? []).map((item) => (
+                  <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
+                    {item.icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                ))}
+                {editable ? (
+                  <>
+                    {menu?.length ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+                      <Trash2Icon className="size-4" />
+                      Delete block
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </FoldHeading>
         {/* Kept mounted while folded, so a panel inside keeps its count and its
@@ -213,7 +274,6 @@ export function blockView({ kind, title, icon, Draw }: BlockSpec) {
           kind={kind}
           title={title}
           icon={icon}
-          removeLabel={`Remove ${title.toLowerCase()}`}
         >
           <Draw />
         </BlockCard>

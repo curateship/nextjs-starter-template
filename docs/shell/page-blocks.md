@@ -43,7 +43,12 @@ All of them are in `src/components/shared/notes/`, with their rules in
   the fold. `blockView({ kind, title, icon, Draw })` makes an app block's
   view. `Draw` is the app's own component, and it reads its figures from a
   context of the app's own. `BlockHeadingActions` puts buttons in the
-  heading, and `useBlockCount` puts a count beside the title. `BlockCard` on
+  heading, and `useBlockCount` puts a count beside the title. Every card
+  has a vertical ⋮ in its heading, never a bin, shown only while the heading
+  is pointed at (Tyler, 7 Nov 2026: "All blocks should be replaed with the 3
+  dot dropdown", and "hover over the item should only show the item 3 dot,
+  not the header too"). It holds Delete block, and `useBlockMenu` adds the
+  block's own rows above it. `BlockCard` on
   its own draws the same card outside a page, as the CRM's Contact card does.
 - **`use-note-blocks.ts` and `note-blocks-menu.tsx`.** The "/" list. Basic
   blocks come first, then the app's under "Advanced blocks". An app block

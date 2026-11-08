@@ -1,15 +1,17 @@
 import * as React from "react"
 import {
   BellRingIcon,
-  EllipsisIcon,
+  EllipsisVerticalIcon,
   HourglassIcon,
   LayersIcon,
+  PlusIcon,
   UsersIcon,
 } from "lucide-react"
 
 import {
   blockView,
   useBlockCount,
+  useBlockMenu,
 } from "@/components/shared/notes/block-card"
 import {
   blockNode,
@@ -52,6 +54,8 @@ export type CrmBlocks = {
   /** A segment row's ⋯, drawn only where these are given: the People tab. */
   onEditSegment?: (segmentId: string) => void
   onDeleteSegment?: (segmentId: string) => void
+  /** The Segments block's ⋮, Add a segment: the People tab's new segment window. */
+  onNewSegment: () => void
 }
 
 const CrmBlocksContext = React.createContext<CrmBlocks | null>(null)
@@ -149,7 +153,7 @@ function RowMenu({
           aria-label={label}
           className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
         >
-          <EllipsisIcon className="size-4" />
+          <EllipsisVerticalIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
@@ -269,21 +273,26 @@ function WaitingBlock() {
 
 /**
  * Segments: every saved segment of contacts with how many are in it. Pressing
- * one shows its people on the People tab; pressing it again lets it go. New
- * ones are saved from the People tab's Filter. On that tab a row's ⋯ has Edit
- * and Delete.
+ * one shows its people on the People tab; pressing it again lets it go. The
+ * block's ⋮ holds Add a segment, which opens the People tab's new segment
+ * window, and Delete block. On the People tab a row's ⋮ has Edit and Delete.
  */
 function SegmentsBlock() {
   const blocks = useCrmBlocks()
   const segments = blocks?.figures?.segments
   useBlockCount(segments?.length || undefined)
+  useBlockMenu(
+    blocks
+      ? [{ label: "Add a segment", icon: <PlusIcon className="size-4" />, onSelect: blocks.onNewSegment }]
+      : undefined
+  )
   const [all, setAll] = React.useState(false)
   if (!blocks) return <NotHere />
   if (!segments) return <p className="p-3 text-xs text-muted-foreground">Reading…</p>
   if (segments.length === 0) {
     return (
       <p className="p-3 text-sm text-muted-foreground">
-        No segment yet. People, then Filter, then Save as segment makes one.
+        No segment yet. The ⋮ above, then Add a segment, makes one.
       </p>
     )
   }

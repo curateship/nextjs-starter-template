@@ -50,8 +50,9 @@ export function RecordFrame({
       <div>
         <DashboardCardHeader className="gap-2">
           {typeof avatar === "string" ? (
-            <Avatar size="sm" className="ml-1 shrink-0">
-              <AvatarFallback className="text-[0.6875rem] font-medium">{avatar}</AvatarFallback>
+            // 32px, up from 24 (Tyler, 7 Nov 2026: "increase avatar size").
+            <Avatar className="shrink-0">
+              <AvatarFallback className="text-xs font-medium">{avatar}</AvatarFallback>
             </Avatar>
           ) : (
             // An icon stands on its own, with no circle behind it (Tyler,
