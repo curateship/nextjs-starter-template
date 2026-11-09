@@ -1,9 +1,66 @@
-# Users, contacts, and segments
+# Users, subscribers, leads and segments
 
-Users are people who can sign in. Contacts are email recipients inside a
-workspace. One person may be both, but the records have different jobs. Turning
-a contact into a user or suspending a user must not silently rewrite newsletter
-history.
+Three separate lists, which never copy into each other (Tyler, 9 Nov 2026):
+
+> "We need to plan this out better because right now is super confusing with
+> the overlapping of users, contact and leads. I think its better that leads
+> are completely seperate from people ... people should be renamed to
+> subscribers ... users and subscribers are also seperate. Meaning that a
+> user signs up for an account to the app does not gets added to the
+> subscribers list. Subscribber lists are exclusive to impport, manual add or
+> through an email form"
+
+- **Users** (Admin → Users, `users`): everybody with an account.
+- **Subscribers** (the CRM's Subscribers section, `contacts`): the mailing
+  list. Only a CSV import, a hand add, "Add to subscribers" on a lead, or
+  (later, its own task) an email signup form puts somebody here. Signing up
+  for an account never does.
+- **Leads** (the CRM's Leads section, `crm_leads`): every address that
+  wrote in, was written to from the CRM, or was added on Leads. **New lead**
+  on the Leads header offers the same two choices as New contact (Tyler,
+  9 Nov 2026: "allow me to add manual leads as well as paste a csv file too
+  just like suvscribers"): **Add a lead** (address, name, company, phone,
+  stage) and **Upload a CSV file** (columns guessed from their headings:
+  email, full or first and last name, company, phone; every new lead starts
+  at New). An address already a lead, whatever its capitals, is updated
+  rather than added twice: the file's name, company and phone fill in, and
+  the stage, deal and conversations stay. Adding a lead never puts them on
+  the subscriber list. `addWorkspaceLeads` in `src/server/crm/leads.ts`,
+  `src/components/crm/new-lead-dropdown.tsx` and `lead-import.tsx`.
+  Every Leads column sorts (Tyler, 9 Nov 2026: "missing sorting"): Stage in
+  the pipeline's order (New, Contacted, Quoted, Won, Lost), Value biggest
+  first on the first press, Added newest first, words A to Z, and a blank
+  name or company always last (`CRM_LEAD_SORTS`).
+  A subscriber's right-click has **Add to leads** (Tyler, 9 Nov 2026: "in
+  subscribers, I should be able to right click and add subscriber to lead as
+  well"): they become a lead at New, source "Subscribers", and stay a
+  subscriber. An address already a lead is left as it is and the toast says
+  so; either way its Open shows the lead (`addContactToLeads`).
+  The Leads list has the Subscribers list's right-click and mass select
+  (Tyler, 9 Nov 2026: "leads table is missing right click function", "Its
+  also missing mass select"). Right-click: Mass select, Add to subscribers
+  (or Open in Subscribers when that address already is one), Delete lead.
+  Ticked leads: Stage (all to one stage) and Delete. **Deleting a lead
+  deletes their conversations and messages too**, and the files those
+  messages kept in storage; the confirm says so. A subscriber on the same
+  address stays. `setLeadsStage` and `deleteLeads` in
+  `src/server/crm/leads.ts`, `src/components/crm/lead-bulk-menu.tsx`.
+- **One address may be on more than one list** (Tyler picked this the same
+  day): a customer who writes in can still get the newsletter. Each list
+  shows only its own kind; nothing marks a row as "also" anything.
+
+Until 9 Nov 2026 every account was copied onto the mailing list as a contact
+marked "Account" (`syncContactsFromUsers`). Migration 0111 removed those
+copies, the `contacts.user_id` link and `crm_leads.contact_id`, and the
+"Has an account" and "Plan" segment rules. A subscriber who was added by
+hand or imported and also has an account stayed, as an ordinary subscriber.
+
+**Emails to accounts** (welcome, payment failed, trial ending, the member
+events) go straight to the account's own address, read from `users`, not
+through a subscriber row: see `workspace/docs/automations/` and
+`src/server/automations/audience.ts`. Their unsubscribe link turns the
+account's automated mail off (`users.automated_mail_off_at`); emails about
+the account itself (verify, password reset) still go.
 
 ## Users
 
@@ -33,81 +90,78 @@ account for removal so an admin can restore it during the recovery period. The
 server protects the last active admin from changes that would leave the platform
 without an administrator.
 
-## People: contacts, leads and segments in the CRM
+## Subscribers and segments in the CRM
 
-Contacts and segments are the People tab of the CRM (`/admin/crm?tab=people`)
-since 7 Nov 2026 (Tyler: "I want to consolidate them all into one CRM
-dashboard"). They were their own dashboard at `/admin/contacts` from
-19 Oct 2026; that address and `/admin/segments` forward to the People tab,
-keeping a link's segment, filter and open person.
-
-### Two kinds of person
-
-Tyler, 7 Nov 2026: "People: one tab ... holding two kinds ... each row says
-which kind it is."
-
-- **A contact** is somebody on the mailing list (`contacts`).
-- **A lead** is an address that wrote in to the CRM, or was added there by
-  hand (`crm_leads`).
-- The two stay two tables. A lead never gets a newsletter until somebody
-  presses Add to contacts, and mail arriving never writes a contact.
-- Somebody who is both, matched by address whatever the capitals, shows once,
-  as the contact, marked "Lead + Subscriber". The reads are in
-  `src/server/crm/people.ts`.
+Subscribers and segments are the CRM's **Subscribers** section
+(`/admin/crm?tab=subscribers`), named People until 9 Nov 2026, when its
+leads moved to a Leads section of their own. They were their own dashboard
+at `/admin/contacts` from 19 Oct 2026; that address and `/admin/segments`
+forward to Subscribers, keeping a link's segment, filter and open
+subscriber. An old `?tab=people` link is not read: it opens the CRM's first
+section, as any unknown section does.
 
 ### The list
 
-- **Header:** the CRM's one header: "N selected" while contacts are ticked
-  (Add to segment, Remove from segment, Status, Delete), Filter (the segment
-  rule builder, with Save as segment and Update), New contact, and the ⋮ with
-  Search, Mass select, Upload a CSV file and Download a sample file.
-- **The view dropdown:** All (every contact, then every lead who is not one, in one
-  order, paged together), Leads, Subscribers, Opted out, then each saved
-  segment. Subscribers and Opted out are the rules Filter writes, so it shows
-  as picked when Filter matches it. A segment or any Filter rule reads contacts
-  only, so with one on the list holds no leads.
-- **The table** is laid out as Project's: Person (a status dot; a lead's is its
-  stage colour), Email, Kind (Subscriber, Lead, or Lead + Subscriber), Status (a
-  contact's list status, a lead's stage), Tags, Opened, Added. Person, Email,
-  Status and Added sort.
-- **Right-click:** Mass select, then Take off or Put back on the list and
-  Delete for a contact; Open the conversation and Add to contacts for a lead.
-  Only contacts are ticked, because every bulk change is to the mailing list.
+- **Header:** the CRM's one header: "N selected" while subscribers are
+  ticked (Add to segment, Remove from segment, Status, Delete), the search
+  box, Select (Mass select), Filter (the segment rule builder, with Save as
+  segment and Update), the view dropdown, and New contact. New contact opens
+  two choices first (Tyler, 9 Nov 2026: "clicking on add new contact should
+  open a dropdown to give me 2 options to add new contact"): Add a contact
+  turns the dropdown into the form, and Upload a CSV file opens the import
+  window. There is no ⋮.
+- **The view dropdown:** All, On the list, Opted out, then each saved
+  segment. On the list and Opted out are the rules Filter writes, so one
+  shows as picked when Filter matches it.
+- **The table:** Person (a status dot), Email, Status, Tags, Opened, Added.
+  Person, Email, Status and Added sort.
+- **Right-click:** Mass select, Take off or Put back on the list, and Delete.
 - The other groups the old left panel counted (bouncing, gone quiet, new this
-  month, never emailed) are one Filter rule away. Its "Last 30 days" counts
-  are gone.
+  month, never emailed) are one Filter rule away.
 
 ### The right panel
 
-- **A contact** (`ContactPanel`): their initials, name and address; the ⋮
-  holds Person (address, where they came from, joined, account or not) and
-  List (status, tags, segments), then Delete; the body is Notes (saved as
-  typed) and Activity; the footer is their status and Take off or Put back.
-- **A lead** (`LeadRecord`): the ⋮ holds the same Person, Deal and Follow up
-  rows the conversation's ⋮ has; the body is their conversation, which opens
-  in Inbox; the footer is the stage and Add to contacts, or Open their
-  contact.
-- **Segments** are also a block on the CRM's left page. On the People tab a
-  segment row's ⋯ has Edit (the segment window) and Delete.
+A subscriber (`ContactPanel`): their initials, name and address; the ⋮
+holds Person (address, where they came from, joined) and List (status, tags,
+segments), then Delete; the body is two grey cards, the ones Settings →
+Styling → Panel cards colours (Tyler, 9 Nov 2026: "remove the note feature
+for subscribers. Add a card there ... that show subscriber basic
+informations like: Date added, status, tags, segments and came from. The
+activity should also be in a card"): **Details** reads back Added, Status,
+Tags, Segments and Came from (changed from the ⋮), and **Activity** lists
+what happened to each email they were sent. The footer is their status and
+Take off or Put back. Notes are gone from the panel and the API; the
+`contacts.notes` column stays in the database, unread, holding whatever was
+written before. Segments are also a block on
+the CRM's left page; on Subscribers a segment row's ⋯ has Edit and Delete.
+
+### Leads
+
+The CRM's **Leads** section (`?tab=leads`, `src/components/crm/crm-leads-tab.tsx`)
+lists every lead: stage dot and name, address, company, stage, deal value,
+added. Search looks through name, address and company; Filter's Stage, or a
+stage pressed on the left page's Leads card, narrows it to one stage. The
+Leads card's first row opens the section, and it is not in the Dashboards
+block. On the right, a lead
+somebody has written to opens on their newest conversation, read and
+answered in place as in Inbox (`ConversationRecord`, the Inbox's own panel;
+Tyler, 9 Nov 2026: "If there's a conversation, why not just put the
+conversation there instead of a button?"). A lead nobody has written to opens
+the lead panel (`LeadRecord`). Either ⋮ has Add to subscribers, or Open in
+Subscribers when a subscriber already has that address; adding them leaves
+them a lead too.
 
 ### The address
 
-`?tab=people` says the People tab is showing, and `?view=leads` the Leads
-pill. The search, the rules (`filter`), the open segment (`segment`), the sort, the
-page, the page size and the open person (`open`) are all in the address. A
-pasted link opens the same view. Pressing a segment puts only
+`?tab=subscribers` shows the list. The search, the rules (`filter`), the open
+segment (`segment`), the sort, the page, the page size and the open
+subscriber (`open`) are all in the address. Pressing a segment puts only
 `?segment=<id>` there, which shows the segment's rules as saved; the rules
 join it as `filter` once one is changed, which is what makes Filter offer
-"Update". Saving a segment, or editing the open one from its cog, goes back to
-`?segment=<id>` alone, so an older copy of its rules never stays behind. The
-old Segments address arrives the same way. A link to a segment that has since
-been deleted shows everybody and says so.
-
-Pressing a People row or a segment also empties the search box, so the list
-holds the number the row showed; the counts on the left never count a search.
-
-Opening the list brings it up to date with who has signed up, before the list,
-the People counts and the segment counts are read.
+"Update". Saving a segment goes back to `?segment=<id>` alone. A link to a
+segment that has since been deleted shows everybody and says so. Pressing a
+segment also empties the search box, so the list holds the number the row
+showed.
 
 ### Importing a CSV file
 
@@ -127,14 +181,15 @@ Import > Upload a CSV file opens a window. Tyler asked for it on 20 Oct 2026
   source.
 - **People already on the list** keep their status, so nobody who opted out
   is put back. They gain the file's tags, and a name in the file replaces
-  theirs, except for somebody with an account, whose name the account owns.
+  theirs.
 - **The rows go 500 at a time.** A batch that fails stops the import and says
   how many went in; those people stay. The toast at the end says how many
   were added, updated, already up to date and left out.
 
-Download a sample file saves `contacts-sample.csv` with the headings the
-window knows. The reading is `src/lib/contacts/contact-csv.ts` and the saving
-is `importWorkspaceContacts` in `src/server/people/contacts.ts`.
+There is no sample file to download any more (Tyler, 9 Nov 2026: "Remove the
+download sample file feature"). The reading is
+`src/lib/contacts/contact-csv.ts` and the saving is `importWorkspaceContacts`
+in `src/server/people/contacts.ts`.
 
 ## Segments
 

@@ -85,6 +85,7 @@ local setup docs.
 - [The left menu shade](settings/left-menu-shade.md)
 - [The gutter shade](settings/page-shade.md)
 - [Block, widget and panel card styling](settings/block-styling.md)
+- [Side panel widths](settings/side-panel-widths.md)
 - [The app canvas](settings/the-app-canvas.md)
 - [Public theme presets](settings/public-theme-presets.md)
 

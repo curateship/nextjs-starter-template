@@ -9,10 +9,6 @@ import {
   retireAnnouncements,
   updateAnnouncement,
 } from "@/server/content/announcements"
-import {
-  listWorkspaceContacts,
-  syncContactsFromUsers,
-} from "@/server/people/contacts"
 import { loadTrafficSummary, recordVisit } from "@/server/traffic"
 import {
   readPageVisibility,
@@ -45,9 +41,7 @@ import {
 import {
   customShellFeedback,
   customShellMedia,
-  customShellWorkspaces,
 } from "@/server/schema"
-import { ne } from "drizzle-orm"
 
 /**
  * Two sites, content in both, and nothing on one reachable from the other.
@@ -375,35 +369,5 @@ describe("traffic is counted per site", () => {
     const onAlpha = await loadTrafficSummary(alpha, 7, database, at)
     expect(onAlpha.topPages.map((row) => row.key)).toEqual(["/alpha-only"])
     expect(onAlpha.siteName).toBe("Alpha")
-  })
-})
-
-describe("a site's contacts are that site's people", () => {
-  it("leaves out an account that has never touched this site", async () => {
-    // `syncContactsFromUsers` used to take **every** account on the
-    // deployment, so Alpha's newsletter list filled up with Beta's customers.
-    await syncContactsFromUsers(alpha, database)
-    await syncContactsFromUsers(beta, database)
-
-    const onAlpha = await listWorkspaceContacts(alpha, {}, database)
-    const onBeta = await listWorkspaceContacts(beta, {}, database)
-
-    expect(onAlpha.contacts.map((row) => row.userId)).toEqual([alphaPerson])
-    expect(onBeta.contacts.map((row) => row.userId)).toEqual([betaPerson])
-  })
-
-  it("still takes everybody on an app that has only one site", async () => {
-    // The old behaviour, which has to survive: on one site, somebody pointed
-    // nowhere belongs to it, so the list is every account exactly as before.
-    const only = (await insertWorkspace(database)).id
-    await database.delete(customShellWorkspaces).where(
-      ne(customShellWorkspaces.id, only)
-    )
-    const nobody = (await insertUser(database)).id
-
-    await syncContactsFromUsers(only, database)
-
-    const list = await listWorkspaceContacts(only, {}, database)
-    expect(list.contacts.map((row) => row.userId)).toContain(nobody)
   })
 })

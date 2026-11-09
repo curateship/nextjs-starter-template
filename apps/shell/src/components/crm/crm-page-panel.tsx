@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronRightIcon, MailIcon, NewspaperIcon, PlusIcon, UsersIcon } from "lucide-react"
+import { HandshakeIcon, NewspaperIcon, PencilIcon, PlusIcon, Trash2Icon, UserPlusIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CRM_APP_BLOCKS, CrmBlocksProvider, CrmSectionsBlock, type CrmBlocks } from "@/components/crm/crm-blocks"
@@ -7,8 +7,9 @@ import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { PageCover } from "@/components/shared/notes/page-cover"
 import { CoverRow, LockRow } from "@/components/shared/notes/page-rows"
 import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SavingDocument } from "@/components/shared/notes/saving-document"
-import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { NameDialog } from "@/components/shared/dashboard/name-dialog"
 import { Button } from "@/components/ui/button"
@@ -43,13 +44,13 @@ import {
   type CrmBlockFigures,
 } from "@/lib/api/crm/page"
 import { createBroadcast, getBroadcastErrorMessage } from "@/lib/api/email/broadcasts"
-import type { StoredPage } from "@/lib/notes/page-body"
+import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { LockedPageContext } from "@/components/shared/notes/block-card"
 import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { focusRingInset } from "@/lib/layout/focus-ring"
-import { SYSTEM_EMAIL_KINDS, SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
 import { cn } from "@/lib/utils"
 
 /**
@@ -57,9 +58,10 @@ import { cn } from "@/lib/utils"
  * Tyler: "Left panel list blocks like emails, I want to add new emails to the
  * CRM so we'd need to add a + in the top header").
  *
- * - **Header:** the collapse button, "CRM" with its open conversations, the
+ * - **Header:** the collapse button, "CRM", the
  *   **+** that adds an address mail arrives at, and the ⋮ (CRM settings:
- *   General, Emails, System emails, and Widgets for Overview).
+ *   General, Emails, and Widgets for Overview; System emails is a section
+ *   of its own since 9 Nov 2026).
  * - **Page:** one per site, written on like any page in the design, with the
  *   fixed Dashboards block that picks the section, and the "/" blocks: the
  *   basic ones, and the CRM's Follow up today, Waiting on you, Segments and
@@ -77,8 +79,6 @@ export function CrmPagePanel({
   widgets,
   onPageChange,
   onFiguresChanged,
-  onOpenSystemEmail,
-  openSystemEmail,
   onNewsletterCreated,
 }: {
   /** Null while the page is first read, or when the read failed. */
@@ -92,17 +92,13 @@ export function CrmPagePanel({
   onPageChange: (page: StoredPage) => void
   /** Reads the figures again, and the inbox with them, after an address changed. */
   onFiguresChanged: () => void
-  /** Opens one of the app's own emails on the right, from the System emails tab. */
-  onOpenSystemEmail: (kind: SystemEmailKind) => void
-  /** The one open on the right, so its row looks picked. */
-  openSystemEmail: SystemEmailKind | null
   /** Opens a newsletter just made from the + menu on the Broadcasts tab. */
   onNewsletterCreated: (broadcastId: string) => void
 }) {
   const [busy, setBusy] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const [renaming, setRenaming] = React.useState<{ id: string; label: string } | null>(null)
   const [removing, setRemoving] = React.useState<{ id: string; address: string } | null>(null)
+  const [addingAddress, setAddingAddress] = React.useState(false)
 
   const setLocked = async (locked: boolean) => {
     if (!page) return
@@ -116,6 +112,27 @@ export function CrmPagePanel({
       setBusy(false)
     }
   }
+
+  // Delete block on the locked page: unlocked, then saved without the block
+  // (Tyler, 9 Nov 2026: "Ask, then unlock and delete").
+  const lockedPage = page
+    ? {
+        locked: page.locked,
+        removeBlock: async (nodeName: string) => {
+          const body = pageWithoutBlock(page.body, nodeName)
+          setBusy(true)
+          try {
+            await lockCrmPage(false)
+            await saveCrmPage(body)
+            onPageChange({ ...page, locked: false, body })
+          } catch (error) {
+            showErrorToast(getCrmPageErrorMessage(error))
+          } finally {
+            setBusy(false)
+          }
+        },
+      }
+    : null
 
   const setCover = async (cover: { coverUrl: string | null; coverImages: string[] }) => {
     if (!page) return
@@ -135,8 +152,6 @@ export function CrmPagePanel({
     figures,
   }
 
-  const openCount = figures?.openCount
-
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <PageCover url={page?.coverUrl ?? null} />
@@ -147,16 +162,12 @@ export function CrmPagePanel({
           className={cn("gap-1", page?.coverUrl && "border-b-transparent")}
         >
           <SidePanelCollapseButton side="left" label="Hide the page" />
-          <span className="grid min-w-0 flex-1 pl-1 leading-tight">
-            <span className={cn("truncate", dashboardCardHeadingClassName)}>CRM</span>
-            {openCount !== undefined ? (
-              <span className="truncate text-xs text-muted-foreground">
-                {openCount} open {plural(openCount, "conversation")}
-              </span>
-            ) : null}
-          </span>
+          {/* The name alone, as the Admin header has it (Tyler, 9 Nov 2026:
+              "remove this label", of the open conversations under it). */}
+          <span className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>CRM</span>
           <AddMenuButton
-            onAddressAdded={onFiguresChanged}
+            onNewSubscriber={blocks.onNewSubscriber}
+            onNewLead={blocks.onNewLead}
             onNewSegment={blocks.onNewSegment}
             onNewsletterCreated={onNewsletterCreated}
           />
@@ -167,9 +178,11 @@ export function CrmPagePanel({
               // panel's left edge (Tyler, 7 Nov 2026: "align settings
               // dropdown to the right").
               align="start"
-              // Wide enough for General, Emails, System emails and Widgets on
-              // one row, as the Admin ⋮, which the usual 22.7rem cuts short.
-              width="25rem"
+              // 25rem, then 10% narrower twice (Tyler, 9 Nov 2026: "reduce the
+              // left panel dropdown width by 10%" for the Admin ⋮, "apply all
+              // the design pattern we did for dashboard to crm", then
+              // "Resize the dropdown 10% narrower").
+              width="20.25rem"
               open={menuOpen}
               onOpenChange={setMenuOpen}
               tabs={[
@@ -216,12 +229,14 @@ export function CrmPagePanel({
                           }}
                         />
                       </PickGroup>
-                      <LockRow
-                        locked={page.locked}
-                        busy={busy}
-                        onLock={(locked) => void setLocked(locked)}
-                      />
                     </div>
+                  ),
+                  footer: (
+                    <LockRow
+                      locked={page.locked}
+                      busy={busy}
+                      onLock={(locked) => void setLocked(locked)}
+                    />
                   ),
                 },
                 {
@@ -232,14 +247,12 @@ export function CrmPagePanel({
                   label: "Emails",
                   content: (
                     <div className="grid gap-3 p-3">
-                      <PickGroup
-                        title="Mail arrives at"
-                        after={
-                          <p className="px-0.5 text-xs text-muted-foreground">
-                            The + at the top adds another. Pressing one shows only its mail in the inbox.
-                          </p>
-                        }
-                      >
+                      {/* No line of help under it, no open count on a row, and
+                          a pencil and a bin in place of Rename and Remove
+                          (Tyler, 9 Nov 2026: "remove \"The + at the top
+                          adds another...\" change these into icons
+                          instead", and "Remove this" of "7 open"). */}
+                      <PickGroup title="Mail arrives at">
                         {(figures?.emails ?? []).length === 0 ? (
                           <p className="px-3 py-2.5 text-sm text-muted-foreground">No address yet.</p>
                         ) : (
@@ -262,29 +275,22 @@ export function CrmPagePanel({
                                     <span className="truncate text-xs text-muted-foreground">{email.address}</span>
                                   ) : null}
                                 </button>
-                                <span className="text-xs text-muted-foreground tabular-nums">{email.open} open</span>
+                                <RenameAddressPopover
+                                  address={email}
+                                  onRenamed={onFiguresChanged}
+                                />
                                 <Button
                                   type="button"
                                   variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setMenuOpen(false)
-                                    setRenaming({ id: email.id, label: email.label })
-                                  }}
-                                >
-                                  Rename
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive"
+                                  size="icon-sm"
+                                  aria-label={`Remove ${email.address}`}
+                                  className="text-muted-foreground hover:text-destructive"
                                   onClick={() => {
                                     setMenuOpen(false)
                                     setRemoving({ id: email.id, address: email.address })
                                   }}
                                 >
-                                  Remove
+                                  <Trash2Icon className="size-4" />
                                 </Button>
                               </div>
                             )
@@ -293,44 +299,18 @@ export function CrmPagePanel({
                       </PickGroup>
                     </div>
                   ),
-                },
-                {
-                  // Tyler, 7 Nov 2026: system emails are "a tab in the CRM
-                  // settings ⋮. Opening a kind puts its editor in the right
-                  // panel."
-                  value: "system",
-                  label: "System emails",
-                  content: (
-                    <div className="grid gap-3 p-3">
-                      <PickGroup
-                        title="Sent by the app"
-                        after={
-                          <p className="px-0.5 text-xs text-muted-foreground">
-                            The app sends these itself. Pressing one opens it on the right to change its words.
-                          </p>
-                        }
-                      >
-                        {SYSTEM_EMAIL_KINDS.map((kind) => (
-                          <button
-                            key={kind}
-                            type="button"
-                            aria-current={openSystemEmail === kind ? "true" : undefined}
-                            onClick={() => {
-                              setMenuOpen(false)
-                              onOpenSystemEmail(kind)
-                            }}
-                            className={cn(
-                              "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted",
-                              openSystemEmail === kind && "bg-muted",
-                              focusRingInset
-                            )}
-                          >
-                            <span className="min-w-0 flex-1 truncate">{SYSTEM_EMAIL_META[kind].name}</span>
-                            <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
-                          </button>
-                        ))}
-                      </PickGroup>
-                    </div>
+                  // Moved here from the left header's + (9 Nov 2026), which
+                  // now adds subscribers, leads, segments and broadcasts.
+                  footer: (
+                    <MenuFooterButton
+                      icon={<PlusIcon />}
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setAddingAddress(true)
+                      }}
+                    >
+                      Add address
+                    </MenuFooterButton>
                   ),
                 },
                 { value: "widgets", label: "Widgets", content: widgets },
@@ -344,6 +324,7 @@ export function CrmPagePanel({
         <div className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
           {page ? (
             <CrmBlocksProvider value={provided}>
+              <LockedPageContext.Provider value={lockedPage}>
               <SavingDocument
                 // A lock reads again from the start, so the editor and the
                 // lock always agree on what the page holds.
@@ -361,6 +342,7 @@ export function CrmPagePanel({
                   }
                 }}
               />
+              </LockedPageContext.Provider>
             </CrmBlocksProvider>
           ) : (
             <>
@@ -375,11 +357,7 @@ export function CrmPagePanel({
         </div>
       </ScrollArea>
 
-      <RenameAddressDialog
-        target={renaming}
-        onClose={() => setRenaming(null)}
-        onRenamed={onFiguresChanged}
-      />
+      <AddAddressDialog open={addingAddress} onClose={() => setAddingAddress(false)} onAdded={onFiguresChanged} />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => (open ? undefined : setRemoving(null))}
@@ -405,28 +383,30 @@ export function CrmPagePanel({
 const CHASE_CHOICES = [0, 1, 2, 3, 5, 7, 14]
 
 /**
- * The + in the left header: a menu of the three things the CRM starts
- * (Tyler, 7 Nov 2026: "make this open to a dropdown that I can select add an
- * email, add a segment and add a newsletter").
+ * The + in the left header: the four things the CRM adds (Tyler, 9 Nov 2026:
+ * "The left header dropdown should now chnage to: Add a subscriber, add a
+ * lead, add a segment and add a broadcast", then "remove the \"a\" so its
+ * just Add subscriber").
  *
- * - **Add a person:** an address mail arrives at, such as support@, with a
- *   short name for it. Mail only arrives once Resend has the address too
- *   (`workspace/docs/crm/inbox-and-leads.md`, "Setting it up").
- * - **Add a segment:** the People tab's new segment window.
- * - **Add a newsletter:** a name, then the newsletter opens on the
- *   Broadcasts tab to write.
+ * - **Add subscriber / Add lead:** that section, its New button open on the
+ *   form.
+ * - **Add segment:** the Subscribers section's new segment window.
+ * - **Add broadcast:** a name, then the newsletter opens on Broadcasts.
+ *
+ * Adding an address mail arrives at moved to the ⋮'s Emails tab.
  */
 function AddMenuButton({
-  onAddressAdded,
+  onNewSubscriber,
+  onNewLead,
   onNewSegment,
   onNewsletterCreated,
 }: {
-  onAddressAdded: () => void
+  onNewSubscriber: () => void
+  onNewLead: () => void
   onNewSegment: () => void
   onNewsletterCreated: (broadcastId: string) => void
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const [addingAddress, setAddingAddress] = React.useState(false)
   const [namingNewsletter, setNamingNewsletter] = React.useState(false)
 
   return (
@@ -444,25 +424,24 @@ function AddMenuButton({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem onSelect={() => setAddingAddress(true)}>
-            <MailIcon className="size-4 text-muted-foreground" />
-            Add a person
+          <DropdownMenuItem onSelect={onNewSubscriber}>
+            <UserPlusIcon className="size-4 text-muted-foreground" />
+            Add subscriber
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onNewLead}>
+            <HandshakeIcon className="size-4 text-muted-foreground" />
+            Add lead
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={onNewSegment}>
             <UsersIcon className="size-4 text-muted-foreground" />
-            Add a segment
+            Add segment
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setNamingNewsletter(true)}>
             <NewspaperIcon className="size-4 text-muted-foreground" />
-            Add a newsletter
+            Add broadcast
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <AddAddressDialog
-        open={addingAddress}
-        onClose={() => setAddingAddress(false)}
-        onAdded={onAddressAdded}
-      />
       <NewNewsletterDialog
         open={namingNewsletter}
         onClose={() => setNamingNewsletter(false)}
@@ -506,7 +485,7 @@ function AddAddressDialog({
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add a person</DialogTitle>
+          <DialogTitle>Add address</DialogTitle>
         </DialogHeader>
         <form
           id="crm-new-address-form"
@@ -604,39 +583,50 @@ function NewNewsletterDialog({
   )
 }
 
-function RenameAddressDialog({
-  target,
-  onClose,
+/**
+ * Rename an address the mail arrives at: a small box by the pencil, not a
+ * window (Tyler, 9 Nov 2026: "the rename shouldnt open a modal, make it a
+ * popover instead"). It opens over the CRM settings ⋮, which stays open
+ * behind it. Enter saves, Escape or Cancel leaves it as it was.
+ */
+function RenameAddressPopover({
+  address,
   onRenamed,
 }: {
-  target: { id: string; label: string } | null
-  onClose: () => void
+  address: { id: string; address: string; label: string }
   onRenamed: () => void
 }) {
-  const [label, setLabel] = React.useState("")
-  const [shownFor, setShownFor] = React.useState<string | null>(null)
-  if ((target?.id ?? null) !== shownFor) {
-    setShownFor(target?.id ?? null)
-    setLabel(target?.label ?? "")
-  }
+  const [open, setOpen] = React.useState(false)
+  const [label, setLabel] = React.useState(address.label)
   const [saving, setSaving] = React.useState(false)
-
   return (
-    <Dialog open={target !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Rename the address</DialogTitle>
-        </DialogHeader>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setLabel(address.label)
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Rename ${address.label || address.address}`}
+          className={cn("text-muted-foreground", open && "bg-muted")}
+        >
+          <PencilIcon className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-3">
         <form
-          id="crm-rename-address"
-          className="grid gap-1.5"
+          className="grid gap-2"
           onSubmit={async (event) => {
             event.preventDefault()
-            if (!target) return
             setSaving(true)
             try {
-              await renameCrmAddress(target.id, label)
-              onClose()
+              await renameCrmAddress(address.id, label)
+              setOpen(false)
               onRenamed()
             } catch (error) {
               showErrorToast(getCrmPageErrorMessage(error))
@@ -645,25 +635,25 @@ function RenameAddressDialog({
             }
           }}
         >
-          <FieldLabel htmlFor="crm-rename-address-label">Name for it</FieldLabel>
+          <FieldLabel htmlFor={`crm-rename-${address.id}`}>Name for it</FieldLabel>
           <Input
-            id="crm-rename-address-label"
+            id={`crm-rename-${address.id}`}
             autoFocus
             value={label}
             maxLength={80}
             placeholder="Support"
             onChange={(event) => setLabel(event.target.value)}
           />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </div>
         </form>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form="crm-rename-address" disabled={saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   )
 }

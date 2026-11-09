@@ -30,7 +30,6 @@ import {
   IMPORT_FIELD_LABELS,
   parseCsv,
   readImportRows,
-  SAMPLE_CONTACTS_CSV,
   type ImportField,
 } from "@/lib/contacts/contact-csv"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -46,16 +45,6 @@ type ReadFile = {
   fields: ImportField[]
 }
 
-
-export function downloadContactSample() {
-  const url = URL.createObjectURL(new Blob([SAMPLE_CONTACTS_CSV], { type: "text/csv" }))
-  const link = document.createElement("a")
-  link.href = url
-  link.download = "contacts-sample.csv"
-  link.click()
-  // A tick later: some browsers start the download after the click returns.
-  setTimeout(() => URL.revokeObjectURL(url))
-}
 
 /**
  * The import window: pick a CSV file, check what each column is read as, add

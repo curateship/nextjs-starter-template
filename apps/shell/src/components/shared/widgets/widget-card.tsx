@@ -61,8 +61,11 @@ export function WidgetCard({
       // Corners and grey from Settings → Styling → Widgets, their own since
       // widgets sit on the shaded page, not in a panel (Tyler, 8 Nov 2026).
       // The fallbacks are the blocks' look, which widgets started with.
+      // Border, Border shade and Shadow, and the tile's Body shade below,
+      // are the blocks' four for widgets (Tyler, 9 Nov 2026: "add the same 2
+      // styling feature for widgets"), off unless changed.
       className={cn(
-        "group/widget flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--shell-widget-radius,1rem)] [background:color-mix(in_oklab,var(--muted)_var(--shell-widget-shade,50%),var(--card))]",
+        "group/widget flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--shell-widget-radius,1rem)] border-solid border-[length:var(--shell-widget-border,0px)] [border-color:color-mix(in_oklab,var(--foreground)_var(--shell-widget-border-shade,10%),transparent)] [box-shadow:var(--shell-widget-shadow,none)] [background:color-mix(in_oklab,var(--muted)_var(--shell-widget-shade,50%),var(--card))]",
         className
       )}
     >
@@ -87,7 +90,7 @@ export function WidgetCard({
             Divider lines colour alone, as in a block's tile. */}
         <div
           data-widget-tile=""
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[calc(var(--shell-widget-radius,1rem)-var(--shell-widget-inset,3px))] bg-card text-sm [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[calc(var(--shell-widget-radius,1rem)-var(--shell-widget-inset,3px)-var(--shell-widget-border,0px))] [--widget-body:color-mix(in_oklab,var(--muted)_var(--shell-widget-body-shade,0%),var(--card))] bg-[var(--widget-body)] text-sm [&_thead_th]:!bg-[var(--widget-body)] [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]"
         >
           {children}
         </div>

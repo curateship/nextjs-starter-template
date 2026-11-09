@@ -601,7 +601,7 @@ export function AutomationEditor({
                   ) : (
                     <UserIcon className="size-4" />
                   )}
-                  Test with contact…
+                  Test with one person…
                 </Button>
               </DisabledReason>
             ) : null}

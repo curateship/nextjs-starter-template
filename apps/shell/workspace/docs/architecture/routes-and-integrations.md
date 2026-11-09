@@ -53,7 +53,9 @@ tab.
 
 - `/api/auth/google` starts Google OAuth and its callback completes it.
 - `/api/v1/media/:mediaId/file` serves an allowed media object.
-- `/api/v1/notifications/stream` carries notification update signals.
+- `/api/v1/notifications/stream` carries notification update signals: one
+  person's ("you have a new notice") or everyone's ("an announcement
+  changed"), after which each tab reads its banners and then its bell.
 - `/api/v1/traffic/view` accepts the browser traffic beacon.
 - `/api/webhooks/resend` and `/api/webhooks/stripe` receive signed provider
   events.

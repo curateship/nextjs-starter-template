@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSliderRow as SliderRow } from "@/components/settings/settings-slider-row"
+import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import {
   BackgroundField,
   FieldGroup,
@@ -29,6 +30,15 @@ import {
   DARK_SHADES,
   darkShade,
   DEFAULT_BLOCK_INSET,
+  DEFAULT_BLOCK_BODY_SHADE,
+  DEFAULT_BLOCK_BORDER,
+  MAX_SIDE_PANEL_WIDTH,
+  DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  DEFAULT_BLOCK_BORDER_SHADE,
+  DEFAULT_BLOCK_SHADOW,
+  MAX_BLOCK_BORDER,
+  blockShadowCss,
   DEFAULT_PANEL_CARD_BORDER_WIDTH,
   DEFAULT_PANEL_CARD_COLOR,
   DEFAULT_BLOCK_RADIUS,
@@ -69,10 +79,20 @@ export function StylingSettings({
   const blockRadius = styling.blockRadius ?? DEFAULT_BLOCK_RADIUS
   const blockShade = styling.blockShade ?? DEFAULT_BLOCK_SHADE
   const blockInset = styling.blockInset ?? DEFAULT_BLOCK_INSET
+  const blockBodyShade = styling.blockBodyShade ?? DEFAULT_BLOCK_BODY_SHADE
+  const blockBorder = styling.blockBorder ?? DEFAULT_BLOCK_BORDER
+  const blockShadow = styling.blockShadow ?? DEFAULT_BLOCK_SHADOW
+  const blockBorderShade = styling.blockBorderShade ?? DEFAULT_BLOCK_BORDER_SHADE
   // Unset, widgets follow the blocks' settings.
   const widgetRadius = styling.widgetRadius ?? blockRadius
   const widgetShade = styling.widgetShade ?? blockShade
   const widgetInset = styling.widgetInset ?? blockInset
+  const widgetBodyShade = styling.widgetBodyShade ?? blockBodyShade
+  const widgetBorder = styling.widgetBorder ?? blockBorder
+  const widgetBorderShade = styling.widgetBorderShade ?? blockBorderShade
+  const widgetShadow = styling.widgetShadow ?? blockShadow
+  const leftPanelWidth = styling.leftPanelWidth ?? DEFAULT_LEFT_PANEL_WIDTH
+  const rightPanelWidth = styling.rightPanelWidth ?? DEFAULT_RIGHT_PANEL_WIDTH
   // The page is drawn from the slider's own number rather than the live
   // --shell-canvas, so the preview moves with the thumb even before the
   // root variable catches up. The rail preview mixes from this page too.
@@ -332,6 +352,44 @@ export function StylingSettings({
         </FieldGroup>
       </CollapsibleSettingsCard>
 
+      {/* Tyler, 9 Nov 2026: "Add another option for me to adjust the
+          default width of the left and right panel". */}
+      <CollapsibleSettingsCard
+        storageId="styling-side-panels"
+        title="Side panels"
+        description="How wide the left and right panels open on a three-panel dashboard, such as the CRM and the Admin dashboard. The middle takes what is left."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Left panel width"
+          value={leftPanelWidth}
+          min={DEFAULT_LEFT_PANEL_WIDTH}
+          max={MAX_SIDE_PANEL_WIDTH}
+          valueLabel={leftPanelWidth === DEFAULT_LEFT_PANEL_WIDTH ? `${leftPanelWidth}% · Default` : `${leftPanelWidth}%`}
+          onChange={(value) => update({ leftPanelWidth: value })}
+          help={`A share of the dashboard's width. ${DEFAULT_LEFT_PANEL_WIDTH}% is the narrowest it opens at or drags to.`}
+        />
+        <SliderRow
+          label="Right panel width"
+          value={rightPanelWidth}
+          min={DEFAULT_RIGHT_PANEL_WIDTH}
+          max={MAX_SIDE_PANEL_WIDTH}
+          valueLabel={rightPanelWidth === DEFAULT_RIGHT_PANEL_WIDTH ? `${rightPanelWidth}% · Default` : `${rightPanelWidth}%`}
+          onChange={(value) => update({ rightPanelWidth: value })}
+          help="The same for the right panel, 16% at the narrowest. A dashboard with no right panel gives the middle its room."
+        />
+        <p className="text-xs text-muted-foreground">
+          A panel you drag to a new width keeps it in that browser. Moving a slider here starts every browser from the new widths again.
+        </p>
+        <FieldGroup label="Preview" className="gap-2">
+          <div className="flex h-20 max-w-md gap-1.5 rounded-lg border bg-[var(--shell-canvas)] p-1.5">
+            <div className="rounded-md border bg-card" style={{ width: `${leftPanelWidth}%` }} />
+            <div className="flex-1 rounded-md border bg-card" />
+            <div className="rounded-md border bg-card" style={{ width: `${rightPanelWidth}%` }} />
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
       {/* Tyler, 7 Nov 2026: "I want to add blocks styling to styling
           settings. I want to adjust to rounded corner, the gray shade bg and
           this padding". The preview is drawn from the sliders' own numbers,
@@ -339,7 +397,7 @@ export function StylingSettings({
       <CollapsibleSettingsCard
         storageId="styling-blocks"
         title="Blocks"
-        description="The cards a page's blocks are drawn in, such as the CRM's Stages and Segments. Every block on every page changes live as you adjust these."
+        description="The cards a page's blocks are drawn in, such as the CRM's Leads and Segments. Every block on every page changes live as you adjust these."
         contentClassName="space-y-6"
       >
         <SliderRow
@@ -369,21 +427,77 @@ export function StylingSettings({
           onChange={(value) => update({ blockInset: value })}
           help="How much grey shows between the block's edge and its white tile, at the sides and the bottom."
         />
+        {/* Tyler, 9 Nov 2026: "add a block styling option to change the
+            shade of the block body bg". */}
+        <SliderRow
+          label="Body shade"
+          value={blockBodyShade}
+          min={0}
+          max={100}
+          valueLabel={blockBodyShade === DEFAULT_BLOCK_BODY_SHADE ? `${blockBodyShade}% · Default` : `${blockBodyShade}%`}
+          onChange={(value) => update({ blockBodyShade: value })}
+          help="The tile under the block's heading, where its rows sit. 0% is white, 100% the theme's light grey."
+        />
+        {/* Tyler, 9 Nov 2026: "Add another styling option to add a border
+            and shade around the block". */}
+        <SliderRow
+          label="Border"
+          value={blockBorder}
+          min={0}
+          max={MAX_BLOCK_BORDER}
+          valueLabel={blockBorder === DEFAULT_BLOCK_BORDER ? `${blockBorder}px · Default` : `${blockBorder}px`}
+          onChange={(value) => update({ blockBorder: value })}
+          help="A line round the whole block. 0px is no line."
+        />
+        <SliderRow
+          label="Border shade"
+          value={blockBorderShade}
+          min={0}
+          max={100}
+          disabled={blockBorder === 0}
+          valueLabel={blockBorderShade === DEFAULT_BLOCK_BORDER_SHADE ? `${blockBorderShade}% · Default` : `${blockBorderShade}%`}
+          onChange={(value) => update({ blockBorderShade: value })}
+          help="How dark the line is. 0% is see-through, 100% the theme's text colour."
+        />
+        <SliderRow
+          label="Shadow"
+          value={blockShadow}
+          min={0}
+          max={100}
+          valueLabel={blockShadow === DEFAULT_BLOCK_SHADOW ? `${blockShadow}% · Default` : `${blockShadow}%`}
+          onChange={(value) => update({ blockShadow: value })}
+          help="A soft shade under the block, so it lifts off the page. 0% is none."
+        />
+        {/* Tyler, 9 Nov 2026: "Add another option for blocks that its edge
+            to edge but for advanced blocks only". */}
+        <SettingsSwitchRow
+          id="block-edge-to-edge"
+          checked={styling.blockEdgeToEdge === true}
+          onCheckedChange={(on) => update({ blockEdgeToEdge: on })}
+          label="Advanced blocks reach the panel's edges"
+          hint="Live blocks such as Dashboards, Plans and Leads fill the panel's full width. Basic blocks such as Image and Callout keep the space at the sides."
+        />
 
         <FieldGroup label="Preview" className="gap-2">
           <div className="max-w-xs rounded-lg border bg-card p-3">
             <div
-              className="overflow-hidden"
+              className="overflow-hidden border-solid"
               style={{
                 borderRadius: blockRadius,
                 background: `color-mix(in oklab, var(--muted) ${blockShade}%, var(--card))`,
+                borderWidth: blockBorder,
+                borderColor: `color-mix(in oklab, var(--foreground) ${blockBorderShade}%, transparent)`,
+                boxShadow: blockShadowCss(blockShadow),
               }}
             >
-              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold">Stages</p>
+              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold">Leads</p>
               <div style={{ padding: `0 ${blockInset}px ${blockInset}px` }}>
                 <div
-                  className="divide-y overflow-hidden bg-card text-sm"
-                  style={{ borderRadius: Math.max(0, blockRadius - blockInset) }}
+                  className="divide-y overflow-hidden text-sm"
+                  style={{
+                    borderRadius: Math.max(0, blockRadius - blockInset - blockBorder),
+                    background: `color-mix(in oklab, var(--muted) ${blockBodyShade}%, var(--card))`,
+                  }}
                 >
                   {["New", "Contacted", "Quoted"].map((stage, index) => (
                     <div key={stage} className="flex justify-between px-3 py-2">
@@ -434,22 +548,67 @@ export function StylingSettings({
           onChange={(value) => update({ widgetInset: value })}
           help="How much grey shows between the widget's edge and its white tile, at the sides and the bottom."
         />
+        {/* Tyler, 9 Nov 2026: "add the same 2 styling feature for widgets",
+            the blocks' Body shade and their Border and Shadow. */}
+        <SliderRow
+          label="Body shade"
+          value={widgetBodyShade}
+          min={0}
+          max={100}
+          valueLabel={widgetBodyShade === DEFAULT_BLOCK_BODY_SHADE ? `${widgetBodyShade}% · Default` : `${widgetBodyShade}%`}
+          onChange={(value) => update({ widgetBodyShade: value })}
+          help="The tile under the widget's heading, where its rows and charts sit. 0% is white, 100% the theme's light grey."
+        />
+        <SliderRow
+          label="Border"
+          value={widgetBorder}
+          min={0}
+          max={MAX_BLOCK_BORDER}
+          valueLabel={widgetBorder === DEFAULT_BLOCK_BORDER ? `${widgetBorder}px · Default` : `${widgetBorder}px`}
+          onChange={(value) => update({ widgetBorder: value })}
+          help="A line round the whole widget. 0px is no line."
+        />
+        <SliderRow
+          label="Border shade"
+          value={widgetBorderShade}
+          min={0}
+          max={100}
+          disabled={widgetBorder === 0}
+          valueLabel={widgetBorderShade === DEFAULT_BLOCK_BORDER_SHADE ? `${widgetBorderShade}% · Default` : `${widgetBorderShade}%`}
+          onChange={(value) => update({ widgetBorderShade: value })}
+          help="How dark the line is. 0% is see-through, 100% the theme's text colour."
+        />
+        <SliderRow
+          label="Shadow"
+          value={widgetShadow}
+          min={0}
+          max={100}
+          valueLabel={widgetShadow === DEFAULT_BLOCK_SHADOW ? `${widgetShadow}% · Default` : `${widgetShadow}%`}
+          onChange={(value) => update({ widgetShadow: value })}
+          help="A soft shade under the widget, so it lifts off the page. 0% is none."
+        />
 
         <FieldGroup label="Preview" className="gap-2">
           {/* The page's own shade behind, as on Overview. */}
           <div className="max-w-xs rounded-lg border bg-[var(--shell-canvas)] p-3">
             <div
-              className="overflow-hidden"
+              className="overflow-hidden border-solid"
               style={{
                 borderRadius: widgetRadius,
                 background: `color-mix(in oklab, var(--muted) ${widgetShade}%, var(--card))`,
+                borderWidth: widgetBorder,
+                borderColor: `color-mix(in oklab, var(--foreground) ${widgetBorderShade}%, transparent)`,
+                boxShadow: blockShadowCss(widgetShadow),
               }}
             >
               <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold text-foreground/75">Top pages</p>
               <div style={{ padding: `0 ${widgetInset}px ${widgetInset}px` }}>
                 <div
-                  className="overflow-hidden bg-card p-1.5 text-sm"
-                  style={{ borderRadius: Math.max(0, widgetRadius - widgetInset) }}
+                  className="overflow-hidden p-1.5 text-sm"
+                  style={{
+                    borderRadius: Math.max(0, widgetRadius - widgetInset - widgetBorder),
+                    background: `color-mix(in oklab, var(--muted) ${widgetBodyShade}%, var(--card))`,
+                  }}
                 >
                   {[
                     ["/home", "1,204"],

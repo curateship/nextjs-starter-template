@@ -1,5 +1,7 @@
 import * as React from "react"
 import {
+  CheckIcon,
+  ChevronDownIcon,
   ForwardIcon,
   InboxIcon,
   PaperclipIcon,
@@ -9,6 +11,7 @@ import {
 
 import { CrmRecordMenu } from "@/components/crm/crm-record-menu"
 import { ForwardDialog } from "@/components/crm/forward-dialog"
+import { Dot, DOT } from "@/components/crm/crm-table"
 import { ReplyComposer } from "@/components/crm/reply-composer"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
@@ -16,14 +19,22 @@ import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Conversation, ConversationFile, ConversationMessage } from "@/lib/api/crm/inbox"
-import type { LeadPanel as LeadRecord } from "@/lib/api/crm/leads"
+import { getLeadErrorMessage, saveLead, type LeadPanel as LeadRecord } from "@/lib/api/crm/leads"
 import {
-  CRM_THREAD_STATUS_LABELS,
-  type CrmThreadStatus,
+  CRM_STAGE_LABELS,
+  CRM_STAGES,
+  type CrmStage,
 } from "@/lib/crm/crm"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { htmlToText, splitQuotedText } from "@/lib/crm/message-text"
@@ -48,7 +59,8 @@ import { cn } from "@/lib/utils"
  *
  * The header is the person, the Save star and the ⋮ (`CrmRecordMenu`), which
  * holds the contact's facts as grouped rows and what used to be four square
- * buttons: mark unread, snooze, close and block.
+ * buttons: mark unread and block (snooze and close were taken out on 9 Nov
+ * 2026).
  */
 export function ConversationPanel({
   conversation,
@@ -62,7 +74,6 @@ export function ConversationPanel({
   replyFrom,
   replyDraft,
   onReplyDraftChange,
-  onStatusChange,
   onSavedChange,
   onMarkUnread,
   onSummarise,
@@ -71,6 +82,7 @@ export function ConversationPanel({
   onFetchBody,
   onSent,
   onDraft,
+  onOpenContact,
 }: {
   conversation: Conversation | null
   /** Who it is with, or null while that is still being read. */
@@ -94,7 +106,6 @@ export function ConversationPanel({
   /** What is half typed in the reply box for this conversation. */
   replyDraft: string
   onReplyDraftChange: (threadId: string, update: ReplyDraftUpdate) => void
-  onStatusChange: (status: CrmThreadStatus, snoozedUntil?: string | null) => void
   onSavedChange: (saved: boolean) => void
   onMarkUnread: () => void
   /** Writes what the conversation is about, through the metered AI path. */
@@ -105,6 +116,8 @@ export function ConversationPanel({
   onFetchBody: (messageId: string) => Promise<void>
   onSent: () => void
   onDraft: () => Promise<string>
+  /** Opens the person's contact, from the ⋮, for a lead already on the list. */
+  onOpenContact?: (contactId: string) => void
 }) {
   const endRef = React.useRef<HTMLDivElement | null>(null)
   const cover = useRightCover()
@@ -158,6 +171,11 @@ export function ConversationPanel({
   }
 
   const who = leadName?.trim() || leadEmail || "This conversation"
+  // The two avatars beside the bubbles: theirs is the person this
+  // conversation is with, whichever of their addresses a message came from;
+  // ours is the name replies go out under ("Tyler" of "Tyler <leads@…>").
+  const theirInitials = initialsFor(leadName, leadEmail ?? "")
+  const ourName = replyFrom?.replace(/\s*<[^>]*>\s*$/, "").trim() || null
 
   return (
     <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
@@ -212,11 +230,11 @@ export function ConversationPanel({
             lead={lead}
             siteTags={siteTags}
             onLeadChanged={onLeadChanged}
-            onStatusChange={onStatusChange}
             onMarkUnread={onMarkUnread}
             onSummarise={conversation.canSummarise ? summarise : null}
             onForward={() => setForwarding(true)}
             onBlock={() => setBlockOpen(true)}
+            onOpenContact={onOpenContact}
           />
           <SidePanelCollapseButton side="right" label="Hide the conversation" />
         </DashboardCardHeader>
@@ -279,6 +297,11 @@ export function ConversationPanel({
                 ) : null}
                 <MessageBubble
                   message={message}
+                  initials={
+                    message.direction === "out"
+                      ? initialsFor(message.fromName || ourName, message.fromEmail)
+                      : theirInitials
+                  }
                   onFetchBody={() => onFetchBody(message.id)}
                 />
                 {forwardsHere.map((forward) => (
@@ -325,18 +348,13 @@ export function ConversationPanel({
         }}
       />
 
-      {/* The reply box, then one last line: the state on the left, and Draft
-          with AI, Attach and Send on the right. Snooze and Close are in the
-          ⋮'s Conversation group; the lead's facts are in its General tab. */}
+      {/* The reply box, then one last line: the lead's status dropdown on the
+          left, and Draft with AI, Attach and Send on the right. The lead's facts are in its General tab. */}
       {/* Light grey, the reply box white on it (Tyler, 7 Nov 2026: "make the
           whole footer light gray"). */}
       <footer className="shrink-0 border-t bg-muted/50">
         <ReplyComposer
-          status={
-            conversation.status === "snoozed" && conversation.snoozed_until
-              ? `Snoozed until ${formatDate(conversation.snoozed_until)}`
-              : CRM_THREAD_STATUS_LABELS[conversation.status]
-          }
+          status={<LeadStatusMenu lead={lead} onLeadChanged={onLeadChanged} />}
           threadId={conversation.id}
           body={replyDraft}
           canSend={canSend}
@@ -351,11 +369,65 @@ export function ConversationPanel({
 }
 
 
+/**
+ * The lead's status (their stage, New to Lost) as a dropdown on the left of
+ * the reply box's last line (Tyler, 9 Nov 2026: "replace it with the status
+ * dropdown I can choose", then "when I say status I mean stage"). Picked,
+ * saved, the same field the ⋮'s Status row and the Leads card read.
+ */
+function LeadStatusMenu({ lead, onLeadChanged }: { lead: LeadRecord | null; onLeadChanged: () => void }) {
+  const [saving, setSaving] = React.useState(false)
+  if (!lead) return null
+  const pick = async (stage: CrmStage) => {
+    if (stage === lead.stage) return
+    setSaving(true)
+    try {
+      await saveLead({ leadId: lead.id, stage })
+      onLeadChanged()
+    } catch (error) {
+      showErrorToast(getLeadErrorMessage(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={saving}
+          aria-label={`Status: ${CRM_STAGE_LABELS[lead.stage]}`}
+          className="min-w-0 gap-1.5 px-2 font-normal text-muted-foreground"
+        >
+          <Dot className={DOT.stage[lead.stage]} />
+          {/* The word once the panel has room; the dot alone when narrow. */}
+          <span className="truncate @max-xs:sr-only">{CRM_STAGE_LABELS[lead.stage]}</span>
+          <ChevronDownIcon className="size-3.5 shrink-0" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-44">
+        {CRM_STAGES.map((stage) => (
+          <DropdownMenuItem key={stage} onSelect={() => void pick(stage)}>
+            <Dot className={DOT.stage[stage]} />
+            {CRM_STAGE_LABELS[stage]}
+            <CheckIcon className={cn("ml-auto size-4", stage !== lead.stage && "invisible")} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function MessageBubble({
   message,
+  initials,
   onFetchBody,
 }: {
   message: ConversationMessage
+  /** The sender's initials, for the avatar beside the bubble. */
+  initials: string
   onFetchBody: () => Promise<void>
 }) {
   const [showQuoted, setShowQuoted] = React.useState(false)
@@ -378,6 +450,15 @@ function MessageBubble({
           two apart. The bubble itself carries no label at all. */}
       <span className="sr-only">{outbound ? "You wrote" : "They wrote"}</span>
 
+      {/* The sender's initials beside each bubble, theirs on the left and
+          ours on the right (Tyler, 9 Nov 2026: "the conversation should show
+          avatar too"), drawn as the lists' rows draw it. */}
+      <div className={cn("flex w-full min-w-0 items-start gap-2", outbound && "flex-row-reverse")}>
+      <Avatar aria-hidden className="size-7">
+        <AvatarFallback className="text-[0.5625rem] font-medium">
+          {initials}
+        </AvatarFallback>
+      </Avatar>
       <div
         className={cn(
           "max-w-[85%] min-w-0 rounded-2xl px-3.5 py-2.5 text-sm",
@@ -448,10 +529,11 @@ function MessageBubble({
           </ul>
         ) : null}
       </div>
+      </div>
 
       <time
         dateTime={message.occurred_at}
-        className="px-1 text-xs text-muted-foreground tabular-nums"
+        className={cn("px-1 text-xs text-muted-foreground tabular-nums", outbound ? "mr-9" : "ml-9")}
       >
         {formatClockTime(message.occurred_at)}
       </time>

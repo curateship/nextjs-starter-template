@@ -1,12 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 
-import {
-  countPeople,
-  getLeadPeople,
-  leadsForContacts,
-  listLeadPeople,
-  listPeopleOrder,
-} from "@/server/crm/people"
+import { countSubscribersAndLeads, listLeadPeople } from "@/server/crm/people"
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
@@ -17,10 +11,11 @@ import {
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
- * The CRM People tab's reads, against a real database: contacts and leads in
- * one list, somebody who is both shown once, and nothing from another site.
+ * The CRM Leads section's reads, against a real database: every lead, the
+ * subscriber on the same address named, and nothing from another site.
+ * Subscribers and leads are separate lists (9 Nov 2026).
  */
-describe("the People tab's reads", () => {
+describe("the Leads section's reads", () => {
   let db: CustomShellDb
   const workspaceId = "ws-people"
   const otherWorkspaceId = "ws-people-other"
@@ -66,47 +61,17 @@ describe("the People tab's reads", () => {
     })
   })
 
-  it("lists every contact, then each lead who is not one, once, newest first", async () => {
-    const { rows, total } = await listPeopleOrder(workspaceId, { limit: 50, offset: 0 }, db)
-    expect(rows).toEqual([
-      { kind: "contact", id: "contact-dan" },
-      { kind: "lead", id: "lead-carla" },
-      { kind: "contact", id: "contact-anna" },
-    ])
-    expect(total).toBe(3)
-  })
-
-  it("pages the two kinds as one list", async () => {
-    const second = await listPeopleOrder(workspaceId, { limit: 1, offset: 1 }, db)
-    expect(second.rows).toEqual([{ kind: "lead", id: "lead-carla" }])
-    expect(second.total).toBe(3)
-  })
-
-  it("sorts by name across both kinds", async () => {
-    const { rows } = await listPeopleOrder(workspaceId, { sort: "name", direction: "asc", limit: 50, offset: 0 }, db)
-    expect(rows.map((row) => row.id)).toEqual(["contact-anna", "lead-carla", "contact-dan"])
+  it("counts subscribers and leads apart, never another site's", async () => {
+    expect(await countSubscribersAndLeads(workspaceId, db)).toEqual({ subscribers: 2, leads: 2 })
+    expect(await countSubscribersAndLeads(otherWorkspaceId, db)).toEqual({ subscribers: 0, leads: 1 })
   })
 
   it("searches a lead's company as well as its address", async () => {
-    const { rows } = await listPeopleOrder(workspaceId, { search: "plumbing", limit: 50, offset: 0 }, db)
-    expect(rows).toEqual([{ kind: "lead", id: "lead-carla" }])
+    const { leads } = await listLeadPeople(workspaceId, { search: "plumbing", limit: 50, offset: 0 }, db)
+    expect(leads.map((lead) => lead.id)).toEqual(["lead-carla"])
   })
 
-  it("orders by status and by last emailed without failing", async () => {
-    for (const sort of ["status", "emailed"] as const) {
-      for (const direction of ["asc", "desc"] as const) {
-        const { rows } = await listPeopleOrder(workspaceId, { sort, direction, limit: 50, offset: 0 }, db)
-        expect(rows).toHaveLength(3)
-      }
-    }
-  })
-
-  it("counts everybody once, and every lead", async () => {
-    expect(await countPeople(workspaceId, db)).toEqual({ all: 3, leads: 2 })
-    expect(await countPeople(otherWorkspaceId, db)).toEqual({ all: 1, leads: 1 })
-  })
-
-  it("lists every lead under Leads, naming the contact a lead also is", async () => {
+  it("lists every lead, naming the subscriber on the same address", async () => {
     const { leads, total } = await listLeadPeople(workspaceId, { limit: 50, offset: 0 }, db)
     expect(total).toBe(2)
     expect(leads.map((lead) => [lead.id, lead.contactId])).toEqual([
@@ -116,20 +81,12 @@ describe("the People tab's reads", () => {
     expect(leads.find((lead) => lead.id === "lead-carla")?.newestThreadId).toBe("thread-carla")
   })
 
-  it("fills leads in by id, never another site's", async () => {
-    const leads = await getLeadPeople(workspaceId, ["lead-carla", "lead-elsewhere"], db)
-    expect(leads.map((lead) => lead.id)).toEqual(["lead-carla"])
-  })
-
-  it("marks a contact who is also a lead, whatever the capitals", async () => {
-    const found = await leadsForContacts(
-      workspaceId,
-      [
-        { id: "contact-anna", email: "Anna@Example.test" },
-        { id: "contact-dan", email: "dan@example.test" },
-      ],
-      db
-    )
-    expect([...found]).toEqual([["contact-anna", "lead-anna"]])
+  it("sorts by stage in the pipeline's order, by deal value, and by company with blanks last", async () => {
+    const order = async (sort: "stage" | "value" | "company", direction: "asc" | "desc") =>
+      (await listLeadPeople(workspaceId, { sort, direction, limit: 50, offset: 0 }, db)).leads.map((lead) => lead.id)
+    expect(await order("stage", "asc")).toEqual(["lead-carla", "lead-anna"])
+    expect(await order("value", "desc")).toEqual(["lead-anna", "lead-carla"])
+    expect(await order("company", "asc")).toEqual(["lead-carla", "lead-anna"])
+    expect(await order("company", "desc")).toEqual(["lead-carla", "lead-anna"])
   })
 })

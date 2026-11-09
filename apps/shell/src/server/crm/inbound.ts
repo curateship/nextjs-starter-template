@@ -15,7 +15,6 @@ import { db, type CustomShellDb } from "@/server/db"
 import { getAppEmailApiKey } from "@/server/email/settings"
 import { getEmailProvider } from "@/server/email/provider"
 import {
-  customShellContacts,
   customShellCrmLeads,
   customShellCrmMessages,
   customShellCrmThreads,
@@ -201,17 +200,6 @@ async function leadForAddress(
     return existing.id
   }
 
-  const [contact] = await database
-    .select({ id: customShellContacts.id })
-    .from(customShellContacts)
-    .where(
-      and(
-        eq(customShellContacts.workspaceId, workspaceId),
-        sql`lower(${customShellContacts.email}) = ${email}`
-      )
-    )
-    .limit(1)
-
   const id = uuid()
   await database.insert(customShellCrmLeads).values({
     id,
@@ -220,7 +208,6 @@ async function leadForAddress(
     name,
     stage: "new",
     source: "Email",
-    contactId: contact?.id ?? null,
     createdAt: at,
     updatedAt: at,
   })

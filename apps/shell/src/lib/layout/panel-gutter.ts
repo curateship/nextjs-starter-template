@@ -6,7 +6,9 @@
  * panels gutter needs to follow this size", after picking 15px for the left
  * panel). The right panel's footer uses it too, so its edge lines up.
  */
-export const PANEL_GUTTER = "gap-3.75 p-3.75"
+// --panel-gutter carries the same 15px, so an advanced block set to edge to
+// edge (Settings → Styling → Blocks) knows how far to reach past it.
+export const PANEL_GUTTER = "gap-3.75 p-3.75 [--panel-gutter:0.9375rem]"
 export const PANEL_FOOTER_PADDING = "p-3.75"
 /**
  * A footer card's body, under its heading: the heading's 16px at the sides and

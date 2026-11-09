@@ -12,7 +12,6 @@ import {
 } from "@/server/automations/flows"
 import type { CustomShellDb } from "@/server/db"
 import { setEmailProviderFactoryForTests } from "@/server/email/provider"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import {
   customShellAutomationDeliveries,
   customShellAutomationRuns,
@@ -77,8 +76,7 @@ beforeEach(async () => {
     updatedAt: timestamp,
   })
   // The file's own workspace is the one the flows below belong to, and the only
-  // one there is — so an account pointed at no site belongs to it, which is how
-  // `syncContactsFromUsers` behaves on any app with a single site.
+  // one there is, so an account pointed at no site belongs to it.
   site = WORKSPACE_ID
 })
 
@@ -87,7 +85,7 @@ afterEach(async () => {
   await client.close()
 })
 
-function config(withAudience: boolean) {
+function config(withAudience: boolean, audience = "everyone") {
   return automationCompiledConfigSchema.parse({
     v: 1,
     kind: "automation",
@@ -97,7 +95,7 @@ function config(withAudience: boolean) {
             audience: {
               kind: "audience",
               settings: {
-                audience: "everyone",
+                audience,
                 planSlug: "",
                 segmentId: "",
                 segmentName: "",
@@ -198,21 +196,16 @@ async function execute(
 }
 
 describe("Send Email executor", () => {
-  it("personalises a test for the contact but sends only to the admin", async () => {
+  it("personalises a test for the account but sends only to the admin", async () => {
     const member = await insertUser(db, {
       email: "subject@example.test",
       name: "Sam Subject",
     })
     const send = vi.fn(async () => ({ success: true, messageId: "test-sent" }))
     setEmailProviderFactoryForTests(() => ({ send }))
-    await syncContactsFromUsers(site, db)
-    const [memberBefore] = await db
-      .select()
-      .from(customShellContacts)
-      .where(eq(customShellContacts.userId, member.id))
+    // An account is tested as itself: it is not on the subscriber list.
     const run = await insertRun({
       withAudience: false,
-      subjectContactId: memberBefore.id,
       subjectUserId: member.id,
       testRecipientEmail: owner.email,
     })
@@ -243,22 +236,14 @@ describe("Send Email executor", () => {
         toEmail: owner.email,
       }),
     ])
-    const [memberAfter] = await db
-      .select()
-      .from(customShellContacts)
-      .where(eq(customShellContacts.userId, member.id))
-    expect(memberAfter).toEqual(memberBefore)
+    // Testing makes nobody a subscriber.
+    expect(await db.select().from(customShellContacts)).toEqual([])
   })
 
   it("sends no test email when the contact does not match the audience", async () => {
     const member = await insertUser(db, { email: "free@example.test" })
     const send = vi.fn(async () => ({ success: true, messageId: "not-used" }))
     setEmailProviderFactoryForTests(() => ({ send }))
-    await syncContactsFromUsers(site, db)
-    const [contact] = await db
-      .select()
-      .from(customShellContacts)
-      .where(eq(customShellContacts.userId, member.id))
     const payingConfig = config(true)
     payingConfig.nodes.audience.settings = {
       audience: "paying",
@@ -267,7 +252,6 @@ describe("Send Email executor", () => {
       segmentName: "",
     }
     const run = await insertRun({
-      subjectContactId: contact.id,
       subjectUserId: member.id,
       testRecipientEmail: owner.email,
       configOverride: payingConfig,
@@ -314,7 +298,7 @@ describe("Send Email executor", () => {
     )
   })
 
-  it("isolates failures, skips unconfirmed members, and does not resend on retry", async () => {
+  it("isolates failures, skips unconfirmed accounts, and does not resend on retry", async () => {
     await insertUser(db, { email: "good@example.test" })
     await insertUser(db, { email: "bad@example.test" })
     await insertUser(db, {
@@ -327,7 +311,8 @@ describe("Send Email executor", () => {
         : { success: true, messageId: `sent-${to}` }
     )
     setEmailProviderFactoryForTests(() => ({ send }))
-    const run = await insertRun()
+    // Every account: the owner, good, bad and the unconfirmed one.
+    const run = await insertRun({ configOverride: config(true, "accounts") })
 
     const first = await execute(run)
     expect(first.summary).toBe(
@@ -480,9 +465,10 @@ describe("Send Email executor", () => {
     setEmailProviderFactoryForTests(() => ({ send }))
     const run = await insertRun({ claimToken: "send-email-claim" })
 
+    // Every subscriber: the 51 on the list, never the owner's account.
     const result = await execute(run)
-    expect(result.summary).toContain("Emailed 52, 0 failed")
-    expect(send).toHaveBeenCalledTimes(52)
+    expect(result.summary).toContain("Emailed 51, 0 failed")
+    expect(send).toHaveBeenCalledTimes(51)
     const [stillClaimed] = await db
       .select({ id: customShellAutomationRuns.id })
       .from(customShellAutomationRuns)
@@ -547,11 +533,16 @@ describe("Send Email executor", () => {
 
       expect(send).toHaveBeenCalledWith(
         expect.objectContaining({
-          html: expect.not.stringContaining("{{unsubscribe_url}}"),
+          // An account's link turns its automated mail off (`a=`), not a
+          // subscriber's list link (`c=`).
+          html: expect.stringContaining("/unsubscribe?a="),
           headers: expect.objectContaining({
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           }),
         })
+      )
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({ html: expect.not.stringContaining("{{unsubscribe_url}}") })
       )
     } finally {
       if (previousKey === undefined) {

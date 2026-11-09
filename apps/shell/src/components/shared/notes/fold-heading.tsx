@@ -86,13 +86,15 @@ export function FoldHeading({
         <CollapsibleTrigger asChild>
           <button type="button" className={cn("grid w-full cursor-pointer gap-0.5 rounded-md text-left select-none", focusRingInset)}>
             {/* The count follows the words, so in a narrow panel it drops to the next
-                line rather than squeezing the title onto two. */}
-            <span className="min-w-0">
-              {title}
+                line rather than squeezing the title onto two. The title itself
+                stays on one line and ends in "…" when even that is too wide,
+                never broken mid-word (9 Nov 2026, the 10% left panel). */}
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+              <span className="min-w-0 max-w-full truncate">{title}</span>
               {count === undefined ? null : (
                 <span
                   className={cn(
-                    "ml-2 inline-block rounded-md px-1.5 py-0.5 align-middle text-xs font-medium text-muted-foreground tabular-nums",
+                    "inline-block shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums",
                     band ? "bg-background" : "bg-muted"
                   )}
                 >

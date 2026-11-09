@@ -70,13 +70,19 @@ export function SideRows({
   rows,
   empty,
   after,
+  showAll = false,
 }: {
   rows: SideRow[]
   empty: string
   /** Under the rows: a "New announcement" button and the like. */
   after?: React.ReactNode
+  /**
+   * Every row, never "Show all": for a short fixed list, such as the Leads
+   * card's six rows, where hiding one behind a button only hides a stage.
+   */
+  showAll?: boolean
 }) {
-  const [all, setAll] = React.useState(false)
+  const [all, setAll] = React.useState(showAll)
   const shown = all ? rows : rows.slice(0, ROWS_SHOWN)
   const picks = rows.some((row) => row.picked !== undefined)
   return (
@@ -155,7 +161,7 @@ export function SideRows({
           <React.Fragment key={row.key}>{body}</React.Fragment>
         )
       })}
-      {rows.length > ROWS_SHOWN ? (
+      {!showAll && rows.length > ROWS_SHOWN ? (
         <Button
           type="button"
           variant="ghost"
