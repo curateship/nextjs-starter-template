@@ -10,6 +10,7 @@ import {
   darkShade,
   defaultMenu,
   hasLinkTo,
+  menuEdgeLabel,
   menuSchema,
   menuShadeLabel,
   moveLink,
@@ -24,6 +25,7 @@ import {
   screenName,
   setAppMenuWidth,
   setDarkShade,
+  setMenuEdge,
   setMenuShade,
   setPinned,
   setStartLink,
@@ -474,6 +476,24 @@ describe("the menu's shade", () => {
   it("names the default and every other shade by its percent", () => {
     expect(menuShadeLabel(50)).toBe("Default")
     expect(menuShadeLabel(10)).toBe("10%")
+  })
+})
+
+describe("the menu's edge line", () => {
+  it("saves a strength in percent, keeps it in range, and leaves the file without it at 50%", () => {
+    const menu = defaultMenu()
+    expect(setMenuEdge(menu, 80).menuEdge).toBe(80)
+    expect(setMenuEdge(menu, -5).menuEdge).toBe(0)
+    expect(setMenuEdge(menu, 300).menuEdge).toBe(100)
+    expect("menuEdge" in setMenuEdge(setMenuEdge(menu, 80), 50)).toBe(false)
+    expect(setMenuEdge(menu, 50)).toBe(menu)
+    expect(menuSchema.safeParse({ ...menu, menuEdge: 101 }).success).toBe(false)
+  })
+
+  it("names the default, no line, and every other strength by its percent", () => {
+    expect(menuEdgeLabel(50)).toBe("Default")
+    expect(menuEdgeLabel(0)).toBe("None")
+    expect(menuEdgeLabel(80)).toBe("80%")
   })
 })
 
