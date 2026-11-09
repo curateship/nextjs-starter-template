@@ -27,6 +27,16 @@ adjust the default width of the left and right panel".
   `crm-workspace-horizontal-4:24-20` say), so every browser starts from the
   new widths. Widths dragged under the old 16% default, kept under the plain
   key, are left behind.
+- **Reset panels** under the preview (Tyler, 9 Nov 2026: "Add a reset panel
+  button here to reset all the panels to its default size", then "Not
+  default 10 and 16 but to the default I set it as"). Each dashboard
+  remembers its own dragged widths, so the CRM and Admin can differ. The
+  button makes this browser forget all of them at once, on every
+  three-panel dashboard of any app and in the editors, so each opens at the
+  widths the sliders say again. The sliders stay where they are. Where a
+  dashboard was and how its widget columns are split are kept
+  (`forgetPanelWidths` in `src/lib/layout/panel-layout.ts`). A toast says
+  the widths it went back to. It only clears the browser it is pressed in.
 - **Stored** as `leftPanelWidth` and `rightPanelWidth` on the site's styling
   (`src/lib/layout/styling-values.ts`), for the whole site, not per person.
 - **Below 1280px** one panel shows at a time, so the setting changes nothing

@@ -1,4 +1,6 @@
 import * as React from "react"
+import { RotateCcwIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSliderRow as SliderRow } from "@/components/settings/settings-slider-row"
@@ -10,6 +12,7 @@ import {
 } from "@/components/settings/styling-fields"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -26,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { type ShellConfig } from "@/lib/custom-shell"
+import { forgetPanelWidths } from "@/lib/layout/panel-layout"
 import {
   DARK_SHADES,
   darkShade,
@@ -388,6 +392,22 @@ export function StylingSettings({
             <div className="rounded-md border bg-card" style={{ width: `${rightPanelWidth}%` }} />
           </div>
         </FieldGroup>
+        {/* Tyler, 9 Nov 2026: "Add a reset panel button here to reset all
+            the panels to its default size", then "Not default 10 and 16 but
+            to the default I set it as". The sliders stay where they are;
+            this browser forgets every width a panel was dragged to, so each
+            opens at the widths above. */}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            forgetPanelWidths()
+            toast.success(`Every panel opens at ${leftPanelWidth}% left and ${rightPanelWidth}% right again.`)
+          }}
+        >
+          <RotateCcwIcon />
+          Reset panels
+        </Button>
       </CollapsibleSettingsCard>
 
       {/* Tyler, 7 Nov 2026: "I want to add blocks styling to styling

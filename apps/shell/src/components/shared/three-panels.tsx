@@ -26,7 +26,7 @@ import {
   usePanelCollapsed,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { sidePanelWidthsKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import {
   DEFAULT_LEFT_PANEL_WIDTH,
   DEFAULT_RIGHT_PANEL_WIDTH,
@@ -270,7 +270,7 @@ export function ThreePanels({
   // widths gets a key of its own, as `panelLayoutKey` bumps its number when
   // a default moves. Widths dragged under the old 16% default, kept under
   // the plain key, are left behind with it (9 Nov 2026).
-  const widthsKey = `${layoutKey}:${leftWidth}-${right ? rightWidth : 0}`
+  const widthsKey = sidePanelWidthsKey(layoutKey, leftWidth, right ? rightWidth : 0)
   const defaultLayout = React.useMemo(
     () => ({ left: leftWidth, middle: middleWidth, ...(right ? { right: rightWidth } : {}) }),
     [leftWidth, middleWidth, rightWidth, right]

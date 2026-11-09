@@ -149,3 +149,41 @@ export const panelLayoutKey = {
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
     `custom-shell-${page}-${side}-${cards}`,
 }
+
+/**
+ * The key a three-panel dashboard keeps its dragged widths under: its own
+ * layout key, then the opening widths from Settings → Styling → Side panels,
+ * so a changed default starts every browser from the new widths
+ * (`ThreePanels`).
+ */
+export function sidePanelWidthsKey(layoutKey: string, left: number, right: number) {
+  return `${layoutKey}:${left}-${right}`
+}
+
+/** What `sidePanelWidthsKey` makes, whichever app's dashboard made it. */
+const SIDE_PANEL_WIDTHS_KEY = /:\d+-\d+$/
+
+/**
+ * Forgets every panel width this browser kept, so each three-panel dashboard
+ * opens at the widths set in Settings → Styling → Side panels again, and each
+ * editor at its own defaults (Tyler, 9 Nov 2026: "Add a reset panel button
+ * here to reset all the panels to its default size", then "Not default 10 and
+ * 16 but to the default I set it as"). The site's widths are not touched.
+ * Where a dashboard was (`…Place`) and how its widget columns are split are
+ * not widths, and stay.
+ */
+export function forgetPanelWidths() {
+  const fixed = new Set<string>(
+    Object.entries(panelLayoutKey)
+      .filter(([name, key]) => typeof key === "string" && !name.endsWith("Place"))
+      .map(([, key]) => key as string)
+  )
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    for (const key of keys) {
+      if (key && (fixed.has(key) || SIDE_PANEL_WIDTHS_KEY.test(key))) localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage that cannot be read holds no widths to forget.
+  }
+}
