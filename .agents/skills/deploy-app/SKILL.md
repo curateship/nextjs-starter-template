@@ -5,7 +5,10 @@ description: Deploy an app in this monorepo to Coolify. A repeat deploy is one s
 
 # Deploy App
 
-A repeat deploy takes about 20 minutes, most of it Coolify building. A first
+A repeat deploy took about 22 to 25 minutes, most of it Coolify building;
+the package cache and the dropped copy in the root `Dockerfile` (7 Nov 2026)
+should bring that down, measured on the second deploy after the change, since
+the first fills the cache. `docs/deployment.md` says where the time goes. A first
 launch takes an afternoon the first time and should take an hour with this
 checklist. Pomodoro's launch on 8 Oct 2026 is the worked example, recorded in
 `apps/pomodoro/workspace/docs/launch.md`.
