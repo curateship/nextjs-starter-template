@@ -3,13 +3,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { stopRunCoin } from "@/lib/api/trade/flow-trading"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import * as React from "react"
-import { CoinsIcon, ListOrderedIcon } from "lucide-react"
 
 import { toneClass, usd } from "@/components/backtest/backtest-kpi"
-import {
-  DashboardCardTab,
-  DashboardCardTabsHeader,
-} from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -51,11 +46,14 @@ const TABLE_CLASS =
 
 export function FlowRunCoinsPanel({
   report,
+  tab,
   openCoin,
   onOpenCoin,
   onRefresh,
 }: {
   report: FlowRunReport
+  /** Which list shows. The right panel's tabs pick it; this panel has no header of its own. */
+  tab: Tab
   openCoin: string | null
   onRefresh?: () => Promise<void>
   onOpenCoin: (marketKey: string) => void
@@ -66,7 +64,6 @@ export function FlowRunCoinsPanel({
   const [busy, setBusy] = React.useState(false)
   const [requested, setRequested] = React.useState(new Set<string>())
   const pending = React.useRef(false)
-  const [tab, setTab] = React.useState<Tab>("coins")
   const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
 
   const traded = React.useMemo(
@@ -122,25 +119,7 @@ export function FlowRunCoinsPanel({
   )
 
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => setTab(value as Tab)}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
-    >
-      <DashboardCardTabsHeader>
-        <DashboardCardTab
-          value="coins"
-          icon={<CoinsIcon className="size-4" />}
-          label="Coins"
-          count={report.coins.length}
-        />
-        <DashboardCardTab
-          value="results"
-          icon={<ListOrderedIcon className="size-4" />}
-          label="Results"
-          count={traded.length}
-        />
-      </DashboardCardTabsHeader>
+    <Tabs value={tab} className="h-full min-h-0 flex-1 gap-0 overflow-hidden">
 
       <TabsContent value="coins" className="flex min-h-0 flex-1 flex-col">
         <ScrollArea

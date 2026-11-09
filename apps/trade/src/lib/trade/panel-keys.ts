@@ -18,13 +18,9 @@ export const tradePanelLayoutKey = {
    * 8 Nov 2026).
    */
   workspaceHorizontal: "trade-workspace-horizontal-4",
-  /** A backtest run: settings | chart | summary, across the workspace. */
-  backtestHorizontal: "trade-backtest-horizontal-2",
-  /** The backtest workspace above, its coins and trades below. */
+  /** An opened backtest on the Bots dashboard: its chart above, its trades below. */
   backtestVertical: "trade-backtest-vertical",
-  /** A live run: figures | chart | coins, across the workspace. */
-  flowRunHorizontal: "trade-flow-run-horizontal-2",
-  /** The live-run workspace above, its trades below. */
+  /** An opened bot on the Bots dashboard: its chart above, its trades below. */
   flowRunVertical: "trade-flow-run-vertical",
 } as const
 
@@ -37,8 +33,20 @@ export const TRADE_PANEL_LAYOUT_KEYS = Object.values(tradePanelLayoutKey)
 /** The exact panel names each saved group must contain. */
 export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
   [tradePanelLayoutKey.workspaceHorizontal]: ["blocks", "chart"],
-  [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
   [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
-  [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],
   [tradePanelLayoutKey.flowRunVertical]: ["workspace", "trades"],
 }
+
+/**
+ * The Bots dashboard's keys (9 Nov 2026), kept in this browser rather than on
+ * the account, the way the shell's `ThreePanels` keeps every dashboard's
+ * widths. Three panels, each side opening at its narrowest; the two panels of
+ * Overview and the Recipes table under a key of their own, so a width dragged
+ * on one carries to the other; and `place`, where the dashboard was, for
+ * `useDashboardPlace`.
+ */
+export const botsPanelKey = {
+  dashboard: "trade-bots-horizontal-1",
+  twoPanels: "trade-bots-two-panels-horizontal-1",
+  place: "trade-bots-place",
+} as const

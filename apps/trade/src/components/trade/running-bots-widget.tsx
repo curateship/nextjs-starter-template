@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
 import { BotIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -58,16 +57,24 @@ export function RunningBotsWidget({
   bots,
   className,
   bare = false,
+  onOpen,
+  onOpenRecipes,
 }: {
   bots: TradingOverviewBot[]
   className: string
+  /**
+   * Opens a bot on the Bots dashboard. Left out for a member, who cannot open
+   * that dashboard (Tyler, 9 Nov 2026: "Admins only"), so the rows lead nowhere.
+   */
+  onOpen?: (bot: TradingOverviewBot) => void
+  /** The empty card's way to the recipes; left out where there is none to offer. */
+  onOpenRecipes?: () => void
   /**
    * Drawn inside the Trade dashboard's widget card, which holds the title,
    * the count and the ⋮: no frame of its own, and no title row.
    */
   bare?: boolean
 }) {
-  const navigate = useNavigate()
   const { sort, direction, toggleSort } = useTableSort<BotColumn>(
     "status",
     "asc",
@@ -123,9 +130,11 @@ export function RunningBotsWidget({
       emptyWords={
         <div className="flex flex-col items-center justify-center gap-3">
           <p className="text-sm text-muted-foreground">No running bots.</p>
-          <Button asChild variant="outline">
-            <Link to="/admin/recipes">Open recipes</Link>
-          </Button>
+          {onOpenRecipes ? (
+            <Button type="button" variant="outline" onClick={onOpenRecipes}>
+              Open recipes
+            </Button>
+          ) : null}
         </div>
       }
       stateClassName="flex min-h-36 items-center justify-center"
@@ -134,16 +143,7 @@ export function RunningBotsWidget({
       direction={direction}
       onSort={toggleSort}
       renderRow={(bot) => (
-        <BotRow
-          key={bot.automationId}
-          bot={bot}
-          onOpen={() =>
-            void navigate({
-              to: "/flow-runs/$runId",
-              params: { runId: bot.runId },
-            })
-          }
-        />
+        <BotRow key={bot.automationId} bot={bot} onOpen={onOpen ? () => onOpen(bot) : undefined} />
       )}
     />
   )
@@ -154,20 +154,26 @@ function BotRow({
   onOpen,
 }: {
   bot: TradingOverviewBot
-  onOpen: () => void
+  onOpen?: () => void
 }) {
   const state = STATE_LABELS[bot.state]
   return (
     <TableRow rowAction={onOpen} className="border-b">
       <TableCell column="meta" className="py-2.5">
-        <Link
-          to="/flow-runs/$runId"
-          params={{ runId: bot.runId }}
-          className={cn("block max-w-48 truncate rounded-sm text-xs font-medium hover:underline", focusRing)}
-          title={bot.name}
-        >
-          {bot.name}
-        </Link>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            className={cn("block max-w-48 truncate rounded-sm text-left text-xs font-medium hover:underline", focusRing)}
+            title={bot.name}
+          >
+            {bot.name}
+          </button>
+        ) : (
+          <span className="block max-w-48 truncate text-xs font-medium" title={bot.name}>
+            {bot.name}
+          </span>
+        )}
       </TableCell>
       <TableCell column="meta" className="py-2.5 text-xs text-muted-foreground">
         <span className="block">{state}</span>

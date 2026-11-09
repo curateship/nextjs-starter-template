@@ -1,8 +1,8 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import {
   CandlestickChartIcon,
   TrendingUpIcon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
@@ -20,7 +20,6 @@ import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
@@ -82,7 +81,10 @@ export function BacktestChartPanel({
   loading,
   error,
   live,
-  automationId,
+  title,
+  onBack,
+  onOpenRecipe,
+  headerEnd,
   chartToolbarPosition,
   onChartToolbarPositionChange,
   onRetry,
@@ -114,13 +116,18 @@ export function BacktestChartPanel({
   error: string | null
   /** The run has not finished, so more marks may still appear. */
   live: boolean
-  /** The flow this run came from — where the back arrow goes. */
-  automationId: string
+  /** The run's name, first in the header. */
+  title: string
+  /** Back to the Backtests table. */
+  onBack: () => void
+  /** Opens the recipe this ran, on its canvas. */
+  onOpenRecipe: () => void
+  /** The end of the header: the button that reopens a shut right panel. */
+  headerEnd: React.ReactNode
   chartToolbarPosition?: ChartToolbarPosition | null
   onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
 }) {
-  const navigate = useNavigate()
   const chartable = coins.filter((coin) => coin.summary)
   // A run with nothing to draw has no Graph to offer: no button, and the
   // candles whatever the page asked for. One point is not a line — the same
@@ -258,30 +265,14 @@ export function BacktestChartPanel({
   return (
     <>
       <DashboardCardTitleHeader
-        // The way back to the other picture: from the Graph to the market's
-        // candles, and from the candles to the Graph. On a run with no Graph to
-        // go to it falls back to the list of runs, which is the only other
-        // place there is. The header draws it, so this arrow is the same one
-        // an automation and a newsletter get.
-        icon={null}
-        back={
-          hasGraph
-            ? {
-                onClick: onSwapView,
-                label: showGraph
-                  ? "Back to the market's chart"
-                  : "Back to the graph",
-              }
-            : { to: "/backtests", label: "Back to every backtest" }
-        }
-        title={
-          showGraph
-            ? "Graph"
-            : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
-              "No market picked")
-        }
-        // The Graph carries no meta: the dates it covers are along its own
-        // bottom axis, and saying them again up here was the same fact twice.
+        // The middle's one header on the Bots dashboard: back to the table,
+        // the run's name and which picture shows, then the swap between the
+        // Graph and the Chart, the way to the recipe, and the reopen button.
+        back={{ onClick: onBack, label: "Back to backtests" }}
+        title={`${title} · ${
+          showGraph ? "Graph" : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ?? "No market picked")
+        }`}
+        // The Graph carries no meta: the dates it covers are along its own bottom axis.
         meta={
           showGraph
             ? undefined
@@ -289,14 +280,8 @@ export function BacktestChartPanel({
         }
         action={
           <div className="flex items-center gap-2">
-            {/* The two pictures are called the Graph — the pot's line over the
-                whole run — and the Chart, one coin's candles.
-
-                One button, two labels: it always names the one you are not
-                looking at, so it reads as the way over to that one. Two
-                buttons sitting there permanently would mean one of them never
-                does anything. Hidden entirely on a run with no line to draw,
-                where there is only ever one thing to show. */}
+            {/* One button, two labels: it always names the picture you are not
+                looking at. Hidden on a run with no line to draw. */}
             {hasGraph ? (
               <Button type="button" variant="outline" onClick={onSwapView}>
                 {showGraph ? (
@@ -312,22 +297,11 @@ export function BacktestChartPanel({
                 )}
               </Button>
             ) : null}
-            <Tabs value="results">
-              <TabsList aria-label="Recipe view">
-                <TabsTrigger
-                  value="canvas"
-                  onClick={() =>
-                    void navigate({
-                      to: "/admin/recipes/$recipeId",
-                      params: { recipeId: automationId },
-                    })
-                  }
-                >
-                  Canvas
-                </TabsTrigger>
-                <TabsTrigger value="results">Results</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <Button type="button" variant="ghost" onClick={onOpenRecipe}>
+              <WorkflowIcon className="size-4" />
+              Canvas
+            </Button>
+            {headerEnd}
           </div>
         }
       />

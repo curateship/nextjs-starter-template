@@ -5,9 +5,6 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
-  Loader2Icon,
-  PlusIcon,
-  StarIcon,
   Trash2Icon,
   WorkflowIcon,
 } from "lucide-react"
@@ -37,32 +34,24 @@ export function RecipeInspector({
   selectedNode,
   graph,
   errors,
-  favorite,
-  savingFavorite,
   onNodeChange,
   onOpenNodeEditor,
-  onToggleFavorite,
-  onAddNode,
+  headerEnd,
   onDeleteNode,
 }: {
   className?: string
   selectedNode: AutomationNode | null
   graph: AutomationGraph
   errors: AutomationValidationError[]
-  favorite?: boolean
-  savingFavorite?: boolean
   onNodeChange: (node: AutomationNode) => void
   onOpenNodeEditor?: (nodeId: string) => void
-  onToggleFavorite?: () => void
-  onAddNode?: (node: AutomationNode) => void
+  /** The end of the header: the collapse button at the panel's edge. */
+  headerEnd?: React.ReactNode
   onDeleteNode: (nodeId: string) => void
 }) {
   const nodeErrors = selectedNode
     ? errors.filter((error) => error.nodeId === selectedNode.id)
     : errors
-  // The panel is showing a node picked in the palette that has not been put on
-  // the canvas yet — the only state where "Add node" is on offer.
-  const previewing = Boolean(onAddNode)
   const { scrollRef, fades } = useScrollFades()
 
   return (
@@ -84,29 +73,7 @@ export function RecipeInspector({
           )
         }
         title={selectedNode ? recipeNodeName(selectedNode) : "Recipe"}
-        meta={previewing ? "Not added yet" : undefined}
-        action={
-          selectedNode && onToggleFavorite ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`${favorite ? "Remove" : "Add"} ${recipeNodeName(selectedNode)} ${favorite ? "from" : "to"} favorites`}
-              aria-pressed={favorite}
-              disabled={savingFavorite}
-              onClick={onToggleFavorite}
-              className={cn(favorite && "text-amber-500 dark:text-amber-400")}
-            >
-              {savingFavorite ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <StarIcon
-                  className={cn("size-4", favorite && "fill-current")}
-                />
-              )}
-            </Button>
-          ) : undefined
-        }
+        action={headerEnd}
       />
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
@@ -149,33 +116,15 @@ export function RecipeInspector({
             ) : null}
 
             {selectedNode ? (
-              <div className="grid grid-cols-2 gap-2">
-                {onAddNode ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onAddNode(selectedNode)}
-                  >
-                    <PlusIcon className="size-4" />
-                    Add node
-                  </Button>
-                ) : null}
-                {/* A previewed node is not on the canvas, so there is nothing to
-                    destroy — backing out only drops the preview. Both call the
-                    same thing; only the word and the colour change, because a red
-                    "Delete node" beside "Add node" reads as a threat it cannot
-                    carry out. */}
-                <Button
-                  type="button"
-                  variant={previewing ? "outline" : "destructive"}
-                  size="sm"
-                  className={cn(!previewing && "col-span-2")}
-                  onClick={() => onDeleteNode(selectedNode.id)}
-                >
-                  {previewing ? null : <Trash2Icon className="size-4" />}
-                  {previewing ? "Cancel" : "Delete node"}
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => onDeleteNode(selectedNode.id)}
+              >
+                <Trash2Icon className="size-4" />
+                Delete step
+              </Button>
             ) : null}
           </div>
         </ScrollArea>

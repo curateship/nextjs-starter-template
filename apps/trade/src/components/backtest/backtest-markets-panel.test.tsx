@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useState } from "react"
+import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { expect, it, vi } from "vitest"
 import { BacktestMarketsPanel } from "./backtest-markets-panel"
@@ -32,34 +32,21 @@ it("shows each saved skip and failure reason, without duplicate coins", async ()
     error: index === 2 ? reason : null,
     summary: null,
   }))
-  function Panel() {
-    const [tab, setTab] = useState<"results" | "skipped">("results")
-    return (
-      <BacktestMarketsPanel
-        coins={coins}
-        skipped={[{ marketKey: "0", symbol: "YOUNG", reason: reasons[0] }]}
-        openCoin={null}
-        onOpenCoin={() => {}}
-        tab={tab}
-        onTabChange={setTab}
-      />
-    )
-  }
+  // The right panel's Skipped tab picks this list; the panel has no tabs of its own.
+  const panel = (
+    <BacktestMarketsPanel
+      coins={coins}
+      skipped={[{ marketKey: "0", symbol: "YOUNG", reason: reasons[0] }]}
+      openCoin={null}
+      onOpenCoin={() => {}}
+      tab="skipped"
+    />
+  )
   const host = document.createElement("div")
   document.body.append(host)
   const root = createRoot(host)
   try {
-    await act(async () => root.render(<Panel />))
-    expect(host.textContent).not.toContain(reasons[2])
-    const tab = host.querySelector<HTMLButtonElement>(
-      '[role="tab"][data-state="inactive"]'
-    )!
-    await act(async () => {
-      tab.focus()
-      tab.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
-      )
-    })
+    await act(async () => root.render(panel))
     for (const reason of reasons) expect(host.textContent).toContain(reason)
     expect(host.querySelectorAll("tbody tr")).toHaveLength(3)
   } finally {
@@ -90,7 +77,6 @@ it("shows changing progress notes for unfinished coins", async () => {
       openCoin={null}
       onOpenCoin={() => {}}
       tab="results"
-      onTabChange={() => {}}
     />
   )
   try {

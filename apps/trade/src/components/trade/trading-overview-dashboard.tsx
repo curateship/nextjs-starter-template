@@ -63,10 +63,16 @@ export function TradingOverviewGrid({
   overview,
   layout,
   onChange,
+  onOpenBot,
+  onOpenRecipes,
 }: {
   overview: TradingOverview
   layout: WidgetLayout
   onChange: (layout: WidgetLayout) => void
+  /** Opens a bot on the Bots dashboard; left out for a member, who cannot open it. */
+  onOpenBot?: (runId: string) => void
+  /** Running bots' empty card opens the recipes; left out for a member too. */
+  onOpenRecipes?: () => void
 }) {
   return (
     <WidgetGrid
@@ -84,7 +90,7 @@ export function TradingOverviewGrid({
             count={widgetCount(widget.id, overview)}
             menu={<WidgetMenu title={widget.label} {...menu} />}
           >
-            {renderWidget(widget.id, overview, WIDGET_FILL)}
+            {renderWidget(widget.id, overview, WIDGET_FILL, onOpenBot, onOpenRecipes)}
           </WidgetCard>
         )
       }}
@@ -182,7 +188,9 @@ export function useTradingOverview(active: boolean) {
 function renderWidget(
   id: TradingDashboardWidgetId,
   overview: TradingOverview,
-  className: string
+  className: string,
+  onOpenBot?: (runId: string) => void,
+  onOpenRecipes?: () => void
 ) {
   switch (id) {
     case "moving-now":
@@ -192,7 +200,15 @@ function renderWidget(
     case "active-trades":
       return <ActiveTradesWidget bare overview={overview} className={className} />
     case "running-bots":
-      return <RunningBotsWidget bare bots={overview.bots} className={className} />
+      return (
+        <RunningBotsWidget
+          bare
+          bots={overview.bots}
+          className={className}
+          onOpen={onOpenBot ? (bot) => onOpenBot(bot.runId) : undefined}
+          onOpenRecipes={onOpenRecipes}
+        />
+      )
     case "profit-calendar":
       return <ProfitCalendarWidget bare overview={overview} className={className} />
     case "trades":

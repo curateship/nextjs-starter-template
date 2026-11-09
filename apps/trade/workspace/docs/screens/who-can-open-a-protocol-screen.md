@@ -62,7 +62,9 @@ member is still refused them by the layout and by the server call underneath:
 
 - The Active trades button in the header, which is limited to admins in
   `src/app/options.ts`.
-- Recipes, at `/admin/recipes`.
+- The Bots dashboard, at `/bots`: Recipes, Backtests and Bots. A member is
+  sent to `/home` (Tyler, 9 Nov 2026: "Admins only"), because a backtest and a
+  bot both start from a recipe, which only an admin can make.
 - The Markets explorer, at `/admin/markets`.
 - The trading engine's controls and settings tabs, under `/admin/settings`.
 

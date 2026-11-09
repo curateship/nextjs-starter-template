@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { isOwnAppHref } from "@/lib/notification-action"
 import { marketChartHref } from "@/lib/protocols/contracts"
-import {
-  flowEditorNoticeHref,
-  flowRunNoticeHref,
-} from "@/lib/trade/notice-links"
+import { flowRunNoticeHref } from "@/lib/trade/notice-links"
 
 /**
  * Where a coin's notice leads is `marketChartHref`, and `contracts.test.ts`
@@ -14,21 +11,18 @@ import {
  * address this app writes is one the browser will actually follow.
  */
 describe("the page a flow notice came off", () => {
-  it("sends a flow notice to that run, and a refused start to the flow", () => {
-    expect(flowRunNoticeHref("run-7")).toBe("/flow-runs/run-7")
-    expect(flowEditorNoticeHref("flow-3")).toBe("/admin/recipes/flow-3")
+  it("sends a bot's notice to that bot, opened on the Bots dashboard", () => {
+    expect(flowRunNoticeHref("run-7")).toBe("/bots?view=bots&open=run-7&full=1")
   })
 
   it("escapes an id rather than letting it change the address", () => {
-    expect(flowRunNoticeHref("a/b?c")).toBe("/flow-runs/a%2Fb%3Fc")
-    expect(flowEditorNoticeHref("a/b")).toBe("/admin/recipes/a%2Fb")
+    expect(flowRunNoticeHref("a/b?c&d")).toBe("/bots?view=bots&open=a%2Fb%3Fc%26d&full=1")
   })
 
   it("writes every address it makes as one this app will follow", () => {
     for (const href of [
       marketChartHref("hyperliquid:mainnet:ETH"),
       flowRunNoticeHref("run-7"),
-      flowEditorNoticeHref("flow-3"),
     ]) {
       expect(href).not.toBeNull()
       expect(isOwnAppHref(href as string)).toBe(true)
@@ -39,7 +33,7 @@ describe("the page a flow notice came off", () => {
 describe("which addresses this app will follow", () => {
   it("follows a path of its own", () => {
     expect(isOwnAppHref("/trade?market=x")).toBe(true)
-    expect(isOwnAppHref("/flow-runs/run-7")).toBe(true)
+    expect(isOwnAppHref("/bots?view=bots&open=run-7&full=1")).toBe(true)
   })
 
   // These are the shapes that matter: a database column is not a trusted

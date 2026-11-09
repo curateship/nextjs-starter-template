@@ -214,6 +214,12 @@ export const tradePrefs = pgTable("trade_prefs", {
    */
   overviewWidgets: jsonb("overview_widgets").$type<WidgetLayout>(),
   /**
+   * The Bots dashboard's Overview widgets, one layout per person, apart from
+   * the Trade Overview's. Read through `readBotsWidgetLayout`; null is the
+   * starting layout.
+   */
+  botsWidgets: jsonb("bots_widgets").$type<WidgetLayout>(),
+  /**
    * The Protocols block's row picked last ("overview" or an exchange's id),
    * so a bare `/trade` opens on it, and the exchange picked last, whose
    * blocks the left page keeps showing while Overview is open.
@@ -2267,6 +2273,24 @@ export const tradeDashboardPages = pgTable("trade_dashboard_pages", {
   // otherwise a picture (`src/lib/notes/page-cover.ts`).
   coverUrl: text("cover_url"),
   // The page's own cover pictures, each a tile to pick again, up to 8.
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * The Bots dashboard's left page (9 Nov 2026), one per person, the shell
+ * editor's document as JSON text. No row means the page was never written,
+ * so the starting page shows.
+ */
+export const tradeBotsPages = pgTable("trade_bots_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  locked: boolean("locked").notNull().default(false),
+  coverUrl: text("cover_url"),
   coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

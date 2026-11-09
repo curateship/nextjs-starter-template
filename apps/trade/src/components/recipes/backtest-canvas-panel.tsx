@@ -11,6 +11,7 @@ import {
 } from "@/lib/recipes/trade-markets"
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
+import { botsRecordSearch, botsViewSearch } from "@/lib/bots/bots-search"
 import { FlaskConicalIcon, Loader2Icon, XIcon } from "lucide-react"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
@@ -373,18 +374,15 @@ export default function BacktestCanvasPanel({
       className={cn("relative gap-0 py-0", !running && "cursor-pointer")}
       onClick={() => {
         if (!run || running) return
-        void navigate({
-          to: "/backtests/$groupId",
-          params: { groupId: run.id },
-        })
+        void navigate({ to: "/bots", search: botsRecordSearch("backtests", run.id) })
       }}
     >
       <div className="flex items-center gap-2 px-3 py-2">
         <FlaskConicalIcon className="size-4 shrink-0" />
         {run && !running ? (
           <Link
-            to="/backtests/$groupId"
-            params={{ groupId: run.id }}
+            to="/bots"
+            search={botsRecordSearch("backtests", run.id)}
             className={cn(
               "min-w-0 flex-1 truncate text-sm font-medium",
               focusRing
@@ -621,7 +619,8 @@ export default function BacktestCanvasPanel({
                 size. Candle counts are estimates; cached history is reused.
               </p>
               <Link
-                to="/backtests"
+                to="/bots"
+                search={botsViewSearch("backtests")}
                 className={cn("text-xs underline", focusRing)}
               >
                 View all backtests

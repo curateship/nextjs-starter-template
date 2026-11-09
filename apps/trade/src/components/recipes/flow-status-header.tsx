@@ -10,6 +10,7 @@ import {
   SquareIcon,
 } from "lucide-react"
 
+import { botsRecordSearch } from "@/lib/bots/bots-search"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -345,8 +346,8 @@ export default function FlowStatusHeader({
             dashboardSummary
           ) : (
             <Link
-              to="/flow-runs/$runId"
-              params={{ runId: live.runId }}
+              to="/bots"
+              search={botsRecordSearch("bots", live.runId)}
               aria-label={`Open ${live.walletLabel} run dashboard`}
               className={cn(
                 "-m-1 grid gap-1.5 rounded-md p-1 transition-colors hover:bg-muted/60",
@@ -432,7 +433,7 @@ export default function FlowStatusHeader({
             question in a popover. */}
           {live.runId === null ? null : (
             <Button asChild type="button" variant="outline" className="w-full">
-              <Link to="/flow-runs/$runId" params={{ runId: live.runId }}>
+              <Link to="/bots" search={botsRecordSearch("bots", live.runId)}>
                 <ActivityIcon className="size-4" />
                 Open the dashboard
               </Link>

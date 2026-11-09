@@ -1,6 +1,5 @@
 import { FlowRunControls } from "@/components/flow-run/flow-run-controls"
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { FlowRunChartPanel } from "@/components/flow-run/flow-run-chart-panel"
@@ -8,13 +7,12 @@ import { FlowRunCoinsPanel } from "@/components/flow-run/flow-run-coins-panel"
 import { FlowRunStatsPanel } from "@/components/flow-run/flow-run-stats-panel"
 import { FlowRunTradesPanel } from "@/components/flow-run/flow-run-trades-panel"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
+import { OpenRunPanel } from "@/components/bots/bots-record"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
-  PanelReopenTab,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-  WorkspacePanel,
 } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
@@ -48,13 +46,11 @@ import {
 } from "@/lib/trade/panel-layout"
 
 /**
- * One switched-on flow, laid out as a workspace: its figures on the left, the
- * money line or a coin's candles in the middle, the coins on the right, and
- * every trade it has finished along the bottom.
- *
- * The same four panels as the Trade screen, the Automation canvas and the
- * backtest screen, built on the same parts — so resizing, collapsing, the
- * reopen tabs and the remembered layout only had to be got right once.
+ * One bot opened on the Bots dashboard (9 Nov 2026): the money line or a
+ * coin's candles fill the middle with every trade it has finished in a panel
+ * under them, and the right panel holds its Figures, Coins and Results as
+ * tabs, with Pause and Stop in its footer. The left panel stays the
+ * dashboard's page.
  *
  * **Nothing here is stored.** The money line is worked out from the run's own
  * fills every time the page reads, so it and the wallet can never drift apart.
@@ -71,52 +67,51 @@ export function FlowRunPage({
   openCoin,
   chartView: savedChartView,
   initialPanelLayouts,
+  heading,
+  menu,
+  onBack,
+  onCoin,
+  onOpenRecipe,
+  onRunAgain,
+  frame,
 }: {
   initial: FlowRunReport
-  /** `?coin=<market key>` — which coin's chart is open. */
+  /** `?coin=<market key>`: which coin's chart is open. */
   openCoin: string | null
   /** The zoom the trading chart is remembered at, so both frame the same. */
   chartView: ChartView | null
   initialPanelLayouts: TradePanelLayouts
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  heading: React.ReactNode
+  /** The bot's ⋮, beside the right panel's tabs. */
+  menu: React.ReactNode
+  /** Back to the Bots table. */
+  onBack: () => void
+  /** Puts the coin on the chart in the address. */
+  onCoin: (marketKey: string) => void
+  /** Opens the recipe this bot was switched on from, on its canvas. */
+  onOpenRecipe: () => void
+  /** Opens the new run "Run again" started. */
+  onRunAgain: (runId: string) => void
+  /** The Bots dashboard's frame: the middle and the right panel. */
+  frame: (panels: { header: React.ReactNode; middle: React.ReactNode; right: { label: string; content: React.ReactNode } }) => React.ReactNode
 }) {
   // Shared with the trading screen on purpose: panning here carries over
   // there and back, and a ladder's rungs are in the same place on both.
   const chartView = useRememberedChartView(savedChartView)
-  const navigate = useNavigate()
   const desktop = useWideScreen()
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  const horizontalKey = tradePanelLayoutKey.flowRunHorizontal
   const verticalKey = tradePanelLayoutKey.flowRunVertical
-  const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[horizontalKey],
-    panelLayouts.layouts.current[horizontalKey],
-    (layout) => panelLayouts.remember(horizontalKey, layout)
-  )
   const verticalLayout = useRememberedPanelLayoutInPlace(
     tradePanelIds[verticalKey],
     panelLayouts.layouts.current[verticalKey],
     (layout) => panelLayouts.remember(verticalKey, layout)
   )
 
-  const statsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const coinsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const tradesPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const [statsCollapsed, setStatsCollapsed] = React.useState(false)
-  const [coinsCollapsed, setCoinsCollapsed] = React.useState(false)
-
-  const toggleStatsPanel = usePanelToggle(statsPanelRef)
-  const toggleStats = React.useCallback(() => {
-    toggleStatsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleStatsPanel])
-  const toggleCoinsPanel = usePanelToggle(coinsPanelRef)
-  const toggleCoins = React.useCallback(() => {
-    toggleCoinsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleCoinsPanel])
-  const statsDoubleClick = useBlankSpaceDoubleClick(toggleStats)
-  const coinsDoubleClick = useBlankSpaceDoubleClick(toggleCoins)
+  // The right panel's tabs: the run in figures, then its two lists.
+  const [rightTab, setRightTab] = React.useState<"figures" | "coins" | "results">("figures")
   const toggleTradesPanel = usePanelToggle(tradesPanelRef)
   const toggleTrades = React.useCallback(() => {
     toggleTradesPanel()
@@ -270,13 +265,8 @@ export function FlowRunPage({
 
   React.useEffect(() => {
     if (!activeCoin || activeCoin === openCoin) return
-    void navigate({
-      to: "/flow-runs/$runId",
-      params: { runId },
-      search: { coin: activeCoin },
-      replace: true,
-    })
-  }, [activeCoin, navigate, openCoin, runId])
+    onCoin(activeCoin)
+  }, [activeCoin, onCoin, openCoin])
 
   const shown =
     chart?.key === activeCoin && chart.working === activeCoinWorking
@@ -300,6 +290,7 @@ export function FlowRunPage({
   const coinsPanel = (
     <FlowRunCoinsPanel
       key={report.head.id}
+      tab={rightTab === "results" ? "results" : "coins"}
       report={report}
       openCoin={activeCoin}
       onOpenCoin={openCoinInChart}
@@ -312,6 +303,7 @@ export function FlowRunPage({
   const runControls = (
     <FlowRunControls
       key={report.head.id}
+      onRunAgain={onRunAgain}
       onWorking={(working) => {
         actionPending.current = working
       }}
@@ -330,7 +322,6 @@ export function FlowRunPage({
   )
   const chartPanel = (
     <FlowRunChartPanel
-      runControls={runControls}
       spec={report.spec}
       openCoin={activeCoin}
       coinLabel={
@@ -350,123 +341,70 @@ export function FlowRunPage({
       loading={activeCoin !== null && shown === null && chartError === null}
       error={chartError}
       walletLabel={report.head.walletLabel}
-      automationId={report.head.automationId}
+      title={report.head.automationName}
+      onBack={onBack}
+      onOpenRecipe={onOpenRecipe}
+      headerEnd={heading}
       chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
       onChartToolbarPositionChange={panelLayouts.rememberChartToolbarPosition}
       onRetry={() => void load()}
     />
   )
 
-  const upper = desktop ? (
+  const tradesPanel = (
+    <FlowRunTradesPanel trades={report.trades} selected={selectedTrade} onSelect={setSelectedTrade} />
+  )
+
+  // The chart over its trades, with a line between them to drag. A narrow
+  // screen stacks the two and scrolls.
+  const middle = desktop ? (
     <ResizablePanelGroup
-      groupRef={horizontalLayout.groupRef}
-      orientation="horizontal"
+      groupRef={verticalLayout.groupRef}
+      orientation="vertical"
       className="min-h-0 flex-1"
-      onLayoutChanged={horizontalLayout.onLayoutChanged}
+      onLayoutChanged={verticalLayout.onLayoutChanged}
     >
+      <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
+        <div className="relative flex h-full min-h-0 flex-col">{chartPanel}</div>
+      </ResizablePanel>
+      <ResizableHandle className={NO_RING} />
       <ResizablePanel
-        id="stats"
-        panelRef={statsPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="14%"
+        id="trades"
+        panelRef={tradesPanelRef}
+        defaultSize="32%"
         minSize="14%"
-        maxSize="32%"
-        onResize={(size) => setStatsCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          className="flex flex-col"
-          collapsed={statsCollapsed}
-          onDoubleClick={statsDoubleClick}
-        >
-          {statsPanel}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={statsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" defaultSize="70%" minSize="30%">
-        <WorkspacePanel className="relative flex min-w-0 flex-1 flex-col">
-          {chartPanel}
-          {statsCollapsed ? (
-            <PanelReopenTab
-              side="left"
-              label="Show the run's figures"
-              onClick={toggleStats}
-            />
-          ) : null}
-          {coinsCollapsed ? (
-            <PanelReopenTab
-              side="right"
-              label="Show the coins"
-              onClick={toggleCoins}
-            />
-          ) : null}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={coinsCollapsed} className={NO_RING} />
-      <ResizablePanel
-        id="coins"
-        panelRef={coinsPanelRef}
+        maxSize="60%"
         collapsible
-        collapsedSize="0%"
-        defaultSize="16%"
-        minSize="16%"
-        maxSize="36%"
-        onResize={(size) => setCoinsCollapsed(size.asPercentage < 0.5)}
+        collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
       >
-        <WorkspacePanel
-          className="flex flex-col"
-          collapsed={coinsCollapsed}
-          onDoubleClick={coinsDoubleClick}
-        >
-          {coinsPanel}
-        </WorkspacePanel>
+        <div className="flex h-full min-h-0 flex-col" onDoubleClick={tradesDoubleClick}>
+          {tradesPanel}
+        </div>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
     <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
-          {chartPanel}
-        </WorkspacePanel>
-        <WorkspacePanel className="flex flex-col">{coinsPanel}</WorkspacePanel>
-        <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
-      </div>
+      <div className="flex h-[60vh] min-w-0 flex-col">{chartPanel}</div>
+      <div className="flex flex-col border-t">{tradesPanel}</div>
     </ScrollArea>
   )
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup
-        groupRef={verticalLayout.groupRef}
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        onLayoutChanged={verticalLayout.onLayoutChanged}
-      >
-        <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
-          <div className="flex h-full min-h-0">{upper}</div>
-        </ResizablePanel>
-        <ResizableHandle gap className={NO_RING} />
-        <ResizablePanel
-          id="trades"
-          panelRef={tradesPanelRef}
-          defaultSize="32%"
-          minSize="14%"
-          maxSize="60%"
-          collapsible
-          collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-        >
-          <WorkspacePanel
-            className="flex flex-col"
-            onDoubleClick={tradesDoubleClick}
-          >
-            <FlowRunTradesPanel
-              trades={report.trades}
-              selected={selectedTrade}
-              onSelect={setSelectedTrade}
-            />
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+  const right = (
+    <OpenRunPanel
+      tabs={[
+        { value: "figures", label: "Figures" },
+        { value: "coins", label: "Coins", count: report.coins.length },
+        { value: "results", label: "Results", count: report.coins.filter((coin) => coin.trades > 0).length },
+      ]}
+      value={rightTab}
+      onValueChange={(value) => setRightTab(value as typeof rightTab)}
+      menu={menu}
+      hideLabel="Hide the bot"
+      footer={runControls}
+    >
+      {rightTab === "figures" ? statsPanel : coinsPanel}
+    </OpenRunPanel>
   )
+
+  return frame({ header: null, middle, right: { label: "Bot", content: right } })
 }

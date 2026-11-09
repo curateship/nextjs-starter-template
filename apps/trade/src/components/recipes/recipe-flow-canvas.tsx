@@ -3,7 +3,7 @@
  * proven drag, edge, zoom and keyboard behavior without changing shell files.
  */
 import * as React from "react"
-import { Maximize2Icon, MinusIcon, PlusIcon, XIcon } from "lucide-react"
+import { Maximize2Icon, MinusIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -13,10 +13,6 @@ import type {
   AutomationValidationError,
 } from "@/lib/automations/graph"
 import { recipeNodeName } from "@/lib/recipes/registry"
-import {
-  CANVAS_HINT_STORAGE_KEY,
-  useRememberedChoice,
-} from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 
@@ -44,7 +40,6 @@ const MINIMAP_HEIGHT = 100
 /** How far an alignment line runs past the outermost node, in canvas units. */
 const GUIDE_OVERHANG = 40
 
-const HINT_CHOICES = ["shown", "hidden"] as const
 
 type ConnectDraft = {
   from: string
@@ -77,7 +72,7 @@ export function RecipeFlowCanvas({
   onSelectEdge,
   onDeleteNode,
   onSizeChange,
-  onDropNode,
+  toolbarEnd,
 }: {
   graph: AutomationGraph
   errors: AutomationValidationError[]
@@ -88,18 +83,14 @@ export function RecipeFlowCanvas({
   onSelectEdge: (edgeId: string | null) => void
   onDeleteNode: (nodeId: string) => void
   onSizeChange: (size: CanvasSize) => void
-  onDropNode?: (position: CanvasPoint) => void
+  /** Beside the zoom bar, a button of its own: the Bots dashboard's + Add step. */
+  toolbarEnd?: React.ReactNode
 }) {
   const canvasRef = React.useRef<HTMLDivElement | null>(null)
   const dragRef = React.useRef<DragState | null>(null)
   const [connect, setConnect] = React.useState<ConnectDraft | null>(null)
   const [panning, setPanning] = React.useState(false)
   const [guides, setGuides] = React.useState<SnapGuides>(NO_GUIDES)
-  const [hint, setHint] = useRememberedChoice(
-    CANVAS_HINT_STORAGE_KEY,
-    "shown",
-    HINT_CHOICES
-  )
   const currentRef = React.useRef({ graph, connect, guides })
   React.useEffect(() => {
     currentRef.current = { graph, connect, guides }
@@ -368,20 +359,6 @@ export function RecipeFlowCanvas({
       aria-label="Recipe canvas"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      onDragOver={(event) => {
-        if (!onDropNode) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = "copy"
-      }}
-      onDrop={(event) => {
-        if (!onDropNode) return
-        event.preventDefault()
-        const point = worldFromClient(event.clientX, event.clientY)
-        onDropNode({
-          x: point.x - NODE_WIDTH / 2,
-          y: point.y - NODE_HEIGHT / 2,
-        })
-      }}
       onDoubleClick={(event) => {
         if (event.target !== event.currentTarget) return
         fitToView()
@@ -600,9 +577,10 @@ export function RecipeFlowCanvas({
       ) : null}
 
       <div
-        className="absolute bottom-3 left-3 flex items-center rounded-lg border bg-card/90 p-0.5 shadow-sm backdrop-blur-sm"
+        className="absolute bottom-3 left-3 flex items-center gap-2"
         onPointerDown={(event) => event.stopPropagation()}
       >
+      <div className="flex items-center rounded-lg border bg-card/90 p-0.5 shadow-sm backdrop-blur-sm">
         <DisabledReason
           reason={`Already at the smallest size, ${Math.round(MIN_ZOOM * 100)}%.`}
           disabled={atMinZoom}
@@ -647,28 +625,9 @@ export function RecipeFlowCanvas({
           Fit
         </Button>
       </div>
+        {toolbarEnd}
+      </div>
 
-      {/* Shown on every screen, not just wide ones: scroll-to-zoom and
-          drag-to-pan are least obvious on a phone, which is exactly where this
-          used to be hidden. It can be closed, and stays closed on this browser,
-          so it cannot sit on top of a box parked in the corner forever. */}
-      {hint === "shown" ? (
-        <div className="pointer-events-none absolute top-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-md border bg-card/90 py-0.5 pr-0.5 pl-2 text-[10px] text-muted-foreground backdrop-blur-sm">
-          <span className="min-w-0">
-            Scroll to zoom · Drag to pan · Select ports to connect
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Hide canvas tips"
-            className="pointer-events-auto"
-            onClick={() => setHint("hidden")}
-          >
-            <XIcon />
-          </Button>
-        </div>
-      ) : null}
     </div>
   )
 }

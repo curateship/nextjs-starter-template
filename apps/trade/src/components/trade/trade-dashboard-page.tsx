@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useLoaderData, useNavigate, useSearch } from "@tanstack/react-router"
+import { getRouteApi, useLoaderData, useNavigate, useSearch } from "@tanstack/react-router"
 
 import { useMarketPageTitle } from "@/app/page-title"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -76,6 +76,9 @@ import { useStreamed } from "@/lib/trade/use-streamed"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { marketKeyOnDashboard } from "@/lib/trade/trade-network"
+import { botsRecordSearch, botsViewSearch } from "@/lib/bots/bots-search"
+
+const authenticatedRoute = getRouteApi("/_authenticated")
 
 /**
  * The Trade dashboard at `/trade` (Tyler, 8 Nov 2026: "I want to revamp the
@@ -249,6 +252,7 @@ export function TradeDashboard() {
   const data = useLoaderData({ strict: false }) as TradeDashboardData
   const search = useSearch({ strict: false }) as TradeDashboardSearch
   const navigate = useNavigate()
+  const isAdmin = authenticatedRoute.useLoaderData().user.role === "admin"
   const [start] = React.useState(() => data.start ?? NOTHING_SAVED)
   // The row the address picks, or the one picked last, or Overview the
   // first time ("Last one you had").
@@ -363,6 +367,13 @@ export function TradeDashboard() {
       overview={overviewRead.overview}
       layout={widgets.layout}
       onChange={widgets.change}
+      // Running bots opens a bot on the Bots dashboard, which only an admin can open.
+      onOpenBot={
+        isAdmin
+          ? (runId) => void navigate({ to: "/bots", search: botsRecordSearch("bots", runId) })
+          : undefined
+      }
+      onOpenRecipes={isAdmin ? () => void navigate({ to: "/bots", search: botsViewSearch("recipes") }) : undefined}
     />
   ) : readError ? (
     <ErrorRow

@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
   CandlestickChartIcon,
   SlidersHorizontalIcon,
@@ -70,8 +69,10 @@ export function FlowRunChartPanel({
   loading,
   error,
   walletLabel,
-  automationId,
-  runControls,
+  title,
+  onBack,
+  onOpenRecipe,
+  headerEnd,
   chartToolbarPosition,
   onChartToolbarPositionChange,
   onRetry,
@@ -104,8 +105,14 @@ export function FlowRunChartPanel({
   error: string | null
   /** The wallet's name, for the ladder tag's tooltip. */
   walletLabel: string
-  automationId: string
-  runControls?: React.ReactNode
+  /** The bot's name, first in the header. */
+  title: string
+  /** Back to the Bots table. */
+  onBack: () => void
+  /** Opens the recipe this bot was switched on from, on its canvas. */
+  onOpenRecipe: () => void
+  /** The end of the header: the button that reopens a shut right panel. */
+  headerEnd: React.ReactNode
   chartToolbarPosition?: ChartToolbarPosition | null
   onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
@@ -130,18 +137,12 @@ export function FlowRunChartPanel({
   return (
     <>
       <DashboardCardTitleHeader
-        icon={null}
-        back={
-          hasGraph
-            ? {
-                onClick: onSwapView,
-                label: showGraph
-                  ? "Back to the market's chart"
-                  : "Back to the graph",
-              }
-            : { to: "/flow-runs", label: "Back to every run" }
-        }
-        title={showGraph ? "Graph" : (coinLabel ?? "No market picked")}
+        // The middle's one header on the Bots dashboard: back to the table,
+        // the bot's name and which picture shows, then the swap between the
+        // Graph and the Chart, the way to its recipe, and the reopen button.
+        // Pause and Stop are in the right panel's footer.
+        back={{ onClick: onBack, label: "Back to bots" }}
+        title={`${title} · ${showGraph ? "Graph" : (coinLabel ?? "No market picked")}`}
         meta={
           showGraph
             ? undefined
@@ -149,7 +150,6 @@ export function FlowRunChartPanel({
         }
         action={
           <div className="flex items-center gap-2">
-            {runControls}
             {hasGraph ? (
               <Button type="button" variant="outline" onClick={onSwapView}>
                 {showGraph ? (
@@ -165,18 +165,14 @@ export function FlowRunChartPanel({
                 )}
               </Button>
             ) : null}
-            {/* Straight back to the flow this run was switched on from. What is
+            {/* Straight to the recipe this bot was switched on from. What is
                 running is the copy frozen at the switch, so editing there
                 changes nothing here until it is switched off and on again. */}
-            <Button asChild type="button" variant="outline">
-              <Link
-                to="/admin/recipes/$recipeId"
-                params={{ recipeId: automationId }}
-              >
-                <SlidersHorizontalIcon className="size-4" />
-                Canvas
-              </Link>
+            <Button type="button" variant="ghost" onClick={onOpenRecipe}>
+              <SlidersHorizontalIcon className="size-4" />
+              Canvas
             </Button>
+            {headerEnd}
           </div>
         }
       />

@@ -1,29 +1,11 @@
 // @vitest-environment jsdom
 
-import type { ComponentProps } from "react"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
-  Link: ({
-    to,
-    params,
-    children,
-    ...props
-  }: ComponentProps<"a"> & {
-    to: string
-    params?: { runId: string }
-  }) => (
-    <a href={params ? to.replace("$runId", params.runId) : to} {...props}>
-      {children}
-    </a>
-  ),
-}))
 
 import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
 import type { TradingOverviewBot } from "@/lib/trade/dashboard/overview"
@@ -83,7 +65,6 @@ describe("the running bots widget", () => {
       <RunningBotsWidget bots={bots} className="" />
     )
 
-    expect(html).toContain('href="/flow-runs/run-1"')
     expect(html).toContain("Automation")
     expect(html).toContain("Markets")
     expect(html).toContain("Positions")
@@ -98,14 +79,27 @@ describe("the running bots widget", () => {
     expect(html).toContain("-$4.00")
   })
 
-  it("links the empty state to the automation canvases", () => {
+  it("offers the recipes from the empty state only where there is a way to them", () => {
+    expect(renderToStaticMarkup(<RunningBotsWidget bots={[]} className="" />)).not.toContain("Open recipes")
     const html = renderToStaticMarkup(
-      <RunningBotsWidget bots={[]} className="" />
+      <RunningBotsWidget bots={[]} className="" onOpenRecipes={vi.fn()} />
     )
 
     expect(html).toContain("No running bots.")
-    expect(html).toContain('href="/admin/recipes"')
     expect(html).toContain("Open recipes")
+  })
+
+  it("opens a bot from its row for an admin, and leads nowhere for a member", async () => {
+    // A member cannot open the Bots dashboard, so with no opener the name is plain text.
+    expect(renderToStaticMarkup(<RunningBotsWidget bots={bots} className="" />)).not.toContain("<button type=\"button\" class=\"block max-w-48")
+    const onOpen = vi.fn()
+    host = document.createElement("div")
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => root?.render(<RunningBotsWidget bots={bots} className="" onOpen={onOpen} />))
+    const name = [...host.querySelectorAll("button")].find((button) => button.textContent === "Buy the dip")
+    await act(async () => name?.click())
+    expect(onOpen).toHaveBeenCalledWith(bots[0])
   })
 
   it("uses the same row typography as Active Trades", () => {
@@ -115,7 +109,7 @@ describe("the running bots widget", () => {
     const document = new DOMParser().parseFromString(html, "text/html")
     const cells = document.querySelectorAll("tbody tr:first-child td")
 
-    expect(cells[0].querySelector("a")?.className).toContain(
+    expect(cells[0].querySelector("span")?.className).toContain(
       "text-xs font-medium"
     )
     expect(cells[1].className).toContain("text-xs text-muted-foreground")
