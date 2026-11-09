@@ -129,7 +129,12 @@ export function BlockFrame({
       data-selected={selected || undefined}
       data-page-block={name}
       data-note-block=""
-      className="group/block relative [&_a]:text-inherit! [&_a:hover]:text-foreground!"
+      // Edge to edge, from Settings → Styling → Blocks: the block reaches
+      // past the panel's side space to its edges (Tyler, 9 Nov 2026: "edge
+      // to edge but for advanced blocks only"). Only app blocks draw this
+      // frame, so basic blocks keep the space. Outside a panel that sets
+      // --panel-gutter it moves nothing.
+      className="group/block relative mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)] [&_a]:text-inherit! [&_a:hover]:text-foreground!"
     >
       {children}
     </NodeViewWrapper>
@@ -189,7 +194,11 @@ export function BlockCard({
       // reads a shade lighter than the solid grey. What shows through is
       // blurred, like frosted glass ("how about we make it gassuan blur like
       // a glass effect"). The white tile under the heading stays solid.
-      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] backdrop-blur-md [background:color-mix(in_oklab,color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))_60%,transparent)]"
+      // Border and Shadow, also from Settings → Styling → Blocks, put a line
+      // round the block, as dark as Border shade sets, and a soft shadow under
+      // it; both are off unless changed (Tyler, 9 Nov 2026: "add a border and
+      // shade around the block").
+      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] border-solid border-[length:var(--shell-block-border,0px)] [border-color:color-mix(in_oklab,var(--foreground)_var(--shell-block-border-shade,10%),transparent)] [box-shadow:var(--shell-block-shadow,none)] backdrop-blur-md [background:color-mix(in_oklab,color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))_60%,transparent)]"
     >
       <BlockHeadingContext.Provider value={heading}>
         <FoldHeading
@@ -265,8 +274,11 @@ export function BlockCard({
               lines colour alone: the table line's grey band, there to match a
               grey heading row, goes clear, or it drew a grey line Settings
               could not change (Tyler, 8 Nov 2026: "this border here is not
-              wired to the styling setting"). */}
-          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
+              wired to the styling setting"). The tile's own shade comes from
+              Settings → Styling → Blocks → Body shade, white unless changed
+              (Tyler, 9 Nov 2026: "change the shade of the block body bg"),
+              and the table rows follow it. */}
+          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px)-var(--shell-block-border,0px))] [--block-body:color-mix(in_oklab,var(--muted)_var(--shell-block-body-shade,0%),var(--card))] bg-[var(--block-body)] text-sm [&_tfoot_td]:!bg-[var(--block-body)] [&_tfoot_tr]:!bg-[var(--block-body)] [&_thead_th]:!bg-[var(--block-body)] [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
             {children}
           </div>
         </CollapsibleContent>

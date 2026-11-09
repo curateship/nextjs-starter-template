@@ -58,8 +58,10 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 
 - **Left:** the Admin page, one per site, beside every section. Its ⋮ has
   four tabs. General holds Cover photo (None, Sky, the page's pictures and
-  +, `docs/shell/page-blocks.md`) and Lock the notes, then Overview's
-  Date range (Today, 7 days, 30 days, 90 days or Year). Announcements and
+  +, `docs/shell/page-blocks.md`), then Overview's Date range (Today,
+  7 days, 30 days, 90 days or Year), and Lock blocks last, under every group
+  (Tyler, 9 Nov 2026: "this should be in the bottom and rename it to \"Lock
+  blocks\""). Announcements and
   Plans list theirs; a row opens that one's window, and each list ends with
   New announcement or New plan. Retire, Delete and Archive are in the
   windows. Widgets sets Overview's rows and spots. A new site's page starts

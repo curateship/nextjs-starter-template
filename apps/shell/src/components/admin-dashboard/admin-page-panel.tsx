@@ -36,8 +36,8 @@ type MenuTab = React.ComponentProps<typeof TabbedMenu>["tabs"][number]
  * The Admin dashboard's left page (the Admin 3 panel design):
  *
  * - **Header:** the collapse button at the panel's outer edge, the title, and
- *   the ⋮: General (Cover photo, Lock the notes, then what the dashboard
- *   adds, Overview's date range), then the dashboard's own tabs.
+ *   the ⋮: General (Cover photo, what the dashboard
+ *   adds, Overview's date range, then Lock blocks last), then the dashboard's own tabs.
  * - **Page:** one per site, written on like any page in the design, with the
  *   basic "/" blocks and the Admin ones (`admin-blocks.tsx`), and the fixed
  *   Dashboards block.
@@ -125,12 +125,15 @@ export function AdminPagePanel({
                           }}
                         />
                       </PickGroup>
+                      {general}
+                      {/* Last in General, under every group (Tyler, 9 Nov
+                          2026: "this should be in the bottom"), as in the
+                          CRM's ⋮. */}
                       <LockRow
                         locked={page.locked}
                         busy={busy}
                         onLock={(locked) => void change({ locked }, () => lockAdminPage("left", locked))}
                       />
-                      {general}
                     </div>
                   ),
                 },

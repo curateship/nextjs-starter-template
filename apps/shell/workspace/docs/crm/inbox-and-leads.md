@@ -189,7 +189,7 @@ segment's ⋯ takes its pill's place while the row is pointed at.
 The header holds the collapse button, "CRM" with the number of open
 conversations under it, the **+**, and the ⋮ (CRM settings: General, Emails,
 System emails, Widgets). The ⋮'s General
-tab has the cover photo and Lock the notes. Locked, the page reads only, and
+tab has the cover photo and, last, Lock blocks. Locked, the page reads only, and
 the server refuses a save.
 
 ## Several addresses
@@ -267,8 +267,10 @@ message needs.
 not open. Those two lines only appear when they are true, so an ordinary row
 stays three lines.
 
-**The panels start at 16%, 68% and 16%**, the widths every `ThreePanels`
-dashboard opens at, and each browser remembers where you drag the dividers.
+**The panels start at 14%, 70% and 16%**, the widths every `ThreePanels`
+dashboard opens at unless Settings → Styling → Side panels sets others
+(`settings/side-panel-widths.md`), and each browser remembers where you drag
+the dividers.
 When those starting widths move again, the key in
 `src/lib/layout/panel-layout.ts` has to move with them. A remembered layout
 outranks the default, so a browser that had already drawn the old proportions

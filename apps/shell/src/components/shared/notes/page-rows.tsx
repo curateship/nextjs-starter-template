@@ -12,12 +12,13 @@ import { cn } from "@/lib/utils"
 /**
  * The two rows every page's ⋮ holds in the Admin 3 panel design, copied from
  * Trade's `page-menus.tsx` (7 Nov 2026): the cover photo, under a "Page"
- * group, and "Lock the notes" under the groups. An app's own ⋮ puts them in
+ * group, and "Lock blocks" under the groups. An app's own ⋮ puts them in
  * its `TabbedMenu` beside its own rows.
  */
 
 /**
- * "Lock the notes", under a menu's groups, as on every page in the design.
+ * "Lock blocks", the last row under a menu's groups (Tyler, 9 Nov 2026:
+ * "this should be in the bottom and rename it to \"Lock blocks\"").
  * Locked, the page reads only, blocks and all, and the server refuses a save.
  */
 export function LockRow({
@@ -42,7 +43,7 @@ export function LockRow({
       ) : (
         <LockIcon className="size-4" />
       )}
-      {locked ? "Unlock the notes" : "Lock the notes"}
+      {locked ? "Unlock blocks" : "Lock blocks"}
     </Button>
   )
 }

@@ -21,7 +21,7 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
  * The layout is saved per browser, not per account. Every key belongs in
  * `panelLayoutKey` below so they cannot collide or drift.
  */
-export function useRememberedPanelLayout(key: string) {
+export function useRememberedPanelLayout(key: string, defaults?: Layout) {
   const [group, groupRef] = useGroupCallbackRef()
   // The key whose saved layout is on the group now. Nothing is saved for a
   // key until then: a group that adds or drops a panel (Admin's Overview has
@@ -51,6 +51,16 @@ export function useRememberedPanelLayout(key: string) {
     let tries = 0
     const apply = () => {
       if (!saved) {
+        // A new key with defaults handed in (the side panels' widths from
+        // Settings → Styling) moves a group already on screen to them, so a
+        // changed width shows at once rather than on the next visit.
+        if (defaults) {
+          try {
+            group.setLayout(defaults)
+          } catch {
+            // A group still settling keeps the widths it was drawn with.
+          }
+        }
         setAppliedKey(key)
         return
       }

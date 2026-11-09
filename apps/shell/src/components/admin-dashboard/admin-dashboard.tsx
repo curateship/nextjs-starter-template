@@ -119,7 +119,7 @@ function samePlace(a: TabPlace | null, b: TabPlace) {
  *
  * - **Left:** the site's Admin page, beside every section. Its fixed
  *   Dashboards block picks the section: Overview, Users, Feedback or Media
- *   library. Its ⋮ holds General (cover photo, Lock the notes),
+ *   library. Its ⋮ holds General (cover photo, Lock blocks last),
  *   Announcements and Plans.
  *   Its ⋮ also holds Overview's date range (General) and its widgets
  *   (Widgets).

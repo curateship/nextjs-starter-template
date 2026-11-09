@@ -27,6 +27,12 @@ import {
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import {
+  DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  clampSidePanelWidth,
+} from "@/lib/layout/styling-values"
+import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { cn } from "@/lib/utils"
 
@@ -142,9 +148,11 @@ function BareMiddle({ className, ...props }: React.ComponentProps<"div">) {
 
 /**
  * The three-column dashboard every app shares (UI standard, "Three-column
- * dashboards"): each side opens at its narrowest, 16%, and the middle takes
- * the other 68% (Tyler, 31 Oct 2026: "The default width needs to be the
- * narrowest width the panel have"). It started as Project's
+ * dashboards"): the left opens at 14% and the right at 16%, the middle
+ * taking the other 70% (Tyler, 9 Nov 2026: "default 14% on left and 16% on
+ * right"), unless Settings → Styling → Side panels sets wider ones. Neither
+ * side drags narrower than its default ("cannot go lower than that"), nor
+ * wider than 36%. It started as Project's
  * project page and moved here for Contacts on 19 Oct 2026. The side panels
  * collapse by being dragged shut or by a double-click on blank space, come
  * back from a tab on the middle panel's edge, and their widths are remembered
@@ -244,7 +252,23 @@ export function ThreePanels({
   })
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
-  const layout = useRememberedPanelLayout(layoutKey)
+  // The side panels' opening widths from Settings → Styling → Side panels
+  // (Tyler, 9 Nov 2026): 14% left and 16% right unless changed, and
+  // neither drags narrower than that.
+  const styling = useOptionalShellRuntime()?.config.styling
+  const leftWidth = clampSidePanelWidth(styling?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH)
+  const rightWidth = clampSidePanelWidth(styling?.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH)
+  const middleWidth = 100 - leftWidth - (right ? rightWidth : 0)
+  // A width a browser remembers outranks the default, so every pair of
+  // widths gets a key of its own, as `panelLayoutKey` bumps its number when
+  // a default moves. Widths dragged under the old 16% default, kept under
+  // the plain key, are left behind with it (9 Nov 2026).
+  const widthsKey = `${layoutKey}:${leftWidth}-${right ? rightWidth : 0}`
+  const defaultLayout = React.useMemo(
+    () => ({ left: leftWidth, middle: middleWidth, ...(right ? { right: rightWidth } : {}) }),
+    [leftWidth, middleWidth, rightWidth, right]
+  )
+  const layout = useRememberedPanelLayout(widthsKey, defaultLayout)
   const leftState = usePanelCollapsed(leftRef)
   const rightState = usePanelCollapsed(rightRef)
   const toggleLeft = usePanelToggle(leftRef)
@@ -304,8 +328,8 @@ export function ThreePanels({
           panelRef={leftRef}
           collapsible
           collapsedSize="0%"
-          defaultSize="16%"
-          minSize="16%"
+          defaultSize={`${leftWidth}%`}
+          minSize={`${DEFAULT_LEFT_PANEL_WIDTH}%`}
           maxSize="36%"
           onResize={leftState.onResize}
         >
@@ -318,7 +342,7 @@ export function ThreePanels({
           </WorkspacePanel>
         </ResizablePanel>
         <ResizableHandle gap collapsed={leftState.collapsed} />
-        <ResizablePanel id="middle" defaultSize={right ? "68%" : "84%"} minSize="32%">
+        <ResizablePanel id="middle" defaultSize={`${middleWidth}%`} minSize="28%">
           {React.createElement(
             middle.bare ? BareMiddle : WorkspacePanel,
             { className: "relative flex flex-col" },
@@ -339,8 +363,8 @@ export function ThreePanels({
               panelRef={rightRef}
               collapsible
               collapsedSize="0%"
-              defaultSize="16%"
-              minSize="16%"
+              defaultSize={`${rightWidth}%`}
+              minSize={`${DEFAULT_RIGHT_PANEL_WIDTH}%`}
               maxSize="36%"
               onResize={rightState.onResize}
             >
