@@ -966,6 +966,25 @@ body:has(
   padding-top: max(0px, calc(var(--shell-modal-padding, 1.5rem) - 0.5rem));
 }
 
+/*
+ * The grey folding cards in a right panel, such as a person's Profile on the
+ * Admin dashboard (`PanelCard`), from Settings -> Styling -> Panel cards.
+ * Unset, the theme's grey at 40% and a 1px line in the theme's border colour,
+ * the look they always had. In the components layer, so a class a screen sets
+ * on one card still wins.
+ */
+@layer components {
+  [data-slot="panel-card"] {
+    background-color: var(
+      --shell-panel-card-bg,
+      color-mix(in oklab, var(--muted) 40%, transparent)
+    );
+    border-style: solid;
+    border-width: calc(var(--shell-panel-card-border-width, 1) * 1px);
+    border-color: var(--shell-panel-card-border-color, var(--border));
+  }
+}
+
 /* Cards inside the modal. */
 [data-slot="dialog-content"] [data-slot="card"] {
   background-color: var(--shell-modal-card-bg, var(--card));

@@ -75,6 +75,37 @@ export type ShellStyling = {
    * (`DEFAULT_PAGE_SHADE`). Optional for the same reason as `dashboardTabs`.
    */
   pageShade?: number
+  /**
+   * The page blocks' look (Tyler, 7 Nov 2026: "I want to add blocks styling to
+   * styling settings ... rounded corner, the gray shade bg and this padding"):
+   * how round a block's corners are in px, how grey the block is behind its
+   * white tile (0 white to 100 the theme's muted grey), and how far in from
+   * the grey the tile sits, in px. Unset reads as the look blocks have always
+   * had. Optional for the same reason as `dashboardTabs`.
+   */
+  blockRadius?: number
+  blockShade?: number
+  blockInset?: number
+  /**
+   * Overview's widgets, set apart from the blocks (Tyler, 8 Nov 2026:
+   * "Because the widget sits in a shaded background it needs its own block
+   * styling options"): the same three, corners in px, the grey 0 to 100
+   * behind the tile, and the tile's edge in px. Unset follows the blocks'
+   * settings, the look widgets had before these existed.
+   */
+  widgetRadius?: number
+  widgetShade?: number
+  widgetInset?: number
+  /**
+   * The grey folding cards in a right panel, such as a person's Profile and
+   * Plan on the Admin dashboard (`PanelCard`, Tyler, 8 Nov 2026: "Add styling
+   * options for this card ui ... I want to change border and bg"). Unset, a
+   * card keeps its look: the theme's grey at 40% and a 1px line in the
+   * theme's border colour.
+   */
+  panelCardBackground?: ShellBackground
+  panelCardBorderWidth?: number
+  panelCardBorderColor?: ShellBackground
 }
 
 /**
@@ -197,6 +228,12 @@ export const DEFAULT_MODAL_OVERLAY_OPACITY = 8
 export const DEFAULT_SIDEBAR_SHADE = 50
 /** Halfway between a card and the deepest page grey: the page it has always been. */
 export const DEFAULT_PAGE_SHADE = 50
+/** The block card as Tyler set it on 7 Nov 2026: rounded-2xl, muted at 50%, a 3px edge. */
+export const DEFAULT_BLOCK_RADIUS = 16
+export const MAX_BLOCK_RADIUS = 32
+export const DEFAULT_BLOCK_SHADE = 50
+export const DEFAULT_BLOCK_INSET = 3
+export const MAX_BLOCK_INSET = 16
 // Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
 export const SHELL_BACKGROUND_MODES: readonly ShellBackgroundMode[] = [
@@ -236,6 +273,18 @@ export function clampSidebarShade(value: unknown): number {
 
 export function clampPageShade(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_PAGE_SHADE)
+}
+
+export function clampBlockRadius(value: unknown): number {
+  return clampInt(value, 0, MAX_BLOCK_RADIUS, DEFAULT_BLOCK_RADIUS)
+}
+
+export function clampBlockShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_BLOCK_SHADE)
+}
+
+export function clampBlockInset(value: unknown): number {
+  return clampInt(value, 0, MAX_BLOCK_INSET, DEFAULT_BLOCK_INSET)
 }
 
 // The out-of-the-box look for a new workspace/app and every reset. These are the
@@ -341,6 +390,22 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.pageShade === undefined
       ? {}
       : { pageShade: clampPageShade(styling.pageShade) }),
+    ...(styling.blockRadius === undefined ? {} : { blockRadius: clampBlockRadius(styling.blockRadius) }),
+    ...(styling.blockShade === undefined ? {} : { blockShade: clampBlockShade(styling.blockShade) }),
+    ...(styling.blockInset === undefined ? {} : { blockInset: clampBlockInset(styling.blockInset) }),
+    // Widgets keep to the blocks' ranges.
+    ...(styling.widgetRadius === undefined ? {} : { widgetRadius: clampBlockRadius(styling.widgetRadius) }),
+    ...(styling.widgetShade === undefined ? {} : { widgetShade: clampBlockShade(styling.widgetShade) }),
+    ...(styling.widgetInset === undefined ? {} : { widgetInset: clampBlockInset(styling.widgetInset) }),
+    ...(styling.panelCardBackground === undefined
+      ? {}
+      : { panelCardBackground: normalizeBackground(styling.panelCardBackground, DEFAULT_PANEL_CARD_COLOR) }),
+    ...(styling.panelCardBorderWidth === undefined
+      ? {}
+      : { panelCardBorderWidth: clampCardBorderWidth(styling.panelCardBorderWidth) }),
+    ...(styling.panelCardBorderColor === undefined
+      ? {}
+      : { panelCardBorderColor: normalizeBackground(styling.panelCardBorderColor, DEFAULT_PANEL_CARD_COLOR) }),
   }
 }
 
@@ -531,3 +596,71 @@ export function getPageShadeVars(styling: ShellStyling): Record<string, string> 
 
 /** The page-shade CSS variable names, used to clear stale values. */
 export const PAGE_SHADE_VAR_NAMES = ["--shell-page-depth"] as const
+
+/**
+ * The page blocks' look, on the document root so every block on every page
+ * reads it (`BlockCard` in `src/components/shared/notes/block-card.tsx`).
+ */
+export function getBlockStyleVars(styling: ShellStyling): Record<string, string> {
+  return {
+    "--shell-block-radius": `${clampBlockRadius(styling.blockRadius)}px`,
+    "--shell-block-shade": `${clampBlockShade(styling.blockShade)}%`,
+    "--shell-block-inset": `${clampBlockInset(styling.blockInset)}px`,
+  }
+}
+
+/** The block CSS variable names, used to clear stale values. */
+export const BLOCK_STYLE_VAR_NAMES = ["--shell-block-radius", "--shell-block-shade", "--shell-block-inset"] as const
+
+/**
+ * Overview's widgets' look (Settings → Styling → Widgets), on the root as the
+ * blocks' is (`WidgetCard` in `src/components/shared/widgets/widget-card.tsx`).
+ */
+export function getWidgetStyleVars(styling: ShellStyling): Record<string, string> {
+  return {
+    // Unset, a widget follows the blocks, the look widgets had before they
+    // had settings of their own.
+    "--shell-widget-radius": `${clampBlockRadius(styling.widgetRadius ?? styling.blockRadius)}px`,
+    "--shell-widget-shade": `${clampBlockShade(styling.widgetShade ?? styling.blockShade)}%`,
+    "--shell-widget-inset": `${clampBlockInset(styling.widgetInset ?? styling.blockInset)}px`,
+  }
+}
+
+/** The widget CSS variable names, used to clear stale values. */
+export const WIDGET_STYLE_VAR_NAMES = ["--shell-widget-radius", "--shell-widget-shade", "--shell-widget-inset"] as const
+
+/** A panel card's colours left to the theme, the look they always had. */
+export const DEFAULT_PANEL_CARD_COLOR: ShellBackground = { mode: "default", strength: 40, color: "#ffffff" }
+/** A panel card's line, 1px as it always was. */
+export const DEFAULT_PANEL_CARD_BORDER_WIDTH = 1
+
+/**
+ * The panel cards' background and line (Settings → Styling → Panel cards),
+ * on the root so every `PanelCard` reads them through its rule in
+ * theme.css. A colour left to the theme sets no variable, and the rule's
+ * own fallback shows.
+ */
+export function getPanelCardStyleVars(styling: ShellStyling): Record<string, string> {
+  const vars: Record<string, string> = {
+    "--shell-panel-card-border-width": String(
+      clampCardBorderWidth(styling.panelCardBorderWidth ?? DEFAULT_PANEL_CARD_BORDER_WIDTH)
+    ),
+  }
+  const background = resolveBackground(styling.panelCardBackground ?? DEFAULT_PANEL_CARD_COLOR, {
+    base: "--muted",
+    opaque: true,
+  })
+  if (background) vars["--shell-panel-card-bg"] = background
+  const borderColor = resolveBackground(styling.panelCardBorderColor ?? DEFAULT_PANEL_CARD_COLOR, {
+    base: "--muted-foreground",
+  })
+  if (borderColor) vars["--shell-panel-card-border-color"] = borderColor
+  return vars
+}
+
+/** The panel card CSS variable names, used to clear stale values. */
+export const PANEL_CARD_STYLE_VAR_NAMES = [
+  "--shell-panel-card-bg",
+  "--shell-panel-card-border-width",
+  "--shell-panel-card-border-color",
+] as const

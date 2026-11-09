@@ -10,27 +10,46 @@ import {
   isNull,
   lte,
   not,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm"
 
-import type { CrmInboxSort, CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
+import type { CrmAttachment, CrmInboxSort, CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
 import { messageSnippet } from "@/lib/crm/message-text"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  customShellCrmLeadTags,
   customShellCrmLeads,
   customShellCrmMessages,
   customShellCrmThreads,
 } from "@/server/schema"
+import { listLeadTags } from "@/server/crm/lead-tags"
 
 export type InboxFilter = {
   search?: string
   status?: CrmThreadStatus | "all"
   stage?: CrmStage | "all"
   unreadOnly?: boolean
+  /** Only conversations somebody saved: the Saved tab. */
+  savedOnly?: boolean
+  /** Only mail that arrived at this address, from the Emails block. */
+  toAddress?: string
+  /**
+   * With `toAddress`, also the conversations with no address recorded: they
+   * came before the list, when the first address was the only one.
+   */
+  toAddressTakesUnknown?: boolean
   /** Only threads whose lead has a chase date that has already passed. */
   followUpDue?: boolean
+  /**
+   * Only the Waiting pill's conversations: they wrote last, before this
+   * moment, and nobody has answered (`waitingConditions`).
+   */
+  waitingSince?: Date
+  /** Only leads carrying this tag (CRM task 27). */
+  tag?: string
   /** Which end of the conversation list comes first. Newest when unsaid. */
   sort?: CrmInboxSort
   limit?: number
@@ -45,6 +64,9 @@ export type InboxThreadRow = {
   lastDirection: "in" | "out"
   messageCount: number
   readAt: Date | null
+  savedAt: Date | null
+  /** The address the mail arrived at, or null for mail from before the list. */
+  toAddress: string | null
   leadId: string
   leadEmail: string
   leadName: string | null
@@ -52,6 +74,28 @@ export type InboxThreadRow = {
   followUpAt: Date | null
   /** The start of the newest message, or null when its body has not landed. */
   snippet: string | null
+  /** The lead's tags, A to Z. */
+  tags: string[]
+}
+
+/**
+ * "Waiting on you": an open conversation where their message is the last one,
+ * it came before `waitedSince`, and the lead is not won or lost. One
+ * definition for the Inbox's Waiting pill, its count, and the left page's
+ * Waiting on you block, so the three always name the same conversations.
+ */
+export function waitingConditions(waitedSince: Date) {
+  return and(
+    eq(customShellCrmThreads.status, "open"),
+    eq(customShellCrmThreads.lastDirection, "in"),
+    lte(customShellCrmThreads.lastMessageAt, waitedSince),
+    notInArray(customShellCrmLeads.stage, ["won", "lost"])
+  )!
+}
+
+/** The moment a conversation has to be older than to count as waiting. */
+export function waitingCutoff(unansweredDays: number): Date {
+  return new Date(now().getTime() - unansweredDays * 86_400_000)
 }
 
 function filterConditions(workspaceId: string, filter: InboxFilter) {
@@ -66,8 +110,32 @@ function filterConditions(workspaceId: string, filter: InboxFilter) {
   if (filter.unreadOnly) {
     conditions.push(isNull(customShellCrmThreads.readAt))
   }
+  if (filter.savedOnly) {
+    conditions.push(isNotNull(customShellCrmThreads.savedAt))
+  }
+  const toAddress = filter.toAddress?.trim().toLowerCase()
+  if (toAddress) {
+    conditions.push(
+      filter.toAddressTakesUnknown
+        ? sql`(lower(${customShellCrmThreads.toAddress}) = ${toAddress} or ${customShellCrmThreads.toAddress} is null)`
+        : sql`lower(${customShellCrmThreads.toAddress}) = ${toAddress}`
+    )
+  }
   if (filter.followUpDue) {
     conditions.push(lte(customShellCrmLeads.followUpAt, now()))
+  }
+  if (filter.waitingSince) {
+    conditions.push(waitingConditions(filter.waitingSince))
+  }
+  const tag = filter.tag?.trim().toLowerCase()
+  if (tag) {
+    conditions.push(
+      sql`exists (
+        select 1 from ${customShellCrmLeadTags}
+        where ${customShellCrmLeadTags.leadId} = ${customShellCrmLeads.id}
+          and ${customShellCrmLeadTags.tag} = ${tag}
+      )`
+    )
   }
 
   const search = filter.search?.trim()
@@ -96,37 +164,59 @@ function filterConditions(workspaceId: string, filter: InboxFilter) {
 }
 
 /**
- * How many conversations the filters match, split by whether they have been
- * read.
+ * How many conversations the filters match, how many of those are unread,
+ * and how many are saved.
  *
- * **`unreadOnly` is deliberately ignored here.** These two numbers are what the
- * All and Unread tabs show, and a tab's own count must not move when you press
- * it. Counting the filtered list instead made "All" read 6 and then 2 the
+ * **`unreadOnly` and `savedOnly` are deliberately ignored here.** These three
+ * numbers are what the All, Unread and Saved tabs show, and a tab's own count
+ * must not move when you press it. Counting the filtered list instead made "All" read 6 and then 2 the
  * moment Unread was chosen, because the list it was counting had become the
  * unread one.
  *
  * Both numbers obey every other filter, so a search for "kitchen" answers how
  * many of those there are and how many of those are unread. One query, so the
- * two can never disagree.
+ * three can never disagree.
  */
 export async function countInboxThreads(
   workspaceId: string,
   filter: InboxFilter = {},
-  database: CustomShellDb = db
-): Promise<{ all: number; unread: number }> {
+  database: CustomShellDb = db,
+  /**
+   * The Waiting pill's cutoff, or null when chasing is off and the pill has
+   * nothing to count. Separate from `filter.waitingSince`, because a pill's
+   * count must not move when it is pressed.
+   */
+  waitingSince: Date | null = null
+): Promise<{ all: number; unread: number; saved: number; waiting: number }> {
   const [row] = await database
     .select({
       all: count(),
       unread: sql<number>`count(*) filter (where ${customShellCrmThreads.readAt} is null)`,
+      saved: sql<number>`count(*) filter (where ${customShellCrmThreads.savedAt} is not null)`,
+      waiting: waitingSince
+        ? sql<number>`count(*) filter (where ${waitingConditions(waitingSince)})`
+        : sql<number>`0`,
     })
     .from(customShellCrmThreads)
     .innerJoin(
       customShellCrmLeads,
       eq(customShellCrmLeads.id, customShellCrmThreads.leadId)
     )
-    .where(filterConditions(workspaceId, { ...filter, unreadOnly: false }))
+    .where(
+      filterConditions(workspaceId, {
+        ...filter,
+        unreadOnly: false,
+        savedOnly: false,
+        waitingSince: undefined,
+      })
+    )
 
-  return { all: Number(row?.all ?? 0), unread: Number(row?.unread ?? 0) }
+  return {
+    all: Number(row?.all ?? 0),
+    unread: Number(row?.unread ?? 0),
+    saved: Number(row?.saved ?? 0),
+    waiting: Number(row?.waiting ?? 0),
+  }
 }
 
 /**
@@ -160,6 +250,8 @@ export async function listInboxThreads(
       lastDirection: customShellCrmThreads.lastDirection,
       messageCount: customShellCrmThreads.messageCount,
       readAt: customShellCrmThreads.readAt,
+      savedAt: customShellCrmThreads.savedAt,
+      toAddress: customShellCrmThreads.toAddress,
       leadId: customShellCrmLeads.id,
       leadEmail: customShellCrmLeads.email,
       leadName: customShellCrmLeads.name,
@@ -180,12 +272,22 @@ export async function listInboxThreads(
     .limit(filter.limit ?? 30)
     .offset(filter.offset ?? 0)
 
-  const snippets = await newestSnippets(
-    rows.map((row) => row.id),
-    database
-  )
+  const [snippets, tags] = await Promise.all([
+    newestSnippets(
+      rows.map((row) => row.id),
+      database
+    ),
+    listLeadTags(
+      [...new Set(rows.map((row) => row.leadId))],
+      database
+    ),
+  ])
 
-  return rows.map((row) => ({ ...row, snippet: snippets.get(row.id) ?? null }))
+  return rows.map((row) => ({
+    ...row,
+    snippet: snippets.get(row.id) ?? null,
+    tags: tags.get(row.leadId) ?? [],
+  }))
 }
 
 /** The newest message of each thread, as a snippet, keyed by thread id. */
@@ -225,9 +327,11 @@ export type ThreadMessageRow = {
   subject: string
   textBody: string | null
   htmlBody: string | null
-  attachments: { id: string; filename: string; contentType: string | null; size: number | null }[]
+  attachments: CrmAttachment[]
   bodyFetchedAt: Date | null
   bodyAttempts: number
+  filesFetchedAt: Date | null
+  fileAttempts: number
   occurredAt: Date
 }
 
@@ -252,6 +356,10 @@ export async function getThread(
       lastMessageAt: customShellCrmThreads.lastMessageAt,
       messageCount: customShellCrmThreads.messageCount,
       readAt: customShellCrmThreads.readAt,
+      savedAt: customShellCrmThreads.savedAt,
+      toAddress: customShellCrmThreads.toAddress,
+      summary: customShellCrmThreads.summary,
+      summaryMessageCount: customShellCrmThreads.summaryMessageCount,
       leadId: customShellCrmLeads.id,
     })
     .from(customShellCrmThreads)
@@ -289,6 +397,8 @@ export async function listThreadMessages(
       attachments: customShellCrmMessages.attachments,
       bodyFetchedAt: customShellCrmMessages.bodyFetchedAt,
       bodyAttempts: customShellCrmMessages.bodyAttempts,
+      filesFetchedAt: customShellCrmMessages.filesFetchedAt,
+      fileAttempts: customShellCrmMessages.fileAttempts,
       occurredAt: customShellCrmMessages.occurredAt,
     })
     .from(customShellCrmMessages)
@@ -336,6 +446,30 @@ export async function markThreadUnread(
   const changed = await database
     .update(customShellCrmThreads)
     .set({ readAt: null, updatedAt: now() })
+    .where(
+      and(
+        eq(customShellCrmThreads.workspaceId, workspaceId),
+        eq(customShellCrmThreads.id, threadId)
+      )
+    )
+    .returning({ id: customShellCrmThreads.id })
+  return changed.length > 0
+}
+
+/**
+ * Saves a conversation for the Saved tab, or takes the mark off. One mark for
+ * the whole site (Tyler, 7 Nov 2026). Answers whether the conversation was
+ * this workspace's.
+ */
+export async function setThreadSaved(
+  workspaceId: string,
+  threadId: string,
+  saved: boolean,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const changed = await database
+    .update(customShellCrmThreads)
+    .set({ savedAt: saved ? now() : null, updatedAt: now() })
     .where(
       and(
         eq(customShellCrmThreads.workspaceId, workspaceId),

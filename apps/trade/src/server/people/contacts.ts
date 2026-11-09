@@ -227,12 +227,21 @@ export async function listWorkspaceContacts(
     direction?: "asc" | "desc"
     limit?: number
     offset?: number
+    /**
+     * Only these contacts: the CRM People tab's All pill works out its own
+     * order across contacts and leads, then fills its contact rows in here
+     * (`src/server/crm/people.ts`).
+     */
+    onlyIds?: string[]
   } = {},
   database: CustomShellDb = db
 ) {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
-  const where = await contactFilterConditions(workspaceId, options, database)
+  const filtered = await contactFilterConditions(workspaceId, options, database)
+  const where = options.onlyIds
+    ? and(filtered, inArray(customShellContacts.id, options.onlyIds))
+    : filtered
 
   // When each person was last sent anything, worked out once for the whole
   // workspace and joined on. One grouped pass over `deliveries`, not a little
@@ -363,48 +372,6 @@ export async function countContactEmails(
       )
     )
   return { sent: row?.sent ?? 0, opened: row?.opened ?? 0 }
-}
-
-/**
- * The Contacts dashboard's "Last 30 days" card: how many people joined, opted
- * out and bounced in the last `days` days.
- *
- * Opted out reads the date the opt-out was made, so somebody who opted out
- * and was put back is not counted. Bounced counts people, not bounces, from
- * newsletter sends; an automation email records no bounce date to count.
- */
-export async function countRecentContactChanges(
-  workspaceId: string,
-  days: number,
-  database: CustomShellDb = db,
-  timestamp: Date = now()
-): Promise<{ joined: number; optedOut: number; bounced: number }> {
-  const since = new Date(timestamp.getTime() - days * 24 * 60 * 60 * 1000)
-  const [[contactsRow], [bouncedRow]] = await Promise.all([
-    database
-      .select({
-        joined: sql<number>`(count(*) filter (where ${customShellContacts.createdAt} >= ${since}))::int`,
-        optedOut: sql<number>`(count(*) filter (where ${customShellContacts.status} = 'unsubscribed' and ${customShellContacts.unsubscribedAt} >= ${since}))::int`,
-      })
-      .from(customShellContacts)
-      .where(eq(customShellContacts.workspaceId, workspaceId)),
-    database
-      .select({
-        bounced: sql<number>`count(distinct ${customShellDeliveries.contactId})::int`,
-      })
-      .from(customShellDeliveries)
-      .where(
-        and(
-          eq(customShellDeliveries.workspaceId, workspaceId),
-          sql`${customShellDeliveries.bouncedAt} >= ${since}`
-        )
-      ),
-  ])
-  return {
-    joined: contactsRow?.joined ?? 0,
-    optedOut: contactsRow?.optedOut ?? 0,
-    bounced: bouncedRow?.bounced ?? 0,
-  }
 }
 
 /** One contact, or null when it is not this workspace's to look at. */

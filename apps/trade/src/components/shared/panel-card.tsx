@@ -8,9 +8,14 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
-/** The grey box itself, shared by the folding card and the plain one. */
+/**
+ * The grey box itself, shared by the folding card and the plain one. Its
+ * background and line come from Settings → Styling → Panel cards, through the
+ * `[data-slot="panel-card"]` rule in theme.css; unset, the theme's grey at
+ * 40% and a 1px line.
+ */
 const panelBoxClassName = cn(
-  "min-w-0 rounded-lg border bg-muted/40 p-4",
+  "min-w-0 rounded-lg p-4",
   // Fields sit on the page background, so a box to type in never looks
   // like part of the grey card.
   "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
@@ -92,6 +97,7 @@ export function PanelCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
+      data-slot="panel-card"
       className={cn("group/card", panelBoxClassName, className)}
     >
       {/* The buttons' height whether they show or not, so pointing at the card never makes it taller. */}
@@ -169,7 +175,11 @@ export function PanelCard({
  * whose first line is the record's own name, as the open contact's is.
  */
 export function PanelBox({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn(panelBoxClassName, className)}>{children}</div>
+  return (
+    <div data-slot="panel-card" className={cn(panelBoxClassName, className)}>
+      {children}
+    </div>
+  )
 }
 
 /**

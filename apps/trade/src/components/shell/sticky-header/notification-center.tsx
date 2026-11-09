@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { ArrowRightIcon, BellIcon, Loader2Icon } from "lucide-react"
+import { BellIcon, Loader2Icon } from "lucide-react"
 
 import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
@@ -377,9 +377,7 @@ export function NotificationCenter({
     if (action.kind !== "none") {
       setOpen(false)
 
-      if (action.kind === "changelog") {
-        void navigate({ to: "/changelog/whats-new" })
-      } else if (action.kind === "automationRun") {
+      if (action.kind === "automationRun") {
         void navigate({
           to: "/admin/automations/$automationId",
           params: { automationId: action.automationId },
@@ -706,19 +704,11 @@ export function NotificationCenter({
             Mark all read
           </Button>
           {canOpenSettings ? (
-            <div className="flex items-center gap-1">
-              <Button asChild type="button" variant="ghost" size="sm">
-                <Link to="/admin/settings" onClick={() => setOpen(false)}>
-                  Settings
-                </Link>
-              </Button>
-              <Button asChild type="button" variant="ghost" size="sm">
-                <Link to="/admin/notifications" onClick={() => setOpen(false)}>
-                  History
-                  <ArrowRightIcon className="size-4" />
-                </Link>
-              </Button>
-            </div>
+            <Button asChild type="button" variant="ghost" size="sm">
+              <Link to="/admin/settings" onClick={() => setOpen(false)}>
+                Settings
+              </Link>
+            </Button>
           ) : null}
         </div>
       </PopoverContent>

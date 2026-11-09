@@ -134,18 +134,6 @@ has none. Backfilling the columns instead would have meant rebuilding every
 fill, alert and grid sale from the tables they came off, for rows nobody will
 write to again.
 
-### The admin table draws the same rows
-
-The notifications table at `/admin/notifications` uses the same tile, heading
-and figures, so one fill never reads two ways. It asks the app the same question
-the bell asks.
-
-An admin reading somebody else's notice gets no saved row back, because those
-are scoped to the person the notice was sent to. The heading and figures still
-appear, recovered from the words already on the row; only the address is
-missing, which is right — an admin has no business opening another person's
-chart from their notice.
-
 ### Where the pieces are stored
 
 `drizzle/0202_trade_notice_pieces.sql` adds `headline`, `meta` and `kind` to

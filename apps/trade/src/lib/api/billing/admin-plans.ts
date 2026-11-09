@@ -5,7 +5,6 @@ import { z } from "zod"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import {
   archivePlan,
-  archivePlans,
   createPlan,
   listPlans,
   updatePlan,
@@ -129,15 +128,6 @@ const archivePlanFn = createServerFn({ method: "POST" })
     return serializePlan(plan)
   })
 
-const archivePlansFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(
-    z.object({ planIds: z.array(z.string().min(1).max(36)).min(1).max(100) })
-  )
-  .handler(async ({ data }) => {
-    return archivePlans(data.planIds)
-  })
-
 export function loadAdminPlans() {
   return listPlansFn()
 }
@@ -152,10 +142,6 @@ export function updateAdminPlan(planId: string, plan: PlanFormInput) {
 
 export function archiveAdminPlan(planId: string) {
   return archivePlanFn({ data: { planId } })
-}
-
-export function archiveAdminPlans(planIds: string[]) {
-  return archivePlansFn({ data: { planIds } })
 }
 
 function serializePlan(plan: {

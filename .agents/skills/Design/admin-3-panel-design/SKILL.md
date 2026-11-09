@@ -1,14 +1,39 @@
 ---
 name: admin-3-panel-design
-description: "Admin - 3 panel design. Turns a chosen dashboard into the three-panel design Tyler built on Project's site admin My dashboard (6 Nov 2026): a left panel with a page under the header and a footer of folding cards, a middle list with a ⋮ toolbar menu, a right record panel with a tabbed ⋮ menu of grouped rows and Comments as a "/" block in its notes, and My settings as a tabbed ⋮ dropdown. Use when Tyler asks to apply, copy or transform a dashboard into this 3 panel design, or names this skill."
+description: "Admin - 3 panel design. Turns a chosen dashboard into the three-panel design Tyler built on Project's site admin My dashboard (6 Nov 2026) and the shell's Admin and CRM dashboards (8 Nov 2026): a left panel with a page of "/" blocks under a cover, a fixed Dashboards block when the screen has several sections, an Overview of widgets, a middle list with one header and a ⋮ toolbar menu, a right record panel with a tabbed ⋮ menu of grouped rows, and settings as a tabbed ⋮ dropdown. Use when Tyler asks to apply, copy or transform a dashboard into this 3 panel design, or names this skill."
 ---
 
 # Admin - 3 panel design
 
 Turn a dashboard into the three-panel design that Project's site admin My
-dashboard shows (`apps/project`, built 6 Nov 2026). This file lists every
-pattern, with the file in Project that is the working reference, so the
-transformed screen matches it piece for piece.
+dashboard shows (`apps/project`, built 6 Nov 2026), as the shell's Admin and
+CRM dashboards carry it on (8 Nov 2026). This file lists every pattern, with
+the file that is the working reference, so the transformed screen matches it
+piece for piece.
+
+**Where the shell has the piece, the shell is the reference.** Every app is a
+copy of the shell, so an app imports these from its own copy and never
+redraws them:
+
+- `ThreePanels`, `MiddleHeading`, `PanelReopenButton` and
+  `middleGutterClassName` in `src/components/shared/three-panels.tsx`.
+- The blocks: `BlockCard` and `blockView` in
+  `src/components/shared/notes/block-card.tsx`, `keepOnPage` in
+  `note-block-nodes.ts`, the rows in `side-rows.tsx` and
+  `dashboards-rows.tsx`, the cover in `page-cover.tsx` and `cover-sky.tsx`.
+- The widgets: `src/components/shared/widgets/` (the grid, the card, the
+  menus, the layout hook).
+- The record frame: `RecordFrame` and `EmptyRecord` in
+  `src/components/crm/record-frame.tsx`; the list: `CrmTable` and
+  `CrmListHeader` in `src/components/crm/`.
+- Two whole screens to read before building: the Admin dashboard
+  (`src/components/admin-dashboard/admin-dashboard.tsx`, its doc
+  `apps/shell/workspace/docs/ui/admin.md`) and the CRM
+  (`src/components/crm/crm-dashboard.tsx`, its doc
+  `apps/shell/workspace/docs/crm/inbox-and-leads.md`).
+
+A shell piece an app has not had merged yet comes in with the next shell
+merge. Never copy it into the app by hand, which forks it.
 
 Read these first and follow them: `.agents/skills/Ui-standards/SKILL.md` (the
 one UI standard, including the three-column dashboard rules), the target app's
@@ -46,6 +71,8 @@ pick one quietly.
    - What do the record ⋮'s tabs hold?
    - What does the left page store: one page that stays, or one per day?
    - Do employees or other roles get the same?
+   - Does the screen have several lists? Then which sections go in the
+     Dashboards block, in what order, and does it get an Overview of widgets?
 4. **Write one task file** in the app's `workspace/tasks/`, holding Tyler's
    words, his answers and the map. One request is one file, with no file per
    piece. Status `active` while building, `validating` when done.
@@ -74,11 +101,25 @@ pick one quietly.
   - **Widths are remembered** per browser under a layout key in
     `src/lib/project/panel-keys.ts`. Changing a default means bumping the
     number on the key (`...-horizontal-2` becomes `-3`), or old browsers keep
-    the old widths.
+    the old widths. **Every side panel opens at its narrowest** (Tyler,
+    31 Oct 2026).
+  - **Two panels** when there is no record to show, as an Overview of
+    widgets: leave `right` out and the middle takes its room; `middle.bare`
+    draws the middle with no card, straight on the page. A screen that
+    switches between two and three panels keeps a layout key for each, and a
+    width dragged on one survives a trip to the other and back (measure it).
   - **Under 1280px**, one panel at a time behind a pill row: left, middle,
     right. `narrowStart="left"` shows the left panel first. `showMiddleFor`
     jumps to the middle when a filter is picked, and `showRightFor` jumps to
     the record. No extra phone tab for something the footer already holds.
+- **A shut side panel comes back from the middle's header** (Tyler, 8 Nov
+  2026: "Put the uncollapse icon here ... and remove this knob", with
+  Lucide's PanelLeftDashed and PanelRightDashed). `reopenInHeader` on
+  `ThreePanels` takes the knobs off the middle's edges; the middle's header
+  then starts with `PanelReopenButton side="left"` and ends with
+  `PanelReopenButton side="right"`, each showing only while its side is
+  shut. A middle with no header of its own, such as an Overview of widgets,
+  keeps the knob.
 - **Every panel starts with `DashboardCardHeader`** (57px). Side panel bodies
   use the panel gutter `PANEL_GUTTER` (`gap-3.75 p-3.75`, in
   `src/lib/project/panel-gutter.ts`), and footers use `PANEL_FOOTER_PADDING`
@@ -86,6 +127,99 @@ pick one quietly.
 - **Lines:** every dividing line is a plain `border`, `border-t` or
   `divide-y` with no colour class, so it follows Settings → Styling → Divider
   lines. Lines run edge to edge. A line between two things is drawn once.
+
+## A dashboard of sections
+
+When one screen holds several lists (the Admin dashboard: Overview, Users,
+Feedback, Media library; the CRM: Overview, Inbox, People, Broadcasts), the
+lists are sections picked on the left, never tabs in the middle's header
+(Tyler, 8 Nov 2026: "we're moving the 3 tabs ... to the left side as a
+block", then "We need to get the CRM dashboard up to date with the new admin
+dashboard"). Reference: `admin-dashboard.tsx` and `crm-dashboard.tsx` with
+`crm-frame.tsx`.
+
+- **The Dashboards block** is a "/" block on the left page with a row per
+  section and a count in each row's pill (an Overview counts its widgets).
+  Draw it with `DashboardsRows` (`shared/notes/dashboards-rows.tsx`):
+  - Names are grey, and the picked one is dark, at one weight so a name never
+    jumps. No row is shaded.
+  - A small dark bar grows in before the picked name. Its width and the gap
+    after it go from 0 to 12px and 8px over 220ms on
+    `cubic-bezier(0.2, 0.8, 0.2, 1)`, with `flex: none` (Tyler: "animation is
+    not smooth. Follow this").
+  - A press picks the row at once and switches the section after the 220ms,
+    because drawing a section keeps the browser busy long enough to freeze a
+    bar growing at the same time. It switches only if the address is still
+    the one pressed on, and at once when the person asks for less motion.
+  - A press must not reach the page editor around the block
+    (`onMouseDownCapture` with `preventDefault`), or the editor selects the
+    whole block mid-slide.
+- **The block is fixed** ("It can be a fixed block but I'd need to be able to
+  move it too"):
+  - It is never in the "/" list (`offered: false`), and `keepOnPage` makes the
+    editor refuse any change that takes it off: Backspace, cut, select all and
+    delete.
+  - The server puts it back at the top of a page saved without it and drops a
+    second one (`withFixedBlock` in `src/lib/notes/fixed-block.ts`). A new
+    page starts with it.
+  - Its ⋮ holds only Move up and Move down (`blockView({ fixed: true })`), so
+    words and blocks can go above it.
+  - While the page is read, or when the read failed, the block is drawn on its
+    own above the "Reading the page…" line or the error, because it is the
+    only way between the sections.
+- **One frame for every section.** The screen keeps one `ThreePanels` while
+  the section changes, so the left page, its ⋮ and anything typed there never
+  draw again. A section draws its middle in place, sends its record into a
+  spot in the right panel through a portal, and tells the frame its rows,
+  what brings the middle or the record to the front on a phone, and the right
+  panel's name. Its windows come along with it.
+- **A new section opens its first row.** Pass the section as `place.section`
+  to `ThreePanels`, so `useDashboardPlace` treats a switch as an arrival. A
+  bare address still goes back to the last section and row. A remembered row
+  that has since been deleted gives way to the first row.
+- **Left blocks that point at a section** go to it: a stage opens Inbox, a
+  segment opens People. On their own section they narrow the list in place,
+  keeping its other filters. A block action that needs a section's window
+  (a segment's Edit) shows only while that section is showing.
+- **Which section a bare address lands on:** the one last open. A browser that
+  never opened the screen lands on the first list, not on an empty Overview.
+
+## An Overview of widgets
+
+Reference: `OverviewTab` in `admin-dashboard/overview-tab.tsx` and the grid in
+`shared/widgets/widget-grid.tsx` (Tyler, 8 Nov 2026: "I want to make it
+widget based ... I want top row to have 2 col and bottom row to have 3 col (2
+row max)").
+
+- **Two panels.** The left page, then the widgets straight on the page with
+  no middle panel or header, taking the right panel's room ("Remove the right
+  panel for overview dashboard"). Its own layout key.
+- **Rows:** a top row of 1 to 4 columns and a bottom row of None or 1 to 4.
+  Each column is a spot holding one widget or Empty, and a widget shows once:
+  placing it in a second spot empties the first. Wide, the rows share the
+  height and a long list scrolls inside its card ("Fill the panel"). Narrow,
+  the widgets stack and the page scrolls.
+- **Set in the left page's ⋮,** in a Widgets tab beside the others ("Move the
+  widgets into the right panel dropdown beside plans"): the two rows'
+  columns, then a spot picker per spot. Saved for the whole site, every pick
+  on its own (`admin_widget_layouts`, one row per site and dashboard).
+- **A widget's ⋮** takes the place of its range line: every widget to swap
+  in, the current one ticked, one shown elsewhere saying "Moves here", then
+  Remove widget under a line. **An empty spot** is pressed to add a widget
+  right there ("This part should be clickable to add a widget right there").
+- **The date range** of the figures sits in the left ⋮'s General tab, not in
+  a header.
+- **No widgets yet** (the CRM: "We dont have any CRM widgets so lets leave it
+  empty for now"): the spots read "No CRM widgets yet." with nothing to press,
+  and the Widgets tab shows only the rows.
+- **An app adds its own** blocks and widgets from its `src/app/options.ts`
+  (`admin.blocks`, `admin.widgets`, `crm.widgets`), never by editing the shell
+  ("each individual app can add its own block and widget without having to
+  modify shell"). How: `docs/shell/admin-blocks-and-widgets.md`.
+- **The widget card** (`WidgetCard`) is its own component with its own
+  Settings → Styling → Widgets (corners, grey, edge), starting from the
+  blocks' ("Because the widget sits in a shaded background it needs its own
+  block styling options").
 
 ## Left panel
 
@@ -104,8 +238,21 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
   The header's bottom line goes see-through over it. **Every side panel with a
   page has a cover photo** (Tyler, 7 Nov 2026, of Trade's two panels: "both
   panel is missing cover photo"): a "Cover photo" row in the page's ⋮ under a
-  "Page" group, None until one is added, the upload in its small box.
-  Reference: `PageCover` and `CoverRow` in `apps/trade/src/components/trade/notes/`.
+  "Page" group, None until one is added. Since 8 Nov 2026 the row opens
+  square tiles: None, Sky, each picture the page has had (up to 8, each with
+  an ×), then + to add one from the media library ("I also want to add custom
+  images too and make the ui like this"). Sky is Project's drawn sky, which
+  follows the real sun of the city in Settings → General → Sky city.
+  Reference: `PageCover`, `CoverRow` and `cover-sky.tsx` in the shell's
+  `src/components/shared/notes/`.
+- **The right panel carries the left page's cover on** (Tyler, 8 Nov 2026:
+  "make it an extension of the left panel. Meaning that we don't have the sun
+  and moon on the right"). The same picture, or the same sky with no sun or
+  moon, lies behind the open record's header. The screen hands it down with
+  `RightCoverProvider`, and the record frames draw `RightPanelCover` behind
+  everything in them (the frame `isolate`, the cover `-z-10`). Nothing in a
+  record paints its own white under the header, or the cover stops in a hard
+  line there ("broadcast got cut off").
 - **A side panel's header line follows Divider lines.** The shell draws a
   table's line under a header whose next element holds a table, and the
   tables inside blocks set that off. Wrap the side panel's header in its own
@@ -148,11 +295,12 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
     "dont need to show this"), the title alone folds it
     (`[&>button[aria-hidden]]:hidden` on `FoldHeading`). The fold is remembered in this browser per card
     (`useRememberedCollapse(collapseStorageKey.settingsCard(...))`).
-  - A block's bin sits in the heading row, as `FoldHeading`'s children,
-    at the row's right end, its middle level with the title's
-    (measure both). It shows while the block is pointed at or focused, and
-    always on a phone. Never a bin floating over the card's corner above the
-    title.
+  - A block's ⋮ sits in the heading row, as `FoldHeading`'s children, at
+    the row's right end, its middle level with the title's (measure both). It
+    shows while the heading is pointed at or focused, and always on a phone.
+    It holds the block's own rows (Add a segment, New plan), then Delete
+    block (Tyler, 7 Nov 2026: "All blocks should be replaed with the 3 dot
+    dropdown"). There is no bin.
   - Inside the editor, the page's own heading styles reach the card's `h2`,
     so the heading resets them (`!m-0 !p-0 !text-base !leading-tight`).
   - **Every block card is styled the same** (Tyler, 7 Nov 2026, on Trade's
@@ -171,18 +319,24 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
     ╰──────────────────────────────╯
     ```
 
-    - **The block:** one solid light grey box,
-      `bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]`,
-      `rounded-2xl`, `overflow-hidden`, with no border of its own.
-    - **The heading band:** `FoldHeading band`, padding `py-2.5 pr-2.5 pl-4`.
-      The icon is `size-4` and muted, then the title in `text-base
-      font-semibold`, then a count on a white patch when there is one. The
-      block's own buttons (a cog, a plus, a broom) sit in the heading row,
-      before the bin. The bin shows while the block is pointed at or
-      focused, and always on a phone. Pressing the title folds the block;
-      there is no arrow.
-    - **The tile:** everything the block shows sits in one white tile,
-      `bg-background`, 3px inside the grey block on its sides and bottom
+    - **The block:** a light grey box with no border of its own,
+      `overflow-hidden`. Its corners, grey and edge come from Settings →
+      Styling → Blocks (`--shell-block-radius`, `--shell-block-shade`,
+      `--shell-block-inset`; 16px, 50% and 3px unless changed). The grey is
+      60% see-through with a frosted blur behind it (`backdrop-blur-md`), so
+      a page's cover shows softly through (Tyler, 8 Nov 2026: "I like how the
+      email box header as a bit of transparent", "how about we make it
+      gassuan blur like a glass effect", "a bit more see through").
+    - **The heading band:** `FoldHeading band` (padding `py-2.5 pr-2.5
+      pl-4`), at least as tall as the panel's header, 57px
+      (`min-h-[var(--dashboard-card-header-height,57px)]`; "Make the block
+      header the same height as the panel's header"). The icon is `size-4` and muted, then the title
+      in `text-base font-semibold`, dark grey (`text-foreground/75`; "blocks
+      header should be dark gray"), then a count on a patch when there is one.
+      The block's own buttons sit in the heading row, before its ⋮. Pressing
+      the title folds the block; there is no arrow.
+    - **The tile:** everything the block shows sits in one solid white tile,
+      `bg-card`, 3px inside the grey block on its sides and bottom
       (`px-[3px] pb-[3px]` on the body), a thin grey frame round it. Its
       corners are the block's less those 3px, `rounded-[calc(1rem-3px)]`, so
       the frame stays even all the way round (Tyler, 7 Nov 2026: "reduce the
@@ -199,6 +353,19 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
       going, and the fold is remembered in this browser per block.
     - The tile never repeats the block's title: a panel moved into a block
       drops its own title row (a `bare` form).
+    - **Rows inside a block** (`SideRows` in
+      `src/components/shared/notes/side-rows.tsx`; Tyler, 8 Nov 2026:
+      "redesign the block ui"): one line a row, no line between rows. The
+      name, then an optional coloured dot and a muted line, then the figure
+      in the lightest grey pill with a grey number ("change the amount color
+      to lightest gray bg and the number dark gray ... its for all blocks").
+      In a narrow panel the muted line gives way first, then the name, and
+      the pill always shows. Five rows, then "Show all 12".
+    - **A block whose rows pick something** (a stage, a segment, the open
+      conversation) draws them as the Dashboards block does: grey names, the
+      picked one dark with the sliding bar, no shade ("Only the dashboard ones
+      are the new ui"). Give each row `picked`. A row's own ⋯ takes its
+      pill's place while the row is pointed at.
     - Project's team blocks hold several small white cards
       (`apps/project/src/components/project/notes/team-blocks.tsx`, tiles
       `rounded-xl bg-background p-3`). They were built before this style;
@@ -293,7 +460,8 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
     bottom of the card's body as a ghost `sm` button, not in the heading. The
     filter a card sets is named on the heading's muted line ("Showing only
     Website") so it shows while folded.
-- **Rows inside cards** (`admin-cards.tsx`):
+- **Rows inside Project's footer cards** (`admin-cards.tsx`; rows inside a
+  "/" block follow `SideRows` above instead):
   - Each record row is one button: the project's colour dot (`ProjectDot`),
     the title, and a muted line under it.
   - The record open on the right looks picked:
@@ -313,14 +481,26 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
 Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel.tsx`.
 
 - **Header, left to right:**
-  - the view tabs (`DashboardTabs`: List, Board, Calendar, Timeline);
+  - the reopen button for a shut left panel (`PanelReopenButton`);
+  - the section's icon and name (`MiddleHeading`; Tyler, 8 Nov 2026: "Every
+    panel needs an icon"), or the view tabs (`DashboardTabs`: List, Board,
+    Calendar, Timeline; the Admin Users list's roles, "All roles" first). A
+    header with tabs has no icon ("dashboards with middle header tabs does
+    not [need] icon"). Tabs sit straight in the header, so their underline
+    is on its bottom edge ("underline should be at the edge");
   - the "N selected" slot while rows are ticked;
   - Filter, then Views;
   - the one primary **New …** button, which opens a dropdown;
   - a **⋮** ("More for …", tooltip naming what it holds), always the last
     thing in the header, after the New button, never after the tabs
     (Tyler, 6 Nov 2026, on Travel's trip page: "The 3 dots icon is supposed
-    to be here", pointing past "+ Add").
+    to be here", pointing past "+ Add");
+  - last, the reopen button for a shut right panel (`CrmListHeader`'s `end`).
+- **24px at the middle's left and right** (`middleGutterClassName`; "Add
+  more padding on left and right side for middle panel"): the header, and a
+  table's first and last columns, so they line up.
+- **Filter opens 240px wide** ("filter dropdown is too wide"). A Filter that
+  is a rule builder, three boxes to a rule, keeps its width.
 - **One header only.** The middle panel never gets a second header row under
   its tabs. Controls that belong to what a tab shows, such as a chart's
   timeframe, sit in that one header after the tabs (Tyler, 7 Nov 2026, on
@@ -353,6 +533,21 @@ Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel
   - groupings where a drop would hand the record over or move it elsewhere
     (assignee, project) do not drag.
   - Stuck asks why first.
+- **A table** is `CrmTable` (after Project's List):
+  - Group headings with a muted count fold the rows under them. One line per
+    row, no line between rows, Project's 10px dot first.
+  - **The open row** gets the same sliding bar before its name ("I want to
+    add the pill sliding in ui to the table items"). A press shows it open
+    at once and opens the record after the 220ms, for the same reason as the
+    Dashboards block.
+  - **Names are grey,** dark while pointed at and while open ("change the
+    items to gray and if hover over it turns black and when selected it
+    stays black"). Chips are grey too.
+  - **Columns drop out as the middle narrows,** each only once there is room
+    for every column before it, so a table never runs past its panel. A
+    preview column's rule is `hidden md:hidden @4xl:table-cell`: without
+    `md:hidden` the table's own `md:table-cell` shows it on any laptop.
+    Measure from 1280 to 2240px wide.
 - **No matches:** "No tasks match "x"." with a **Clear filters** button
   (`NO_TASK_FILTERS` in `src/lib/project/task-filters.ts`), never plain text
   telling the person what to do.
@@ -360,7 +555,11 @@ Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel
 ## Right panel (the open record)
 
 Reference: `SidePanel` in `apps/project/src/components/project/task-side-panel.tsx`
-and the parts built in `task-body.tsx`.
+and the parts built in `task-body.tsx`. In the shell, every record draws in
+one frame, `RecordFrame` (the avatar or icon, name and muted line, its ⋮, the
+collapse button; the body; a footer with its state and main button), and an
+empty panel is `EmptyRecord`. Both draw the left page's cover behind the
+header.
 
 - **No ×, never emptied by hand.** On arrival it shows the record last open, or
   the list's first. Only a list with no records leaves it empty, with a
@@ -459,7 +658,9 @@ Reference: `TabbedMenu` and `MySettingsMenu` in
   `aria-label` and shadcn tooltip naming the menu ("My settings", "Task
   menu"). Grey while open.
 - **Box:** a `Popover`, `gap-0 p-0`, 22.7rem wide for My settings and 20.4rem
-  for a record menu, never past the screen less 2rem.
+  for a record menu, never past the screen less 2rem. A left page's ⋮ with
+  four tabs (Admin: General, Announcements, Plans, Widgets; CRM: General,
+  Emails, System emails, Widgets) is 25rem, so the tabs fit on one row.
 - **Tabs:** underlined `DashboardTabs style="underline"`, starting from the
   left, 32px apart (`[&_[role=tablist]]:gap-8`), in a row `h-12 border-b px-4`.
   It opens on its first tab every time. Under the tabs, one `ScrollArea`
@@ -556,6 +757,16 @@ print numbers:
 - Menus: the tab names, each tab's content, Escape inside a box, and focus
   after the menu closes.
 - A drag that saves real data is done once and undone, and the report says so.
+- A dashboard of sections: press every row of the Dashboards block. The
+  address changes, the left page is the same element before and after, the
+  first row opens on the right, and the counts match the lists. Try to
+  delete the block with select all and Backspace, then Move down, reload,
+  Move up.
+- The sliding bars: read the bar's width, margin, duration and easing while
+  picked and not.
+- Tables: from 1280 to 2240px in 40px steps, no table wider than its panel.
+- A two-and-three panel screen: drag a side wider, go to the two-panel
+  section and back, and the width held.
 - Light and dark, and Tab and Enter reaching every control.
 - Note any pre-existing errors separately, such as the phone-width hydration
   mismatch from `three-panels.tsx`.

@@ -486,7 +486,13 @@ export function BlockInspector({
   onContentChange,
   onFieldChange,
   onDelete,
+  inMenu = false,
 }: {
+  /**
+   * Opened from a block's cog in the CRM, where pressing another block does
+   * not open its options, so the line saying it does is left out.
+   */
+  inMenu?: boolean
   block: BroadcastBlock | null
   /**
    * True when the block on show came from the left panel and is in no email —
@@ -605,7 +611,7 @@ export function BlockInspector({
               disabled={disabled}
             />
           )}
-          {block ? (
+          {block && !inMenu ? (
             <p className="px-1 pb-1 text-sm text-muted-foreground">
               Click any block in the email to edit that block instead.
             </p>

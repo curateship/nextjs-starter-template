@@ -1,4 +1,6 @@
 import * as React from "react"
+
+import { readSkyCity } from "@/lib/notes/sky-city"
 import {
   Outlet,
   useNavigate,
@@ -56,6 +58,12 @@ import {
   getDarkShadeVars,
   getModalStyleVars,
   getPageShadeVars,
+  getBlockStyleVars,
+  BLOCK_STYLE_VAR_NAMES,
+  getWidgetStyleVars,
+  WIDGET_STYLE_VAR_NAMES,
+  getPanelCardStyleVars,
+  PANEL_CARD_STYLE_VAR_NAMES,
   getSidebarShadeVars,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
@@ -119,7 +127,6 @@ import {
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import { buildHeaderBreadcrumb } from "@/lib/nav/header-breadcrumb"
 import { knownRoutePageTitle, routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
@@ -275,6 +282,9 @@ export function ShellLayout({
   useDarkShadeVars(config.styling)
   useSidebarShadeVars(config.styling)
   usePageShadeVars(config.styling)
+  useBlockStyleVars(config.styling)
+  useWidgetStyleVars(config.styling)
+  usePanelCardStyleVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -816,6 +826,7 @@ function normalizeConfig(
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
+    skyCity: readSkyCity(settings.skyCity),
     workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
     workspaceShareImage:
       settings.workspaceShareImage ?? fallback.workspaceShareImage,
@@ -884,7 +895,6 @@ function normalizeConfig(
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
     pages: normalizePageOverrides(settings.pages),
     styling: normalizeStyling(settings.styling),
-    dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }
 }
 
@@ -978,6 +988,33 @@ function useSidebarShadeVars(styling: ShellStyling) {
 function usePageShadeVars(styling: ShellStyling) {
   React.useEffect(
     () => applyRootStyleVars(PAGE_SHADE_VAR_NAMES, getPageShadeVars(styling)),
+    [styling]
+  )
+}
+
+// The page blocks' corners, grey and edge (Settings → Styling → Blocks), on the
+// root for the same reason: blocks sit in panels, popovers and pages alike.
+function useBlockStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(BLOCK_STYLE_VAR_NAMES, getBlockStyleVars(styling)),
+    [styling]
+  )
+}
+
+// The panel cards' background and line (Settings → Styling → Panel cards),
+// on the root because a card can sit in a popover as well as a panel.
+function usePanelCardStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(PANEL_CARD_STYLE_VAR_NAMES, getPanelCardStyleVars(styling)),
+    [styling]
+  )
+}
+
+// Overview's widgets' own corners, grey and edge (Settings → Styling →
+// Widgets), on the root beside the blocks'.
+function useWidgetStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(WIDGET_STYLE_VAR_NAMES, getWidgetStyleVars(styling)),
     [styling]
   )
 }

@@ -1,18 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { SystemEmailsPage } from "@/components/system-emails/system-emails-page"
-import {
-  getSystemEmailLoadErrorMessage,
-  loadSystemEmailsPage,
-} from "@/lib/api/email/system-emails"
-
+/**
+ * The app's own emails are a tab in the CRM settings ⋮ now, and each opens on
+ * the CRM's right panel (Tyler, 7 Nov 2026). This address stays so old links
+ * land on the first of them.
+ */
 export const Route = createFileRoute("/_authenticated/admin/system-emails")({
-  loader: () => loadSystemEmailsPage(),
-  component: AdminSystemEmailsRoute,
-  errorComponent: routeErrorComponent(getSystemEmailLoadErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/crm", search: { tab: "broadcasts", system: "verify-email" }, replace: true })
+  },
 })
-
-function AdminSystemEmailsRoute() {
-  return <SystemEmailsPage initial={Route.useLoaderData()} />
-}

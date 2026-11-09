@@ -115,10 +115,9 @@ export function EditorFrame({
 
   const workspace = desktop ? (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -197,10 +196,9 @@ export function EditorFrame({
       <div className="flex min-h-0 flex-1 flex-col">
         {bottom ? (
           <ResizablePanelGroup
-            key={verticalLayout.layoutKey}
+            groupRef={verticalLayout.groupRef}
             orientation="vertical"
             className="min-h-0 flex-1"
-            defaultLayout={verticalLayout.defaultLayout}
             onLayoutChanged={verticalLayout.onLayoutChanged}
           >
             <ResizablePanel

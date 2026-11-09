@@ -401,8 +401,11 @@ function RunRow({
           type="button"
           aria-expanded={expanded}
           onClick={onToggle}
+          // Wraps onto a second line when narrow, as in an automation email's
+          // ⋮, rather than running its date under the bin (Tyler, 7 Nov 2026:
+          // "the run card is broken").
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left",
+            "flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2 text-left",
             focusRingInset
           )}
         >

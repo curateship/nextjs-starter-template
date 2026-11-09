@@ -1,12 +1,9 @@
+import type { SkyCity } from "@/lib/notes/sky-city"
 import {
   DynamicIcon,
   iconNames,
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
-import {
-  createDefaultDashboardWidgets,
-  type DashboardWidgetLayout,
-} from "@/lib/dashboard/dashboard-widgets"
 import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
@@ -474,6 +471,12 @@ export type ShellConfig = {
    * link in the sidebar an admin built for them.
    */
   memberHomeRoute: string
+  /**
+   * The city whose real sunrise and sunset the cover sky follows, found by
+   * name in Settings → General (`src/lib/notes/sky-city.ts`). Null: fixed
+   * hours on the viewer's clock.
+   */
+  skyCity: SkyCity | null
   /** App-wide browser-tab image selected from the media library. */
   favicon: string
   /** Image overrides for the current site. Empty uses app-wide branding. */
@@ -588,12 +591,6 @@ export type ShellConfig = {
   pages: ShellPageOverrides
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
-  /**
-   * Which cards the Overview dashboard draws, and where. Saved per workspace
-   * like the sidebar, so two admins can arrange their own. See
-   * `lib/dashboard/dashboard-widgets.ts`.
-   */
-  dashboardWidgets: DashboardWidgetLayout
 }
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
@@ -898,6 +895,7 @@ export function createDefaultShellConfig(): ShellConfig {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
     memberHomeRoute: "",
+    skyCity: null,
     favicon: "",
     workspaceLogo: "",
     workspaceShareImage: "",
@@ -941,17 +939,15 @@ export function createDefaultShellConfig(): ShellConfig {
     sessionPolicy: createDefaultSessionPolicy(),
     pages: createDefaultPageOverrides(),
     styling: createDefaultStyling(),
-    dashboardWidgets: createDefaultDashboardWidgets(),
   }
 }
 
 /**
  * What a brand-new install offers members before an admin has built anything.
  *
- * Deliberately short: their own home page and the changelog are the only two
- * places in this app a member can go. It is a starting point, not a rule — an
- * admin can rename these, reorder them or empty the list out entirely, and an
- * empty list stays empty.
+ * Deliberately short: their own home page is the one place in this app a
+ * member can go. It is a starting point, not a rule — an admin can rename it,
+ * add to it or empty the list out entirely, and an empty list stays empty.
  */
 export function createDefaultMemberSections(): ShellSection[] {
   return [
@@ -966,28 +962,6 @@ export function createDefaultMemberSections(): ShellSection[] {
           href: "/home",
           icon: "house",
           visible: true,
-        },
-      ],
-    },
-    {
-      id: "section-member-updates",
-      title: "Updates",
-      entries: [
-        {
-          type: "item",
-          id: "item-member-changelog",
-          label: "Changelog",
-          href: "/changelog",
-          icon: "sparkles",
-          visible: true,
-          children: [
-            {
-              id: "item-member-whats-new",
-              label: "What's new",
-              href: "/changelog/whats-new",
-              icon: "sparkles",
-            },
-          ],
         },
       ],
     },

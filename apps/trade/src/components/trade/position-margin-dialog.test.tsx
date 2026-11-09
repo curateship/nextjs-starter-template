@@ -126,13 +126,16 @@ async function open(
 }
 
 describe("changing leverage and margin on an open position", () => {
-  it("shows shared waiting spinners, but does not call a refusal loading", async () => {
+  // The shell's waiting row says so to a screen reader and draws no circle in
+  // a window's body (Tyler, 7 Nov 2026: "Remove all loading circle... thats in
+  // a page body"; `LoadingRow` in src/components/ui/loading-row.tsx).
+  it("says it is waiting, with no circle, but does not call a refusal loading", async () => {
     const pending = await open(live(), 20, true, false)
     const statuses = [...document.querySelectorAll('[role="status"]')]
     expect(statuses).toHaveLength(2)
     for (const status of statuses) {
       expect(status.textContent).toBe("Reading what this exchange allows")
-      expect(status.querySelector("svg.animate-spin")).not.toBeNull()
+      expect(status.querySelector("svg.animate-spin")).toBeNull()
     }
     await pending.close()
     const refused = await open(
