@@ -107,25 +107,12 @@ screen: anything not written there has not been agreed yet.
   permanent record binning and deleting cannot touch, the ownership check
   and what "checked by Trade" means, how far back each exchange goes, the
   figures and the leaderboard minimums.
-- `social-feed.md` — the feed at `/social`: three panels, creators in folders
-  on the left, every tracked creator's posts in the middle, the coins they
-  name on the right, the three narrowings and their chips, and the folder
-  rules (Everyone, the eye, a creator in several folders).
-- `every-creator.md` — the table at `/social/manage`: what each row says, what
-  the search reads, what the filters mean, why "gone quiet" is 30 days,
-  deleting one creator or many and what gets let go with them, and why the
-  table, the feed and a creator's dashboard are separate screens.
-- `social-dashboard.md` — the creator dashboard at `/social/<handle>`: the
-  three panels, opening one post in a window and why a long one arrives cut,
-  adding a creator from an address or a handle, where the
-  follower count and the links come from, what Sync profile reads off the
-  public X page, how the coins a post names are counted, and why posts are
-  held once per member.
-- `which-coins-a-post-names.md` — how Trade reads a post's words and works out
-  which markets it is about: the three match rules, the words that are never a
-  market and why each is on that list, why only markets Trade lists can be
-  matched, the stocks switch and what a shut market's price is, and what
-  Re-read coins does.
+- Social, the screens for following X creators (`/social`, `/social/manage`
+  and `/social/<handle>`), was removed on 9 Nov 2026 along with its four docs.
+  Its saved creators and posts are still in the `trade_social_*` tables,
+  which nothing reads, until the drop in
+  `workspace/tasks/Deploy/drop-removed-feature-data.md` runs after the next
+  deploy.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and

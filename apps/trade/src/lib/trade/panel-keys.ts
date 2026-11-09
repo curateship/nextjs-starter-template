@@ -26,22 +26,6 @@ export const tradePanelLayoutKey = {
   flowRunHorizontal: "trade-flow-run-horizontal-2",
   /** The live-run workspace above, its trades below. */
   flowRunVertical: "trade-flow-run-vertical",
-  /** P&L: the Journal on the left, the grid and cards on the right. */
-  pnlHorizontal: "trade-pnl-horizontal",
-  /** P&L's right column: the month grid above, the three cards below. */
-  pnlVertical: "trade-pnl-vertical",
-  /**
-   * One creator's dashboard: figures | posts | markets, across the workspace.
-   *
-   * One key, because there is one group. Nothing on that screen earns a
-   * bottom row, so there is no vertical group to remember.
-   */
-  socialHorizontal: "trade-social-horizontal",
-  /**
-   * The social feed: creators in folders | the feed | its coins, across the
-   * workspace. Like the creator's own dashboard, there is no bottom row.
-   */
-  socialFeedHorizontal: "trade-social-feed-horizontal-2",
 } as const
 
 export type TradePanelLayoutKey =
@@ -57,8 +41,4 @@ export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
   [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
   [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],
   [tradePanelLayoutKey.flowRunVertical]: ["workspace", "trades"],
-  [tradePanelLayoutKey.pnlHorizontal]: ["journal", "figures"],
-  [tradePanelLayoutKey.pnlVertical]: ["months", "cards"],
-  [tradePanelLayoutKey.socialHorizontal]: ["figures", "posts", "markets"],
-  [tradePanelLayoutKey.socialFeedHorizontal]: ["creators", "feed", "coins"],
 }

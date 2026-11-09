@@ -165,13 +165,6 @@ export const appOptions: AppOptions = {
         panel: () => import("@/components/trade/drawing-settings"),
       },
       {
-        // The one switch over how a creator's posts are read: coins only, or
-        // stocks, metals and currencies too.
-        id: "social",
-        label: "Social",
-        panel: () => import("@/components/social/social-settings"),
-      },
-      {
         // The rules a person builds for their real-money entries, each a stack
         // of conditions that warns or blocks.
         id: "trading-rules",

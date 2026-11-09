@@ -305,7 +305,7 @@ export function readOpenMarketRows(value: unknown): OpenMarketRows {
   return rows
 }
 
-/** Read all seven old browser keys for the one-time account import. */
+/** Read every old browser key for the one-time account import. */
 export function readLegacyTradePanelLayouts(
   storage: Pick<Storage, "getItem">
 ): TradePanelLayouts["current"] {
@@ -318,7 +318,7 @@ export function readLegacyTradePanelLayouts(
         : null
       if (layout) current[key] = layout
     } catch {
-      // One blocked or malformed browser value does not hide the other six.
+      // One blocked or malformed browser value does not hide the others.
     }
   }
   return current

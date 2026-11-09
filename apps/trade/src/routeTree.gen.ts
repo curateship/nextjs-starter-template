@@ -37,7 +37,6 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
 import { Route as AuthenticatedFollowingRouteImport } from './routes/_authenticated/following'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -77,8 +76,6 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_authenticated/backtests_.$groupId'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog_.whats-new'
 import { Route as AuthenticatedFlowRunsRunIdRouteImport } from './routes/_authenticated/flow-runs_.$runId'
-import { Route as AuthenticatedSocialHandleRouteImport } from './routes/_authenticated/social_.$handle'
-import { Route as AuthenticatedSocialManageRouteImport } from './routes/_authenticated/social_.manage'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -241,11 +238,6 @@ const AuthenticatedFollowingRoute = AuthenticatedFollowingRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
-  id: '/social',
-  path: '/social',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
@@ -466,18 +458,6 @@ const AuthenticatedFlowRunsRunIdRoute =
     path: '/flow-runs/$runId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedSocialHandleRoute =
-  AuthenticatedSocialHandleRouteImport.update({
-    id: '/social_/$handle',
-    path: '/social/$handle',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSocialManageRoute =
-  AuthenticatedSocialManageRouteImport.update({
-    id: '/social_/manage',
-    path: '/social/manage',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
   path: '/api/auth/google',
@@ -642,7 +622,6 @@ export interface FileRoutesByFullPath {
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -681,8 +660,6 @@ export interface FileRoutesByFullPath {
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
-  '/social/$handle': typeof AuthenticatedSocialHandleRoute
-  '/social/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -736,7 +713,6 @@ export interface FileRoutesByTo {
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -775,8 +751,6 @@ export interface FileRoutesByTo {
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
-  '/social/$handle': typeof AuthenticatedSocialHandleRoute
-  '/social/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -833,7 +807,6 @@ export interface FileRoutesById {
   '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/_authenticated/following': typeof AuthenticatedFollowingRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
-  '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -872,8 +845,6 @@ export interface FileRoutesById {
   '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/_authenticated/changelog_/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/_authenticated/flow-runs_/$runId': typeof AuthenticatedFlowRunsRunIdRoute
-  '/_authenticated/social_/$handle': typeof AuthenticatedSocialHandleRoute
-  '/_authenticated/social_/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -930,7 +901,6 @@ export interface FileRouteTypes {
     | '/flow-runs'
     | '/following'
     | '/home'
-    | '/social'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -969,8 +939,6 @@ export interface FileRouteTypes {
     | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/flow-runs/$runId'
-    | '/social/$handle'
-    | '/social/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1024,7 +992,6 @@ export interface FileRouteTypes {
     | '/flow-runs'
     | '/following'
     | '/home'
-    | '/social'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -1063,8 +1030,6 @@ export interface FileRouteTypes {
     | '/backtests/$groupId'
     | '/changelog/whats-new'
     | '/flow-runs/$runId'
-    | '/social/$handle'
-    | '/social/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1120,7 +1085,6 @@ export interface FileRouteTypes {
     | '/_authenticated/flow-runs'
     | '/_authenticated/following'
     | '/_authenticated/home'
-    | '/_authenticated/social'
     | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/api/health'
@@ -1159,8 +1123,6 @@ export interface FileRouteTypes {
     | '/_authenticated/backtests_/$groupId'
     | '/_authenticated/changelog_/whats-new'
     | '/_authenticated/flow-runs_/$runId'
-    | '/_authenticated/social_/$handle'
-    | '/_authenticated/social_/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1426,13 +1388,6 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/social': {
-      id: '/_authenticated/social'
-      path: '/social'
-      fullPath: '/social'
-      preLoaderRoute: typeof AuthenticatedSocialRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/trade': {
@@ -1706,20 +1661,6 @@ declare module '@tanstack/react-router' {
       path: '/flow-runs/$runId'
       fullPath: '/flow-runs/$runId'
       preLoaderRoute: typeof AuthenticatedFlowRunsRunIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/social_/$handle': {
-      id: '/_authenticated/social_/$handle'
-      path: '/social/$handle'
-      fullPath: '/social/$handle'
-      preLoaderRoute: typeof AuthenticatedSocialHandleRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/social_/manage': {
-      id: '/_authenticated/social_/manage'
-      path: '/social/manage'
-      fullPath: '/social/manage'
-      preLoaderRoute: typeof AuthenticatedSocialManageRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google': {
@@ -2021,14 +1962,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
   AuthenticatedFollowingRoute: typeof AuthenticatedFollowingRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
-  AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
   AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
   AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
-  AuthenticatedSocialHandleRoute: typeof AuthenticatedSocialHandleRoute
-  AuthenticatedSocialManageRoute: typeof AuthenticatedSocialManageRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2039,14 +1977,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
   AuthenticatedFollowingRoute: AuthenticatedFollowingRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
-  AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
   AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
   AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,
-  AuthenticatedSocialHandleRoute: AuthenticatedSocialHandleRoute,
-  AuthenticatedSocialManageRoute: AuthenticatedSocialManageRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
