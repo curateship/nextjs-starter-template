@@ -56,7 +56,7 @@ opens P&L.
 ## What counts as money made
 
 **Money banked today.** It is the same fills, priced the same way, that the
-P&L page's month grid buckets and the PnL Graph adds up, so today's cell on
+month grid buckets and the PnL Graph adds up, so today's cell on
 that grid and this figure are one number.
 
 A day runs midnight to midnight in Toronto, the clock the whole app already

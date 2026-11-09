@@ -22,7 +22,7 @@ import { deleteWallet } from "@/server/trade/wallets"
  * The permanent record a public profile reads. The rules it proves are the
  * task's acceptance list: binning changes nothing, a deleted wallet's trades
  * stay, practice and testnet trades never get in, and the 30-day figure is
- * the P&L page's.
+ * the month grid's.
  */
 const NOW = Date.now()
 const DAY = 86_400_000
@@ -169,7 +169,7 @@ describe("the permanent trade record", () => {
     expect(record.figures.closedTrades).toBe(1)
   })
 
-  it("says the same 30 days as the P&L page's own fills", async () => {
+  it("says the same 30 days as the month grid's own fills", async () => {
     await addWallet("w1")
     await addTrade("w1", "t1", NOW - 40 * DAY, 500)
     await addTrade("w1", "t2", NOW - 10 * DAY, -120)

@@ -52,9 +52,6 @@ screen: anything not written there has not been agreed yet.
 - `market-search.md` — the header's search field: every exchange's market list
   searched at once, what a row says, how the rows are ordered, mainnet only, and
   what happens when an exchange will not answer.
-- `pnl-page.md` — the P&L page at `/pnl`: the whole Journal read-only, the
-  month grid on the Toronto clock, the three period windows, the five pattern
-  groupings, what the AI score sends to the model and how long it is kept.
 
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
@@ -153,7 +150,7 @@ screen: anything not written there has not been agreed yet.
   why the stocks are switched off.
 - `wallet-checker.md` — `/tools/wallet-checker`: where any Hyperliquid
   wallet's history comes from, how far back Hyperliquid will go, the counting
-  it shares with the P&L page, and the limits that keep it off the trading's
+  it shares with the month grid, and the limits that keep it off the trading's
   request budget.
 
 ## charts/ — the chart itself

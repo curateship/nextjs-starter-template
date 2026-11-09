@@ -216,7 +216,7 @@ always carry the dollars, the price and the wallet's own label:
   average. Tyler's rule, 22 Sep 2026: "It should measure against its own
   rung." The body reads "Made $5.00 on this close, after fees. Measured
   against rung 2, which bought these coins at $0.9." The dollars are the
-  same figure the chart arrow, the overview and the P&L page show
+  same figure the chart arrow, the overview and the month grid show
   (`gridRoundTrips`). A sale whose buy is not in the stored fills keeps the
   exchange's wording above.
 - **The dollars in the headline are the coins the money was worked out on.**

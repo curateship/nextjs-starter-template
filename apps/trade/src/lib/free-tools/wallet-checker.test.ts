@@ -120,7 +120,7 @@ describe("the report's figures", () => {
     expect(report.figures.made["30d"].fees).toBe(4)
   })
 
-  it("agrees with the P&L page's month grid over the same 30 days", () => {
+  it("agrees with the month grid over the same 30 days", () => {
     const money = fills.map((one) => ({
       at: one.at,
       money: one.closedPnl - one.fee,

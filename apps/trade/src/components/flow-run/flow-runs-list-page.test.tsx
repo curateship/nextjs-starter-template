@@ -93,7 +93,7 @@ describe("the live-runs table's actions", () => {
 })
 
 describe("the live-runs table's profit", () => {
-  // Real money is shown to the cent, the same as the P&L page, so one trade
+  // Real money is shown to the cent, the same as the month grid, so one trade
   // never reads +$12 here and +$12.34 there.
   it.each([
     [12.34, "+$12.34"],

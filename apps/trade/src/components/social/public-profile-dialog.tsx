@@ -89,7 +89,7 @@ function failedCount(checks: readonly OwnershipCheck[]): number {
 }
 
 /**
- * The member's own Public profile window, opened from the P&L page.
+ * The member's own Public profile window, opened from the header's settings cog.
  *
  * Two steps in one window. The first edits the profile and lists the
  * wallets on it. Switching the page on goes to the second, which says in

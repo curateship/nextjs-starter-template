@@ -1,6 +1,5 @@
 import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import {
   Trash2Icon,
   WalletIcon,
@@ -570,22 +569,6 @@ export function ActivityPanel({
                 <Trash2Icon className="size-4" />
                 <span className="max-sm:sr-only">Remove </span>(
                 {tickedTrades.length})
-              </Button>
-            ) : null}
-            {/* The same Journal across every exchange, at full height, with
-                the month grid and the pattern cards beside it. */}
-            {/* Not on a phone. It is a link to another page rather than
-                something done to this table, the sidebar already carries PnL,
-                and it is the button that squeezed the Journal's own tab down
-                to four letters. */}
-            {tab === "journal" ? (
-              <Button
-                type="button"
-                variant="outline"
-                asChild
-                className="max-sm:hidden"
-              >
-                <Link to="/pnl">Open P&amp;L</Link>
               </Button>
             ) : null}
             {controls?.(narrow)}

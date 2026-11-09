@@ -76,8 +76,6 @@ panel, as on a wide screen.
   its count is never the part hanging off the end. The word stays on the tab
   that is open; the others keep their picture and their count. A screen reader
   still reads the full name of each.
-- **Open P&L is not drawn on a phone.** It is a link to another page rather
-  than something done to this table, and the sidebar already carries PnL.
 - **Remove keeps its count and loses its word** on a phone, so the bin and the
   number of ticked rows sit beside Close all without crowding it.
 

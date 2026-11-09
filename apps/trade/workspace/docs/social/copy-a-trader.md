@@ -172,8 +172,8 @@ part close.
 ## The Journal
 
 Every trade a copy placed any part of says "Copied from @sam" under how it
-ended, on the exchange page and the P&L page. It counts on the copier's own P&L
-page and public profile like any other trade. Skipped copies sit in the same
+ended, on the exchange page. It counts on the copier's own public profile like
+any other trade. Skipped copies sit in the same
 Journal as their own rows; the bin takes one away.
 
 ## The fee record

@@ -215,27 +215,47 @@ bots" and links to the automation canvases. The rows arrive in the same server
 answer as the other overview widgets, with no timer of their own. A row keeps
 its last banked dollar figure until the overview is read again.
 
-Profit calendar is the P&L page's month grid as an overview widget. It draws
-the same component, `src/components/pnl/pnl-month-grid.tsx`, inside
-`src/components/trade/profit-calendar-widget.tsx`. A fresh layout leaves it
-out, so it waits in the Widgets tab, an empty spot's "Add a widget" or another
-widget's ⋮ until somebody places it.
+Profit calendar is the month grid as an overview widget: one tile per day,
+green for money made, red for money lost, plain grey for a day with no
+trades. It draws `src/components/pnl/pnl-month-grid.tsx` inside
+`src/components/trade/profit-calendar-widget.tsx`, and a public profile draws
+the same grid. A fresh layout leaves it out, so it waits in the Widgets tab,
+an empty spot's "Add a widget" or another widget's ⋮ until somebody places it.
+
+Until 8 Nov 2026 the grid also sat on a P&L page at `/pnl`, beside the whole
+Journal, pattern cards and an AI score out of 100. Tyler removed that page
+and everything only it used, so older notes that name the P&L page mean this
+grid.
 
 - **Where its dollars come from:** it splits the overview's own real fills by
   Toronto day. It asks the server for nothing extra and updates with the
   overview's fifteen-second read.
 - **Why the tiles give no trade count:** the overview carries fills, not
   finished trades. Rebuilding every finished trade on each fifteen-second read
-  would be a much heavier read, so the widget names dollars and the P&L page
-  keeps the trade count.
+  would be a much heavier read, so the widget names dollars alone.
 - **How it agrees with PnL Graph:** a month's tiles add up to the settled
-  figure the graph names for that month. Unpriced fills are counted apart and
-  never as zero, as on the P&L page.
+  figure the graph names for that month.
 - **When the two can differ:** the graph leaves out a wallet whose balance
   could not be read. The calendar still counts that wallet's saved fills,
-  the same as the P&L page does.
 - **Which month it opens on:** the current one. The arrows walk back to August
-  2026, and the chosen month is not remembered after a reload.
+  2026, and the chosen month is not remembered after a reload. Days before
+  20 August 2026, where the records begin, and days still to come are drawn
+  faint. Hovering a tile, or tabbing to it, shows its dollars.
+- **A day runs midnight to midnight in Toronto:** a fill at 00:30 UTC on the
+  2nd belongs to the 1st (`src/lib/trade/pnl/periods.ts`).
+- **An unpriced fill is counted apart, never as zero:** on an exchange that
+  only states a trade's money when the whole position closes, the sales
+  before that carry no figure yet. The tile says "plus 11 fills the exchange
+  has not priced" and the money shown is the priced part alone.
+- **A grid's round trip is counted once, on the sale:** the rung's sale
+  carries the whole trip after both fees, and the buy that opened the rung
+  carries nothing. Charged on the buy as well, the entry fee came off twice:
+  the USELESS run that ended on 29 September 2026 read $18.34 down on the
+  grid and $17.80 down in the Journal before the fix.
+- **A grid run can straddle two days, and each day keeps its own sales:** the
+  same USELESS run banked $9.55 on the 28th and lost $27.35 on the 29th, so
+  the 29th's tile is worse than the run was. The run's own total is the
+  Journal row.
 
 Practice wallets never enter a number on this screen. If one real wallet cannot
 be read, the rest of the screen stays up, the missing exchange is named, and

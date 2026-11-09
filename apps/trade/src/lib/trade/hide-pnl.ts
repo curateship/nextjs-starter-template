@@ -5,7 +5,7 @@ import * as React from "react"
  *
  * **Why it is a store rather than a React context.** These figures are on
  * nearly every screen this app has — the header, both order panels, the bottom
- * panel, the P&L page, a backtest, a flow's run — and a context would need a
+ * panel, a backtest, a flow's run — and a context would need a
  * provider wrapped round a tree the shell owns, which an app may not edit. A
  * module with a listener list is read from anywhere, and every figure on
  * screen redraws in the frame the switch is pressed.

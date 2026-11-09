@@ -10,7 +10,7 @@ import { loadGoal } from "@/server/trade/prefs"
  * How today is going against the daily goal.
  *
  * **Money made today is money banked today.** It is the same fills, priced the
- * same way, that the P&L page's month grid buckets and the PnL Graph adds up,
+ * same way, that the month grid buckets and the PnL Graph adds up,
  * so today's cell on that grid and this figure are one number. What the open
  * positions are up or down is reported beside it and never inside it: a
  * position opened last week would otherwise count its whole life as today's

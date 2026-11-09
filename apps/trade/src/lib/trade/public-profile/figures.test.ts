@@ -42,7 +42,7 @@ describe("publicFigures", () => {
     expect(figures.made.all).toEqual({ money: 320, fees: 11, unpriced: 1 })
   })
 
-  it("equals the P&L page's month grid summed over the same 30 days", () => {
+  it("equals the month grid summed over the same 30 days", () => {
     const days = bucketDays(fills, trades, windowStart(30, NOW))
     const tiles = [...days.values()].reduce((sum, day) => sum + day.money, 0)
     expect(figures.made["30d"].money).toBe(tiles)
