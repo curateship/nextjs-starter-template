@@ -148,8 +148,8 @@ export async function loadTradingOverview(
 
 /**
  * Every visible real fill of the wallets given, newest first, priced the way
- * the overview's Made or lost figure prices them. Shared with the P&L page so
- * its month grid adds up the same fills, and the same money, as the PnL Graph.
+ * the overview's Made or lost figure prices them. Shared with the month grid so
+ * it adds up the same fills, and the same money, as the PnL Graph.
  *
  * **A grid's sale is worth what its own rung made**, the same figure the chart
  * arrow and the Smart orders panel show, never the exchange's. The exchange
@@ -161,7 +161,7 @@ export async function loadTradingOverview(
  * decided by the buy it closed, which is often older than the window: the
  * daily goal reads today's fills, and a rung that bought yesterday and sold
  * this morning has its buy outside them. Pricing from the window alone made
- * the goal and the P&L page disagree about the same day by $68 on
+ * the goal and the month grid disagree about the same day by $68 on
  * 20 Sep 2026. So the fills of every market in the window are read in full,
  * used to work the round trips out, and only the window's own rows come back.
  */
@@ -169,7 +169,7 @@ export async function loadOverviewFills(
   userId: string,
   wallets: readonly Pick<TradeWallet, "id" | "label" | "protocol">[],
   /**
-   * Only fills at or after this instant. The overview and the P&L page want
+   * Only fills at or after this instant. The overview and the month grid want
    * every fill and leave it unset; the daily goal wants today's alone and
    * reads it every fifteen seconds, which is not a reason to carry eighty
    * thousand rows out of the database each time.
@@ -255,7 +255,7 @@ export async function loadOverviewFills(
 /**
  * What each fill made after fees, keyed by fill id: a grid's sale priced on
  * its own rung, everything else at the exchange's figure, and a zero the
- * exchange has not spoken for as null. The P&L page, the overview, the daily
+ * exchange has not spoken for as null. The month grid, the overview, the daily
  * goal and the public profile all price through here, so none of them can
  * count a fill differently. Hand it the buys behind the sales too.
  *
@@ -263,7 +263,7 @@ export async function loadOverviewFills(
  * already takes that entry fee off: `gridRoundTrips` prices a round trip after
  * both fees. Charged on the buy as well, the same fee came off twice, and a
  * finished run read lower here than its Journal row — the USELESS run of
- * 29 Sep 2026 was $18.34 down on the P&L page and $17.80 down in the Journal.
+ * 29 Sep 2026 was $18.34 down on the month grid and $17.80 down in the Journal.
  * The fee is not lost, it is counted on the day the rung sells, which is the
  * day the rest of that round trip is counted on.
  */

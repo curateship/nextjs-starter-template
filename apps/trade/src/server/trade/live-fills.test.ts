@@ -600,7 +600,7 @@ describe("live fill storage", () => {
     // Two rungs holding, bought at $1.00 and $0.90. The cheaper one sells at
     // $0.95 for $5 more than it paid, and the venue books it against the
     // $0.95 average of both, so it says nothing was made. The bell says what
-    // the rung made, the same figure the chart arrow and the P&L page show.
+    // the rung made, the same figure the chart arrow and the month grid show.
     const user = await insertUser(database)
     const wallet: TradeWallet = {
       id: crypto.randomUUID(),

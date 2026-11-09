@@ -74,7 +74,8 @@ export function PnlMonthGrid({
   /**
    * Where this grid's records begin. A public profile's record can start
    * before 20 August 2026, because it keeps what each exchange handed back
-   * when the wallet was added. Unset is the P&L page's own start.
+   * when the wallet was added. Unset is 20 August 2026, where the app's own
+   * records begin.
    */
   recordsSince?: number
 }) {

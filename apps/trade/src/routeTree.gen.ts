@@ -37,7 +37,6 @@ import { Route as AuthenticatedChangelogRouteImport } from './routes/_authentica
 import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
 import { Route as AuthenticatedFollowingRouteImport } from './routes/_authenticated/following'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
 import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
@@ -242,11 +241,6 @@ const AuthenticatedFollowingRoute = AuthenticatedFollowingRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
-  id: '/pnl',
-  path: '/pnl',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
@@ -648,7 +642,6 @@ export interface FileRoutesByFullPath {
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/pnl': typeof AuthenticatedPnlRoute
   '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -743,7 +736,6 @@ export interface FileRoutesByTo {
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/pnl': typeof AuthenticatedPnlRoute
   '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -841,7 +833,6 @@ export interface FileRoutesById {
   '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/_authenticated/following': typeof AuthenticatedFollowingRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
-  '/_authenticated/pnl': typeof AuthenticatedPnlRoute
   '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
@@ -939,7 +930,6 @@ export interface FileRouteTypes {
     | '/flow-runs'
     | '/following'
     | '/home'
-    | '/pnl'
     | '/social'
     | '/trade'
     | '/workspaces'
@@ -1034,7 +1024,6 @@ export interface FileRouteTypes {
     | '/flow-runs'
     | '/following'
     | '/home'
-    | '/pnl'
     | '/social'
     | '/trade'
     | '/workspaces'
@@ -1131,7 +1120,6 @@ export interface FileRouteTypes {
     | '/_authenticated/flow-runs'
     | '/_authenticated/following'
     | '/_authenticated/home'
-    | '/_authenticated/pnl'
     | '/_authenticated/social'
     | '/_authenticated/trade'
     | '/_authenticated/workspaces'
@@ -1438,13 +1426,6 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/pnl': {
-      id: '/_authenticated/pnl'
-      path: '/pnl'
-      fullPath: '/pnl'
-      preLoaderRoute: typeof AuthenticatedPnlRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/social': {
@@ -2040,7 +2021,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
   AuthenticatedFollowingRoute: typeof AuthenticatedFollowingRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
-  AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
   AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
@@ -2059,7 +2039,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
   AuthenticatedFollowingRoute: AuthenticatedFollowingRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
-  AuthenticatedPnlRoute: AuthenticatedPnlRoute,
   AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,

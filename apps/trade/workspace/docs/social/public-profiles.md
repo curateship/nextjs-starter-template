@@ -70,14 +70,14 @@ address.
 
 ## The figures
 
-Every figure uses the P&L page's counting, through the same code.
+Every figure uses the month grid's counting, through the same code.
 
 - **Money made** is each fill's money after fees, priced by `priceFills` in
-  `src/server/trade/trading-overview.ts`. The P&L page, the trading overview,
+  `src/server/trade/trading-overview.ts`. The trading overview,
   the daily goal and the public profile all price through that one function.
 - **Made in the last 7 and 30 days** start at midnight in Toronto on the
   first of those days, counting today. So the 30-day figure is the last 30
-  tiles of the P&L page's month grid added up.
+  tiles of the month grid added up.
 - **A sale the exchange has not priced yet** is counted apart, never as zero:
   "plus 22 sales the exchange has not priced yet".
 - **Fees** are shown beside each window: "-$483 after $48 of fees".
@@ -89,15 +89,9 @@ Every figure uses the P&L page's counting, through the same code.
   the account balance, because Trade does not keep deposit and withdrawal
   history.
 - **Days traded** is the Toronto days with at least one fill.
-- **The month grid** is the P&L page's own `PnlMonthGrid`, told where this
+- **The month grid** is the Profit calendar's own `PnlMonthGrid`, told where this
   record begins. The server adds the fills up by Toronto day and sends one
   total per day, so the page never carries the time of each trade.
-
-**Where the profile and the P&L page differ, and why.** The P&L page leaves
-binned trades out, and the profile keeps them. For the same 30 days the two
-agree when nothing in them is binned. That is what the tests prove. On
-24 Sep 2026 every one of Tyler's 5,739 September fills was binned, so his P&L
-page read "No trades" for September while the profile counted them all.
 
 ## Proving a wallet is theirs
 

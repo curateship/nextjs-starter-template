@@ -533,8 +533,8 @@ Every place that prices one sale shows this figure, and they all agree.
   order id with its level's name before the range can move, so every arrow a
   level ever makes carries the same name.
 - **The Smart orders panel**, on the grid's row, as banked.
-- **The trading overview and the P&L page**, on every row of their fill lists
-  and in the totals those rows add up to.
+- **The trading overview and its Profit calendar**, on every row of the
+  overview's fill list and in the totals those rows add up to.
 - **The daily goal**, and the wallet's own made-or-lost figure in the account
   panel, for the same reason: a total and the sales it is made of must never
   read as two different amounts.

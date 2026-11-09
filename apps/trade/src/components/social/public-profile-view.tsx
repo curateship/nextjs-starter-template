@@ -33,8 +33,8 @@ function day(at: number): string {
 }
 
 /**
- * What `/t/<handle>` draws: who, what the record shows, the month grid from
- * the P&L page, and every wallet the figures come from.
+ * What `/t/<handle>` draws: who, what the record shows, the month grid,
+ * and every wallet the figures come from.
  *
  * Wrapped in `ShowPublicFigures`, so the Hide P&L switch, which is about a
  * member's own screen, never blurs a page that was published on purpose.

@@ -166,12 +166,6 @@ export const tradeMarketFolderItems = pgTable(
 export const tradePrefs = pgTable("trade_prefs", {
   marketScanner: jsonb("market_scanner").$type<import("@/lib/trade/market-scanner").ScannerSettings>(),
   marketExplorer: jsonb("market_explorer").$type<import("@/lib/trade/market-explorer").ExplorerPrefs>(),
-  /**
-   * The P&L page's AI scores, one per period, each remembering which closed
-   * trades it was built from so it is reused until a trade closes. See
-   * `@/server/trade/pnl-score`.
-   */
-  pnlScores: jsonb("pnl_scores").$type<import("@/server/trade/pnl-score").StoredPnlScores>(),
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -1998,7 +1992,7 @@ export const tradeRecordFills = pgTable(
      * its grids still existed to price a grid's sale. Never changes again.
      */
     frozen: boolean("frozen").notNull().default(false),
-    /** Frozen rows only: what the P&L page said the fill made. Null is unpriced. */
+    /** Frozen rows only: what the month grid said the fill made. Null is unpriced. */
     money: doublePrecision("money"),
   },
   (table) => [

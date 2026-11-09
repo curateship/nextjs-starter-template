@@ -633,7 +633,7 @@ export async function loadWalletSummaries(
     settledByWallet.set(walletId, (settledByWallet.get(walletId) ?? 0) + money)
   // A grid's sale is worth what its own rung made, never what the venue books
   // it at against one blended average. Same rule and same arithmetic as the
-  // chart arrows and the P&L page, so a wallet's settled figure and the fills
+  // chart arrows and the month grid, so a wallet's settled figure and the fills
   // it is made of can never read as two different amounts. A sale whose buy is
   // older than this window keeps the venue's figure.
   const rungs = gridRoundTrips(

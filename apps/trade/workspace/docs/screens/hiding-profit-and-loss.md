@@ -19,7 +19,7 @@ Active trades dropdown is gone; there is one switch now, not two.
 - **Hidden: what you made or lost.** A position's open profit, the header's
   running total, the wallet's figure beside its balance, the Smart orders PnL
   column, the Manual orders pills, the Positions tab's Unrealized P&L, If
-  stopped and Journal results, the P&L page's day squares and its cards.
+  stopped and Journal results, and the Profit calendar's day squares.
 - **Readable: money you have and money already taken.** Balances, free cash,
   what a position is worth, order sizes and coin prices all stay, because
   somebody hiding their profit still has to be able to trade. The Smart orders

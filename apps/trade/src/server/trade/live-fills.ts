@@ -684,7 +684,7 @@ async function announceFills(
  * What each fresh grid sale made on its own rung, keyed by market and order,
  * and what the whole run made when the sale left no coins.
  *
- * The same arithmetic as the chart arrows, the overview and the P&L page
+ * The same arithmetic as the chart arrows, the overview and the month grid
  * (`gridRoundTrips`), so the bell never names a figure those screens would
  * contradict. The whole stored history of the market is read, because the buy
  * a rung sells is usually hours or days older than the sale. An order whose

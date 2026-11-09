@@ -9,12 +9,12 @@ import { walletProfitWindowStart } from "@/lib/trade/wallets"
 import { cn } from "@/lib/utils"
 
 /**
- * The P&L page's month grid, as a trading overview widget.
+ * The month grid, as a trading overview widget.
  *
  * It splits the overview's own real fills by Toronto day, so it asks the
  * server for nothing extra and moves with the overview's fifteen-second read.
  * The overview carries fills, not finished trades, so the tiles name dollars
- * and leave the trade count to the P&L page.
+ * and leave out the trade count.
  */
 export function ProfitCalendarWidget({
   overview,
