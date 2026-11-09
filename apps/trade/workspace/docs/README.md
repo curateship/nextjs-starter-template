@@ -109,10 +109,8 @@ screen: anything not written there has not been agreed yet.
   figures and the leaderboard minimums.
 - Social, the screens for following X creators (`/social`, `/social/manage`
   and `/social/<handle>`), was removed on 9 Nov 2026 along with its four docs.
-  Its saved creators and posts are still in the `trade_social_*` tables,
-  which nothing reads, until the drop in
-  `workspace/tasks/Deploy/drop-removed-feature-data.md` runs after the next
-  deploy.
+  Migration 0240 deleted its saved creators and posts, and the P&L page's
+  saved AI scores, in the release after the code went.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and
