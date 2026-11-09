@@ -650,7 +650,7 @@ type AutomationOptions = {
    */
   runButton?: "shown" | "hidden"
   /**
-   * Which flows offer "Test with contact…". Unset means every flow does, which
+   * Which flows offer "Test with one person…". Unset means every flow does, which
    * is what every app did before this existed. Named from when the test picked
    * a member's account; it picks a contact now, and the name stays so no app
    * that sets it breaks.
@@ -1093,7 +1093,7 @@ export function appShowsRunButton(options: AppOptions = appOptions): boolean {
 }
 
 /**
- * Whether this flow offers "Test with contact…".
+ * Whether this flow offers "Test with one person…".
  *
  * True unless the app says otherwise, so an app that has never heard of this
  * option behaves exactly as it did before.

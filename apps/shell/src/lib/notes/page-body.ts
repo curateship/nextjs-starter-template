@@ -33,6 +33,22 @@ export function storedPageBody(text: string, appBlockTypes: readonly string[] = 
   return noteIsEmpty(body, appBlockTypes) ? "" : JSON.stringify(body)
 }
 
+/**
+ * The stored page with an app block taken off, by its node name. An app block
+ * shows once per page, so its name finds it. Used to delete a block from a
+ * locked page, whose editor is drawn afresh once it is unlocked and so cannot
+ * remove the block itself (Tyler, 9 Nov 2026: "every bloick must have a
+ * delete block option").
+ */
+export function pageWithoutBlock(stored: string, nodeName: string): string {
+  try {
+    const doc = JSON.parse(stored) as { content?: { type?: string }[] }
+    return JSON.stringify({ ...doc, content: (doc.content ?? []).filter((node) => node.type !== nodeName) })
+  } catch {
+    return stored
+  }
+}
+
 /** One page as a screen holds it. */
 export type StoredPage = {
   /** The saved document as JSON text, or the starting page when none was saved. */

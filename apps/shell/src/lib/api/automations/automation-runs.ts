@@ -107,7 +107,8 @@ const deliveryListSchema = runIdSchema.extend({
   offset: z.number().int().min(0).max(100_000).default(0),
 })
 const testRunSchema = automationIdSchema.extend({
-  contactId: z.string().min(1).max(36),
+  /** The test picker's key: "c:<subscriber>" or "a:<account>". */
+  contactId: z.string().min(3).max(38),
 })
 const testContactSearchSchema = z.object({
   search: z.string().trim().max(120).default(""),
@@ -128,7 +129,7 @@ const runErrorMessages: Record<string, string> = {
   NO_SINGLE_START:
     "This flow has more than one starting step, so there is no single place to begin. Connect the steps into one line and try again.",
   REQUIRES_SUBJECT:
-    "This flow needs a real member or event to begin. Use Test with contact instead.",
+    "This flow needs a real member or event to begin. Use Test with one person instead.",
   ALREADY_DECIDED:
     "That run was already decided — somebody else got there first, or the deadline passed.",
   AUTOMATIONS_PAUSED:

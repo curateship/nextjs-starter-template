@@ -1,5 +1,4 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -19,13 +18,15 @@ export function FlowRunControls({
   onPaused,
   onRefresh,
   onWorking,
+  onRunAgain,
 }: {
   head: FlowRunReport["head"]
+  /** Opens the new run that Run again started. */
+  onRunAgain: (runId: string) => void
   onPaused: (paused: boolean) => void
   onWorking?: (working: boolean) => void
   onRefresh: () => Promise<void>
 }) {
-  const navigate = useNavigate()
   const [busy, setBusy] = React.useState(false)
   const pending = React.useRef(false)
   const [confirm, setConfirm] = React.useState<"stop" | "restart" | null>(null)
@@ -132,10 +133,7 @@ export function FlowRunControls({
                 return
               }
               setConfirm(null)
-              await navigate({
-                to: "/flow-runs/$runId",
-                params: { runId: result.runId },
-              })
+              onRunAgain(result.runId)
             } else {
               const result = await stopFlow(head.automationId)
               toast.success(result.summary)

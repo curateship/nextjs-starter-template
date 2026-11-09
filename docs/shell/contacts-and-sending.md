@@ -1,20 +1,29 @@
-# Contacts, and who a send goes to
+# Subscribers, and who a send goes to
 
-Everyone an app can email lives in one table, `contacts`, one row per address per
-website. This file is what a status means, who can set one, and the rule that
+The mailing list lives in one table, `contacts` (the CRM's Subscribers), one
+row per address per website. This file is what a status means, who can set one, and the rule that
 marks somebody as having gone quiet. It is true of Custom Shell, Trade, CMS and
 Video alike.
 
-## A contact is not an account
+## A subscriber is never an account
 
-Most contacts are also accounts, and `syncContactsFromUsers` keeps those rows in
-step with the account: the account owns the address and the name. A contact with
-no account is an address somebody typed in or imported, and it is still
-mailable.
+Accounts, subscribers and leads are three separate lists (Tyler, 9 Nov 2026:
+"users and subscribers are also seperate. Meaning that a user signs up for
+an account to the app does not gets added to the subscribers list.
+Subscribber lists are exclusive to impport, manual add or through an email
+form"). Signing up adds nobody to `contacts`; only a CSV import, a hand add,
+"Add to subscribers" on a lead, or (later) an email form does. One address
+may be on more than one list. Until that day every account was copied here
+by `syncContactsFromUsers`; migration 0111 removed those copies and the
+`contacts.user_id` link.
 
-The contact row keeps existing in its own right on purpose. A send records which
-contact it went to, and that record is what makes sending exactly once work, so
-the row cannot be a view over accounts.
+Newsletters and subscriber automations ("Every subscriber", a segment) go to
+`contacts` only. Account automations (every account, confirmed, paying, a
+plan, a member tag, and the member and billing events) email the account's
+own address from `users`, and an account opts out of them with its own link
+(`users.automated_mail_off_at`), not a subscriber status. A send records the
+contact or the account it went to, which is what makes sending exactly once
+work.
 
 ## The five statuses
 

@@ -1,13 +1,21 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { useNavigate } from "@tanstack/react-router"
-import { ImageIcon, LayoutDashboardIcon, MessageSquareIcon, PlusIcon, type LucideIcon } from "lucide-react"
+import { useNavigate, useRouter } from "@tanstack/react-router"
+import {
+  ImageIcon,
+  LayoutDashboardIcon,
+  MegaphoneIcon,
+  MessageSquareIcon,
+  PlusIcon,
+  UserPlusIcon,
+  type LucideIcon,
+} from "lucide-react"
 
 import type { AdminBlocks } from "@/components/admin-dashboard/admin-blocks"
 import { PlanRows } from "@/components/admin-dashboard/admin-blocks"
 import { AdminPagePanel } from "@/components/admin-dashboard/admin-page-panel"
 import { OpenPersonProvider } from "@/components/admin-dashboard/admin-parts"
-import { SideRows } from "@/components/shared/notes/side-rows"
+import { AnnouncementsTab, type AnnouncementsLoaded } from "@/components/admin-dashboard/announcements-tab"
 import { FeedbackTab, type FeedbackLoaded } from "@/components/admin-dashboard/feedback-tab"
 import { MediaTab, type MediaLoaded } from "@/components/admin-dashboard/media-tab"
 import { OverviewTab } from "@/components/admin-dashboard/overview-tab"
@@ -16,27 +24,31 @@ import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
 import { UsersTab, type UsersLoaded } from "@/components/admin-dashboard/users-tab"
 import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
 import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
-import { AnnouncementDialog } from "@/components/admin/announcement-dialog"
+import { AddAccountDialog } from "@/components/admin/add-account-dialog"
 import { PlanDialog } from "@/components/admin/plan-dialog"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { MenuFooterButton } from "@/components/shared/notes/tabbed-menu"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
 import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
-import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import {
   ADMIN_TAB_LABELS,
+  ADMIN_TABS,
   adminRangeOf,
   adminTabOf,
   adminTabSearch,
   type AdminSearch,
   type AdminTab,
 } from "@/lib/admin-dashboard/admin-search"
-import {
-  announcementStatus,
-  announcementStatusLabels,
-  windowText,
-} from "@/lib/admin-dashboard/announcement-status"
 import {
   ANALYTICS_DEFAULT_RANGE,
   ANALYTICS_RANGE_LABELS,
@@ -45,8 +57,6 @@ import {
 } from "@/lib/analytics/range"
 import { getAdminErrorMessage, loadAdminPages, loadAdminSectionCounts } from "@/lib/api/admin-dashboard"
 import { loadAdminPlans, type AdminPlan } from "@/lib/api/billing/admin-plans"
-import { loadAdminAnnouncements, type Announcement } from "@/lib/api/content/announcements"
-import { focusRingInset } from "@/lib/layout/focus-ring"
 import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import type { StoredPage } from "@/lib/notes/page-body"
 import { useLoad } from "@/lib/hooks/use-load"
@@ -57,6 +67,7 @@ import { cn } from "@/lib/utils"
 const SECTION_ICONS: Record<Exclude<AdminTab, "users">, LucideIcon> = {
   overview: LayoutDashboardIcon,
   feedback: MessageSquareIcon,
+  announcements: MegaphoneIcon,
   media: ImageIcon,
 }
 
@@ -65,6 +76,7 @@ export type AdminLoaded =
   | { tab: "overview"; figures: OverviewFigures; widgets: WidgetLayout }
   | { tab: "users"; users: UsersLoaded }
   | { tab: "feedback"; feedback: FeedbackLoaded }
+  | { tab: "announcements"; announcements: AnnouncementsLoaded }
   | { tab: "media"; media: MediaLoaded }
 
 /**
@@ -118,9 +130,11 @@ function samePlace(a: TabPlace | null, b: TabPlace) {
  * `workspace/tasks/admin-changes.md`).
  *
  * - **Left:** the site's Admin page, beside every section. Its fixed
- *   Dashboards block picks the section: Overview, Users, Feedback or Media
- *   library. Its ⋮ holds General (cover photo, Lock the notes),
- *   Announcements and Plans.
+ *   Dashboards block picks the section: Overview, Users, Feedback,
+ *   Announcements or Media library. Its ⋮ holds General (cover photo, Lock
+ *   blocks last) and Plans; Announcements left it for a section of its own
+ *   on 9 Nov 2026 ("Move the announcement from the top left settings into
+ *   its own dashboard").
  *   Its ⋮ also holds Overview's date range (General) and its widgets
  *   (Widgets).
  * - **Middle:** one header (the section's name, then its own toolbar), then
@@ -128,12 +142,13 @@ function samePlace(a: TabPlace | null, b: TabPlace) {
  *   straight on the dashboard and take the right panel's room too (Tyler,
  *   8 Nov 2026: "Remove the right panel for overview dashboard").
  * - **Right:** on Users, the person open; on Feedback, the thread open; on
- *   Media library, the file.
+ *   Announcements, the announcement, changed in place; on Media library, the
+ *   file.
  *
  * The left panel stays put while the section changes: only the middle and
  * the record on the right are the section's, so the left page, its ⋮ and
- * anything typed there carry on across a switch. Plans and announcements open
- * their windows over the dashboard. A member's name, wherever it shows, opens
+ * anything typed there carry on across a switch. Plans open their windows
+ * over the dashboard. A member's name, wherever it shows, opens
  * them in Users.
  */
 export function AdminDashboard({
@@ -151,21 +166,20 @@ export function AdminDashboard({
 
   const pagesRead = useLoad(loadAdminPages, getAdminErrorMessage)
   const plansRead = useLoad(loadAdminPlans, getAdminErrorMessage)
-  const announcementsRead = useLoad(
-    async () => (await loadAdminAnnouncements()).announcements,
-    getAdminErrorMessage
-  )
   const pages = pagesRead.data
   const [planOpen, setPlanOpen] = React.useState<AdminPlan | "new" | null>(null)
-  const [announcementOpen, setAnnouncementOpen] = React.useState<Announcement | "new" | null>(null)
-  // When the dashboard opened, so an announcement's Showing or Ended is read once.
-  const [openedAt] = React.useState(() => Date.now())
 
   // The counts beside the Dashboards block's rows, read again on each
   // section switch, after whatever was changed in the last one.
   const countsRead = useLoad(loadAdminSectionCounts, getAdminErrorMessage, { keys: [loaded.tab] })
 
   const pickTab = (next: AdminTab) => void navigate({ search: adminTabSearch(next, days) })
+  const router = useRouter()
+  // The Admin header's + (Tyler, 9 Nov 2026: "Add a + icon here with a
+  // dropdown to add announcements and users").
+  const [addingUser, setAddingUser] = React.useState(false)
+  const newAnnouncement = () =>
+    void navigate({ search: { ...adminTabSearch("announcements", days), draft: "1" } })
   const pickRange = (next: AnalyticsRange) =>
     void navigate({
       // The section is written too, so the address is never a bare one, which
@@ -183,8 +197,17 @@ export function AdminDashboard({
   // on every section, and the Dashboards block can count them.
   const widgets = useWidgetLayout("admin", loaded.tab === "overview" ? loaded.widgets : null)
 
+  // The sections the Dashboards block leaves out, kept with the site's look
+  // and saved as the rest of Settings is.
+  const { config, onConfigChange } = useShellRuntime()
+  const hiddenSections = (config.styling.hiddenAdminSections ?? []).filter((section): section is AdminTab =>
+    (ADMIN_TABS as readonly string[]).includes(section)
+  )
   const blocks: AdminBlocks = {
     tab,
+    hiddenSections,
+    onHiddenSectionsChange: (hidden) =>
+      onConfigChange({ ...config, styling: { ...config.styling, hiddenAdminSections: hidden } }),
     widgetCount: widgets.layout ? widgetsShown(widgets.layout) : null,
     onPickTab: pickTab,
     counts: countsRead.data,
@@ -249,7 +272,14 @@ export function AdminDashboard({
     reported?.tab === loaded.tab ? reported : { tab: loaded.tab, ids: [], ready: loaded.tab === "overview" }
 
   const recordLabel =
-    place.rightLabel ?? (loaded.tab === "users" ? "Person" : loaded.tab === "media" ? "File" : "Thread")
+    place.rightLabel ??
+    (loaded.tab === "users"
+      ? "Person"
+      : loaded.tab === "media"
+        ? "File"
+        : loaded.tab === "announcements"
+          ? "Announcement"
+          : "Thread")
   // The end of the middle's header: the button that reopens a shut right panel.
   const headingEnd = <PanelReopenButton side="right" label={`Show ${recordLabel.toLowerCase()}`} />
 
@@ -272,6 +302,17 @@ export function AdminDashboard({
     )
   } else if (loaded.tab === "feedback") {
     middle = <FeedbackTab key="feedback" loaded={loaded.feedback} search={search} heading={heading} headingEnd={headingEnd} frame={frame} />
+  } else if (loaded.tab === "announcements") {
+    middle = (
+      <AnnouncementsTab
+        key="announcements"
+        loaded={loaded.announcements}
+        search={search}
+        heading={heading}
+        headingEnd={headingEnd}
+        frame={frame}
+      />
+    )
   } else if (loaded.tab === "media") {
     middle = (
       <MediaTab
@@ -322,6 +363,7 @@ export function AdminDashboard({
             <AdminPagePanel
               title="Admin"
               menuLabel="Admin settings"
+              actions={<AddMenu onNewAnnouncement={newAnnouncement} onNewUser={() => setAddingUser(true)} />}
               page={pages?.left ?? null}
               error={pagesRead.error}
               onRetry={pagesRead.retry}
@@ -346,42 +388,21 @@ export function AdminDashboard({
               }
               menuTabs={[
                 {
-                  value: "announcements",
-                  label: "Announcements",
-                  content: (
-                    <MenuList
-                      rows={(announcementsRead.data ?? []).map((announcement) => {
-                        const status = announcementStatus(announcement, openedAt)
-                        return {
-                          key: announcement.id,
-                          name: announcement.title,
-                          line: windowText(announcement),
-                          value: announcementStatusLabels[status],
-                          onPress: () => setAnnouncementOpen(announcement),
-                        }
-                      })}
-                      reading={announcementsRead.data === null}
-                      error={announcementsRead.error}
-                      onRetry={announcementsRead.retry}
-                      empty="No announcements yet."
-                      newLabel="New announcement"
-                      onNew={() => setAnnouncementOpen("new")}
-                    />
-                  ),
-                },
-                {
                   value: "plans",
                   label: "Plans",
                   content: plansRead.data ? (
-                    <PlanRows
-                      plans={plansRead.data}
-                      onOpen={(plan) => setPlanOpen(plan)}
-                      onNew={() => setPlanOpen("new")}
-                    />
+                    <PlanRows plans={plansRead.data} onOpen={(plan) => setPlanOpen(plan)} />
                   ) : plansRead.error ? (
                     <ErrorRow message={plansRead.error} onRetry={plansRead.retry} className="py-4" />
                   ) : (
                     <p className="p-3 text-sm text-muted-foreground">Reading…</p>
+                  ),
+                  // The same footer as General's Lock blocks (Tyler, 9 Nov
+                  // 2026: "make both footer the same ui").
+                  footer: (
+                    <MenuFooterButton icon={<PlusIcon />} onClick={() => setPlanOpen("new")}>
+                      New plan
+                    </MenuFooterButton>
                   ),
                 },
                 {
@@ -430,6 +451,18 @@ export function AdminDashboard({
               }
         }
       >
+        <AddAccountDialog
+          // Remounts on every open, so the last invite's fields never linger.
+          key={addingUser ? "add-user-open" : "add-user-closed"}
+          open={addingUser}
+          onClose={() => setAddingUser(false)}
+          onCreated={async () => {
+            setAddingUser(false)
+            countsRead.retry()
+            // On Users, the list reads again with the new account in it.
+            if (loaded.tab === "users") await router.invalidate()
+          }}
+        />
         <PlanDialog
           key={planOpen === "new" ? "new-plan" : (planOpen?.id ?? "plan-closed")}
           open={planOpen !== null}
@@ -438,16 +471,6 @@ export function AdminDashboard({
           onSaved={async () => {
             setPlanOpen(null)
             plansRead.retry()
-          }}
-        />
-        <AnnouncementDialog
-          key={announcementOpen === "new" ? "new-announcement" : (announcementOpen?.id ?? "announcement-closed")}
-          open={announcementOpen !== null}
-          announcement={announcementOpen === "new" ? null : announcementOpen}
-          onClose={() => setAnnouncementOpen(null)}
-          onSaved={async () => {
-            setAnnouncementOpen(null)
-            announcementsRead.retry()
           }}
         />
       </ThreePanels>
@@ -490,42 +513,37 @@ function TabPanels({
   )
 }
 
-/** A list inside a ⋮ tab: its rows, then a New … button. */
-function MenuList({
-  rows,
-  reading,
-  error,
-  onRetry,
-  empty,
-  newLabel,
-  onNew,
-}: {
-  rows: React.ComponentProps<typeof SideRows>["rows"]
-  reading: boolean
-  error: string | null
-  onRetry: () => void
-  empty: string
-  newLabel: string
-  onNew: () => void
-}) {
-  if (reading && error) return <ErrorRow message={error} onRetry={onRetry} className="py-4" />
-  if (reading) return <p className="p-3 text-sm text-muted-foreground">Reading…</p>
+/**
+ * The + in the Admin header, before the ⋮ (Tyler, 9 Nov 2026: "Add a + icon
+ * here with a dropdown to add announcements and users"), drawn as the CRM's
+ * is. New announcement opens Announcements with a blank one on the right;
+ * New user opens the Add account window over whatever section is showing.
+ */
+function AddMenu({ onNewAnnouncement, onNewUser }: { onNewAnnouncement: () => void; onNewUser: () => void }) {
+  const [open, setOpen] = React.useState(false)
   return (
-    <SideRows
-      rows={rows}
-      empty={empty}
-      after={
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+      <DropdownMenuTrigger asChild>
         <Button
           type="button"
           variant="ghost"
-          size="sm"
-          className={cn("justify-self-start", focusRingInset)}
-          onClick={onNew}
+          size="icon"
+          aria-label="Add to Admin"
+          className={cn("shrink-0", open && "bg-muted")}
         >
           <PlusIcon className="size-4" />
-          {newLabel}
         </Button>
-      }
-    />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuItem onSelect={onNewAnnouncement}>
+          <MegaphoneIcon className="size-4 text-muted-foreground" />
+          New announcement
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onNewUser}>
+          <UserPlusIcon className="size-4 text-muted-foreground" />
+          New user
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

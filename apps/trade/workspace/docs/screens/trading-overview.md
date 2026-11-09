@@ -209,9 +209,12 @@ table. Backtests never enter the widget. The widget chooses the newest run of
 every automation before the history page's 200-run display limit is applied, so
 one frequently restarted automation cannot hide another.
 
-The whole row opens `/flow-runs/$runId`. The table scrolls inside the card when
-there are more rows than its height can hold. An empty card says "No running
-bots" and links to the automation canvases. The rows arrive in the same server
+For an admin, the whole row opens that bot on the Bots dashboard
+(`bots-dashboard.md`), its chart in the middle. A member cannot open that
+dashboard (Tyler, 9 Nov 2026: "Admins only"), so for a member the rows lead
+nowhere. The same widget is the Bots dashboard's own Overview widget too ("Both
+dashboards"). The table scrolls inside the card when there are more rows than
+its height can hold. An empty card says "No running bots". The rows arrive in the same server
 answer as the other overview widgets, with no timer of their own. A row keeps
 its last banked dollar figure until the overview is read again.
 

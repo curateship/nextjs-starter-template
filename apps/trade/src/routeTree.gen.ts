@@ -32,9 +32,8 @@ import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
-import { Route as AuthenticatedBacktestsRouteImport } from './routes/_authenticated/backtests'
+import { Route as AuthenticatedBotsRouteImport } from './routes/_authenticated/bots'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
-import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
 import { Route as AuthenticatedFollowingRouteImport } from './routes/_authenticated/following'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
@@ -66,16 +65,13 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
 import { Route as AuthenticatedAdminProfilesRouteImport } from './routes/_authenticated/admin/profiles'
-import { Route as AuthenticatedAdminRecipesRouteImport } from './routes/_authenticated/admin/recipes'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
-import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_authenticated/backtests_.$groupId'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog_.whats-new'
-import { Route as AuthenticatedFlowRunsRunIdRouteImport } from './routes/_authenticated/flow-runs_.$runId'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
@@ -86,7 +82,6 @@ import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from '.
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
-import { Route as AuthenticatedAdminRecipesRecipeIdRouteImport } from './routes/_authenticated/admin/recipes_.$recipeId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSettingsGoalsRouteImport } from './routes/_authenticated/admin/settings_.goals'
 import { Route as AuthenticatedAdminSettingsMarketsRouteImport } from './routes/_authenticated/admin/settings_.markets'
@@ -215,19 +210,14 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBacktestsRoute = AuthenticatedBacktestsRouteImport.update({
-  id: '/backtests',
-  path: '/backtests',
+const AuthenticatedBotsRoute = AuthenticatedBotsRouteImport.update({
+  id: '/bots',
+  path: '/bots',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedFlowRunsRoute = AuthenticatedFlowRunsRouteImport.update({
-  id: '/flow-runs',
-  path: '/flow-runs',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedFollowingRoute = AuthenticatedFollowingRouteImport.update({
@@ -399,12 +389,6 @@ const AuthenticatedAdminProfilesRoute =
     path: '/profiles',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminRecipesRoute =
-  AuthenticatedAdminRecipesRouteImport.update({
-    id: '/recipes',
-    path: '/recipes',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminReferralsRoute =
   AuthenticatedAdminReferralsRouteImport.update({
     id: '/referrals',
@@ -440,22 +424,10 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedBacktestsGroupIdRoute =
-  AuthenticatedBacktestsGroupIdRouteImport.update({
-    id: '/backtests_/$groupId',
-    path: '/backtests/$groupId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedChangelogWhatsNewRoute =
   AuthenticatedChangelogWhatsNewRouteImport.update({
     id: '/changelog_/whats-new',
     path: '/changelog/whats-new',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedFlowRunsRunIdRoute =
-  AuthenticatedFlowRunsRunIdRouteImport.update({
-    id: '/flow-runs_/$runId',
-    path: '/flow-runs/$runId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
@@ -511,12 +483,6 @@ const AuthenticatedAdminPagesEditRoute =
   AuthenticatedAdminPagesEditRouteImport.update({
     id: '/pages_/edit',
     path: '/pages/edit',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminRecipesRecipeIdRoute =
-  AuthenticatedAdminRecipesRecipeIdRouteImport.update({
-    id: '/recipes_/$recipeId',
-    path: '/recipes/$recipeId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminSettingsTabRoute =
@@ -617,9 +583,8 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
-  '/backtests': typeof AuthenticatedBacktestsRoute
+  '/bots': typeof AuthenticatedBotsRoute
   '/changelog': typeof AuthenticatedChangelogRoute
-  '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
   '/trade': typeof AuthenticatedTradeRoute
@@ -650,16 +615,13 @@ export interface FileRoutesByFullPath {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
-  '/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
-  '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -671,7 +633,6 @@ export interface FileRoutesByFullPath {
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
-  '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
@@ -708,9 +669,8 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
-  '/backtests': typeof AuthenticatedBacktestsRoute
+  '/bots': typeof AuthenticatedBotsRoute
   '/changelog': typeof AuthenticatedChangelogRoute
-  '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
   '/trade': typeof AuthenticatedTradeRoute
@@ -741,16 +701,13 @@ export interface FileRoutesByTo {
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
-  '/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
-  '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -762,7 +719,6 @@ export interface FileRoutesByTo {
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
-  '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
@@ -802,9 +758,8 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
-  '/_authenticated/backtests': typeof AuthenticatedBacktestsRoute
+  '/_authenticated/bots': typeof AuthenticatedBotsRoute
   '/_authenticated/changelog': typeof AuthenticatedChangelogRoute
-  '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/_authenticated/following': typeof AuthenticatedFollowingRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
@@ -835,16 +790,13 @@ export interface FileRoutesById {
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/profiles': typeof AuthenticatedAdminProfilesRoute
-  '/_authenticated/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/_authenticated/changelog_/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
-  '/_authenticated/flow-runs_/$runId': typeof AuthenticatedFlowRunsRunIdRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
@@ -856,7 +808,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
-  '/_authenticated/admin/recipes_/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/settings_/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/_authenticated/admin/settings_/markets': typeof AuthenticatedAdminSettingsMarketsRoute
@@ -896,9 +847,8 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/admin'
-    | '/backtests'
+    | '/bots'
     | '/changelog'
-    | '/flow-runs'
     | '/following'
     | '/home'
     | '/trade'
@@ -929,16 +879,13 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/plans'
     | '/admin/profiles'
-    | '/admin/recipes'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
-    | '/backtests/$groupId'
     | '/changelog/whats-new'
-    | '/flow-runs/$runId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -950,7 +897,6 @@ export interface FileRouteTypes {
     | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
-    | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
     | '/admin/settings/goals'
     | '/admin/settings/markets'
@@ -987,9 +933,8 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
-    | '/backtests'
+    | '/bots'
     | '/changelog'
-    | '/flow-runs'
     | '/following'
     | '/home'
     | '/trade'
@@ -1020,16 +965,13 @@ export interface FileRouteTypes {
     | '/admin/pages'
     | '/admin/plans'
     | '/admin/profiles'
-    | '/admin/recipes'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
     | '/admin/traffic'
     | '/admin/users'
-    | '/backtests/$groupId'
     | '/changelog/whats-new'
-    | '/flow-runs/$runId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1041,7 +983,6 @@ export interface FileRouteTypes {
     | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
-    | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
     | '/admin/settings/goals'
     | '/admin/settings/markets'
@@ -1080,9 +1021,8 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_authenticated/account'
     | '/_authenticated/admin'
-    | '/_authenticated/backtests'
+    | '/_authenticated/bots'
     | '/_authenticated/changelog'
-    | '/_authenticated/flow-runs'
     | '/_authenticated/following'
     | '/_authenticated/home'
     | '/_authenticated/trade'
@@ -1113,16 +1053,13 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/profiles'
-    | '/_authenticated/admin/recipes'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/system-emails'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
-    | '/_authenticated/backtests_/$groupId'
     | '/_authenticated/changelog_/whats-new'
-    | '/_authenticated/flow-runs_/$runId'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
@@ -1134,7 +1071,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
-    | '/_authenticated/admin/recipes_/$recipeId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/settings_/goals'
     | '/_authenticated/admin/settings_/markets'
@@ -1355,11 +1291,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/backtests': {
-      id: '/_authenticated/backtests'
-      path: '/backtests'
-      fullPath: '/backtests'
-      preLoaderRoute: typeof AuthenticatedBacktestsRouteImport
+    '/_authenticated/bots': {
+      id: '/_authenticated/bots'
+      path: '/bots'
+      fullPath: '/bots'
+      preLoaderRoute: typeof AuthenticatedBotsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/changelog': {
@@ -1367,13 +1303,6 @@ declare module '@tanstack/react-router' {
       path: '/changelog'
       fullPath: '/changelog'
       preLoaderRoute: typeof AuthenticatedChangelogRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/flow-runs': {
-      id: '/_authenticated/flow-runs'
-      path: '/flow-runs'
-      fullPath: '/flow-runs'
-      preLoaderRoute: typeof AuthenticatedFlowRunsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/following': {
@@ -1593,13 +1522,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProfilesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/recipes': {
-      id: '/_authenticated/admin/recipes'
-      path: '/recipes'
-      fullPath: '/admin/recipes'
-      preLoaderRoute: typeof AuthenticatedAdminRecipesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/referrals': {
       id: '/_authenticated/admin/referrals'
       path: '/referrals'
@@ -1642,25 +1564,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/backtests_/$groupId': {
-      id: '/_authenticated/backtests_/$groupId'
-      path: '/backtests/$groupId'
-      fullPath: '/backtests/$groupId'
-      preLoaderRoute: typeof AuthenticatedBacktestsGroupIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/changelog_/whats-new': {
       id: '/_authenticated/changelog_/whats-new'
       path: '/changelog/whats-new'
       fullPath: '/changelog/whats-new'
       preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/flow-runs_/$runId': {
-      id: '/_authenticated/flow-runs_/$runId'
-      path: '/flow-runs/$runId'
-      fullPath: '/flow-runs/$runId'
-      preLoaderRoute: typeof AuthenticatedFlowRunsRunIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google': {
@@ -1731,13 +1639,6 @@ declare module '@tanstack/react-router' {
       path: '/pages/edit'
       fullPath: '/admin/pages/edit'
       preLoaderRoute: typeof AuthenticatedAdminPagesEditRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/recipes_/$recipeId': {
-      id: '/_authenticated/admin/recipes_/$recipeId'
-      path: '/recipes/$recipeId'
-      fullPath: '/admin/recipes/$recipeId'
-      preLoaderRoute: typeof AuthenticatedAdminRecipesRecipeIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/settings/$tab': {
@@ -1880,7 +1781,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminProfilesRoute: typeof AuthenticatedAdminProfilesRoute
-  AuthenticatedAdminRecipesRoute: typeof AuthenticatedAdminRecipesRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -1892,7 +1792,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
-  AuthenticatedAdminRecipesRecipeIdRoute: typeof AuthenticatedAdminRecipesRecipeIdRoute
   AuthenticatedAdminSettingsGoalsRoute: typeof AuthenticatedAdminSettingsGoalsRoute
   AuthenticatedAdminSettingsMarketsRoute: typeof AuthenticatedAdminSettingsMarketsRoute
   AuthenticatedAdminSettingsTradingEngineRoute: typeof AuthenticatedAdminSettingsTradingEngineRoute
@@ -1921,7 +1820,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminProfilesRoute: AuthenticatedAdminProfilesRoute,
-  AuthenticatedAdminRecipesRoute: AuthenticatedAdminRecipesRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
@@ -1936,8 +1834,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
-  AuthenticatedAdminRecipesRecipeIdRoute:
-    AuthenticatedAdminRecipesRecipeIdRoute,
   AuthenticatedAdminSettingsGoalsRoute: AuthenticatedAdminSettingsGoalsRoute,
   AuthenticatedAdminSettingsMarketsRoute:
     AuthenticatedAdminSettingsMarketsRoute,
@@ -1957,31 +1853,25 @@ const AuthenticatedAdminRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
-  AuthenticatedBacktestsRoute: typeof AuthenticatedBacktestsRoute
+  AuthenticatedBotsRoute: typeof AuthenticatedBotsRoute
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRoute
-  AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
   AuthenticatedFollowingRoute: typeof AuthenticatedFollowingRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
-  AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
   AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
-  AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
-  AuthenticatedBacktestsRoute: AuthenticatedBacktestsRoute,
+  AuthenticatedBotsRoute: AuthenticatedBotsRoute,
   AuthenticatedChangelogRoute: AuthenticatedChangelogRoute,
-  AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
   AuthenticatedFollowingRoute: AuthenticatedFollowingRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
-  AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
   AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
-  AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

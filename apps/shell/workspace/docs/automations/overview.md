@@ -97,25 +97,42 @@ See [Automation run refresh](run-refresh.md) for live history updates and
 [App-owned automation run results](app-owned-run-results.md) for app-specific
 reports inside a completed step.
 
-## Testing with one contact
+## Who a flow reaches
 
-"Test with contact…" walks a flow as if it were about one real contact. Tyler
-asked for contacts on 17 Oct 2026: "it should search contacts, not users".
+The Audience step picks one of two lists that never mix (Tyler, 9 Nov 2026:
+"users and subscribers are also seperate"):
 
-- **Who can be picked.** Any contact in this site that a real send could
-  reach: subscribed or cold, with no account behind it or with an active
-  member's account. An admin's or an app role's account is never offered.
+- **Subscribers:** Every subscriber, or the subscribers in a segment, read
+  from `contacts`; nobody opted out, bouncing or reported as spam.
+- **Accounts:** Every account, accounts that confirmed their email, paying
+  accounts, one plan, or a member tag, read from `users` and emailed at
+  their own address; never a suspended or closing account, or one that
+  turned automated mail off with its email's unsubscribe link.
+
+A step with no Audience before it emails the run's own person: the
+subscriber a segment trigger was about, or the account a member or billing
+event was about. The audience code is `src/server/automations/audience.ts`.
+
+## Testing with one person
+
+"Test with one person…" walks a flow as if it were about one real person.
+
+- **Who can be picked.** A subscriber a real send could reach (subscribed or
+  cold), or an active member account of this site that has not turned
+  automated mail off, each labelled with its kind. An admin's or an app
+  role's account is never offered. Test a subscriber flow on a subscriber
+  and an account flow on an account.
 - **Where the emails go.** Every email goes to the admin who started the test,
   with "[TEST for their address]" in front of the subject. The contact gets
   nothing.
-- **The same checks as a real send.** The email is skipped when the contact
-  is not in the email's audience, or has an account whose email is not
-  confirmed. A contact with no account has nothing to confirm.
+- **The same checks as a real send.** The email is skipped when the person
+  is not in the email's audience, or is an account whose email is not
+  confirmed. A subscriber has nothing to confirm.
 - **Tags, waits and webhooks are skipped.** The history says what they would
   have done, such as "Would have called https://… Skipped in this test." A step
   an app adds is skipped unless the app marks it safe for tests.
-- **A step that needs an account.** On a contact with no account, the tag step
-  says it would stop a real run there, then the test carries on.
+- **A step that needs an account.** On a subscriber, the tag step says it
+  would stop a real run there, then the test carries on.
 
 The picker reads from `src/server/automations/test-contacts.ts`. Apps can hide
 the button on flows with nobody in them through the `memberTest` option, which

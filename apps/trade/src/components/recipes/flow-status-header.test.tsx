@@ -19,16 +19,16 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,
     to,
-    params,
+    search,
     ...props
   }: {
     children: ReactNode
     to: string
-    params?: { runId?: string }
+    search?: { open?: string }
     "aria-label"?: string
     className?: string
   }) => (
-    <a data-to={to} data-run-id={params?.runId} {...props}>
+    <a data-to={to} data-run-id={search?.open} {...props}>
       {children}
     </a>
   ),
@@ -175,7 +175,7 @@ describe("stopping a flow", () => {
 })
 
 describe("reading a flow", () => {
-  it("links the run name and figures to the run dashboard", async () => {
+  it("links the run name and figures to the bot on the Bots dashboard", async () => {
     await act(async () => {
       root.render(<FlowStatusHeader automationId="flow-1" />)
     })
@@ -183,7 +183,7 @@ describe("reading a flow", () => {
     const summary = host.querySelector(
       'a[aria-label="Open Live run dashboard"]'
     )
-    expect(summary?.getAttribute("data-to")).toBe("/flow-runs/$runId")
+    expect(summary?.getAttribute("data-to")).toBe("/bots")
     expect(summary?.getAttribute("data-run-id")).toBe("run-1")
     expect(summary?.textContent).toContain("Live")
     expect(summary?.textContent).not.toContain("Spending cap")
@@ -196,7 +196,7 @@ describe("reading a flow", () => {
       root.render(<FlowStatusHeader automationId="flow-1" />)
     })
 
-    expect(host.querySelector('a[data-to="/flow-runs/$runId"]')).toBeNull()
+    expect(host.querySelector('a[data-to="/bots"]')).toBeNull()
     expect(host.textContent).toContain("Live")
     expect(host.textContent).not.toContain("Spending cap")
   })

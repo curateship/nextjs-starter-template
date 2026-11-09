@@ -6,7 +6,6 @@ import { ContactPanel } from "@/components/broadcasts/contact-panel"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
 import { useHandSegmentActions, type CrmFrame } from "@/components/crm/crm-frame"
 import { CrmPeopleList } from "@/components/crm/crm-people-list"
-import { LeadRecord } from "@/components/crm/lead-record"
 import type { ViewChoice } from "@/components/shared/view-menu"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -81,6 +80,7 @@ export function CrmPeopleTab({
   heading,
   headingEnd,
   frame,
+  onOpenLead,
 }: {
   data: ContactsPage
   search: CrmSearch
@@ -91,6 +91,8 @@ export function CrmPeopleTab({
   headingEnd: React.ReactNode
   /** Draws the section into the dashboard's one frame. */
   frame: CrmFrame
+  /** Opens a lead in the Leads section, from a subscriber's "Add to leads". */
+  onOpenLead: (leadId: string) => void
 }) {
   const router = useRouter()
   // The reader left only this tab's keys in the address (`readCrmSearch`).
@@ -210,15 +212,10 @@ export function CrmPeopleTab({
 
   const shownSegmentWindow = segmentWindow ?? closingSegmentWindow
 
-  // The lead open on the right, when the open row is one.
-  const openRow = data.rows.find((row) => row.id === openId)
-  const openLead = openRow?.kind === "lead" ? openRow.lead : null
-
   const segmentTotals = new Map((figures?.segments ?? []).map((entry) => [entry.id, entry.total]))
   const pills: ViewChoice[] = [
-    { value: "all", label: "All", count: data.peopleCounts.all },
-    { value: "leads", label: "Leads", count: data.peopleCounts.leads },
-    { value: "subscribed", label: "Subscribers", count: data.shortcuts.subscribed },
+    { value: "all", label: "All", count: data.total },
+    { value: "subscribed", label: "On the list", count: data.shortcuts.subscribed },
     { value: "unsubscribed", label: "Opted out", count: data.shortcuts.unsubscribed },
     ...data.segments.map((segment) => ({
       value: `segment:${segment.id}`,
@@ -228,9 +225,7 @@ export function CrmPeopleTab({
   ]
   // Which pill is lit. Rules picked in Filter that match no pill light none.
   const pill =
-    listSearch.view === "leads"
-      ? "leads"
-      : openSegment && !segmentChanged
+    openSegment && !segmentChanged
         ? `segment:${openSegment.id}`
         : rules.conditions.length === 0 && !openSegment
           ? "all"
@@ -242,9 +237,8 @@ export function CrmPeopleTab({
 
   /** A pill pressed: its people, from the first page. The open person stays open. */
   const pressPill = (value: string) => {
-    const base = { view: undefined, filter: undefined, segment: undefined, page: undefined }
-    if (value === "leads") setListSearch({ ...base, view: "leads" })
-    else if (value === "subscribed") setListSearch({ ...base, filter: cleanSegmentRules(SUBSCRIBED.rules) })
+    const base = { filter: undefined, segment: undefined, page: undefined }
+    if (value === "subscribed") setListSearch({ ...base, filter: cleanSegmentRules(SUBSCRIBED.rules) })
     else if (value === "unsubscribed") setListSearch({ ...base, filter: cleanSegmentRules(OPTED_OUT.rules) })
     else if (value.startsWith("segment:")) setListSearch({ ...base, segment: value.slice("segment:".length) })
     else setListSearch(base)
@@ -265,8 +259,8 @@ export function CrmPeopleTab({
   })
 
   return frame({
-    ids: data.rows.map((row) => row.id),
-    showMiddleFor: `${listSearch.view ?? ""}|${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`,
+    ids: data.contacts.map((contact) => contact.id),
+    showMiddleFor: `${listSearch.segment ?? ""}|${JSON.stringify(listSearch.filter ?? null)}`,
     showRightFor: openId,
     middle: (
       <CrmPeopleList
@@ -287,20 +281,13 @@ export function CrmPeopleTab({
           setSegmentWindow({ mode: "new", rules: saved, searchExcluded })
         }
         onRefresh={refresh}
+        onOpenLead={onOpenLead}
       />
     ),
     right: {
-      label: "Person",
-      showLabel: "Show the person",
-      content: openLead ? (
-        <LeadRecord
-          key={openLead.id}
-          leadId={openLead.id}
-          newestThreadId={openLead.newestThreadId}
-          onOpenContact={(contactId) => setOpenContact(contactId)}
-          onChanged={refresh}
-        />
-      ) : (
+      label: "Subscriber",
+      showLabel: "Show the subscriber",
+      content: (
         <ContactPanel
           key={openId ?? "none"}
           contactId={openId}

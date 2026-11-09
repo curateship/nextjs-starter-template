@@ -1,5 +1,13 @@
 # Backtest screens
 
+Backtests are the Backtests row of the Bots dashboard at `/bots?view=backtests`
+(`../screens/bots-dashboard.md`) since 9 Nov 2026. The table lists every run
+and has no right panel: a line opens its chart (or the Graph) in the middle
+over its trades, and the right panel holds Figures, Results and Skipped as
+tabs, with Stop in its footer while it runs. Pin, Archive, Delete and the name
+are in the opened backtest's ⋮; Delete is on a line's right-click too; Show
+archived is in Filter.
+
 ## Refreshing the list
 
 While a backtest runs, the list refreshes every two seconds without dimming
@@ -10,8 +18,9 @@ The existing error message and retry action remain available after a failure.
 
 ## How long a run took
 
-The Backtests list has a sortable Took column. A finished run says "Took 4m".
-The stats panel on the run page repeats the same duration under its title.
+The Backtests table has a sortable Took column, shown once the middle is wide
+enough. A finished run says "Took 4m". An opened run's Figures tab repeats the
+same duration at its top.
 Both screens use the shared duration formatter for seconds, minutes, hours
 and days. Sorting compares the full elapsed time, not the rounded text.
 Pinned runs stay above the sort.
@@ -179,15 +188,16 @@ This control starts backtests only. If the saved Wallet step now names a
 trading wallet, the request is refused instead of switching on trading.
 
 To check the workflow, select 1h, 4h and 1d on a pretend-money DCA recipe and
-press Backtest once. Follow View all backtests and check the three names.
+press Backtest once. Follow View all backtests, which opens the Backtests row,
+and check the three names.
 Reload the list and open each result to check its candle size. Then choose
 an oversized small-candle window and confirm that the refusal names the size
 and creates no rows. Clear all checkboxes to check the empty-selection error.
 
 ## Progress on a running backtest
 
-The full run page shows the shared meter beneath the stats header, and the
-canvas card and Backtests list show the same words from `backtestMeter`
+An opened run's Figures tab shows the shared meter under its duration, and the
+canvas card and the Backtests table show the same words from `backtestMeter`
 (`src/lib/trade/backtest/progress.ts`). A run with no coin rows starts at zero.
 Finished runs hide the meter.
 

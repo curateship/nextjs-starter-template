@@ -20,6 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { UNTITLED_SECTION_LABEL } from "@/lib/custom-shell"
+import { cn } from "@/lib/utils"
 import {
   collapseStorageKey,
   useRememberedCollapse,
@@ -116,7 +117,7 @@ function SidebarCollapsibleItem({
       <SidebarMenuItem>
         <div
           data-active={entry.active}
-          className="flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent/50 data-active:text-sidebar-accent-foreground"
+          className="relative flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent/50 data-active:text-sidebar-accent-foreground"
         >
           <SidebarMenuButton
             asChild
@@ -126,7 +127,13 @@ function SidebarCollapsibleItem({
               entry.active &&
               (!hasActiveChild || !open || state === "collapsed")
             }
-            className="flex-1 hover:bg-transparent active:bg-transparent data-active:bg-transparent data-open:hover:bg-transparent"
+            // The name has the whole row; it gives the arrow room only while
+            // the arrow shows (Tyler, 9 Nov 2026: "theres still too much
+            // space here for the text to truncate").
+            className={cn(
+              "flex-1 hover:bg-transparent active:bg-transparent data-active:bg-transparent data-open:hover:bg-transparent",
+              state === "expanded" && hasChildren && "group-hover/collapsible:pr-8 has-[~button:focus-visible]:pr-8"
+            )}
           >
             <a {...getNavLinkProps(entry.href, onNavClick, onNavigate)}>
               {entry.icon}
@@ -137,7 +144,9 @@ function SidebarCollapsibleItem({
             <CollapsibleTrigger asChild>
               <button
                 type="button"
-                className="rounded-md p-2 opacity-0 transition-[opacity,color] hover:bg-transparent group-hover/collapsible:opacity-100 focus-visible:opacity-100"
+                // Over the row's end rather than beside the name, so an
+                // arrow nobody sees takes no room.
+                className="absolute top-1/2 right-0 -translate-y-1/2 rounded-md p-2 opacity-0 transition-[opacity,color] hover:bg-transparent group-hover/collapsible:opacity-100 focus-visible:opacity-100"
                 onClick={(event) => event.stopPropagation()}
               >
                 <ChevronRight className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />

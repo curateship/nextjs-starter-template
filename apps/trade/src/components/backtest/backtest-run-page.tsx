@@ -1,19 +1,21 @@
 import * as React from "react"
-import { useNavigate, useRouter } from "@tanstack/react-router"
+import { useRouter } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { BacktestChartPanel } from "@/components/backtest/backtest-chart-panel"
 import { BacktestMarketsPanel } from "@/components/backtest/backtest-markets-panel"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
 import { BacktestTradesPanel } from "@/components/backtest/backtest-trades-panel"
+import { OpenRunPanel } from "@/components/bots/bots-record"
+import { FooterState } from "@/components/crm/record-frame"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
+import { Button } from "@/components/ui/button"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
-  PanelReopenTab,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-  WorkspacePanel,
 } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -62,14 +64,10 @@ import {
 } from "@/lib/trade/panel-layout"
 
 /**
- * One backtest, laid out as a workspace: the settings it ran with on the left,
- * the chart in the middle, what it came to on the right, and its coins and
- * trades along the bottom.
- *
- * The same four panels as the Trade screen and the Automation Canvas, built on
- * the same parts — so resizing, collapsing, the reopen tabs and the remembered
- * layout behave identically on all three and only had to be got right once. A
- * results page that scrolled would be a fourth way of arranging this app.
+ * One backtest opened on the Bots dashboard (9 Nov 2026): its chart, or the
+ * Graph of the pot over the whole run, fills the middle with its trades in a
+ * panel under it, and the right panel holds its Figures, Results and Skipped
+ * as tabs. The left panel stays the dashboard's page.
  *
  * Every figure is a **dollar amount**, worked out when the run was saved.
  * Nothing here recalculates anything: a page doing its own sums would drift
@@ -110,54 +108,45 @@ export function BacktestRunPage({
   coins,
   openCoin,
   initialPanelLayouts,
+  heading,
+  menu,
+  onBack,
+  onCoin,
+  onOpenRecipe,
+  frame,
 }: {
   run: BacktestRunView
   coins: BacktestCoinRow[]
-  /** `?run=<market key>` — which coin's chart is open. */
+  /** `?coin=<market key>`: which coin's chart is open. */
   openCoin: string | null
   initialPanelLayouts: TradePanelLayouts
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  heading: React.ReactNode
+  /** The backtest's ⋮, beside the right panel's tabs. */
+  menu: React.ReactNode
+  /** Back to the Backtests table. */
+  onBack: () => void
+  /** Puts the coin on the chart in the address; `push` when somebody picked it. */
+  onCoin: (marketKey: string, push: boolean) => void
+  /** Opens the recipe this ran, on its canvas. */
+  onOpenRecipe: () => void
+  /** The Bots dashboard's frame: the middle and the right panel. */
+  frame: (panels: { header: React.ReactNode; middle: React.ReactNode; right: { label: string; content: React.ReactNode } }) => React.ReactNode
 }) {
-  const navigate = useNavigate()
   const router = useRouter()
   const desktop = useWideScreen()
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  const horizontalKey = tradePanelLayoutKey.backtestHorizontal
   const verticalKey = tradePanelLayoutKey.backtestVertical
-  const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[horizontalKey],
-    panelLayouts.layouts.current[horizontalKey],
-    (layout) => panelLayouts.remember(horizontalKey, layout)
-  )
   const verticalLayout = useRememberedPanelLayoutInPlace(
     tradePanelIds[verticalKey],
     panelLayouts.layouts.current[verticalKey],
     (layout) => panelLayouts.remember(verticalKey, layout)
   )
 
-  const statsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const tradesPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const [marketsTab, setMarketsTab] = React.useState<"results" | "skipped">(
-    "results"
-  )
-  const [statsCollapsed, setStatsCollapsed] = React.useState(false)
-  const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
-
-  // Double-clicking a panel's blank space shuts it, the same gesture the Trade
-  // workspace and the canvas use.
-  const toggleStatsPanel = usePanelToggle(statsPanelRef)
-  const toggleStats = React.useCallback(() => {
-    toggleStatsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleStatsPanel])
-  const toggleMarketsPanel = usePanelToggle(marketsPanelRef)
-  const toggleMarkets = React.useCallback(() => {
-    toggleMarketsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleMarketsPanel])
-  const statsDoubleClick = useBlankSpaceDoubleClick(toggleStats)
-  const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
+  // The right panel's tabs: the run in figures, then its two lists.
+  const [rightTab, setRightTab] = React.useState<"figures" | "results" | "skipped">("figures")
   const toggleTradesPanel = usePanelToggle(tradesPanelRef)
   const toggleTrades = React.useCallback(() => {
     toggleTradesPanel()
@@ -355,13 +344,8 @@ export function BacktestRunPage({
 
   React.useEffect(() => {
     if (!activeCoin || activeCoin === openCoin) return
-    void navigate({
-      to: "/backtests/$groupId",
-      params: { groupId: run.id },
-      search: { run: activeCoin },
-      replace: true,
-    })
-  }, [activeCoin, navigate, openCoin, run.id])
+    onCoin(activeCoin, false)
+  }, [activeCoin, onCoin, openCoin])
 
   /**
    * Believed from the click until the page is read again.
@@ -393,11 +377,7 @@ export function BacktestRunPage({
     // Picking a coin is asking to see it, so the panel swaps over to the
     // candles rather than leaving the click looking like it did nothing.
     setView("chart")
-    void navigate({
-      to: "/backtests/$groupId",
-      params: { groupId: run.id },
-      search: { run: marketKey },
-    })
+    onCoin(marketKey, true)
   }
 
   const selectTrade = (trade: number | null) => {
@@ -426,10 +406,7 @@ export function BacktestRunPage({
         ]).size
       }
       failedCount={coins.filter((coin) => coin.status === "error").length}
-      onShowSkipped={() => {
-        setMarketsTab("skipped")
-        marketsPanelRef.current?.expand()
-      }}
+      onShowSkipped={() => setRightTab("skipped")}
       timing={{
         createdAt: run.createdAt,
         finishedAt: run.finishedAt,
@@ -450,14 +427,11 @@ export function BacktestRunPage({
       progress={meter.value}
       progressText={meter.text}
       running={!done}
-      stopRequested={run.stopRequested || stopping}
-      onStop={askToStop}
     />
   )
   const marketsPanel = (
     <BacktestMarketsPanel
-      tab={marketsTab}
-      onTabChange={setMarketsTab}
+      tab={rightTab === "skipped" ? "skipped" : "results"}
       coins={coins}
       skipped={run.result?.skipped ?? []}
       openCoin={activeCoin}
@@ -486,149 +460,95 @@ export function BacktestRunPage({
       loading={activeCoin !== null && shown === null && shownError === null}
       error={shownError}
       live={!done}
-      automationId={run.automationId}
+      title={run.name ?? run.automationName}
+      onBack={onBack}
+      onOpenRecipe={onOpenRecipe}
+      headerEnd={heading}
       chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
       onChartToolbarPositionChange={panelLayouts.rememberChartToolbarPosition}
       onRetry={retryChart}
     />
   )
 
-  const upper = desktop ? (
+  const tradesPanel = (
+    <BacktestTradesPanel
+      symbol={coins.find((coin) => coin.marketKey === activeCoin)?.symbol ?? null}
+      summary={coins.find((coin) => coin.marketKey === activeCoin)?.summary ?? null}
+      trades={shown?.trades ?? []}
+      loading={activeCoin !== null && shown === null && shownError === null}
+      error={shownError}
+      selected={selectedTrade}
+      onRetry={retryChart}
+      onSelect={selectTrade}
+    />
+  )
+
+  // The chart over its trades, with a line between them to drag (Tyler, 9 Nov
+  // 2026: "the chart has the trades in the bottom panel"). A narrow screen
+  // stacks the two and scrolls.
+  const middle = desktop ? (
     <ResizablePanelGroup
-      groupRef={horizontalLayout.groupRef}
-      orientation="horizontal"
+      groupRef={verticalLayout.groupRef}
+      orientation="vertical"
       className="min-h-0 flex-1"
-      onLayoutChanged={horizontalLayout.onLayoutChanged}
+      onLayoutChanged={verticalLayout.onLayoutChanged}
     >
+      <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
+        <div className="relative flex h-full min-h-0 flex-col">{chartPanel}</div>
+      </ResizablePanel>
+      <ResizableHandle className={NO_RING} />
       <ResizablePanel
-        id="stats"
-        panelRef={statsPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="14%"
+        id="trades"
+        panelRef={tradesPanelRef}
+        defaultSize="32%"
         minSize="14%"
-        maxSize="32%"
-        onResize={(size) => setStatsCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          className="flex flex-col"
-          collapsed={statsCollapsed}
-          onDoubleClick={statsDoubleClick}
-        >
-          {statsPanel}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={statsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" defaultSize="70%" minSize="30%">
-        <WorkspacePanel className="relative flex min-w-0 flex-1 flex-col">
-          {chartPanel}
-          {/* Shown where a panel disappeared, so getting it back is findable
-              without having to remember that the divider is still draggable —
-              the same tab the trade screen puts there. */}
-          {statsCollapsed ? (
-            <PanelReopenTab
-              side="left"
-              label="Show the run's figures"
-              onClick={toggleStats}
-            />
-          ) : null}
-          {marketsCollapsed ? (
-            <PanelReopenTab
-              side="right"
-              label="Show the results"
-              onClick={toggleMarkets}
-            />
-          ) : null}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
-      <ResizablePanel
-        id="markets"
-        panelRef={marketsPanelRef}
+        maxSize="60%"
+        // Down to its own header rather than to nothing, so its title never disappears.
         collapsible
-        collapsedSize="0%"
-        defaultSize="16%"
-        minSize="16%"
-        maxSize="36%"
-        onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
+        collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
       >
-        <WorkspacePanel
-          className="flex flex-col"
-          collapsed={marketsCollapsed}
-          onDoubleClick={marketsDoubleClick}
-        >
-          {marketsPanel}
-        </WorkspacePanel>
+        <div className="flex h-full min-h-0 flex-col" onDoubleClick={tradesDoubleClick}>
+          {tradesPanel}
+        </div>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
-    // Narrow screens stack the three rather than squeezing them into a width
-    // none of them fits in. The chart leads, because it is the thing you came
-    // to look at.
     <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
-          {chartPanel}
-        </WorkspacePanel>
-        <WorkspacePanel className="flex flex-col">
-          {marketsPanel}
-        </WorkspacePanel>
-        <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
-      </div>
+      <div className="flex h-[60vh] min-w-0 flex-col">{chartPanel}</div>
+      <div className="flex flex-col border-t">{tradesPanel}</div>
     </ScrollArea>
   )
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup
-        groupRef={verticalLayout.groupRef}
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        onLayoutChanged={verticalLayout.onLayoutChanged}
-      >
-        <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
-          <div className="flex h-full min-h-0">{upper}</div>
-        </ResizablePanel>
-        {/* Keeps its gap even while the panel below is collapsed — that
-            collapsed tab row is still a panel on screen, and this handle is
-            what makes it draggable back open. */}
-        <ResizableHandle gap className={NO_RING} />
-        <ResizablePanel
-          id="trades"
-          panelRef={tradesPanelRef}
-          defaultSize="32%"
-          minSize="14%"
-          maxSize="60%"
-          // Down to its own header rather than to nothing, so its tabs and
-          // their counts never disappear.
-          collapsible
-          collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-        >
-          <WorkspacePanel
-            className="flex flex-col"
-            onDoubleClick={tradesDoubleClick}
-          >
-            <BacktestTradesPanel
-              symbol={
-                coins.find((coin) => coin.marketKey === activeCoin)?.symbol ??
-                null
-              }
-              summary={
-                coins.find((coin) => coin.marketKey === activeCoin)?.summary ??
-                null
-              }
-              trades={shown?.trades ?? []}
-              loading={
-                activeCoin !== null && shown === null && shownError === null
-              }
-              error={shownError}
-              selected={selectedTrade}
-              onRetry={retryChart}
-              onSelect={selectTrade}
-            />
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+  const skippedCount = new Set([
+    ...coins.filter((coin) => coin.status === "skipped").map((coin) => coin.marketKey),
+    ...(run.result?.skipped ?? []).map((coin) => coin.marketKey),
+  ]).size
+  const right = (
+    <OpenRunPanel
+      tabs={[
+        { value: "figures", label: "Figures" },
+        { value: "results", label: "Results", count: coins.filter((coin) => coin.summary).length },
+        { value: "skipped", label: "Skipped", count: skippedCount + coins.filter((coin) => coin.status === "error").length },
+      ]}
+      value={rightTab}
+      onValueChange={(value) => setRightTab(value as typeof rightTab)}
+      menu={menu}
+      hideLabel="Hide the backtest"
+      footer={
+        <>
+          <FooterState>{done ? "Finished" : run.stopRequested || stopping ? "Stopping" : "Running"}</FooterState>
+          {!done ? (
+            <Button type="button" variant="outline" disabled={run.stopRequested || stopping} onClick={askToStop}>
+              {run.stopRequested || stopping ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+              Stop
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      {rightTab === "figures" ? statsPanel : marketsPanel}
+    </OpenRunPanel>
   )
+
+  return frame({ header: null, middle, right: { label: "Backtest", content: right } })
 }

@@ -101,7 +101,7 @@ export function SegmentSelectField({
           There are no segments yet. Make one in{" "}
           <Link
             to="/admin/crm"
-            search={{ tab: "people" }}
+            search={{ tab: "subscribers" }}
             className="underline underline-offset-2 hover:text-foreground"
           >
             CRM, People

@@ -384,7 +384,7 @@ describe("where a trade notice leads", () => {
       title: "Flow Ladder stopped",
       body: "The wallet was switched off.",
       level: "warning",
-      href: "/flow-runs/run-7",
+      href: "/bots?view=bots&open=run-7&full=1",
       database,
     })
     await writeTradeNotice({
@@ -399,7 +399,7 @@ describe("where a trade notice leads", () => {
     expect(ids).toHaveLength(2)
     const found = await tradeNoticeDetailsFor(userId, ids)
     expect(Object.values(found).map((one) => one.href)).toEqual([
-      "/flow-runs/run-7",
+      "/bots?view=bots&open=run-7&full=1",
       null,
     ])
   })

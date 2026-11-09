@@ -3,8 +3,8 @@ import { formatUtcDate } from "@/lib/format/format-time"
 
 /**
  * How an announcement reads in a list: whether it is showing, and the days
- * it runs. The Admin dashboard's Announcements
- * tab (left panel's ⋮) and the announcement window both read these.
+ * it runs. The Admin dashboard's Announcements section reads these, its rows
+ * and the announcement open on the right.
  */
 
 /** Up now, starting later, or over. */

@@ -36,3 +36,14 @@ apps look the same. Tyler: "we still need to have all apps to be standardize".
 
 The UI standard's "The one dropdown look" says how it is laid out
 (`.agents/skills/Ui-standards/SKILL.md`).
+
+## The arrow on a link with pages under it
+
+A link with pages under it, such as Admin Dashboard over CRM and Automations,
+has a fold arrow at its right end that shows only while the row is pointed at
+or the arrow has keyboard focus. The arrow floats over the row's end
+(`sidebar-group-collapsible.tsx`), so while it is hidden the name has the
+whole row, and only while it shows does the name give it 32px. Before 9 Nov
+2026 the hidden arrow still held its 32px, so "Admin Dashboard" was cut to
+"Admin…" with empty room beside it (Tyler: "theres still too much space here
+for the text to truncate").

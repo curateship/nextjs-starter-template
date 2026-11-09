@@ -1,30 +1,30 @@
 /**
  * Deliberate Trade-owned fork of the shell automation editor. Recipes keep the
- * proven canvas save, drag, edge and panel behavior, while omitting shell runs,
- * templates, member tests and scheduled automation controls.
+ * proven canvas save, drag, edge and inspector behavior, while omitting shell
+ * runs, templates, member tests and scheduled automation controls.
+ *
+ * On the Bots dashboard (9 Nov 2026) an opened recipe fills the middle, and the
+ * right panel shows only while a step is picked, holding its settings. The left panel stays the
+ * dashboard's page (Tyler: "if we combine all the sidebars, there's like 3
+ * sidebar on the left"), so the five steps are added from a + Add step button
+ * at the top of the canvas instead of a panel of their own.
  */
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
-import type { PanelImperativeHandle } from "react-resizable-panels"
-import { WorkflowIcon } from "lucide-react"
+import { ArrowLeftIcon, FlaskConicalIcon, PlusIcon } from "lucide-react"
 
 import BacktestCanvasPanel from "@/components/recipes/backtest-canvas-panel"
 import FlowStatusHeader from "@/components/recipes/flow-status-header"
 import { RecipeFlowCanvas } from "@/components/recipes/recipe-flow-canvas"
 import { RecipeInspector } from "@/components/recipes/recipe-inspector"
-import { RecipePalette } from "@/components/recipes/recipe-palette"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
+import { RecipeNodeIcon } from "@/components/recipes/recipe-node-icon"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  PanelReopenTab,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  WorkspacePanel,
-} from "@/components/ui/resizable"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import {
@@ -33,48 +33,48 @@ import {
   type RecipeDetail,
 } from "@/lib/api/trade/recipes"
 import { useLastValue } from "@/lib/hooks/use-last-value"
-import {
-  useBlankSpaceDoubleClick,
-  usePanelToggle,
-} from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
-import { pageGutter } from "@/lib/layout/shell-gutter"
-import { useWideScreen } from "@/lib/layout/wide-screen"
 import { compileRecipeGraph } from "@/lib/recipes/compile"
-import { createRecipeNode, recipeNodeName } from "@/lib/recipes/registry"
+import { cn } from "@/lib/utils"
+import { createRecipeNode, RECIPE_PALETTE_ITEMS, recipeNodeName } from "@/lib/recipes/registry"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
 
 const SAVE_DEBOUNCE_MS = 700
-const HORIZONTAL_LAYOUT_KEY = "trade-recipe-editor-horizontal-2"
 
 export function RecipeEditor({
   initial,
-  openNode,
+  node,
+  onNode,
+  heading,
+  menu,
+  onBack,
+  onOpenBacktest,
+  frame,
 }: {
   initial: Pick<RecipeDetail, "id" | "name" | "graph">
-  openNode?: string
+  /**
+   * `?node=`: the step picked, by its id (or its kind, from an older link).
+   * Kept in the address, because the dashboard shows the right panel only
+   * while a step is picked.
+   */
+  node?: string
+  /** Picks a step, or none. */
+  onNode: (nodeId: string | null) => void
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  heading: React.ReactNode
+  /** The recipe's ⋮, last in the middle's header before the reopen button. */
+  menu: React.ReactNode
+  /** Back to the Recipes table. */
+  onBack: () => void
+  /** The Results tab: the recipe's newest finished backtest, opened in the dashboard. */
+  onOpenBacktest: (groupId: string) => void
+  /** The Bots dashboard's frame: the middle, and the right panel while a step is picked. */
+  frame: (panels: { header: React.ReactNode; middle: React.ReactNode; right?: { label: string; content: React.ReactNode } }) => React.ReactNode
 }) {
   const { reportSaveStatus } = useShellRuntime()
-  const navigate = useNavigate()
   const [name] = React.useState(initial.name)
   const [graph, setGraph] = React.useState(initial.graph)
-  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
-    () => {
-      if (!openNode) return null
-      const found =
-        initial.graph.nodes.find((node) => node.id === openNode) ??
-        initial.graph.nodes.find((node) => node.kind === openNode)
-      return found?.id ?? null
-    }
-  )
-  const [previewNode, setPreviewNode] = React.useState<AutomationNode | null>(
-    null
-  )
-  const [draggedNodeKey, setDraggedNodeKey] = React.useState<string | null>(
-    null
-  )
   const [selectedEdgeId, setSelectedEdgeId] = React.useState<string | null>(
     null
   )
@@ -90,22 +90,14 @@ export function RecipeEditor({
     height: 0,
   })
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
-  const [backtestShut, setBacktestShut] = React.useState(false)
+  // Shut until the header's Backtest button opens it.
+  const [backtestShut, setBacktestShut] = React.useState(true)
   const [latestResultId, setLatestResultId] = React.useState<string | null>(
     null
   )
 
-  const desktop = useWideScreen()
-  const [paletteCollapsed, setPaletteCollapsed] = React.useState(false)
-  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
+  const [addOpen, setAddOpen] = React.useState(false)
   const graphRef = React.useRef(graph)
-  const palettePanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const horizontalLayout = useRememberedPanelLayout(HORIZONTAL_LAYOUT_KEY)
-  const togglePalette = usePanelToggle(palettePanelRef)
-  const toggleInspector = usePanelToggle(inspectorPanelRef)
-  const paletteDoubleClick = useBlankSpaceDoubleClick(togglePalette)
-  const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
 
   React.useEffect(() => {
     graphRef.current = graph
@@ -215,17 +207,12 @@ export function RecipeEditor({
   }, [reportSaveStatus])
 
   const compiled = React.useMemo(() => compileRecipeGraph(graph), [graph])
-  const selectedNode =
-    previewNode ??
-    (selectedNodeId
-      ? (graph.nodes.find((node) => node.id === selectedNodeId) ?? null)
-      : null)
+  const selectedNode = node
+    ? (graph.nodes.find((one) => one.id === node) ?? graph.nodes.find((one) => one.kind === node) ?? null)
+    : null
+  const selectedNodeId = selectedNode?.id ?? null
   const updateNode = React.useCallback(
     (nextNode: AutomationNode) => {
-      if (nextNode.id === previewNode?.id) {
-        setPreviewNode(nextNode)
-        return
-      }
       changeGraph((current) => ({
         ...current,
         nodes: current.nodes.map((node) =>
@@ -233,15 +220,11 @@ export function RecipeEditor({
         ),
       }))
     },
-    [changeGraph, previewNode?.id]
+    [changeGraph]
   )
 
   const deleteNode = React.useCallback(
     (nodeId: string) => {
-      if (nodeId === previewNode?.id) {
-        setPreviewNode(null)
-        return
-      }
       changeGraph((current) => ({
         ...current,
         nodes: current.nodes.filter((node) => node.id !== nodeId),
@@ -249,17 +232,13 @@ export function RecipeEditor({
           (edge) => edge.from !== nodeId && edge.to !== nodeId
         ),
       }))
-      setSelectedNodeId(null)
+      onNode(null)
     },
-    [changeGraph, previewNode?.id]
+    [changeGraph, onNode]
   )
 
   const requestDeleteNode = React.useCallback(
     (nodeId: string) => {
-      if (nodeId === previewNode?.id) {
-        deleteNode(nodeId)
-        return
-      }
       const node = graphRef.current.nodes.find((item) => item.id === nodeId)
       if (!node) return
       setDeleteTarget({
@@ -271,7 +250,7 @@ export function RecipeEditor({
       })
       deleteConfirmedRef.current = false
     },
-    [deleteNode, previewNode?.id]
+    []
   )
 
   const createNode = React.useCallback(
@@ -282,16 +261,6 @@ export function RecipeEditor({
         y: 0,
       }),
     []
-  )
-
-  const previewPaletteNode = React.useCallback(
-    (key: string) => {
-      setPreviewNode(createNode(key))
-      setSelectedNodeId(null)
-      setSelectedEdgeId(null)
-      inspectorPanelRef.current?.expand()
-    },
-    [createNode]
   )
 
   const placeNode = React.useCallback(
@@ -308,11 +277,10 @@ export function RecipeEditor({
         ...current,
         nodes: [...current.nodes, placedNode],
       }))
-      setPreviewNode(null)
-      setSelectedNodeId(placedNode.id)
+      onNode(placedNode.id)
       setSelectedEdgeId(null)
     },
-    [canvasSize.width, changeGraph]
+    [canvasSize.width, changeGraph, onNode]
   )
 
   const addNode = React.useCallback(
@@ -327,9 +295,42 @@ export function RecipeEditor({
       graph={graph}
       errors={compiled.errors}
       onNodeChange={updateNode}
-      onAddNode={previewNode ? placeNode : undefined}
       onDeleteNode={requestDeleteNode}
+      headerEnd={<SidePanelCollapseButton side="right" label="Hide the step" />}
     />
+  )
+
+  // The five steps, in place of a panel of their own (Tyler, 9 Nov 2026: "+ Add
+  // step button"), beside the canvas's zoom bar ("actually move the add step
+  // here", "it should be its own button and not stuck with the others").
+  // Picking one puts it on the canvas and shows its settings on the right.
+  const addStep = (
+    <FoldingMenu
+      label="Add a step"
+      fit
+      align="start"
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      trigger={
+        <Button type="button" variant="outline" size="sm" className="h-7.5 bg-card/90 shadow-sm backdrop-blur-sm">
+          <PlusIcon />
+          Add step
+        </Button>
+      }
+    >
+      {RECIPE_PALETTE_ITEMS.map((item) => (
+        <MenuAction
+          key={item.key}
+          icon={<RecipeNodeIcon icon={item.icon} className="size-4" />}
+          onClick={() => {
+            setAddOpen(false)
+            addNode(item.key)
+          }}
+        >
+          {item.name}
+        </MenuAction>
+      ))}
+    </FoldingMenu>
   )
 
   const canvas = (
@@ -339,67 +340,74 @@ export function RecipeEditor({
       selectedNodeId={selectedNodeId}
       selectedEdgeId={selectedEdgeId}
       onGraphChange={(next) => changeGraph(() => next)}
-      onSelectNode={(nodeId) => {
-        setPreviewNode(null)
-        setSelectedNodeId(nodeId)
-      }}
+      onSelectNode={onNode}
       onSelectEdge={setSelectedEdgeId}
       onDeleteNode={requestDeleteNode}
       onSizeChange={setCanvasSize}
-      onDropNode={
-        draggedNodeKey
-          ? (position) => {
-              addNode(draggedNodeKey, position)
-              setDraggedNodeKey(null)
-            }
-          : undefined
-      }
+      toolbarEnd={addStep}
     />
   )
 
+
+  // The middle's one header (Tyler, 9 Nov 2026: "Turn recipe name into tabs
+  // ... [Recipe name canvas][result] put the backtest button here"): the way
+  // back, then the recipe's name as the Canvas tab and Results beside it, then
+  // the trading status, Backtest, + Add step and the recipe's ⋮.
   const canvasHeader = (
-    <DashboardCardTitleHeader
-      icon={<WorkflowIcon className="size-4" />}
-      back={{ to: "/admin/recipes", label: "Back to recipes" }}
-      title={name}
-      action={
-        <div className="flex items-center gap-2">
-          <FlowStatusHeader automationId={initial.id} beforeRun={saveNow} />
-          <Tabs value="canvas">
-            <TabsList aria-label="Recipe view">
-              <TabsTrigger value="canvas">Canvas</TabsTrigger>
-              <TabsTrigger
-                value="results"
-                disabled={latestResultId === null}
-                onClick={() => {
-                  if (!latestResultId) return
-                  void navigate({
-                    to: "/backtests/$groupId",
-                    params: { groupId: latestResultId },
-                  })
-                }}
-              >
-                Results
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      }
-    />
+    <DashboardCardHeader className="gap-2">
+      <Button type="button" variant="ghost" size="icon" aria-label="Back to recipes" className="-ml-1 shrink-0" onClick={onBack}>
+        <ArrowLeftIcon className="size-4" />
+      </Button>
+      <DashboardTabs
+        value="canvas"
+        onValueChange={(value) => {
+          if (value === "results" && latestResultId) onOpenBacktest(latestResultId)
+        }}
+        tabs={[
+          { value: "canvas", label: name },
+          {
+            value: "results",
+            // Results opens the newest finished backtest in the Backtests row.
+            // With none yet it is greyed out and does nothing, and its tooltip
+            // says how to make one (Tyler, 9 Nov 2026: "remove the toast
+            // altogether and gray out the result tab if no result is ready").
+            label: latestResultId ? (
+              "Results"
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span aria-disabled="true" className="text-muted-foreground/50">
+                    Results
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>No result yet. Press Backtest to run one.</TooltipContent>
+              </Tooltip>
+            ),
+          },
+        ]}
+      />
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <FlowStatusHeader automationId={initial.id} beforeRun={saveNow} />
+        <Button
+          type="button"
+          variant={backtestShut ? "outline" : "secondary"}
+          aria-pressed={!backtestShut}
+          onClick={() => setBacktestShut((shut) => !shut)}
+        >
+          <FlaskConicalIcon className="size-4" />
+          Backtest
+        </Button>
+        {menu}
+        {heading}
+      </div>
+    </DashboardCardHeader>
   )
 
-  const backtestPanel = backtestShut ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="absolute top-3 right-3 z-10 shadow-sm"
-      onClick={() => setBacktestShut(false)}
-    >
-      Backtest
-    </Button>
-  ) : (
-    <div className="absolute top-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)]">
+  // The Backtest window floats over the canvas while the header's Backtest
+  // button is pressed. It stays mounted while shut, hidden, because it is what
+  // finds the newest result the Results tab opens.
+  const backtestPanel = (
+    <div className={cn("absolute top-3 right-3 z-10 w-80 max-w-[calc(100%-1.5rem)]", backtestShut && "hidden")}>
       <BacktestCanvasPanel
         automationId={initial.id}
         runId={null}
@@ -411,99 +419,13 @@ export function RecipeEditor({
     </div>
   )
 
-  const workspace = desktop ? (
-    <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
-      orientation="horizontal"
-      className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
-      onLayoutChanged={horizontalLayout.onLayoutChanged}
-    >
-      <ResizablePanel
-        id="palette"
-        panelRef={palettePanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="14%"
-        minSize="14%"
-        maxSize="26%"
-        onResize={(size) => setPaletteCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          collapsed={paletteCollapsed}
-          onDoubleClick={paletteDoubleClick}
-        >
-          <RecipePalette
-            onSelect={previewPaletteNode}
-            onAdd={addNode}
-            onDragStart={setDraggedNodeKey}
-            onDragEnd={() => setDraggedNodeKey(null)}
-          />
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={paletteCollapsed} />
-      <ResizablePanel id="canvas" defaultSize="68%" minSize="30%">
-        <WorkspacePanel className="flex flex-col">
-          {canvasHeader}
-          <div className="relative flex min-h-0 flex-1">
-            {canvas}
-            {backtestPanel}
-            {paletteCollapsed ? (
-              <PanelReopenTab
-                side="left"
-                label="Show recipe steps"
-                onClick={togglePalette}
-              />
-            ) : null}
-            {inspectorCollapsed ? (
-              <PanelReopenTab
-                side="right"
-                label="Show recipe settings"
-                onClick={toggleInspector}
-              />
-            ) : null}
-          </div>
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={inspectorCollapsed} />
-      <ResizablePanel
-        id="inspector"
-        panelRef={inspectorPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="18%"
-        minSize="18%"
-        maxSize="34%"
-        onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          collapsed={inspectorCollapsed}
-          onDoubleClick={inspectorDoubleClick}
-        >
-          {inspector}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  ) : (
-    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+  const middle = (
+    <div className="flex min-h-0 flex-1 flex-col">
       {canvasHeader}
       <div className="relative flex min-h-0 flex-1">
         {canvas}
         {backtestPanel}
       </div>
-    </WorkspacePanel>
-  )
-
-  return (
-    <div
-      className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: pageGutter }}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" || !previewNode) return
-        deleteNode(previewNode.id)
-      }}
-    >
-      <div className="flex min-h-0 flex-1 flex-col">{workspace}</div>
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -539,4 +461,8 @@ export function RecipeEditor({
       />
     </div>
   )
+
+  // No right panel until a step is picked (Tyler, 9 Nov 2026: "For the canvas
+  // page, just dont show the right panel until a node is clicked on").
+  return frame({ header: null, middle, right: selectedNode ? { label: "Step", content: inspector } : undefined })
 }

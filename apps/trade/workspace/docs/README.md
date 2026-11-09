@@ -58,6 +58,11 @@ screen: anything not written there has not been agreed yet.
 - `who-can-open-a-protocol-screen.md` — the Trade dashboard at `/trade` sits
   outside `/admin` so a member opens it, Overview included, why one address
   serves every protocol, and what stays admin-only.
+- `bots-dashboard.md` — the Bots dashboard at `/bots` (9 Nov 2026): Recipes,
+  Backtests and Bots in one 3 panel dashboard with an Overview, the left page
+  that never changes, a line opened in the middle (chart over trades, or the
+  canvas with + Add step), tabs on the right, admins only, and where the old
+  links went.
 - [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
 - `dashboard-blocks.md` — the one Trade dashboard at `/trade` (8 Nov 2026):
   the left page with the fixed Protocols block (Overview and each exchange,
@@ -109,10 +114,8 @@ screen: anything not written there has not been agreed yet.
   figures and the leaderboard minimums.
 - Social, the screens for following X creators (`/social`, `/social/manage`
   and `/social/<handle>`), was removed on 9 Nov 2026 along with its four docs.
-  Its saved creators and posts are still in the `trade_social_*` tables,
-  which nothing reads, until the drop in
-  `workspace/tasks/Deploy/drop-removed-feature-data.md` runs after the next
-  deploy.
+  Migration 0240 deleted its saved creators and posts, and the P&L page's
+  saved AI scores, in the release after the code went.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and

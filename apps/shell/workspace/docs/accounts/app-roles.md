@@ -111,8 +111,6 @@ out, as before.
 Places that used to treat "not an admin" as "a member" now say which role they
 mean:
 
-- **Contacts.** An account's contact is tagged with its own role, `employee`
-  included, and the sync owns one tag per role the app has.
 - **Membership.** Members are counted by name, and people in app roles are
   left out of the free plan's head count.
 - **Traffic.** Only visitors and members are counted. Admins and app roles are

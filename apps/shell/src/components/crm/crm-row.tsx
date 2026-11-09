@@ -1,9 +1,9 @@
 import * as React from "react"
-import { ListChecksIcon, SearchIcon } from "lucide-react"
+import { ListChecksIcon } from "lucide-react"
 
 import { PointAnchor } from "@/components/crm/point-anchor"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
+import { cn } from "@/lib/utils"
 
 export type RowMenuItem = {
   label: string
@@ -74,14 +75,18 @@ export function CrmRowMenu({
 /**
  * The one middle header every CRM tab has (the Admin 3 panel design,
  * "Middle panel"): the Broadcasts, Inbox and People tabs, then the "N
- * selected" slot while rows are ticked, the search box once opened, Filter,
- * the view dropdown,
- * the one primary New … button, and the ⋮ last. The ⋮ always holds Search
- * and Mass select; a tab adds its own rows after them (People's Import).
+ * selected" slot while rows are ticked, the search box, Mass select right after it (Tyler, 9 Nov 2026: "mass
+ * select should be after saerch field"), Filter, the view dropdown, the one
+ * primary New … button, and
+ * a ⋮ only where the tab has rows of its own for it (People's Import).
+ * Search and Mass select are buttons of their own, out of the ⋮, and every
+ * button but New has a line round it and a white fill, the outline look,
+ * so none of them reads as plain text (Tyler, 9 Nov 2026: "Lets take the
+ * search and mass selet out of the dropdown and have all the buttons use a
+ * more visible button").
  *
- * The search box opens from the ⋮ with the cursor in it, after the menu has
- * closed, because an open menu keeps the focus. Typing waits 300ms before the
- * list is asked again, so the caret never jumps.
+ * Search is a box that is always there. Typing waits 300ms before the list
+ * is asked again, so the caret never jumps.
  */
 export function CrmListHeader({
   tabs,
@@ -112,9 +117,7 @@ export function CrmListHeader({
   menuItems?: { label: string; icon: React.ReactNode; onClick: () => void }[]
 }) {
   const [text, setText] = useSyncedDraft(search.value)
-  const [searchOpen, setSearchOpen] = React.useState(search.value.length > 0)
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const searchAsked = React.useRef(false)
 
   // The owner rebuilds the callback every render, so it waits in a ref and the
   // timer is keyed on the words alone.
@@ -131,63 +134,48 @@ export function CrmListHeader({
   return (
     <DashboardCardHeader className="@container gap-2">
       {tabs}
-      <div className="ml-auto flex min-w-0 shrink items-center gap-1">
+      {/* A ghost button here (Filter, the view dropdown, the ⋮) takes the
+          outline look too, as Search and Mass select have it. The line is
+          a light grey of its own, not the Divider lines colour from
+          Settings (Tyler, 9 Nov 2026: "dont wire the border to the
+          settings. Let it have its own border and make the border light
+          gray", then "reduce the border shade a bit": 60% of that grey).
+          The search box takes the same line. */}
+      <div className="ml-auto flex min-w-0 shrink items-center gap-1.5 [&_[data-variant=ghost]]:bg-background [&_[data-variant=ghost]:hover]:bg-muted [&_[data-variant=ghost]]:border-zinc-200/60 [&_[data-variant=outline]]:border-zinc-200/60 [&_input]:border-zinc-200/60 dark:[&_[data-variant=ghost]]:border-zinc-700/60 dark:[&_[data-variant=outline]]:border-zinc-700/60 dark:[&_input]:border-zinc-700/60">
         {selected}
-        {searchOpen || text ? (
-          <DashboardToolbarSearch
-            autoFocus={searchOpen}
-            className="min-w-0 shrink"
-            inputClassName="sm:w-40 lg:w-48"
-            name={search.name}
-            aria-label={search.label}
-            placeholder={search.placeholder}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onBlur={() => setSearchOpen(false)}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape") return
-              // Escape clears first and closes second.
-              if (text) setText("")
-              else setSearchOpen(false)
-            }}
-          />
+        {/* A search box that is always there (Tyler, 9 Nov 2026: "make the
+            search an actual search field"); Escape clears it. */}
+        <DashboardToolbarSearch
+          className="min-w-0 shrink"
+          inputClassName="sm:w-40 lg:w-48"
+          name={search.name}
+          aria-label={search.label}
+          placeholder={search.placeholder}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && text) setText("")
+          }}
+        />
+        {massSelect ? (
+          <DashboardToolbarButton
+            type="button"
+            variant="outline"
+            aria-pressed={massSelect.on}
+            aria-label={massSelect.on ? "Hide select" : "Mass select"}
+            className={cn(massSelect.on && "bg-muted")}
+            onClick={massSelect.onToggle}
+          >
+            <ListChecksIcon className="size-4" />
+            <span className="@max-3xl:sr-only">{massSelect.on ? "Hide select" : "Select"}</span>
+          </DashboardToolbarButton>
         ) : null}
         {filter}
         {view}
         {primary}
-        <FoldingMenu
-          label={menuLabel}
-          fit
-          open={menuOpen}
-          onOpenChange={setMenuOpen}
-          onCloseAutoFocus={(event) => {
-            if (!searchAsked.current) return
-            searchAsked.current = false
-            event.preventDefault()
-            setSearchOpen(true)
-          }}
-        >
-          <MenuAction
-            icon={<SearchIcon className="size-4" />}
-            onClick={() => {
-              searchAsked.current = true
-              setMenuOpen(false)
-            }}
-          >
-            Search
-          </MenuAction>
-          {massSelect ? (
-            <MenuAction
-              icon={<ListChecksIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                massSelect.onToggle()
-              }}
-            >
-              {massSelect.on ? "Hide select" : "Mass select"}
-            </MenuAction>
-          ) : null}
-          {(menuItems ?? []).map((item) => (
+        {menuItems?.length ? (
+        <FoldingMenu label={menuLabel} fit open={menuOpen} onOpenChange={setMenuOpen}>
+          {menuItems.map((item) => (
             <MenuAction
               key={item.label}
               icon={item.icon}
@@ -200,8 +188,10 @@ export function CrmListHeader({
             </MenuAction>
           ))}
         </FoldingMenu>
-        {end}
+        ) : null}
       </div>
+      {/* Outside the buttons above, so the reopen button keeps its plain look. */}
+      {end}
     </DashboardCardHeader>
   )
 }

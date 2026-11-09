@@ -6,6 +6,7 @@ import {
   SortableTableHeader,
   type TableHeaderColumn,
 } from "@/components/shared/sortable-table-header"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,7 +20,11 @@ import {
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
+import { initialsFor } from "@/lib/crm/inbox-time"
 import { cn } from "@/lib/utils"
+
+/** Whether the table showing has its end column of open buttons. */
+const CrmTableActions = React.createContext(true)
 
 /**
  * The CRM's lists as tables, laid out the way Project's middle panel lays out
@@ -48,6 +53,7 @@ export function CrmTable<Column extends string>({
   select,
   empty,
   after,
+  actions = true,
   children,
 }: {
   columns: TableHeaderColumn<Column>[]
@@ -65,9 +71,15 @@ export function CrmTable<Column extends string>({
   empty?: React.ReactNode
   /** Under the table, inside the scroller: Load more. */
   after?: React.ReactNode
+  /**
+   * The column at the end with each row's open button (and bin). Off where a
+   * row only opens and the cog says nothing a press does not (Tyler, 9 Nov
+   * 2026, of System emails: "remove the action col").
+   */
+  actions?: boolean
   children: React.ReactNode
 }) {
-  const colSpan = columns.length + (select ? 2 : 1)
+  const colSpan = columns.length + (select ? 1 : 0) + (actions ? 1 : 0)
   const [pressed, setPressed] = React.useState<object | null>(null)
   // The one record waiting to open: a new press cancels it, and so does the
   // table going away (found by the audit, 8 Nov 2026).
@@ -108,9 +120,11 @@ export function CrmTable<Column extends string>({
             ) : null
           }
           trailing={
-            <TableHead column="meta">
-              <span className="sr-only">Actions</span>
-            </TableHead>
+            actions ? (
+              <TableHead column="meta">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            ) : null
           }
         />
         <TableBody>
@@ -121,7 +135,9 @@ export function CrmTable<Column extends string>({
               </TableCell>
             </TableRow>
           ) : (
-            <CrmTableSpan.Provider value={colSpan}>{children}</CrmTableSpan.Provider>
+            <CrmTableSpan.Provider value={colSpan}>
+              <CrmTableActions.Provider value={actions}>{children}</CrmTableActions.Provider>
+            </CrmTableSpan.Provider>
           )}
         </TableBody>
       </Table>
@@ -254,6 +270,7 @@ export function CrmTableRow({
   // browser busy for about 170ms and froze a bar growing at the same time.
   // With less motion asked for, it opens at once.
   const presses = React.useContext(RowPress)
+  const withActions = React.useContext(CrmTableActions)
   // This row's own mark, made once, which the table holds while it is pressed.
   const [token] = React.useState(() => ({}))
   const shownOpen = presses?.pressed ? presses.pressed === token : open
@@ -292,6 +309,10 @@ export function CrmTableRow({
       aria-current={open ? "true" : undefined}
       className={cn(
         "group [&>td]:py-1",
+        // As tall as a row whose cog sets its height, so a table with no
+        // cog column keeps the same spacing (Tyler, 9 Nov 2026: "the items
+        // sit too close together").
+        !withActions && "h-9",
         tick?.ticked && "bg-muted/40",
         // The name grey, black while pointed at and while open (Tyler,
         // 8 Nov 2026: "change the items to gray and if hover over it turns
@@ -316,6 +337,7 @@ export function CrmTableRow({
         </TableCell>
       ) : null}
       <RowOpen.Provider value={shownOpen}>{children}</RowOpen.Provider>
+      {withActions ? (
       <TableCell column="actions">
         <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open ${label}`} onClick={press}>
           <SettingsIcon className="size-4" />
@@ -333,6 +355,7 @@ export function CrmTableRow({
           </Button>
         ) : null}
       </TableCell>
+      ) : null}
     </TableRow>
   )
 }
@@ -341,11 +364,18 @@ export function CrmTableRow({
 export function MainCell({
   lead,
   name,
+  avatar,
   strong = false,
   children,
 }: {
   lead?: React.ReactNode
   name: string
+  /**
+   * A person's row: their initials in a small round avatar between the dot
+   * and the name (Tyler, 9 Nov 2026: "Users, inbox, subscribers and leads
+   * should have its avatar beside it"), as the right panel's header draws it.
+   */
+  avatar?: { name: string | null | undefined; email: string }
   /** Unread: full weight. */
   strong?: boolean
   children?: React.ReactNode
@@ -355,6 +385,11 @@ export function MainCell({
       <span className="flex min-w-0 items-center gap-2">
         <OpenBar />
         {lead}
+        {avatar ? (
+          <Avatar aria-hidden className="size-7">
+            <AvatarFallback className="text-[0.5625rem] font-medium">{initialsFor(avatar.name, avatar.email)}</AvatarFallback>
+          </Avatar>
+        ) : null}
         <span data-row-name="" className={cn("truncate", strong ? "font-semibold" : "font-medium")}>
           {name}
         </span>

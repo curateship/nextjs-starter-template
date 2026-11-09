@@ -85,7 +85,7 @@ export function SavingDocument({
   onSave: (json: string) => Promise<unknown>
   placeholder?: string
   /**
-   * Shown, not written in, at full strength: Lock the notes. The shell's editor fades whatever it can't write in, which
+   * Shown, not written in, at full strength: Lock blocks. The shell's editor fades whatever it can't write in, which
    * read as a shade over the locked panel (Tyler, 7 Nov 2026: "Why is there a
    * shade overlay when the left panel is locked?").
    */

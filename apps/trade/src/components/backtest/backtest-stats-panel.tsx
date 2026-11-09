@@ -3,7 +3,7 @@ import {
   useBacktestClock,
   type BacktestTiming,
 } from "@/components/backtest/backtest-duration"
-import { ChevronDownIcon, FlaskConicalIcon, Loader2Icon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 
 import {
@@ -16,14 +16,12 @@ import {
   usd,
 } from "@/components/backtest/backtest-kpi"
 import { BacktestPotMini } from "@/components/backtest/backtest-pot-mini"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Meter } from "@/components/ui/meter"
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { emaGridCleanHours } from "@/lib/recipes/trade-grid"
@@ -94,8 +92,6 @@ export function BacktestStatsPanel({
   running,
   progress = 0,
   progressText = `${Math.round(progress * 100)}% through`,
-  stopRequested,
-  onStop,
 }: {
   skippedCount?: number
   failedCount?: number
@@ -118,10 +114,6 @@ export function BacktestStatsPanel({
   progressText?: string
   /** The run has not finished, so these figures are still moving. */
   running: boolean
-  /** True once a stop has been asked for, so the button says so. */
-  stopRequested?: boolean
-  /** Asks the run to stop. Left out on a run that has already finished. */
-  onStop?: () => void
 }) {
   const now = useBacktestClock(timing.finishedAt === null)
   const duration = backtestDurationText(timing, now)
@@ -140,58 +132,27 @@ export function BacktestStatsPanel({
 
   return (
     <>
-      <DashboardCardTitleHeader
-        icon={<FlaskConicalIcon />}
-        title={
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate">Backtest · all markets</span>
-            <span
-              className="truncate text-xs font-normal text-muted-foreground tabular-nums"
-              title={duration}
-            >
-              {duration}
-            </span>
-            {skippedCount + failedCount > 0 ? (
-              <button
-                type="button"
-                onClick={onShowSkipped}
-                className={cn(
-                  "text-left text-xs font-normal text-muted-foreground underline underline-offset-4",
-                  focusRing
-                )}
-              >
-                {[
-                  skippedCount > 0
-                    ? `${skippedCount} ${plural(skippedCount, "coin", "coins")} skipped`
-                    : null,
-                  failedCount > 0
-                    ? `${failedCount} ${plural(failedCount, "coin", "coins")} failed`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </button>
-            ) : null}
-          </span>
-        }
-        action={
-          running && onStop ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7"
-              disabled={stopRequested}
-              onClick={onStop}
-            >
-              {stopRequested ? (
-                <Loader2Icon className="animate-spin" aria-hidden="true" />
-              ) : null}
-              Stop
-            </Button>
-          ) : null
-        }
-      />
+      {/* How long it took, and what it skipped, over the figures. The right
+          panel's tabs are its header; Stop is in its footer. */}
+      <div className="grid gap-0.5 border-b px-5 py-3 text-xs text-muted-foreground">
+        <span className="truncate tabular-nums" title={duration}>
+          {duration}
+        </span>
+        {skippedCount + failedCount > 0 ? (
+          <button
+            type="button"
+            onClick={onShowSkipped}
+            className={cn("text-left underline underline-offset-4", focusRing)}
+          >
+            {[
+              skippedCount > 0 ? `${skippedCount} ${plural(skippedCount, "coin", "coins")} skipped` : null,
+              failedCount > 0 ? `${failedCount} ${plural(failedCount, "coin", "coins")} failed` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </button>
+        ) : null}
+      </div>
       {running ? (
         <div className="grid gap-2 border-b px-5 py-3">
           <span className="text-xs tabular-nums">{progressText}</span>

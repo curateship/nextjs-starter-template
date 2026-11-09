@@ -13,7 +13,7 @@ const matches = [
 
 describe("trade page titles", () => {
   it("keeps the saved app name at the end", () => {
-    expect(tradePageTitle(matches, "Backtests")).toBe("Backtests · Trade")
+    expect(tradePageTitle(matches, "Bots")).toBe("Bots · Trade")
   })
 
   it("names a market and its exchange", () => {
@@ -46,7 +46,7 @@ describe("trade page titles", () => {
       marketTitleFromMatches(
         [...matches, { routeId: "run", search: { coin: "aster:mainnet:ETH" } }],
         "coin",
-        "Flow run"
+        "Bots"
       )
     ).toBe("ETH · Aster · Trade")
   })

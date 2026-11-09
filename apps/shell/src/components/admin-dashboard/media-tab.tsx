@@ -9,7 +9,6 @@ import { CrmListHeader } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, OpenBar } from "@/components/crm/crm-table"
 import { OrphanPreview } from "@/components/media/media-orphan-rows"
 import { MediaThumbnail } from "@/components/media/media-thumbnail"
-import { StorageUsedNote } from "@/components/media/storage-used"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -653,11 +652,6 @@ export function MediaTab({
       }
       filter={
         <>
-          {showOrphans ? null : (
-            <span className="hidden min-w-0 @4xl:inline-flex">
-              <StorageUsedNote storage={data.storage} />
-            </span>
-          )}
           <FilterPopover
             // Narrow: a label and a select a row (Tyler, 8 Nov 2026: "filter dropdown is too wide").
             contentClassName="w-60" count={filterCount} onClear={clearFilters} save={null}>
@@ -700,12 +694,15 @@ export function MediaTab({
         </>
       }
       view={
-        <div className={dashboardToolbarButtonGroupClassName}>
+        // One control with the header's own light grey line round it, the
+        // one showing solid (Tyler, 9 Nov 2026: "fix this ui", after the
+        // header's buttons took the outline look and lost the picked one).
+        <div className={cn(dashboardToolbarButtonGroupClassName, "border-zinc-200/60 bg-background dark:border-zinc-700/60")}>
           {viewModes.map((mode) => (
             <DashboardToolbarButton
               key={mode}
               type="button"
-              variant="ghost"
+              variant={viewMode === mode ? "default" : "ghost"}
               className={cn(
                 dashboardToolbarButtonGroupItemClassName,
                 viewMode === mode && dashboardToolbarButtonActiveClassName

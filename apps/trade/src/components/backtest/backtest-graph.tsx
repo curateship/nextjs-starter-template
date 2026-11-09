@@ -568,9 +568,10 @@ export function BacktestGraph({
         ) : null}
 
         <div className="pointer-events-none absolute inset-x-0" style={{ top: mainHeight + 4 }}>
-          {shape.dates.map((tick) => (
+          {shape.dates.map((tick, index) => (
             <span
-              key={tick.at}
+              // A short run can put two labels on one moment, so the place in the list keeps them apart.
+              key={`${tick.at}:${index}`}
               className="absolute text-[11px] whitespace-nowrap text-muted-foreground"
               style={{ left: xOf(tick.bar), transform: tick.shift }}
             >

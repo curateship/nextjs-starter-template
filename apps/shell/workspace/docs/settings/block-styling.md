@@ -25,11 +25,41 @@ adjust to rounded corner, the gray shade bg and this padding."
   grey reads a shade lighter than the setting alone gives.
 - **Edge around the tile**, 0 to 16px, 3px unless changed: how much grey shows
   between the block's edge and its white tile, at the sides and the bottom.
+- **Body shade**, 0 to 100%, 0% unless changed: how much of the theme's light
+  grey is mixed into the tile under the heading, where the block's rows sit.
+  0% is the white tile blocks always had. A table's heading and totals rows
+  inside the tile follow it, so they never show as white bands. Tyler asked
+  for it on 9 Nov 2026: "add a block styling option to change the shade of
+  the block body bg".
+- **Border**, 0 to 3px, 0 unless changed: a line round the whole block.
+- **Border shade**, 0 to 100%, 10% unless changed: how dark that line is, as
+  a share of the theme's text colour. It has its own slider because the
+  Divider lines colour is too faint to see as a block's edge. It is greyed out
+  while Border is 0px.
+- **Shadow**, 0 to 100%, 0% unless changed: a soft shade under the block so
+  it lifts off the page. At 100% the shade is black at 20%, about a lifted
+  card's. Tyler asked for both on 9 Nov 2026: "Add another styling option to
+  add a border and shade around the block".
+- **Edge to edge**, a switch, off unless changed: advanced blocks, the live
+  ones an app draws such as Dashboards, Plans and the CRM's Stages, reach the
+  panel's sides instead of sitting inside its 15px of space. Basic blocks
+  (Image, Callout, Checklist and the rest) keep the space. Tyler asked for it
+  on 9 Nov 2026: "Add another option for blocks that its edge to edge but for
+  advanced blocks only". The panel's body says how much space it has as
+  `--panel-gutter` (`PANEL_GUTTER` in `src/lib/layout/panel-gutter.ts`), and
+  the block's frame takes that much off each side when `--shell-block-bleed`
+  is 1. A page outside such a panel has no `--panel-gutter`, so its blocks
+  stay put. Rounded corners, Border and Shadow still apply; set the corners to
+  0px for a block that meets the panel's sides square.
 
 The values are saved on the site's styling (`blockRadius`, `blockShade`,
-`blockInset` in `src/lib/layout/styling-values.ts`), and `ShellLayout` puts
-them on the page root as `--shell-block-radius`, `--shell-block-shade` and
-`--shell-block-inset`. A site that never set them shows the look blocks had
+`blockInset`, `blockBodyShade`, `blockBorder`, `blockBorderShade`,
+`blockShadow`, `blockEdgeToEdge` in
+`src/lib/layout/styling-values.ts`), and `ShellLayout` puts them on the page
+root as `--shell-block-radius`, `--shell-block-shade`, `--shell-block-inset`,
+`--shell-block-body-shade`, `--shell-block-border`,
+`--shell-block-border-shade`, `--shell-block-shadow` and
+`--shell-block-bleed`. A site that never set them shows the look blocks had
 before, because the block card falls back to those numbers. The card in
 Settings has a preview drawn from the sliders' own numbers, so it moves with
 the thumb; every real block changes live too.
@@ -44,13 +74,17 @@ block styling options". Overview has no middle panel, so its widgets sit on
 the page's shade, where a block's grey reads differently than inside a white
 panel.
 
-- **The settings:** Rounded corners, Grey shade and Edge around the tile, with
-  the blocks' ranges.
+- **The settings:** all seven of the blocks', with the blocks' ranges:
+  Rounded corners, Grey shade, Edge around the tile, Body shade, Border,
+  Border shade and Shadow. Tyler added the last four on 9 Nov 2026: "add the
+  same 2 styling feature for widgets".
 - **Unset, they follow the blocks' settings**, so the widgets look as they did
   before the card existed until one of its sliders is moved.
-- **Stored** as `widgetRadius`, `widgetShade` and `widgetInset`, and put on
-  the page root as `--shell-widget-radius`, `--shell-widget-shade` and
-  `--shell-widget-inset`.
+- **Stored** as `widgetRadius`, `widgetShade`, `widgetInset`,
+  `widgetBodyShade`, `widgetBorder`, `widgetBorderShade` and `widgetShadow`,
+  and put on the page root as `--shell-widget-radius`, `--shell-widget-shade`,
+  `--shell-widget-inset`, `--shell-widget-body-shade`, `--shell-widget-border`,
+  `--shell-widget-border-shade` and `--shell-widget-shadow`.
 - **The preview** sits on the page's own shade, as the widgets do.
 
 ## Panel cards
