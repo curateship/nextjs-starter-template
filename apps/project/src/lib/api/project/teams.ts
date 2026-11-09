@@ -9,6 +9,7 @@ import {
   inviteSchema,
   teamPageSchema,
   type AnnouncementKind,
+  teamCoverSchema,
   teamPhotoSchema,
   updateTeamSchema,
 } from "@/lib/project/rules"
@@ -32,6 +33,7 @@ import {
   removeTeamMember,
   setTeamPage,
   setTeamPageLock,
+  setTeamCover,
   setTeamPhoto,
   updateTeam,
 } from "@/server/project/teams"
@@ -77,6 +79,13 @@ const setTeamPhotoFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(teamPhotoSchema.extend(teamScope))
   .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamPhoto(context.user.id, data.photoUrl)))
+
+const setTeamCoverFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(teamCoverSchema.extend(teamScope))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, () => setTeamCover(context.user.id, { photoUrl: data.photoUrl, coverImages: data.coverImages }))
+  )
 
 const setTeamPageFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -141,6 +150,10 @@ export function loadFigures(teamId?: string) {
 }
 export function saveTeamPhoto(photoUrl: string, teamId?: string) {
   return setTeamPhotoFn({ data: { photoUrl, teamId } })
+}
+/** The team page's cover and its pictures, from its Cover photo row. */
+export function saveTeamCover(cover: { photoUrl: string; coverImages: string[] }, teamId?: string) {
+  return setTeamCoverFn({ data: { ...cover, teamId } })
 }
 /** The team's page at the top of the Team dashboard's left panel, the site admin's alone. */
 export function saveTeamPage(notes: unknown, teamId?: string) {

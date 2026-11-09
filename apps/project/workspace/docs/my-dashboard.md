@@ -22,14 +22,22 @@ check-in. It is described in
 
 ## Left: me
 
-- **The header** shows my photo, my name, and my job title and team
-  ("Designer · Sample team"). The ⋮ beside it opens My settings (below).
+- **The header** starts with the button that hides the left panel, then my
+  photo, my name, and my job title and team ("Designer · Sample team"). The
+  ⋮ beside it opens My settings (below). A hidden panel comes back from the
+  button at the start of the middle's header, as on every three-panel
+  screen in the shell's design.
 - **The Daily card comes first**, above every other card, on an employee's My
   dashboard. The site admin's is a block on their own page instead (below).
   How it works is in [The Daily card](daily-card.md).
-- **Under it, three cards that fold**, each remembered open or shut in this
-  browser (`src/components/project/panel-card.tsx`, the shell's grey card
-  with a muted note and a badge in its heading).
+- **Under it, the cards that fold** (Today's check-in, My week, Time off,
+  Inbox), each remembered open or shut in this browser. Since 9 Nov 2026
+  they are drawn as the shell's blocks (Tyler: "Restyle the cards only"):
+  the frosted grey box, a 57px heading with the card's icon whose name
+  folds it, the muted note and badge at the heading's right, and what the
+  card holds on one white tile (`src/components/project/panel-card.tsx`
+  around the shell's `BlockCard`). They are not "/" blocks, so there is no
+  Delete block and no page to write on.
 - **Today's check-in.** A badge in its heading: Late or On time once I've
   checked in; before that, Late once my check-in time has passed, or Away,
   Holiday or Day off. Then three rows: "Checked in 1:12 PM · due 9:00 AM"
@@ -315,6 +323,19 @@ show the first task and then it remembers what task I'm on afterwards."
   List's first row opens, so the panel is not left empty.
 - **Only with no tasks at all** does the panel show "Click a task to see its
   notes and chat here."
+- **The sky carries on behind the task's header** (the shell's look since
+  9 Nov 2026; Tyler, 8 Nov 2026, of the shell: "make it an extension of the
+  left panel. Meaning that we don't have the sun and moon on the right").
+  The site admin's own photo for this part of the day shows there when they
+  picked their own; otherwise the drawn sky with no sun or moon. A scene
+  (beach, city and the rest) is drawn on the left only, and the right shows
+  the plain sky (`rightSkyCover` in `daily-card.tsx`).
+- **Its header ends with the button that hides it.** A hidden task panel
+  comes back from the button at the end of the middle's header.
+- **The open task's row in the List** has the shell's small dark bar before
+  its name, and its name dark while the others are grey. A press shows the
+  bar at once and opens the task after 220ms, as the shell's tables do
+  (`useRowPress` in `task-list.tsx`).
 
 ## Inbox
 
@@ -540,8 +561,9 @@ your attention card in the left panel's footer the same day.
 Four "/" blocks only the site admin's own page offers (task
 `workspace/tasks/My dashboard/left-panel-blocks.md`, Tyler, 6 Nov 2026). A
 project's page, a project's notes, a task's notes and New task never offer
-them, and the server drops them from any of those saves. Each has the bin
-in its top corner, as every block has. They draw from what My dashboard
+them, and the server drops them from any of those saves. Each is the
+shell's block card with its ⋮ (see [Notes and blocks](notes-and-blocks.md)),
+except the Daily card, below. They draw from what My dashboard
 already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
 
 - **Projects** (Tyler: "a new "Projects" block where I can select a project
@@ -549,8 +571,11 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
   every team's open, shared projects, with a box to narrow them by name; a
   long list scrolls inside the block. Picking one draws it as the Pinned
   projects card drew each project:
-  - **Top:** the project's colour as a full 36px dot, its name, and under the
-    name a coloured chip ("● On track" green, "● Slowing down" amber, "●
+  - **Heading:** the folder icon the "/" menu shows for Projects, then the
+    project's name, on one line (Tyler, 9 Nov 2026: "the headers are missing
+    icons", `assets/pasted-image-1794255680390194000.png`; it was the
+    project's colour dot). On the
+    tile, a coloured chip ("● On track" green, "● Slowing down" amber, "●
     Behind" red) with the team's name. The due date is the chip's hover hint:
     "Due Nov 20 · 22 days left", "Due tomorrow", "Due today" or "Overdue ·
     Nov 20", counted on their own today (Tyler, 29 Oct 2026).
@@ -558,16 +583,18 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
     first, drawn dark, then up to four people and "+3", the line of tasks
     finished each day over the last 14 days, and "5 late", "1 stuck" and
     "5/13 done" (or "No tasks yet").
-  - **The whole block is tinted by how it is doing:** faint red for Behind,
-    amber for Slowing down, light green for On track.
-  - **Pressing it** shows only that project's tasks in My tasks, the same as
-    picking it in Filter's Project row, and lifts it with a grey edge and a
-    soft shadow. Pressing it again shows them all. While My tasks is
+  - **How it is doing** shows in the chip and the bar's track: red for
+    Behind, amber for Slowing down, light green for On track. The block was
+    tinted all over until 9 Nov 2026; it is the shell's white tile now.
+  - **Pressing the tile** shows only that project's tasks in My tasks, the
+    same as picking it in Filter's Project row, and the shell's small dark
+    bar slides in before the chip. Pressing it again shows them all. While My tasks is
     filtered so, New task, a heading's "+" and a right-click start on that
     project (Tyler, 31 Oct 2026).
-  - **Its buttons,** beside the bin while the block is pointed at (always on
-    a phone): **+** for New task already on that project, and an arrow to
-    the project page. It has no pin and no drag handle, since the block sits
+  - **Its buttons,** in the heading row while the heading is pointed at
+    (always on a phone), before the ⋮: **+** for New task already on that
+    project, and an arrow to the project page. The rest of the time the name
+    has their room. It has no pin and no drag handle, since the block sits
     where it was placed on the page.
   - **A project that is archived, deleted or no longer shared** shows
     "Removed: this project is no longer open."
@@ -582,21 +609,28 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
   - **What it holds:** the greeting, then Start day until the day starts,
     then the habits, Next meeting, Tomorrow at night, the Sunday look back and
     the monthly review, with Rate your day under the habits at night.
-  - **How it looks:** a rounded box of solid light grey, so the sky behind
-    the page never shows through it, its sections inside white ("bg white").
-    Its heading is the greeting alone, with no icon before it (Tyler, 6 Nov
-    2026: "remove this icon", `assets/pasted-image-1794010037256007000.png`).
-    Its bin, shown while the card is pointed at, sits level with the
-    greeting's first line ("align the trashcan icon"), and the greeting
-    leaves room for it.
-  - **Always open** (Tyler, 6 Nov 2026: "it doesnt need to be a toggle"): the
-    greeting is a plain heading with no arrow. Its own sections, such as
-    Tomorrow, still fold as they always have.
+  - **How it looks:** the block card every block has (Tyler, 9 Nov 2026:
+    "this should have the same heading as any block and the header needs to
+    be collapsible too", `assets/pasted-image-1794255319529436000.png`). The
+    greeting is its heading: 57px, dark grey, cut short with "…" in a narrow
+    panel, after the sunrise icon the "/" menu shows for Daily card (Tyler,
+    9 Nov 2026: "the headers are missing icons",
+    `assets/pasted-image-1794255680390194000.png`). The icon that changed
+    with the part of the day stays gone (6 Nov 2026: "remove this icon",
+    `assets/pasted-image-1794010037256007000.png`). Its ⋮ with Delete block
+    shows while the heading is pointed at. The date and the sections sit
+    straight on the white tile, with no grey box round each section (Tyler,
+    9 Nov 2026: "remove this gray container",
+    `assets/pasted-image-1794255604469198000.png`).
+  - **The greeting folds it** to the heading alone, and the fold is
+    remembered in this browser, as every block's is. Until 9 Nov 2026 it
+    was always open ("it doesnt need to be a toggle", 6 Nov). Its own
+    sections, such as Tomorrow, still fold on their own too.
   - **No ring when clicked** ("why is it so ugly?",
     `assets/pasted-image-1794009881543968000.png`). Every other block shows a
     ring while it is selected, and a click on a tick or a button inside the
     card selects it, so the ring sat round the card most of the time.
-  - **It is the card itself** (`DailyCard` with `boxed`), so every tick, "+",
+  - **It is the card itself** (`DailyCard` with `frame`), so every tick, "+",
     Start day and Rate your day saves the way the card always has.
   - **One per page:** picking it again only takes away the "/" and shows the
     one already there.

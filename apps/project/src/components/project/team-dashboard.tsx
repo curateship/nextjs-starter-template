@@ -20,7 +20,6 @@ import { NewTaskDialog } from "@/components/project/new-task-dialog"
 import { DayNumber, MonthGrid } from "@/components/project/month-grid"
 import { TeamActivity } from "@/components/project/project-activity"
 import { AnnouncementCard, AnnouncementDialog } from "@/components/project/team-announcement"
-import { TeamCoverBanner } from "@/components/project/team-figures"
 import { TeamBlocksProvider } from "@/components/project/notes/team-blocks"
 import { PersonPages } from "@/components/project/person-pages"
 import { TeamPageNotes } from "@/components/project/project-page-notes"
@@ -37,6 +36,7 @@ import { TeamStart } from "@/components/project/team-start"
 import { TeamTrendsDialog } from "@/components/project/team-trends-dialog"
 import { TeamWeek } from "@/components/project/team-week"
 import { ThreePanels } from "@/components/project/three-panels"
+import { PanelReopenButton, SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -107,6 +107,7 @@ import { runsTheTeam } from "@/lib/project/rules"
 import { cn } from "@/lib/utils"
 import type { TeamSearch } from "@/lib/project/team-route"
 import { useTeamId } from "@/lib/project/team-scope"
+import { PageCover, RightCoverProvider } from "@/components/shared/notes/page-cover"
 
 /** An employee's own Team dashboard, and one team's for the site admin under Teams. */
 const TEAM_ROUTE_IDS = new Set(["/_authenticated/team/", "/_authenticated/teams/$teamId/"])
@@ -248,6 +249,7 @@ function Dashboard({
 
   return (
     <ThreePanels
+      reopenInHeader
       layoutKey={TEAM_PANEL_LAYOUT_KEY}
       // A task opened on arrival leaves a narrow screen on the list.
       showRightFor={search.task === quietTask ? undefined : search.task}
@@ -272,6 +274,7 @@ function Dashboard({
         content: (
           <TeamMiddle
             tasks={tasks}
+            openTaskId={search.task}
             filters={{
               q: search.q,
               status: search.status,
@@ -312,7 +315,10 @@ function Dashboard({
         showLabel: "Show the task",
         content: (
           <PersonPages>
-            <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+            {/* The team page's cover carried on behind the task's header. */}
+            <RightCoverProvider value={data.team.photoUrl}>
+              <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+            </RightCoverProvider>
           </PersonPages>
         ),
       }}
@@ -435,14 +441,18 @@ function TeamPanel({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <TeamCoverBanner photoUrl={team.photoUrl} />
+      <PageCover url={team.photoUrl} />
       {/* The line goes see-through over the cover rather than away, so the header keeps its height. */}
-      <DashboardCardHeader className={cn("relative", team.photoUrl && "border-b-transparent")}>
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{team.name}</h2>
+      {/* Wrapped in its own div, so the shell's table line under a header never matches it. */}
+      <div className="relative shrink-0">
+      <DashboardCardHeader className={cn("relative gap-1", team.photoUrl && "border-b-transparent")}>
+        <SidePanelCollapseButton side="left" label="Hide the team page" />
+        <h2 className="min-w-0 flex-1 truncate pl-1 text-sm font-medium">{team.name}</h2>
         {/* Team settings are the tabbed ⋮ the skill draws, the site admin's alone (Tyler, 7 Nov 2026:
             "the teams settings is not following the skill"). */}
         {canRun ? <TeamMenu data={data} /> : null}
       </DashboardCardHeader>
+      </div>
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
           <TeamBlocksProvider
@@ -499,6 +509,7 @@ type CalendarView = (typeof CALENDAR_VIEWS)[number]
  */
 function TeamMiddle({
   tasks,
+  openTaskId,
   filters,
   onFilters,
   onRows,
@@ -508,6 +519,8 @@ function TeamMiddle({
   ...calendar
 }: {
   tasks: TeamTasks
+  /** The task open on the right, whose row shows open. */
+  openTaskId: string | undefined
   filters: TaskFilters
   onFilters: (patch: Partial<TaskFilters>) => void
   onRows: (ids: string[]) => void
@@ -549,6 +562,7 @@ function TeamMiddle({
           filters={filters}
           onFilters={onFilters}
           onOpenTask={onOpenTask}
+          openTaskId={openTaskId}
           onRows={onRows}
         />
       ) : (
@@ -648,6 +662,7 @@ function CalendarPanel({
   return (
     <>
       <DashboardCardHeader className="@container">
+        <PanelReopenButton side="left" label="Show the team page" />
         {tabs}
         <span className="flex-1" />
         {calendar ? (
@@ -684,6 +699,7 @@ function CalendarPanel({
             </Button>
           </div>
         ) : null}
+        <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>
       {below}
       {!calendar ? (

@@ -1,14 +1,12 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Link } from "@tanstack/react-router"
-import { FlagIcon, ListChecksIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
+import { ListChecksIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { CardDropdown, CardDropdownTitle } from "@/components/project/card-dropdown"
 import { DueDayPicker } from "@/components/project/due-day-picker"
-import { FoldHeading } from "@/components/project/fold-heading"
 import { StatusDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,19 +26,17 @@ import { milestoneLine, milestoneOverdue } from "@/lib/project/milestones"
 import { LIMITS, TASK_STATUS_LABEL } from "@/lib/project/rules"
 import { byPosition } from "@/lib/project/task-order"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { FOOTER_CARD_BODY } from "@/lib/project/panel-gutter"
-import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 
 /**
- * The project's milestones, a folding card on its details panel, soonest
- * first. Each says how many of its tasks are done and turns red with
- * "Overdue" once its date passes with tasks open. The "+" in the heading and
- * the two icons on each row (its tasks, and the cog) open dropdowns, shown on
- * hover (Tyler, 15 Oct 2026).
- * Tasks join one from their Plan card.
+ * The project's milestones, soonest first, on the Milestones block's white
+ * tile (Tyler, 9 Nov 2026: "make milestone a block"; a footer card on the
+ * project's left panel until then). Each says how many of its tasks are done
+ * and turns red with "Overdue" once its date passes with tasks open. The two
+ * icons on each row, its tasks and the cog, open dropdowns, shown on hover
+ * (Tyler, 15 Oct 2026). Tasks join one from their Plan card.
  */
-export function ProjectMilestones({
+export function MilestoneList({
   projectId,
   milestones,
   tasks,
@@ -52,47 +48,37 @@ export function ProjectMilestones({
   tasks: TaskCard[]
   readOnly: boolean
 }) {
-  const [adding, setAdding] = React.useState(false)
   const today = todayKey()
-  // The same remembered fold the card had as a panel card.
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-details-milestones"))
+  if (milestones.length === 0) {
+    return (
+      <p className="p-3 text-sm text-muted-foreground">
+        No milestones. Add one for each date a set of tasks must be finished by.
+      </p>
+    )
+  }
   return (
-    // A footer card on the project page's left panel, folding like Good morning
-    // (Tyler, 6 Nov 2026, the Admin 3 panel design). Its + adds a milestone.
-    <Collapsible open={open} onOpenChange={setOpen} className="grid grid-cols-[minmax(0,1fr)]">
-      <FoldHeading band icon={<FlagIcon />} title="Milestones" count={milestones.length || undefined} open={open}>
-        {readOnly ? null : (
-          <CardDropdown
-            label="Add a milestone"
-            icon={<PlusIcon className="size-4" />}
-            open={adding}
-            onOpenChange={setAdding}
-          >
-            <MilestoneForm projectId={projectId} milestone={null} onDone={() => setAdding(false)} />
-          </CardDropdown>
-        )}
-      </FoldHeading>
-      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)] gap-2", FOOTER_CARD_BODY)}>
-      {milestones.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No milestones. Add one for each date a set of tasks must be finished by.
-        </p>
-      ) : (
-        <ul className="grid gap-2">
-          {milestones.map((milestone) => (
-            <MilestoneRow
-              key={milestone.id}
-              projectId={projectId}
-              milestone={milestone}
-              tasks={tasks.filter((task) => task.milestoneId === milestone.id).sort(byPosition)}
-              overdue={milestoneOverdue(milestone, today)}
-              readOnly={readOnly}
-            />
-          ))}
-        </ul>
-      )}
-      </CollapsibleContent>
-    </Collapsible>
+    <ul className="grid grid-cols-[minmax(0,1fr)]">
+      {milestones.map((milestone) => (
+        <MilestoneRow
+          key={milestone.id}
+          projectId={projectId}
+          milestone={milestone}
+          tasks={tasks.filter((task) => task.milestoneId === milestone.id).sort(byPosition)}
+          overdue={milestoneOverdue(milestone, today)}
+          readOnly={readOnly}
+        />
+      ))}
+    </ul>
+  )
+}
+
+/** The "+" in the Milestones block's heading, which adds one in a dropdown. */
+export function AddMilestoneButton({ projectId }: { projectId: string }) {
+  const [adding, setAdding] = React.useState(false)
+  return (
+    <CardDropdown label="Add a milestone" icon={<PlusIcon className="size-4" />} open={adding} onOpenChange={setAdding}>
+      <MilestoneForm projectId={projectId} milestone={null} onDone={() => setAdding(false)} />
+    </CardDropdown>
   )
 }
 
@@ -119,7 +105,8 @@ function MilestoneRow({
   const [deleting, setDeleting] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   return (
-    <li className="group/row flex items-center gap-1 rounded-lg border bg-background py-2 pr-1 pl-3">
+    // One row of the tile, a line between rows.
+    <li className="group/row flex items-center gap-1 border-t py-2.5 pr-1.5 pl-3 first:border-t-0">
       <span className="grid min-w-0 flex-1 gap-1">
         <span className="truncate text-sm font-medium">{milestone.name}</span>
         <Meter

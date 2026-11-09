@@ -11,11 +11,11 @@ import {
   GlobeIcon,
   InfoIcon,
   LinkIcon,
+  Loader2Icon,
   ListTodoIcon,
   MessagesSquareIcon,
   SettingsIcon,
   XIcon,
-  Loader2Icon,
   PlayIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -25,6 +25,7 @@ import {
 
 import { useFolded, toggleFold } from "@/components/project/notes/note-folds"
 import { useLoaded, useNoteSetup } from "@/components/project/notes/note-setup"
+import { ProjectBlockCard, TILE_BODY } from "@/components/project/notes/project-block-card"
 import { PhotoCreditLine, UnsplashPicker } from "@/components/project/notes/unsplash-picker"
 import { DueDate, StatusBadge } from "@/components/project/task-bits"
 import { TaskLinkButton } from "@/components/project/task-link"
@@ -140,13 +141,9 @@ export function BlockLine({ children, editing, label }: { children: React.ReactN
   )
 }
 
+/** The words alone while a block reads, with no loading circle (Tyler, 7 Nov 2026: no circles in a panel's body). */
 export function BlockLoading({ label }: { label: string }) {
-  return (
-    <p className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
-      <Loader2Icon className="size-4 animate-spin" aria-hidden />
-      {label}
-    </p>
-  )
+  return <p className="rounded-md border p-3 text-sm text-muted-foreground">{label}</p>
 }
 
 /** A web address field with Add, for an Image, Video or Web page block not filled in yet. */
@@ -530,15 +527,15 @@ export function TaskCardDrawing({ taskId, editing, onPick }: { taskId: string | 
   const { cards, openTask } = useNoteSetup()
   const [card, retry] = useLoaded(taskId, () => cards.load(taskId!))
 
+  const icon = <ListTodoIcon className="size-4" />
   if (!taskId) {
     if (!editing.editable) return null
     return (
-      <>
-        <div className={cn("rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind="task-card" title="Task card" icon={icon}>
+        <div className={TILE_BODY}>
           <TaskSearch onPick={onPick} />
         </div>
-        <BlockTools editing={editing} label="Remove task card" />
-      </>
+      </ProjectBlockCard>
     )
   }
   if (card.state === "loading") return <BlockLoading label="Loading the task…" />
@@ -558,28 +555,20 @@ export function TaskCardDrawing({ taskId, editing, onPick }: { taskId: string | 
   const task = card.value
   if (task.state === "hidden") return <BlockLine editing={editing} label="Remove task card">A task you can't see.</BlockLine>
   if (task.state === "deleted") return <BlockLine editing={editing} label="Remove task card">Removed: this task was deleted.</BlockLine>
+  // The task's name is the block's heading; the tile opens the task.
   return (
-    <>
+    <ProjectBlockCard editing={editing} kind={`task-card-${task.taskId}`} title={task.title} icon={icon}>
       <button
         type="button"
-        className={cn(
-          "grid w-full min-w-0 gap-1.5 rounded-md border bg-card p-3 pr-12 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
-          SELECTED
-        )}
+        aria-label={`Open ${task.title}`}
+        className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[inherit] p-3 text-left text-xs hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
         onClick={() => openTask(task.taskId, task.projectId)}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="truncate text-sm font-medium">{task.title}</span>
-        </span>
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          <StatusBadge status={task.status} />
-          <span className="text-muted-foreground">{task.assigneeName ?? "Nobody on it"}</span>
-          <DueDate dueDate={task.dueDate} status={task.status} />
-        </span>
+        <StatusBadge status={task.status} />
+        <span className="text-muted-foreground">{task.assigneeName ?? "Nobody on it"}</span>
+        <DueDate dueDate={task.dueDate} status={task.status} />
       </button>
-      <BlockTools editing={editing} label="Remove task card" />
-    </>
+    </ProjectBlockCard>
   )
 }
 
@@ -591,8 +580,8 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
   if (!fileId) {
     if (!editing.editable || !task) return null
     return (
-      <>
-        <div className={cn("grid gap-3 rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind="file" title="File" icon={<FileIcon className="size-4" />}>
+        <div className={TILE_BODY}>
           {files.length ? (
             <div className="grid gap-2">
               <p className="text-sm font-medium">Pick one of this task's files</p>
@@ -617,23 +606,32 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
           )}
           <UploadButton label="Upload a file" picture={false} onAdded={(file) => onPick(file.id)} />
         </div>
-        <BlockTools editing={editing} label="Remove block" />
-      </>
+      </ProjectBlockCard>
     )
   }
 
   const file = files.find((each) => each.id === fileId)
   if (!file) return <BlockLine editing={editing} label="Remove file">Removed: this file was deleted.</BlockLine>
+  return <FileCard file={file} editing={editing} />
+}
+
+/**
+ * A file the block shows: its name as the heading, its size and Download on
+ * the tile, and Delete file in the ⋮ for whoever may (Tyler, 6 Nov 2026, once
+ * the task panel's Files box went: the block is where a file is deleted).
+ */
+function FileCard({ file, editing }: { file: TaskFile; editing: BlockEditing }) {
+  const [asking, setAsking] = React.useState(false)
   return (
-    <>
-      <div className={cn("flex min-w-0 items-center gap-3 rounded-md border bg-card p-2 pr-12", SELECTED)}>
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
-          <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-        </span>
-        <span className="grid min-w-0 flex-1">
-          <span className="truncate text-sm font-medium">{file.name}</span>
-          <span className="text-xs text-muted-foreground">{formatFileSize(file.sizeBytes)}</span>
-        </span>
+    <ProjectBlockCard
+      editing={editing}
+      kind={`file-${file.id}`}
+      title={file.name}
+      icon={<FileIcon className="size-4" />}
+      menu={file.canDelete ? [{ label: "Delete file", icon: <FileXIcon className="size-4" />, onSelect: () => setAsking(true) }] : undefined}
+    >
+      <div className="flex min-w-0 items-center gap-3 p-3">
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{formatFileSize(file.sizeBytes)}</span>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="outline" size="icon-sm">
@@ -645,10 +643,8 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
           <TooltipContent>Download</TooltipContent>
         </Tooltip>
       </div>
-      <BlockTools editing={editing} label="Remove block">
-        {file.canDelete ? <DeleteFileButton file={file} editing={editing} /> : null}
-      </BlockTools>
-    </>
+      {file.canDelete ? <DeleteFileDialog file={file} editing={editing} open={asking} onOpenChange={setAsking} /> : null}
+    </ProjectBlockCard>
   )
 }
 
@@ -659,9 +655,18 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
  * notes can be written in; elsewhere it reads "Removed: this file was
  * deleted.", as every other block showing the file does.
  */
-function DeleteFileButton({ file, editing }: { file: TaskFile; editing: BlockEditing }) {
+function DeleteFileDialog({
+  file,
+  editing,
+  open: asking,
+  onOpenChange: setAsking,
+}: {
+  file: TaskFile
+  editing: BlockEditing
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   const { task } = useNoteSetup()
-  const [asking, setAsking] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   async function remove() {
     setBusy(true)
@@ -679,7 +684,6 @@ function DeleteFileButton({ file, editing }: { file: TaskFile; editing: BlockEdi
   }
   return (
     <>
-      <ToolButton label="Delete file" icon={FileXIcon} onClick={() => setAsking(true)} />
       <ConfirmDialog
         open={asking}
         onOpenChange={setAsking}
@@ -703,38 +707,47 @@ function DeleteFileButton({ file, editing }: { file: TaskFile; editing: BlockEdi
  * never writes in the notes.
  */
 export function CommentsDrawing({ editing }: { editing: BlockEditing }) {
-  const comments = useNoteSetup().task?.comments ?? null
+  const { task } = useNoteSetup()
+  const comments = task?.comments ?? null
+  const taskId = task?.id ?? ""
   const placed = comments?.placed
   React.useEffect(() => placed?.(), [placed])
   if (!comments) return <BlockLine editing={editing} label="Remove comments">This task's comments show in its panel.</BlockLine>
   return (
-    <>
-      <CommentsBox count={comments.count} className={SELECTED}>
-        {comments.thread}
-      </CommentsBox>
-      <BlockTools editing={editing} label="Remove comments" />
-    </>
+    <CommentsBox taskId={taskId} count={comments.count} editing={editing}>
+      {comments.thread}
+    </CommentsBox>
   )
 }
 
-/** The Comments block's box: its heading with the count, then the thread. Also drawn under the notes when no block is placed. */
-export function CommentsBox({ count, className, children }: { count: number; className?: string; children: React.ReactNode }) {
+/**
+ * The Comments block's card: "Comments" with the count on its heading, then
+ * the thread on the tile. Also drawn under the notes when no block is placed,
+ * where it reads only as a card and has no Delete block. The thread takes
+ * its own clicks and keys, so writing in it never writes in the notes.
+ */
+export function CommentsBox({
+  taskId,
+  count,
+  editing = READ_ONLY,
+  children,
+}: {
+  /** Each task's comments fold on their own in this browser. */
+  taskId: string
+  count: number
+  editing?: BlockEditing
+  children: React.ReactNode
+}) {
   return (
-    <section
-      aria-label="Comments"
-      contentEditable={false}
-      className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-md border bg-card p-3", className)}
-    >
-      {/* Not a heading tag: the note's own heading look would take it over. */}
-      <div className="flex min-w-0 items-center gap-2 pr-10 text-sm font-medium">
-        <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        Comments
-        {count ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground tabular-nums">{count}</span> : null}
-      </div>
-      {children}
-    </section>
+    <ProjectBlockCard editing={editing} kind={`comments-${taskId}`} title="Comments" icon={<MessagesSquareIcon className="size-4" />} count={count || undefined}>
+      <section aria-label="Comments" contentEditable={false} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 p-3">
+        {children}
+      </section>
+    </ProjectBlockCard>
   )
 }
+
+const READ_ONLY: BlockEditing = { editable: false, remove: () => undefined }
 
 /**
  * Video or Promo: the task's own record, with its name and picture for those
@@ -751,33 +764,28 @@ export function RecordDrawing({ editing }: { editing: BlockEditing }) {
   }
   const link = task.link
   const info = LINKED_APP_INFO[link.app]
+  const icon = <ClapperboardIcon className="size-4" />
   if (!link.canOpen || !link.connected) {
     return (
-      <>
-        <div className={cn("rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind={`record-${task.id}`} title={info.name} icon={icon}>
+        <div className={TILE_BODY}>
           <TaskLinkButton taskId={task.id} link={link} />
         </div>
-        <BlockTools editing={editing} label="Remove Video or Promo card" />
-      </>
+      </ProjectBlockCard>
     )
   }
   const loaded = card.state === "ready" ? card.value : null
   return (
-    <>
-      <div className={cn("flex min-w-0 flex-wrap items-center gap-3 rounded-md border bg-card p-2 pr-12", SELECTED)}>
+    <ProjectBlockCard editing={editing} kind={`record-${task.id}`} title={loaded?.name ?? info.name} icon={icon}>
+      <div className="flex min-w-0 flex-wrap items-center gap-3 p-3">
         {loaded?.pictureUrl ? (
           <img src={loaded.pictureUrl} alt="" loading="lazy" className="size-12 shrink-0 rounded-md bg-muted object-cover" />
         ) : (
           <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted">
-            {card.state === "loading" ? (
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Loading" />
-            ) : (
-              <ClapperboardIcon className="size-5 text-muted-foreground" aria-hidden />
-            )}
+            <ClapperboardIcon className="size-5 text-muted-foreground" aria-hidden />
           </span>
         )}
         <span className="grid min-w-0 flex-1">
-          <span className="truncate text-sm font-medium">{loaded?.name ?? info.name}</span>
           <span className="truncate text-xs text-muted-foreground">
             {card.state === "failed" ? (
               <>
@@ -788,6 +796,8 @@ export function RecordDrawing({ editing }: { editing: BlockEditing }) {
               </>
             ) : card.state === "ready" && !loaded?.name ? (
               `${info.name} didn't answer, so its name isn't shown.`
+            ) : card.state === "loading" ? (
+              `${info.name} · reading its name…`
             ) : (
               `${info.name} · ${info.record}`
             )}
@@ -795,8 +805,7 @@ export function RecordDrawing({ editing }: { editing: BlockEditing }) {
         </span>
         <TaskLinkButton taskId={task.id} link={link} />
       </div>
-      <BlockTools editing={editing} label="Remove Video or Promo card" />
-    </>
+    </ProjectBlockCard>
   )
 }
 

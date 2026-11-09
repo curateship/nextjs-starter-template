@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { middleGutterClassName, SideTogglesProvider } from "@/components/shared/three-panels"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   useBlankSpaceDoubleClick,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { cn } from "@/lib/utils"
 
 type Side = { label: string; content: React.ReactNode; showLabel: string }
 
@@ -51,6 +53,7 @@ export function ThreePanels({
   showRightFor,
   narrowTab,
   narrowStart = "middle",
+  reopenInHeader = false,
   children,
 }: {
   layoutKey: string
@@ -72,6 +75,13 @@ export function ThreePanels({
   narrowTab?: { label: string; content: React.ReactNode }
   /** The tab a narrow screen opens on; the site admin's My dashboard opens on its Daily card. */
   narrowStart?: "left" | "middle"
+  /**
+   * The middle's header draws the shell's `PanelReopenButton`s, so a shut
+   * side panel comes back from there rather than from a knob on the middle's
+   * edge (the shell's look since 8 Nov 2026). The side headers' own
+   * `SidePanelCollapseButton`s work in this frame as in the shell's.
+   */
+  reopenInHeader?: boolean
   /** Windows that open over the screen. */
   children?: React.ReactNode
 }) {
@@ -97,6 +107,15 @@ export function ThreePanels({
   const toggleRight = usePanelToggle(rightRef)
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
+  const toggles = React.useMemo(
+    () => ({
+      left: toggleLeft,
+      right: toggleRight,
+      leftCollapsed: leftState.collapsed,
+      rightCollapsed: rightState.collapsed,
+    }),
+    [toggleLeft, toggleRight, leftState.collapsed, rightState.collapsed]
+  )
 
   if (!wide) {
     return (
@@ -117,7 +136,10 @@ export function ThreePanels({
         ].map(({ side, content }) => (
           <WorkspacePanel
             key={side}
-            className={narrowView === side ? "flex min-w-0 flex-1 flex-col" : "hidden"}
+            className={cn(
+              narrowView === side ? "flex min-w-0 flex-1 flex-col" : "hidden",
+              side === "middle" && middleGutterClassName
+            )}
             inert={narrowView !== side}
           >
             {content}
@@ -129,12 +151,12 @@ export function ThreePanels({
   }
 
   return (
+    <SideTogglesProvider value={toggles}>
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
-        key={layout.layoutKey}
+        groupRef={layout.groupRef}
         orientation="horizontal"
         className="min-h-0 flex-1"
-        defaultLayout={layout.defaultLayout}
         onLayoutChanged={layout.onLayoutChanged}
       >
         <ResizablePanel
@@ -157,12 +179,14 @@ export function ThreePanels({
         </ResizablePanel>
         <ResizableHandle gap collapsed={leftState.collapsed} />
         <ResizablePanel id="middle" defaultSize={MIDDLE_DEFAULT} minSize="32%">
-          <WorkspacePanel className="relative flex flex-col">
+          {/* 24px at the middle's sides, its header and a table's first and last
+              columns lining up (the shell's look since 8 Nov 2026). */}
+          <WorkspacePanel className={cn("relative flex flex-col", middleGutterClassName)}>
             {middle.content}
-            {leftState.collapsed ? (
+            {leftState.collapsed && !reopenInHeader ? (
               <PanelReopenTab side="left" label={left.showLabel} onClick={toggleLeft} />
             ) : null}
-            {rightState.collapsed ? (
+            {rightState.collapsed && !reopenInHeader ? (
               <PanelReopenTab side="right" label={right.showLabel} onClick={toggleRight} />
             ) : null}
           </WorkspacePanel>
@@ -189,5 +213,6 @@ export function ThreePanels({
       </ResizablePanelGroup>
       {children}
     </div>
+    </SideTogglesProvider>
   )
 }

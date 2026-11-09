@@ -3,10 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CircleDashedIcon,
   CopyIcon,
-  CreditCardIcon,
   Loader2Icon,
-  MailIcon,
-  NewspaperIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -24,6 +21,7 @@ import {
   SortableTableHeader,
 } from "@/components/shared/sortable-table-header"
 import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
+import { AUTOMATION_TEMPLATE_ICONS } from "@/components/automations/automation-template-icons"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -78,12 +76,6 @@ import type { AutomationTemplateKey } from "@/lib/automations/templates"
 import { compareAutomationSteps } from "@/lib/automations/list-sort"
 
 type CreateChoice = "blank" | AutomationTemplateKey
-
-const TEMPLATE_ICONS = {
-  "welcome-members": MailIcon,
-  "changelog-approval": NewspaperIcon,
-  "payment-recovery": CreditCardIcon,
-} satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
 type SortColumn = "name" | "live" | "steps" | "nextRun" | "updated"
 
@@ -663,7 +655,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                     onClick={() => chooseCreateStart("blank")}
                   />
                   {initial.templates.map((template) => {
-                    const Icon = TEMPLATE_ICONS[template.key]
+                    const Icon = AUTOMATION_TEMPLATE_ICONS[template.key]
                     return (
                       <TemplateChoiceCard
                         key={template.key}
@@ -685,7 +677,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   id="automation-name"
                   value={createName}
                   maxLength={80}
-                  placeholder="Weekly changelog email"
+                  placeholder="Weekly product email"
                   onChange={(event) => setCreateName(event.target.value)}
                   onBlur={() => setCreateNameTouched(true)}
                   aria-invalid={
@@ -740,7 +732,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         value={renameName}
         onValueChange={setRenameName}
         maxLength={80}
-        placeholder="Weekly changelog email"
+        placeholder="Weekly product email"
         dirty={renameName.trim() !== (renameTarget?.name ?? "")}
         busy={renaming}
         submitLabel="Save name"
@@ -875,14 +867,13 @@ function LiveCell({
       >
         <Switch
           checked={automation.enabled}
-          disabled={blocked || disabled}
+          // Held while its change saves; no circle beside it, because a loading
+          // circle sits only in a button (Tyler, 7 Nov 2026).
+          disabled={blocked || disabled || busy}
           aria-label={`${automation.enabled ? "Stop" : "Start"} ${automation.name} reacting to ${automation.trigger_name}`}
           onCheckedChange={onChange}
         />
       </DisabledReason>
-      {busy ? (
-        <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" />
-      ) : null}
       {stalled ? (
         <span className="truncate text-xs text-destructive">
           On, but not running

@@ -57,8 +57,13 @@ export const projectTeams = pgTable("project_teams", {
   /** A fingerprint of the join link's secret, never the link itself. */
   joinTokenHash: varchar("join_token_hash", { length: 64 }),
   joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
-  /** The team's photo, a media library address (`drizzle/0105_project_team_dashboard.sql`). */
+  /**
+   * The team's cover, a media library address (`drizzle/0105_project_team_dashboard.sql`),
+   * or "sky" for the drawn sky (`drizzle/0173_project_cover_images.sql`).
+   */
   photoUrl: text("photo_url"),
+  /** The pictures the cover has had, each a tile to pick again. */
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   /** The team's own words for the check-in's boxes; null keeps the usual ones (`drizzle/0106_project_checkin_and_handing_out.sql`). */
   questionYesterday: varchar("question_yesterday", { length: 40 }),
   questionToday: varchar("question_today", { length: 40 }),
@@ -180,9 +185,12 @@ export const projectProjects = pgTable("project_projects", {
   /**
    * The banner behind the top of the project page's left panel
    * (`drizzle/0121_project_pictures.sql`). A media library address, or null
-   * for none. Projects have no avatar (`drizzle/0145_project_no_avatar.sql`).
+   * for none, or "sky" for the drawn sky (`drizzle/0173_project_cover_images.sql`).
+   * Projects have no avatar (`drizzle/0145_project_no_avatar.sql`).
    */
   bannerUrl: text("banner_url"),
+  /** The pictures the banner has had, each a tile to pick again. */
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   /**
    * The status from late tasks: Slowing down from this many, Behind from
    * `behindAt` (`drizzle/0122_project_pace_rule.sql`, `lib/project/project-pace.ts`).

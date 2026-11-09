@@ -28,11 +28,18 @@ import { type ShellConfig } from "@/lib/custom-shell"
 import {
   DARK_SHADES,
   darkShade,
+  DEFAULT_BLOCK_INSET,
+  DEFAULT_PANEL_CARD_BORDER_WIDTH,
+  DEFAULT_PANEL_CARD_COLOR,
+  DEFAULT_BLOCK_RADIUS,
+  DEFAULT_BLOCK_SHADE,
   DEFAULT_DASHBOARD_TABS,
   DEFAULT_PAGE_SHADE,
   DEFAULT_SIDEBAR_SHADE,
   isDarkShadeId,
   isDashboardTabStyle,
+  MAX_BLOCK_INSET,
+  MAX_BLOCK_RADIUS,
   MAX_CARD_BORDER_WIDTH,
   MAX_CONTENT_GUTTER,
   MAX_MODAL_PADDING,
@@ -59,6 +66,13 @@ export function StylingSettings({
   const shade = darkShade(styling.darkShade)
   const sidebarShade = styling.sidebarShade ?? DEFAULT_SIDEBAR_SHADE
   const pageShade = styling.pageShade ?? DEFAULT_PAGE_SHADE
+  const blockRadius = styling.blockRadius ?? DEFAULT_BLOCK_RADIUS
+  const blockShade = styling.blockShade ?? DEFAULT_BLOCK_SHADE
+  const blockInset = styling.blockInset ?? DEFAULT_BLOCK_INSET
+  // Unset, widgets follow the blocks' settings.
+  const widgetRadius = styling.widgetRadius ?? blockRadius
+  const widgetShade = styling.widgetShade ?? blockShade
+  const widgetInset = styling.widgetInset ?? blockInset
   // The page is drawn from the slider's own number rather than the live
   // --shell-canvas, so the preview moves with the thumb even before the
   // root variable catches up. The rail preview mixes from this page too.
@@ -71,6 +85,14 @@ export function StylingSettings({
     update({ cardBorderColor: { ...styling.cardBorderColor, ...patch } })
   const updateDividerColor = (patch: Partial<ShellBackground>) =>
     update({ dividerColor: { ...styling.dividerColor, ...patch } })
+  // The panel cards' own settings; unset, the look they always had.
+  const panelCardBackground = styling.panelCardBackground ?? DEFAULT_PANEL_CARD_COLOR
+  const panelCardBorderWidth = styling.panelCardBorderWidth ?? DEFAULT_PANEL_CARD_BORDER_WIDTH
+  const panelCardBorderColor = styling.panelCardBorderColor ?? DEFAULT_PANEL_CARD_COLOR
+  const updatePanelCardBackground = (patch: Partial<ShellBackground>) =>
+    update({ panelCardBackground: { ...panelCardBackground, ...patch } })
+  const updatePanelCardBorderColor = (patch: Partial<ShellBackground>) =>
+    update({ panelCardBorderColor: { ...panelCardBorderColor, ...patch } })
 
   const modal = styling.modal
   const updateModal = (patch: Partial<ShellModalStyling>) =>
@@ -306,6 +328,209 @@ export function StylingSettings({
                 A card, sitting on the page.
               </CardContent>
             </Card>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      {/* Tyler, 7 Nov 2026: "I want to add blocks styling to styling
+          settings. I want to adjust to rounded corner, the gray shade bg and
+          this padding". The preview is drawn from the sliders' own numbers,
+          so it moves with the thumb. */}
+      <CollapsibleSettingsCard
+        storageId="styling-blocks"
+        title="Blocks"
+        description="The cards a page's blocks are drawn in, such as the CRM's Stages and Segments. Every block on every page changes live as you adjust these."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Rounded corners"
+          value={blockRadius}
+          min={0}
+          max={MAX_BLOCK_RADIUS}
+          valueLabel={blockRadius === DEFAULT_BLOCK_RADIUS ? `${blockRadius}px · Default` : `${blockRadius}px`}
+          onChange={(value) => update({ blockRadius: value })}
+          help="0px is square. The white tile inside keeps an even edge whatever you pick."
+        />
+        <SliderRow
+          label="Grey shade"
+          value={blockShade}
+          min={0}
+          max={100}
+          valueLabel={blockShade === DEFAULT_BLOCK_SHADE ? `${blockShade}% · Default` : `${blockShade}%`}
+          onChange={(value) => update({ blockShade: value })}
+          help="The grey around the white tile. 0% is white, 100% the theme's light grey, in light and dark mode."
+        />
+        <SliderRow
+          label="Edge around the tile"
+          value={blockInset}
+          min={0}
+          max={MAX_BLOCK_INSET}
+          valueLabel={blockInset === DEFAULT_BLOCK_INSET ? `${blockInset}px · Default` : `${blockInset}px`}
+          onChange={(value) => update({ blockInset: value })}
+          help="How much grey shows between the block's edge and its white tile, at the sides and the bottom."
+        />
+
+        <FieldGroup label="Preview" className="gap-2">
+          <div className="max-w-xs rounded-lg border bg-card p-3">
+            <div
+              className="overflow-hidden"
+              style={{
+                borderRadius: blockRadius,
+                background: `color-mix(in oklab, var(--muted) ${blockShade}%, var(--card))`,
+              }}
+            >
+              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold">Stages</p>
+              <div style={{ padding: `0 ${blockInset}px ${blockInset}px` }}>
+                <div
+                  className="divide-y overflow-hidden bg-card text-sm"
+                  style={{ borderRadius: Math.max(0, blockRadius - blockInset) }}
+                >
+                  {["New", "Contacted", "Quoted"].map((stage, index) => (
+                    <div key={stage} className="flex justify-between px-3 py-2">
+                      {stage}
+                      <span className="text-muted-foreground">{index + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      {/* Tyler, 8 Nov 2026: "Because the widget sits in a shaded background
+          it needs its own block styling options". The same three as Blocks,
+          and a preview on the page's own shade, where widgets sit. */}
+      <CollapsibleSettingsCard
+        storageId="styling-widgets"
+        title="Widgets"
+        description="The cards on the Admin dashboard's Overview, which sit on the page's shade rather than in a panel. Every widget changes live as you adjust these."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Rounded corners"
+          value={widgetRadius}
+          min={0}
+          max={MAX_BLOCK_RADIUS}
+          valueLabel={widgetRadius === DEFAULT_BLOCK_RADIUS ? `${widgetRadius}px · Default` : `${widgetRadius}px`}
+          onChange={(value) => update({ widgetRadius: value })}
+          help="0px is square. The white tile inside keeps an even edge whatever you pick."
+        />
+        <SliderRow
+          label="Grey shade"
+          value={widgetShade}
+          min={0}
+          max={100}
+          valueLabel={widgetShade === DEFAULT_BLOCK_SHADE ? `${widgetShade}% · Default` : `${widgetShade}%`}
+          onChange={(value) => update({ widgetShade: value })}
+          help="The grey around the white tile. 0% is white, 100% the theme's light grey, in light and dark mode."
+        />
+        <SliderRow
+          label="Edge around the tile"
+          value={widgetInset}
+          min={0}
+          max={MAX_BLOCK_INSET}
+          valueLabel={widgetInset === DEFAULT_BLOCK_INSET ? `${widgetInset}px · Default` : `${widgetInset}px`}
+          onChange={(value) => update({ widgetInset: value })}
+          help="How much grey shows between the widget's edge and its white tile, at the sides and the bottom."
+        />
+
+        <FieldGroup label="Preview" className="gap-2">
+          {/* The page's own shade behind, as on Overview. */}
+          <div className="max-w-xs rounded-lg border bg-[var(--shell-canvas)] p-3">
+            <div
+              className="overflow-hidden"
+              style={{
+                borderRadius: widgetRadius,
+                background: `color-mix(in oklab, var(--muted) ${widgetShade}%, var(--card))`,
+              }}
+            >
+              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold text-foreground/75">Top pages</p>
+              <div style={{ padding: `0 ${widgetInset}px ${widgetInset}px` }}>
+                <div
+                  className="overflow-hidden bg-card p-1.5 text-sm"
+                  style={{ borderRadius: Math.max(0, widgetRadius - widgetInset) }}
+                >
+                  {[
+                    ["/home", "1,204"],
+                    ["/pricing", "386"],
+                    ["/blog", "142"],
+                  ].map(([page, views]) => (
+                    <div key={page} className="flex items-center justify-between px-2.5 py-1.5">
+                      {page}
+                      <span className="rounded-full bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground tabular-nums">
+                        {views}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      {/* Tyler, 8 Nov 2026: "Add styling options for this card ui ... I want
+          to change border and bg", pointing at a person's Profile card on
+          the Admin dashboard. Laid out as Cards inside modals is. */}
+      <CollapsibleSettingsCard
+        storageId="styling-panel-cards"
+        title="Panel cards"
+        description="The grey folding cards in a right panel, such as a person's Profile and Plan on the Admin dashboard. Every one changes live as you adjust these."
+        contentClassName="space-y-6"
+      >
+        <FieldGroup label="Background">
+          <BackgroundField
+            idPrefix="panel-card-bg"
+            value={panelCardBackground}
+            defaultHint="Uses the theme's light grey, as the cards always have."
+            onChange={updatePanelCardBackground}
+          />
+        </FieldGroup>
+
+        <SliderRow
+          label="Border"
+          value={panelCardBorderWidth}
+          min={0}
+          max={MAX_CARD_BORDER_WIDTH}
+          valueLabel={
+            panelCardBorderWidth === 0
+              ? "Off"
+              : panelCardBorderWidth === DEFAULT_PANEL_CARD_BORDER_WIDTH
+                ? `${panelCardBorderWidth}px · Default`
+                : `${panelCardBorderWidth}px`
+          }
+          onChange={(value) => update({ panelCardBorderWidth: value })}
+          help="Border thickness of the cards. 0 removes it."
+        />
+
+        <FieldGroup label="Border color">
+          <BackgroundField
+            idPrefix="panel-card-border"
+            value={panelCardBorderColor}
+            disabled={panelCardBorderWidth === 0}
+            defaultHint="The theme's border colour."
+            onChange={updatePanelCardBorderColor}
+          />
+        </FieldGroup>
+
+        <FieldGroup label="Preview" className="gap-2">
+          {/* Drawn as a real panel card, so it reads the saved values the
+              way every card does. */}
+          <div className="max-w-xs rounded-lg border bg-card p-3">
+            <div data-slot="panel-card" className="grid gap-2 rounded-lg p-4 text-sm">
+              <p className="text-[15px] font-semibold">Profile</p>
+              {[
+                ["Role", "Member"],
+                ["Status", "Active"],
+                ["Joined", "Aug 4, 2026"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </FieldGroup>
       </CollapsibleSettingsCard>

@@ -3,7 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 import { AdminDashboardScreen } from "@/components/project/admin-dashboard"
-import { DailyCard as DailyCardView, useDailyNow } from "@/components/project/daily-card"
+import { useDailyNow } from "@/components/project/daily-card"
+import { DailyCardBlock } from "@/components/project/notes/dashboard-blocks"
 import { ProjectBlock } from "@/components/project/admin-project-cards"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { InboxPage } from "@/components/project/inbox-card"
@@ -157,7 +158,7 @@ const DAILY: DailyCard = {
 /** The Daily card as its block on the site admin's page draws it, in its rounded grey box. */
 function BoxedCard({ daily }: { daily: DailyCard }) {
   const now = useDailyNow(daily)
-  return <DailyCardView daily={daily} now={now} checkin={null} boxed />
+  return <DailyCardBlock daily={daily} now={now} editing={{ editable: true, remove: () => undefined }} />
 }
 
 function drawCard(daily: DailyCard) {
@@ -186,8 +187,6 @@ function notice(n: number): NotificationItem {
     recipient_name: "Tyler",
     feedback_id: null,
     feedback_message: null,
-    changelog_entry_id: null,
-    changelog_title: null,
     announcement_id: `a${n}`,
     announcement_title: `Notice ${n}`,
     announcement_body: null,
@@ -326,11 +325,12 @@ describe("the site admin's My dashboard", () => {
     const morning = drawCard(DAILY)
     expect(morning).toContain("Good morning Tyler")
     expect(morning).toContain(">Start day<")
-    // In its own rounded grey box, off the sky, so the greeting needs no room above it.
-    expect(morning).not.toMatch(/group\/fold[^"]*mt-6/)
-    // Always open: no arrow and no fold (Tyler, 6 Nov 2026: "it doesnt need to be a toggle").
-    expect(morning).toMatch(/<h2 class="[^"]*">Good morning Tyler/)
-    expect(morning).not.toContain("Fold it to the greeting")
+    // In the block card every block has: the greeting is the heading's title and folds the
+    // card (Tyler, 9 Nov 2026: "this should have the same heading as any block and the header
+    // needs to be collapsible too"), with Delete block in its ⋮.
+    expect(morning).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*><span[^>]*>Good morning Tyler/)
+    expect(morning).toContain('aria-label="More for Good morning Tyler')
+    expect(morning).toContain("data-block-tile")
     // The date is inside the card, so it folds away with it, leaving the greeting.
     expect(morning).toMatch(/<\/h2>(?:(?!<\/h2>).)*Mar 2, 2099/)
 
@@ -370,9 +370,11 @@ describe("the site admin's My dashboard", () => {
     expect(left).toContain("Ship the redesign")
     expect(left).toContain('aria-label="Daily card"')
     expect(left).toContain(">Website<")
-    // No bins while it's locked; the project still has New task and Open.
+    // No Delete block while it's locked.
     expect(left).not.toContain('aria-label="Remove daily card"')
-    expect(left).toContain('aria-label="New task in Website"')
+    // Read only, the block has no ⋮: nothing to delete. (Its New task and Open go into the
+    // heading row once it has drawn in a browser.)
+    expect(left).not.toContain('aria-label="More for Website"')
   })
 
   it("gives the site admin a page they can write in, empty or not", () => {
@@ -382,7 +384,7 @@ describe("the site admin's My dashboard", () => {
     expect(render(dashboard())).toContain("data-notes-editor")
   })
 
-  it("draws a Projects block as a pinned project was: tinted by pace, stuck, late, due date, lead, faces, finished line", () => {
+  it("draws a Projects block's tile as a pinned project was: pace, stuck, late, due date, lead, faces, finished line", () => {
     const block = (project: ProjectRow, picked = false) =>
       renderToStaticMarkup(
         <TooltipProvider>
@@ -399,9 +401,9 @@ describe("the site admin's My dashboard", () => {
         </TooltipProvider>
       )
     const brochure = block(projectRow("p1", "Brochure", { dueDate: "2099-03-24", lead: { id: "pri", name: "Priya", avatarUrl: "" } }))
-    // Projects have no avatar (Tyler, 5 Nov 2026): the block shows its colour as a full 36px dot.
-    expect(brochure).toMatch(/size-9"><\/span><span class="grid[^>]*><span class="truncate[^>]*>Brochure</)
-    expect(brochure).toContain("border-green-500/20")
+    // The name is the block's heading, so the tile says it to a screen reader only.
+    expect(brochure).toContain('<span class="sr-only">Brochure</span>')
+    expect(brochure).toContain("bg-green-500/10")
     expect(brochure).toContain("3/6 done")
     expect(brochure).toContain("Due Mar 24, 2099 · 22 days left")
     expect(brochure).toContain("Lead: Priya.")
@@ -414,13 +416,15 @@ describe("the site admin's My dashboard", () => {
         dated: ["2000-01-01", "2000-01-02", "2000-01-03"].map((dueDate) => ({ dueDate, dueAt: null, status: "todo" })),
       })
     )
-    expect(rebrand).toContain("border-red-500/20")
+    expect(rebrand).toContain("bg-red-500/10")
     expect(rebrand).toContain("2 stuck")
     expect(rebrand).toContain("3 late")
     expect(rebrand).toContain("0/5 done")
-    // Picked, it lifts and says it filters My tasks.
+    // Picked, the shell's small bar slides in and it says it filters My tasks.
     const picked = block(projectRow("p1", "Brochure"), true)
     expect(picked).toContain('aria-pressed="true"')
+    expect(picked).toMatch(/data-dashboards-bar="" class="[^"]*mr-2 w-3/)
+    expect(brochure).toMatch(/data-dashboards-bar="" class="[^"]*mr-0 w-0/)
     expect(picked).toContain("Showing only this project&#x27;s tasks. Press to show them all.")
   })
 

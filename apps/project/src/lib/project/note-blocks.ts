@@ -38,6 +38,7 @@ export const NOTE_ATOM_TYPES = [
   "noteTeamAttention",
   "noteTeamWeek",
   "noteTeamMembers",
+  "noteMilestones",
 ] as const
 export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
 
@@ -64,11 +65,20 @@ export const TEAM_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
 ])
 
 /**
- * Where a note is kept: `dashboard` for the site admin's own page, which alone
- * keeps the dashboard blocks, and `team` for a team's page, which alone keeps
- * the team blocks.
+ * Blocks only a project's own page may hold (Tyler, 9 Nov 2026: "remove the
+ * details card and make milestone a block"): its Milestones, which were a card
+ * at the foot of the project's left panel. Its notes and every other page drop
+ * them.
  */
-export type NoteRules = { dashboard?: boolean; team?: boolean }
+export const PROJECT_PAGE_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteMilestones"])
+
+/**
+ * Where a note is kept: `dashboard` for the site admin's own page, which alone
+ * keeps the dashboard blocks, `team` for a team's page, which alone keeps
+ * the team blocks, and `projectPage` for a project's own page, which alone
+ * keeps Milestones.
+ */
+export type NoteRules = { dashboard?: boolean; team?: boolean; projectPage?: boolean }
 
 /** Blocks that hold writing: a Callout's words, a Checklist's lines, a Fold section's heading. */
 export const NOTE_HOLDER_TYPES = ["noteCallout", "taskList", "taskItem", "noteFold"] as const
@@ -222,6 +232,8 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   noteTeamAttention: () => ({}),
   noteTeamWeek: () => ({}),
   noteTeamMembers: () => ({}),
+  // The project's own milestones, read when drawn, so it holds nothing.
+  noteMilestones: () => ({}),
 }
 
 function isAtom(type: unknown): type is NoteAtomType {
@@ -290,6 +302,7 @@ function cleanNode(value: unknown, depth: number, rules: NoteRules): NoteNode | 
   if (isAtom(raw.type)) {
     if (DASHBOARD_ATOM_TYPES.has(raw.type) && !rules.dashboard) return null
     if (TEAM_ATOM_TYPES.has(raw.type) && !rules.team) return null
+    if (PROJECT_PAGE_ATOM_TYPES.has(raw.type) && !rules.projectPage) return null
     const kept = ATOM_CLEANERS[raw.type](attrsOf(raw))
     if (!kept) return null
     return Object.keys(kept).length ? { type: raw.type, attrs: kept } : { type: raw.type }
@@ -324,6 +337,18 @@ export function cleanDashboardBody(value: unknown): NoteNode {
 export function cleanTeamBody(value: unknown): NoteNode {
   return cleanNoteBody(value, { team: true })
 }
+
+/** A project's own page, cleaned: a note's rules, keeping Milestones. */
+export function cleanProjectPageBody(value: unknown): NoteNode {
+  return cleanNoteBody(value, { projectPage: true })
+}
+
+/**
+ * A new project's page: the Milestones block alone, where the Milestones card
+ * sat at the foot of the panel until 9 Nov 2026, so its milestones show from
+ * the start.
+ */
+export const NEW_PROJECT_PAGE = JSON.stringify({ type: "doc", content: [{ type: "noteMilestones" }] })
 
 /** A new Fold section's id, which each reader's folds are remembered by. */
 export function newFoldId() {

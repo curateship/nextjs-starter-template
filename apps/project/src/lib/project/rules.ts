@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { isRealDay } from "@/lib/project/days"
 import { storedPlainNotes, storedTaskNotes } from "@/lib/project/notes"
+import { coverImagesSchema } from "@/lib/notes/page-cover"
 
 /**
  * Project's fixed lists and the limits on what people type, shared by the
@@ -504,10 +505,10 @@ const lateTasksSchema = z
   .min(1, "Type at least 1.")
   .max(LIMITS.lateTasks, `Type at most ${LIMITS.lateTasks}.`)
 
-/** A page of notes and "/" blocks, as kept: a project's left panel, or the site admin's My dashboard. */
+/** A project's own page of notes and "/" blocks, as kept, which alone keeps Milestones. */
 const pageNotesSchema = z
   .unknown()
-  .transform((value) => storedTaskNotes(value))
+  .transform((value) => storedTaskNotes(value, { projectPage: true }))
   .refine((notes) => notes.length <= LIMITS.taskNotes, "The page is too long. Split it up or attach a file to a task.")
 
 /** The site admin's own page at the top of My dashboard, which alone keeps the dashboard blocks. */
@@ -545,8 +546,10 @@ export const updateProjectSchema = z.object({
   /** Late tasks from which the project shows Slowing down, and Behind. */
   slowingAt: lateTasksSchema.optional(),
   behindAt: lateTasksSchema.optional(),
-  /** A media library address, or "" to take the picture away. */
+  /** A media library address, "sky" for the drawn sky, or "" to take the cover away. */
   bannerUrl: z.string().trim().max(2048).optional(),
+  /** The pictures the banner has had, kept as tiles in its Cover photo row. */
+  coverImages: coverImagesSchema.optional(),
   /** The left panel's page of notes and "/" blocks. */
   notes: pageNotesSchema.optional(),
   /** Locks the page so it reads only, or unlocks it. */
@@ -962,3 +965,6 @@ export const meetingNoteLineSchema = meetingDaySchema.extend({
 
 /** The team photo's address from the media library, or "" to take it away. */
 export const teamPhotoSchema = z.object({ photoUrl: z.string().trim().max(2048) })
+
+/** The team page's cover as its Cover photo row saves it: the pick ("" for none, or "sky") and its pictures. */
+export const teamCoverSchema = z.object({ photoUrl: z.string().trim().max(2048), coverImages: coverImagesSchema })

@@ -184,6 +184,15 @@ describe("the project's banner", () => {
     const { project } = await loadProjectPage(anna.id, website, database)
     expect(project.bannerUrl).toBeNull()
   })
+
+  it("takes the sky as its cover, and keeps only the site admin's own uploads as tiles", async () => {
+    await updateProject(admin.id, { projectId: website, bannerUrl: "sky", coverImages: [] }, database)
+    expect((await loadProjectPage(anna.id, website, database)).project).toMatchObject({ bannerUrl: "sky", coverImages: [] })
+    await expect(
+      updateProject(admin.id, { projectId: website, bannerUrl: "sky", coverImages: ["https://example.com/cat.png"] }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.photoNotYours)
+    await updateProject(admin.id, { projectId: website, bannerUrl: "" }, database)
+  })
 })
 
 describe("the project's page lock", () => {

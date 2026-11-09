@@ -1,24 +1,27 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  ActivityIcon,
+  CircleAlertIcon,
+  ClipboardCheckIcon,
+  PlusIcon,
+  UsersIcon,
+  WeightIcon,
+  type LucideIcon,
+} from "lucide-react"
 
-import { FoldHeading } from "@/components/project/fold-heading"
 import { BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
+import { ProjectBlockCard } from "@/components/project/notes/project-block-card"
 import { CheckinsCard } from "@/components/project/team-checkins-card"
 import { TeamFiguresGrid } from "@/components/project/team-figures"
 import { MemberGroups } from "@/components/project/team-member-groups"
 import { TeamSideCardTiles } from "@/components/project/team-side-card"
 import { AttentionPanel, WorkloadPanel, useAttention } from "@/components/project/team-work-panels"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { TeamDay } from "@/lib/api/project/checkins"
 import type { TeamFigures, TeamMemberRow } from "@/lib/api/project/teams"
-import { FOOTER_CARD_BODY } from "@/lib/project/panel-gutter"
 import { useTeamId } from "@/lib/project/team-scope"
-import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
-import { cn } from "@/lib/utils"
 
 /**
  * The blocks only a team's own page on the Team dashboard offers (task "Team
@@ -88,70 +91,32 @@ function NotHere({ editing, label }: { editing: BlockEditing; label: string }) {
 }
 
 /**
- * Every team block is one card: a solid light grey box, as the Daily card
- * block is, whose heading row holds the title and the bin while the page can
- * be written in, with no fold arrow (Tyler, 7 Nov 2026: "the header should be
- * here on the same row as the trashcan icon. Also clicking on the header
- * toggles the card"). Pressing the title folds it; the fold is remembered in
- * this browser, per block. The cards inside are white tiles.
+ * Every team block is the shell's block card (task "Shell look/three-panel-shell-look",
+ * Tyler, 9 Nov 2026: "Shell look, one tile"): a frosted grey box, its title
+ * folding it, a ⋮ with Delete block while the page can be written in, and
+ * what it shows on one white tile, its lists as the shell's one-line rows.
+ * It was Project's own grey card with a bin from 7 Nov 2026.
  */
-function BlockCard({
+function TeamBlockCard({
   editing,
   kind,
   title,
+  icon: Icon,
   count,
-  removeLabel,
-  bodyClassName,
   children,
 }: {
   editing: BlockEditing
   /** Names the fold this browser remembers. */
   kind: string
   title: string
+  icon: LucideIcon
   count?: number
-  removeLabel: string
-  bodyClassName?: string
   children: React.ReactNode
 }) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(`team-block-${kind}`))
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))]"
-    >
-      {/* The page's own heading look stops at the card, so the title sits level with the bin.
-          No fold arrow (Tyler, 7 Nov 2026: "dont need to show this"): the title is the press. */}
-      <FoldHeading
-        band
-        title={title}
-        count={count}
-        open={open}
-        className="[&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold"
-      >
-        {editing.editable ? (
-          // Shown while the block is pointed at or focused, and always on a phone, as every block's bin is.
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={removeLabel}
-                className="text-muted-foreground opacity-0 group-hover/block:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-                onClick={editing.remove}
-              >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{removeLabel}</TooltipContent>
-          </Tooltip>
-        ) : null}
-      </FoldHeading>
-      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid min-w-0 gap-3", FOOTER_CARD_BODY, bodyClassName)}>
-        <TeamSideCardTiles>{children}</TeamSideCardTiles>
-      </CollapsibleContent>
-    </Collapsible>
+    <ProjectBlockCard editing={editing} kind={`team-${kind}`} title={title} icon={<Icon className="size-4" />} count={count}>
+      <TeamSideCardTiles>{children}</TeamSideCardTiles>
+    </ProjectBlockCard>
   )
 }
 
@@ -170,9 +135,9 @@ export function CheckinsDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useTeamBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove check-ins" />
   return (
-    <BlockCard editing={editing} kind="checkins" title="Check-ins" removeLabel="Remove check-ins">
+    <TeamBlockCard editing={editing} kind="checkins" title="Check-ins" icon={ClipboardCheckIcon}>
       <CheckinsCard day={blocks.day} requested={blocks.requested} myUserId={blocks.myUserId} members={blocks.members} />
-    </BlockCard>
+    </TeamBlockCard>
   )
 }
 
@@ -190,7 +155,7 @@ export function WorkloadDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useTeamBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove workload" />
   return (
-    <BlockCard editing={editing} kind="workload" title="Workload" removeLabel="Remove workload">
+    <TeamBlockCard editing={editing} kind="workload" title="Workload" icon={WeightIcon}>
       <WorkloadPanel
         reload={blocks.reload}
         onOpenTask={blocks.onOpenTask}
@@ -198,7 +163,7 @@ export function WorkloadDrawing({ editing }: { editing: BlockEditing }) {
         client={blocks.client}
         onClient={blocks.onClient}
       />
-    </BlockCard>
+    </TeamBlockCard>
   )
 }
 
@@ -226,15 +191,15 @@ export function AttentionDrawing({ editing }: { editing: BlockEditing }) {
 function AttentionCards({ editing, blocks }: { editing: BlockEditing; blocks: TeamBlocks }) {
   const attention = useAttention(true, blocks.reload)
   return (
-    <BlockCard
+    <TeamBlockCard
       editing={editing}
       kind="attention"
       title="Attention"
+      icon={CircleAlertIcon}
       count={attention.loaded.state === "ready" ? attention.loaded.value.length : undefined}
-      removeLabel="Remove attention"
     >
       <AttentionPanel attention={attention} onOpenTask={blocks.onOpenTask} />
-    </BlockCard>
+    </TeamBlockCard>
   )
 }
 
@@ -253,18 +218,15 @@ export function WeekDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useTeamBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove this week" />
   return (
-    <BlockCard editing={editing} kind="week" title="This week" removeLabel="Remove this week" bodyClassName="pb-2">
-      {/* The figures run to the card's edges, under a line, as Tyler drew them. */}
-      <div className="pb-4">
-        <TeamFiguresGrid figures={blocks.figures} />
-      </div>
+    <TeamBlockCard editing={editing} kind="week" title="This week" icon={ActivityIcon}>
+      <TeamFiguresGrid figures={blocks.figures} />
       {/* A link that leads away sits at the foot of the card, not in its heading (UI standard). */}
-      <div className="-mx-4 -mt-3 border-t px-2 pt-2">
+      <div className="border-t p-1.5">
         <Button type="button" variant="ghost" size="sm" onClick={blocks.onTrends}>
           Trends
         </Button>
       </div>
-    </BlockCard>
+    </TeamBlockCard>
   )
 }
 
@@ -284,7 +246,7 @@ export function MembersDrawing({ editing }: { editing: BlockEditing }) {
   const teamId = useTeamId()
   if (!blocks) return <NotHere editing={editing} label="Remove members" />
   return (
-    <BlockCard editing={editing} kind="members" title="Members" count={blocks.members.length} removeLabel="Remove members">
+    <TeamBlockCard editing={editing} kind="members" title="Members" icon={UsersIcon} count={blocks.members.length}>
       <MemberGroups
         members={blocks.members}
         myUserId={blocks.myUserId}
@@ -293,13 +255,13 @@ export function MembersDrawing({ editing }: { editing: BlockEditing }) {
         onOpen={blocks.onOpenMember}
         onResend={blocks.onResend}
       />
-      {blocks.canRun ? (
-        <Button type="button" className="w-full" onClick={blocks.onInvite}>
-          <PlusIcon className="size-4" />
-          Invite people
-        </Button>
-      ) : null}
-      <div className="-mx-2 -mb-2">
+      <div className="flex flex-wrap items-center gap-1 border-t p-1.5">
+        {blocks.canRun ? (
+          <Button type="button" variant="ghost" size="sm" onClick={blocks.onInvite}>
+            <PlusIcon className="size-4" />
+            Invite people
+          </Button>
+        ) : null}
         <Button asChild variant="ghost" size="sm">
           {teamId ? (
             <Link to="/teams/$teamId/members" params={{ teamId }}>
@@ -310,6 +272,6 @@ export function MembersDrawing({ editing }: { editing: BlockEditing }) {
           )}
         </Button>
       </div>
-    </BlockCard>
+    </TeamBlockCard>
   )
 }

@@ -17,6 +17,7 @@ import { TaskList, type ProjectColumn } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
 import { SearchToggle } from "@/components/project/task-header-controls"
 import { TaskTimeline } from "@/components/project/task-timeline"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { Button } from "@/components/ui/button"
@@ -509,6 +510,7 @@ export function MyTasksPanel({
           then search, Filter, Views and New task. No members
           dropdown, since every task here is mine. */}
       <DashboardCardHeader className="@container">
+        <PanelReopenButton side="left" label="Show my page" />
         <DashboardTabs
           value={view}
           onValueChange={(value) => {
@@ -633,6 +635,7 @@ export function MyTasksPanel({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>
       {overdue && !filtered ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-destructive/10 px-4 py-2 text-destructive">
@@ -713,6 +716,7 @@ export function MyTasksPanel({
             ordered
             foldsKey={MY_ATTENTION_FOLDS_KEY}
             onOpenTask={(task) => onOpenTask(task.id)}
+            openTaskId={openTaskId}
             groups={ATTENTION_GROUPS}
             groupsOf={(task) => [attentionHeading[task.id]]}
             bulk={bulk}
@@ -763,6 +767,7 @@ export function MyTasksPanel({
             orderLabel="my order"
             selectedSlot={selectedSlot}
             onOpenTask={(task) => onOpenTask(task.id)}
+            openTaskId={openTaskId}
             groups={listGroups ?? TABLE_GROUPS}
             groupsOf={listGroupsOf ?? ((task) => [headingOf(task)])}
             bulk={bulk}

@@ -29,7 +29,6 @@ export const ROLE_ID_PATTERN = /^[a-z][a-z0-9_]{0,49}$/
  * - `billing`: plans, Upgrade, pricing, and the Account window's Billing tab.
  * - `aiUsage`: the person's own AI usage.
  * - `feedback`: the header's Feedback button and the feedback board.
- * - `changelog`: the changelog and What's new.
  * - `workspaces`: having workspaces and the switcher, when the app has them.
  * - `security`: everything on Account → Security. Without it the tab holds
  *   only the password and signing out other devices; passkeys and Delete my
@@ -40,7 +39,6 @@ export const ROLE_FEATURES = [
   "billing",
   "aiUsage",
   "feedback",
-  "changelog",
   "workspaces",
   "security",
   "emailChange",

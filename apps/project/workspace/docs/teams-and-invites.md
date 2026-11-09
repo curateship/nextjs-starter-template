@@ -13,7 +13,7 @@ two kinds of people, both ordinary shell accounts signing in on the one
 - **Employees** do the work. Their account has Project's own `employee` role,
   declared in `roles` in `src/app/options.ts` (see the shell's
   `docs/accounts/app-roles.md`). An employee gets none of the shell's member
-  features: no Billing, plan or Upgrade, no AI usage, Feedback, Changelog or
+  features: no Billing, plan or Upgrade, no AI usage, Feedback or
   workspaces. Their Account window holds their name, photo and password, and
   Security has the password and "sign out other devices" only. Their left menu
   is Project's: My dashboard, Projects and Team.
@@ -207,10 +207,16 @@ team pages"). It began as his mockup of 10 Oct 2026
 panels resize and collapse like the project page's, and below 1280px wide one
 shows at a time, under Tasks, Team and Task tabs.
 
-- **Left: the team.** The header is the team's name and, for the site admin,
-  the ⋮ Team settings menu (see Team settings below). The
-  team's cover photo lies faintly behind the header and fades into the
-  panel, as My dashboard's sky does. There is no avatar and no "Created"
+- **Left: the team.** The header is the button that hides the panel, the
+  team's name and, for the site admin, the ⋮ Team settings menu (see Team
+  settings below). The team's cover, a picture or the drawn sky, lies
+  faintly behind the header and fades into the panel, as My dashboard's sky
+  does, and carries on behind the open task's header on the right. It is
+  picked in Team settings' Page group, Cover photo: the shell's tiles of
+  None, Sky, the pictures the team has had and + (since 9 Nov 2026; saved
+  in `photo_url` and `cover_images`, migration 0173). The Teams table's
+  settings window keeps its one Cover photo picture, which says so while the
+  cover is the sky. There is no avatar and no "Created"
   line ("Dont show create data for the left panel. Remove team avatar").
   Under it is **the team's page**, one page of notes and "/" blocks that
   stays, which only the site admin writes ("Cover stays; you write", his
@@ -218,12 +224,14 @@ shows at a time, under Tasks, Team and Task tabs.
   stops, in `project_teams.notes` (`drizzle/0156_project_team_page.sql`).
   Besides a project page's blocks, it offers five of its own (Tyler, 7 Nov
   2026: "checkins, workload and attention becomes blocks for the left
-  panel"), each once per page. Each block is one light grey card whose
-  heading row holds its title and its bin while the page can be written in,
-  with no fold arrow ("dont need to show this"); pressing the title folds it, remembered in this browser
-  (Tyler, 7 Nov 2026: "the header should be here on the same row as the
-  trashcan icon. Also clicking on the header toggles the card"). The cards
-  inside are white tiles:
+  panel"), each once per page. Each block is the shell's block card since
+  9 Nov 2026 (Tyler: "Shell look, one tile"): a frosted grey box, a 57px
+  heading with its icon and title, no fold arrow ("dont need to show this"),
+  pressing the title folds it, remembered in this browser (Tyler, 7 Nov
+  2026: "clicking on the header toggles the card"), and a ⋮ with Delete
+  block while the page can be written in. What it shows sits on one white
+  tile, its lists as the shell's one-line rows (a name, a muted line, a grey
+  pill), a line between the tile's parts, five rows then "Show all 12":
   - **Check-ins:** the day picked on the calendar, today on arrival. See
     Check-ins below.
   - **Workload** and **Attention**: see
@@ -232,9 +240,13 @@ shows at a time, under Tasks, Team and Task tabs.
   - **This week:** the four figures in a 2 by 2 grid with lines between, and
     Trends at its foot (see The four figures and Trends below).
   - **Members · 6:** **Active** and, under a line, **Invited**: people who
-    haven't set a password yet, with a dashed photo and Resend for the site
-    admin. A name opens that person's page. Invite people for the site
-    admin, and Manage (the Members page) at its foot.
+    haven't set a password yet, with Resend for the site admin while the
+    row is pointed at. A name opens that person's page. Invite people for
+    the site admin, and Manage (the Members page) at its foot.
+  - In Check-ins, the people who checked in keep their whole check-in; the
+    "Didn't check in" and "Away" lists are one-line rows. Attention is a
+    grey heading per kind over its tasks as one-line rows, how long in the
+    pill.
   The check-in schedule is set and read in Team settings.
 - **Middle: Tasks, Calendar and Activity tabs** (Tyler, 7 Nov 2026: "Middle
   panel should now show all the tasks from the team. So tasks, calender,

@@ -34,7 +34,7 @@ export const appOptions: AppOptions = {
    * Project's people are employees (Tyler, 16 Oct 2026: "I think this needs to
    * be a shell change. We'd have admin, pro, free and other types of users
    * such as employee"). An employee gets none of the shell's member features:
-   * no billing, plan or Upgrade, AI usage, Feedback, Changelog or workspaces,
+   * no billing, plan or Upgrade, AI usage, Feedback or workspaces,
    * and an Account window with their name, photo and password. Their left
    * menu starts as Project's own. The site admin is the shell's `admin`, and
    * runs every team without being on one (`src/server/project/access.ts`).

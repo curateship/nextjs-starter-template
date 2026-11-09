@@ -226,7 +226,8 @@ row max)").
 Reference: `AdminPanel` in `apps/project/src/components/project/admin-dashboard.tsx`.
 Second example: `ProjectDetailsPanel` in
 `apps/project/src/components/project/project-details-panel.tsx` (the project
-page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
+page: no footer since 9 Nov 2026, its Milestones a "/" block only a project's
+page offers, `notes/project-page-blocks.tsx`, and the project ⋮ as a
 `TabbedMenu` with General and Members in `project-menu.tsx`).
 
 - **Header:** the record or person's avatar, name and one muted line, then
@@ -366,10 +367,16 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
       picked one dark with the sliding bar, no shade ("Only the dashboard ones
       are the new ui"). Give each row `picked`. A row's own ⋯ takes its
       pill's place while the row is pointed at.
-    - Project's team blocks hold several small white cards
-      (`apps/project/src/components/project/notes/team-blocks.tsx`, tiles
-      `rounded-xl bg-background p-3`). They were built before this style;
-      ask Tyler before bringing them onto it.
+    - Project's blocks are on this card since 9 Nov 2026, team blocks
+      included (Tyler: "Shell look, one tile"), through `ProjectBlockCard`
+      in `apps/project/src/components/project/notes/project-block-card.tsx`,
+      which puts an app's own drawing into the shell's `BlockCard`. Its
+      title stays on one line, cut short with "…", so the heading holds
+      57px at the narrowest panel, and a block's own heading buttons can
+      show only while the heading is pointed at (`QuietHeadingButtons`).
+    - **An app's own three-panel frame** provides the shell's
+      `SideTogglesProvider`, so `PanelReopenButton` and
+      `SidePanelCollapseButton` work in it unchanged (Project's frame).
 - **Block gutters are the panel gutter, 15px, everywhere** (Tyler, 7 Nov 2026:
   "This should be the gutter size for the blocks"): 15px from the panel's
   sides, 15px between two blocks, and a block that opens the page sits 15px
@@ -416,8 +423,11 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
   dashboard's cards one under another (here: Pinned projects, Need your
   attention, Daily card).
   - **Use `PanelFooter`** (`apps/project/src/components/project/panel-footer.tsx`)
-    and pass each card as a child. Don't redraw the footer by hand. My
-    dashboard and the project page both use it.
+    and pass each card as a child. Don't redraw the footer by hand. No
+    Project screen uses it since 9 Nov 2026: the project page's Details card
+    went and its Milestones became a "/" block (Tyler: "remove the details
+    card and make milestone a block"), as My dashboard's cards had become
+    blocks before. Prefer a "/" block on the page to a new footer card.
   - **Layout:** the panel is a flex column. The body above takes
     `PANEL_BODY_ABOVE_FOOTER` (`flex-[1_0_6rem]`, keeps at least 6rem for the
     page), or `PANEL_BODY_ABOVE_FOOTER_WIDE` (`flex-[1_0_50%]`) while the
@@ -437,9 +447,10 @@ page, 6 Nov 2026: footer cards Details and Milestones, and the project ⋮ as a
     `storageId` as the `collapseStorageKey.settingsCard(...)` key so a fold
     already remembered stays. Its heading button (the "+") goes in as
     `FoldHeading`'s children, before the arrow.
-  - **Name and value facts** (the project's Lead and Client) become a
-    Details card: rows with the name muted on the left and the value on the
-    right (`ProjectDetailsCard` in `project-details-panel.tsx`).
+  - **Name and value facts** (the project's Lead and Client) were a Details
+    card, rows with the name muted on the left and the value on the right,
+    until Tyler removed it on 9 Nov 2026 ("remove the details card"). Don't
+    add one back by default.
   - **Each card** is a `Collapsible` with `FoldHeading band icon={...}` as its
     heading (`apps/project/src/components/project/fold-heading.tsx`), and its
     body (`CollapsibleContent`) brings `FOOTER_CARD_BODY` (`px-4 pb-4`, in

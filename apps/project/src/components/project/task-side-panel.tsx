@@ -16,6 +16,7 @@ import {
 } from "@/components/project/task-body"
 import type { NotesHandle } from "@/components/project/task-notes"
 import { ASK_TIME_DAY_ID, MOVE_PICKER_ID, TaskMoreRows } from "@/components/project/task-more-menu"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -23,6 +24,7 @@ import { TabbedMenu } from "@/components/project/my-settings-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 
 /**
  * The project page's right panel: the open task. Tyler drew it on 13 Oct
@@ -53,11 +55,13 @@ export function TaskSidePanel({
   /** Once the task has loaded, which marks its chat read. */
   onLoaded?: (taskId: string) => void
 }) {
+  const cover = useRightCover()
   if (!taskId) {
     return (
-      <>
-        <DashboardCardHeader>
-          <h2 className="text-sm font-medium">Task</h2>
+      <CoverFrame>
+        <DashboardCardHeader className={cn(cover && "border-b-transparent")}>
+          <h2 className="min-w-0 flex-1 text-sm font-medium">Task</h2>
+          <SidePanelCollapseButton side="right" label="Hide the task" />
         </DashboardCardHeader>
         <div className="grid flex-1 content-center justify-items-center gap-2 p-6 text-center">
           <SquareMousePointerIcon className="size-5 text-muted-foreground" aria-hidden />
@@ -65,13 +69,28 @@ export function TaskSidePanel({
             Click a task to see its notes and chat here.
           </p>
         </div>
-      </>
+      </CoverFrame>
     )
   }
   return (
     <TaskView key={taskId} taskId={taskId} onLoaded={onLoaded}>
       {(parts) => <SidePanel parts={parts} onClose={onClose} />}
     </TaskView>
+  )
+}
+
+/**
+ * The left page's cover carried on behind the right panel's header (the
+ * shell's look, Tyler, 8 Nov 2026: "make it an extension of the left
+ * panel"): the same picture, or the same sky with no sun or moon. The frame
+ * is `isolate`, so the cover lies behind everything in it.
+ */
+function CoverFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative isolate flex min-h-0 flex-1 flex-col">
+      <RightPanelCover />
+      {children}
+    </div>
   )
 }
 
@@ -97,18 +116,21 @@ function SidePanel({
     frame.current?.focus({ preventScroll: true })
   }, [])
 
+  const cover = useRightCover()
   return (
     <div
       ref={frame}
       tabIndex={-1}
-      className="flex min-h-0 flex-1 flex-col outline-none"
+      className="relative isolate flex min-h-0 flex-1 flex-col outline-none"
       aria-label={parts.title}
       role="region"
     >
       {/* The task's name on the left, where the status was (Tyler, 20 Oct
           2026), then the one ⋮ menu, which took in the cog's on 2 Nov 2026.
-          The button has no border or background (Tyler, 14 Oct 2026). */}
-      <DashboardCardHeader>
+          The button has no border or background (Tyler, 14 Oct 2026). The left
+          page's cover lies behind it, its line see-through over it. */}
+      <RightPanelCover />
+      <DashboardCardHeader className={cn(cover && "border-b-transparent")}>
         {side ? (
           <div className="flex min-w-0 flex-1 items-start gap-1">
             <div className="min-w-0 flex-1">{side.title}</div>
@@ -150,6 +172,7 @@ function SidePanel({
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{parts.title}</h2>
         )}
+        <SidePanelCollapseButton side="right" label="Hide the task" />
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         <div className={cn("grid", PANEL_GUTTER)}>

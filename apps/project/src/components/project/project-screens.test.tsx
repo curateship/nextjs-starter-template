@@ -345,6 +345,7 @@ describe("the project page", () => {
       category: null,
       wholeTeam: false,
       bannerUrl: null,
+      coverImages: [],
       notesLocked: false,
     },
     milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],
@@ -416,14 +417,28 @@ describe("the project page", () => {
         />
       </TooltipProvider>
     )
-    expect(html).toMatch(/src="\/b\.jpg" alt="" class="[^"]*opacity-30/)
+    // The shell's page cover, as every page in its design draws it (9 Nov 2026).
+    expect(html).toMatch(/src="\/b\.jpg" alt="" class="[^"]*opacity-45/)
     // No line under the header across the banner (Tyler, 20 Oct 2026).
     expect(html).toContain("border-b-transparent")
-    // The client is listed once, in the Details footer card, not under the name.
-    expect(html.match(/Hart Dental/g)).toHaveLength(1)
-    const footer = html.slice(html.indexOf("<footer"))
-    expect(footer).toMatch(/>Details<(?:(?!<\/footer>).)*>Client<\/span><span[^>]*><span[^>]*>Hart Dental</)
-    expect(footer).toContain(">Milestones<")
+    // No Details card and no footer: the client is set in Project settings alone (Tyler,
+    // 9 Nov 2026: "remove the details card and make milestone a block").
+    expect(html).not.toContain("Hart Dental")
+    expect(html).not.toContain(">Details<")
+    expect(html).not.toContain("<footer")
+  })
+
+  it("draws the Milestones block on the project's page, with its milestones on the tile", () => {
+    const notes = JSON.stringify({ type: "doc", content: [{ type: "noteMilestones" }] })
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectDetailsPanel page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
+      </TooltipProvider>
+    )
+    expect(html).toMatch(/<h2[^>]*><button[^>]*><span[^>]*>Milestones</)
+    expect(html).toContain("data-block-tile")
+    expect(html).toContain("Design signed off")
+    expect(html).toContain("Overdue · ")
   })
 
   it("shows the project's page, links and callout blocks, where the avatar was, with the status as a dot by the name", () => {
@@ -445,7 +460,7 @@ describe("the project page", () => {
     expect(html).toContain(">docs.example.test/brief<")
     expect(html).toContain(`aria-label="Status: Slowing down · 1 late"`)
     expect(html).not.toContain("Description")
-    expect(html.indexOf("Launch on the 14th")).toBeLessThan(html.indexOf(">Lead<"))
+    expect(html).not.toContain(">Lead<")
   })
 
   it("gives an employee no settings cog", () => {

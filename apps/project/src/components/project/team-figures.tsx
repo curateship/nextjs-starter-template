@@ -13,23 +13,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
-
-/**
- * The team's cover photo lying faintly behind the left panel's header and
- * the top of its page, fading into the panel, as My dashboard's sky does
- * (task "Team dashboard/admin-3-panel-design", Tyler, 7 Nov 2026: "Cover
- * stays"). With no cover, or one that won't load, nothing is drawn.
- */
-export function TeamCoverBanner({ photoUrl }: { photoUrl: string | null }) {
-  const [broken, setBroken] = React.useState<string | null>(null)
-  if (!photoUrl || broken === photoUrl) return null
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 overflow-hidden">
-      <img src={photoUrl} alt="" className="size-full object-cover opacity-45" onError={() => setBroken(photoUrl)} />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
-    </div>
-  )
-}
+import { SKY_COVER } from "@/lib/notes/page-cover"
 
 /**
  * The team's cover in the Teams table's Team settings window, behind the
@@ -47,10 +31,14 @@ export function TeamPicturesCard({ team }: { team: Pick<TeamSummary, "photoUrl">
         <CardTitle>Cover photo</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* The drawn sky, picked on the team page's ⋮, is no picture here. */}
+        {team.photoUrl === SKY_COVER ? (
+          <p className="mb-2 text-sm text-muted-foreground">The cover is the sky now. A picture picked here takes its place.</p>
+        ) : null}
         <ImageUpload
           label="Cover photo"
           showLabel={false}
-          value={team.photoUrl ?? ""}
+          value={team.photoUrl === SKY_COVER ? "" : (team.photoUrl ?? "")}
           emptyLabel="Add a cover photo"
           className="max-w-48"
           disabled={busy}
@@ -79,8 +67,8 @@ export function TeamFiguresGrid({ figures }: { figures: TeamFigures }) {
   const rate = expected ? Math.round((checkedIn / expected) * 100) : null
   const low = rate !== null && rate < 90
   return (
-    // Out to the card's edges, under a line, as Tyler drew it.
-    <dl className="-mx-4 -mb-4 grid grid-cols-2 border-t [&>div:nth-child(odd)]:border-r [&>div:nth-child(-n+2)]:border-b">
+    // Out to the tile's edges, lines between, as Tyler drew it.
+    <dl className="grid grid-cols-2 [&>div:nth-child(odd)]:border-r [&>div:nth-child(-n+2)]:border-b">
       <Figure
         label="Open tasks"
         value={String(figures.openTasks)}

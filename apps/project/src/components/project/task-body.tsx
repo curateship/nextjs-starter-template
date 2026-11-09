@@ -1000,7 +1000,7 @@ function TaskForm({
   // Locked notes take no new block, so there the box to write in shows under them from the start.
   const commentsBelow =
     commentBlocks === 0 && !blockSaved && (commentCount > 0 || (notesReadOnly && !readOnly)) ? (
-      <CommentsBox count={commentCount}>{comments.thread}</CommentsBox>
+      <CommentsBox taskId={task.id} count={commentCount}>{comments.thread}</CommentsBox>
     ) : null
   const noteLinks = { id: task.id, links: detail.noteLinks, change, files: detail.files, link: detail.link, refresh, comments }
 

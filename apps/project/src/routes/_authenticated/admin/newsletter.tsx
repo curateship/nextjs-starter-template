@@ -1,18 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { BroadcastsListPage } from "@/components/broadcasts/broadcasts-list-page"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getBroadcastLoadErrorMessage,
-  loadBroadcastsPage,
-} from "@/lib/api/email/broadcasts"
-
+/**
+ * The newsletter list is the CRM's Broadcasts tab (Tyler, 7 Nov 2026). This
+ * address stays so old links and bookmarks land.
+ */
 export const Route = createFileRoute("/_authenticated/admin/newsletter")({
-  loader: () => loadBroadcastsPage(),
-  component: AdminNewsletterRoute,
-  errorComponent: routeErrorComponent(getBroadcastLoadErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/crm", search: { tab: "broadcasts" }, replace: true })
+  },
 })
-
-function AdminNewsletterRoute() {
-  return <BroadcastsListPage initial={Route.useLoaderData()} />
-}

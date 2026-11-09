@@ -104,7 +104,7 @@ in [Teams and invites](teams-and-invites.md#who-is-who).
   shell accounts with a type over a table of Project's own, and one `/login`
   for everyone. Free and Pro stay plans; an employee has no plan.
 - **An employee gets none of the shell's member features**: no Billing, AI
-  usage, Feedback or Changelog. They change their own name, photo and
+  usage or Feedback. They change their own name, photo and
   password, nothing else. A forgotten password is reset by the shell's
   emailed link.
 - **The site admin oversees and does no work in a team.** Tyler: "What

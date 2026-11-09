@@ -14,6 +14,7 @@ import {
   FolderKanbanIcon,
   SunriseIcon,
   FileIcon,
+  FlagIcon,
   GlobeIcon,
   ImageIcon,
   LinkIcon,
@@ -53,6 +54,7 @@ import {
   WeekBlockView,
   WorkloadBlockView,
 } from "@/components/project/notes/team-blocks"
+import { MilestonesBlockView } from "@/components/project/notes/project-page-blocks"
 import { NoteFolds } from "@/components/project/notes/note-folds"
 import type { NoteWhere } from "@/components/project/notes/note-setup"
 
@@ -87,6 +89,7 @@ export type BlockKey =
   | "teamAttention"
   | "teamWeek"
   | "teamMembers"
+  | "milestones"
 
 /**
  * The "/" list's two groups (Tyler, 6 Nov 2026: "divider the blocks into basic
@@ -128,6 +131,8 @@ const BLOCKS: BlockChoice[] = [
   { key: "teamAttention", label: "Attention", icon: CircleAlertIcon, group: "advanced" },
   { key: "teamWeek", label: "This week", icon: ActivityIcon, group: "advanced" },
   { key: "teamMembers", label: "Members", icon: UsersIcon, group: "advanced" },
+  // A project's own page only (Tyler, 9 Nov 2026: "make milestone a block").
+  { key: "milestones", label: "Milestones", icon: FlagIcon, group: "advanced" },
 ]
 
 /** Blocks only the site admin's own page on My dashboard offers. */
@@ -152,6 +157,7 @@ export function blocksFor(where: NoteWhere, hasRecord: boolean): BlockChoice[] {
   return BLOCKS.filter((block) => {
     if (DASHBOARD_BLOCKS.has(block.key)) return where === "dashboard"
     if (TEAM_BLOCKS.has(block.key)) return where === "team"
+    if (block.key === "milestones") return where === "projectPage"
     if (block.key === "file" || block.key === "comments") return where === "task"
     if (block.key === "record") return where === "task" && hasRecord
     return true
@@ -295,6 +301,7 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteTeamAttention", {}, AttentionBlockView),
   atomNode("noteTeamWeek", {}, WeekBlockView),
   atomNode("noteTeamMembers", {}, MembersBlockView),
+  atomNode("noteMilestones", {}, MilestonesBlockView),
   Callout,
   Fold,
   TaskList,

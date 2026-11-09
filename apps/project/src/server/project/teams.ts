@@ -6,7 +6,8 @@ import { storedNotesForCopy } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES, DEFAULT_CHECKIN_TIME, DEFAULT_WORK_DAYS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { isOwnedImageUrl } from "@/server/media/library"
+import { readCoverImages } from "@/lib/notes/page-cover"
+import { checkCoverPictures } from "@/server/project/cover"
 import { loadAnnouncement, type Announcement } from "@/server/project/announcements"
 import { requireKnownZone } from "@/server/project/checkins"
 import { holidayOn, listHolidays, type Holiday } from "@/server/project/holidays"
@@ -41,6 +42,8 @@ export type TeamSummary = {
   createdAt: string
   /** The team photo's address, drawn as the wide cover; or null. */
   photoUrl: string | null
+  /** The pictures the cover has had, tiles in the team page's Cover photo row. */
+  coverImages: string[]
   /** The team's own words for the check-in's boxes; null keeps the usual one. */
   questions: { yesterday: string | null; today: string | null; blocker: string | null }
   /** Titles each new member gets as "Just me" tasks. */
@@ -343,18 +346,34 @@ export async function updateTeam(
  * address outside the library. "" takes the photo away.
  */
 export async function setTeamPhoto(userId: string, photoUrl: string, database = db) {
+  await setTeamCover(userId, { photoUrl }, database)
+}
+
+/**
+ * The team page's cover as its Cover photo row saves it (the shell's look,
+ * 9 Nov 2026): the pick, "" for none, "sky" for the drawn sky or a picture,
+ * and the pictures kept as tiles. A picture new to the team must be one the
+ * site admin uploaded, as the photo always had to be.
+ */
+export async function setTeamCover(
+  userId: string,
+  { photoUrl, coverImages }: { photoUrl: string; coverImages?: string[] },
+  database = db
+) {
   const membership = await requireTeamRunner(userId, database)
   const [team] = await database
-    .select({ photoUrl: projectTeams.photoUrl })
+    .select({ photoUrl: projectTeams.photoUrl, coverImages: projectTeams.coverImages })
     .from(projectTeams)
     .where(eq(projectTeams.id, membership.teamId))
-  const unchanged = photoUrl === (team?.photoUrl ?? "")
-  if (photoUrl && !unchanged && !(await isOwnedImageUrl(userId, photoUrl, database))) {
-    throw new Error(PROJECT_ERRORS.photoNotYours)
-  }
+  await checkCoverPictures(
+    userId,
+    { url: photoUrl, images: coverImages },
+    { url: team?.photoUrl ?? null, images: readCoverImages(team?.coverImages) },
+    database
+  )
   await database
     .update(projectTeams)
-    .set({ photoUrl: photoUrl || null, updatedAt: now() })
+    .set({ photoUrl: photoUrl || null, ...(coverImages === undefined ? null : { coverImages }), updatedAt: now() })
     .where(eq(projectTeams.id, membership.teamId))
 }
 
@@ -502,7 +521,7 @@ function toTeamSummary(
     Partial<
       Pick<
         typeof projectTeams.$inferSelect,
-        "photoUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
+        "photoUrl" | "coverImages" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
       >
     >
 ): TeamSummary {
@@ -514,6 +533,7 @@ function toTeamSummary(
     workDays: [...team.workDays],
     createdAt: team.createdAt.toISOString(),
     photoUrl: team.photoUrl ?? null,
+    coverImages: readCoverImages(team.coverImages),
     questions: {
       yesterday: team.questionYesterday ?? null,
       today: team.questionToday ?? null,

@@ -1,8 +1,8 @@
 import { ArchiveIcon, ArchiveRestoreIcon, LockIcon, LockOpenIcon } from "lucide-react"
 
 import { ProjectMembersList } from "@/components/project/project-members-card"
+import { CoverRow } from "@/components/shared/notes/page-rows"
 import {
-  ProjectBannerField,
   ProjectCategoryField,
   ProjectClientField,
   ProjectDoingLimitField,
@@ -24,7 +24,7 @@ import { PROJECT_COLOR_LABEL, PROJECT_COLORS, type ProjectColor } from "@/lib/pr
  * cog and its Project settings window were (Tyler, 5 Nov 2026: "Replace the
  * project settings cog with a 3 dot vertical and convert the modal into a
  * dropdown instead"). Since 6 Nov 2026 it is the tabbed ⋮ My settings is (the
- * Admin 3 panel design): General is grouped rows (Project, Schedule), each
+ * Admin 3 panel design): General is grouped rows (Project, Page, Schedule), each
  * picking in one press where there is a choice and opening a small box for a
  * typed value, then Lock page and Archive; Members is a tab.
  * Lock page makes the project's page in the left panel read only, even for
@@ -41,6 +41,7 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
   const archive = useArchiveProject(project)
   const lock = useSaveProject(project.id)
   const { save } = useSaveProject(project.id)
+  const cover = useSaveProject(project.id)
   const off = project.archived
   const row = "w-full justify-start font-normal"
 
@@ -80,10 +81,22 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
         <PickRow label="Category" disabled={off} empty={!project.category} value={project.category ?? "None"}>
           <ProjectCategoryField project={project} names={page.siteCategories} bare />
         </PickRow>
-        <PickRow label="Banner" disabled={off} empty={!project.bannerUrl} value={project.bannerUrl ? "Added" : "None"}>
-          <ProjectBannerField project={project} bare />
-        </PickRow>
       </PickGroup>
+      {/* The page's cover, as every page in the shell's design has it (8 Nov 2026):
+          None, Sky, the pictures it has had, and + for another. */}
+      {off ? null : (
+        <PickGroup title="Page">
+          <CoverRow
+            cover={{
+              url: project.bannerUrl,
+              images: project.coverImages,
+              busy: cover.busy,
+              set: ({ url, images }) =>
+                void cover.save({ bannerUrl: url ?? "", coverImages: images }, url ? "Cover saved." : "Cover removed."),
+            }}
+          />
+        </PickGroup>
+      )}
       <PickGroup title="Schedule">
         <PickDayRow
           label="Due date"

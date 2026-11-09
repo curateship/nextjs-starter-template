@@ -5,7 +5,9 @@ import { HeartIcon, RefreshCwIcon } from "lucide-react"
 import { BlockerReplies } from "@/components/project/blocker-replies"
 import { TaggedWords } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TileHeading } from "@/components/project/notes/project-block-card"
 import { TeamSideCard } from "@/components/project/team-side-card"
+import { SideRows, type SideRow } from "@/components/shared/notes/side-rows"
 import { Button } from "@/components/ui/button"
 import type { BlockerReply, TeamDay, TeamDayPerson, TeamDayTask } from "@/lib/api/project/checkins"
 import type { TeamDashboard as TeamDashboardData } from "@/lib/api/project/teams"
@@ -83,10 +85,10 @@ export function CheckinsCard({
         )}
         {checkedIn.length ? (
           <div className="grid min-w-0">
-            {/* The lines between people run to the card's edges. */}
-            <ul className="-mx-4 divide-y border-t">
+            {/* The lines between people run to the tile's edges. */}
+            <ul className="-mx-3 divide-y border-t">
               {checkedIn.map((row) => (
-                <li key={row.person.id} className="px-4 py-3 last:pb-0">
+                <li key={row.person.id} className="px-3 py-3 last:pb-0">
                   <PersonCheckin
                     row={row}
                     viewerZone={day.viewerZone}
@@ -102,38 +104,30 @@ export function CheckinsCard({
         ) : null}
       </TeamSideCard>
       {missing.length && !nothingSaved ? (
-        <TeamSideCard title="Didn't check in" aside={missing.length}>
-          <ul className="grid gap-3">
-            {missing.map((row) => (
-              <OffRow
-                key={row.person.id}
-                row={row}
-                isMe={row.person.id === myUserId}
-                line={
-                  row.state === "no_record"
-                    ? "Nothing saved for this day"
-                    : row.before.length
-                      ? `${row.questions.yesterday}: ${taskWords(row.before)}`
-                      : "No recent check-ins"
-                }
-              />
-            ))}
-          </ul>
-        </TeamSideCard>
+        <OffRows
+          label="Didn't check in"
+          rows={missing.map((row) => ({
+            key: row.person.id,
+            name: personName(row, myUserId),
+            dot: "bg-muted-foreground/40",
+            line:
+              row.state === "no_record"
+                ? "Nothing saved for this day"
+                : row.before.length
+                  ? `${row.questions.yesterday}: ${taskWords(row.before)}`
+                  : "No recent check-ins",
+          }))}
+        />
       ) : null}
       {away.length ? (
-        <TeamSideCard title="Away" aside={away.length}>
-          <ul className="grid gap-3">
-            {away.map((row) => (
-              <OffRow
-                key={row.person.id}
-                row={row}
-                isMe={row.person.id === myUserId}
-                line={row.state === "away" ? "Time off" : "Not a work day for them"}
-              />
-            ))}
-          </ul>
-        </TeamSideCard>
+        <OffRows
+          label="Away"
+          rows={away.map((row) => ({
+            key: row.person.id,
+            name: personName(row, myUserId),
+            line: row.state === "away" ? "Time off" : "Not a work day for them",
+          }))}
+        />
       ) : null}
     </>
   )
@@ -164,24 +158,21 @@ function CheckinPieces({ checkedIn, expected }: { checkedIn: TeamDayPerson[]; ex
   )
 }
 
-/** Someone who didn't check in or was away: a dashed photo, the name, one line under it. */
-function OffRow({ row, isMe, line }: { row: TeamDayPerson; isMe: boolean; line: string }) {
+/**
+ * Who didn't check in, or was away: the shell's one-line rows under a grey
+ * heading in the block's tile, the name then the one line about them.
+ */
+function OffRows({ label, rows }: { label: string; rows: SideRow[] }) {
   return (
-    <li className="flex min-w-0 items-center gap-3">
-      <PersonAvatar
-        name={row.person.name}
-        size="default"
-        className="after:border-dashed [&_[data-slot=avatar-fallback]]:bg-transparent"
-      />
-      <span className="grid min-w-0">
-        <span className="truncate text-sm font-medium">
-          {row.person.name}
-          {isMe ? " (you)" : ""}
-        </span>
-        <span className="truncate text-xs text-muted-foreground">{line}</span>
-      </span>
-    </li>
+    <section aria-label={`${label}, ${rows.length}`} className="grid min-w-0 border-t first:border-t-0">
+      <TileHeading count={rows.length}>{label}</TileHeading>
+      <SideRows rows={rows} empty="" />
+    </section>
   )
+}
+
+function personName(row: TeamDayPerson, myUserId: string) {
+  return `${row.person.name}${row.person.id === myUserId ? " (you)" : ""}`
 }
 
 /** "Brief, Logo, 1 personal task": the titles the viewer may see, the rest counted. */

@@ -10,6 +10,7 @@ import { TaskFilterPopover, type FilterProject } from "@/components/project/task
 import { SearchToggle } from "@/components/project/task-header-controls"
 import { TaskList, type ProjectColumn } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -72,6 +73,7 @@ export function TeamTasksTab({
   filters,
   onFilters,
   onOpenTask,
+  openTaskId,
   onRows,
 }: {
   source: TeamTasks
@@ -90,6 +92,8 @@ export function TeamTasksTab({
   filters: TaskFilters
   onFilters: (patch: Partial<TaskFilters>) => void
   onOpenTask: (taskId: string) => void
+  /** The task open on the right, whose row shows open. */
+  openTaskId?: string
   /** The rows in order, so the first one can open on arrival. */
   onRows: (ids: string[]) => void
 }) {
@@ -255,6 +259,7 @@ export function TeamTasksTab({
   return (
     <>
       <DashboardCardHeader className="@container">
+        <PanelReopenButton side="left" label="Show the team page" />
         {tabs}
         {/* The buttons sit at the header's right end, as on My dashboard and the Calendar tab. */}
         <span className="flex-1" />
@@ -338,6 +343,7 @@ export function TeamTasksTab({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>
       {below}
       <SaveViewDialog open={savingView} filters={filters} here={here} onClose={() => setSavingView(false)} />
@@ -352,6 +358,7 @@ export function TeamTasksTab({
           tasks={rows}
           readOnly={busy}
           onOpenTask={(task) => onOpenTask(task.id)}
+          openTaskId={openTaskId}
           showProject
           showAssignee
           projectColumn={projectColumn}

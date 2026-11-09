@@ -1,17 +1,21 @@
 import * as React from "react"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { FolderKanbanIcon } from "lucide-react"
+import { CalendarDaysIcon, ChartLineIcon, FolderKanbanIcon, SunriseIcon } from "lucide-react"
 
 import { ProjectBlock, ProjectBlockButtons } from "@/components/project/admin-project-cards"
 import { DailyCard, type DailyNow } from "@/components/project/daily-card"
 import { RatingMonth, RatingTrend } from "@/components/project/daily-look-back"
-import { BLOCK_FRAME, BlockLine, BlockTools, SELECTED, type BlockEditing } from "@/components/project/notes/note-block-drawings"
+import { BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
+import {
+  ProjectBlockCard,
+  QuietHeadingButtons,
+  TILE_BODY,
+} from "@/components/project/notes/project-block-card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
-import { cn } from "@/lib/utils"
 
 /**
  * The blocks only the site admin's own page on My dashboard offers (task "My
@@ -108,12 +112,11 @@ export function ProjectDrawing({
   if (!blocks) return <NotHere editing={editing} label="Remove projects block" />
   if (!projectId) {
     return (
-      <>
-        <div className={cn("rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind="project-new" title="Projects" icon={<FolderKanbanIcon className="size-4" />}>
+        <div className={TILE_BODY}>
           <ProjectSearch projects={blocks.projects} onPick={onPick} />
         </div>
-        <BlockTools editing={editing} label="Remove projects block" />
-      </>
+      </ProjectBlockCard>
     )
   }
   const project = blocks.projects.find((row) => row.id === projectId)
@@ -126,7 +129,17 @@ export function ProjectDrawing({
   }
   const picked = blocks.picked === project.id
   return (
-    <>
+    <ProjectBlockCard
+      editing={editing}
+      kind={`project-${project.id}`}
+      title={project.name}
+      // The "/" menu's Projects icon, as every block's heading has its icon (Tyler,
+      // 9 Nov 2026: "the headers are missing icons"); it was the project's colour dot.
+      icon={<FolderKanbanIcon className="size-4" />}
+    >
+      <QuietHeadingButtons>
+        <ProjectBlockButtons project={project} />
+      </QuietHeadingButtons>
       <ProjectBlock
         project={project}
         extras={blocks.projectCards}
@@ -134,10 +147,7 @@ export function ProjectDrawing({
         picked={picked}
         onPick={() => blocks.onPick(picked ? undefined : project.id)}
       />
-      <BlockTools editing={editing} label="Remove projects block" top="top-3">
-        <ProjectBlockButtons project={project} />
-      </BlockTools>
-    </>
+    </ProjectBlockCard>
   )
 }
 
@@ -191,10 +201,14 @@ function ProjectSearch({ projects, onPick }: { projects: DashboardBlocks["projec
  * The whole Daily card as a block (Tyler, 6 Nov 2026: "The habits block doesnt
  * really work properly. Just make it the same as the habits and greeting card
  * in the footer (and remove the footer card)"): the greeting, Start day, the
- * habits, Next meeting, Tomorrow, the reviews and Rate your day, in the
- * rounded grey box the footer drew it in, always open ("it doesnt need to be
- * a toggle"). It is the card itself, so every tick and button saves the way
- * the card always has. One per page.
+ * habits, Next meeting, Tomorrow, the reviews and Rate your day. It is the
+ * card itself, so every tick and button saves the way the card always has.
+ * One per page.
+ *
+ * In the block card every block has, the greeting its heading, folding it to
+ * the greeting alone (Tyler, 9 Nov 2026: "this should have the same heading
+ * as any block and the header needs to be collapsible too"), with the "/"
+ * menu's Daily card icon before it ("the headers are missing icons").
  */
 export function DailyCardBlockView(props: NodeViewProps) {
   return (
@@ -207,16 +221,26 @@ export function DailyCardBlockView(props: NodeViewProps) {
 export function DailyCardDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useDashboardBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove daily card" />
+  return <DailyCardBlock daily={blocks.daily} now={blocks.now} editing={editing} />
+}
+
+/** The Daily card in its block card, for a test to draw without the page around it. */
+export function DailyCardBlock({ daily, now, editing }: { daily: DailyCardData; now: DailyNow; editing: BlockEditing }) {
   return (
-    <>
-      {/* A solid light grey, so the sky behind the page never shows through it, and no
-          "selected" ring: a click on a tick or a button inside selects the block, and the
-          ring then sat round the card all the time (Tyler, 6 Nov 2026: "why is it so ugly?"). */}
-      <div className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-2xl bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] [&_[data-daily-section]]:bg-background">
-        <DailyCard daily={blocks.daily} now={blocks.now} checkin={null} boxed />
-      </div>
-      <BlockTools editing={editing} label="Remove daily card" />
-    </>
+    <DailyCard
+      daily={daily}
+      now={now}
+      checkin={null}
+      frame={(greeting, body) => (
+        <ProjectBlockCard editing={editing} kind="daily-card" title={greeting} icon={<SunriseIcon className="size-4" />}>
+          {/* The sections sit straight on the white tile, with no grey box of their own
+              (Tyler, 9 Nov 2026: "remove this gray container"). */}
+          <div className="p-3 pt-2.5 [&_[data-daily-section]]:rounded-none [&_[data-daily-section]]:border-0 [&_[data-daily-section]]:bg-transparent [&_[data-daily-section]]:p-0">
+            {body}
+          </div>
+        </ProjectBlockCard>
+      )}
+    />
   )
 }
 
@@ -234,12 +258,11 @@ export function RatingMonthDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useDashboardBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove rating calendar" />
   return (
-    <>
-      <div className={cn("rounded-md border bg-card p-3", SELECTED)}>
-        <RatingMonth today={blocks.daily.cardDay} roomForTools={editing.editable} />
+    <ProjectBlockCard editing={editing} kind="rating-month" title="Rating calendar" icon={<CalendarDaysIcon className="size-4" />}>
+      <div className={TILE_BODY}>
+        <RatingMonth today={blocks.daily.cardDay} />
       </div>
-      <BlockTools editing={editing} label="Remove rating calendar" top="top-3" />
-    </>
+    </ProjectBlockCard>
   )
 }
 
@@ -255,11 +278,10 @@ export function RatingTrendDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useDashboardBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove rating trend" />
   return (
-    <>
-      <div className={cn("rounded-md border bg-card p-3", SELECTED)}>
-        <RatingTrend today={blocks.daily.cardDay} roomForTools={editing.editable} />
+    <ProjectBlockCard editing={editing} kind="rating-trend" title="Rating trend" icon={<ChartLineIcon className="size-4" />}>
+      <div className={TILE_BODY}>
+        <RatingTrend today={blocks.daily.cardDay} />
       </div>
-      <BlockTools editing={editing} label="Remove rating trend" />
-    </>
+    </ProjectBlockCard>
   )
 }

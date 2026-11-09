@@ -22,9 +22,9 @@ Daily card", and that file wins wherever the two disagree.
   remove the footer card)"). For that one day it sat in the left panel's
   footer. The whole card is in the block: greeting, Start day, the habits
   and the rest, and Rate your day at night. The sky stays behind the header
-  (`notes/dashboard-blocks.tsx`, `boxed` on `DailyCard`). See
+  (`notes/dashboard-blocks.tsx`, `frame` on `DailyCard`). See
   [On their page, as blocks](#on-their-page-as-blocks).
-- **The greeting folds the card** on an employee's page, and the date and weather line folds away
+- **The greeting folds the card**, on an employee's page and in the site admin's block, and the date and weather line folds away
   with it, so a folded card is the greeting alone (Tyler, 6 Nov 2026: "the
   date should be inside when collapsed"; `fold-heading.tsx`). Both pages draw
   `DailySkyBanner` and `DailyCard` from
@@ -261,11 +261,12 @@ a team screen or sent to anyone.
 ### On their page, as blocks
 
 On the site admin's My dashboard the card is a "/" block on their own page,
-the **Daily card** block, in a rounded light grey box with the greeting
-alone at its top, no icon (Tyler, 6 Nov 2026: "make it the same as the
+the **Daily card** block, in the block card every block has, the greeting
+as its heading after a sunrise icon (Tyler, 6 Nov 2026: "make it the same as the
 habits and greeting card in the footer (and remove the footer card)"). One
-per page. There it is always open, with no arrow by the greeting ("it doesnt
-need to be a toggle"); on an employee's page the greeting still folds it. Until they place it, their dashboard shows no Daily card. Two more
+per page. Pressing the greeting folds it to the heading alone, as every
+block folds (Tyler, 9 Nov 2026: "this should have the same heading as any
+block and the header needs to be collapsible too"). Until they place it, their dashboard shows no Daily card. Two more
 blocks show parts of it there (task "My dashboard/left-panel-blocks"; see
 [My dashboard](my-dashboard.md#their-pages-blocks)):
 

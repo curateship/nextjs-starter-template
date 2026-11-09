@@ -44,6 +44,7 @@ import { DUE_MOVED_MANY, TASK_STATUS_LABEL, isOpenStatus } from "@/lib/project/r
 import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 export type RowGroup = { key: string; label: string }
 
@@ -258,8 +259,8 @@ function Row({
       data-task-id={task.id}
       className={cn(
         "flex items-center gap-3 border-b px-4 py-3 hover:bg-muted/40",
-        // Open beside the list: a bar down its left edge, as the Board outlines its card.
-        open && "bg-muted/60 shadow-[inset_2px_0_0_var(--foreground)]",
+        // Open beside the list: the shell's small bar slides in before its name, as
+        // its tables and blocks show the one open (9 Nov 2026).
         isDragging && "opacity-40"
       )}
     >
@@ -279,8 +280,11 @@ function Row({
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <span className="grid min-w-0 flex-1 gap-1">
-          <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
-            {task.title}
+          <span className="flex min-w-0 items-center">
+            <SlideBar on={open} />
+            <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
+              {task.title}
+            </span>
           </span>
           <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             <span className="truncate">{task.projectName}</span>

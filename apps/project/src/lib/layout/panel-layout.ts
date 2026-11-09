@@ -1,55 +1,88 @@
 import * as React from "react"
-import type { Layout } from "react-resizable-panels"
+import { useGroupCallbackRef, type Layout } from "react-resizable-panels"
 
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 
 /**
  * Where this browser last left the dividers of a resizable panel group.
  *
- * Spread the three values it returns onto the group: `key` so the group is
- * built once with the saved layout already in hand rather than rebuilt on
- * screen a beat later, `defaultLayout` as the starting point, and
- * `onLayoutChanged` to write every drag back.
+ * Put `groupRef` and `onLayoutChanged` on the group. The group draws its
+ * panels at their default sizes, and the saved layout is set on it before the
+ * first paint, so nothing is seen moving. The group is never rebuilt to take
+ * it: rebuilding meant building every panel and all it holds a second time on
+ * arrival, which read each panel's data twice (found by the Admin dashboard's
+ * audit, 8 Nov 2026).
  *
  * localStorage is only readable after hydration — the server has none, and
  * reading it during the first render would make the two renders disagree — so
- * the saved layout lands via state, before the paint.
+ * the saved layout is set once the group is on screen. A group that shows
+ * later, a narrow screen widening say, gets it when it appears.
  *
  * The layout is saved per browser, not per account. Every key belongs in
  * `panelLayoutKey` below so they cannot collide or drift.
  */
 export function useRememberedPanelLayout(key: string) {
-  const [defaultLayout, setDefaultLayout] = React.useState<Layout>()
-  const [loaded, setLoaded] = React.useState(false)
+  const [group, groupRef] = useGroupCallbackRef()
+  // The key whose saved layout is on the group now. Nothing is saved for a
+  // key until then: a group that adds or drops a panel (Admin's Overview has
+  // two, its other sections three) reports its default layout while it
+  // settles, and saving that wiped the widths kept for the key it moved to
+  // (found by the audit, 8 Nov 2026).
+  const [appliedKey, setAppliedKey] = React.useState<string | null>(null)
+  // Set once each time the group appears, and once per key: setting it again
+  // on a later render would undo a drag.
+  const appliedFor = React.useRef<string | null>(null)
 
   useEffectBeforePaint(() => {
-    try {
-      const saved = localStorage.getItem(key)
-      setDefaultLayout(saved ? (JSON.parse(saved) as Layout) : undefined)
-    } catch {
-      setDefaultLayout(undefined)
-    } finally {
-      setLoaded(true)
+    if (!group) {
+      appliedFor.current = null
+      return
     }
-  }, [key])
+    if (appliedFor.current === key) return
+    appliedFor.current = key
+    let saved: Layout | null = null
+    try {
+      const text = localStorage.getItem(key)
+      saved = text ? (JSON.parse(text) as Layout) : null
+    } catch {
+      // Storage that cannot be read leaves the defaults standing.
+    }
+    let frame = 0
+    let tries = 0
+    const apply = () => {
+      if (!saved) {
+        setAppliedKey(key)
+        return
+      }
+      try {
+        group.setLayout(saved)
+        setAppliedKey(key)
+      } catch {
+        // The group is still registering a panel added or taken away: try
+        // again next frame. A layout that never fits (the panels changed for
+        // good) leaves the defaults standing after a few tries.
+        tries += 1
+        if (tries < 20) frame = requestAnimationFrame(apply)
+        else setAppliedKey(key)
+      }
+    }
+    apply()
+    return () => cancelAnimationFrame(frame)
+  }, [key, group])
 
   const onLayoutChanged = React.useCallback(
     (layout: Layout) => {
-      if (!loaded) return
+      if (appliedKey !== key) return
       try {
         localStorage.setItem(key, JSON.stringify(layout))
       } catch {
         // Storage may be blocked; resizing still works for this session.
       }
     },
-    [key, loaded]
+    [key, appliedKey]
   )
 
-  return {
-    defaultLayout,
-    onLayoutChanged,
-    layoutKey: loaded ? JSON.stringify(defaultLayout ?? {}) : "loading",
-  }
+  return { groupRef, onLayoutChanged }
 }
 
 /**
@@ -70,14 +103,6 @@ export function useRememberedPanelLayout(key: string) {
 export const panelLayoutKey = {
   automationEditorHorizontal: "automation-editor-horizontal-2",
   automationEditorVertical: "automation-editor-vertical",
-  broadcastEditorHorizontal: "broadcast-editor-horizontal-2",
-  broadcastEditorVertical: "broadcast-editor-vertical",
-  // Its own keys, not the newsletter's. The bottom panel holds a different
-  // thing and wants a different height, and a newsletter's sizing should not
-  // follow you into an email you cannot send.
-  systemEmailEditorHorizontal: "system-email-editor-horizontal-2",
-  systemEmailEditorVertical: "system-email-editor-vertical",
-  automationEmailEditorHorizontal: "automation-email-editor-horizontal-2",
   // One key, not two: the CRM has no bottom panel, so there is no second
   // group whose height needs remembering.
   //
@@ -86,16 +111,30 @@ export const panelLayoutKey = {
   // the new ones would appear to do nothing. Changing the key abandons the
   // old widths, which is right: they were measured against a layout that no
   // longer exists. Bump it again the next time the defaults move.
-  crmWorkspace: "crm-workspace-horizontal-3",
-  // Contacts with its segments, the shell's first `ThreePanels` screen.
-  contactsWorkspace: "contacts-workspace-horizontal-2",
-  // Not a layout: where the Contacts dashboard was, for `useDashboardPlace`.
-  // Every `ThreePanels` screen has one, named `…Place`.
-  contactsPlace: "contacts-workspace-place",
+  // 4 from 7 Nov 2026: the CRM moved onto `ThreePanels` (the Admin 3 panel
+  // design), the left a page, the inbox in the middle, the conversation on
+  // the right, each side at its narrowest 16%.
+  crmWorkspace: "crm-workspace-horizontal-4",
+  // Not a layout: where the CRM dashboard was, for `useDashboardPlace`. Every
+  // `ThreePanels` screen has one, named `…Place`. All the CRM's sections share
+  // it, so a bare `/admin/crm` goes back to the section last open.
+  crmPlace: "crm-workspace-place",
+  // The CRM's Overview, two panels: the left page and the widgets, which take
+  // the right panel's room, as Admin's Overview has its own key.
+  crmOverview: "crm-overview-horizontal-1",
+  // The Admin dashboard (8 Nov 2026): Users, Feedback and Media library as
+  // three panels, each side at its narrowest 16%.
+  admin: "admin-horizontal-1",
+  // Admin's Overview, two panels: the left page and the widgets, which take
+  // the right panel's room. Its own key, because a layout kept for three
+  // panels does not fit two.
+  adminOverview: "admin-overview-horizontal-1",
+  // Not a layout: where Admin was, for `useDashboardPlace`: the section, the
+  // range, and on the other sections the list and the record open.
+  adminPlace: "admin-place",
   // One key: the front page editor has no bottom panel, so there is no second
   // group whose height needs remembering.
   frontPageEditor: "front-page-editor-horizontal-2",
-  automationEmailEditorVertical: "automation-email-editor-vertical",
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
     `custom-shell-${page}-${side}-${cards}`,

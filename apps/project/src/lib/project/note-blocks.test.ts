@@ -220,6 +220,19 @@ describe("a team's page", () => {
   })
 })
 
+describe("a project's page", () => {
+  it("keeps Milestones only on a project's own page, and on a copy made for one", () => {
+    const body = doc(paragraph("Brief"), { type: "noteMilestones", attrs: { projectId: "x" } })
+    expect(cleanNoteBody(body, { projectPage: true }).content).toEqual([paragraph("Brief"), { type: "noteMilestones" }])
+    // The project's notes, a task's and every other page drop it.
+    expect(cleanNoteBody(body).content).toEqual([paragraph("Brief")])
+    expect(cleanNoteBody(body, { team: true }).content).toEqual([paragraph("Brief")])
+    expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Brief")])
+    const stored = JSON.stringify(doc({ type: "noteMilestones" }, { type: "noteComments" }))
+    expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, projectPage: true }))).toEqual(doc({ type: "noteMilestones" }))
+  })
+})
+
 describe("video links", () => {
   it("reads each site's links into one plain address and player", () => {
     expect(readVideoLink("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10")?.playerUrl).toBe(

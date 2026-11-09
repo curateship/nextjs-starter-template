@@ -1,13 +1,10 @@
 import * as React from "react"
 import type { ComponentType } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
-  ArrowLeftIcon,
-  LayoutTemplateIcon,
   Loader2Icon,
   PlayIcon,
   UserIcon,
-  WorkflowIcon,
 } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
@@ -51,6 +48,11 @@ import {
   setAutomationLive,
   type AutomationDetail,
 } from "@/lib/api/automations/automations"
+import {
+  toAutomationTemplateListItem,
+  type AutomationTemplateDetail,
+  type AutomationTemplateListItem,
+} from "@/lib/api/automations/automation-templates"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAutoSave } from "@/lib/hooks/use-auto-save"
 import { useLastValue } from "@/lib/hooks/use-last-value"
@@ -70,6 +72,7 @@ export function AutomationEditor({
   initialFavoriteNodeKeys,
   initialRuns,
   initialBlockDefaults,
+  initialTemplates,
   openRunId,
   openNode,
   mode = "automation",
@@ -77,6 +80,8 @@ export function AutomationEditor({
 }: {
   initial: Pick<AutomationDetail, "id" | "name" | "graph" | "enabled">
   initialFavoriteNodeKeys: string[]
+  /** The palette's Templates tab. Left out, the palette has no such tab. */
+  initialTemplates?: AutomationTemplateListItem[]
   initialRuns?: AutomationRunsPanelData
   initialBlockDefaults: BroadcastBlockDefaults
   /** The run a bell notice linked to, opened in the bottom panel on arrival. */
@@ -91,9 +96,13 @@ export function AutomationEditor({
    */
   openNode?: string
   mode?: "automation" | "template"
-  onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
+  /** Answers with the template as saved, so its card can follow the canvas. */
+  onSaveTemplateGraph?: (
+    graph: AutomationGraph
+  ) => Promise<AutomationTemplateDetail>
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
   const { config } = useShellRuntime()
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     // Worked out here rather than in an effect: selecting after the first draw
@@ -146,6 +155,20 @@ export function AutomationEditor({
   )
   const [savingFavorites, setSavingFavorites] = React.useState(false)
   const inspectorPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  // The Templates tab's list. Kept here, not in the tab, because a canvas save
+  // changes a card too: its steps, Customized, and "Has a step to fix".
+  const [templates, setTemplates] = React.useState(initialTemplates)
+  const takeTemplate = React.useCallback(
+    (template: AutomationTemplateDetail) => {
+      const item = toAutomationTemplateListItem(template)
+      setTemplates((current) =>
+        current?.map((candidate) =>
+          candidate.key === item.key ? item : candidate
+        )
+      )
+    },
+    []
+  )
 
   // Nothing on this page renames an automation any more, so the name is only
   // ever the one it loaded with — but it still has to ride along on every save,
@@ -156,7 +179,7 @@ export function AutomationEditor({
     {
       save: async (draft) => {
         await (templateMode && onSaveTemplateGraph
-          ? onSaveTemplateGraph(draft.graph)
+          ? onSaveTemplateGraph(draft.graph).then(takeTemplate)
           : saveAutomation({
               automationId: initial.id,
               name: draft.name,
@@ -170,6 +193,21 @@ export function AutomationEditor({
   )
   const { name, graph } = autoSave.value
   const { change, saveNow, isSaved, latest } = autoSave
+
+  // A rename or Reset from the Templates tab, on the template that is open.
+  // Its canvas edits go to the server first, so a Reset cannot be overwritten
+  // by an older save landing after it. Then the canvas takes what the server
+  // holds, and the loader runs again for the header's trail.
+  const templateHooks = {
+    before: async (key: string) =>
+      templateMode && key === initial.id ? saveNow() : true,
+    after: async (template: AutomationTemplateDetail) => {
+      takeTemplate(template)
+      if (!templateMode || template.key !== initial.id) return
+      autoSave.reset({ name: template.name, graph: template.graph })
+      await router.invalidate()
+    },
+  }
 
   const changeGraph = React.useCallback(
     (updater: (current: AutomationGraph) => AutomationGraph) =>
@@ -465,7 +503,7 @@ export function AutomationEditor({
           return saveNow()
         }}
         onBack={() => setEditingEmailNodeId(null)}
-        bottomPanel={runsPanel}
+        runsPanel={runsPanel}
       />
     )
   }
@@ -493,35 +531,13 @@ export function AutomationEditor({
   )
   const canvasHeader = (
     <DashboardCardTitleHeader
-      icon={
-        templateMode ? (
-          <LayoutTemplateIcon className="size-4" />
-        ) : (
-          <WorkflowIcon className="size-4" />
-        )
-      }
-      // A template already carries its way out on the right, as a named
-      // button. Only the real flow's icon is spare enough to become the arrow.
-      back={
-        templateMode
-          ? undefined
-          : { to: "/admin/automations", label: "Back to automations" }
-      }
+      // The Templates dashboard is gone (Tyler, 8 Nov 2026), so a template's
+      // way out is the same arrow back to the automations as a flow's.
+      back={{ to: "/admin/automations", label: "Back to automations" }}
       title={name}
       meta={templateMode ? "Template" : undefined}
       action={
-        templateMode ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              void navigate({ to: "/admin/automations/templates" })
-            }
-          >
-            <ArrowLeftIcon className="size-4" />
-            Templates
-          </Button>
-        ) : (
+        templateMode ? undefined : (
           <div className="flex items-center gap-2">
             {triggerName ? (
               <DisabledReason
@@ -628,6 +644,15 @@ export function AutomationEditor({
       palette={
         <AutomationPalette
           favoriteNodeKeys={favoriteNodeKeys}
+          templates={
+            templates
+              ? {
+                  items: templates,
+                  openKey: templateMode ? initial.id : undefined,
+                  hooks: templateHooks,
+                }
+              : undefined
+          }
           onSelect={previewPaletteNode}
           onAdd={addNode}
           onDragStart={setDraggedNodeKey}

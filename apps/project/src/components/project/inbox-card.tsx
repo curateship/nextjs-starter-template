@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { CheckCheckIcon, ListChecksIcon, Loader2Icon } from "lucide-react"
+import { CheckCheckIcon, InboxIcon, ListChecksIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/project/panel-card"
@@ -33,7 +33,7 @@ type InboxTab = "all" | "unread" | "tasks" | "flows" | "news"
 function inboxTabOf(item: NotificationItem, categoryId: string | undefined): InboxTab | null {
   if (categoryId === "tasks") return "tasks"
   if (item.type === "automation_approval" || item.type === "automation_failed") return "flows"
-  if (item.type === "changelog" || item.type === "announcement") return "news"
+  if (item.type === "announcement") return "news"
   return null
 }
 
@@ -41,7 +41,7 @@ function inboxTabOf(item: NotificationItem, categoryId: string | undefined): Inb
  * My notices, the same ones the bell holds, with the newest first, as Tyler
  * drew them on 13 Oct 2026: "Inbox · 5 unread" with Mark all read, then
  * All, Unread, Tasks (Project's own notices), Flows (automations waiting or
- * failed) and News (updates and announcements). Clicking one goes where the
+ * failed) and News (announcements). Clicking one goes where the
  * bell would take it and marks it read. A card on the left since 23 Oct 2026,
  * when the right panel became the open task's alone; on the site admin's, behind
  * an inbox icon instead (25 Oct 2026). It shows 6, and Load
@@ -134,8 +134,7 @@ export function InboxCard({
       return
     }
     const action = notificationAction(item)
-    if (action.kind === "changelog") void navigate({ to: "/changelog/whats-new" })
-    else if (action.kind === "billing")
+    if (action.kind === "billing")
       void navigate({ to: ".", search: (prev) => ({ ...prev, account: "billing" }) })
     else if (action.kind === "automationRun")
       void navigate({
@@ -245,7 +244,7 @@ export function InboxCard({
   }
   const meta = unread ? `${unread} unread` : undefined
   return (
-    <PanelCard storageId="project-my-inbox" title="Inbox" meta={meta} action={markAllButton}>
+    <PanelCard storageId="project-my-inbox" icon={<InboxIcon className="size-4" />} title="Inbox" meta={meta} action={markAllButton}>
       <Tabs value={tab} onValueChange={changeTab}>
         <ScrollArea>
           <div className="pb-1">

@@ -29,6 +29,7 @@ import {
   WaitingOnBadge,
 } from "@/components/project/task-bits"
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
 import {
@@ -159,6 +160,7 @@ export function TaskList({
   projectColumn,
   massSelect,
   rowActions,
+  openTaskId,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
@@ -222,7 +224,15 @@ export function TaskList({
    * for more time in My tasks' Need your attention tab.
    */
   rowActions?: (task: TaskCard) => React.ReactNode
+  /**
+   * The task open on the right, whose row shows open: its name dark and the
+   * shell's small bar before it, as the shell's tables draw their open row
+   * (Tyler, 8 Nov 2026: "I want to add the pill sliding in ui to the table
+   * items").
+   */
+  openTaskId?: string
 }) {
+  const press = useRowPress(openTaskId)
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
     ordered ? "order" : showProject ? "due" : "status"
   )
@@ -416,7 +426,8 @@ export function TaskList({
                           dragLocked={busy}
                           selected={selection.selected.has(task.id)}
                           onToggle={() => selection.toggle(task.id)}
-                          onOpen={() => onOpenTask(task)}
+                          open={press.shownOpen(task.id)}
+                          onOpen={() => press.press(task.id, () => onOpenTask(task))}
                           onDelete={
                             onDelete && !readOnly && (canDelete?.(task) ?? true) ? () => onDelete(task) : undefined
                           }
@@ -453,6 +464,7 @@ function TaskRow({
   dragLocked,
   selected,
   onToggle,
+  open,
   onOpen,
   onDelete,
   actions,
@@ -474,6 +486,8 @@ function TaskRow({
   dragLocked: boolean
   selected: boolean
   onToggle: () => void
+  /** The task is open on the right, or was just pressed. */
+  open: boolean
   onOpen: () => void
   onDelete?: () => void
   actions?: React.ReactNode
@@ -490,8 +504,14 @@ function TaskRow({
       style={style}
       data-task-id={task.id}
       // A little tighter than the shell's rows (Tyler, 19 Oct 2026).
+      aria-current={open ? "true" : undefined}
       className={cn(
         "group [&>td]:py-1",
+        // The name grey, dark while pointed at and while open, as the shell's
+        // tables draw theirs (Tyler, 8 Nov 2026: "change the items to gray and
+        // if hover over it turns black and when selected it stays black").
+        "[&_[data-row-name]]:transition-colors hover:[&_[data-row-name]]:text-foreground",
+        open && "[&_[data-row-name]]:text-foreground",
         // Its place shows dimmed in the gap while a copy follows the pointer.
         isDragging && "opacity-40"
       )}
@@ -517,8 +537,14 @@ function TaskRow({
             </button>
           ) : null}
           {editable ? <StatusCellMenu task={task} look="dot" /> : <StatusDot status={task.status} />}
-          <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
-            {task.title}
+          <span className="flex min-w-0 items-center">
+            <SlideBar on={open} />
+            <span
+              data-row-name=""
+              className={cn("truncate font-medium text-muted-foreground", task.priority === "low" && "text-muted-foreground/70")}
+            >
+              {task.title}
+            </span>
           </span>
           <UnreadBadge count={task.unread} />
           {task.waiting ? <WaitingBadge /> : null}
@@ -633,4 +659,50 @@ function GroupHeading({
 /** Without its own rule, a row only moves inside its heading. */
 function sameHeading() {
   return false
+}
+
+/** How long the open row's bar takes to grow; the task opens after it. */
+const BAR_MS = 220
+
+/**
+ * A press shows its row open at once and opens the task after the bar has
+ * grown, 220ms, as the shell's tables do: drawing the task keeps the browser
+ * busy long enough to freeze a bar growing at the same time. It opens only if
+ * the address is still the one pressed on, and at once when less motion is
+ * asked for or the row is already open.
+ */
+function useRowPress(openTaskId: string | undefined) {
+  const [pressed, setPressed] = React.useState<string | null>(null)
+  const timers = React.useRef<number[]>([])
+  const cancel = React.useCallback(() => {
+    timers.current.forEach((timer) => window.clearTimeout(timer))
+    timers.current = []
+  }, [])
+  React.useEffect(() => cancel, [cancel])
+  // The task has opened: the address says so from here on.
+  const [seenOpen, setSeenOpen] = React.useState(openTaskId)
+  if (seenOpen !== openTaskId) {
+    setSeenOpen(openTaskId)
+    if (pressed && pressed === openTaskId) setPressed(null)
+  }
+  return {
+    shownOpen: (taskId: string) => (pressed ? pressed === taskId : openTaskId === taskId),
+    press: (taskId: string, open: () => void) => {
+      cancel()
+      if (taskId === openTaskId || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setPressed(null)
+        open()
+        return
+      }
+      setPressed(taskId)
+      const from = window.location.href
+      timers.current = [
+        window.setTimeout(() => {
+          if (window.location.href === from) open()
+        }, BAR_MS),
+        // A task that never opens lets the address show the truth again.
+        window.setTimeout(() => setPressed((current) => (current === taskId ? null : current)), BAR_MS + 2000),
+      ]
+    },
+  }
 }

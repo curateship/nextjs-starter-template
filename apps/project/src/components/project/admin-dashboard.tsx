@@ -2,7 +2,7 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { LockIcon, LockOpenIcon } from "lucide-react"
 
-import { DailyLookBackButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
+import { DailyLookBackButton, DailySkyBanner, rightSkyCover, useDailyNow } from "@/components/project/daily-card"
 import { DailyLookBack } from "@/components/project/daily-look-back"
 import { CityRow } from "@/components/project/daily-city-field"
 import { DailyHabitsSetting, DailySectionsSetting, DailySkyRows } from "@/components/project/daily-settings"
@@ -21,6 +21,7 @@ import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
 import { ZoneChoices } from "@/components/project/time-zone-select"
 import type { FilterProject } from "@/components/project/task-filter-popover"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -41,6 +42,8 @@ import { useZoneRows } from "@/lib/project/zone-rows"
 import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { readActiveView } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { useNow } from "@/lib/project/use-now"
 
 
 /** The route whose data loads again on a live change. */
@@ -92,6 +95,7 @@ export function AdminDashboardScreen({
   const openTeam = openProject ? dashboard.projectTeams[openProject] : undefined
 
   const projectColumn = React.useMemo(() => adminProjectColumn(dashboard), [dashboard])
+  const nowMs = useNow(daily.loadedAt)
   const filterProjects = React.useMemo(() => filterProjectsOf(dashboard), [dashboard])
 
   const setFilters = (patch: Partial<AdminDashboardSearch>) =>
@@ -117,6 +121,7 @@ export function AdminDashboardScreen({
 
   return (
     <ThreePanels
+      reopenInHeader
       layoutKey={ADMIN_DASHBOARD_PANEL_LAYOUT_KEY}
       // On a phone the Daily card is the first thing seen (Tyler, 29 Oct 2026).
       narrowStart="left"
@@ -180,7 +185,10 @@ export function AdminDashboardScreen({
         content: (
           <TeamScope teamId={openTeam}>
             <PersonPages>
-              <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+              {/* The sky of my page carried on behind the task's header. */}
+              <RightCoverProvider value={rightSkyCover(daily, nowMs)}>
+                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+              </RightCoverProvider>
             </PersonPages>
           </TeamScope>
         ),
@@ -274,7 +282,10 @@ function AdminPanel({
           graph or the inbox tab"). */}
       <DailySkyBanner daily={daily} now={now} />
       {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
-      <DashboardCardHeader className="relative border-b-transparent">
+      {/* Wrapped in its own div, so the shell's table line under a header never matches it. */}
+      <div className="relative shrink-0">
+      <DashboardCardHeader className="relative gap-2 border-b-transparent">
+        <SidePanelCollapseButton side="left" label="Hide my page" />
         <PersonAvatar name={me.name} avatarUrl={me.avatarUrl} size="default" />
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
@@ -284,6 +295,7 @@ function AdminPanel({
         <InboxButton unread={unread} open={inboxOpen} onToggle={() => showView("inbox")} />
         <AdminSettingsMenu dashboard={dashboard} daily={daily} />
       </DashboardCardHeader>
+      </div>
       {/* Look back and the inbox bring their own tab rows and scrolling. The inbox
           and the page stay mounted while hidden, so what was read keeps the bubble right.
           The body and the footer share the panel's height: the footer takes what its

@@ -17,6 +17,7 @@ import { dateFromKey, keyFromDate } from "@/lib/project/dates"
 import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { SKY_COVER } from "@/lib/notes/page-cover"
 
 /**
  * The project's settings, one field at a time, drawn in two places: as cards
@@ -379,15 +380,21 @@ function LateTasksField({
 
 const BANNER_HINT = "A wide picture shown faintly behind the top of the project's left panel."
 
-/** The banner behind the top of the project page's left panel. It saves the moment it's picked, and its × takes it away. */
+/**
+ * The banner behind the top of the project page's left panel. It saves the
+ * moment it's picked, and its × takes it away. The cover can also be the
+ * drawn sky, picked on the project page's ⋮; this field then shows no
+ * picture, and picking one replaces the sky.
+ */
 export function ProjectBannerField({ project, bare }: FieldProps) {
   const { save, busy } = useSaveProject(project.id)
+  const sky = project.bannerUrl === SKY_COVER
   return (
     <ImageUpload
       label="Banner"
       showLabel={!bare}
-      hint={BANNER_HINT}
-      value={project.bannerUrl ?? ""}
+      hint={sky ? "The cover is the sky now. A picture picked here takes its place." : BANNER_HINT}
+      value={sky ? "" : (project.bannerUrl ?? "")}
       emptyLabel="Add a banner"
       // Sized like the shell's own picture fields when it's a card: Share image is max-w-48.
       className={bare ? undefined : "max-w-48"}

@@ -24,8 +24,8 @@ import {
 } from "@/lib/project/daily-card"
 import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
-import { FOOTER_CARD_BODY } from "@/lib/project/panel-gutter"
 import { useNow } from "@/lib/project/use-now"
+import { SKY_COVER } from "@/lib/notes/page-cover"
 import { cn } from "@/lib/utils"
 
 /** The clock, part of the day, sky and weather, worked out once for the sky behind the panel and the card in it. */
@@ -66,6 +66,22 @@ export function DailySkyBanner({ daily, now }: { daily: DailyCardData; now: Dail
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
     </div>
   )
+}
+
+/**
+ * What the right panel carries on of My dashboard's sky (the shell's look,
+ * Tyler, 8 Nov 2026: "make it an extension of the left panel"): the
+ * person's own photo for this part of the day when they picked their own,
+ * and otherwise the shell's drawn sky with no sun or moon. A scene (beach,
+ * city and the rest) is drawn on the left only; the right shows the sky.
+ */
+export function rightSkyCover(daily: DailyCardData, nowMs: number): string {
+  if (daily.admin && daily.settings.sky === "own") {
+    const part = partOfDay(localNow(new Date(nowMs), daily.zone).time, daily.settings.hours)
+    const photo = daily.settings.ownSkies[part]
+    if (photo) return photo
+  }
+  return SKY_COVER
 }
 
 /**
@@ -111,7 +127,7 @@ export function DailyCard({
   checkin,
   onCheckIn,
   onCheckOut,
-  boxed = false,
+  frame,
 }: {
   daily: DailyCardData
   now: DailyNow
@@ -120,12 +136,12 @@ export function DailyCard({
   onCheckIn?: () => void
   onCheckOut?: () => void
   /**
-   * The site admin's Daily card block on their page (Tyler, 6 Nov 2026: "make
-   * it the same as the habits and greeting card in the footer (and remove the
-   * footer card)", then "it doesnt need to be a toggle"): in a box of its own,
-   * off the sky, with no icon by the greeting, always open.
+   * The site admin's Daily card block on their page: the block draws the
+   * card's frame, with the greeting as its heading and the rest as its body
+   * (Tyler, 9 Nov 2026: "this should have the same heading as any block and
+   * the header needs to be collapsible too").
    */
-  boxed?: boolean
+  frame?: (greeting: string, body: React.ReactNode) => React.ReactNode
 }) {
   const { nowMs, local, part, weather } = now
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
@@ -184,16 +200,11 @@ export function DailyCard({
     </>
   )
 
-  // The site admin's block on their page: always open, with a plain heading and no arrow
-  // (Tyler, 6 Nov 2026: "it doesnt need to be a toggle"). Room on the right for the block's bin.
-  if (boxed) {
+  // The site admin's block on their page: the block's own heading and fold.
+  if (frame) {
     return (
-      <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)]">
-        {/* No icon before the greeting (Tyler, 6 Nov 2026: "remove this icon"). The page's own
-            heading margins are cancelled, so the greeting's first line sits level with the
-            block's bin. */}
-        <h2 className="!m-0 py-3 pr-12 pl-4 text-base leading-tight font-semibold">{greeting}</h2>
-        <div className={FOOTER_CARD_BODY}>{body}</div>
+      <section ref={cardRef} aria-label="Daily card" className="grid min-w-0 grid-cols-[minmax(0,1fr)]">
+        {frame(greeting, body)}
       </section>
     )
   }

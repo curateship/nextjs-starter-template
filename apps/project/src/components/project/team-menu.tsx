@@ -6,14 +6,14 @@ import { JoinLinkCard } from "@/components/project/join-link-card"
 import { TabbedMenu } from "@/components/project/my-settings-menu"
 import { PickChoicesRow, PickGroup, PickRow } from "@/components/project/pick-rows"
 import { ZoneChoices } from "@/components/project/time-zone-select"
-import { ImageUpload } from "@/components/shared/image-upload"
+import { CoverRow } from "@/components/shared/notes/page-rows"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { addTeamHoliday, removeTeamHoliday, type Holiday } from "@/lib/api/project/team-running"
-import { saveTeamPageLock, saveTeamPhoto, updateProjectTeam, type TeamDashboard, type TeamSummary } from "@/lib/api/project/teams"
+import { saveTeamCover, saveTeamPageLock, updateProjectTeam, type TeamDashboard, type TeamSummary } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { focusRingInset } from "@/lib/layout/focus-ring"
@@ -55,9 +55,10 @@ export function TeamMenu({ data }: { data: TeamDashboard }) {
         <PickRow label="Name" value={team.name}>
           <NameField team={team} save={save} />
         </PickRow>
-        <PickRow label="Cover photo" empty={!team.photoUrl} value={team.photoUrl ? "Added" : "None"}>
-          <CoverField team={team} />
-        </PickRow>
+      </PickGroup>
+      {/* The page's cover, as every page in the shell's design has it (8 Nov 2026). */}
+      <PickGroup title="Page">
+        <TeamCoverRow team={team} />
       </PickGroup>
       <PickGroup title="Schedule">
         <ZoneRow zone={team.timeZone} save={save} />
@@ -300,23 +301,26 @@ function WorkDaysField({ team, save }: { team: TeamSummary; save: Save }) {
   )
 }
 
-/** The cover behind the left panel's header: picked from the media library, or taken away. */
-function CoverField({ team }: { team: TeamSummary }) {
+/**
+ * The cover behind the left panel's header, as the shell's Cover photo row
+ * draws every page's: None, Sky, the pictures it has had, and + to add one
+ * from the media library. A pick saves at once.
+ */
+function TeamCoverRow({ team }: { team: TeamSummary }) {
   const teamId = useTeamId()
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   return (
-    <ImageUpload
-      label="Cover photo"
-      showLabel={false}
-      value={team.photoUrl ?? ""}
-      emptyLabel="Add a cover photo"
-      disabled={busy}
-      onChange={(url) =>
-        void run(() => saveTeamPhoto(url, teamId), url ? "Cover saved." : "Cover removed.").then((ok) =>
-          ok ? router.invalidate() : undefined
-        )
-      }
+    <CoverRow
+      cover={{
+        url: team.photoUrl,
+        images: team.coverImages,
+        busy,
+        set: ({ url, images }) =>
+          void run(() => saveTeamCover({ photoUrl: url ?? "", coverImages: images }, teamId), url ? "Cover saved." : "Cover removed.").then(
+            (ok) => (ok ? router.invalidate() : undefined)
+          ),
+      }}
     />
   )
 }

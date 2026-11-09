@@ -430,11 +430,8 @@ describe("left menu", () => {
 
     const [settings] = await database.select().from(customShellSettings)
     const members = (settings.settings as { memberSections: { id: string }[] }).memberSections
-    expect(members.map((section) => section.id)).toEqual([
-      PROJECT_NAV_SECTION_ID,
-      "section-member-home",
-      "section-member-updates",
-    ])
+    // The shell's members' Updates section went with the Changelog (shell merge, 9 Nov 2026).
+    expect(members.map((section) => section.id)).toEqual([PROJECT_NAV_SECTION_ID, "section-member-home"])
     const sectionsOf = async () => {
       const [row] = await database
         .select()

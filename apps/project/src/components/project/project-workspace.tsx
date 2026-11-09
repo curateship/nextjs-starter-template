@@ -12,6 +12,7 @@ import { PROJECT_PANEL_LAYOUT_KEY, projectOpenTaskKey } from "@/lib/project/pane
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { useProjectLive } from "@/lib/project/use-project-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
 
 const PROJECT_ROUTE_ID = "/_authenticated/projects/$projectId"
 
@@ -109,6 +110,7 @@ export function ProjectWorkspace({
   return (
     <PersonPages>
       <ThreePanels
+        reopenInHeader
         layoutKey={PROJECT_PANEL_LAYOUT_KEY}
         // A task opened on arrival leaves a narrow screen on the list.
         showRightFor={openTaskId === quietTask ? undefined : openTaskId}
@@ -135,7 +137,12 @@ export function ProjectWorkspace({
         right={{
           label: "Task",
           showLabel: "Show the task",
-          content: <TaskSidePanel taskId={openTaskId} onClose={taskAddress.back} onLoaded={taskLoaded} />,
+          content: (
+            // The project's cover carried on behind the task's header.
+            <RightCoverProvider value={page.project.personal ? null : page.project.bannerUrl}>
+              <TaskSidePanel taskId={openTaskId} onClose={taskAddress.back} onLoaded={taskLoaded} />
+            </RightCoverProvider>
+          ),
         }}
       />
     </PersonPages>

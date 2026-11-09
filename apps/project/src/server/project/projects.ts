@@ -13,7 +13,8 @@ import {
 } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { isOwnedImageUrl } from "@/server/media/library"
+import { readCoverImages } from "@/lib/notes/page-cover"
+import { checkCoverPictures } from "@/server/project/cover"
 import {
   findMembership,
   isProjectMember,
@@ -44,6 +45,7 @@ import {
 import { listTeamNames } from "@/server/project/record-team"
 import { deleteSavedViewsFor } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
+import { NEW_PROJECT_PAGE } from "@/lib/project/note-blocks"
 import { storedNotesForCopy } from "@/lib/project/notes"
 
 export type ProjectListRow = {
@@ -241,6 +243,7 @@ export async function createProject(
       teamId: membership.teamId,
       name: input.name,
       color: input.color,
+      notes: NEW_PROJECT_PAGE,
       createdByUserId: userId,
       createdAt: at,
       updatedAt: at,
@@ -288,8 +291,10 @@ export type ProjectPage = {
     category: string | null
     /** Everyone on the team is a member, people who join later included. */
     wholeTeam: boolean
-    /** The faint banner behind the top of the left panel. */
+    /** The faint banner behind the top of the left panel: a picture, "sky", or none. */
     bannerUrl: string | null
+    /** The pictures the banner has had, tiles in its Cover photo row. */
+    coverImages: string[]
   }
   /** The project's milestones, soonest first, each with its task counts. */
   milestones: Milestone[]
@@ -383,6 +388,7 @@ export async function loadProjectPage(
       category: project.category,
       wholeTeam: project.wholeTeam,
       bannerUrl: project.bannerUrl,
+      coverImages: readCoverImages(project.coverImages),
     },
     milestones: await listMilestones(project.id, database),
     teamClients: await visibleClients(membership, database),
@@ -443,6 +449,7 @@ export async function updateProject(
     dueDate?: string | null
     doingLimit?: number | null
     bannerUrl?: string
+    coverImages?: string[]
     slowingAt?: number
     behindAt?: number
     category?: string | null
@@ -452,9 +459,9 @@ export async function updateProject(
   },
   database = db
 ) {
-  const { projectId, bannerUrl, notes, ...rest } = patch
+  const { projectId, bannerUrl, coverImages, notes, ...rest } = patch
   // A project page has no task, so no File block, uploaded picture or Video or Promo card.
-  const fields = notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(notes, { noTask: true }) }
+  const fields = notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(notes, { noTask: true, projectPage: true }) }
   const { project } = await requireProjectSettings(userId, projectId, database)
   requireSharedProject(project)
   // A locked page takes no writing until it's unlocked; the lock itself may change in the same save.
@@ -465,17 +472,21 @@ export async function updateProject(
   if ((fields.behindAt ?? project.behindAt) < (fields.slowingAt ?? project.slowingAt)) {
     throw new Error(PROJECT_ERRORS.behindBeforeSlowing)
   }
-  // A new banner must be one the site admin uploaded to the media library,
-  // as with the team's, so nobody can point a project at an outside address.
-  // "" takes it away.
-  if (bannerUrl && bannerUrl !== project.bannerUrl && !(await isOwnedImageUrl(userId, bannerUrl, database))) {
-    throw new Error(PROJECT_ERRORS.photoNotYours)
-  }
+  // A new banner or kept picture must be one the site admin uploaded to the
+  // media library, as with the team's, so nobody can point a project at an
+  // outside address. "" takes the banner away; "sky" is the drawn sky.
+  await checkCoverPictures(
+    userId,
+    { url: bannerUrl, images: coverImages },
+    { url: project.bannerUrl, images: readCoverImages(project.coverImages) },
+    database
+  )
   await database
     .update(projectProjects)
     .set({
       ...fields,
       ...(bannerUrl === undefined ? null : { bannerUrl: bannerUrl || null }),
+      ...(coverImages === undefined ? null : { coverImages }),
       updatedAt: now(),
     })
     .where(eq(projectProjects.id, projectId))
@@ -717,7 +728,7 @@ export async function copyProject(
       teamId: membership.teamId,
       name: input.name,
       color: plan.color,
-      notes: storedNotesForCopy(source.notes, { noTask: true }),
+      notes: storedNotesForCopy(source.notes, { noTask: true, projectPage: true }),
       notesLocked: source.notesLocked,
       createdByUserId: userId,
       createdAt: at,

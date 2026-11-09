@@ -43,7 +43,8 @@ export function ProjectPageNotes({ projectId, notes, canWrite }: { projectId: st
     <PageNoteEditor
       stored={notes}
       canWrite={canWrite}
-      placeholder="About this project. Type / for links, a callout and more."
+      where="projectPage"
+      placeholder="About this project. Type / for milestones, links and more."
       onSave={save}
     />
   )
@@ -163,13 +164,14 @@ export function PageNoteEditor({
   /** Writes at the panel's 14px instead of a page's 15px. */
   small?: boolean
   /**
-   * A project's page or note, the site admin's own page, which keeps the
-   * dashboard blocks, or a team's page, which keeps the team blocks.
+   * A project's note, a project's own page, which keeps Milestones, the site
+   * admin's own page, which keeps the dashboard blocks, or a team's page,
+   * which keeps the team blocks.
    */
-  where?: "project" | "dashboard" | "team"
+  where?: "project" | "projectPage" | "dashboard" | "team"
 }) {
   const setup = useNotesBoxSetup(where)
-  const rules = { dashboard: where === "dashboard", team: where === "team" }
+  const rules = { dashboard: where === "dashboard", team: where === "team", projectPage: where === "projectPage" }
   const [start] = React.useState(() => notesForEditor(readTaskNotes(stored, rules)))
   const saved = React.useRef(storedTaskNotes(start, rules))
   const draft = React.useRef<NoteNode | null>(null)
@@ -186,7 +188,7 @@ export function PageNoteEditor({
     const next = draft.current
     if (!next) return
     draft.current = null
-    const kept = storedTaskNotes(next, { dashboard: where === "dashboard", team: where === "team" })
+    const kept = storedTaskNotes(next, { dashboard: where === "dashboard", team: where === "team", projectPage: where === "projectPage" })
     if (kept === saved.current) return
     saved.current = kept
     handlers.current.onSave(next).then(

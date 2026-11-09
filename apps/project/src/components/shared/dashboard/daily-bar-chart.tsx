@@ -22,6 +22,7 @@ export function DailyBarChart<Point extends { day: string }>({
   yAxisWidth,
   fewDaysLabelInterval = 1,
   formatValue,
+  className,
 }: {
   /** One point per day, `day` as YYYY-MM-DD. */
   daily: Point[]
@@ -32,6 +33,8 @@ export function DailyBarChart<Point extends { day: string }>({
   fewDaysLabelInterval?: number
   /** How a value reads on the axis and in the tooltip. */
   formatValue?: (value: number) => string
+  /** In place of the card's fixed height, such as filling a widget. */
+  className?: string
 }) {
   const data = daily.map((point) => ({
     label: new Date(`${point.day}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -44,7 +47,7 @@ export function DailyBarChart<Point extends { day: string }>({
   const stacked = bars.length > 1
 
   return (
-    <div className={chartHeightClassName}>
+    <div className={className ?? chartHeightClassName}>
       <ChartContainer config={config} className="h-full w-full">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -54,9 +57,16 @@ export function DailyBarChart<Point extends { day: string }>({
             tickLine={false}
             tick={{ fontSize: 10 }}
             dy={8}
-            // A month of days is too many labels to read; a quarter even more so.
+            // A month of days is too many labels to read; a quarter even more
+            // so, and a year is read a month at a time.
             interval={
-              data.length > 45 ? 13 : data.length > 20 ? 5 : fewDaysLabelInterval
+              data.length > 120
+                ? 30
+                : data.length > 45
+                  ? 13
+                  : data.length > 20
+                    ? 5
+                    : fewDaysLabelInterval
             }
           />
           <YAxis

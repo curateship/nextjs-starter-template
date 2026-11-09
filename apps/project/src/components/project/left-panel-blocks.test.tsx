@@ -237,6 +237,12 @@ describe("the \"/\" list", () => {
     expect(names("dashboard")).toContain("Callout")
   })
 
+  it("offers Milestones on a project's own page only, not in its notes", () => {
+    const names = (where: Parameters<typeof blocksFor>[0]) => blocksFor(where, false).map((block) => block.label)
+    expect(names("projectPage")).toContain("Milestones")
+    for (const where of ["project", "dashboard", "team", "task", "new"] as const) expect(names(where)).not.toContain("Milestones")
+  })
+
   it("lists the basic blocks first, then the advanced ones that show something live from the app", () => {
     const list = blocksFor("dashboard", false)
     expect(list.filter((block) => block.group === "basic").map((block) => block.label)).toEqual([
@@ -311,12 +317,13 @@ describe("the blocks", () => {
       </TooltipProvider>
     )
 
-  it("draws a picked project with New task and Open beside the bin, and a list of every open project before one is picked", () => {
+  it("draws a picked project in the shell's block card with its ⋮, and a list of every open project before one is picked", () => {
     const filled = draw(<ProjectDrawing projectId="p1" editing={EDITING} onPick={() => undefined} />)
-    expect(filled).toContain(">Website<")
-    expect(filled).toContain('aria-label="New task in Website"')
-    expect(filled).toContain('aria-label="Open Website"')
-    expect(filled).toContain('aria-label="Remove projects block"')
+    // The name is the block's heading. New task and Open go into the heading row once the
+    // block has drawn in a browser (a portal), so a page drawn on the server leaves them out.
+    expect(filled).toMatch(/<h2[^>]*>(?:(?!<\/h2>).)*Website/)
+    expect(filled).toContain('aria-label="More for Website"')
+    expect(filled).not.toContain('aria-label="Remove projects block"')
     // No pin and no drag handle: the block is placed on the page instead.
     expect(filled).not.toContain("Unpin")
     expect(filled).not.toContain("to change the order")

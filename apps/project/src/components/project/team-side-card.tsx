@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils"
  * (Check-ins, Attention) it is a white tile (`TeamSideCardTiles`).
  */
 /**
- * Inside a team block's card on the team's page, each side card is a white
- * tile on the block's grey, with a smaller heading, so the block's own
- * heading is the only big one (Tyler, 7 Nov 2026).
+ * Inside a team block on the team's page, each side card is a part of the
+ * block's one white tile, a line between parts, with a smaller heading, so
+ * the block's own heading is the only big one (Tyler, 7 Nov 2026; one tile
+ * since 9 Nov 2026: "Shell look, one tile").
  */
 const AsTiles = React.createContext(false)
 
@@ -38,7 +39,8 @@ export function TeamSideCard({
       aria-label={title}
       className={cn(
         "grid min-w-0 gap-3",
-        tile ? "rounded-xl bg-background p-3" : "rounded-lg border bg-muted/40 p-4",
+        // In a block, the block's one white tile holds every card, a line between them.
+        tile ? "border-t p-3 first:border-t-0" : "rounded-lg border bg-muted/40 p-4",
         className
       )}
     >

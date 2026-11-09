@@ -63,8 +63,8 @@ tasks templates feature too").
   - **Advanced blocks:** blocks that show something live from the app. Task
     card, File, Comments and Video or Promo where the box offers them, and on
     the site admin's own page Projects, Daily card, Rating calendar and
-    Rating trend, and on a team's page Check-ins, Workload, Attention, This
-    week and Members.
+    Rating trend, on a team's page Check-ins, Workload, Attention, This
+    week and Members, and on a project's own page Milestones.
   - The arrow keys walk the list as it shows, through the basic blocks and
     on into the advanced ones. Narrowing it by typing keeps only the headings
     whose group still has a block (`BLOCKS` in `note-block-nodes.ts`, drawn
@@ -79,15 +79,22 @@ tasks templates feature too").
   Promo only when the task points at a record. New task, quick new task,
   a project's page and a project's notes leave out File and Video
   or Promo, because there is no task to hold a file or a record.
-- **The site admin's own page** offers what a project's page does, plus four
+- **A project's own page** offers Milestones, which no other note has, its
+  notes included (Tyler, 9 Nov 2026: "make milestone a block"). It shows
+  every milestone of the project, so it goes in once. Every other save drops
+  it, on the server too (`PROJECT_PAGE_ATOM_TYPES` in
+  `src/lib/project/note-blocks.ts`). What it shows is in
+  [Projects and tasks](projects-and-tasks.md#milestones).
+- **The site admin's own page** offers what a project's page does but
+  Milestones, plus four
   blocks no other note has: Projects, Daily card, Rating calendar and Rating trend
   (Tyler, 6 Nov 2026: "Your My dashboard page only"). Their habits and
   ratings are theirs alone, and a Projects block filters My tasks, which only
   that page sits beside. The Daily card block, like Comments, goes in once. Every other save drops the four, on the server too
   (`DASHBOARD_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). What each one
   shows is in [My dashboard](my-dashboard.md#their-pages-blocks).
-- **A team's page** on the Team dashboard offers what a project's page does,
-  plus five blocks no other note has: Check-ins, Workload, Attention, This
+- **A team's page** on the Team dashboard offers what a project's page does
+  but Milestones, plus five blocks no other note has: Check-ins, Workload, Attention, This
   week and Members (Tyler, 7 Nov 2026: "checkins, workload and attention
   becomes blocks for the left panel"). Each shows the whole team, so each goes
   in once. Every other save drops the five, the site admin's own page too, on
@@ -138,19 +145,20 @@ tasks templates feature too").
   tasks this person can see, newest change first. Picking one shows the
   task's name, its status, who is on it and its due date. They are read
   fresh each time the note opens, in one request for every card in the note.
-  Clicking the card opens that task in the right panel. A task the reader
+  The task's name is the block's heading, which folds it; clicking the
+  status line under it opens that task in the right panel. A task the reader
   can't see shows "A task you can't see." with nothing to click. A deleted
   one shows "Removed: this task was deleted."
 - **File.** An empty File block lists the task's files to pick from, with
   Upload a file under them. It is the one way to add a file to a task from
   its panel; the project's Files tab lists every one. The block
-  shows the file's name, its size and a download button. Downloading follows
-  the task's rule: only people who can see the task. Its corner holds
-  Remove block, which takes the block out and keeps the file, and, for
-  whoever may delete the file, Delete file, which asks "Delete brief.pdf?"
+  shows the file's name as its heading, then its size and a download button.
+  Downloading follows the task's rule: only people who can see the task. Its
+  ⋮ holds, for whoever may delete the file, Delete file, which asks "Delete brief.pdf?"
   and then deletes the file from the task (Tyler, 6 Nov 2026, once the task
   panel's Files box went). The block goes with it; any other block still
-  showing that file reads "Removed: this file was deleted."
+  showing that file reads "Removed: this file was deleted." Delete block,
+  under it, takes the block out and keeps the file.
 - **Comments.** The task's comments, with the box to write in, wherever the
   block is placed (Tyler, 6 Nov 2026: "Make comments a block"). It holds
   nothing of its own: it draws the task's stored chat, so the messages,
@@ -200,10 +208,29 @@ tasks templates feature too").
   without "https://". Pointing at the block shows a cog that opens the same
   fields with a × on each line, and Done. Addresses start with `https://`; up
   to 30 lines, words up to 80 characters.
-- **Removing a block:** each block has a bin that shows while it's pointed
-  at, focused or selected (always on a phone). Selecting a block and
-  pressing Backspace removes it too. The bin sits inside the block's
-  top-right corner, level with its first line.
+- **Card blocks are the shell's block card** (task "Shell
+  look/three-panel-shell-look", Tyler, 9 Nov 2026: "update the app's all 3
+  panel dashboard to match the improved shell's ui"). Task card, File,
+  Comments, Video or Promo, and the dashboard's and team's blocks:
+  - A frosted grey box, a little see-through so the page's cover shows
+    softly behind it. Its corners, grey and edge follow Settings → Styling →
+    Blocks.
+  - A heading as tall as the panel's header, 57px: the block's icon, its
+    name on one line (cut short with "…" in a narrow panel), and a count
+    where it has one. Pressing the name folds the block, remembered in this
+    browser.
+  - A ⋮ at the heading's right, shown while the heading is pointed at
+    (always on a phone): the block's own rows, then Delete block. A page
+    that reads only shows no Delete block.
+  - What it shows sits on one white tile 3px inside the grey, up to 28rem
+    tall, scrolling inside past that.
+  - `ProjectBlockCard` in `src/components/project/notes/project-block-card.tsx`
+    puts Project's drawings into the shell's `BlockCard`.
+- **Removing a block:** a card block's ⋮ has Delete block. Every other block
+  (Image, Video, Callout and the rest) keeps its bin, shown while it's
+  pointed at, focused or selected (always on a phone), inside its top-right
+  corner, level with its first line. Selecting a block and pressing
+  Backspace removes it too.
 - **Filling a block in** (picking a task or file, adding a link) puts the
   cursor on the line under it, so the notes don't count it as clicking away.
 - **Clicking away never takes a block back.** The notes are drawn again from

@@ -434,7 +434,7 @@ function SearchResults({ q }: { q: string }) {
  * shades them, with its date in the middle and its rating in the corner. Days to come are faded. It only shows:
  * a day is rated with Rate your day.
  */
-export function RatingMonth({ today, roomForTools = false }: { today: string; roomForTools?: boolean }) {
+export function RatingMonth({ today }: { today: string }) {
   const [month, setMonth] = React.useState(() => today.slice(0, 7))
   const year = Number(month.slice(0, 4))
   const [loaded, retry] = useLoaded(String(year), () => loadYearOfRatingsPage(year))
@@ -444,8 +444,7 @@ export function RatingMonth({ today, roomForTools = false }: { today: string; ro
   for (let day = `${month}-01`; day.startsWith(month); day = addDays(day, 1)) days.push(day)
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-      {/* `roomForTools` keeps the month after clear of a block's bin, the grid under it full width. */}
-      <div className={cn("flex items-center gap-2", roomForTools && "pr-9")}>
+      <div className="flex items-center gap-2">
         <Button type="button" variant="outline" size="icon" aria-label="The month before" onClick={() => setMonth(shiftMonth(month, -1))}>
           <ChevronLeftIcon className="size-4" />
         </Button>
@@ -516,7 +515,7 @@ const trendConfig: ChartConfig = { rating: { label: "Rating", color: "var(--prim
  * day with no rating leaves a gap. It is the shell's chart, drawn as the Team
  * dashboard's trends are.
  */
-export function RatingTrend({ today, roomForTools = false }: { today: string; roomForTools?: boolean }) {
+export function RatingTrend({ today }: { today: string }) {
   const first = addDays(today, -(RATING_TREND_DAYS - 1))
   const years = [...new Set([Number(first.slice(0, 4)), Number(today.slice(0, 4))])]
   const [loaded, retry] = useLoaded(`${first}:${today}`, () => Promise.all(years.map((year) => loadYearOfRatingsPage(year))))
@@ -530,7 +529,7 @@ export function RatingTrend({ today, roomForTools = false }: { today: string; ro
   const rated = rows.filter((row) => row.rating !== null).length
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-      <p className={cn("text-sm font-medium", roomForTools && "pr-9")}>
+      <p className="text-sm font-medium">
         Day rating, last {RATING_TREND_DAYS} days
         <span className="font-normal text-muted-foreground"> · {rated} rated</span>
       </p>

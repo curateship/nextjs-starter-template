@@ -29,7 +29,7 @@ import { createTask, deleteTask, setTaskStatus } from "@/server/project/tasks"
 import { loadTeamFigures } from "@/server/project/team-figures"
 import { loadTeamDay, loadTeamMonth } from "@/server/project/team-days"
 import { loadTeamTasks } from "@/server/project/team-tasks"
-import { loadTeamDashboard, setTeamPage, setTeamPageLock, setTeamPhoto } from "@/server/project/teams"
+import { loadTeamDashboard, setTeamCover, setTeamPage, setTeamPageLock, setTeamPhoto } from "@/server/project/teams"
 import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { createTestDatabase } from "@/server/test-support"
@@ -423,6 +423,20 @@ describe("the team photo", () => {
       )
       await setTeamPhoto(admin.id, "", database)
       expect((await loadTeamDashboard(admin.id, database))?.team.photoUrl).toBeNull()
+    })
+  })
+
+  it("takes the sky as the team page's cover, and keeps only the site admin's own uploads as tiles", async () => {
+    await inTeam(teamId, async () => {
+      await setTeamCover(admin.id, { photoUrl: "sky", coverImages: [] }, database)
+      expect((await loadTeamDashboard(admin.id, database))?.team).toMatchObject({ photoUrl: "sky", coverImages: [] })
+      await expect(
+        setTeamCover(admin.id, { photoUrl: "sky", coverImages: ["https://example.com/cat.png"] }, database)
+      ).rejects.toThrow(PROJECT_ERRORS.photoNotYours)
+      await expect(setTeamCover(anna.id, { photoUrl: "sky", coverImages: [] }, database)).rejects.toThrow(
+        PROJECT_ERRORS.notRunningTeam
+      )
+      await setTeamPhoto(admin.id, "", database)
     })
   })
 })

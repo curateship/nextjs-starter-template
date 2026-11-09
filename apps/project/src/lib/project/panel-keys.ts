@@ -3,16 +3,17 @@
  * rather than in the shell's `panelLayoutKey` list, because that list is a
  * shell file and an app never edits one.
  *
- * The `-2` is deliberate: a remembered layout outranks the default, so a
+ * The number on the end is deliberate: a remembered layout outranks the default, so a
  * browser that kept the old widths would never show new defaults. Changing
  * the key drops the old widths once. Bump it again whenever the defaults in
  * `three-panels.tsx` move (Tyler, 31 Oct 2026, after the narrowest-width
- * default "is not fixed for the 5th time").
+ * default "is not fixed for the 5th time"). It went to -3 with the shell's new
+ * remembered-layout hook, 9 Nov 2026.
  */
-export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal-2"
-export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal-2"
-export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal-2"
-export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal-2"
+export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal-3"
+export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal-3"
+export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal-3"
+export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal-3"
 
 /** The Board or List tab the project page opened on last. */
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"

@@ -1,31 +1,32 @@
 import * as React from "react"
-import { FolderKanbanIcon, InfoIcon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { ArrowLeftIcon } from "lucide-react"
 
-import { FoldHeading } from "@/components/project/fold-heading"
 import { NotesMorphIcon } from "@/components/project/inbox-morph-icon"
-import { PanelFooter } from "@/components/project/panel-footer"
-import { ProjectMilestones } from "@/components/project/project-milestones"
+import { ProjectPageBlocksProvider } from "@/components/project/notes/project-page-blocks"
 import { ProjectNotes } from "@/components/project/project-notes-panel"
 import { ProjectPageNotes } from "@/components/project/project-page-notes"
 import { ProjectPaceDot } from "@/components/project/project-pace"
 import { ProjectMenu } from "@/components/project/project-menu"
 import { PinButton } from "@/components/project/pin-button"
-import { PersonAvatar } from "@/components/project/task-bits"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
-import { FOOTER_CARD_BODY, PANEL_BODY_ABOVE_FOOTER, PANEL_BODY_ABOVE_FOOTER_WIDE } from "@/lib/project/panel-gutter"
-import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
+import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
+import { PageCover } from "@/components/shared/notes/page-cover"
 
 /**
- * The project's lead, client and time, then its milestones as a folding card
- * at the bottom (Tyler, 15 Oct 2026). The status is worked out from the late
+ * The project's page, with its milestones as a "/" block on it (Tyler, 9 Nov
+ * 2026: "remove the details card and make milestone a block"). Until then the
+ * panel's foot held a Details card with the lead and the client, and a
+ * Milestones card; the lead and the client are still set in Project settings.
+ * The status is worked out from the late
  * tasks by the rule in Project settings (Tyler, 19 Oct 2026), and shows as its
  * dot alone, right after the name in the header (Tyler, 5 Nov 2026: "Remove
  * the status and just place the dot indicator here"). The same day the colour
@@ -80,38 +81,48 @@ export function ProjectDetailsPanel({
     if (openNoteId) onNoteOpened?.()
   }, [openNoteId, onNoteOpened])
   const notesLabel = notesOpen ? "Close the notes" : "Notes"
-  const lead = page.members.find((member) => member.userId === project.leadUserId) ?? null
   const shared = !project.personal
   const siteAdmin = runsTheTeam(page.myRole)
-  // A picture whose address no longer loads is left out rather than drawn broken.
-  const [broken, setBroken] = React.useState<string[]>([])
-  const lose = (url: string) => setBroken((was) => [...was, url])
-  const banner = shared && project.bannerUrl && !broken.includes(project.bannerUrl) ? project.bannerUrl : null
+  // A "Just me" list has no cover. `PageCover` leaves out a picture that no longer loads.
+  const banner = shared ? project.bannerUrl : null
   const late = countLate(page.tasks)
 
+  // What the page's Milestones block draws.
+  const blocks = React.useMemo(
+    () => ({ projectId: project.id, milestones: page.milestones, tasks: page.tasks, readOnly: project.archived }),
+    [project.id, page.milestones, page.tasks, project.archived]
+  )
+
   return (
+    <ProjectPageBlocksProvider value={blocks}>
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {banner ? (
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-36 overflow-hidden">
-          <img src={banner} alt="" className="size-full object-cover opacity-30" onError={() => lose(banner)} />
-          {/* Fading into the panel at the foot, as on the Team dashboard. */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
-        </div>
-      ) : null}
-      <DashboardCardTitleHeader
-        // The line goes see-through rather than away, so the header keeps its height.
-        className={cn("relative", banner && "border-b-transparent")}
-        icon={<FolderKanbanIcon className="size-4" />}
-        back={{ label: "Back to projects", to: "/projects" }}
-        title={
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate">{project.name}</span>
-            {/* A "Just me" list has no late-task rule, so no status. */}
-            {shared ? <ProjectPaceDot pace={projectPace(late, project)} late={late} /> : null}
-          </span>
-        }
-        action={
-          <div className="flex items-center gap-1">
+      {/* The project's cover, a picture or the sky, faintly behind the header and the top of
+          its page, as every page in the shell's design draws it. */}
+      <PageCover url={banner} />
+      {/* Wrapped in its own div, so the shell's table line under a header never
+          matches it. The collapse button first, as on every side panel in the
+          shell's design, then the way back to Projects. */}
+      <div className="relative shrink-0">
+        <DashboardCardHeader className={cn("gap-1", banner && "border-b-transparent")}>
+          <SidePanelCollapseButton side="left" label="Hide the project page" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="ghost" size="icon" className="shrink-0 rounded-lg">
+                <Link to="/projects" aria-label="Back to projects">
+                  <ArrowLeftIcon className="size-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Back to projects</TooltipContent>
+          </Tooltip>
+          <h2 className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate">{project.name}</span>
+              {/* A "Just me" list has no late-task rule, so no status. */}
+              {shared ? <ProjectPaceDot pace={projectPace(late, project)} late={late} /> : null}
+            </span>
+          </h2>
+          <div className="flex shrink-0 items-center gap-1">
             {shared ? <PinButton project={project} /> : null}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -133,12 +144,10 @@ export function ProjectDetailsPanel({
             </Tooltip>
             {shared && siteAdmin ? <ProjectMenu page={page} /> : null}
           </div>
-        }
-      />
-      {/* The page and its notes above, the footer of folding cards below (Tyler, 6 Nov
-          2026, the Admin 3 panel design): the footer takes what its cards need, and the
-          body keeps at least 6rem, or half the panel with the notes open. */}
-      <div className={cn("relative flex min-h-0 flex-col", notesOpen ? PANEL_BODY_ABOVE_FOOTER_WIDE : PANEL_BODY_ABOVE_FOOTER)}>
+        </DashboardCardHeader>
+      </div>
+      {/* The page, or its notes, fill the rest of the panel. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {notesOpen ? (
           <ProjectNotes
             key={`${project.id}:${request?.at ?? "notes"}`}
@@ -147,7 +156,8 @@ export function ProjectDetailsPanel({
           />
         ) : (
           <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-            <div className={cn("grid gap-5 p-4", banner && "pt-6")}>
+            {/* The panel's 15px gutter round the page and between its blocks, as on My dashboard. */}
+            <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
               {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
                   Locking or unlocking it draws it again from what was saved. */}
               {shared ? (
@@ -176,60 +186,7 @@ export function ProjectDetailsPanel({
           </ScrollArea>
         )}
       </div>
-      {shared ? (
-        <PanelFooter>
-          <ProjectDetailsCard lead={lead} client={project.client} />
-          <ProjectMilestones
-            projectId={project.id}
-            milestones={page.milestones}
-            tasks={page.tasks}
-            readOnly={project.archived}
-          />
-        </PanelFooter>
-      ) : null}
     </div>
-  )
-}
-
-
-/**
- * The Details footer card: the lead and the client, each a name on the left
- * and its value on the right. It folds like the other footer cards and
- * remembers it in this browser.
- */
-function ProjectDetailsCard({
-  lead,
-  client,
-}: {
-  lead: ProjectPage["members"][number] | null
-  client: string | null
-}) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-footer-details"))
-  return (
-    <Collapsible open={open} onOpenChange={setOpen} className="grid grid-cols-[minmax(0,1fr)]">
-      <FoldHeading band icon={<InfoIcon />} title="Details" open={open} />
-      <CollapsibleContent data-collapse-key={noFlashKey} className={cn("grid grid-cols-[minmax(0,1fr)] gap-2.5 text-sm", FOOTER_CARD_BODY)}>
-        <DetailRow label="Lead">
-          {lead ? (
-            <>
-              <PersonAvatar name={lead.name} avatarUrl={lead.avatarUrl} size="sm" />
-              <span className="truncate">{lead.name}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">Nobody yet</span>
-          )}
-        </DetailRow>
-        <DetailRow label="Client">{client ? <span className="truncate">{client}</span> : <span className="text-muted-foreground">None</span>}</DetailRow>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="flex min-w-0 flex-1 items-center justify-end gap-2">{children}</span>
-    </div>
+    </ProjectPageBlocksProvider>
   )
 }

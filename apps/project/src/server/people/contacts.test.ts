@@ -7,7 +7,6 @@ import type { SegmentCondition } from "@/lib/contacts/contact-segments"
 import { createWorkspaceSegment } from "@/server/people/contact-segments"
 import {
   countContactEmails,
-  countRecentContactChanges,
   deleteWorkspaceContactsMatching,
   importWorkspaceContacts,
   listWorkspaceContacts,
@@ -884,29 +883,6 @@ describe("the dashboard's counts", () => {
     await insertContact("new")
     const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
     expect(contacts[0]).toMatchObject({ emailsSent: 0, emailsOpened: 0 })
-  })
-
-  it("counts the last 30 days' joins, opt-outs and bounced people", async () => {
-    await insertContact("joined", { createdAt: daysAgo(5) })
-    await insertContact("old", { createdAt: daysAgo(60) })
-    await insertContact("left", {
-      createdAt: daysAgo(60),
-      status: "unsubscribed",
-      unsubscribedAt: daysAgo(2),
-    })
-    await insertContact("left-long-ago", {
-      createdAt: daysAgo(90),
-      status: "unsubscribed",
-      unsubscribedAt: daysAgo(40),
-    })
-    await send("old", { bouncedAt: daysAgo(1) })
-    await send("old", { bouncedAt: daysAgo(2) })
-
-    expect(await countRecentContactChanges(WORKSPACE_ID, 30, db, TODAY)).toEqual({
-      joined: 1,
-      optedOut: 1,
-      bounced: 1,
-    })
   })
 })
 

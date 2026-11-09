@@ -44,6 +44,13 @@ const SideToggles = React.createContext<{
 } | null>(null)
 
 /**
+ * For an app's own three-panel frame, such as Project's, which keeps
+ * features this one has not got: it provides the same presses and states, so
+ * `PanelReopenButton` and `SidePanelCollapseButton` work in it unchanged.
+ */
+export const SideTogglesProvider = SideToggles.Provider
+
+/**
  * In the middle panel's header, the button that brings a shut side panel
  * back, in place of the knob on the middle's edge (Tyler, 8 Nov 2026: "Put
  * the uncollapse icon here ... and remove this knob", with Lucide's

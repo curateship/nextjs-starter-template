@@ -20,7 +20,8 @@ import { useTeamId } from "@/lib/project/team-scope"
  * offers the dashboard blocks, or a team's page on the Team dashboard, which
  * alone offers the team blocks.
  */
-export type NoteWhere = "task" | "new" | "meeting" | "project" | "dashboard" | "team"
+/** `projectPage` is a project's own page, `project` one of its notes. */
+export type NoteWhere = "task" | "new" | "meeting" | "project" | "projectPage" | "dashboard" | "team"
 
 export type NoteTask = {
   id: string

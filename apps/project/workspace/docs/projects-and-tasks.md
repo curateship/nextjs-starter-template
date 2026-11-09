@@ -140,8 +140,9 @@ So every project has one person answerable for it.
 
 - **One member is the lead.** The crown on a row of Project settings'
   Members card names them, and pressing it on the lead's row takes it off.
-  The lead's row says "Lead". Their name shows on the details panel and in
-  the Projects table's Lead column.
+  The lead's row says "Lead". Their name shows in the Projects table's Lead
+  column. The project page's left panel showed it in a Details card until
+  9 Nov 2026 (Tyler: "remove the details card").
 - **Anyone who can change the project picks the lead.** Members keep every
   right they had; the only thing the lead adds is who sets the status.
 - **The lead hears every Stuck, unblocked and Done** on the project, as if
@@ -155,16 +156,29 @@ So every project has one person answerable for it.
 
 So a long project shows whether it's on time well before its end date.
 
-- **No tooltips on the Milestones card**, on its "+" or on each milestone's
+- **No tooltips on the Milestones block**, on its "+" or on each milestone's
   cog (Tyler, 19 Oct 2026: "Remove all the tooltips in status and milestone
   left panel"). The buttons still carry their names for screen readers.
-- **A name and a date**, such as "Design signed off, Nov 15", in the
-  Milestones footer card at the bottom of the left panel, under Details
-  (Tyler, 15 Oct 2026; a footer card since 6 Nov 2026), soonest first and
-  the ones with no date last. The "+" in the card's heading makes one and the
-  cog on a row changes or deletes it. The heading has a flag, then
-  "Milestones" with the count on a white patch after it, which drops under
-  the word in a narrow panel.
+- **A "/" block on the project's page** (Tyler, 9 Nov 2026: "remove the
+  details card and make milestone a block",
+  `assets/pasted-image-1794255884841743000.png`). It was a card at the foot
+  of the left panel from 15 Oct 2026. The block is the block card every
+  block has: a flag, "Milestones" with the count after it, and a ⋮ with
+  Delete block while the site admin can write the page. The milestones sit
+  on its white tile, one row each, a line between them.
+  - **Only a project's own page offers it**, once per page. The project's
+    notes, a task's and every other page don't, and drop one sent to them
+    (`PROJECT_PAGE_ATOM_TYPES` in `note-blocks.ts`).
+  - **Every project starts with it**: a new project's page is the block
+    alone, and migration 0174 put it at the end of every shared project's
+    page that had none. Deleting it hides the milestones from the page;
+    "/" then "Milestones" puts it back. The milestones themselves stay.
+  - It holds nothing of its own. It draws the milestones the page already
+    loaded (`ProjectPageBlocksProvider`, `notes/project-page-blocks.tsx`).
+- **A name and a date**, such as "Design signed off, Nov 15", soonest first
+  and the ones with no date last. The "+" in the block's heading, shown
+  while the heading is pointed at, makes one, and the cog on a row changes
+  or deletes it.
 - **A milestone's tasks.** The list icon beside a row's cog, centred on the
   row with it, opens a dropdown of every task in that milestone, in the
   project's order, each with its status dot and status. Clicking one opens it
@@ -261,9 +275,10 @@ couple of blocks like a links block and call out block".
   project and Project settings, and their columns with them
   (`drizzle/0144_project_no_description_or_links.sql`). Project held only
   test data, so nothing was kept.
-- **In their place** the top of the left panel is the project's page: the
-  notes editor with its "/" blocks, the new Links block and Callout among
-  them, less File and the Video or Promo card, which belong to a task. How
+- **In their place** the left panel is the project's page: the notes editor
+  with its "/" blocks, the new Links block and Callout among them, less File
+  and the Video or Promo card, which belong to a task. Milestones is a block
+  only this page offers (see Milestones). How
   the blocks work is in [Notes and the "/" blocks](notes-and-blocks.md).
 - **The site admin writes in it**; it saves 700ms after the last letter and
   when it's left. Everyone else, and an archived project, reads it, and an
@@ -310,21 +325,21 @@ members moved to the left. On 14 Oct 2026 he redrew the tasks panel's header
 (`assets/pasted-image-1792006703561170000.png`) and moved picking whose tasks
 show out of the left panel and into that header.
 
-- **Left: details.** The header holds the back arrow, the name with its status
-  dot right after it, the pin and the ⋮. The colour dot before the name, the
+- **Left: details.** The header holds the button that hides the panel, the
+  back arrow, the name with its status dot right after it, the pin, the
+  notes button and the ⋮. At the panel's narrowest the name has no room
+  left; dragging the panel wider shows it. The colour dot before the name, the
   avatar with the name beside it, the description and the links left the
   panel on 5 Nov 2026 (Tyler), and projects have no avatar at all since then
   (migration 0145; the Dashboard's Projects card shows the colour dot). Since
   6 Nov 2026 the panel follows the Admin 3 panel design
   (`.agents/skills/Design/admin-3-panel-design`; Tyler: "Apply this to the
   project dashboard"). The body, at the top, holds the project's page (see
-  The project's page), then the archived and "Just me" notes. Under it is a
-  footer of folding cards, each in its own rounded light grey box, the same
-  footer My dashboard has (`PanelFooter`): **Details**, with Lead and
-  Client, each a name on the left and its value on the right; and **Milestones** (see Milestones). Each card
-  folds from its heading and is remembered in this browser. The footer
-  takes what its cards need and the page above keeps at least 6rem, or half
-  the panel with the notes open. A "Just me" list has no footer. The Status
+  The project's page), then the archived and "Just me" notes, and it fills
+  the panel. There is no footer (Tyler, 9 Nov 2026: "remove the details card
+  and make milestone a block"): the Details card with the lead and the client
+  is gone, and Milestones is a block on the page. The lead and the client are
+  set in Project settings, and the Projects table shows both. The Status
   card that was here went with the manual status on 19 Oct 2026 (see Project
   status). The pin in the header pins the project for me (see Pins below).
 - **Project settings, the ⋮.** It opens to the right of the ⋮ over the board
@@ -333,8 +348,8 @@ show out of the left panel and into that header.
   align on right"; it was a cog and a window since 10 Oct 2026). Since 6 Nov
   2026 it is the tabbed menu My settings is, 326px wide, opening on General
   each time:
-  - **General** is two grouped lists, as the task's ⋮ is. **Project:** Name,
-    Colour, Client, Category, Banner. **Schedule:** Due date, Status,
+  - **General** is three grouped lists, as the task's ⋮ is. **Project:** Name,
+    Colour, Client, Category. **Page:** Cover photo (below). **Schedule:** Due date, Status,
     Doing per person, Everyone on the team. Each row names the setting on
     the left and shows what it holds on the right. Colour lists the colours
     and Due date opens the calendar at once, so one press picks and saves
@@ -356,20 +371,29 @@ show out of the left panel and into that header.
   leave or remove at the row's end. "+ Invite" lists teammates not yet on the
   project, and for the site admin ends with "Invite someone new to the
   team", the team's invite window.
-- **The project's banner.** Project settings' Banner is picked from the
-  media library and taken away with its × (Tyler, 19 Oct 2026), 192px wide
-  like Share image in the window. The banner lies behind the top of the left panel, its
-  header included, drawn at 30 out of 100 strength and fading into the panel at
-  its foot, so the header's name, star and cog still read over it. Over a
-  banner the header has no line under it, so the picture runs on unbroken
-  (Tyler, 20 Oct 2026). The client is always under its own CLIENT
-  heading beside Lead (Tyler, 19 Oct 2026: "the client name should be here"). Without a
-  banner the panel looks as it did before. Like the team's pictures, it
-  must be one the site admin uploaded to the media library, or it is refused
-  with "Pick a photo you uploaded yourself.", so a project can't point at an
-  outside address. A picture whose address stops loading is left out rather
-  than drawn broken. A "Just me" list has no banner. Saved in
-  `project_projects.banner_url` (migration 0121).
+- **The project's cover.** Project settings' Page group has Cover photo,
+  the shell's row of square tiles (since 9 Nov 2026, task "Shell
+  look/three-panel-shell-look"): **None**, **Sky** (the drawn sky,
+  following the time of day), each picture the project has had (up to 8,
+  each with an × that takes it off the list), then **+**, which picks one
+  from the media library. A pick saves at once.
+  - The cover lies behind the top of the left panel, its header included,
+    at 45 out of 100 strength, fading into the panel at its foot. Over a
+    cover the header has no line under it, so the picture runs on unbroken
+    (Tyler, 20 Oct 2026). Without one the panel looks as it did before.
+  - The same cover carries on behind the open task's header on the right,
+    the sky with no sun or moon there.
+  - A new picture must be one the site admin uploaded to the media library,
+    or it is refused with "Pick a photo you uploaded yourself.", so a
+    project can't point at an outside address. A picture that stops loading
+    is left out rather than drawn broken. A "Just me" list has no cover.
+  - Saved in `project_projects.banner_url` ("sky" for the sky; migration
+    0121) and the tiles in `cover_images` (migration 0173). The Projects
+    table's settings window keeps its single Banner picture field; while the
+    cover is the sky it shows no picture and says "The cover is the sky
+    now. A picture picked here takes its place."
+  - The client is always under its own CLIENT heading beside Lead (Tyler,
+    19 Oct 2026: "the client name should be here").
 - **Middle: tasks.** List, Board, Calendar and Timeline tabs, then More, which
   holds Activity, Files, Chat and the Bin. While Activity, Files or Chat
   shows, More wears its name. The tabs are words with a line under the one
@@ -455,8 +479,11 @@ show out of the left panel and into that header.
   task below). With none open, the panel says "Click a task to see its notes
   and chat here."
 - **Panels.** Drag the gaps to resize. Double-click blank space in a side panel,
-  or drag it shut, to collapse it, and the tab on the middle panel's edge opens
-  it again. Widths are remembered in this browser under the key in
+  drag it shut, or press the button at its header's outer edge to collapse
+  it; the button at that end of the middle's header opens it again (the
+  shell's look since 9 Nov 2026, in place of a tab on the middle's edge).
+  The middle has 24px at its sides, its header and the List's first and
+  last columns lining up. Widths are remembered in this browser under the key in
   `src/lib/project/panel-keys.ts`, not in the shell's list.
 - **A project that's gone**, or that this person can't see, shows "That
   project doesn't exist or you can't see it." with Back to Projects, from the

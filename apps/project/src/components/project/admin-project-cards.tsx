@@ -4,7 +4,8 @@ import { ArrowUpRightIcon, PlusIcon } from "lucide-react"
 import { Area, AreaChart, YAxis } from "recharts"
 
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
-import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
+import { PersonAvatar } from "@/components/project/task-bits"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { AdminDashboard, AdminProjectCards } from "@/lib/api/project/admin-dashboard"
@@ -17,44 +18,29 @@ import { cn } from "@/lib/utils"
 type Project = AdminDashboard["projects"][number]
 
 /**
- * Each block's look, from Tyler's drawing of 29 Oct 2026
- * (`workspace/docs/assets/pasted-image-1793297357679510000.png`). Behind is a
- * faint red with a red edge, Slowing down the same in amber, On track the
- * same in green. The block's colour is mixed in rather than see-through,
- * so the ring between the faces can be the same colour.
+ * Each status's colours, from Tyler's drawing of 29 Oct 2026
+ * (`workspace/docs/assets/pasted-image-1793297357679510000.png`): red for
+ * Behind, amber for Slowing down, green for On track ("change the on track
+ * to light green"), on the chip and the bar's track. The block itself is the
+ * shell's white tile since 9 Nov 2026.
  */
-const PACE_LOOK: Record<ProjectPace, { block: string; pill: string; dot: string; track: string }> = {
+const PACE_LOOK: Record<ProjectPace, { pill: string; dot: string; track: string }> = {
   behind: {
-    block: "border-red-500/20 [--block:color-mix(in_oklab,var(--color-red-500)_5%,var(--background))]",
     pill: "bg-red-500/10 text-red-600 dark:text-red-400",
     dot: "bg-red-500",
     track: "bg-red-500/10",
   },
   slowing: {
-    block: "border-amber-500/25 [--block:color-mix(in_oklab,var(--color-amber-500)_6%,var(--background))]",
     pill: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
     dot: "bg-amber-500",
     track: "bg-amber-500/10",
   },
   on_track: {
-    // Light green, as the others are light red and amber (Tyler, 29 Oct 2026: "change the on track to light green").
-    block: "border-green-500/20 [--block:color-mix(in_oklab,var(--color-green-500)_5%,var(--background))]",
     pill: "bg-green-500/10 text-green-700 dark:text-green-400",
     dot: "bg-green-600",
     track: "bg-green-500/10",
   },
 }
-
-/**
- * The project My tasks is filtered to: a grey edge and a soft shadow, lifting
- * it off the card (Tyler, 29 Oct 2026: "the black border is too harsh. make it
- * gray and add some background shadow").
- */
-const PICKED = "border-muted-foreground/40 shadow-md"
-
-/** The name makes room for those buttons only while they show, so it isn't cut short the rest of the time. */
-const ROOM_FOR_BUTTONS =
-  "group-hover/block:pr-28 group-has-[:focus-visible]/block:pr-28 group-data-[selected]/block:pr-28 [@media(hover:none)]:pr-28"
 
 /**
  * A Projects block on the site admin's own page (task "My
@@ -65,8 +51,11 @@ const ROOM_FOR_BUTTONS =
  * status, how much is done, its due date, how many are late and stuck, its
  * lead and people, and a small line of what got finished each day for two
  * weeks. Pressing it shows only that project's tasks in My tasks, and
- * pressing it again shows them all. Its + and arrow sit with the note block's
- * bin in the top corner (`ProjectBlockButtons`).
+ * pressing it again shows them all. Since 9 Nov 2026 it sits in the shell's
+ * block card (task "Shell look/three-panel-shell-look"): the name is the
+ * block's heading, the + and arrow are in the heading row
+ * (`ProjectBlockButtons`), and while it is picked the shell's small bar
+ * slides in before its status.
  */
 export function ProjectBlock({
   project,
@@ -85,19 +74,14 @@ export function ProjectBlock({
 }) {
   const row = pacedProject(project)
   return (
-    <div
-      className={cn(
-        "@container relative rounded-xl border bg-[var(--block)]",
-        PACE_LOOK[row.pace].block,
-        picked && PICKED
-      )}
-    >
+    // The faces' ring is the tile's white.
+    <div className="@container relative [--block:var(--card)]">
       <ProjectSummary row={row} extras={extras} today={today} picked={picked} onPick={onPick} />
     </div>
   )
 }
 
-/** "+" for a new task in the project, and the arrow to its page, for the block's top corner. */
+/** "+" for a new task in the project, and the arrow to its page, for the block's heading row. */
 export function ProjectBlockButtons({ project }: { project: Pick<Project, "id" | "name"> }) {
   return (
     <>
@@ -108,7 +92,7 @@ export function ProjectBlockButtons({ project }: { project: Pick<Project, "id" |
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 size="icon-sm"
                 aria-label={`New task in ${project.name}`}
                 disabled={loading}
@@ -122,7 +106,7 @@ export function ProjectBlockButtons({ project }: { project: Pick<Project, "id" |
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="secondary" size="icon-sm" asChild>
+          <Button variant="ghost" size="icon-sm" asChild>
             <Link to="/projects/$projectId" params={{ projectId: project.id }} aria-label={`Open ${project.name}`}>
               <ArrowUpRightIcon className="size-4" />
             </Link>
@@ -135,9 +119,9 @@ export function ProjectBlockButtons({ project }: { project: Pick<Project, "id" |
 }
 
 /**
- * The block's body, one button that filters My tasks to the project: the
- * name, status, team and stuck count, the bar, the due date, the people and
- * the line of finished tasks.
+ * The block's tile, one button that filters My tasks to the project: the
+ * status, team and stuck count, the bar, the due date, the people and the
+ * line of finished tasks. The name is the block's heading.
  */
 function ProjectSummary({
   row,
@@ -164,17 +148,14 @@ function ProjectSummary({
       type="button"
       aria-pressed={picked}
       onClick={onPick}
-      className={cn("grid w-full min-w-0 gap-2.5 rounded-xl p-3.5 text-left", focusRingInset)}
+      className={cn("grid w-full min-w-0 gap-2.5 rounded-[inherit] p-3 text-left", focusRingInset)}
     >
-      <span className="mb-0.5 flex min-w-0 items-center gap-2.5">
-        {/* The project's colour as a full dot; projects have no avatar (Tyler, 5 Nov 2026). */}
-        <ProjectDot color={project.color} className="size-9" />
-        <span className="grid min-w-0 flex-1">
-          <span className={cn("truncate text-[15px] leading-5 font-semibold", ROOM_FOR_BUTTONS)}>{project.name}</span>
-          <span className="flex min-w-0 items-center gap-2 text-xs">
-            <PaceChip pace={pace} due={due} />
-            <span className="truncate text-muted-foreground">{project.team.name}</span>
-          </span>
+      <span className="sr-only">{project.name}</span>
+      <span className="flex min-w-0 items-center text-xs">
+        <SlideBar on={picked} />
+        <span className="flex min-w-0 items-center gap-2">
+          <PaceChip pace={pace} due={due} />
+          <span className="truncate text-muted-foreground">{project.team.name}</span>
         </span>
       </span>
       <span

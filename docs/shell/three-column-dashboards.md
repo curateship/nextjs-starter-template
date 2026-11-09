@@ -42,6 +42,13 @@ All of them are in `src/components/shared/`.
   first in the left header and last in the right one. It shuts the panel the
   way a double-click on blank space does. It draws nothing under 1280px,
   where one panel shows at a time.
+- **`SideTogglesProvider`, in `three-panels.tsx`.** For an app whose screen
+  keeps a three-panel frame of its own, such as Project's
+  (`apps/project/src/components/project/three-panels.tsx`, which has a
+  phone tab more and a remembered task instead of `place`). The frame
+  provides each side's press and whether it is shut, and the two buttons
+  above then work in it unchanged, so the app never redraws them (9 Nov
+  2026, Project's shell look).
 - **`ThreePanels`' `place`, read by `useDashboardPlace`
   (`src/lib/layout/dashboard-place.ts`).** Required. It takes a key from
   `panelLayoutKey` named `…Place`, the route's own `useSearch()`, and the ids

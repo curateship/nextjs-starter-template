@@ -8,7 +8,7 @@ import { NoteReader } from "@/components/project/notes/note-reader"
 import { NoteSetupProvider, type NoteSetup } from "@/components/project/notes/note-setup"
 import { useNoteBlocks } from "@/components/project/notes/use-note-blocks"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
-import { cleanDashboardBody, cleanNoteBody, cleanTeamBody, type NoteNode } from "@/lib/project/note-blocks"
+import { cleanDashboardBody, cleanNoteBody, cleanProjectPageBody, cleanTeamBody, type NoteNode } from "@/lib/project/note-blocks"
 
 /**
  * The shell's editor with Project's "/" blocks (Project note blocks task):
@@ -96,8 +96,16 @@ export function NoteEditor({
           disabled={disabled}
           extensions={all}
           // The site admin's own page keeps its dashboard blocks, and a team's page its
-          // team blocks; every other note drops them.
-          clean={setup.where === "dashboard" ? cleanDashboardBody : setup.where === "team" ? cleanTeamBody : cleanNoteBody}
+          // team blocks, and a project's page its Milestones; every other note drops them.
+          clean={
+            setup.where === "dashboard"
+              ? cleanDashboardBody
+              : setup.where === "team"
+                ? cleanTeamBody
+                : setup.where === "projectPage"
+                  ? cleanProjectPageBody
+                  : cleanNoteBody
+          }
           placeholder={placeholder}
         />
       </div>

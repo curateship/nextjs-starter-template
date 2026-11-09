@@ -1,9 +1,10 @@
 import * as React from "react"
+import { ClipboardCheckIcon, PlaneIcon } from "lucide-react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
-import { DailyCard, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
+import { DailyCard, DailySkyBanner, rightSkyCover, useDailyNow } from "@/components/project/daily-card"
 import { CityRow } from "@/components/project/daily-city-field"
 import { DailyHoursRow } from "@/components/project/daily-settings"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
@@ -21,6 +22,7 @@ import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { TeamStart } from "@/components/project/team-start"
 import { ThreePanels } from "@/components/project/three-panels"
 import { TimeOffSection } from "@/components/project/time-off-card"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +44,8 @@ import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { useNow } from "@/lib/project/use-now"
 
 export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   /** The task open in the right panel. */
@@ -90,6 +94,7 @@ function Dashboard({
   const navigate = useNavigate()
   const router = useRouter()
   const taskAddress = useTaskAddress()
+  const nowMs = useNow(daily.loadedAt)
   // Opening a task reads its chat, so its row's "3 new" goes once it has loaded.
   const tasksRef = React.useRef(dashboard.tasks)
   React.useEffect(() => {
@@ -126,6 +131,7 @@ function Dashboard({
   return (
     <PersonPages>
       <ThreePanels
+        reopenInHeader
         layoutKey={MY_DASHBOARD_PANEL_LAYOUT_KEY}
         // A task opened on arrival leaves a narrow screen on the list.
         showRightFor={search.task === quietTask ? undefined : search.task}
@@ -178,7 +184,12 @@ function Dashboard({
         right={{
           label: "Task",
           showLabel: "Show the task",
-          content: <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />,
+          content: (
+            // The sky of my page carried on behind the task's header.
+            <RightCoverProvider value={rightSkyCover(daily, nowMs)}>
+              <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+            </RightCoverProvider>
+          ),
         }}
       >
         <CheckinDialog
@@ -237,7 +248,10 @@ function MePanel({
     <div className="relative flex min-h-0 flex-1 flex-col">
       <DailySkyBanner daily={daily} now={now} />
       {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
-      <DashboardCardHeader className="relative border-b-transparent">
+      {/* Wrapped in its own div, so the shell's table line under a header never matches it. */}
+      <div className="relative shrink-0">
+      <DashboardCardHeader className="relative gap-2 border-b-transparent">
+        <SidePanelCollapseButton side="left" label="Hide my page" />
         <PersonAvatar name={me.name} avatarUrl={me.avatarUrl} size="default" />
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
@@ -247,6 +261,7 @@ function MePanel({
         </div>
         <EmployeeSettingsMenu dashboard={dashboard} daily={daily} />
       </DashboardCardHeader>
+      </div>
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div className={cn("grid", PANEL_GUTTER)}>
           <DailyCard
@@ -258,6 +273,7 @@ function MePanel({
           />
           <PanelCard
             storageId="project-my-checkin"
+            icon={<ClipboardCheckIcon className="size-4" />}
             title="Today's check-in"
             badge={badge ? <TintChip color={badge.tone}>{badge.text}</TintChip> : null}
           >
@@ -310,7 +326,7 @@ function MePanel({
             </div>
           </PanelCard>
           <MyWeekSection reload={dashboard} />
-          <PanelCard storageId="project-my-time-off" title="Time off">
+          <PanelCard storageId="project-my-time-off" icon={<PlaneIcon className="size-4" />} title="Time off">
             <TimeOffSection idPrefix="my-time-off" compact initial={dashboard.timeOff} />
           </PanelCard>
           <InboxCard inbox={inbox} />

@@ -22,6 +22,7 @@ import {
 import { TaskList } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
 import { TaskTimeline } from "@/components/project/task-timeline"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -542,6 +543,7 @@ export function ProjectTasksPanel({
           "revert to the way it was but make that header divider appear"). Every other line keeps
           Settings > Styling's Divider lines, which is too faint to show against that grey. */}
       <DashboardCardHeader className="@container border-b-muted-foreground/10">
+        <PanelReopenButton side="left" label="Show the project page" />
         <DashboardTabs
           value={view}
           onValueChange={(value) => pickView(value as View)}
@@ -667,6 +669,7 @@ export function ProjectTasksPanel({
             </DropdownMenu>
           ) : null}
         </div>
+        <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>
       {view === "chat" ? (
         <ProjectChat page={page} />
@@ -751,6 +754,7 @@ export function ProjectTasksPanel({
               readOnly={readOnly}
               busy={busy}
               onOpenTask={(task) => onOpenTask(task.id)}
+              openTaskId={openTaskId}
               onRows={onRows}
               groups={grouped?.groups}
               foldsKey={taskFoldsKey(page.project.id, grouping)}

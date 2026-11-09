@@ -34,6 +34,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 import type { WorkspaceStatus } from "@/lib/workspaces/status"
+import type { AdminPageSide } from "@/lib/admin-dashboard/admin-page"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 
 export const customShellUsers = pgTable(
   "users",
@@ -108,20 +110,11 @@ export const customShellUsers = pgTable(
      * person. Null falls back to `DEFAULT_SIDEBAR_WIDTH`.
      */
     sidebarWidth: integer("sidebar_width"),
-    /**
-     * The stable public code in this account's invite link. Postgres supplies
-     * it for every account creation path, including admin-created accounts and
-     * test fixtures, so no caller can accidentally make an account without one.
-     */
-    referralCode: varchar("referral_code", { length: 32 })
-      .notNull()
-      .default(sql`replace(gen_random_uuid()::text, '-', '')`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("ix_users_email").on(table.email),
-    uniqueIndex("ux_users_referral_code").on(table.referralCode),
     index("ix_users_current_workspace").on(table.currentWorkspaceId),
     index("ix_users_deleted_at")
       .on(table.deletedAt)
@@ -392,12 +385,12 @@ export const customShellNotifications = pgTable(
     recipientUserId: varchar("recipient_user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    /** Null on a changelog notice: an update is posted by the product, not a person. */
+    /** Null on a notice the product posts itself, such as an announcement. */
     actorUserId: varchar("actor_user_id", { length: 36 }).references(
       () => customShellUsers.id,
       { onDelete: "cascade" }
     ),
-    /** Null on a changelog notice, which is not about a piece of feedback. */
+    /** Null on a notice that is not about a piece of feedback. */
     feedbackId: varchar("feedback_id", { length: 36 }).references(
       () => customShellFeedback.id,
       { onDelete: "cascade" }
@@ -418,11 +411,6 @@ export const customShellNotifications = pgTable(
     }).references(() => customShellFeedbackComments.id, {
       onDelete: "cascade",
     }),
-    /** Set on a changelog notice; deleting the update clears the notices too. */
-    changelogEntryId: varchar("changelog_entry_id", { length: 36 }).references(
-      () => customShellChangelogEntries.id,
-      { onDelete: "cascade" }
-    ),
     /** Set on an announcement notice; retiring or deleting it clears them too. */
     announcementId: varchar("announcement_id", { length: 36 }).references(
       () => customShellAnnouncements.id,
@@ -465,7 +453,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up', 'crm_mail_arrived')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -474,7 +462,6 @@ export const customShellNotifications = pgTable(
     index("ix_notifications_feedback_id").on(table.feedbackId),
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
     index("ix_notifications_comment_id").on(table.feedbackCommentId),
-    index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
     index("ix_notifications_automation_run_id").on(table.automationRunId),
     // The bell's own question, asked once a minute per open tab: how many
     // notices are waiting that this person has not been shown yet. Partial,
@@ -977,87 +964,6 @@ export const customShellSubscriptionEvents = pgTable(
   ]
 )
 
-/**
- * One person-to-person invite from registration through its first real paid
- * invoice and any free-month credit earned from it.
- *
- * Names and emails are copied at registration so deleting either account does
- * not erase or damage the other person's reward record. The user references
- * clear on deletion instead of cascading for the same reason.
- */
-export const customShellReferrals = pgTable(
-  "referrals",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    referrerUserId: varchar("referrer_user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
-    referredUserId: varchar("referred_user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
-    referrerName: varchar("referrer_name", { length: 255 }).notNull(),
-    referrerEmail: varchar("referrer_email", { length: 255 }).notNull(),
-    referredName: varchar("referred_name", { length: 255 }).notNull(),
-    referredEmail: varchar("referred_email", { length: 255 }).notNull(),
-    status: varchar("status", { length: 20 }).notNull().default("invited"),
-    rewardStatus: varchar("reward_status", { length: 20 })
-      .notNull()
-      .default("not_earned"),
-    stripeInvoiceId: varchar("stripe_invoice_id", { length: 120 }).unique(),
-    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 120 }),
-    rewardAmountCents: integer("reward_amount_cents"),
-    rewardCurrency: varchar("reward_currency", { length: 10 }),
-    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }),
-    stripeBalanceTransactionId: varchar("stripe_balance_transaction_id", {
-      length: 120,
-    }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    joinedAt: timestamp("joined_at", { withTimezone: true }),
-    convertedAt: timestamp("converted_at", { withTimezone: true }),
-    grantedAt: timestamp("granted_at", { withTimezone: true }),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    check(
-      "referrals_status_check",
-      sql`${table.status} in ('invited', 'joined', 'converted')`
-    ),
-    check(
-      "referrals_reward_status_check",
-      sql`${table.rewardStatus} in ('not_earned', 'pending', 'granted', 'revoked')`
-    ),
-    check(
-      "referrals_reward_amount_check",
-      sql`${table.rewardAmountCents} is null or ${table.rewardAmountCents} > 0`
-    ),
-    check(
-      "referrals_progress_check",
-      sql`(${table.status} = 'invited' and ${table.joinedAt} is null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'joined' and ${table.joinedAt} is not null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'converted' and ${table.joinedAt} is not null and ${table.convertedAt} is not null and ${table.rewardStatus} in ('pending', 'granted', 'revoked'))`
-    ),
-    check(
-      "referrals_grant_check",
-      sql`${table.rewardStatus} <> 'granted' or (${table.rewardAmountCents} is not null and ${table.rewardCurrency} is not null and ${table.stripeCustomerId} is not null and ${table.stripeBalanceTransactionId} is not null and ${table.grantedAt} is not null)`
-    ),
-    uniqueIndex("ux_referrals_referred_user")
-      .on(table.referredUserId)
-      .where(sql`${table.referredUserId} is not null`),
-    index("ix_referrals_referrer_created").on(
-      table.referrerUserId,
-      table.createdAt.desc()
-    ),
-    index("ix_referrals_reward_status").on(
-      table.rewardStatus,
-      table.convertedAt.desc()
-    ),
-    index("ix_referrals_payment_intent")
-      .on(table.stripePaymentIntentId)
-      .where(sql`${table.stripePaymentIntentId} is not null`),
-  ]
-)
-
 export const customShellAutomations = pgTable(
   "automations",
   {
@@ -1480,29 +1386,6 @@ export const customShellPageBlocks = pgTable(
       table.workspaceId,
       table.path,
       table.position
-    ),
-  ]
-)
-
-export const customShellChangelogEntries = pgTable(
-  "changelog_entries",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    /** The site whose updates these are. */
-    workspaceId: varchar("workspace_id", { length: 36 })
-      .notNull()
-      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-    title: varchar("title", { length: 200 }).notNull(),
-    body: text("body").notNull(),
-    /** Null while the entry is a draft. Only published entries reach members. */
-    publishedAt: timestamp("published_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    index("ix_changelog_entries_workspace_published").on(
-      table.workspaceId,
-      table.publishedAt
     ),
   ]
 )
@@ -2496,6 +2379,12 @@ export const customShellEmailSettings = pgTable("email_settings", {
    */
   crmQuoteReplies: boolean("crm_quote_replies").notNull().default(true),
   /**
+   * After how many days without an answer the bell says somebody is waiting
+   * (CRM task 11). 0 turns it off. Set in the CRM's settings ⋮. Added in
+   * `0100_custom_shell_crm_unanswered.sql`.
+   */
+  crmUnansweredDays: integer("crm_unanswered_days").notNull().default(3),
+  /**
    * The drip rules a newly created newsletter starts from — see
    * `src/lib/broadcasts/drip.ts`. Only ever read at that moment; changing it
    * later leaves newsletters that already exist alone.
@@ -2627,6 +2516,149 @@ export const customShellCrmLeads = pgTable(
 )
 
 /**
+ * Who a conversation was forwarded to, when, and with what note (CRM task 20,
+ * built in task 36 on 7 Nov 2026). The conversation shows each as a quiet
+ * line, never a bubble, because it was not part of the back-and-forth.
+ */
+export const customShellCrmThreadForwards = pgTable(
+  "crm_thread_forwards",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmThreads.id, { onDelete: "cascade" }),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    note: text("note").notNull().default(""),
+    forwardedByUserId: varchar("forwarded_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_crm_thread_forwards_thread").on(table.threadId, table.createdAt)]
+)
+
+/**
+ * Tags on a lead (CRM task 27, built in task 36 on 7 Nov 2026): what kind of
+ * lead it is, beside the stage, which is how far along. One row per tag, as
+ * `member_tags` keeps them, lowered and trimmed, so one spelling finds them
+ * all. A lead's tags go with it.
+ */
+export const customShellCrmLeadTags = pgTable(
+  "crm_lead_tags",
+  {
+    leadId: varchar("lead_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmLeads.id, { onDelete: "cascade" }),
+    tag: varchar("tag", { length: 60 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "crm_lead_tags_pk", columns: [table.leadId, table.tag] }),
+    check(
+      "crm_lead_tags_normalized_check",
+      sql`${table.tag} = lower(trim(${table.tag})) and length(${table.tag}) between 1 and 60 and position(',' in ${table.tag}) = 0`
+    ),
+    index("ix_crm_lead_tags_tag_lead").on(table.tag, table.leadId),
+  ]
+)
+
+/**
+ * The addresses one site's mail arrives at, such as sales@ and support@
+ * (CRM task 18, built in task 36, 7 Nov 2026). The CRM's left page lists them
+ * in its Emails block, and its + adds one. Migration 0098 copied the single
+ * `email_settings.inbound_address` in as each site's first row and left that
+ * column where it was.
+ */
+export const customShellCrmInboundAddresses = pgTable(
+  "crm_inbound_addresses",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    address: varchar("address", { length: 255 }).notNull(),
+    /** A short name such as "Sales", or "" to show the address alone. */
+    label: varchar("label", { length: 80 }).notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_crm_inbound_addresses_workspace_address").on(
+      table.workspaceId,
+      sql`lower(${table.address})`
+    ),
+  ]
+)
+
+/**
+ * The CRM dashboard's left page, one per site (the Admin 3 panel design,
+ * 7 Nov 2026): the shell's editor document as JSON text, its cover photo and
+ * its lock. "" is a page nobody has written on, which shows the starting
+ * blocks.
+ */
+export const customShellCrmPages = pgTable("crm_pages", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
+  // The page's own cover pictures, kept as tiles (migration 0109).
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  locked: boolean("locked").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * The Admin dashboard's page, one per site (Tyler, 8 Nov 2026): the left page
+ * beside every section, with what is written on it, its cover and cover
+ * pictures, and its lock. The same shape as `crm_pages`, keyed by side as
+ * well; only `left` is used since Overview's right page went (migration 0108).
+ */
+export const customShellAdminPages = pgTable(
+  "admin_pages",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    side: varchar("side", { length: 8 }).$type<AdminPageSide>().notNull(),
+    body: text("body").notNull().default(""),
+    coverUrl: text("cover_url"),
+    coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+    locked: boolean("locked").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "admin_pages_pkey", columns: [table.workspaceId, table.side] }),
+    check("admin_pages_side_check", sql`${table.side} IN ('left', 'right')`),
+  ]
+)
+
+/**
+ * The widgets on a dashboard's Overview, one layout per site and dashboard
+ * (the Admin dashboard's and the CRM's): up to two rows, each with its own
+ * columns, each column one widget or Empty
+ * (`src/lib/admin-dashboard/overview-widgets.ts`). Every read and write goes
+ * through `cleanWidgetLayout`, so what is stored is always a layout that
+ * draws. No row: the default layout.
+ */
+export const customShellAdminWidgetLayouts = pgTable(
+  "admin_widget_layouts",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** Which dashboard's Overview: `WIDGET_BOARDS`, 'admin' or 'crm'. */
+    board: varchar("board", { length: 20 }).notNull().default("admin"),
+    layout: jsonb("layout").$type<WidgetLayout>().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ name: "admin_widget_layouts_pkey", columns: [table.workspaceId, table.board] })]
+)
+
+/**
  * One back-and-forth with one lead.
  *
  * The newest message's time and the message count are kept on the row rather
@@ -2668,10 +2700,37 @@ export const customShellCrmThreads = pgTable(
     messageCount: integer("message_count").notNull().default(0),
     /** Null is unread. A new message clears it again. */
     readAt: timestamp("read_at", { withTimezone: true }),
+    /**
+     * When somebody saved it for the Saved tab, or null. One mark for the
+     * whole site, as unread and closed are (Tyler, 7 Nov 2026).
+     */
+    savedAt: timestamp("saved_at", { withTimezone: true }),
+    /**
+     * The address its mail arrived at, from `crm_inbound_addresses`, so the
+     * reply goes out from that same address. Null for conversations from
+     * before there was a list, which reply from the first one.
+     */
+    toAddress: varchar("to_address", { length: 255 }),
+    /**
+     * When the bell last said they were waiting for an answer (CRM task 11).
+     * A new message from them clears it, so a conversation ignored twice is
+     * chased twice.
+     */
+    unansweredNotifiedAt: timestamp("unanswered_notified_at", { withTimezone: true }),
+    /**
+     * A short summary somebody asked for (CRM task 32), and the message count
+     * it was made at. More messages than that means it is stale.
+     */
+    summary: text("summary"),
+    summaryMessageCount: integer("summary_message_count"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    // The Saved tab's own question.
+    index("ix_crm_threads_workspace_saved")
+      .on(table.workspaceId, table.lastMessageAt)
+      .where(sql`${table.savedAt} is not null`),
     check(
       "crm_threads_status_check",
       sql`${table.status} in ('open', 'snoozed', 'closed')`
@@ -2734,8 +2793,10 @@ export const customShellCrmMessages = pgTable(
     /** Resend's id: the received email on the way in, the sent one on the way out. */
     providerEmailId: varchar("provider_email_id", { length: 255 }),
     /**
-     * Names, sizes and types only. The files stay with Resend; pulling them
-     * into storage is a separate job nobody has asked for.
+     * The files: names, sizes and types, and once fetched into the site's
+     * storage, the key each is kept under (CRM task 21). An inbound file's
+     * words come from Resend; the background pass fetches the file itself
+     * (`src/server/crm/attachments.ts`).
      */
     attachments: jsonb("attachments")
       .notNull()
@@ -2743,6 +2804,9 @@ export const customShellCrmMessages = pgTable(
       .$type<CrmAttachment[]>(),
     bodyFetchedAt: timestamp("body_fetched_at", { withTimezone: true }),
     bodyAttempts: integer("body_attempts").notNull().default(0),
+    /** When the files were fetched into storage, or given up on. Added in 0104. */
+    filesFetchedAt: timestamp("files_fetched_at", { withTimezone: true }),
+    fileAttempts: integer("file_attempts").notNull().default(0),
     /** When the mail was sent or received, which is what the thread is ordered by. */
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -2807,8 +2871,6 @@ export const customShellCrmBlockedSenders = pgTable(
 )
 
 export type CustomShellUser = typeof customShellUsers.$inferSelect
-export type CustomShellChangelogEntry =
-  typeof customShellChangelogEntries.$inferSelect
 export type CustomShellPlan = typeof customShellPlans.$inferSelect
 export type CustomShellSubscription =
   typeof customShellSubscriptions.$inferSelect
@@ -2821,7 +2883,6 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
-export type CustomShellReferral = typeof customShellReferrals.$inferSelect
 export type CustomShellUsageEvent = typeof customShellUsageEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
 export type CustomShellAutomationRun =

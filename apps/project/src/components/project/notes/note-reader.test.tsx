@@ -105,7 +105,8 @@ describe("a note drawn for someone who only reads it", () => {
       { type: "noteFold", attrs: { id: "fold-2" }, content: [{ type: "text", text: "After" }] },
       paragraph("Still shown"),
     ])
-    const card = [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Book the photographer"))
+    // The task's name is the block's heading, which folds it; the tile under it opens the task.
+    const card = container.querySelector<HTMLButtonElement>('[aria-label="Open Book the photographer"]')
     act(() => card!.click())
     expect(openTask).toHaveBeenCalledWith("task-2", "project-1")
 
