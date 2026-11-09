@@ -42,6 +42,10 @@ had sites at 12 and 18 and Fitness one at 20. A local database with a menu older
 than 12 skips straight to step 13, so it can be missing links such as Traffic
 or AI usage until they are added by hand in Settings → Navigation.
 
+Step 25 (8 Nov 2026) takes the Templates link out from under Automations,
+because templates are a tab in the automation editor now. Step 18, which added
+that link, was deleted on 9 Nov 2026, so a menu older than 18 never gets it.
+
 ## Ownership and membership
 
 The user who creates a workspace is its creator, but the workspace does not

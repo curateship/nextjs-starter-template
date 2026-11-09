@@ -1,5 +1,10 @@
 import * as React from "react"
-import { LayoutGridIcon, PlusIcon, StarIcon } from "lucide-react"
+import {
+  LayoutGridIcon,
+  LayoutTemplateIcon,
+  PlusIcon,
+  StarIcon,
+} from "lucide-react"
 
 import { EmptyRow } from "@/components/shared/feed-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,7 +21,15 @@ import {
 import { cn } from "@/lib/utils"
 import { focusRingInset, focusRing } from "@/lib/layout/focus-ring"
 
+import type { AutomationTemplateListItem } from "@/lib/api/automations/automation-templates"
+
 import { AutomationNodeIcon } from "./automation-node-icon"
+import {
+  AutomationTemplateCards,
+  type AutomationTemplateChangeHooks,
+} from "./automation-template-cards"
+
+type PaletteView = "fav" | "all" | "templates"
 
 // Read inside the call, never at the top of the file: both lists include what
 // the app added, and that is not there yet while modules are loading.
@@ -38,6 +51,7 @@ function paletteGroupsFor(
 export function AutomationPalette({
   className,
   favoriteNodeKeys,
+  templates,
   onSelect,
   onAdd,
   onDragStart,
@@ -45,6 +59,16 @@ export function AutomationPalette({
 }: {
   className?: string
   favoriteNodeKeys: string[]
+  /**
+   * The Templates tab: the cards, the template on the canvas when the editor
+   * is editing one, and what the editor is told when one changes. Left out,
+   * the tab is not drawn.
+   */
+  templates?: {
+    items: AutomationTemplateListItem[]
+    openKey?: string
+    hooks: AutomationTemplateChangeHooks
+  }
   onSelect: (key: string) => void
   onAdd: (key: string) => void
   onDragStart: (key: string) => void
@@ -53,16 +77,22 @@ export function AutomationPalette({
   // Opening on Fav with nothing starred means the first thing anyone ever sees
   // is the "no favourites yet" line instead of the nodes. Read once, on mount:
   // starring your first node then moves the tab out from under you mid-edit.
-  const [tab, setTab] = React.useState<"fav" | "all">(
-    favoriteNodeKeys.length > 0 ? "fav" : "all"
+  // A template opens on Templates: picking one from that tab reloads the
+  // editor, and the list should still be where it was clicked.
+  const [tab, setTab] = React.useState<PaletteView>(
+    templates?.openKey
+      ? "templates"
+      : favoriteNodeKeys.length > 0
+        ? "fav"
+        : "all"
   )
 
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as "fav" | "all")}
+      onValueChange={(value) => setTab(value as PaletteView)}
       className={cn(
-        "h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card",
+        "@container/palette h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card",
         className
       )}
     >
@@ -70,13 +100,20 @@ export function AutomationPalette({
         <DashboardCardTab
           value="fav"
           icon={<StarIcon className="size-4 fill-current" />}
-          label="Fav"
+          label={<PaletteTabLabel>Fav</PaletteTabLabel>}
         />
         <DashboardCardTab
           value="all"
           icon={<LayoutGridIcon className="size-4" />}
-          label="All nodes"
+          label={<PaletteTabLabel>All nodes</PaletteTabLabel>}
         />
+        {templates ? (
+          <DashboardCardTab
+            value="templates"
+            icon={<LayoutTemplateIcon className="size-4" />}
+            label={<PaletteTabLabel>Templates</PaletteTabLabel>}
+          />
+        ) : null}
       </DashboardCardTabsHeader>
       <PaletteTab
         value="fav"
@@ -94,8 +131,34 @@ export function AutomationPalette({
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       />
+      {templates ? (
+        <TabsContent value="templates" className="min-h-0 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-3">
+              <AutomationTemplateCards
+                templates={templates.items}
+                openTemplateKey={templates.openKey}
+                hooks={templates.hooks}
+              />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      ) : null}
     </Tabs>
   )
+}
+
+/**
+ * A tab's name, shown only while the panel has room for all three.
+ *
+ * Fav, All nodes and Templates need 281px side by side, and the left panel
+ * opens at its narrowest, about 170px. Squeezed, the row scrolled sideways
+ * and pushed the cards past the panel's edge, so below 308px (the row plus
+ * the header's 12px each side) the tabs are their icons, with the name kept
+ * for screen readers.
+ */
+function PaletteTabLabel({ children }: { children: React.ReactNode }) {
+  return <span className="sr-only @[19.25rem]/palette:not-sr-only">{children}</span>
 }
 
 function PaletteTab({
@@ -128,7 +191,10 @@ function PaletteTab({
               >
                 {group.label}
               </h2>
-              <div className="grid gap-2">
+              {/* A column the panel's own width: an "auto" one grew to the
+                  longest name, and at the panel's narrowest the cards ran past
+                  its edge. */}
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
                 {group.items.map((item) => (
                   <PaletteNodeCard
                     key={item.key}

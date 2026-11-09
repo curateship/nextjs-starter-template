@@ -45,6 +45,33 @@ Built-in starts include:
 
 Templates are ordinary flow definitions that can be copied and then edited.
 
+## Templates
+
+Templates live in a Templates tab in the editor's left panel, after Fav and
+All nodes. They have no dashboard of their own (Tyler, 8 Nov 2026: "No need to
+have template its own dashboard").
+
+- **A card opens that template on the canvas** at
+  `/admin/automations/templates/<key>`, and the tab stays open there with the
+  card outlined. The arrow in the canvas header goes back to the automations.
+- **The card's ⋮ holds Edit details and Reset to built-in.** Edit details
+  changes the name and description the New automation picker shows. Reset
+  appears only on a template that has been changed.
+- **A card follows the canvas.** Each save of a template's canvas updates its
+  card's "Customized" and "Has a step to fix" lines, because the editor keeps
+  the list and not the tab.
+- **Resetting or renaming the template that is open** saves its canvas first,
+  then the canvas takes what the server holds. Without that order an edit
+  still waiting to save could land on top of the reset.
+- **The old address `/admin/automations/templates` is gone**, not forwarded.
+  The editor's Templates tab is the only way to the templates.
+- **At the left panel's narrowest the three tabs are icons only.** The names
+  need 281px side by side and the panel opens at about 170px, so the names
+  show once the panel is 308px or wider.
+
+The cards are `src/components/automations/automation-template-cards.tsx`, and
+the tab is in `automation-palette.tsx`.
+
 ## Runs
 
 The engine creates a run, advances ready steps, records summaries, and closes
