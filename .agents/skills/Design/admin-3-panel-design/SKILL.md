@@ -510,14 +510,27 @@ Reference: `MyTasksPanel` in `apps/project/src/components/project/my-tasks-panel
   all. A header slot before the tabs is built from the shell's
   `DashboardCardHeader` and `TabsList`, never by editing the shell's tab
   header.
-- **The ⋮ holds Search and Mass select.** They are not buttons in the header.
-  - Search opens its box in the header with the cursor in it. Open it from the
-    menu's `onCloseAutoFocus`, after the menu has closed, because an open menu
-    keeps the focus.
-  - Mass select is held by the panel and handed to the list as
-    `massSelect={{ on, onToggle, tick }}`. The list then draws no button of
-    its own. The item reads "Hide select" while on, and leaving the List turns
+- **Search and Mass select are buttons in the header, not in the ⋮**
+  (Tyler, 9 Nov 2026: "Lets take the search and mass selet out of the
+  dropdown and have all the buttons use a more visible button"). A ⋮ is
+  drawn only when the section has rows of its own for it. A second way to
+  add something goes in the New … button's dropdown as a first choice, not
+  in a ⋮: People's New contact offers Add a contact and Upload a CSV file
+  (Tyler, 9 Nov 2026).
+  - Every header button but the primary New … has the outline look: a
+    white fill and a light grey line of its own (`zinc-200` at 60%,
+    `zinc-700` at 60% in dark mode), never the Divider lines colour from
+    Settings ("dont wire the border to the settings. Let it have its own
+    border and make the border light gray", then "reduce the border shade a
+    bit").
+  - Search is a search box that is always in the header, with the same line
+    ("make the search an actual search field"). Escape clears it.
+  - Mass select comes right after the search box ("mass select should be
+    after saerch field"): an icon and the word Select, pressed while on
+    ("Hide select" to a screen reader). It is held by the panel and handed to the
+    list as `massSelect={{ on, onToggle, tick }}`, and leaving the List turns
     it off.
+  - In a narrow header the words drop and the icons stay, as Filter's do.
 - **A row's right-click menu** (`TaskRightClickMenu` in `task-right-click.tsx`)
   starts with Mass select ("Hide select" while on), then Duplicate, then
   Delete under a line. Turned on from a row, that row starts ticked: the panel

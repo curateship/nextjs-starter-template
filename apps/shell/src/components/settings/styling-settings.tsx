@@ -367,7 +367,7 @@ export function StylingSettings({
           max={MAX_SIDE_PANEL_WIDTH}
           valueLabel={leftPanelWidth === DEFAULT_LEFT_PANEL_WIDTH ? `${leftPanelWidth}% · Default` : `${leftPanelWidth}%`}
           onChange={(value) => update({ leftPanelWidth: value })}
-          help="A share of the dashboard's width. 14% is the narrowest it opens at or drags to."
+          help={`A share of the dashboard's width. ${DEFAULT_LEFT_PANEL_WIDTH}% is the narrowest it opens at or drags to.`}
         />
         <SliderRow
           label="Right panel width"
@@ -397,7 +397,7 @@ export function StylingSettings({
       <CollapsibleSettingsCard
         storageId="styling-blocks"
         title="Blocks"
-        description="The cards a page's blocks are drawn in, such as the CRM's Stages and Segments. Every block on every page changes live as you adjust these."
+        description="The cards a page's blocks are drawn in, such as the CRM's Leads and Segments. Every block on every page changes live as you adjust these."
         contentClassName="space-y-6"
       >
         <SliderRow
@@ -475,7 +475,7 @@ export function StylingSettings({
           checked={styling.blockEdgeToEdge === true}
           onCheckedChange={(on) => update({ blockEdgeToEdge: on })}
           label="Advanced blocks reach the panel's edges"
-          hint="Live blocks such as Dashboards, Plans and Stages fill the panel's full width. Basic blocks such as Image and Callout keep the space at the sides."
+          hint="Live blocks such as Dashboards, Plans and Leads fill the panel's full width. Basic blocks such as Image and Callout keep the space at the sides."
         />
 
         <FieldGroup label="Preview" className="gap-2">
@@ -490,7 +490,7 @@ export function StylingSettings({
                 boxShadow: blockShadowCss(blockShadow),
               }}
             >
-              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold">Stages</p>
+              <p className="py-2.5 pr-2.5 pl-4 text-base font-semibold">Leads</p>
               <div style={{ padding: `0 ${blockInset}px ${blockInset}px` }}>
                 <div
                   className="divide-y overflow-hidden text-sm"

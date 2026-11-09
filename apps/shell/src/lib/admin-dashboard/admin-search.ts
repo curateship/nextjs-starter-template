@@ -10,8 +10,10 @@ import { allRoles } from "@/lib/roles"
  * Admin in place of the Overview, Users, Plans, Feedback, Announcements and
  * the Analytics screens; `workspace/tasks/features/admin/admin.md`).
  *
- * - `?tab=` picks the section the middle shows: Overview, Users, Feedback or
- *   Media library. The left page's Dashboards block picks it (Tyler, 8 Nov
+ * - `?tab=` picks the section the middle shows: Overview, Users, Feedback,
+ *   Announcements or Media library (Announcements moved out of the left
+ *   page's ⋮ into a section of its own, Tyler, 9 Nov 2026: "Move the
+ *   announcement from the top left settings into its own dashboard"). The left page's Dashboards block picks it (Tyler, 8 Nov
  *   2026: "we're moving the 3 tabs ... to the left side as a block and we
  *   add media library to it too"); the key kept its old name so saved places
  *   and old links still land.
@@ -22,13 +24,14 @@ import { allRoles } from "@/lib/roles"
  *   the record open on the right (`?open=`). Picking a tab starts the address
  *   again with that tab alone, so a search on Users never filters Feedback.
  */
-export const ADMIN_TABS = ["overview", "users", "feedback", "media"] as const
+export const ADMIN_TABS = ["overview", "users", "feedback", "announcements", "media"] as const
 export type AdminTab = (typeof ADMIN_TABS)[number]
 
 export const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   overview: "Overview",
   users: "Users",
   feedback: "Feedback",
+  announcements: "Announcements",
   media: "Media library",
 }
 
@@ -59,6 +62,12 @@ export type FeedbackSortColumn = (typeof FEEDBACK_SORT_COLUMNS)[number]
 const FEEDBACK_TYPE_FILTERS = ["all", ...FEEDBACK_TYPES] as const
 type FeedbackTypeFilter = (typeof FEEDBACK_TYPE_FILTERS)[number]
 
+const ANNOUNCEMENT_SORT_COLUMNS = ["title", "level", "starts", "ends"] as const
+export type AnnouncementSortColumn = (typeof ANNOUNCEMENT_SORT_COLUMNS)[number]
+
+const ANNOUNCEMENT_STATUS_FILTERS = ["all", "showing", "scheduled", "ended"] as const
+type AnnouncementStatusFilter = (typeof ANNOUNCEMENT_STATUS_FILTERS)[number]
+
 /** Users' keys: the person open on the right, then the list state. */
 export type AdminUsersSearch = {
   open?: string
@@ -78,6 +87,24 @@ export type AdminFeedbackSearch = {
   sort?: FeedbackSortColumn
   direction?: "asc" | "desc"
   page?: number
+}
+
+/** Announcements' keys: the one open on the right, then the list state. */
+export type AdminAnnouncementsSearch = {
+  open?: string
+  q?: string
+  /** Showing, Scheduled or Ended; a filter of its own, not Users' `status`. */
+  shows?: AnnouncementStatusFilter
+  sort?: AnnouncementSortColumn
+  direction?: "asc" | "desc"
+  page?: number
+  /**
+   * "1" opens a blank announcement on the right, from the Admin header's +,
+   * and is taken out of the address once it has. In the address rather than
+   * held in memory, because the + switches section and the section is drawn
+   * afresh.
+   */
+  draft?: "1"
 }
 
 /**
@@ -105,10 +132,12 @@ export type AdminSearch = {
   q?: string
   page?: number
   direction?: "asc" | "desc"
-  sort?: UserSortColumn | FeedbackSortColumn
+  sort?: UserSortColumn | FeedbackSortColumn | AnnouncementSortColumn
   role?: AdminUsersSearch["role"]
   status?: UserStatusFilter
   type?: FeedbackTypeFilter
+  shows?: AnnouncementStatusFilter
+  draft?: "1"
   orphan?: string
   owner?: string
 }
@@ -137,6 +166,18 @@ function readAdminFeedbackSearch(search: Record<string, unknown>): AdminFeedback
   }
 }
 
+function readAdminAnnouncementsSearch(search: Record<string, unknown>): AdminAnnouncementsSearch {
+  return {
+    ...readOpenSearch(search),
+    q: readSearchText(search.q),
+    shows: readOneOf(search.shows, ANNOUNCEMENT_STATUS_FILTERS),
+    draft: readOneOf(search.draft, ["1"] as const),
+    sort: readOneOf(search.sort, ANNOUNCEMENT_SORT_COLUMNS),
+    direction: readDirection(search.direction),
+    page: readPage(search.page),
+  }
+}
+
 /** An owner is an id, at most 36 characters; an orphan's key is a storage path. */
 function readText(value: unknown, longest: number) {
   return typeof value === "string" && value.length > 0 && value.length <= longest ? value : undefined
@@ -156,6 +197,7 @@ export function readAdminSearch(search: Record<string, unknown>): AdminSearch {
   const range = readAnalyticsRange(search.range)
   if (tab === "users") return { tab, range, ...readAdminUsersSearch(search) }
   if (tab === "feedback") return { tab, range, ...readAdminFeedbackSearch(search) }
+  if (tab === "announcements") return { tab, range, ...readAdminAnnouncementsSearch(search) }
   if (tab === "media") return { tab, range, ...readAdminMediaSearch(search) }
   return { tab, range }
 }

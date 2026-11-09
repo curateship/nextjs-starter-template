@@ -13,6 +13,7 @@ import {
 } from "@/lib/admin-dashboard/admin-search"
 import type { AnalyticsRange } from "@/lib/analytics/range"
 import { getAdminErrorMessage, loadOverviewWidgets } from "@/lib/api/admin-dashboard"
+import { loadAdminAnnouncements } from "@/lib/api/content/announcements"
 import { listFeedback } from "@/lib/api/feedback"
 import { loadAdminMediaPage } from "@/lib/api/media/admin-media"
 import { loadAdminUsersPage } from "@/lib/api/people/admin-users"
@@ -20,9 +21,10 @@ import { loadAdminUsersPage } from "@/lib/api/people/admin-users"
 const authenticatedRoute = getRouteApi("/_authenticated")
 
 /**
- * Admin: Overview, Users, Feedback and Media library as one three-panel
- * dashboard, picked from the left page's Dashboards block, with Plans and
- * Announcements in its ⋮ (Tyler, 8 Nov 2026).
+ * Admin: Overview, Users, Feedback, Announcements and Media library as one
+ * three-panel dashboard, picked from the left page's Dashboards block, with
+ * Plans in its ⋮ (Tyler, 8 Nov 2026; Announcements moved from the ⋮ to a
+ * section of its own on 9 Nov).
  * `src/lib/admin-dashboard/admin-search.ts` says what each address key means.
  */
 export const Route = createFileRoute("/_authenticated/admin/dashboard")({
@@ -65,6 +67,9 @@ async function loadAdmin(
     }
   }
   if (tab === "feedback") return { tab, feedback: await listFeedback() }
+  // Every announcement, few enough that search, filter, sort and page work on
+  // this copy in the browser, as Feedback's do.
+  if (tab === "announcements") return { tab, announcements: (await loadAdminAnnouncements()).announcements }
   if (tab === "media") {
     // No page size: the server reads the configured rows-per-page and sends
     // it back, so the first page holds exactly what the list will show.

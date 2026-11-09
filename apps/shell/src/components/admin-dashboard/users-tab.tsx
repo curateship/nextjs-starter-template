@@ -419,7 +419,7 @@ export function UsersTab({
                 onDelete={own ? undefined : () => setAsk({ kind: "delete", account: targetOfRow(account) })}
                 onRightClick={(x, y) => setRightClick({ id: account.id, x, y })}
               >
-                <MainCell name={account.name} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
+                <MainCell name={account.name} avatar={{ name: account.name, email: account.email }} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
                   {own ? <Chip muted>You</Chip> : null}
                 </MainCell>
                 <TableCell column="preview" className="hidden w-full max-w-0 min-w-40 text-right md:hidden @2xl:table-cell">

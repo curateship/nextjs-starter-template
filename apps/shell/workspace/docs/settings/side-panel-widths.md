@@ -6,11 +6,15 @@ on every three-panel dashboard (`ThreePanels` in
 any other. Tyler asked for it on 9 Nov 2026: "Add another option for me to
 adjust the default width of the left and right panel".
 
-- **Left panel width**, 14% unless changed, and **Right panel width**, 16%
+- **Left panel width**, 10% unless changed, and **Right panel width**, 16%
   unless changed (Tyler, 9 Nov 2026: "default 14% on left and 16% on
-  right"). Each default is also the narrowest: neither the slider nor a drag
-  goes below it ("make the 14 and 16 default and cannot go lower than that").
-  Both go up to 36%. Both sides were 16% before that day.
+  right", then "Set left side panel narrowest default to 10%"). Each default
+  is also the narrowest: neither the slider nor a drag goes below it ("make
+  the 14 and 16 default and cannot go lower than that"). Both go up to 36%.
+  Both sides were 16% before that day, and the left 14% for part of it; a
+  saved 14% left over from then was cleared on the local site so 10% shows.
+- **At 10% the left panel is narrow:** a block's title and its rows' names
+  end in "…" on one line rather than breaking mid-word (`FoldHeading`).
 - **The middle takes the rest.** With both sides at 36% the middle has 28%,
   so the middle's own narrowest is 28% (it was 32%, which both sides at 36%
   would not leave).

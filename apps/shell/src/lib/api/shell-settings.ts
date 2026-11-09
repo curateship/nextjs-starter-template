@@ -104,6 +104,8 @@ import {
   DASHBOARD_TAB_STYLES,
   DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
+  DEFAULT_LEFT_PANEL_WIDTH,
+  MAX_SIDE_PANEL_WIDTH,
 } from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
@@ -259,8 +261,11 @@ const shellStylingSchema = z.object({
   blockShadow: z.number().int().min(0).max(100).optional(),
   blockBorderShade: z.number().int().min(0).max(100).optional(),
   blockEdgeToEdge: z.boolean().optional(),
-  leftPanelWidth: z.number().int().min(14).max(36).optional(),
+  leftPanelWidth: z.number().int().min(DEFAULT_LEFT_PANEL_WIDTH).max(MAX_SIDE_PANEL_WIDTH).optional(),
   rightPanelWidth: z.number().int().min(16).max(36).optional(),
+  hiddenAdminSections: z.array(z.string().min(1).max(40)).max(20).optional(),
+  hiddenCrmSections: z.array(z.string().min(1).max(40)).max(20).optional(),
+  hiddenLeadStages: z.array(z.string().min(1).max(40)).max(20).optional(),
   widgetRadius: z.number().int().min(0).max(32).optional(),
   widgetShade: z.number().int().min(0).max(100).optional(),
   widgetInset: z.number().int().min(0).max(16).optional(),

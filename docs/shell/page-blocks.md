@@ -51,7 +51,13 @@ All of them are in `src/components/shared/notes/`, with their rules in
   is pointed at (Tyler, 7 Nov 2026: "All blocks should be replaed with the 3
   dot dropdown", and "hover over the item should only show the item 3 dot,
   not the header too"). It holds Delete block, and `useBlockMenu` adds the
-  block's own rows above it. A fixed block (`blockView({ ..., fixed: true })`)
+  block's own rows above it. Every block but a fixed one offers Delete block,
+  on a locked page too (Tyler, 9 Nov 2026: "every bloick must have a delete
+  block option except dashboard block"). There it asks first ("This page is
+  locked. Unlock it and delete the … block?"), then the page panel unlocks
+  the page and saves it without the block (`LockedPageContext` in
+  `block-card.tsx`, `pageWithoutBlock` in `src/lib/notes/page-body.ts`).
+  The Admin and CRM pages provide it. A fixed block (`blockView({ ..., fixed: true })`)
   has Move up and Move down in place of Delete block, each offered only when
   there is something on that side. `BlockCard` on
   its own draws the same card outside a page, as the CRM's Contact card does.
@@ -70,6 +76,18 @@ All of them are in `src/components/shared/notes/`, with their rules in
   section, names grey and the picked one dark, a count in the lightest grey
   pill, and a small bar that grows in before the picked name over 220ms, the
   section switching once it has grown.
+- **A block's ⋮ rows.** `useBlockMenu` puts a panel's rows above Delete
+  block. A row can keep the menu open (`keepOpen`), grey its name (`muted`)
+  and end with an icon (`end`), which is how the Admin Dashboards block's
+  show-and-hide list works: an eye or an eye with a slash on each section
+  (Tyler, 9 Nov 2026). The block heading has 14px at its right, so its ⋮'s
+  dots sit under the panel header's ⋮ when the block reaches the panel's
+  edges.
+- **A ⋮ menu's footer.** A `TabbedMenu` tab can have a `footer`, drawn under
+  a line across the menu and kept in view when the rows scroll: one
+  `MenuFooterButton`, a full-width row with its icon. Lock blocks (`LockRow`)
+  and the Admin ⋮'s New plan are footers (Tyler, 9 Nov 2026: "make both
+  footer the same ui").
 - **`tabbed-menu.tsx`, `pick-rows.tsx` and `page-rows.tsx`.** The tabbed ⋮
   and its grouped rows: `PickGroup`, `PickMenuRow` (one press picks),
   `PickDayRow` (a month that opens from the row, with Clear), and `PickRow` (a
@@ -137,7 +155,7 @@ The CRM is the worked example: `apps/shell/src/components/crm/crm-blocks.tsx`.
 ## Which screens use them
 
 - **The CRM's left page, `/admin/crm`**, since 7 Nov 2026, with the Emails,
-  Follow up today and Stages blocks. The right panel's Contact card is a
+  Follow up today and Leads blocks (Leads was Stages until 9 Nov 2026). The right panel's Contact card is a
   `BlockCard`.
 - **The Admin dashboard's left page, `/admin/dashboard`**, since 8 Nov 2026,
   with the fixed Dashboards block and Plans, whose New plan is a row in its

@@ -9,6 +9,7 @@ import {
   listPlans,
   updatePlan,
 } from "@/server/billing/plans"
+import { planMemberCounts } from "@/server/billing/plan-members"
 import { adminGet, adminPost } from "@/server/guards"
 
 export type AdminPlan = {
@@ -31,6 +32,11 @@ export type AdminPlan = {
   checkoutButtonText: string | null
   active: boolean
   createdAt: string
+  /**
+   * How many accounts are on it, as the Users list counts them; only the
+   * list of plans carries it (`planMemberCounts`).
+   */
+  memberCount?: number
 }
 
 const getPlanErrorMessageForCode = createErrorMessage(
@@ -98,8 +104,8 @@ export type PlanFormInput = z.input<typeof planInputSchema>
 const listPlansFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async () => {
-    const plans = await listPlans()
-    return plans.map(serializePlan)
+    const [plans, members] = await Promise.all([listPlans(), planMemberCounts()])
+    return plans.map((plan) => ({ ...serializePlan(plan), memberCount: members[plan.id] ?? 0 }))
   })
 
 const createPlanFn = createServerFn({ method: "POST" })

@@ -26,7 +26,8 @@ import {
   setAdminPageCoverPhoto,
 } from "@/lib/api/admin-dashboard"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import type { StoredPage } from "@/lib/notes/page-body"
+import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { LockedPageContext } from "@/components/shared/notes/block-card"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -45,6 +46,7 @@ type MenuTab = React.ComponentProps<typeof TabbedMenu>["tabs"][number]
 export function AdminPagePanel({
   title,
   menuLabel,
+  actions,
   general,
   menuTabs = [],
   page,
@@ -55,6 +57,8 @@ export function AdminPagePanel({
 }: {
   title: string
   menuLabel: string
+  /** Buttons before the ⋮, such as the + that adds an announcement or a user. */
+  actions?: React.ReactNode
   /** Under the page's own rows in General. */
   general?: React.ReactNode
   /** Tabs after General in the ⋮. */
@@ -86,6 +90,21 @@ export function AdminPagePanel({
   }
 
 
+  // Delete block on the locked page: unlocked, then saved without the block
+  // (Tyler, 9 Nov 2026: "Ask, then unlock and delete").
+  const lockedPage = page
+    ? {
+        locked: page.locked,
+        removeBlock: async (nodeName: string) => {
+          const body = pageWithoutBlock(page.body, nodeName)
+          await change({ locked: false, body }, async () => {
+            await lockAdminPage("left", false)
+            await saveAdminPage("left", body)
+          })
+        },
+      }
+    : null
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <PageCover url={page?.coverUrl ?? null} />
@@ -95,15 +114,17 @@ export function AdminPagePanel({
         <DashboardCardHeader className={cn("gap-1", page?.coverUrl && "border-b-transparent")}>
           <SidePanelCollapseButton side="left" label="Hide the page" />
           <span className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>{title}</span>
+          {actions}
           {page ? (
             <TabbedMenu
               label={menuLabel}
               // Opens to the right, over the middle, rather than past the
               // panel's left edge.
               align="start"
-              // Wide enough for General, Announcements, Plans and Widgets on
-              // one row, which the usual 22.7rem cuts short.
-              width="25rem"
+              // 10% under the usual 22.7rem (Tyler, 9 Nov 2026: "reduce the
+              // left panel dropdown width by 10%"); General, Plans and
+              // Widgets still fit on one row.
+              width="20.4rem"
               open={menuOpen}
               onOpenChange={setMenuOpen}
               tabs={[
@@ -126,15 +147,16 @@ export function AdminPagePanel({
                         />
                       </PickGroup>
                       {general}
-                      {/* Last in General, under every group (Tyler, 9 Nov
-                          2026: "this should be in the bottom"), as in the
-                          CRM's ⋮. */}
-                      <LockRow
-                        locked={page.locked}
-                        busy={busy}
-                        onLock={(locked) => void change({ locked }, () => lockAdminPage("left", locked))}
-                      />
                     </div>
+                  ),
+                  // Under every group, as the CRM's ⋮ has it (Tyler, 9 Nov
+                  // 2026: "this should be in the bottom").
+                  footer: (
+                    <LockRow
+                      locked={page.locked}
+                      busy={busy}
+                      onLock={(locked) => void change({ locked }, () => lockAdminPage("left", locked))}
+                    />
                   ),
                 },
                 ...menuTabs,
@@ -148,6 +170,7 @@ export function AdminPagePanel({
         <div className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
           {page ? (
             <AdminBlocksProvider value={blocks}>
+              <LockedPageContext.Provider value={lockedPage}>
               <SavingDocument
                 // A lock reads again from the start, so the editor and the
                 // lock always agree on what the page holds.
@@ -167,6 +190,7 @@ export function AdminPagePanel({
                   }
                 }}
               />
+              </LockedPageContext.Provider>
             </AdminBlocksProvider>
           ) : (
             <>

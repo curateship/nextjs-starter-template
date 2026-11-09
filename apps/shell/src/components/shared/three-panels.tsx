@@ -148,9 +148,9 @@ function BareMiddle({ className, ...props }: React.ComponentProps<"div">) {
 
 /**
  * The three-column dashboard every app shares (UI standard, "Three-column
- * dashboards"): the left opens at 14% and the right at 16%, the middle
- * taking the other 70% (Tyler, 9 Nov 2026: "default 14% on left and 16% on
- * right"), unless Settings → Styling → Side panels sets wider ones. Neither
+ * dashboards"): the left opens at 10% and the right at 16%, the middle
+ * taking the other 74% (Tyler, 9 Nov 2026: "default 14% on left and 16% on
+ * right", then "Set left side panel narrowest default to 10%"), unless Settings → Styling → Side panels sets wider ones. Neither
  * side drags narrower than its default ("cannot go lower than that"), nor
  * wider than 36%. It started as Project's
  * project page and moved here for Contacts on 19 Oct 2026. The side panels
@@ -253,7 +253,7 @@ export function ThreePanels({
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
   // The side panels' opening widths from Settings → Styling → Side panels
-  // (Tyler, 9 Nov 2026): 14% left and 16% right unless changed, and
+  // (Tyler, 9 Nov 2026): 10% left and 16% right unless changed, and
   // neither drags narrower than that.
   const styling = useOptionalShellRuntime()?.config.styling
   const leftWidth = clampSidePanelWidth(styling?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH)

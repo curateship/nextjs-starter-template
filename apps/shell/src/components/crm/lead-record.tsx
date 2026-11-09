@@ -1,6 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
-import { MessagesSquareIcon, UserIcon, UserPlusIcon, UsersIcon } from "lucide-react"
+import { UserIcon, UserPlusIcon, UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { AddToContactsRow, LeadFactGroups } from "@/components/crm/crm-record-menu"
@@ -15,7 +14,6 @@ import {
   type LeadBundle,
 } from "@/lib/api/crm/leads"
 import { CRM_STAGE_LABELS } from "@/lib/crm/crm"
-import { crmTabSearch } from "@/lib/crm/crm-search"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { formatDate } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
@@ -27,26 +25,25 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  *
  * - **⋮, General:** the same Person, Deal and Follow up rows the
  *   conversation's ⋮ has (`LeadFactGroups`), so a lead's facts are changed
- *   the same way wherever it is open, then Add to contacts.
- * - **Body:** their conversation, as a row; pressing it opens it in Inbox.
- * - **Footer:** where the deal stands, and Add to contacts, or Open their
+ *   the same way wherever it is open, then Add to subscribers.
+ * - **Body:** that nobody has written yet. A lead with a conversation never
+ *   opens here: People shows the conversation itself in its place
+ *   (`ConversationRecord`; Tyler, 9 Nov 2026: "If there's a conversation,
+ *   why not just put the conversation there instead of a button?").
+ * - **Footer:** where the deal stands, and Add to subscribers, or Open their
  *   contact for a lead already on the list. A lead never gets a newsletter
  *   until somebody adds them (Tyler, 7 Nov 2026).
  */
 export function LeadRecord({
   leadId,
-  newestThreadId,
   onOpenContact,
   onChanged,
 }: {
   leadId: string
-  /** Their newest conversation, from the list row, or null for none. */
-  newestThreadId: string | null
   onOpenContact: (contactId: string) => void
   /** The list is read again after a change made here. */
   onChanged: () => Promise<void>
 }) {
-  const navigate = useNavigate({ from: "/admin/crm" })
   const [bundle, setBundle] = React.useState<LeadBundle | null>(null)
   const [failed, setFailed] = React.useState(false)
   const [reloads, setReloads] = React.useState(0)
@@ -92,9 +89,6 @@ export function LeadRecord({
       showErrorToast(getLeadErrorMessage(error))
     }
   }
-  const openConversation = () => {
-    if (newestThreadId) void navigate({ search: crmTabSearch("inbox", { open: newestThreadId }) })
-  }
 
   return (
     <RecordFrame
@@ -130,16 +124,9 @@ export function LeadRecord({
       body={
         <section className="grid gap-2" aria-label="Conversation">
           <h3 className="px-0.5 text-sm font-medium text-muted-foreground">Conversation</h3>
-          {newestThreadId ? (
-            <Button type="button" variant="outline" className="justify-start" onClick={openConversation}>
-              <MessagesSquareIcon className="size-4" />
-              Open their conversation
-            </Button>
-          ) : (
-            <p className="px-0.5 text-sm text-muted-foreground">
-              Nobody has written yet. Inbox, then New email, writes to them.
-            </p>
-          )}
+          <p className="px-0.5 text-sm text-muted-foreground">
+            Nobody has written yet. Inbox, then New email, writes to them.
+          </p>
           <p className="px-0.5 text-xs text-muted-foreground">Added {formatDate(lead.created_at)}</p>
         </section>
       }
@@ -154,7 +141,7 @@ export function LeadRecord({
           {lead.contactId ? (
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenContact(lead.contactId ?? "")}>
               <UsersIcon className="size-4" />
-              Open their contact
+              Open in Subscribers
             </Button>
           ) : (
             <Button
@@ -175,7 +162,7 @@ export function LeadRecord({
               }}
             >
               <UserPlusIcon className="size-4" />
-              {adding ? "Adding…" : "Add to contacts"}
+              {adding ? "Adding…" : "Add to subscribers"}
             </Button>
           )}
         </>

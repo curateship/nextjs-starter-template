@@ -124,6 +124,18 @@ export type ShellStyling = {
   leftPanelWidth?: number
   rightPanelWidth?: number
   /**
+   * The Admin dashboard's sections left out of its Dashboards block, from the
+   * block's ⋮ (Tyler, 9 Nov 2026: "the dashboard block is missing the 3 dot
+   * dropdown and need to add the hide/show dashboards", as Trade's Protocols
+   * block does). Overview is never among them. For the whole site, with the
+   * rest of its look. Unset hides nothing.
+   */
+  hiddenAdminSections?: string[]
+  /** The same for the CRM's Dashboards block (Tyler, 9 Nov 2026: "apply all the design pattern we did for dashboard to crm"). */
+  hiddenCrmSections?: string[]
+  /** Stages the CRM's Leads card leaves out, from its ⋮ (9 Nov 2026). */
+  hiddenLeadStages?: string[]
+  /**
    * Overview's widgets, set apart from the blocks (Tyler, 8 Nov 2026:
    * "Because the widget sits in a shaded background it needs its own block
    * styling options"): the same three, corners in px, the grey 0 to 100
@@ -287,12 +299,13 @@ export const MAX_BLOCK_BORDER = 3
 export const DEFAULT_BLOCK_SHADOW = 0
 export const DEFAULT_BLOCK_BORDER_SHADE = 10
 /**
- * A side panel opens at 14% on the left and 16% on the right unless changed,
+ * A side panel opens at 10% on the left and 16% on the right unless changed,
  * and neither drags or is set narrower than that (Tyler, 9 Nov 2026:
- * "default 14% on left and 16% on right", then "make the 14 and 16 default
- * and cannot go lower than that"). Both go up to 36%.
+ * "default 14% on left and 16% on right", "make the 14 and 16 default and
+ * cannot go lower than that", then "Set left side panel narrowest default to
+ * 10%"). Both go up to 36%.
  */
-export const DEFAULT_LEFT_PANEL_WIDTH = 14
+export const DEFAULT_LEFT_PANEL_WIDTH = 10
 export const DEFAULT_RIGHT_PANEL_WIDTH = 16
 export const MAX_SIDE_PANEL_WIDTH = 36
 export const MAX_BLOCK_INSET = 16
@@ -364,6 +377,13 @@ export function clampBlockBorderShade(value: unknown): number {
 /** A side panel's width, never under `narrowest`, which is also its default. */
 export function clampSidePanelWidth(value: unknown, narrowest: number): number {
   return clampInt(value, narrowest, MAX_SIDE_PANEL_WIDTH, narrowest)
+}
+
+/** A Dashboards block's hidden sections: names only, once each, never Overview. */
+function cleanHiddenSections(sections: unknown[]): string[] {
+  return [
+    ...new Set(sections.filter((section): section is string => typeof section === "string" && section !== "overview")),
+  ].slice(0, 20)
 }
 
 /**
@@ -492,6 +512,15 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.blockBorderShade === undefined ? {} : { blockBorderShade: clampBlockBorderShade(styling.blockBorderShade) }),
     ...(typeof styling.blockEdgeToEdge === "boolean" ? { blockEdgeToEdge: styling.blockEdgeToEdge } : {}),
     ...(styling.leftPanelWidth === undefined ? {} : { leftPanelWidth: clampSidePanelWidth(styling.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH) }),
+    ...(Array.isArray(styling.hiddenAdminSections)
+      ? { hiddenAdminSections: cleanHiddenSections(styling.hiddenAdminSections) }
+      : {}),
+    ...(Array.isArray(styling.hiddenCrmSections)
+      ? { hiddenCrmSections: cleanHiddenSections(styling.hiddenCrmSections) }
+      : {}),
+    ...(Array.isArray(styling.hiddenLeadStages)
+      ? { hiddenLeadStages: cleanHiddenSections(styling.hiddenLeadStages) }
+      : {}),
     ...(styling.rightPanelWidth === undefined ? {} : { rightPanelWidth: clampSidePanelWidth(styling.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH) }),
     // Widgets keep to the blocks' ranges.
     ...(styling.widgetRadius === undefined ? {} : { widgetRadius: clampBlockRadius(styling.widgetRadius) }),

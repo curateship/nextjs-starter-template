@@ -163,21 +163,17 @@ carries on from the last finished piece.
   its own seven days after the upload was opened, which is the default rule on
   every R2 bucket. No row ever pointed at them.
 
-## Storage used and its cost
+## Storage used
 
-The Media library's header reads "212 GB stored, about $3.18 a month", for
-everybody's files or the one owner picked, once the middle is wide enough to
-hold it. Pointing at it lists the parts.
+The Media library's header no longer shows the storage used and its monthly
+cost (Tyler, 9 Nov 2026: "remove this", of "4.95 MB stored, under 1 cent a
+month"); the note and its price helper were deleted.
 
-- **The price is Cloudflare's $0.015 per GB a month**
-  (`src/lib/media/storage-cost.ts`), so 100GB reads "about $1.50 a month". The
-  first 10GB each month are free on Cloudflare's side and the figure leaves
-  that out, so it is the most the files could cost.
 - **Each file's own size** is in the list's Size column and in its window.
-- **An app adds what it keeps beside the files** through `media.storageUsed`
-  in its `src/app/server-options.ts`. Video adds its smooth copies.
-- **The search and type filters do not narrow it.** It is what the bucket is
-  billed for.
+- **The total is still read.** The library's page read still sums it, with
+  what an app adds beside the files through `media.storageUsed` in its
+  `src/app/server-options.ts` (Video adds its smooth copies), though nothing
+  shows it now.
 
 ## Sending a file from disk
 

@@ -9,7 +9,6 @@ import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmGroupRow, CrmTable, CrmTableRow, Dot, DOT, MainCell, useFolds } from "@/components/crm/crm-table"
 import { TableCell } from "@/components/ui/table"
 import { EmptyRecord } from "@/components/crm/record-frame"
-import { SystemEmailRecord } from "@/components/crm/system-email-record"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { ViewMenu, type ViewChoice } from "@/components/shared/view-menu"
@@ -54,9 +53,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  *   New newsletter, and the ⋮ with Search and Mass select.
  * - **Rows:** the name and when it last changed or went, the subject, then
  *   how far its send got. Right-click has Mass select, Make a copy, Delete.
- * - **Right:** the open newsletter (`BroadcastRecord`), a template
- *   (`TemplateRecord`), or one of the app's own emails picked in the CRM
- *   settings ⋮ (`SystemEmailRecord`).
+ * - **Right:** the open newsletter (`BroadcastRecord`) or a template
+ *   (`TemplateRecord`). The app's own emails have a section of their own,
+ *   System emails, since 9 Nov 2026.
  */
 export function CrmBroadcastsTab({
   page,
@@ -87,14 +86,10 @@ export function CrmBroadcastsTab({
   const folds = useFolds()
   const setListSearch = useListSearchNavigate()
   const setOpenRecord = useOpenRecord()
-  const openId = listSearch.system ? undefined : listSearch.open
+  const openId = listSearch.open
   const refresh = () => router.invalidate()
 
-  // A row opened lets go of the system email that was showing.
-  const open = (id: string | undefined) => {
-    if (listSearch.system) setListSearch({ system: undefined, open: id })
-    else setOpenRecord(id)
-  }
+  const open = (id: string | undefined) => setOpenRecord(id)
 
   const query = (listSearch.q ?? "").trim().toLowerCase()
   const shownTemplates = templates.filter((template) => !query || template.name.toLowerCase().includes(query))
@@ -128,7 +123,7 @@ export function CrmBroadcastsTab({
       // round, the read raced the address change and the row only showed
       // after another click (Tyler, 7 Nov 2026).
       await refresh()
-      setListSearch({ view: undefined, q: undefined, system: undefined, open: made.id })
+      setListSearch({ view: undefined, q: undefined, open: made.id })
     } catch (error) {
       showErrorToast(getBroadcastErrorMessage(error))
     }
@@ -142,7 +137,7 @@ export function CrmBroadcastsTab({
       // round, the read raced the address change and the row only showed
       // after another click (Tyler, 7 Nov 2026).
       await refresh()
-      setListSearch({ view: undefined, q: undefined, system: undefined, open: made.id })
+      setListSearch({ view: undefined, q: undefined, open: made.id })
     } catch (error) {
       showErrorToast(getBroadcastErrorMessage(error))
     }
@@ -203,7 +198,7 @@ export function CrmBroadcastsTab({
             onCreated={(broadcastId) => {
               // Read the list again first, then open the new one (see `copy`).
               void refresh().then(() =>
-                setListSearch({ view: undefined, q: undefined, system: undefined, open: broadcastId })
+                setListSearch({ view: undefined, q: undefined, open: broadcastId })
               )
             }}
           />
@@ -355,9 +350,7 @@ export function CrmBroadcastsTab({
 
   const openTemplate = view === "templates" ? shownTemplates.find((template) => template.id === openId) ?? null : null
 
-  const right = listSearch.system ? (
-    <SystemEmailRecord key={listSearch.system} kind={listSearch.system} blockDefaults={blockDefaults} />
-  ) : view === "templates" ? (
+  const right = view === "templates" ? (
     openTemplate ? (
       <TemplateRecord
         key={openTemplate.id}
@@ -394,11 +387,11 @@ export function CrmBroadcastsTab({
     />
   )
 
-  const rightLabel = listSearch.system ? "Email" : view === "templates" ? "Template" : "Newsletter"
+  const rightLabel = view === "templates" ? "Template" : "Newsletter"
   return frame({
     ids,
     showMiddleFor: view,
-    showRightFor: listSearch.system ?? openId,
+    showRightFor: openId,
     middle,
     right: { label: rightLabel, showLabel: `Show the ${rightLabel.toLowerCase()}`, content: right },
     windows: (

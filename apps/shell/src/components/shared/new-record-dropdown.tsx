@@ -23,6 +23,7 @@ export function NewRecordDropdown({
   busy,
   onSubmit,
   trigger,
+  choices,
   children,
 }: {
   /** The form's name, read out: "New contact". */
@@ -35,12 +36,18 @@ export function NewRecordDropdown({
   onSubmit: () => void
   /** The header's button that opens it. */
   trigger: React.ReactNode
+  /**
+   * A first step in place of the form, such as New contact's two ways to add
+   * somebody. The screen swaps it for the form once one is picked.
+   */
+  choices?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-3">
+      <PopoverContent align="end" className={choices ? "w-56 p-1.5" : "w-80 p-3"}>
+        {choices ?? (
         <form
           className="grid gap-4"
           aria-label={label}
@@ -57,6 +64,7 @@ export function NewRecordDropdown({
             </Button>
           </div>
         </form>
+        )}
       </PopoverContent>
     </Popover>
   )

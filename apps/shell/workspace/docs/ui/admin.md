@@ -26,10 +26,11 @@ tasks are `workspace/tasks/features/admin/admin.md` and
   modify shell". How: `docs/shell/admin-blocks-and-widgets.md`.
 - No block for a handful of figures: "We dont need these 4 blocks as they are
   not important enough to have its own block."
-- Plans and announcements get no table. "The plans doesnt need a full table",
-  and "The announcement also doesnt need a table. It can live in the top left
-  3 dots dropdown in a tab". Plans are also a block: "the plans should go in
-  top left dropdown as well as a block for it".
+- Plans get no table: "The plans doesnt need a full table". Plans are also a
+  block: "the plans should go in top left dropdown as well as a block for
+  it". Announcements started the same way ("The announcement also doesnt
+  need a table. It can live in the top left 3 dots dropdown in a tab"), until
+  Tyler's rule below of 9 Nov.
 - "Clicking on the feedback thread should open its thread on the right panel
   to see all the replies and I can also reply to it in the footer."
 - "For users dashboard, clicking the user should open its user data on the
@@ -47,6 +48,12 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 - "redesign the block ui", drawn on the Plans block, and New plan "Move this
   into the dropdown".
 
+## Tyler's rule (9 Nov 2026)
+
+- "Move the announcement from the top left settings into its own
+  dashboard": Announcements is a section of its own, beside Feedback, and
+  the ⋮ no longer has its tab.
+
 ## What each panel holds
 
 | Section | Middle | Right |
@@ -54,19 +61,31 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 | Overview | Widgets, in up to two rows, with no panel of their own | None |
 | Users | Every account, a tab per role, with Filter (Status) | The person picked |
 | Feedback | Every piece of feedback, with Filter (Type) | The thread picked, with a reply box |
+| Announcements | Every announcement, with Filter (Status) | The announcement picked, changed in place, or a new one |
 | Media library | Every account's files, as a list or a gallery | The file or orphan picked |
 
-- **Left:** the Admin page, one per site, beside every section. Its ⋮ has
-  four tabs. General holds Cover photo (None, Sky, the page's pictures and
-  +, `docs/shell/page-blocks.md`), then Overview's Date range (Today,
-  7 days, 30 days, 90 days or Year), and Lock blocks last, under every group
-  (Tyler, 9 Nov 2026: "this should be in the bottom and rename it to \"Lock
-  blocks\""). Announcements and
-  Plans list theirs; a row opens that one's window, and each list ends with
-  New announcement or New plan. Retire, Delete and Archive are in the
-  windows. Widgets sets Overview's rows and spots. A new site's page starts
-  with Dashboards, then Plans.
-- **Middle:** on Users, Feedback and Media library, one header: the section's
+- **Left:** the Admin page, one per site, beside every section. Its header
+  has the title, a **+** and the ⋮.
+- **The +** (Tyler, 9 Nov 2026: "Add a + icon here with a dropdown to add
+  announcements and users") has New announcement, which opens Announcements
+  with a blank one on the right (through `?draft=1`, taken out of the
+  address once it has), and New user, which opens the Add account window
+  over whatever section is showing.
+- **The ⋮** is 20.4rem wide, 10% under the menu's usual 22.7rem ("reduce
+  the left panel dropdown width by 10%"), and has three tabs. General holds
+  Cover photo (None, Sky, the page's pictures and +,
+  `docs/shell/page-blocks.md`), then Overview's Date range (Today, 7 days,
+  30 days, 90 days or Year). Plans lists every plan; a row opens its window.
+  Archive is in the window. Widgets sets Overview's rows and spots.
+- **The ⋮'s footers:** General ends with Lock blocks ("this should be in the
+  bottom and rename it to \"Lock blocks\"") and Plans with New plan. Both
+  are the menu's one footer shape: a line across the menu, then a
+  full-width row with its icon ("make both footer the same ui"), with no
+  shade of its own (a light grey was tried and taken off the same day). It
+  stays in view when the tab's rows scroll. The CRM's ⋮ has Lock blocks the
+  same way.
+- **A new site's page** starts with Dashboards, then Plans.
+- **Middle:** on Users, Feedback, Announcements and Media library, one header: the section's
   icon and name, then its own toolbar (Tyler, 8 Nov 2026: "Every panel needs
   an icon"). Users has role tabs there instead, All roles first, then each
   role, and no icon, since a header with tabs has none ("dashboards with
@@ -75,7 +94,7 @@ tasks are `workspace/tasks/features/admin/admin.md` and
   its left and right, the header's first icon or tab and the table's first
   column lined up ("Add more padding on left and right side for middle
   panel").
-- **Table rows** in Users, Feedback and Media library are the CRM's
+- **Table rows** in Users, Feedback, Announcements and Media library are the CRM's
   (`workspace/docs/crm/inbox-and-leads.md`): grey names, black while pointed
   at and while open, and a small bar that grows in before the open row's
   name, the record opening once it has.
@@ -90,15 +109,51 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 
 The left panel stays put while the section changes: only the middle and
   the record on the right belong to the section, so the left page, its ⋮
-  and anything being typed there carry on across a switch. A page, plan or
-  announcement list that could not be read says so, with Try again.
+  and anything being typed there carry on across a switch. A page or plan
+  list that could not be read says so, with Try again.
+
+## Announcements
+
+- **Middle:** one row per announcement: a dot for its status (green
+  Showing, blue Scheduled, grey Ended) and its title, its Kind, where it
+  shows (Banner, Tray, Visitors), Starts and Ends. Newest start first.
+  Filter is Status; Search (title and message) and Select (Mass select) are
+  header buttons, as on every list since 9 Nov 2026.
+  Ticked rows can be retired or deleted together. A row's own ⋮ or a
+  right-click has Retire now (not on an ended one) and Delete.
+- **Right:** the announcement picked, written and changed in place in three
+  cards: What you want to say (Title, Message, Kind), Where it shows
+  (banner, tray notice, visitors) and When it shows (Starts on, Ends on).
+  Its ⋮ has its status and dates, Retire now and Delete. The footer says
+  its status, or "Unsaved changes", and has Save changes. Nothing goes live
+  until Save is pressed, so a half-written banner never shows; this is why
+  it is not saved as you type, as the CRM's emails are.
+- **New announcement** in the header puts a blank one on the right, with
+  Create announcement in its footer. Once created it is the row open.
+- **Unsaved changes:** opening another row or a new one asks first ("Throw
+  away your changes?"). Switching section or leaving the page does not ask.
+- **Retire** sets the end to now on the server, and the list reads every
+  announcement again to show it.
+- **Live** (Tyler, 9 Nov 2026: "The announcement and tray notification
+  doesnt show up until I refresh the page. Isnt it supposed to show in real
+  time?"): a create, save, retire or delete sends one nudge to every open
+  tab over the bell's live connection (`publishToEveryone` in
+  `src/server/notifications/events.ts`). Each tab then asks for its own
+  banners (`loadMyAnnouncements`), which also writes the tray notice it is
+  owed, and then counts its bell. Measured: the banner and the bell's
+  "1 new" showed in another tab about half a second after Create, and went
+  half a second after Delete. One that starts on a later day shows within a
+  minute of its start, on the bell's minute check. With live notifications
+  switched off, everything waits for that minute check. Visitors' banners on
+  the public site still change on their next page load.
 
 ## The Dashboards block
 
-- **What it holds:** a row each for Overview, Users, Feedback and Media
-  library. Overview counts the widgets it shows ("the overview should have a
-  number too (number of widgets)"). Users counts accounts, Feedback counts
-  pieces of feedback and Media library counts files, each as its list counts
+- **What it holds:** a row each for Overview, Users, Feedback,
+  Announcements and Media library. Overview counts the widgets it shows
+  ("the overview should have a number too (number of widgets)"). Users counts accounts, Feedback counts
+  pieces of feedback, Announcements counts the site's announcements whatever
+  their dates, and Media library counts files, each as its list counts
   them with nothing filtered.
   Names are grey and the section showing is dark, all at one weight so the
   name never jumps. Every row has a small dark bar before its name, with no
@@ -114,6 +169,20 @@ The left panel stays put while the section changes: only the middle and
   any block's row also stays out of the page editor, which would otherwise
   select the whole block.
 - **Pressing a row** shows that section. On a phone the middle comes forward.
+- **Show and hide:** the block's ⋮ lists Users, Feedback, Announcements and
+  Media library, an open eye on one that shows and an eye with a slash on one
+  that is hidden (Tyler, 9 Nov 2026: "the dashboard block is missing the 3
+  dot dropdown and need to add the hide/show dashboards", drawn on Trade's
+  Protocols block). One press swaps it and the menu stays open. Overview is
+  never hidden. The section showing keeps its row until another is picked.
+  The list is the site's, saved with its look as `hiddenAdminSections` in
+  Settings → Styling's values, so it works whether the page is locked or
+  not. A hidden section's address still opens it.
+- **Lined up with the header:** the rows start 12px in, so the bar and the
+  names start where the header's and the block's icons are drawn (a 16px
+  icon is drawn 2px inside its box), and the block's ⋮ has 14px at its
+  right, so its dots sit under the header ⋮'s ("this should also be
+  aligned", "the right padding here should be the same so its aligned").
 - **It is fixed.** The "/" list never offers it, and the page editor refuses
   any change that takes it off: Backspace, Delete, cut, or select all and
   type. A paste never makes a second one.
@@ -185,9 +254,18 @@ page (`SideRows` in `components/shared/notes/side-rows.tsx`):
 - **Narrow:** the muted line gives way first, down to its dot, then the
   name. The pill always shows.
 - **Plans** have dots by where they show: blue for the default plan, green
-  for one on the pricing page, amber for hidden, grey for archived.
-- **The Plans block** has New plan in its ⋮, above Delete block. The Admin
-  ⋮'s Plans tab still ends with New plan.
+  for one on the pricing page, amber for hidden, grey for archived. After
+  the dot is the plan's price, and the pill holds how many accounts are on
+  it (Tyler, 9 Nov 2026: "replace all these text label with the priceing
+  instead and where the pricing was put the amount of users in that plan").
+  The count follows the Users list's Plan column: an account paying for a
+  plan is on it, everyone else, paused included, on the default plan
+  (`planMemberCounts` in `src/server/billing/plan-members.ts`). So the
+  counts across every plan, archived ones too, add up to the Users count.
+- **The Plans block** shows active plans only ("only show active plans.
+  dont show archived plans in the block"), so its counts can add up to less
+  than Users. The Admin ⋮'s Plans tab lists archived ones too, and ends with
+  New plan. The block has New plan in its ⋮, above Delete block.
 - **Pressed rows** shade while pointed at.
 - **A list that picks** (the CRM's Stages, Segments, Follow up today and
   Waiting on you) takes the Dashboards block's look instead: grey names, the
@@ -240,9 +318,11 @@ page (`SideRows` in `components/shared/notes/side-rows.tsx`):
 
 ## Media library
 
-- **Header:** "N selected" while files are ticked (Delete), the storage used
-  and its cost once the middle is wide enough, Filter (Type and Owner), List
-  or Gallery, Upload, and the ⋮ with Search and Mass select. Uploads land in
+- **Header:** "N selected" while files are ticked (Delete), the search box,
+  Select (Mass select), Filter (Type and Owner), List or Gallery and Upload.
+  The storage used and its cost were taken off on 9 Nov 2026 ("remove
+  this"). List and Gallery are one control with the header's light grey line
+  round it, the one showing solid black ("fix this ui"). Uploads land in
   your own library whatever the Owner filter says, and Upload's tooltip says
   so.
 - **Orphans** are choices in Type: Orphaned files, No record in DB, and
@@ -293,10 +373,10 @@ Year shows there too.
 `/admin/users`, `/admin/feedback`, `/admin/plans`, `/admin/announcements`,
 `/admin/analytics`, `/admin/traffic`, `/admin/ai`, `/admin/ai-usage`,
 `/admin/referrals` and `/admin/media` forward to Admin, to the matching
-section, carrying `?open=` for Users and Feedback, and `?owner=`, `?media=`
+section (`/admin/announcements` to Announcements since 9 Nov 2026), carrying `?open=` for Users and Feedback, and `?owner=`, `?media=`
 (as `?open=`) and `?orphan=` for the Media library, so older links land on
-the same record. The four Analytics addresses land on Overview; Plans,
-Announcements and Referrals land on Admin's last place.
+the same record. The four Analytics addresses land on Overview; Plans and
+Referrals land on Admin's last place.
 `/admin/notifications` lands on Admin and `/changelog` on the home page.
 
 The left menu's version 23 step makes the Overview link "Admin" (keeping a
@@ -333,5 +413,7 @@ moving any link hung under it into its place.
 - Counts: `src/server/admin-dashboard/section-counts.ts`.
 - An app's own blocks and widgets: `admin.blocks` and `admin.widgets` in its
   `src/app/options.ts` (`src/lib/admin-dashboard/admin-additions.ts`).
-- Windows: `components/admin/plan-dialog.tsx` and
-  `components/admin/announcement-dialog.tsx`.
+- Windows: `components/admin/plan-dialog.tsx`. The announcement window was
+  replaced on 9 Nov 2026 by the section's right panel,
+  `components/admin-dashboard/announcement-panel.tsx`, beside its list,
+  `announcements-tab.tsx`.

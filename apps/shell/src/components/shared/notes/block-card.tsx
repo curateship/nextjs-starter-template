@@ -5,6 +5,7 @@ import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, Trash2Icon } from "lu
 
 import { FoldHeading } from "@/components/shared/notes/fold-heading"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,14 @@ export type BlockMenuItem = {
   label: string
   icon?: React.ReactNode
   onSelect: () => void
+  /** At the row's end, such as the eye on a show-or-hide row. */
+  end?: React.ReactNode
+  /** Greyed, such as a section that is hidden. */
+  muted?: boolean
+  /** Pressing it leaves the menu open, for the next press (a show-or-hide list). */
+  keepOpen?: boolean
+  /** Read out in place of the label, such as "Hide Users". */
+  ariaLabel?: string
 }
 
 /** Exported so a panel's tests can stand in for the block around it. */
@@ -91,8 +100,9 @@ export function useBlockMenu(items: BlockMenuItem[] | undefined) {
   React.useEffect(() => {
     latest.current = items
   })
-  // Keyed on the labels, so a new array with the same rows changes nothing.
-  const labels = JSON.stringify(items?.map((item) => item.label) ?? [])
+  // Keyed on the labels and whether each is greyed, so a new array with the
+  // same rows changes nothing, and a row shown or hidden redraws its eye.
+  const labels = JSON.stringify(items?.map((item) => [item.label, item.muted === true]) ?? [])
   React.useEffect(() => {
     if (!setMenu) return
     // The effect above has already stored this render's rows.
@@ -108,6 +118,21 @@ export function useBlockMenu(items: BlockMenuItem[] | undefined) {
     return () => setMenu(undefined)
   }, [setMenu, labels])
 }
+
+/**
+ * What a locked page lets its blocks do: be deleted, after asking, by
+ * unlocking the page and saving it without them (Tyler, 9 Nov 2026: "every
+ * bloick must have a delete block option except dashboard block", then "Ask,
+ * then unlock and delete"). The page panel provides it; a page that cannot be
+ * locked leaves it out, and its blocks only offer Delete block while the
+ * editor is editable.
+ */
+export const LockedPageContext = React.createContext<{
+  /** True while the page is locked. */
+  locked: boolean
+  /** Unlocks the page and saves it without this block's node. */
+  removeBlock: (nodeName: string) => Promise<void>
+} | null>(null)
 
 /** Whether the block holding this panel is open, or true outside a block. */
 export function useBlockOpen() {
@@ -150,6 +175,7 @@ export function BlockFrame({
 export function BlockCard({
   editable,
   onRemove,
+  onRemoveLocked,
   moves,
   kind,
   title,
@@ -159,6 +185,11 @@ export function BlockCard({
   editable: boolean
   /** Left out for a fixed block, which has no Delete block. */
   onRemove?: () => void
+  /**
+   * Delete block on a locked page: asked first, then the page is unlocked
+   * and saved without the block. Left out where the page has no lock.
+   */
+  onRemoveLocked?: () => Promise<void>
   /**
    * A fixed block's Move up and Move down, worked out as its ⋮ opens, so
    * only a move that can happen is offered.
@@ -175,6 +206,11 @@ export function BlockCard({
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
   const [count, setCount] = React.useState<number | undefined>(undefined)
   const [menu, setMenu] = React.useState<BlockMenuItem[] | undefined>(undefined)
+  const [askingDelete, setAskingDelete] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  // Delete block shows on every block but a fixed one: straight away while
+  // the page can be written on, and after asking while it is locked.
+  const canDelete = Boolean(onRemove && (editable || onRemoveLocked))
   const heading = React.useMemo(
     () => ({ actions, setCount, setMenu, open }),
     [actions, open]
@@ -210,7 +246,11 @@ export function BlockCard({
           // As tall as the panel's own header, its title dark grey (Tyler,
           // 8 Nov 2026: "Make the block header the same height as the
           // panel's header", then "blocks header should be dark gray").
-          className="min-h-[var(--dashboard-card-header-height,57px)] [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
+          // 14px at its right, not the band's 10px, so the block's ⋮ (28px)
+          // has its dots under the panel header's ⋮ (32px, 12px in) when the
+          // block reaches the panel's edges (Tyler, 9 Nov 2026: "the right
+          // padding here should be the same so its aligned").
+          className="min-h-[var(--dashboard-card-header-height,57px)] !pr-3.5 [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
         >
           {/* The panel's own buttons, shown while the block is open. */}
           <span
@@ -223,7 +263,7 @@ export function BlockCard({
               heading is pointed at, never for a row inside the tile ("hover
               over the item should only show the item 3 dot, not the header
               too"). */}
-          {menu?.length || (editable && (onRemove || moves)) ? (
+          {menu?.length || canDelete || (editable && moves) ? (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -238,16 +278,29 @@ export function BlockCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
                 {(menu ?? []).map((item) => (
-                  <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
+                  <DropdownMenuItem
+                    key={item.label}
+                    aria-label={item.ariaLabel}
+                    onSelect={(event) => {
+                      if (item.keepOpen) event.preventDefault()
+                      item.onSelect()
+                    }}
+                  >
                     {item.icon}
-                    {item.label}
+                    <span className={cn("min-w-0 flex-1 truncate", item.muted && "text-muted-foreground")}>
+                      {item.label}
+                    </span>
+                    {item.end ? <span className="ml-auto flex text-muted-foreground [&_svg]:size-4">{item.end}</span> : null}
                   </DropdownMenuItem>
                 ))}
                 {editable && moves ? <MoveRows moves={moves} after={Boolean(menu?.length)} /> : null}
-                {editable && onRemove ? (
+                {canDelete ? (
                   <>
                     {menu?.length ? <DropdownMenuSeparator /> : null}
-                    <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => (editable ? onRemove?.() : setAskingDelete(true))}
+                    >
                       <Trash2Icon className="size-4" />
                       Delete block
                     </DropdownMenuItem>
@@ -283,6 +336,27 @@ export function BlockCard({
           </div>
         </CollapsibleContent>
       </BlockHeadingContext.Provider>
+      {onRemoveLocked ? (
+        <ConfirmDialog
+          open={askingDelete}
+          onOpenChange={(open) => {
+            if (!open) setAskingDelete(false)
+          }}
+          title="This page is locked"
+          description={`Unlock it and delete the ${title} block?`}
+          confirmLabel="Unlock and delete"
+          loading={deleting}
+          onConfirm={async () => {
+            setDeleting(true)
+            try {
+              await onRemoveLocked()
+              setAskingDelete(false)
+            } finally {
+              setDeleting(false)
+            }
+          }}
+        />
+      ) : null}
     </Collapsible>
   )
 }
@@ -347,7 +421,8 @@ function moveBlock(editor: NodeViewProps["editor"], pos: number, direction: -1 |
  * `Draw` on the tile. Pass the result to `blockNode`.
  */
 export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec) {
-  return function PageBlockView({ editor, selected, deleteNode, getPos }: NodeViewProps) {
+  return function PageBlockView({ editor, node, selected, deleteNode, getPos }: NodeViewProps) {
+    const lockedPage = React.useContext(LockedPageContext)
     const moves = () => {
       const pos = getPos()
       if (typeof pos !== "number") return []
@@ -363,6 +438,9 @@ export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec)
         <BlockCard
           editable={editor.isEditable}
           onRemove={fixed ? undefined : deleteNode}
+          onRemoveLocked={
+            !fixed && lockedPage?.locked ? () => lockedPage.removeBlock(node.type.name) : undefined
+          }
           moves={fixed ? moves : undefined}
           kind={kind}
           title={title}

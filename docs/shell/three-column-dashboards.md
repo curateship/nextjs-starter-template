@@ -8,9 +8,9 @@ screen built this way, and every app gets them with its next shell merge.
 
 All of them are in `src/components/shared/`.
 
-- **`three-panels.tsx`, `ThreePanels`.** The layout: left 14%, middle 70%,
-  right 16% (Tyler, 9 Nov 2026: "default 14% on left and 16% on right"; both
-  sides 16% before). Each side's default is also the narrowest it drags to,
+- **`three-panels.tsx`, `ThreePanels`.** The layout: left 10%, middle 74%,
+  right 16% (Tyler, 9 Nov 2026: "default 14% on left and 16% on right", then
+  "Set left side panel narrowest default to 10%"; both sides 16% before). Each side's default is also the narrowest it drags to,
   as Tyler has wanted since 31 Oct 2026 ("The default width needs to be the
   narrowest width the panel have"; 9 Nov: "cannot go lower than that").
   Settings → Styling → Side panels can open them wider, up to 36%

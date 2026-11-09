@@ -382,8 +382,10 @@ spend and metered units for one date range. Its Users tab is every account
 (search, filter, sort, paging, mass delete, mass restore, and a Locked out
 status showing who the rate limiter is blocking), with the person picked on the right
 (role, status, granted plan, cancelling a paid plan). Its Feedback tab is every
-piece of feedback, with the thread picked and a reply box on the right. Plans
-(create, edit, archive) and Announcements are tabs in its left panel's ⋮. The
+piece of feedback, with the thread picked and a reply box on the right. Its
+Announcements section lists every announcement, with the one picked written
+and changed in place on the right (a tab of the left panel's ⋮ until 9 Nov
+2026). Plans (create, edit, archive) are a tab in that ⋮. The
 navigation upgrade's version 23 step folds the old Overview, Users, Plans,
 Feedback, Announcements, Notifications, Changelog and Analytics links into one
 Admin link, and the old addresses forward to Admin.
