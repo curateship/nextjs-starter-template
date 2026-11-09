@@ -198,10 +198,13 @@ at most.
 - **The last block fills the panel** (Tyler, 8 Nov 2026: "always make it fill
   all available space"). The last block on the page that shows, while it is
   open, reaches the panel's bottom with the 15px gutter under it, and its
-  list scrolls inside it. The page's empty last line, the place to write
-  after it, is just below, a scroll away. With less than 240px left under it,
-  it keeps its own height and the page scrolls as before. A block hidden by
-  Hide empty blocks does not count as last.
+  list scrolls inside it. The page then fits the panel exactly, so there is
+  one scrollbar, the list's (Tyler, 8 Nov 2026: "theres 2 areascroll here"):
+  the page's empty last line and the writing area's bottom padding take no
+  room meanwhile. Words written on that last line bring it back, and the
+  block stops filling. With less than 240px left under it, it keeps its own
+  height and the page scrolls as before. A block hidden by Hide empty blocks
+  does not count as last.
 - **Block titles stay on one line.** A title too long for a narrow panel
   shortens with "…" rather than breaking mid-word.
 

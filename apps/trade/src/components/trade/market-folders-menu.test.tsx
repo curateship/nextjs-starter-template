@@ -165,6 +165,7 @@ describe("the Folders block", () => {
             <FoldersBlockMenuRows
               protocol="hyperliquid"
               network="mainnet"
+              folders={[]}
               onFoldersChange={foldersChange}
               onManage={manage}
             />
@@ -200,7 +201,10 @@ describe("the Folders block", () => {
       network: "mainnet",
       name: "Momentum",
     })
-    expect(foldersChange).toHaveBeenCalledWith([])
+    // Shown at once, before the server answers, then the saved list.
+    expect(foldersChange.mock.calls[0][0]).toMatchObject([{ name: "Momentum", marketKeys: [] }])
+    expect(foldersChange).toHaveBeenLastCalledWith([])
+    expect(input.value).toBe("")
 
     const item = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find(
       (one) => one.textContent?.includes("Manage folders")

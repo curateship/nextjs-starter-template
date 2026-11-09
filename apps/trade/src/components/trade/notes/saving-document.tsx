@@ -36,7 +36,20 @@ const BLOCK_STYLES = `
   .page-rte .tiptap .note-folded-away { display: none; }
   .page-rte .tiptap [data-note-block] { margin-top: 15px; margin-bottom: 15px; }
   .page-rte .tiptap > .react-renderer:first-child [data-note-block] { margin-top: 0; }
+  .page-rte .tiptap [data-note-block]:has(.trade-block-fills) { margin-bottom: 0; }
+  .page-rte .tiptap:has(.trade-block-fills) > p:last-child:has(> br.ProseMirror-trailingBreak:only-child) { height: 0; margin: 0; overflow: hidden; }
 `
+
+/*
+ * While the last block fills the panel (`useFillHeight` in
+ * `trade-block-views.tsx`), nothing under it may push the page past the
+ * panel, or the page scrolls as well as the block's list: two scrollbars
+ * side by side (Tyler, 8 Nov 2026: "theres 2 areascroll here"). So the
+ * writing area's bottom padding (the `:has(.trade-block-fills)` rule on its
+ * class below), the block's bottom margin and the page's empty last line
+ * take no room. The line is still there to write in, and
+ * once it holds words it shows again and the block stops filling.
+ */
 
 /**
  * Where a click at height `y` in the writing area falls, when that is above
@@ -137,7 +150,7 @@ export function SavingDocument({
         "[&>div:first-of-type]:rounded-none [&>div:first-of-type]:border-0 [&>div:first-of-type]:bg-transparent",
         // The panel's 15px top edge is the writing area's own, so a click there
         // lands in the page (Tyler, 7 Nov 2026: "cant click here").
-        "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-3.75 [&_.page-rte_.tiptap]:!pb-4",
+        "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-3.75 [&_.page-rte_.tiptap]:!pb-4 [&_.page-rte_.tiptap:has(.trade-block-fills)]:!pb-0",
         "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
         locked && "[&>div:first-of-type]:opacity-100",
         className

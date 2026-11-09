@@ -32,7 +32,23 @@ folder box with + to make a folder, then Manage folders, then Delete block
 have add folder name, manage folder and delete block"). Manage folders opens
 a popover beside the block, over the middle, with the create, rename,
 reorder, hide and delete controls below, ending with a primary Done button
-("replace the manage folder modal with a popover instead"). Adding the market
+("replace the manage folder modal with a popover instead"). Its heading is
+the name alone ("remove 'Rename a folder, drag any row ...'"); its cards
+follow Settings → Styling's card border as the page's cards do ("wire the
+cards to the styling settings"); and its cards scroll between the heading
+and Done with the app's own scrollbar ("also add areascroll"), every card at
+its full height.
+
+**A new folder shows at once** (Tyler, 8 Nov 2026: "i cant create folders").
+Saving one takes a few seconds, and nothing on screen moved meanwhile, so a
+press read as doing nothing. Now, from the ⋮'s box or from Manage folders,
+the folder joins the list straight away, empty and last, and the box clears
+for the next name. A name the exchange's folders already have is refused:
+the folder comes back out and an error says why (`create-folder-at-once.ts`).
+
+**Folders switched off do not show in the block.** The eye in Manage folders
+switches a folder off; it keeps its coins and is still listed there with
+"Hidden" and an eye with a line through it. Adding the market
 on the chart to a folder is the Folders row in the chart header's ⋮ (8 Nov
 2026, when the right panel went), which does what the star in the chart
 header once did.

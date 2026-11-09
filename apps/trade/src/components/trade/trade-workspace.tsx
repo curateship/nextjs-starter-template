@@ -1004,6 +1004,7 @@ export function TradeWorkspace({
       <FoldersBlockMenuRows
         protocol={protocol}
         network={network}
+        folders={folders}
         onFoldersChange={setFolders}
         onManage={() => setFolderManagerOpen(true)}
       />

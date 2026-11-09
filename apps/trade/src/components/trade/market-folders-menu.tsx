@@ -10,10 +10,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  createFolder,
-  getMarketFolderErrorMessage,
-} from "@/lib/api/trade/market-folders"
+import { createFolderAtOnce } from "@/components/trade/create-folder-at-once"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
@@ -228,33 +225,29 @@ export function MarketFoldersMenu({
 export function FoldersBlockMenuRows({
   protocol,
   network,
+  folders,
   onFoldersChange,
   onManage,
 }: {
   protocol: ProtocolId
   network: NetworkId
+  folders: readonly MarketFolder[]
   onFoldersChange: (folders: MarketFolder[]) => void
   onManage: () => void
 }) {
   const [name, setName] = React.useState("")
-  const [busy, setBusy] = React.useState(false)
   function create(event: React.FormEvent) {
     event.preventDefault()
     const trimmed = name.trim()
-    if (busy) return
     // Never a greyed-out +: an empty press says what is missing.
     if (!trimmed) {
       showErrorToast("Type the folder's name first.")
       return
     }
-    setBusy(true)
-    void createFolder({ protocol, network, name: trimmed })
-      .then((next) => {
-        onFoldersChange(next)
-        setName("")
-      })
-      .catch((caught) => showErrorToast(getMarketFolderErrorMessage(caught)))
-      .finally(() => setBusy(false))
+    // The folder shows at once and the box is ready for the next name; the
+    // save carries on (`createFolderAtOnce`).
+    setName("")
+    void createFolderAtOnce({ protocol, network, name: trimmed, folders, onFoldersChange })
   }
   return (
     <>
@@ -264,7 +257,6 @@ export function FoldersBlockMenuRows({
           placeholder="New folder"
           value={name}
           maxLength={80}
-          disabled={busy}
           // The menu's own keys (letters jump to a row) stay out of the box.
           onKeyDown={(event) => event.stopPropagation()}
           onChange={(event) => setName(event.target.value)}
@@ -275,7 +267,6 @@ export function FoldersBlockMenuRows({
           size="icon-sm"
           variant="outline"
           aria-label="Add folder"
-          disabled={busy}
           className="size-8"
         >
           <PlusIcon className="size-4" />

@@ -182,9 +182,6 @@ function Frame({
 /** Less room than this left under the last block, and it keeps its own height. */
 const MIN_FILL_PX = 240
 
-/** The panel's gutter under the last block. */
-const FILL_GUTTER_PX = 15
-
 /**
  * Whether this block is the last thing on its page that shows: no block that
  * is not hidden, and no words, come after it.
@@ -206,11 +203,13 @@ function lastOnPage(frame: Element, page: Element) {
 /**
  * The height that takes the last block on the page down to the panel's
  * bottom, the panel's gutter under it (Tyler, 8 Nov 2026: "always make it
- * fill all available space"), or null to keep its own. Measured from the
- * tile's top on the page to the bottom of the panel's scrolling area. The
- * page's empty last line, the place to write after the block, sits just
- * below that, a scroll away. With less than `MIN_FILL_PX` left, the block
- * keeps its own height and the page scrolls as before.
+ * fill all available space"), or null to keep its own. The tile grows or
+ * shrinks by however much the page falls short of, or runs past, the
+ * panel's height, so the page fits the panel exactly and only the block's
+ * own list scrolls ("theres 2 areascroll here"). What sits under the block
+ * takes no room meanwhile (`saving-document.tsx`). With less than
+ * `MIN_FILL_PX` left, the block keeps its own height and the page scrolls as
+ * before.
  */
 function useFillHeight(tile: HTMLElement | null, open: boolean): number | null {
   const [height, setHeight] = React.useState<number | null>(null)
@@ -229,11 +228,8 @@ function useFillHeight(tile: HTMLElement | null, open: boolean): number | null {
           setHeight(null)
           return
         }
-        const topOnPage =
-          tile.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
-        // The grey block's edge round its tile, from Settings → Styling.
-        const inset = tile.parentElement ? parseFloat(getComputedStyle(tile.parentElement).paddingBottom) || 0 : 0
-        const next = Math.floor(viewport.clientHeight - FILL_GUTTER_PX - inset - topOnPage)
+        const shortfall = viewport.clientHeight - content.getBoundingClientRect().height
+        const next = Math.floor(tile.getBoundingClientRect().height + shortfall)
         setHeight(next >= MIN_FILL_PX ? next : null)
       })
     }
@@ -360,10 +356,15 @@ function BlockCard({
           <div
             ref={setTile}
             data-block-tile=""
-            data-fills={fills || undefined}
             // The last block on the page reaches the panel's bottom.
             style={fills ? { height: fillHeight, maxHeight: "none" } : undefined}
-            className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
+            className={cn(
+              "flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]",
+              // While this block fills, the page's writing area takes away
+              // what sits under it (`saving-document.tsx`).
+              fills && "trade-block-fills"
+            )}
+          >
             {children}
           </div>
         </CollapsibleContent>
