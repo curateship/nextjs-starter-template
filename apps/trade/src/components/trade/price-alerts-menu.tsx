@@ -2,7 +2,7 @@ import * as React from "react"
 
 import {
   PriceAlertsPanelContent,
-  useFiredPriceAlerts,
+  type FiredPriceAlertsControl,
   type LineAlertsForPanel,
 } from "@/components/trade/price-alerts-panel"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -22,8 +22,16 @@ export function PriceAlertsMenu({
   onSelectMarket,
   onDelete,
   lines,
+  fired,
   onCleared,
 }: {
+  /**
+   * The fired alerts, read by the dashboard rather than by this list, so
+   * reopening the Alerts tab shows them at once instead of reading them again
+   * (Tyler, 8 Nov 2026: "Why does this amount kept loading if i go back to
+   * it").
+   */
+  fired: FiredPriceAlertsControl
   alerts: readonly PriceAlert[]
   error: string | null
   onRetry: () => void
@@ -36,7 +44,6 @@ export function PriceAlertsMenu({
   const [confirmClear, setConfirmClear] = React.useState<
     "active" | "fired" | null
   >(null)
-  const fired = useFiredPriceAlerts()
   const clear = React.useCallback(
     async (kind: "active" | "fired") => {
       if (clearing) return

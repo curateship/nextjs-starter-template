@@ -10,7 +10,8 @@ vi.mock("@/lib/api/trade/market-folders", () => ({
   createFolder: api.create,
   getMarketFolderErrorMessage: () => "Folder failed.",
 }))
-vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
+const toast = vi.hoisted(() => vi.fn())
+vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: toast }))
 
 vi.mock("@/components/trade/market-list-panel", () => ({
   MarketRowLine: ({
@@ -26,7 +27,16 @@ vi.mock("@/components/trade/market-list-panel", () => ({
   ),
 }))
 
-import { MarketFoldersMenu } from "@/components/trade/market-folders-menu"
+vi.mock("@/components/trade/market-folders-manager", () => ({
+  MarketFoldersManager: ({ manageOpen }: { manageOpen: boolean }) =>
+    manageOpen ? <div data-testid="manage-folders" /> : null,
+}))
+
+import {
+  FoldersBlockMenuRows,
+  MarketFoldersMenu,
+} from "@/components/trade/market-folders-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 let host: HTMLDivElement
@@ -66,7 +76,6 @@ describe("the Folders block", () => {
     "respects visibility and selects markets, hidden=%s",
     async (hidden) => {
       const select = vi.fn()
-      const manage = vi.fn()
       const foldersChange = vi.fn()
       await act(async () => {
         root.render(
@@ -114,7 +123,9 @@ describe("the Folders block", () => {
               ]}
               selectedMarketKey={null}
               onFoldersChange={foldersChange}
-              onManage={manage}
+              onPanelRowsChange={vi.fn()}
+              managing={false}
+              onManagingChange={vi.fn()}
               onSelectMarket={select}
             />
           </TooltipProvider>
@@ -126,38 +137,11 @@ describe("the Folders block", () => {
       expect(document.body.textContent).not.toContain("Watched")
       expect(document.body.textContent?.includes("All markets")).toBe(!hidden)
       expect(document.body.textContent?.includes("Favorites")).toBe(!hidden)
-      expect(button("Add folder")).not.toBeNull()
-      expect(button("Manage folders")).not.toBeNull()
-
-      await act(async () => button("Add folder").click())
-      expect(
-        document.body.querySelector("#new-market-folder-menu-name")
-      ).not.toBeNull()
-      const input = document.body.querySelector<HTMLInputElement>(
-        "#new-market-folder-menu-name"
-      )!
-      const setValue = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value"
-      )!.set!
-      await act(async () => {
-        setValue.call(input, "Momentum")
-        input.dispatchEvent(new Event("input", { bubbles: true }))
-      })
-      await act(async () => {
-        input
-          .closest("form")
-          ?.dispatchEvent(
-            new SubmitEvent("submit", { bubbles: true, cancelable: true })
-          )
-        await Promise.resolve()
-      })
-      expect(api.create).toHaveBeenCalledWith({
-        protocol: "hyperliquid",
-        network: "mainnet",
-        name: "Momentum",
-      })
-      expect(foldersChange).toHaveBeenCalledWith([])
+      // No buttons of its own: a new folder and Manage folders are in the
+      // block's ⋮ (Tyler, 8 Nov 2026).
+      expect(document.querySelector('button[aria-label="Add folder"]')).toBeNull()
+      expect(document.querySelector('button[aria-label="Manage folders"]')).toBeNull()
+      expect(foldersChange).not.toHaveBeenCalled()
 
       await act(async () => buttonWithText("Majors1").click())
       expect(document.body.textContent).toContain("BTC")
@@ -167,19 +151,64 @@ describe("the Folders block", () => {
       // the next coin is one press away.
       expect(document.body.textContent).toContain("BTC")
 
-      await act(async () => button("Manage folders").click())
-      expect(manage).toHaveBeenCalledTimes(1)
     }
   )
-})
 
-function button(name: string) {
-  const found = document.querySelector<HTMLButtonElement>(
-    `button[aria-label="${name}"]`
-  )
-  if (!found) throw new Error(`Missing ${name}`)
-  return found
-}
+  it("makes a folder and opens Manage folders from the block's ⋮", async () => {
+    const manage = vi.fn()
+    const foldersChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <DropdownMenu open>
+          <DropdownMenuTrigger />
+          <DropdownMenuContent>
+            <FoldersBlockMenuRows
+              protocol="hyperliquid"
+              network="mainnet"
+              onFoldersChange={foldersChange}
+              onManage={manage}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+    })
+    const input = document.body.querySelector<HTMLInputElement>(
+      'input[aria-label="New folder name"]'
+    )!
+    // Never greyed out: an empty press says what is missing and makes nothing.
+    const add = document.body.querySelector<HTMLButtonElement>('button[aria-label="Add folder"]')!
+    expect(add.disabled).toBe(false)
+    await act(async () => add.click())
+    expect(api.create).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith("Type the folder's name first.")
+    const setValue = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )!.set!
+    await act(async () => {
+      setValue.call(input, "Momentum")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      input
+        .closest("form")
+        ?.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
+    expect(api.create).toHaveBeenCalledWith({
+      protocol: "hyperliquid",
+      network: "mainnet",
+      name: "Momentum",
+    })
+    expect(foldersChange).toHaveBeenCalledWith([])
+
+    const item = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find(
+      (one) => one.textContent?.includes("Manage folders")
+    ) as HTMLElement
+    await act(async () => item.click())
+    expect(manage).toHaveBeenCalledTimes(1)
+  })
+})
 
 function buttonWithText(text: string) {
   const found = Array.from(

@@ -50,12 +50,15 @@ import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketScannerMenu } from "@/components/trade/market-scanner-panel"
-import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
-import { MarketFoldersMenu } from "@/components/trade/market-folders-menu"
+import {
+  FoldersBlockMenuRows,
+  MarketFoldersMenu,
+} from "@/components/trade/market-folders-menu"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { TradingRuleEditor } from "@/components/trade/trading-rules-settings"
 import { useLineAlerts } from "@/components/trade/use-line-alerts"
 import { usePriceAlerts } from "@/components/trade/use-price-alerts"
+import { useFiredPriceAlerts } from "@/components/trade/price-alerts-panel"
 import {
   PanelReopenTab,
   ResizableHandle,
@@ -539,6 +542,9 @@ export function TradeWorkspace({
   const indicators = useChartIndicators(initialIndicators)
   const chartOptions = useChartOptions(initialChartOptions)
   const priceAlerts = usePriceAlerts(initialPriceAlerts)
+  // Read here, not in the Alerts tab, so the tab shows them at once each time
+  // it opens; the list refreshes itself every two seconds while visible.
+  const firedAlerts = useFiredPriceAlerts()
   const lineAlerts = useLineAlerts()
   // The line a panel row asked for, until the chart has picked it out.
   const [drawingToSelect, setDrawingToSelect] = React.useState<{
@@ -929,6 +935,7 @@ export function TradeWorkspace({
   // block. We already have these alert in the notification tray").
   const alertsArchive = (
     <PriceAlertsMenu
+      fired={firedAlerts}
       alerts={priceAlerts.alerts}
       error={priceAlerts.error}
       onRetry={() => void priceAlerts.refresh()}
@@ -987,15 +994,24 @@ export function TradeWorkspace({
         catalogs={catalogs}
         selectedMarketKey={selectedKey}
         onFoldersChange={setFolders}
-        onManage={() => setFolderManagerOpen(true)}
+        onPanelRowsChange={setPanelRows}
+        managing={folderManagerOpen}
+        onManagingChange={setFolderManagerOpen}
         onSelectMarket={pickMarket}
+      />
+    ),
+    foldersMenu: (
+      <FoldersBlockMenuRows
+        protocol={protocol}
+        network={network}
+        onFoldersChange={setFolders}
+        onManage={() => setFolderManagerOpen(true)}
       />
     ),
   }
 
   // The left panel: the dashboard's page of blocks, under its name and its
-  // ⋮. The folder manager takes the page's place while it is open, the
-  // way the Inbox does in Project, and the page stays mounted under it.
+  // ⋮. Manage folders opens as a popover beside the Folders block.
   const blocksColumn = (
     <WorkspacePanel
       onDoubleClick={blocksDoubleClick}
@@ -1038,24 +1054,7 @@ export function TradeWorkspace({
           {pageMenu({ alerts: alertsArchive })}
         </DashboardCardHeader>
       </div>
-      {folderManagerOpen ? (
-        <MarketFoldersManager
-          folders={folders}
-          protocol={protocol}
-          network={network}
-          catalogs={catalogs}
-          marketsError={marketsError}
-          marketsPending={marketsPending}
-          panelRows={panelRows}
-          onFoldersChange={setFolders}
-          onPanelRowsChange={setPanelRows}
-          manageOpen={folderManagerOpen}
-          onManageOpenChange={setFolderManagerOpen}
-        />
-      ) : null}
-      <ScrollArea
-        className={cn("relative min-h-0 flex-1", folderManagerOpen && "hidden")}
-      >
+      <ScrollArea className="relative min-h-0 flex-1">
         <div className={cn(PANEL_GUTTER, "pt-0")}>
           <TradePageBody page={page} />
         </div>

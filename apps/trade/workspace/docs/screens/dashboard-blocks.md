@@ -167,7 +167,7 @@ at most.
 | Grid trades | Grids you placed, with the count, value and PnL row |
 | DCA trades | DCA ladders you placed, with the same totals row |
 | Scanner | The market scanner's matches, its cog and broom in the heading, `market-scanner.md` |
-| Folders | The folders and their coins, plus and cog in the heading, `market-folders.md` |
+| Folders | The folders and their coins; a new folder and Manage folders in its ⋮, `market-folders.md` |
 
 - **Hide empty blocks**, in the page's ⋮ → General, On or Off, saved on the
   account (`trade_prefs.hide_empty_blocks`, migration
@@ -193,8 +193,17 @@ at most.
 - **The Rules block is drawn by the chart.** With no Rules block on screen
   (the panel shut, full screen, or none on the page), the Rules card sits over
   the chart instead, unless Settings, Trading rules switched it off.
-- **The folder manager** opens from the Folders block's cog and takes the
-  page's place in the left panel until it is closed.
+- **Manage folders** opens from the Folders block's ⋮ as a popover beside the
+  block, over the middle; the page stays where it is underneath.
+- **The last block fills the panel** (Tyler, 8 Nov 2026: "always make it fill
+  all available space"). The last block on the page that shows, while it is
+  open, reaches the panel's bottom with the 15px gutter under it, and its
+  list scrolls inside it. The page's empty last line, the place to write
+  after it, is just below, a scroll away. With less than 240px left under it,
+  it keeps its own height and the page scrolls as before. A block hidden by
+  Hide empty blocks does not count as last.
+- **Block titles stay on one line.** A title too long for a narrow panel
+  shortens with "…" rather than breaking mid-word.
 
 ## The dashboard's ⋮
 

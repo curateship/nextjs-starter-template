@@ -1,17 +1,14 @@
 import * as React from "react"
-import {
-  ChevronRightIcon,
-  PlusIcon,
-  SettingsIcon,
-} from "lucide-react"
+import { ChevronRightIcon, FolderCogIcon, PlusIcon } from "lucide-react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
+import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
 import { MarketRowLine } from "@/components/trade/market-list-panel"
+import { useBlockFills } from "@/components/trade/notes/trade-block-views"
 import { Button } from "@/components/ui/button"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { BlockHeadingActions } from "@/components/trade/notes/trade-block-views"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   createFolder,
@@ -26,8 +23,12 @@ import { cn } from "@/lib/utils"
 
 /**
  * The dashboard's Folders block (the Admin 3 panel design, 7 Nov 2026): the
- * saved folders and the markets inside them, drawn in place on the
- * exchange's page. Its plus and cog sit in the block's heading.
+ * saved folders and the markets inside them, drawn in place on the page. A
+ * new folder and Manage folders are rows of the block's ⋮
+ * (`FoldersBlockMenuRows`; Tyler, 8 Nov 2026: "replace these 2 icons wil the
+ * 3 dot dropdown. inside have add folder name, manage folder and delete
+ * block"), and Manage folders opens a popover beside the block ("replace the
+ * manage folder modal with a popover instead").
  */
 export function MarketFoldersMenu({
   folders,
@@ -36,7 +37,9 @@ export function MarketFoldersMenu({
   catalogs,
   selectedMarketKey,
   onFoldersChange,
-  onManage,
+  onPanelRowsChange,
+  managing,
+  onManagingChange,
   onSelectMarket,
   panelRows,
   marketsError,
@@ -44,6 +47,10 @@ export function MarketFoldersMenu({
   onRetryMarkets,
 }: {
   panelRows: MarketPanelRows
+  onPanelRowsChange: (rows: MarketPanelRows) => void
+  /** Manage folders is open, from the block's ⋮. */
+  managing: boolean
+  onManagingChange: (open: boolean) => void
   marketsError: string | null
   marketsPending: boolean
   onRetryMarkets: () => void
@@ -53,13 +60,11 @@ export function MarketFoldersMenu({
   catalogs: readonly FilteredMarketCatalog[]
   selectedMarketKey: string | null
   onFoldersChange: (folders: MarketFolder[]) => void
-  onManage: () => void
   onSelectMarket: (marketKey: string) => void
 }) {
   const [expandedId, setExpandedId] = React.useState<string | null>(null)
-  const [creating, setCreating] = React.useState(false)
-  const [newName, setNewName] = React.useState("")
-  const [busy, setBusy] = React.useState(false)
+  // The block reaches the panel's bottom, so the list takes all of it.
+  const fills = useBlockFills()
   const markets = React.useMemo(
     () =>
       new Map(
@@ -82,79 +87,13 @@ export function MarketFoldersMenu({
   }, [markets, panelRows.hiddenMarketKeys])
 
 
-  function submitNewFolder(event: React.FormEvent) {
-    event.preventDefault()
-    if (busy || !newName.trim()) return
-    setBusy(true)
-    void createFolder({ protocol, network, name: newName })
-      .then((next) => {
-        onFoldersChange(next)
-        setNewName("")
-        setCreating(false)
-      })
-      .catch((caught) => showErrorToast(getMarketFolderErrorMessage(caught)))
-      .finally(() => setBusy(false))
-  }
-
-  const headerButtons = (
-    <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground"
-            aria-label="Add folder"
-            onClick={() => setCreating((shown) => !shown)}
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground"
-            aria-label="Manage folders"
-            onClick={() => {
-              onManage()
-            }}
-          >
-            <SettingsIcon className="size-4" />
-          </Button>
-    </>
-  )
   const list = (
         <ScrollArea
-          className="min-h-0"
-          viewportClassName="max-h-80"
+          className="min-h-0 flex-1"
+          // Filling the panel's height, the list scrolls inside it; otherwise
+          // it keeps to 320px and the page scrolls.
+          viewportClassName={fills ? "h-full" : "max-h-80"}
         >
-          {creating ? (
-            <form
-              className="grid shrink-0 gap-2 border-b p-2"
-              onSubmit={submitNewFolder}
-            >
-              <Label htmlFor="new-market-folder-menu-name">Folder name</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="new-market-folder-menu-name"
-                  autoFocus
-                  placeholder="Majors"
-                  value={newName}
-                  maxLength={80}
-                  disabled={busy}
-                  onChange={(event) => setNewName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setCreating(false)
-                      setNewName("")
-                    }
-                  }}
-                />
-                <Button type="submit" disabled={busy || !newName.trim()}>
-                  Add
-                </Button>
-              </div>
-            </form>
-          ) : null}
           <div className="grid">
             {shownFolders.map((folder) => {
               const expanded = expandedId === folder.id
@@ -263,8 +202,89 @@ export function MarketFoldersMenu({
   )
   return (
     <>
-      <BlockHeadingActions>{headerButtons}</BlockHeadingActions>
       {list}
+      <MarketFoldersManager
+        folders={folders}
+        protocol={protocol}
+        network={network}
+        catalogs={catalogs}
+        marketsError={marketsError}
+        marketsPending={marketsPending}
+        panelRows={panelRows}
+        onFoldersChange={onFoldersChange}
+        onPanelRowsChange={onPanelRowsChange}
+        manageOpen={managing}
+        onManageOpenChange={onManagingChange}
+      />
+    </>
+  )
+}
+
+/**
+ * The Folders block's own rows in its ⋮, above Delete block: a box to name a
+ * new folder, with + to make it, then Manage folders. The box keeps the
+ * menu's typing keys to itself, and the menu stays open while it is used.
+ */
+export function FoldersBlockMenuRows({
+  protocol,
+  network,
+  onFoldersChange,
+  onManage,
+}: {
+  protocol: ProtocolId
+  network: NetworkId
+  onFoldersChange: (folders: MarketFolder[]) => void
+  onManage: () => void
+}) {
+  const [name, setName] = React.useState("")
+  const [busy, setBusy] = React.useState(false)
+  function create(event: React.FormEvent) {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (busy) return
+    // Never a greyed-out +: an empty press says what is missing.
+    if (!trimmed) {
+      showErrorToast("Type the folder's name first.")
+      return
+    }
+    setBusy(true)
+    void createFolder({ protocol, network, name: trimmed })
+      .then((next) => {
+        onFoldersChange(next)
+        setName("")
+      })
+      .catch((caught) => showErrorToast(getMarketFolderErrorMessage(caught)))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <>
+      <form className="flex gap-1.5 p-1" data-own-escape="" onSubmit={create}>
+        <Input
+          aria-label="New folder name"
+          placeholder="New folder"
+          value={name}
+          maxLength={80}
+          disabled={busy}
+          // The menu's own keys (letters jump to a row) stay out of the box.
+          onKeyDown={(event) => event.stopPropagation()}
+          onChange={(event) => setName(event.target.value)}
+          className="h-8"
+        />
+        <Button
+          type="submit"
+          size="icon-sm"
+          variant="outline"
+          aria-label="Add folder"
+          disabled={busy}
+          className="size-8"
+        >
+          <PlusIcon className="size-4" />
+        </Button>
+      </form>
+      <DropdownMenuItem onSelect={onManage}>
+        <FolderCogIcon className="size-4" />
+        Manage folders
+      </DropdownMenuItem>
     </>
   )
 }

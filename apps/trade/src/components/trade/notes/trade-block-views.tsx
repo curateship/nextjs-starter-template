@@ -70,6 +70,8 @@ export type TradeBlocks = {
    * a slash to hide/unhide").
    */
   protocolsMenu: React.ReactNode
+  /** The Folders block's ⋮ rows: a new folder's name, and Manage folders. */
+  foldersMenu: React.ReactNode
   /**
    * The blocks to leave off the page right now: with "Hide empty blocks" on,
    * the trade blocks with nothing to show (Tyler, 8 Nov 2026: "why is the
@@ -108,6 +110,8 @@ export type BlockHeading = {
   actions: HTMLElement | null
   setCount: (count: number | undefined) => void
   open: boolean
+  /** The block stretches to the panel's bottom, so a list should fill it. */
+  fills?: boolean
 }
 
 /** Exported so a panel's tests can stand in for the block around it. */
@@ -135,6 +139,14 @@ export function useBlockCount(count: number | undefined) {
   React.useEffect(() => {
     setCount?.(count)
   }, [count, setCount])
+}
+
+/**
+ * Whether the block holding this panel stretches to the bottom of the panel,
+ * so a list inside should take all of it and scroll there.
+ */
+export function useBlockFills() {
+  return React.useContext(BlockHeadingContext)?.fills ?? false
 }
 
 /** Whether the block holding this panel is open, or true outside a block. */
@@ -165,6 +177,80 @@ function Frame({
       {children}
     </NodeViewWrapper>
   )
+}
+
+/** Less room than this left under the last block, and it keeps its own height. */
+const MIN_FILL_PX = 240
+
+/** The panel's gutter under the last block. */
+const FILL_GUTTER_PX = 15
+
+/**
+ * Whether this block is the last thing on its page that shows: no block that
+ * is not hidden, and no words, come after it.
+ */
+function lastOnPage(frame: Element, page: Element) {
+  let top: Element = frame
+  while (top.parentElement && top.parentElement !== page) top = top.parentElement
+  for (let next = top.nextElementSibling; next; next = next.nextElementSibling) {
+    const block = next.matches("[data-note-block]") ? next : next.querySelector("[data-note-block]")
+    if (block) {
+      if (!(block as HTMLElement).hidden) return false
+    } else if (next.textContent?.trim()) {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * The height that takes the last block on the page down to the panel's
+ * bottom, the panel's gutter under it (Tyler, 8 Nov 2026: "always make it
+ * fill all available space"), or null to keep its own. Measured from the
+ * tile's top on the page to the bottom of the panel's scrolling area. The
+ * page's empty last line, the place to write after the block, sits just
+ * below that, a scroll away. With less than `MIN_FILL_PX` left, the block
+ * keeps its own height and the page scrolls as before.
+ */
+function useFillHeight(tile: HTMLElement | null, open: boolean): number | null {
+  const [height, setHeight] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    if (!tile || !open) return
+    const page = tile.closest(".tiptap")
+    const frame = tile.closest("[data-note-block]")
+    const viewport = tile.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    const content = viewport?.firstElementChild
+    if (!page || !frame || !viewport || !content) return
+    let frameId = 0
+    const measure = () => {
+      cancelAnimationFrame(frameId)
+      frameId = requestAnimationFrame(() => {
+        if (!lastOnPage(frame, page)) {
+          setHeight(null)
+          return
+        }
+        const topOnPage =
+          tile.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop
+        // The grey block's edge round its tile, from Settings → Styling.
+        const inset = tile.parentElement ? parseFloat(getComputedStyle(tile.parentElement).paddingBottom) || 0 : 0
+        const next = Math.floor(viewport.clientHeight - FILL_GUTTER_PX - inset - topOnPage)
+        setHeight(next >= MIN_FILL_PX ? next : null)
+      })
+    }
+    const sizes = new ResizeObserver(measure)
+    sizes.observe(viewport)
+    sizes.observe(content)
+    // A block added, moved, hidden or written after this one.
+    const changes = new MutationObserver(measure)
+    changes.observe(page, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] })
+    measure()
+    return () => {
+      cancelAnimationFrame(frameId)
+      sizes.disconnect()
+      changes.disconnect()
+    }
+  }, [open, tile])
+  return open ? height : null
 }
 
 /**
@@ -203,9 +289,12 @@ function BlockCard({
   )
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
   const [count, setCount] = React.useState<number | undefined>(undefined)
+  const [tile, setTile] = React.useState<HTMLDivElement | null>(null)
+  const fillHeight = useFillHeight(tile, open)
+  const fills = fillHeight !== null
   const heading = React.useMemo(
-    () => ({ actions, setCount, open }),
-    [actions, open]
+    () => ({ actions, setCount, open, fills }),
+    [actions, open, fills]
   )
   return (
     <Collapsible
@@ -226,7 +315,10 @@ function BlockCard({
           title={title}
           count={count || undefined}
           open={open}
-          className="min-h-[var(--dashboard-card-header-height,57px)] [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
+          // One line for the title, never broken mid-word ("Protocol / s" at the
+          // left panel's narrowest); it shortens with "…" only when there is
+          // no room at all.
+          className="min-h-[var(--dashboard-card-header-height,57px)] [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!min-w-0 [&>h2]:!truncate [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
         >
           {/* The panel's own buttons, shown while the block is open. */}
           <span
@@ -265,7 +357,13 @@ function BlockCard({
               grey heading row, goes clear, or it drew a grey line Settings
               could not change (Tyler, 8 Nov 2026: "this border here is not
               wired to the styling setting"). */}
-          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
+          <div
+            ref={setTile}
+            data-block-tile=""
+            data-fills={fills || undefined}
+            // The last block on the page reaches the panel's bottom.
+            style={fills ? { height: fillHeight, maxHeight: "none" } : undefined}
+            className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
             {children}
           </div>
         </CollapsibleContent>
@@ -455,6 +553,7 @@ export const FoldersBlockView = blockView({
   title: "Folders",
   icon: <FolderIcon />,
   draw: (blocks) => blocks.folders,
+  menu: (blocks) => blocks.foldersMenu,
 })
 
 export const ProtocolsBlockView = blockView({

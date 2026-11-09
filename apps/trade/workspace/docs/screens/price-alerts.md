@@ -14,7 +14,10 @@ lines that already went off (Tyler, 13 Sep 2026). **Alert** is the second tab
 and holds the lines that are still waiting. Fired needs no press to fill: the
 fired list is read when the screen loads and again every two seconds. Each label has the same rounded count badge used by the
 Positions tab. There is no "fired since you last looked" count on the list
-any more: the bell's tray tells you when one fires. The fired rows stay in the
+any more: the bell's tray tells you when one fires. The fired list is read by
+the dashboard, not by the tab, so opening the tab again shows it at once
+instead of reading it again (Tyler, 8 Nov 2026: "Why does this amount kept
+loading if i go back to it"). The fired rows stay in the
 Fired tab until they are binned or cleared.
 Selecting a row in either tab opens that market.
 Clicking a fired row also clears that fired entry.

@@ -26,11 +26,21 @@ The market picker uses the same control. Its Favorites view reads Fav only.
 
 The Folders block on the dashboard's page (its left panel,
 `dashboard-blocks.md`) holds the picked exchange's saved folders and All
-markets. The plus in its heading makes a folder, and its cog opens
-create, rename, reorder, hide and delete controls in the left panel. Adding
-the market on the chart to a folder is the Folders row in the chart header's
-⋮ (8 Nov 2026, when the right panel went), which does what the star in the
-chart header once did. The management window ends with a primary Done button.
+markets. Its heading has no buttons of its own: the block's ⋮ holds a New
+folder box with + to make a folder, then Manage folders, then Delete block
+(Tyler, 8 Nov 2026: "replace these 2 icons wil the 3 dot dropdown. inside
+have add folder name, manage folder and delete block"). Manage folders opens
+a popover beside the block, over the middle, with the create, rename,
+reorder, hide and delete controls below, ending with a primary Done button
+("replace the manage folder modal with a popover instead"). Adding the market
+on the chart to a folder is the Folders row in the chart header's ⋮ (8 Nov
+2026, when the right panel went), which does what the star in the chart
+header once did.
+
+When the Folders block is the last block on the page, it reaches the
+panel's bottom and an open folder's coins scroll inside it, rather than
+stopping at 320px (`dashboard-blocks.md`, "The last block fills the
+panel").
 
 Markets inside an open folder run from the largest reported 24-hour gain to
 the largest loss. A market whose exchange did not report a 24-hour change sits
@@ -41,7 +51,7 @@ right edge. The border follows the theme's text color, so it is black in the
 light theme and white in the dark theme. The same marker appears in saved
 folders and All markets.
 
-## The cog window
+## Manage folders
 
 The Order card lists Fav, each named folder, and All markets.
 
@@ -57,7 +67,7 @@ The Order card lists Fav, each named folder, and All markets.
   takes coins from the star, and still runs in a flow.
 - The bin deletes, and only named folders have one.
 
-The chart header's cog remains available when folders are hidden.
+Manage folders stays in the Folders block's ⋮ when every row is hidden.
 
 The Hidden markets card under Order lists every market hidden by hand from All
 markets on this exchange, with a Show button beside each. Show puts the market

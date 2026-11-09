@@ -29,7 +29,8 @@ vi.mock("@/lib/toast/error-toast", () => ({
 
 import * as React from "react"
 
-import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
+import { PriceAlertsMenu as PriceAlertsList } from "@/components/trade/price-alerts-menu"
+import { useFiredPriceAlerts } from "@/components/trade/price-alerts-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 let host: HTMLDivElement
@@ -78,6 +79,12 @@ afterEach(async () => {
     .releasePointerCapture
   delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
 })
+
+/** The list as the dashboard draws it: the fired alerts read above it. */
+function PriceAlertsMenu(props: Omit<React.ComponentProps<typeof PriceAlertsList>, "fired">) {
+  const fired = useFiredPriceAlerts()
+  return <PriceAlertsList {...props} fired={fired} />
+}
 
 /** The tab's list sits in the page ⋮'s tooltips. */
 function InMenu({ children }: { children: React.ReactNode }) {
@@ -193,6 +200,36 @@ describe("the Alerts tab of the page's ⋮", () => {
     await act(async () => confirmButton().click())
     expect(api.clear).toHaveBeenLastCalledWith("fired")
     expect(onCleared).toHaveBeenCalledTimes(2)
+  })
+
+  // The tab is drawn each time the page's ⋮ opens it. The fired alerts are
+  // read by the dashboard, so opening it again shows them at once (Tyler,
+  // 8 Nov 2026: "Why does this amount kept loading if i go back to it").
+  it("shows the fired alerts at once when the tab opens again", async () => {
+    function Dashboard({ open }: { open: boolean }) {
+      const fired = useFiredPriceAlerts()
+      return open ? (
+        <InMenu>
+          <PriceAlertsList
+            alerts={[]}
+            error={null}
+            onRetry={() => {}}
+            onSelectMarket={() => {}}
+            onDelete={() => {}}
+            lines={noLines}
+            fired={fired}
+            onCleared={async () => {}}
+          />
+        </InMenu>
+      ) : null
+    }
+    await act(async () => root.render(<Dashboard open />))
+    await vi.waitFor(() => buttonStartingWith("ETH"))
+    await act(async () => root.render(<Dashboard open={false} />))
+    await act(async () => root.render(<Dashboard open />))
+    expect(document.body.textContent).not.toContain("Reading fired alerts")
+    expect(buttonStartingWith("ETH")).toBeTruthy()
+    expect(api.loadFired).toHaveBeenCalledTimes(1)
   })
 })
 
