@@ -5,6 +5,7 @@ import { routeErrorComponent } from "@/components/shell/route-error"
 import {
   getAutomationTemplate,
   getAutomationTemplateLoadErrorMessage,
+  loadAutomationTemplatesPage,
   saveAutomationTemplateGraph,
 } from "@/lib/api/automations/automation-templates"
 import { loadAutomationFavorites } from "@/lib/api/automations/automations"
@@ -19,16 +20,18 @@ export const Route = createFileRoute(
     if (!isAutomationTemplateKey(params.templateKey)) {
       throw new Error("That automation template does not exist.")
     }
-    const [template, favorites, blockDefaults] = await Promise.all([
+    const [template, favorites, blockDefaults, templates] = await Promise.all([
       getAutomationTemplate(params.templateKey),
       loadAutomationFavorites(),
       loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
+      loadAutomationTemplatesPage(),
     ])
     return {
       template,
       recordTitle: template.name,
       favoriteNodeKeys: favorites.favoriteNodeKeys,
       blockDefaults: blockDefaults.defaults,
+      templates: templates.templates,
     }
   },
   component: AdminAutomationTemplateEditorRoute,
@@ -36,7 +39,8 @@ export const Route = createFileRoute(
 })
 
 function AdminAutomationTemplateEditorRoute() {
-  const { template, favoriteNodeKeys, blockDefaults } = Route.useLoaderData()
+  const { template, favoriteNodeKeys, blockDefaults, templates } =
+    Route.useLoaderData()
 
   return (
     <AutomationEditor
@@ -50,6 +54,7 @@ function AdminAutomationTemplateEditorRoute() {
       }}
       initialFavoriteNodeKeys={favoriteNodeKeys}
       initialBlockDefaults={blockDefaults}
+      initialTemplates={templates}
       onSaveTemplateGraph={(graph) =>
         saveAutomationTemplateGraph({
           templateKey: template.key,

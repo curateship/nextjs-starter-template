@@ -207,15 +207,10 @@ const AUTOMATIONS_HREF = "/admin/automations"
 const AUTOMATION_TEMPLATES_LINK_ID = "item-automation-templates"
 const AUTOMATION_TEMPLATES_HREF = "/admin/automations/templates"
 
-function automationTemplatesChildLink(): ShellChildItem {
-  return {
-    id: AUTOMATION_TEMPLATES_LINK_ID,
-    label: "Templates",
-    href: AUTOMATION_TEMPLATES_HREF,
-  }
-}
-
-/** The automation canvas and the templates used to start new flows. */
+/**
+ * The automation list. Its templates are a tab in the editor's left panel,
+ * so the link has no Templates child (Tyler, 8 Nov 2026).
+ */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
   id: AUTOMATIONS_LINK_ID,
@@ -224,7 +219,6 @@ const AUTOMATIONS_LINK: ShellItem = {
   icon: "workflow",
   visible: true,
   roles: ["admin"],
-  children: [automationTemplatesChildLink()],
 }
 
 const NEWSLETTER_LINK_ID = "item-newsletter"
@@ -257,7 +251,7 @@ function systemEmailsChildLink(): ShellChildItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 24
+export const NAVIGATION_VERSION = 25
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1072,9 +1066,8 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 17) {
     sections = addPagesLink(sections)
   }
-  if (settings.navVersion < 18) {
-    sections = addAutomationTemplatesLink(sections)
-  }
+  // Step 18 added a Templates link under Automations, and step 25 takes it
+  // out again, so 18 is gone (9 Nov 2026).
   if (settings.navVersion < 19) {
     sections = addMeteredUsageLink(sections)
   }
@@ -1092,6 +1085,9 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 24) {
     sections = removeMediaLibraryLink(sections)
+  }
+  if (settings.navVersion < 25) {
+    sections = removeAutomationTemplatesLink(sections)
   }
 
   const [updated] = await database
@@ -1578,41 +1574,36 @@ export function removeMediaLibraryLink(sections: ShellSection[]): ShellSection[]
   return changed ? result : sections
 }
 
-/** Adds Templates beneath an existing Automations sidebar item. */
-export function addAutomationTemplatesLink(
+/**
+ * Takes the Templates link out from under Automations, or wherever an admin
+ * moved it. The templates are a tab in the automation editor's left panel now
+ * (Tyler, 8 Nov 2026: "No need to have template its own dashboard"), and
+ * `/admin/automations/templates` is no longer an address.
+ */
+export function removeAutomationTemplatesLink(
   sections: ShellSection[]
 ): ShellSection[] {
-  if (!sections.length) return sections
-
-  const isAutomations = (link: { id: string; href?: string }) =>
-    link.id === AUTOMATIONS_LINK_ID || link.href === AUTOMATIONS_HREF
+  let changed = false
   const isTemplates = (link: { id: string; href?: string }) =>
     link.id === AUTOMATION_TEMPLATES_LINK_ID ||
     link.href === AUTOMATION_TEMPLATES_HREF
-  const alreadyThere = sections.some((section) =>
-    section.entries.some(
-      (entry) =>
-        isTemplates(entry) ||
-        (isShellItem(entry) && (entry.children ?? []).some(isTemplates))
-    )
-  )
-  if (alreadyThere) return sections
-  const hasAutomations = sections.some((section) =>
-    section.entries.some((entry) => isShellItem(entry) && isAutomations(entry))
-  )
-  if (!hasAutomations) return sections
 
-  return sections.map((section) => ({
+  const result = sections.map((section) => ({
     ...section,
-    entries: section.entries.map((entry) => {
-      if (!isShellItem(entry) || !isAutomations(entry)) return entry
-      const children = entry.children?.length ? [...entry.children] : []
-      return {
-        ...entry,
-        children: [...children, automationTemplatesChildLink()],
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isTemplates(entry)) {
+        changed = true
+        return []
       }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isTemplates(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [children.length ? { ...entry, children } : stripChildren(entry)]
     }),
   }))
+
+  return changed ? result : sections
 }
 
 /**

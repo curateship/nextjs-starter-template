@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { AutomationEditor } from "@/components/automations/automation-editor"
 import { loadAutomationRunsPanel } from "@/lib/api/automations/automation-runs"
+import { loadAutomationTemplatesPage } from "@/lib/api/automations/automation-templates"
 import { loadBroadcastBlockDefaults } from "@/lib/api/email/broadcasts"
 import {
   getAutomation,
@@ -47,18 +48,21 @@ export const Route = createFileRoute(
   gcTime: 0,
   validateSearch: readEditorSearch,
   loader: async ({ params }) => {
-    const [automation, favorites, runs, blockDefaults] = await Promise.all([
-      getAutomation(params.automationId),
-      loadAutomationFavorites(),
-      loadAutomationRunsPanel(params.automationId),
-      loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
-    ])
+    const [automation, favorites, runs, blockDefaults, templates] =
+      await Promise.all([
+        getAutomation(params.automationId),
+        loadAutomationFavorites(),
+        loadAutomationRunsPanel(params.automationId),
+        loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
+        loadAutomationTemplatesPage(),
+      ])
     return {
       automation,
       recordTitle: automation.name,
       favoriteNodeKeys: favorites.favoriteNodeKeys,
       runs,
       blockDefaults: blockDefaults.defaults,
+      templates: templates.templates,
     }
   },
   component: AdminAutomationEditorRoute,
@@ -66,7 +70,7 @@ export const Route = createFileRoute(
 })
 
 function AdminAutomationEditorRoute() {
-  const { automation, favoriteNodeKeys, runs, blockDefaults } =
+  const { automation, favoriteNodeKeys, runs, blockDefaults, templates } =
     Route.useLoaderData()
   const { run, node } = Route.useSearch()
 
@@ -78,6 +82,7 @@ function AdminAutomationEditorRoute() {
       initialFavoriteNodeKeys={favoriteNodeKeys}
       initialRuns={runs}
       initialBlockDefaults={blockDefaults}
+      initialTemplates={templates}
       openRunId={run}
       openNode={node}
     />

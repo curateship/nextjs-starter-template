@@ -3,9 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   CircleDashedIcon,
   CopyIcon,
-  CreditCardIcon,
   Loader2Icon,
-  MailIcon,
   PauseIcon,
   PlayIcon,
   PlusIcon,
@@ -23,6 +21,7 @@ import {
   SortableTableHeader,
 } from "@/components/shared/sortable-table-header"
 import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
+import { AUTOMATION_TEMPLATE_ICONS } from "@/components/automations/automation-template-icons"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -77,11 +76,6 @@ import type { AutomationTemplateKey } from "@/lib/automations/templates"
 import { compareAutomationSteps } from "@/lib/automations/list-sort"
 
 type CreateChoice = "blank" | AutomationTemplateKey
-
-const TEMPLATE_ICONS = {
-  "welcome-members": MailIcon,
-  "payment-recovery": CreditCardIcon,
-} satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
 type SortColumn = "name" | "live" | "steps" | "nextRun" | "updated"
 
@@ -661,7 +655,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                     onClick={() => chooseCreateStart("blank")}
                   />
                   {initial.templates.map((template) => {
-                    const Icon = TEMPLATE_ICONS[template.key]
+                    const Icon = AUTOMATION_TEMPLATE_ICONS[template.key]
                     return (
                       <TemplateChoiceCard
                         key={template.key}

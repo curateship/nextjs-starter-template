@@ -120,7 +120,7 @@ import {
   authTokenTtlMs,
 } from "@/lib/email/auth-token-expiry"
 import {
-  addAutomationTemplatesLink,
+  removeAutomationTemplatesLink,
   addMeteredUsageLink,
   addPagesLink,
   addSystemEmailsLink,
@@ -1290,9 +1290,6 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/admin/automations",
         visible: true,
-        children: [
-          { label: "Templates", href: "/admin/automations/templates" },
-        ],
       },
       {
         type: "item",
@@ -1344,9 +1341,6 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/admin/automations",
         visible: true,
-        children: [
-          { label: "Templates", href: "/admin/automations/templates" },
-        ],
       },
       {
         type: "item",
@@ -1959,7 +1953,9 @@ describe("metered usage link", () => {
       ["item-admin-pages", []], // 17, beside Traffic
       // 13 adds System emails and 21 takes Segments out; 22 takes the whole
       // Newsletter link out, its screens being the CRM's now.
-      ["item-automations", ["item-automation-templates"]], // 18
+      // 25 would take a Templates link out; the templates are a tab in the
+      // automation editor.
+      ["item-automations", []],
       // 15 took Media's children out; 24 takes Media out, its screen being
       // Admin's Media library section.
     ])
@@ -2112,39 +2108,45 @@ describe("automation templates sidebar link", () => {
     icon: "workflow" as const,
     visible: true,
   }
-  const section = (entry: ShellItem): ShellSection[] => [
-    { id: "section-platform-settings", title: "Platform", entries: [entry] },
+  const templates = {
+    id: "item-automation-templates",
+    label: "Templates",
+    href: "/admin/automations/templates",
+  }
+  const section = (...entries: ShellItem[]): ShellSection[] => [
+    { id: "section-platform-settings", title: "Platform", entries },
   ]
 
-  it("adds Templates beneath the existing parent", () => {
-    const [updated] = addAutomationTemplatesLink(section(automations))
-    expect(updated.entries[0]).toMatchObject({
-      label: "My flows",
-      children: [{ label: "Templates", href: "/admin/automations/templates" }],
-    })
-  })
-
-  it("keeps existing children and never adds Templates twice", () => {
-    const withChild = section({
-      ...automations,
-      children: [{ id: "custom-child", label: "Runs", href: "/runs" }],
-    })
-    const once = addAutomationTemplatesLink(withChild)
-    const twice = addAutomationTemplatesLink(once)
-
-    expect((once[0].entries[0] as ShellItem).children).toMatchObject([
+  it("takes Templates out, keeping the other children", () => {
+    const [updated] = removeAutomationTemplatesLink(
+      section({
+        ...automations,
+        children: [{ id: "custom-child", label: "Runs", href: "/runs" }, templates],
+      })
+    )
+    expect((updated.entries[0] as ShellItem).children).toMatchObject([
       { label: "Runs", href: "/runs" },
-      { label: "Templates", href: "/admin/automations/templates" },
     ])
-    expect(twice).toBe(once)
   })
 
-  it("leaves a sidebar without Automations alone", () => {
-    const sections: ShellSection[] = [
-      { id: "section-platform-settings", title: "Platform", entries: [] },
-    ]
-    expect(addAutomationTemplatesLink(sections)).toBe(sections)
-    expect(addAutomationTemplatesLink([])).toEqual([])
+  it("leaves Automations with no children once Templates was its only one", () => {
+    const [updated] = removeAutomationTemplatesLink(
+      section({ ...automations, children: [templates] })
+    )
+    expect(updated.entries[0]).toMatchObject({ label: "My flows" })
+    expect((updated.entries[0] as ShellItem).children ?? []).toEqual([])
+  })
+
+  it("takes out a Templates link an admin moved to the top level", () => {
+    const [updated] = removeAutomationTemplatesLink(
+      section(automations, { ...templates, type: "item", icon: "workflow", visible: true })
+    )
+    expect(updated.entries).toMatchObject([{ label: "My flows" }])
+  })
+
+  it("leaves a sidebar without Templates as it was", () => {
+    const sections = section(automations)
+    expect(removeAutomationTemplatesLink(sections)).toBe(sections)
   })
 })
 

@@ -63,7 +63,6 @@ import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/res
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
-import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
@@ -364,12 +363,6 @@ const AuthenticatedAdminAutomationsAutomationIdRoute =
     path: '/automations/$automationId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminAutomationsTemplatesRoute =
-  AuthenticatedAdminAutomationsTemplatesRouteImport.update({
-    id: '/automations_/templates',
-    path: '/automations/templates',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
   AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
     id: '/newsletter_/$broadcastId',
@@ -487,7 +480,6 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -553,7 +545,6 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -622,7 +613,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
   '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
@@ -691,7 +681,6 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
-    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
@@ -757,7 +746,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/account/billing/success'
     | '/admin/automations/$automationId'
-    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/settings/$tab'
@@ -825,7 +813,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/account/billing_/success'
     | '/_authenticated/admin/automations_/$automationId'
-    | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/settings/$tab'
@@ -1251,13 +1238,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/automations_/templates': {
-      id: '/_authenticated/admin/automations_/templates'
-      path: '/automations/templates'
-      fullPath: '/admin/automations/templates'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
       path: '/newsletter/$broadcastId'
@@ -1389,7 +1369,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
@@ -1422,8 +1401,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminAutomationsAutomationIdRoute:
     AuthenticatedAdminAutomationsAutomationIdRoute,
-  AuthenticatedAdminAutomationsTemplatesRoute:
-    AuthenticatedAdminAutomationsTemplatesRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
