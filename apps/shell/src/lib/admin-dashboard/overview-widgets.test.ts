@@ -1,8 +1,11 @@
+import { SparklesIcon } from "lucide-react"
 import { describe, expect, it } from "vitest"
 
 import {
   appWidgetId,
   cleanWidgetLayout,
+  noWidgetsText,
+  offeredWidgets,
   DEFAULT_CRM_WIDGET_LAYOUT,
   DEFAULT_WIDGET_LAYOUT,
   placeWidget,
@@ -99,5 +102,14 @@ describe("Overview's widget layout", () => {
     expect(widgetsShown(DEFAULT_WIDGET_LAYOUT)).toBe(5)
     expect(widgetsShown(placeWidget(DEFAULT_WIDGET_LAYOUT, "top", 0, null))).toBe(4)
     expect(widgetsShown(setRowColumns(DEFAULT_WIDGET_LAYOUT, "bottom", 0))).toBe(2)
+  })
+
+  it("offers an app's own list in place of a board's, with its own empty words", () => {
+    const own = [{ id: "pnl", label: "PnL Graph", icon: SparklesIcon }]
+    expect(offeredWidgets({ offer: { choices: own } })).toBe(own)
+    expect(offeredWidgets({ board: "crm" })).toEqual([])
+    expect(noWidgetsText({ offer: { choices: [], none: "No trading widgets." } })).toBe("No trading widgets.")
+    expect(noWidgetsText({ offer: { choices: [] } })).toBe("No widgets yet.")
+    expect(noWidgetsText({ board: "crm" })).toBe("No CRM widgets yet.")
   })
 })

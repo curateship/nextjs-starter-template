@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { ListChecksIcon } from "lucide-react"
 
+import { WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { MarketIcon } from "@/components/trade/market-icon"
@@ -48,11 +49,17 @@ export function ActiveTradesWidget({
   className,
   onTradeOpen,
   headerAction,
+  bare = false,
 }: {
   overview: Pick<TradingOverview, "activeTrades" | "activeTradesUnavailable">
   className: string
   onTradeOpen?: () => void
   headerAction?: React.ReactNode
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title,
+   * the count and the ⋮: no frame of its own, and no title row.
+   */
+  bare?: boolean
 }) {
   const [protocols, setProtocols] = React.useState<string[] | null>(null)
   const [walletIds, setWalletIds] = React.useState<string[] | null>(null)
@@ -72,42 +79,50 @@ export function ActiveTradesWidget({
         ? "No active trades found in the wallets that answered."
         : "No active trades across your wallets."
 
-  return (
-    <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
-      <DashboardCardTitleHeader
-        className="border-b-0"
-        icon={<ListChecksIcon />}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">Active Trades</span>
-            <Badge variant="secondary">
-              {filtered.length.toLocaleString()}
-            </Badge>
-          </span>
-        }
-        action={
-          <div className="flex items-center gap-2">
-            {headerAction}
-            <ActiveTradeFilters
-              trades={overview.activeTrades}
-              protocols={protocols}
-              walletIds={walletIds}
-              onProtocolsChange={setProtocols}
-              onWalletsChange={setWalletIds}
-              onClear={() => {
-                setProtocols(null)
-                setWalletIds(null)
-              }}
-            />
-          </div>
-        }
+  const actions = (
+    <div className="flex items-center gap-2">
+      {headerAction}
+      <ActiveTradeFilters
+        trades={overview.activeTrades}
+        protocols={protocols}
+        walletIds={walletIds}
+        onProtocolsChange={setProtocols}
+        onWalletsChange={setWalletIds}
+        onClear={() => {
+          setProtocols(null)
+          setWalletIds(null)
+        }}
       />
+    </div>
+  )
+  const Frame = bare ? "div" : TableSurface
+  return (
+    <Frame className={cn("flex h-full min-h-0 flex-col", className)}>
+      {bare ? (
+        // The title and count are on the widget card's heading, and the
+        // filter sits there too, beside the ⋮ ("move the buttons here").
+        <WidgetHeadingActions>{actions}</WidgetHeadingActions>
+      ) : (
+        <DashboardCardTitleHeader
+          className="border-b-0"
+          icon={<ListChecksIcon />}
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">Active Trades</span>
+              <Badge variant="secondary">
+                {filtered.length.toLocaleString()}
+              </Badge>
+            </span>
+          }
+          action={actions}
+        />
+      )}
       <ActiveTradesTable
         trades={filtered}
         emptyWords={emptyWords}
         onTradeOpen={onTradeOpen}
       />
-    </TableSurface>
+    </Frame>
   )
 }
 

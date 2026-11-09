@@ -131,7 +131,7 @@ describe("where a trade notice leads", () => {
       ).toEqual([])
       expect(
         (await tradeNoticeDetailsFor(userId, [noticeId]))[noticeId]?.href
-      ).toBe("/protocols/kucoin?market=kucoin%3Amainnet%3ASUSHIUSDTM")
+      ).toBe("/trade?market=kucoin%3Amainnet%3ASUSHIUSDTM")
 
       await Promise.all([
         recordLiveFills(userId, wallet, [
@@ -189,14 +189,14 @@ describe("where a trade notice leads", () => {
       headline: "Entered $500 of ETH",
       meta: ["@ $90", "Main", "filled"],
       kind: "entered",
-      href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      href: "/trade?market=hyperliquid%3Amainnet%3AETH",
       database,
     })
 
     const [noticeId] = await noticeIdsOf(userId)
     expect(await tradeNoticeDetailsFor(userId, [noticeId])).toEqual({
       [noticeId]: {
-        href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+        href: "/trade?market=hyperliquid%3Amainnet%3AETH",
         headline: "Entered $500 of ETH",
         meta: ["@ $90", "Main", "filled"],
         kind: "entered",
@@ -266,7 +266,7 @@ describe("where a trade notice leads", () => {
       userId,
       title: "Exited a trade: $500 of ETH at $90 (Main)",
       body: "The order filled on the exchange.",
-      href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      href: "/trade?market=hyperliquid%3Amainnet%3AETH",
       soundKind: "fill" as const,
       noticeKey: JSON.stringify(["fill", "order-1"]),
       database,
@@ -283,7 +283,7 @@ describe("where a trade notice leads", () => {
     expect(row.level).toBe("warning")
     // The page and the sound are still there, not wiped by the second write.
     expect(row.href).toBe(
-      "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH"
+      "/trade?market=hyperliquid%3Amainnet%3AETH"
     )
     expect(row.soundKind).toBe("fill")
   })
@@ -299,7 +299,7 @@ describe("where a trade notice leads", () => {
       title: "Stop hit on ETH: sold at $80 (Their wallet)",
       body: "The stop order fired and closed the position.",
       level: "warning",
-      href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+      href: "/trade?market=hyperliquid%3Amainnet%3AETH",
       database,
     })
 
@@ -373,7 +373,7 @@ describe("where a trade notice leads", () => {
     expect(ids).toHaveLength(1)
     // The practice network, not the real one wearing the same coin's name.
     expect((await tradeNoticeDetailsFor(user.id, ids))[ids[0]]?.href).toBe(
-      "/protocols/aster?market=aster%3Atestnet%3ABTCUSDT"
+      "/trade?market=aster%3Atestnet%3ABTCUSDT"
     )
   })
 

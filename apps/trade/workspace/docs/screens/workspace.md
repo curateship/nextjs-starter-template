@@ -1,34 +1,32 @@
 # The Trade workspace
 
-Three panels on each protocol screen, at `/protocols/hyper-liquid`,
-`/protocols/phemex`, `/protocols/kucoin`, `/protocols/aster`,
-`/protocols/lighter`, `/protocols/solana` and `/protocols/bnb`, in the Admin 3
-panel design since 7 Nov 2026. A member opens these as well as an admin, and
-sees only their own wallets and orders there —
-`who-can-open-a-protocol-screen.md` says who gets what.
+One dashboard at `/trade` since 8 Nov 2026: the left page of blocks, and the
+middle, which is Overview's widgets or the exchange picked in the Protocols
+block. There is no right panel. A member opens it as well as an admin, and
+sees only their own wallets, orders and widgets there —
+`who-can-open-a-protocol-screen.md` says who gets what, and
+`dashboard-blocks.md` explains the page, the Protocols block and Overview.
 
 ```
-┌────────────┬───────────────────────────────────┬────────────┐
-│ Exchange's │ [BTC chart][Positions][Open orders]│ Market's   │
-│ page of    │ [Journal]                          │ page       │
-│ blocks     │ MARKET HEADER                      │            │
-│            │ Chart                              │            │
-└────────────┴───────────────────────────────────┴────────────┘
+┌────────────┬────────────────────────────────────────────┐
+│ The page   │ [BTC chart ⓘ][Positions][Open orders]       │
+│ of blocks: │ [Journal]                                   │
+│ Protocols, │ Chart                                       │
+│ Rules, …   │ (or Overview's widgets)                     │
+└────────────┴────────────────────────────────────────────┘
 ```
 
-- **Left, the exchange's page.** A page of "/" blocks: Rules, Manual trades,
-  Grid trades, DCA trades, Alerts, Scanner and Folders, plus anything written
-  there. `dashboard-blocks.md` explains the pages, the blocks and the lock.
-  Double-clicking the panel's blank space shuts it, the same as every other
-  panel (Tyler, 15 Oct 2026). A double-click on words or a control does not.
-- **Right, the All markets page.** One page per exchange that every market
-  shows, under the market's name (its facts in a tooltip) and the market's ⋮
-  holding Folders and Pin to top.
-- **Middle — the market you picked.** One header: the primary Browse market
-  button, then the market's chart, Positions, Open orders and the Journal as
-  tabs, then the timeframe control (1m to 1d, remembered per browser, 4h the default),
-  Indicators and View options, and a ⋮ holding Wallet and Close all
-  (`dashboard-blocks.md`).
+- **Left, the dashboard's page.** A page of "/" blocks, one per person: the
+  Protocols block, then Rules, Manual trades, Grid trades, DCA trades,
+  Scanner and Folders, plus anything written there. The trading blocks show
+  the exchange picked. Double-clicking the panel's blank space shuts it, the
+  same as every other panel (Tyler, 15 Oct 2026). A double-click on words or a
+  control does not.
+- **Middle — the market you picked.** One header: the market's chart,
+  Positions, Open orders and the Journal as tabs, then on the right the
+  primary Browse market button (moved there 8 Nov 2026), the timeframe control (1m to 1d, remembered per browser, 4h the default),
+  Indicators and View options, and a ⋮ holding Wallet, the market's Folders
+  and Pin to top, and Close all (`dashboard-blocks.md`).
   Indicators and View options are buttons of their own (Tyler, 7 Nov 2026:
   "move the view options and indicatior buttons outside of the dropdown").
   Indicators carries a round count of the indicators that are on. A star
@@ -40,9 +38,11 @@ sees only their own wallets and orders there —
   click, never a hover**, and the market list stays open until a click
   outside it, Escape, or a pick. **No button in this header row has a
   background or a border** (Tyler, 31 Oct 2026: "remove all the buttons bg",
-  then "remove the border too"), the timeframes included. A button turns gray
-  only under the pointer or while its menu is open, and the chosen timeframe
-  sits on a light gray pill. Every control in that row is 32px high. The full-screen button sits inside the plot's
+  then "remove the border too"), except the timeframes and Browse market. A
+  button turns gray only under the pointer or while its menu is open. The
+  timeframes sit in the pill tabs' grey track, the chosen one on a white pill
+  and the arrow inside the same track (Tyler, 8 Nov 2026: "change the
+  timeframe ui to this"). Every control in that row is 32px high. The full-screen button sits inside the plot's
   bottom-right corner, immediately left of the price numbers. Pressing it, or F
   from outside a field, leaves the chart and its own header on screen and hides
   the rest of the workspace and page chrome. Escape returns to the exact panel
@@ -302,8 +302,10 @@ The sidebar and the signed-in home page are Settings, held in the app's
 database — not in code. Trade is a copy of Custom Shell, and an app never edits
 a shell file, so these are changed on the Settings screens:
 
-- Settings → Sidebar — the **Trading overview** link to
-  `/admin/trading-overview`. A child link's eye switches that one shortcut off
-  in both the sidebar and the sticky header without deleting it.
-- Settings → General settings — the admin and member home pages, both
-  `/admin/trading-overview`.
+- Settings → Sidebar — the **Trade** link to `/trade`, with no exchange links
+  under it since 8 Nov 2026 (migration `0234_trade_menu_one_link.sql`). A
+  child link's eye switches that one shortcut off in both the sidebar and the
+  sticky header without deleting it.
+- Settings → General settings — the admin and member home pages. One that
+  still names `/admin/trading-overview` opens the not-found page, so it
+  should name `/trade`.

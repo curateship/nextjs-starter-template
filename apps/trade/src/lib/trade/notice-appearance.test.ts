@@ -9,7 +9,7 @@ import { MADE_MONEY_SURFACE, WARNING_SURFACE } from "./money-tone"
 
 /** A notice saved with its pieces, the way every notice is saved now. */
 const savedFill = {
-  href: "/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3AETH",
+  href: "/trade?market=hyperliquid%3Amainnet%3AETH",
   headline: "Entered $49.91 of CHIP",
   meta: ["@ 0.04932", "HL1 Grid", "filled"],
   kind: "entered" as const,

@@ -9,24 +9,11 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { TradeSettingsProvider } from "@/components/trade/trade-settings-bootstrap"
 import type { TradeSettingsBootstrap } from "@/components/trade/trade-settings-context"
 
-const widgetsRoute = getRouteApi(
-  "/_authenticated/admin/settings_/trading-widgets"
-)
 const marketsRoute = getRouteApi("/_authenticated/admin/settings_/markets")
 const tradingRulesRoute = getRouteApi(
   "/_authenticated/admin/settings_/trading-rules"
 )
 const goalsRoute = getRouteApi("/_authenticated/admin/settings_/goals")
-
-export function TradingWidgetsSettingsPage() {
-  const { layout } = widgetsRoute.useLoaderData()
-  return (
-    <TradeSettingsPage
-      tab="trading-widgets"
-      bootstrap={{ tradingWidgets: layout }}
-    />
-  )
-}
 
 export function MarketsSettingsPage() {
   const { minimumVolumeUsd } = marketsRoute.useLoaderData()
@@ -57,7 +44,7 @@ function TradeSettingsPage({
   tab,
   bootstrap,
 }: {
-  tab: "trading-widgets" | "markets" | "trading-rules" | "goals"
+  tab: "markets" | "trading-rules" | "goals"
   bootstrap: TradeSettingsBootstrap
 }) {
   useTradePageTitle("Settings")

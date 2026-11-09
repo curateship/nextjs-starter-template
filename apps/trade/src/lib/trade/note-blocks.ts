@@ -11,15 +11,15 @@ import { readVideoLink } from "@/lib/trade/video-links"
 const id = z.string().min(1).max(36)
 
 /**
- * What a Trade page may hold (the Admin 3 panel design, 7 Nov 2026): the
- * exchange's own page on the dashboard's left, and the All markets page on
- * its right. Everything a shell written page may hold (words, headings, lists,
+ * What the Trade dashboard's left page may hold (the Admin 3 panel design,
+ * 7 Nov 2026; one page per person since 8 Nov 2026). Everything a shell written page may hold (words, headings, lists,
  * quotes, links), plus the "/" blocks. The basic blocks and this file's rules
  * are copied from Travel's `note-blocks.ts`. The advanced blocks draw what the
  * dashboard already knows (Tyler, 7 Nov 2026: "we turn rules, folders,
  * scanners, alerts, grid trades, dca trades and manual trades into blocks"),
  * so they keep no values of their own. A block this build no longer has,
- * such as the Market info block that became a tooltip on 7 Nov 2026, is
+ * such as the Market info block that became a tooltip on 7 Nov 2026 or the
+ * Alerts block that became a tab of the page's ⋮ on 8 Nov 2026, is
  * dropped. This runs in the editor on every change
  * and on the server on every save.
  */
@@ -39,20 +39,12 @@ export const NOTE_BLOCK_TYPES = [
   "noteManualTrades",
   "noteGridTrades",
   "noteDcaTrades",
-  "noteAlerts",
   "noteScanner",
   "noteFolders",
+  // The fixed Protocols block, which picks what the middle shows (8 Nov 2026).
+  "noteProtocols",
 ] as const
 export type NoteBlockType = (typeof NOTE_BLOCK_TYPES)[number]
-
-/**
- * Which of the dashboard's two pages a document is: the exchange's own page
- * on the left, or the "All markets" page on the right, which every market on
- * the exchange shows (Tyler, 7 Nov 2026: "We should make both left and right
- * panel all protocol wide"). Both hold the same blocks; they differ only in
- * how a new one starts.
- */
-export type TradePageKind = "exchange" | "shared"
 
 /**
  * Blocks that hold writing, from Project's basic blocks (6 Nov 2026): a
@@ -168,9 +160,9 @@ const BLOCK_CLEANERS: Record<NoteBlockType, (attrs: Record<string, unknown>) => 
   noteManualTrades: () => ({}),
   noteGridTrades: () => ({}),
   noteDcaTrades: () => ({}),
-  noteAlerts: () => ({}),
   noteScanner: () => ({}),
   noteFolders: () => ({}),
+  noteProtocols: () => ({}),
 }
 
 function isHolder(type: unknown): type is NoteHolderType {

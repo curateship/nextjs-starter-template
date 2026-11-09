@@ -1,12 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
-import {
-  EXCHANGE_PAGE_MARKET,
-  SHARED_PAGE_MARKET,
-  TRADE_PAGE_MAX_LENGTH,
-} from "@/lib/trade/trade-pages"
+import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
+import { TRADE_PAGE_MAX_LENGTH } from "@/lib/trade/trade-pages"
 import { userGet, userPost } from "@/server/guards"
 import {
   loadTradePage,
@@ -16,21 +12,14 @@ import {
 } from "@/server/trade/pages"
 
 /**
- * The dashboard's two pages, both one per exchange: the exchange's own
- * (`marketKey` "") and All markets ("*"). Only the signed-in person's own
- * pages are ever read or written.
+ * The Trade dashboard's left page, one per person. Only the signed-in
+ * person's own page is ever read or written.
  */
-const pageSchema = z.object({
-  protocol: z.enum(KNOWN_PROTOCOLS),
-  marketKey: z.enum([EXCHANGE_PAGE_MARKET, SHARED_PAGE_MARKET]),
-})
+const pageSchema = z.object({})
 
 const loadPageFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(pageSchema)
-  .handler(({ context, data }) =>
-    loadTradePage(context.user.id, data.protocol, data.marketKey)
-  )
+  .handler(({ context }) => loadTradePage(context.user.id))
 
 const savePageFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -38,7 +27,7 @@ const savePageFn = createServerFn({ method: "POST" })
     pageSchema.extend({ body: z.string().max(TRADE_PAGE_MAX_LENGTH) })
   )
   .handler(({ context, data }) =>
-    saveTradePage(context.user.id, data.protocol, data.marketKey, data.body)
+    saveTradePage(context.user.id, data.body)
   )
 
 const lockPageFn = createServerFn({ method: "POST" })
@@ -50,62 +39,40 @@ const lockPageFn = createServerFn({ method: "POST" })
     })
   )
   .handler(({ context, data }) =>
-    setTradePageLocked(
-      context.user.id,
-      data.protocol,
-      data.marketKey,
-      data.locked,
-      data.shownBody
-    )
+    setTradePageLocked(context.user.id, data.locked, data.shownBody)
   )
-
-/** A picture from the media library: an https address, or this site's own path. */
-const coverSchema = z
-  .string()
-  .max(1000)
-  .refine((value) => {
-    if (value.startsWith("/") && !value.startsWith("//")) return true
-    try {
-      return new URL(value).protocol === "https:"
-    } catch {
-      return false
-    }
-  })
-  .nullable()
 
 const coverPageFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     pageSchema.extend({
+      // The shell's cover rules: none, the sky, or a picture, and the
+      // page's own pictures (`src/lib/notes/page-cover.ts`).
       coverUrl: coverSchema,
+      coverImages: coverImagesSchema,
       shownBody: z.string().max(TRADE_PAGE_MAX_LENGTH),
     })
   )
   .handler(({ context, data }) =>
     setTradePageCover(
       context.user.id,
-      data.protocol,
-      data.marketKey,
-      data.coverUrl,
+      { coverUrl: data.coverUrl || null, coverImages: data.coverImages },
       data.shownBody
     )
   )
 
-type PageRef = z.infer<typeof pageSchema>
-
-export function loadPage(ref: PageRef) {
-  return loadPageFn({ data: ref })
+export function loadPage() {
+  return loadPageFn()
 }
-export function savePage(ref: PageRef, body: string) {
-  return savePageFn({ data: { ...ref, body } })
+export function savePage(body: string) {
+  return savePageFn({ data: { body } })
 }
-export function lockPage(ref: PageRef, locked: boolean, shownBody: string) {
-  return lockPageFn({ data: { ...ref, locked, shownBody } })
+export function lockPage(locked: boolean, shownBody: string) {
+  return lockPageFn({ data: { locked, shownBody } })
 }
 export function setPageCover(
-  ref: PageRef,
-  coverUrl: string | null,
+  cover: { coverUrl: string | null; coverImages: string[] },
   shownBody: string
 ) {
-  return coverPageFn({ data: { ...ref, coverUrl, shownBody } })
+  return coverPageFn({ data: { ...cover, shownBody } })
 }

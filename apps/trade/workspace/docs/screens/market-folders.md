@@ -24,12 +24,13 @@ The market picker uses the same control. Its Favorites view reads Fav only.
 
 ## Opening folders
 
-The Folders block on the exchange's page (the dashboard's left panel, the
-Admin 3 panel design, 7 Nov 2026, `dashboard-blocks.md`) holds saved folders
-and All markets. The plus in its heading makes a folder, and its cog opens
+The Folders block on the dashboard's page (its left panel,
+`dashboard-blocks.md`) holds the picked exchange's saved folders and All
+markets. The plus in its heading makes a folder, and its cog opens
 create, rename, reorder, hide and delete controls in the left panel. Adding
-the market on the chart to a folder is the Folders row in the market's ⋮ on
-the right panel, which did what the star in the chart header did. The management window ends with a primary Done button.
+the market on the chart to a folder is the Folders row in the chart header's
+⋮ (8 Nov 2026, when the right panel went), which does what the star in the
+chart header once did. The management window ends with a primary Done button.
 
 Markets inside an open folder run from the largest reported 24-hour gain to
 the largest loss. A market whose exchange did not report a 24-hour change sits

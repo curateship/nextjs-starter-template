@@ -50,11 +50,14 @@ vi.mock("@/components/trade/activity-panel", () => ({
   ActivityPanel: ({
     onAddToPosition,
     chart,
+    lead,
   }: {
     onAddToPosition: (position: unknown) => void
     chart?: { label: string; content: React.ReactNode }
+    lead?: React.ReactNode
   }) => (
     <div data-testid="activity-panel" data-chart-tab={chart?.label}>
+      <div data-testid="middle-header-start">{lead}</div>
       {chart?.content}
       <button
         type="button"
@@ -190,18 +193,11 @@ vi.mock("@/components/trade/market-header", () => ({
   MarketInfoFacts: () => null,
 }))
 vi.mock("@/components/trade/notes/trade-page-panel", () => ({
-  useTradePage: ({ pageKey }: { pageKey: string }) => ({
-    pageKey,
-    lock: { locked: false, busy: false, setLocked: vi.fn() },
-    cover: { url: null, busy: false, set: vi.fn() },
-  }),
-  TradePageBody: ({ page }: { page: { pageKey: string } }) => (
-    <div data-testid="page" data-market={page.pageKey} />
-  ),
+  TradePageBody: () => <div data-testid="page" />,
 }))
 vi.mock("@/components/trade/notes/page-menus", () => ({
-  ExchangePageMenu: () => <button type="button" aria-label="My settings" />,
-  MarketPageMenu: () => <button type="button" aria-label="Market menu" />,
+  FoldersMenuRow: () => <button type="button" aria-label="Folders" />,
+  PinMenuRow: () => <button type="button" aria-label="Pin to top" />,
 }))
 vi.mock("@/components/trade/market-scanner-panel", () => ({
   MarketScannerMenu: () => null,
@@ -324,7 +320,7 @@ function MockPanelGroup(props: {
   const { orientation, groupRef, onLayoutChanged, children } = props
   const groupName = props["data-panel-group"] ?? orientation
   const opening = React.useMemo<Record<string, number>>(
-    (): Record<string, number> => ({ blocks: 20, chart: 58, market: 22 }),
+    (): Record<string, number> => ({ blocks: 20, chart: 80 }),
     []
   )
   const [layout, setLayout] = React.useState<Record<string, number>>(opening)
@@ -362,7 +358,7 @@ function MockPanelGroup(props: {
         type="button"
         aria-label={`Resize ${groupName} group`}
         onClick={() => {
-          const next = { blocks: 25, chart: 50, market: 25 }
+          const next = { blocks: 25, chart: 75 }
           layoutRef.current = next
           setLayout(next)
           changed(next, { isUserInteraction: true })
@@ -402,83 +398,98 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-describe("the trade workspace", () => {
-  it("is three panels whose full screen restores without remounting the chart", async () => {
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <TradeWorkspace
-            protocol="hyperliquid"
-            network="mainnet"
-            catalogs={[
+/** The page handed down from the dashboard above the workspace. */
+const page = {
+  state: { state: "ready", page: { body: null, locked: false, coverUrl: null } },
+  lock: { locked: false, busy: false, setLocked: vi.fn() },
+  cover: { url: null, busy: false, set: vi.fn() },
+  save: vi.fn(),
+  flush: vi.fn(),
+  flushRef: { current: null },
+  retry: vi.fn(),
+} as never
+
+function renderWorkspace(overview: React.ReactNode | null) {
+  return (
+    <TooltipProvider>
+      <TradeWorkspace
+        protocol="hyperliquid"
+        network="mainnet"
+        catalogs={[
+          {
+            rows: [
               {
-                rows: [
-                  {
-                    key: "hyperliquid:mainnet:BTC",
-                    symbol: "BTC",
-                    price: 100,
-                  },
-                  {
-                    key: "hyperliquid:mainnet:ETH",
-                    symbol: "ETH",
-                    price: 100,
-                  },
-                ],
-                protocolLabel: "Hyperliquid",
-                networkLabel: "Mainnet",
-                picker: {},
-              } as never,
-            ]}
-            marketsError={null}
-            marketsPending={false}
-            initialFolders={[]}
-            initialPanelRows={{
-              all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
-              hiddenMarketKeys: [],
-            }}
-            initialChartView={null}
-            initialChart={null}
-            initialDrawings={{ marketKey: null, rows: [], error: null }}
-            initialChartOptions={{} as never}
-            initialIndicators={{} as never}
-            initialCardFolds={{}}
-            initialQuickOrder={{} as never}
-            initialTradingRules={DEFAULT_TRADING_RULES}
-            initialPanelLayouts={{
-              legacyImported: true,
-              current: {
-                "trade-workspace-horizontal-2": {
-                  blocks: 20,
-                  chart: 58,
-                  market: 22,
-                },
+                key: "hyperliquid:mainnet:BTC",
+                symbol: "BTC",
+                price: 100,
               },
-              openMarketRows: {},
-              headerProfitVisible: true,
-              chartToolbarPosition: null,
-            }}
-            initialPages={{
-              exchange: { body: null, locked: false, coverUrl: null },
-              shared: { body: null, locked: false, coverUrl: null },
-            }}
-            initialWallets={{
-              rows: [],
-              summaries: [],
-              lastWalletIds: {},
-              error: null,
-              pending: false,
-            }}
-            selectedKey="hyperliquid:mainnet:BTC"
-            onSelectMarket={vi.fn()}
-            onRetryMarkets={vi.fn()}
-          />
-        </TooltipProvider>
-      )
-    })
+              {
+                key: "hyperliquid:mainnet:ETH",
+                symbol: "ETH",
+                price: 100,
+              },
+            ],
+            protocolLabel: "Hyperliquid",
+            networkLabel: "Mainnet",
+            picker: {},
+          } as never,
+        ]}
+        marketsError={null}
+        marketsPending={false}
+        initialFolders={[]}
+        initialPanelRows={{
+          all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+          hiddenMarketKeys: [],
+        }}
+        initialChartView={null}
+        initialChart={null}
+        initialDrawings={{ marketKey: null, rows: [], error: null }}
+        initialChartOptions={{} as never}
+        initialIndicators={{} as never}
+        initialCardFolds={{}}
+        initialQuickOrder={{} as never}
+        initialTradingRules={DEFAULT_TRADING_RULES}
+        initialPanelLayouts={{
+          legacyImported: true,
+          current: {
+            "trade-workspace-horizontal-4": {
+              blocks: 20,
+              chart: 80,
+            },
+          },
+          openMarketRows: {},
+          headerProfitVisible: true,
+          chartToolbarPosition: null,
+        }}
+        initialWallets={{
+          rows: [],
+          summaries: [],
+          lastWalletIds: {},
+          error: null,
+          pending: false,
+        }}
+        page={page}
+        pageMenu={() => <button type="button" aria-label="Dashboard settings" />}
+        protocolsBlock={null}
+        protocolsMenu={null}
+        hideEmptyBlocks={false}
+        overview={overview}
+        selectedKey="hyperliquid:mainnet:BTC"
+        onSelectMarket={vi.fn()}
+        onRetryMarkets={vi.fn()}
+      />
+    </TooltipProvider>
+  )
+}
+
+describe("the trade dashboard", () => {
+  it("is two panels whose full screen restores without remounting the chart", async () => {
+    await act(async () => root.render(renderWorkspace(null)))
 
     expect(chartMounts.count).toBe(1)
-    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 58, market: 22 })
-    // No bottom row: the tables are tabs in the middle, beside the chart.
+    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 80 })
+    // No right panel and no bottom row: the tables are tabs in the middle.
+    expect(host.querySelector('[data-panel="market"]')).toBeNull()
     expect(host.querySelector('[data-panel-group="vertical"]')).toBeNull()
     expect(
       host
@@ -488,12 +499,10 @@ describe("the trade workspace", () => {
     expect(
       host.querySelector('[data-testid="activity-panel"] [data-testid="chart"]')
     ).not.toBeNull()
-    // The exchange's page on the left, All markets on the right.
-    expect(
-      Array.from(host.querySelectorAll('[data-testid="page"]')).map((page) =>
-        page.getAttribute("data-market")
-      )
-    ).toEqual(["", "*"])
+    // One page, on the left, under the dashboard's name and its ⋮.
+    expect(host.querySelectorAll('[data-testid="page"]')).toHaveLength(1)
+    expect(host.querySelector('[data-panel="blocks"]')?.textContent).toContain("Trade")
+    expect(host.querySelector('button[aria-label="Dashboard settings"]')).not.toBeNull()
     // The chart header has no folder, alert or scanner buttons any more.
     expect(
       host.querySelector(
@@ -502,26 +511,30 @@ describe("the trade workspace", () => {
     ).toBeNull()
     expect(host.querySelector('[data-testid="reopen-right"]')).toBeNull()
 
-    await act(async () => clickButton("Collapse market panel"))
-    expect(host.querySelector('[data-testid="reopen-right"]')?.ariaLabel).toBe(
-      "Show market"
-    )
+    // The shut page comes back from the middle header's start, as on the
+    // shell's dashboards, and no slim tab is left on the edge.
+    expect(host.querySelector('button[aria-label="Show the page"]')).toBeNull()
+    await act(async () => clickButton("Collapse blocks panel"))
+    expect(
+      host.querySelector('[data-testid="middle-header-start"] button[aria-label="Show the page"]')
+    ).not.toBeNull()
+    expect(host.querySelector('[data-testid="reopen-left"]')).toBeNull()
 
     await act(async () => clickButton("Show chart full screen"))
     expect(
       host.querySelector('[data-chart-fullscreen="true"]')?.className
     ).toContain("bg-background")
-    expect(layoutOf("horizontal")).toEqual({ blocks: 0, chart: 100, market: 0 })
+    expect(layoutOf("horizontal")).toEqual({ blocks: 0, chart: 100 })
     expect(chartMounts.count).toBe(1)
 
     layoutSetEvents.length = 0
     await act(async () => clickButton("Exit full screen"))
-    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 58, market: 22 })
+    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 80 })
     expect(layoutSetEvents).toEqual([
       {
         orientation: "horizontal",
         fullscreen: false,
-        layout: { blocks: 20, chart: 58, market: 22 },
+        layout: { blocks: 20, chart: 80 },
       },
     ])
     expect(chartMounts.count).toBe(1)
@@ -541,8 +554,8 @@ describe("the trade workspace", () => {
 
     await act(async () => clickButton("Resize horizontal group"))
     expect(rememberedLayouts).toHaveBeenCalledWith(
-      "trade-workspace-horizontal-2",
-      { blocks: 25, chart: 50, market: 25 }
+      "trade-workspace-horizontal-4",
+      { blocks: 25, chart: 75 }
     )
 
     vi.useFakeTimers()
@@ -557,6 +570,27 @@ describe("the trade workspace", () => {
     expect(showErrorToast).toHaveBeenCalledWith(
       "Could not open the order window for ETH. Pick the market and try again."
     )
+  })
+
+  it("shows Overview in the middle's place with the chart still mounted under it", async () => {
+    await act(async () =>
+      root.render(renderWorkspace(<div data-testid="overview-widgets" />))
+    )
+    const overview = host.querySelector('[data-trade-overview] [data-testid="overview-widgets"]')
+    expect(overview).not.toBeNull()
+    // The chart never unmounts, so going back to the exchange draws nothing again.
+    expect(chartMounts.count).toBe(1)
+    const panel = host.querySelector('[data-testid="activity-panel"]')
+    expect(panel?.closest(".hidden")).not.toBeNull()
+    // F does nothing on Overview: there is no chart on screen.
+    await act(async () =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "f" }))
+    )
+    expect(host.querySelector('[data-chart-fullscreen="true"]')).toBeNull()
+
+    await act(async () => root.render(renderWorkspace(null)))
+    expect(host.querySelector("[data-trade-overview]")).toBeNull()
+    expect(chartMounts.count).toBe(1)
   })
 })
 

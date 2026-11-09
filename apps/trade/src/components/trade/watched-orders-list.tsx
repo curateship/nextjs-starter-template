@@ -94,7 +94,16 @@ export function WatchedOrdersList({
   onRetry,
   onSelectMarket,
   selectedKey,
+  onEmptyChange,
 }: {
+  /**
+   * Told whenever the list has no row to show, or has one again, so the
+   * dashboard can hide the Manual trades block when "Hide empty blocks" is
+   * on. A coin held by hand is a row, so a list showing one is not empty.
+   * Still reading is not empty, and a failed read is never empty: its Try
+   * again has to stay reachable. Reported before paint.
+   */
+  onEmptyChange?: (empty: boolean) => void
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly TradeOrder[]
   /** Everything held right now, practice and real together. */
@@ -331,6 +340,10 @@ export function WatchedOrdersList({
     sort,
     walletName,
   ])
+  const empty = tableRows.length === 0 && !failed && (answered || standingIn)
+  useEffectBeforePaint(() => {
+    onEmptyChange?.(empty)
+  }, [empty, onEmptyChange])
 
   const heading = (column: ManualOrderColumn, label: string) => (
     <TableSortButton

@@ -1,30 +1,33 @@
-import { MovingNowWidget } from "@/components/trade/market-explorer/moving-now-widget"
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { InfoIcon, LayoutDashboardIcon, ListIcon } from "lucide-react"
+import { InfoIcon } from "lucide-react"
 
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { WidgetCard, WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
+import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
+import { WidgetMenu } from "@/components/shared/widgets/widget-menus"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
+import { MovingNowWidget } from "@/components/trade/market-explorer/moving-now-widget"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
 import { ProfitCalendarWidget } from "@/components/trade/profit-calendar-widget"
 import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import {
+  BARE_TABLE,
   TradeTablePanel,
   type ColumnSpec,
 } from "@/components/trade/trade-table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { TableCell, TableRow } from "@/components/ui/table"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { loadTradingOverviewPage } from "@/lib/api/trade/trading-overview"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import {
+  getTradingOverviewErrorMessage,
+  loadTradingOverviewPage,
+} from "@/lib/api/trade/trading-overview"
 import {
   formatClockTime,
   formatDate,
@@ -37,10 +40,9 @@ import {
   type TradingOverviewFill,
 } from "@/lib/trade/dashboard/overview"
 import {
-  isTradingDashboardEmpty,
+  findTradingDashboardWidget,
+  TRADING_WIDGET_OFFER,
   type TradingDashboardWidgetId,
-  type TradingDashboardWidgetLayout,
-  type TradingDashboardWidgetSlot,
 } from "@/lib/trade/dashboard/widgets"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
@@ -50,87 +52,76 @@ import { cn } from "@/lib/utils"
 /** Matches the wallet panel without adding another fast account reader. */
 const REFRESH_MS = 15_000
 
-export function TradingOverviewDashboard({
+/**
+ * The Trade dashboard's Overview (Tyler, 8 Nov 2026: "The widgets gets moved
+ * to the middle like how shell does it"): Trade's six widgets in the shell's
+ * rows, straight on the dashboard beside the left page, each in the shell's
+ * widget card with its ⋮. The layout is held by the dashboard, because the
+ * left page's ⋮ sets it too; this draws it.
+ */
+export function TradingOverviewGrid({
   overview,
   layout,
+  onChange,
 }: {
   overview: TradingOverview
-  layout: TradingDashboardWidgetLayout
+  layout: WidgetLayout
+  onChange: (layout: WidgetLayout) => void
 }) {
-  const current = useCurrentOverview(overview, layout)
-
-  const widgetsIn = (slot: TradingDashboardWidgetSlot) =>
-    layout[slot].map((id, index) => (
-      <React.Fragment key={id}>
-        {renderWidget(
-          id,
-          current,
-          cn(
-            "h-auto min-w-0 shrink-0",
-            index === layout[slot].length - 1 &&
-              (slot !== "top" || (!layout.left.length && !layout.right.length)) &&
-              "grow"
-          )
-        )}
-      </React.Fragment>
-    ))
-
-  if (isTradingDashboardEmpty(layout)) {
-    return <EmptyBoard />
-  }
-
-  const hasLeft = layout.left.length > 0
-  const hasRight = layout.right.length > 0
   return (
-    <>
-      {widgetsIn("top")}
-      {hasLeft || hasRight ? (
-        <div
-          className={cn(
-            "grid grow shrink-0 gap-(--shell-gutter)",
-            hasLeft &&
-              hasRight &&
-              "grid-rows-[auto_1fr] xl:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] xl:grid-rows-1"
-          )}
-        >
-          {(["left", "right"] as const).map((slot) =>
-            layout[slot].length ? (
-              <div
-                key={slot}
-                className="flex min-w-0 flex-col gap-(--shell-gutter)"
-              >
-                {widgetsIn(slot)}
-              </div>
-            ) : null
-          )}
-        </div>
-      ) : null}
-    </>
+    <WidgetGrid
+      offer={TRADING_WIDGET_OFFER}
+      layout={layout}
+      onChange={onChange}
+      drawWidget={(id, menu) => {
+        const widget = findTradingDashboardWidget(id)
+        if (!widget) return null
+        const Icon = widget.icon
+        return (
+          <WidgetCard
+            title={widget.label}
+            icon={<Icon />}
+            count={widgetCount(widget.id, overview)}
+            menu={<WidgetMenu title={widget.label} {...menu} />}
+          >
+            {renderWidget(widget.id, overview, WIDGET_FILL)}
+          </WidgetCard>
+        )
+      }}
+    />
   )
 }
 
-/**
- * Keeps one complete answer on screen. A failed read only moves the age label;
- * it never swaps good figures for an empty or partial response.
- */
-function useCurrentOverview(
-  initial: TradingOverview,
-  layout: TradingDashboardWidgetLayout
-) {
-  const [read, setRead] = React.useState(() => ({
-    from: initial,
-    overview: initial,
-    checkedAt: initial.readAt,
-  }))
-  let current = read
-  if (read.from !== initial) {
-    current = { from: initial, overview: initial, checkedAt: initial.readAt }
-    setRead(current)
+/** A widget fills its card's white tile, and its list scrolls inside it. */
+const WIDGET_FILL = "h-full min-h-0 flex-1"
+
+/** The number on a widget card's heading, for the widgets that list rows. */
+function widgetCount(id: TradingDashboardWidgetId, overview: TradingOverview) {
+  switch (id) {
+    case "active-trades":
+      return overview.activeTrades.length
+    case "running-bots":
+      return overview.bots.length
+    case "trades":
+      return overview.fills.length
+    default:
+      return undefined
   }
-  const hasWidgets = !isTradingDashboardEmpty(layout)
+}
+
+/**
+ * Overview's figures while it is on screen: read as it opens, then every
+ * fifteen seconds while the browser tab is visible. Hiding the tab stops the
+ * clock; showing it makes one catch-up read. A failed read keeps the last
+ * answer on screen, and says so only when there has never been one.
+ */
+export function useTradingOverview(active: boolean) {
+  const [overview, setOverview] = React.useState<TradingOverview | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
-    if (!hasWidgets) return
+    if (!active) return
     let stopped = false
     let timer: number | null = null
     let inFlight: Promise<void> | null = null
@@ -150,18 +141,12 @@ function useCurrentOverview(
       if (stopped || document.visibilityState !== "visible" || inFlight) return
       const request = loadTradingOverviewPage()
         .then(({ overview: fresh }) => {
-          if (!stopped) {
-            setRead((was) => ({
-              ...was,
-              overview: mergeTradingOverviewRefresh(was.overview, fresh),
-              checkedAt: Date.now(),
-            }))
-          }
+          if (stopped) return
+          setOverview((was) => (was ? mergeTradingOverviewRefresh(was, fresh) : fresh))
+          setError(null)
         })
-        .catch(() => {
-          if (!stopped) {
-            setRead((was) => ({ ...was, checkedAt: Date.now() }))
-          }
+        .catch((readError: unknown) => {
+          if (!stopped) setError(getTradingOverviewErrorMessage(readError))
         })
         .finally(() => {
           if (inFlight === request) inFlight = null
@@ -174,16 +159,24 @@ function useCurrentOverview(
       if (document.visibilityState === "visible" && !inFlight) run()
     }
 
-    schedule()
+    run()
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
       stopped = true
       clearTimer()
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [hasWidgets])
+  }, [active, attempt])
 
-  return current.overview
+  return {
+    overview,
+    // A failure after a good answer leaves that answer up, as before.
+    error: overview ? null : error,
+    retry: () => {
+      setError(null)
+      setAttempt((count) => count + 1)
+    },
+  }
 }
 
 function renderWidget(
@@ -193,15 +186,15 @@ function renderWidget(
 ) {
   switch (id) {
     case "moving-now":
-      return <MovingNowWidget className={className} />
+      return <MovingNowWidget bare className={className} />
     case "equity":
-      return <PnlGraphWidget overview={overview} className={className} />
+      return <PnlGraphWidget bare overview={overview} className={className} />
     case "active-trades":
-      return <ActiveTradesWidget overview={overview} className={className} />
+      return <ActiveTradesWidget bare overview={overview} className={className} />
     case "running-bots":
-      return <RunningBotsWidget bots={overview.bots} className={className} />
+      return <RunningBotsWidget bare bots={overview.bots} className={className} />
     case "profit-calendar":
-      return <ProfitCalendarWidget overview={overview} className={className} />
+      return <ProfitCalendarWidget bare overview={overview} className={className} />
     case "trades":
       return <TradesTable overview={overview} className={className} />
   }
@@ -286,40 +279,30 @@ function TradesTable({
 
   return (
     <TradeTablePanel
-      className={className}
+      className={cn(className, BARE_TABLE)}
       header={
-        <DashboardCardTitleHeader
-          className="border-b-0"
-          icon={<ListIcon />}
-          title={
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate">Trades</span>
-              <Badge variant="secondary">
-                {sorted.length.toLocaleString()}
-              </Badge>
-            </span>
-          }
-          action={
-            <TradeFilters
-              fills={overview.fills}
-              venues={venues}
-              walletIds={walletIds}
-              onVenuesChange={(next) => {
-                setVenues(next)
-                setPage(1)
-              }}
-              onWalletsChange={(next) => {
-                setWalletIds(next)
-                setPage(1)
-              }}
-              onClear={() => {
-                setVenues(null)
-                setWalletIds(null)
-                setPage(1)
-              }}
-            />
-          }
-        />
+        // The title and count are on the widget card's heading, and the
+        // filter sits there too, beside the ⋮ ("move the buttons here").
+        <WidgetHeadingActions>
+          <TradeFilters
+            fills={overview.fills}
+            venues={venues}
+            walletIds={walletIds}
+            onVenuesChange={(next) => {
+              setVenues(next)
+              setPage(1)
+            }}
+            onWalletsChange={(next) => {
+              setWalletIds(next)
+              setPage(1)
+            }}
+            onClear={() => {
+              setVenues(null)
+              setWalletIds(null)
+              setPage(1)
+            }}
+          />
+        </WidgetHeadingActions>
       }
       columns={TRADE_COLUMNS}
       rows={visible}
@@ -495,22 +478,4 @@ function tradeDayKey(at: number) {
 
 function sameDay(left: Date, right: Date) {
   return tradeDayKey(left.getTime()) === tradeDayKey(right.getTime())
-}
-
-function EmptyBoard() {
-  return (
-    <Card className="shrink-0">
-      <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-        <LayoutDashboardIcon className="size-10 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          There are no widgets on the trading dashboard.
-        </p>
-        <Button asChild variant="outline">
-          <Link to="/admin/settings/$tab" params={{ tab: "trading-widgets" }}>
-            Choose widgets
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
-  )
 }

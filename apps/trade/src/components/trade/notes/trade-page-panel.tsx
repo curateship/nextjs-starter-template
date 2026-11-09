@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { SavingDocument } from "@/components/trade/notes/saving-document"
-import type { PageCover, PageLock } from "@/components/trade/notes/page-menus"
+import type { PageCover, PageLock } from "@/components/shared/notes/page-rows"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import type { StoredPage } from "@/lib/api/trade/dashboard"
@@ -11,20 +11,13 @@ import {
   savePage,
   setPageCover,
 } from "@/lib/api/trade/pages"
-import type { ProtocolId } from "@/lib/protocols/contracts"
-import {
-  defaultTradePage,
-  pageKindOf,
-  type TradePageKey,
-} from "@/lib/trade/trade-pages"
+import { defaultTradePage } from "@/lib/trade/trade-pages"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * One of the trading dashboard's two pages (the Admin 3 panel design, 7 Nov
- * 2026), both one per exchange: the exchange's own page on the left
- * (`pageKey` "") and the All markets page on the right ("*"), which every
- * market on the exchange shows (Tyler, 7 Nov 2026: "We should make both left
- * and right panel all protocol wide").
+ * The Trade dashboard's left page (8 Nov 2026), one per person, the same
+ * whichever exchange is picked (Tyler: "The picked exchange", the blocks
+ * following it). There is no right page any more.
  */
 
 type PageState =
@@ -37,101 +30,64 @@ function errorText(error: unknown, fallback: string) {
 }
 
 /** A page's words as the editor reads them: the starting page when none was ever written. */
-function shownBody(page: StoredPage, pageKey: TradePageKey) {
-  return page.body ?? JSON.stringify(defaultTradePage(pageKindOf(pageKey)))
+function shownBody(page: StoredPage) {
+  return page.body ?? JSON.stringify(defaultTradePage())
 }
 
 export function useTradePage({
-  protocol,
-  pageKey,
   initial,
 }: {
-  protocol: ProtocolId
-  pageKey: TradePageKey
-  /** What the dashboard's opening answer carried for this page. */
+  /** What the dashboard's opening answer carried for the page. */
   initial: StoredPage
 }) {
-  // Filed by exchange, because both pages' keys are the same on every
-  // exchange: Phemex must never be shown Hyperliquid's page.
-  const [pages, setPages] = React.useState<
-    Partial<Record<ProtocolId, StoredPage>>
-  >(() => ({ [protocol]: initial }))
-  const [failed, setFailed] = React.useState<ProtocolId | null>(null)
-  const [attempt, setAttempt] = React.useState(0)
+  const [page, setPage] = React.useState<StoredPage | null>(initial)
+  const [failed, setFailed] = React.useState(false)
   const [lockBusy, setLockBusy] = React.useState(false)
   const [coverBusy, setCoverBusy] = React.useState(false)
-  const page = pages[protocol]
-  const remember = React.useCallback(
-    (from: ProtocolId, change: (was: StoredPage | undefined) => StoredPage) =>
-      setPages((all) => ({ ...all, [from]: change(all[from]) })),
-    []
-  )
-
-  // Another exchange's page, read when the dashboard moves to it without a reload.
-  React.useEffect(() => {
-    if (page) return
-    let current = true
-    setFailed(null)
-    loadPage({ protocol, marketKey: pageKey }).then(
-      (loaded) => {
-        if (current) remember(protocol, () => loaded)
-      },
-      () => {
-        if (current) setFailed(protocol)
-      }
-    )
-    return () => {
-      current = false
-    }
-  }, [attempt, page, pageKey, protocol, remember])
+  // The open editor's save-now; see `flush` below.
+  const flushRef = React.useRef<(() => void) | null>(null)
 
   const state: PageState = page
     ? { state: "ready", page }
-    : failed === protocol
+    : failed
       ? { state: "failed" }
       : { state: "loading" }
 
-  /** Saves one exchange's page, bound to it, so words typed here never land on the next exchange's. */
-  const saveFor = React.useCallback(
-    (from: ProtocolId) => async (body: string) => {
-      // Kept at once, so the page drawn again (locked, or moved back to) shows
-      // these words even before the server has answered.
-      remember(from, (was) => ({
-        body,
-        locked: was?.locked ?? false,
+  const save = React.useCallback(async (body: string) => {
+    // Kept at once, so the page drawn again (locked, or after a switch) shows
+    // these words even before the server has answered.
+    setPage((was) => ({
+      body,
+      locked: was?.locked ?? false,
+      coverUrl: was?.coverUrl ?? null,
+      coverImages: was?.coverImages ?? [],
+    }))
+    try {
+      const saved = await savePage(body)
+      setPage((was) => ({
+        body: saved.body,
+        locked: saved.locked,
         coverUrl: was?.coverUrl ?? null,
+        coverImages: was?.coverImages ?? [],
       }))
-      try {
-        const saved = await savePage({ protocol: from, marketKey: pageKey }, body)
-        remember(from, (was) => ({
-          body: saved.body,
-          locked: saved.locked,
-          coverUrl: was?.coverUrl ?? null,
-        }))
-      } catch (error) {
-        showErrorToast(errorText(error, "The page could not be saved."))
-      }
-    },
-    [pageKey, remember]
-  )
+    } catch (error) {
+      showErrorToast(errorText(error, "The page could not be saved."))
+    }
+  }, [])
 
   const lock: PageLock = {
     locked: page?.locked ?? false,
     busy: lockBusy || !page,
     setLocked: (locked) => {
       if (!page) return
-      const from = protocol
       setLockBusy(true)
-      lockPage(
-        { protocol: from, marketKey: pageKey },
-        locked,
-        shownBody(page, pageKey)
-      )
+      lockPage(locked, shownBody(page))
         .then(() =>
-          remember(from, (was) => ({
-            body: was?.body ?? shownBody(page, pageKey),
+          setPage((was) => ({
+            body: was?.body ?? shownBody(page),
             locked,
             coverUrl: was?.coverUrl ?? null,
+            coverImages: was?.coverImages ?? [],
           }))
         )
         .catch((error: unknown) =>
@@ -141,24 +97,25 @@ export function useTradePage({
     },
   }
 
-  /** The cover photo behind the panel's header, set or cleared from the ⋮. */
+  /**
+   * The cover behind the panel's header, picked from the ⋮ with the shell's
+   * tiles: None, Sky, the page's pictures and + (Tyler, 8 Nov 2026: "cover
+   * photos is not using shell standard").
+   */
   const cover: PageCover = {
     url: page?.coverUrl ?? null,
+    images: page?.coverImages ?? [],
     busy: coverBusy || !page,
-    set: (coverUrl) => {
+    set: ({ url, images }) => {
       if (!page) return
-      const from = protocol
       setCoverBusy(true)
-      setPageCover(
-        { protocol: from, marketKey: pageKey },
-        coverUrl,
-        shownBody(page, pageKey)
-      )
-        .then(() =>
-          remember(from, (was) => ({
-            body: was?.body ?? shownBody(page, pageKey),
+      setPageCover({ coverUrl: url, coverImages: images }, shownBody(page))
+        .then((saved) =>
+          setPage((was) => ({
+            body: was?.body ?? shownBody(page),
             locked: was?.locked ?? false,
-            coverUrl,
+            coverUrl: saved.coverUrl,
+            coverImages: saved.coverImages,
           }))
         )
         .catch((error: unknown) =>
@@ -171,15 +128,21 @@ export function useTradePage({
   }
 
   return {
-    protocol,
-    pageKey,
     state,
     lock,
     cover,
-    saveFor,
+    save,
+    flushRef,
+    /**
+     * Saves what was typed in the last moments at once, rather than 700ms
+     * later. The dashboard calls it before it moves to another exchange,
+     * because that draws the page again from what this hook holds.
+     */
+    flush: () => flushRef.current?.(),
     retry: () => {
-      setFailed(null)
-      setAttempt((count) => count + 1)
+      setFailed(false)
+      setPage(null)
+      loadPage().then(setPage, () => setFailed(true))
     },
   }
 }
@@ -203,12 +166,13 @@ export function TradePageBody({
   }
   return (
     <SavingDocument
-      // A new editor per exchange and per lock, each saving to its own page only.
-      key={`${page.protocol}:${page.pageKey}:${state.page.locked}`}
-      value={shownBody(state.page, page.pageKey)}
+      // A new editor per lock.
+      key={String(state.page.locked)}
+      value={shownBody(state.page)}
       locked={state.page.locked}
       placeholder={placeholder}
-      onSave={page.saveFor(page.protocol)}
+      onSave={page.save}
+      flushRef={page.flushRef}
     />
   )
 }

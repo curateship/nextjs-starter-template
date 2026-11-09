@@ -4,6 +4,7 @@ import { BotIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
+  BARE_TABLE,
   TradeTablePanel,
   type ColumnSpec,
 } from "@/components/trade/trade-table"
@@ -56,9 +57,15 @@ function defaultDirection(column: BotColumn) {
 export function RunningBotsWidget({
   bots,
   className,
+  bare = false,
 }: {
   bots: TradingOverviewBot[]
   className: string
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title,
+   * the count and the ⋮: no frame of its own, and no title row.
+   */
+  bare?: boolean
 }) {
   const navigate = useNavigate()
   const { sort, direction, toggleSort } = useTableSort<BotColumn>(
@@ -94,9 +101,9 @@ export function RunningBotsWidget({
   }, [bots, direction, sort])
   return (
     <TradeTablePanel
-      className={className}
+      className={cn(className, bare && BARE_TABLE)}
       header={
-        <DashboardCardTitleHeader
+        bare ? null : <DashboardCardTitleHeader
           className="border-b-0"
           icon={<BotIcon />}
           title={

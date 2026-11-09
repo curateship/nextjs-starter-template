@@ -35,7 +35,7 @@ import type {
   MarketMatchKind,
 } from "@/lib/trade/social/coin-matcher"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
-import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import type { DrawingAlert, DrawingShape } from "@/lib/trade/drawings"
 import type { EngineErrorKind } from "@/lib/trade/engine-errors"
 import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
@@ -218,12 +218,30 @@ export const tradePrefs = pgTable("trade_prefs", {
     .notNull()
     .default({}),
   /**
-   * The cards on this app's trading overview. Kept here per account and never
-   * in the shell's dashboard setting, so moving one cannot move the platform
-   * Overview for the same person.
+   * The Trade dashboard's Overview widgets, in the shell's rows, one layout
+   * per person. Kept here and never in the shell's Admin layout, so moving
+   * one cannot move the Admin Overview. Read through
+   * `readTradingWidgetLayout`; null is the starting layout. The older
+   * `dashboard_widgets` column (top, left and right lists) is no longer read.
    */
-  dashboardWidgets:
-    jsonb("dashboard_widgets").$type<TradingDashboardWidgetLayout>(),
+  overviewWidgets: jsonb("overview_widgets").$type<WidgetLayout>(),
+  /**
+   * The Protocols block's row picked last ("overview" or an exchange's id),
+   * so a bare `/trade` opens on it, and the exchange picked last, whose
+   * blocks the left page keeps showing while Overview is open.
+   */
+  dashboardView: varchar("dashboard_view", { length: 20 }),
+  dashboardProtocol: varchar("dashboard_protocol", { length: 20 }),
+  /** The exchanges hidden from the Protocols block, from the left page's ⋮. */
+  hiddenProtocols: jsonb("hidden_protocols")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /**
+   * "Hide empty blocks" in the left page's ⋮: the three trade blocks leave
+   * the page while they have nothing to show.
+   */
+  hideEmptyBlocks: boolean("hide_empty_blocks").notNull().default(false),
   pinnedMarkets: jsonb("pinned_markets").$type<string[]>().notNull().default([]),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
@@ -2496,29 +2514,25 @@ export const tradeSocialFolderCreators = pgTable(
 )
 
 /**
- * The pages on a protocol dashboard (the Admin 3 panel design, 7 Nov 2026):
- * the exchange's own page on the left, stored with `market_key` "", and one
- * page per market on the right. Each is the editor's document as JSON text.
- * No row means the page was never written, so the starting page shows.
+ * The Trade dashboard's left page (8 Nov 2026), one per person: the
+ * Protocols block, the trading blocks and anything written there. It is the
+ * editor's document as JSON text. No row means the page was never written,
+ * so the starting page shows. The older `trade_pages` table, a page per
+ * exchange, is no longer read.
  */
-export const tradePages = pgTable(
-  "trade_pages",
-  {
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
-    marketKey: varchar("market_key", { length: 180 }).notNull().default(""),
-    body: text("body").notNull().default(""),
-    // Lock the notes: the page reads only, and the server refuses a save.
-    locked: boolean("locked").notNull().default(false),
-    // The cover photo behind the panel's header; null is none.
-    coverUrl: text("cover_url"),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.protocol, table.marketKey] }),
-  ]
-)
+export const tradeDashboardPages = pgTable("trade_dashboard_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  // Lock the notes: the page reads only, and the server refuses a save.
+  locked: boolean("locked").notNull().default(false),
+  // The cover behind the panel's header: null is none, "sky" the drawn sky,
+  // otherwise a picture (`src/lib/notes/page-cover.ts`).
+  coverUrl: text("cover_url"),
+  // The page's own cover pictures, each a tile to pick again, up to 8.
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})

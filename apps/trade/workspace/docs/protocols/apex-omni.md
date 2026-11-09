@@ -1,7 +1,7 @@
 # What ApeX Omni does differently
 
 Trade reads ApeX Omni's perpetual and stock contracts, charts and funding at
-`/protocols/apex`, on mainnet only, holds a connected ApeX wallet, and places,
+`/trade?view=apex`, on mainnet only, holds a connected ApeX wallet, and places,
 moves, cancels and closes orders on its perpetuals. ApeX Omni is a decentralised perpetuals
 exchange built on zkLink, the same kind of venue as Lighter. It is not the
 Variational Omni planned in `workspace/tasks/Protocols/Omni/`, which is a
@@ -316,7 +316,7 @@ order Tyler places himself.
 
 The steps marked "real values" need Tyler's ApeX account.
 
-1. Open `/protocols/apex?market=apex%3Amainnet%3ABTCUSDT`. The chart draws BTC
+1. Open `/trade?market=apex%3Amainnet%3ABTCUSDT`. The chart draws BTC
    at 100x with a live price line.
 2. Open the market picker. The footer counts crypto, stock, index and
    commodity markets. Search "XAU" to find gold; search "Win_Against" and

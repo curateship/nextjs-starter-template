@@ -58,25 +58,23 @@ screen: anything not written there has not been agreed yet.
 
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
-- `who-can-open-a-protocol-screen.md` — the protocol screens sit outside
-  `/admin` so a member can open one, the address of each, why protocol rather
-  than exchange, why there is one address rather than one per role, and what
-  stays admin-only.
+- `who-can-open-a-protocol-screen.md` — the Trade dashboard at `/trade` sits
+  outside `/admin` so a member opens it, Overview included, why one address
+  serves every protocol, and what stays admin-only.
 - [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
-- `dashboard-blocks.md` — the protocol dashboard in the Admin 3 panel design:
-  the exchange's page of "/" blocks on the left (Rules, Manual, Grid and DCA
-  trades, Alerts, Scanner, Folders), the All markets page on the right, the market's facts in a tooltip on its "i", its
-  ⋮ for Folders and Pin to top, the chart and tables as middle tabs, the lock,
-  widths and the narrow-screen pill row.
-- `dashboard-on-a-phone.md` — the exchange dashboard on a phone: the pill row,
-  the folded top row and its three-dot dropdown, the market row and the tables'
-  tab row.
+- `dashboard-blocks.md` — the one Trade dashboard at `/trade` (8 Nov 2026):
+  the left page with the fixed Protocols block (Overview and each exchange,
+  with open positions counts, hidden from the ⋮), the trading blocks, Overview
+  of widgets in the shell's rows, the chart tab's "i" and the ⋮'s Folders and
+  Pin to top, with no right panel, and the one Trade link in the left menu.
+- `dashboard-on-a-phone.md` — the Trade dashboard on a phone: the Page and
+  middle pills, the top row and the tables.
 - `workspace.md` — the trading workspace: its panels, the Positions tab, Close
   all, Long/Short badge columns, and where the navigation lives.
-- `trading-overview.md`: visible profit date labels and empty-history explanations; the signed-in home page and its Active trades menu,
-  including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
-  Panels size to content, with bottom panels filling spare space and no draggable dividers.
-  Widgets retains its loading card and collapses Reset with the body.
+- `trading-overview.md` — Overview's six widgets on the Trade dashboard: PnL
+  Graph's dates and figures, Active Trades, Running bots, Profit calendar and
+  All trades, their fifteen-second read, the shell's rows they sit in, and the
+  header's Active trades menu.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,

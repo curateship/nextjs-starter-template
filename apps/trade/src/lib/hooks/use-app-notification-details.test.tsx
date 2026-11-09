@@ -91,7 +91,7 @@ describe("what the app says about its own notices", () => {
       categoryId: "trades",
     })
     detailsFor.mockResolvedValue({
-      n1: { href: "/protocols/kucoin", title: undefined, meta: undefined },
+      n1: { href: "/trade?view=kucoin", title: undefined, meta: undefined },
     })
 
     await act(async () => root.render(<Probe notices={[notice]} />))
@@ -100,7 +100,7 @@ describe("what the app says about its own notices", () => {
     expect(seen.n1).toMatchObject({
       title: "Entered $431 of XBT",
       meta: ["@ $86,194", "Ku1", "filled"],
-      href: "/protocols/kucoin",
+      href: "/trade?view=kucoin",
     })
   })
 

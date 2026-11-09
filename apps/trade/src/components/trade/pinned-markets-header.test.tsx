@@ -163,7 +163,7 @@ describe("header market pins", () => {
     expect(host.textContent).not.toContain("$61,240")
     expect(
       host.querySelector('a[aria-label^="Open BTC"]')?.getAttribute("href")
-    ).toBe("/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3ABTC")
+    ).toBe("/trade?market=hyperliquid%3Amainnet%3ABTC")
     expect(
       host
         .querySelector('[aria-label="Unpin from header"]')

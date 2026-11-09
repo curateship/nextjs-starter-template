@@ -26,7 +26,7 @@ vi.mock("@/lib/api/trade/panel-layouts", () => ({
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
 const marker = "trade-panel-layouts-account-import-v1"
-const horizontal = { blocks: 20, chart: 58, market: 22 }
+const horizontal = { blocks: 20, chart: 80 }
 const scope = { protocol: "hyperliquid", network: "mainnet" } as const
 const empty: TradePanelLayouts = {
   legacyImported: false,

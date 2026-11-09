@@ -226,7 +226,7 @@ describe("an app's answer wins", () => {
             for (const one of notices) asked.push(one.id)
             return {
               n1: {
-                href: "/admin/hyper-liquid?market=x",
+                href: "/trade?market=x",
                 categoryId: "trades",
                 title: "Entered $49.91 of CHIP",
                 meta: ["@ 0.04932", "Main wallet", "filled"],
@@ -238,7 +238,7 @@ describe("an app's answer wins", () => {
     )
     expect(details).toEqual({
       n1: {
-        href: "/admin/hyper-liquid?market=x",
+        href: "/trade?market=x",
         categoryId: "trades",
         title: "Entered $49.91 of CHIP",
         meta: ["@ 0.04932", "Main wallet", "filled"],

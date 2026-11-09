@@ -3,6 +3,7 @@ import type { Editor, Extensions } from "@tiptap/core"
 import { TextSelection } from "@tiptap/pm/state"
 
 import { BLOCK_NODE_NAMES, BLOCK_NODES, BLOCKS, EmptyLineAboveBlock, matchingBlocks, type BlockKey } from "@/components/trade/notes/note-block-nodes"
+import { PROTOCOLS_BLOCK_NODE } from "@/lib/trade/trade-pages"
 import { newFoldId } from "@/lib/trade/note-blocks"
 import { dismissSlash, noteSlashExtension, type SlashBridge, type SlashMatch } from "@/components/trade/notes/note-slash"
 
@@ -37,7 +38,6 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   manualTrades: "noteManualTrades",
   gridTrades: "noteGridTrades",
   dcaTrades: "noteDcaTrades",
-  alerts: "noteAlerts",
   scanner: "noteScanner",
   folders: "noteFolders",
 }
@@ -51,7 +51,6 @@ const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = {
   manualTrades: "noteManualTrades",
   gridTrades: "noteGridTrades",
   dcaTrades: "noteDcaTrades",
-  alerts: "noteAlerts",
   scanner: "noteScanner",
   folders: "noteFolders",
 }
@@ -126,7 +125,13 @@ export function useNoteBlocks() {
   const [keys] = React.useState(() => BLOCKS.map((block) => block.key))
   const [extensions] = React.useState<Extensions>(() => {
     const names = new Set(keys.flatMap((key) => BLOCK_NODE_NAMES[key]))
-    return [noteSlashExtension(relay), ...BLOCK_NODES.filter((node) => node === EmptyLineAboveBlock || names.has(node.name))]
+    // The fixed Protocols block is on every page, offered in the list or not.
+    return [
+      noteSlashExtension(relay),
+      ...BLOCK_NODES.filter(
+        (node) => node === EmptyLineAboveBlock || node.name === PROTOCOLS_BLOCK_NODE || names.has(node.name)
+      ),
+    ]
   })
   const [open, setOpen] = React.useState<OpenSlash | null>(null)
   const [active, setActive] = React.useState(0)

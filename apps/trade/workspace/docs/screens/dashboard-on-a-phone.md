@@ -1,8 +1,8 @@
 # The dashboard on a phone
 
-Below 1280px the exchange dashboard shows one panel at a time behind a pill
-row: Blocks, the market's name, Market (the Admin 3 panel design, 7 Nov 2026,
-`dashboard-blocks.md`). It opens on the chart. Below 768px the top row folds
+Below 1280px the Trade dashboard shows one panel at a time behind two pills:
+Page, and the picked row's name, Overview or the market's symbol (Tyler, 8 Nov
+2026: "Page and the middle", `dashboard-blocks.md`). It opens on the middle. Below 768px the top row folds
 too, as described here.
 
 768px is the width the shell already calls a phone, in
@@ -64,8 +64,8 @@ timeframe, Indicators, View options and the ⋮ with Wallet and Close all.
 - **The note about where the older bars came from is not drawn here.** It is a
   sentence, and the fact it carries is about the chart's history rather than
   anything to press.
-- **The star and Pin to top are in the market's ⋮** on the Market pill, as on
-  a wide screen.
+- **Folders and Pin to top are in the chart header's ⋮**, beside Wallet and
+  Close all, as on a wide screen.
 
 ## The tables
 
@@ -93,13 +93,14 @@ because that one is remembered in a cookie the server can read.
 ## Checking it
 
 The dev server for this app is on the port in the repo's `local-apps.json`.
-Open `/protocols/hyper-liquid` at 390×844 and check:
+Open `/trade?view=hyperliquid` at 390×844 and check:
 
-1. The pill row reads Blocks, the market's name and Market, and opens on the
-   chart.
+1. The pill row reads Page and the market's name, and opens on the chart.
+   `/trade?view=overview` reads Page and Overview, and the widgets stack at
+   their own height.
 2. The middle panel's tab row slides sideways and never runs under the
    header's controls.
-3. Blocks shows the exchange's page, and picking a coin there goes back to the
+3. Page shows the dashboard's page, and picking a coin there goes back to the
    chart.
 4. The top row is the sidebar toggle, the exchange's name, the search
    magnifier if it is switched on, the bell and three dots, with no cog

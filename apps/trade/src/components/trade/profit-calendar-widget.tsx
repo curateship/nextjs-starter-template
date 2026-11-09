@@ -19,10 +19,17 @@ import { cn } from "@/lib/utils"
 export function ProfitCalendarWidget({
   overview,
   className,
+  bare = false,
 }: {
   overview: TradingOverview
   className: string
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title
+   * and the ⋮: no frame of its own, and no title.
+   */
+  bare?: boolean
 }) {
+  const Frame = bare ? "div" : Card
   const [month, setMonth] = React.useState(() =>
     currentMonth(overview.readAt)
   )
@@ -32,7 +39,7 @@ export function ProfitCalendarWidget({
   )
 
   return (
-    <Card className={cn("min-h-0 gap-0 py-0", className)}>
+    <Frame className={cn("flex min-h-0 flex-col gap-0 py-0", className)}>
       <PnlMonthGrid
         days={days}
         month={month}
@@ -40,6 +47,6 @@ export function ProfitCalendarWidget({
         now={overview.readAt}
         countsTrades={false}
       />
-    </Card>
+    </Frame>
   )
 }

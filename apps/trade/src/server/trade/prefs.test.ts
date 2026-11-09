@@ -3,14 +3,18 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
-import { createDefaultTradingDashboardWidgets } from "@/lib/trade/dashboard/widgets"
+import { DEFAULT_TRADING_WIDGET_LAYOUT } from "@/lib/trade/dashboard/widgets"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
-  loadTradingDashboardWidgets,
+  loadTradingOverviewWidgets,
+  loadTradeDashboardStart,
+  saveHiddenProtocols,
+  saveHideEmptyBlocks,
+  saveTradeDashboardView,
   loadChartView,
   loadChartOptions,
   loadLastMarketKey,
@@ -31,7 +35,7 @@ import {
   saveLastWalletId,
   saveMinimumMarketVolume,
   saveLiquidationWarning,
-  saveTradingDashboardWidgets,
+  saveTradingOverviewWidgets,
   importLegacyTradePanelLayouts,
   loadTradePanelLayouts,
   saveOpenMarketRow,
@@ -263,39 +267,68 @@ describe("the remembered order window", () => {
   })
 })
 
-describe("the trading dashboard arrangement", () => {
-  it("opens on the trading default before anything is saved", async () => {
+describe("the Trade dashboard's Overview layout", () => {
+  it("opens on the fresh start before anything is saved", async () => {
     const { id } = await insertUser(database)
-    // Read off the default itself rather than copied out of it. A copy is a
-    // second place the layout lives, and it went stale the day a widget was
-    // added to the real one — this test then failed for a feature working
-    // exactly as intended.
-    expect(await loadTradingDashboardWidgets(id)).toEqual(
-      createDefaultTradingDashboardWidgets()
-    )
+    expect(await loadTradingOverviewWidgets(id)).toEqual(DEFAULT_TRADING_WIDGET_LAYOUT)
   })
 
-  it("keeps each account's trading dashboard separate", async () => {
+  it("keeps each account's layout its own, cleaned of widgets it does not know", async () => {
     const mine = await insertUser(database)
     const theirs = await insertUser(database)
-    await saveTradingDashboardWidgets(theirs.id, {
-      top: [],
-      left: ["trades"],
-      right: [],
+    const saved = await saveTradingOverviewWidgets(theirs.id, {
+      top: { columns: 3, spots: ["trades", "views", "trades"] },
+      bottom: { columns: 0, spots: [] },
     })
-    expect(await loadTradingDashboardWidgets(mine.id)).toEqual(
-      createDefaultTradingDashboardWidgets()
-    )
-    expect(await loadTradingDashboardWidgets(theirs.id)).toEqual({
-      top: [],
-      left: ["trades"],
-      right: [],
+    // "views" is the shell's, not Trade's, and a widget shows once.
+    expect(saved).toEqual({
+      top: { columns: 3, spots: ["trades", null, null] },
+      bottom: { columns: 0, spots: [] },
     })
+    expect(await loadTradingOverviewWidgets(theirs.id)).toEqual(saved)
+    expect(await loadTradingOverviewWidgets(mine.id)).toEqual(DEFAULT_TRADING_WIDGET_LAYOUT)
+  })
+})
+
+describe("where a bare /trade opens", () => {
+  it("has nothing saved on a first visit", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadTradeDashboardStart(id)).toEqual({
+      view: null,
+      protocol: null,
+      hiddenProtocols: [],
+      hideEmptyBlocks: false,
+    })
+  })
+
+  it("keeps Hide empty blocks on the account, off until switched on", async () => {
+    const { id } = await insertUser(database)
+    expect(await saveHideEmptyBlocks(id, true)).toBe(true)
+    expect((await loadTradeDashboardStart(id)).hideEmptyBlocks).toBe(true)
+    await saveHideEmptyBlocks(id, false)
+    expect((await loadTradeDashboardStart(id)).hideEmptyBlocks).toBe(false)
+  })
+
+  it("remembers the row picked, and keeps the exchange while Overview is picked", async () => {
+    const { id } = await insertUser(database)
+    await saveTradeDashboardView(id, "phemex")
+    expect(await loadTradeDashboardStart(id)).toMatchObject({ view: "phemex", protocol: "phemex" })
+    await saveTradeDashboardView(id, "overview")
+    expect(await loadTradeDashboardStart(id)).toMatchObject({ view: "overview", protocol: "phemex" })
+  })
+
+  it("keeps the hidden exchanges in the block's order, dropping ones it does not know", async () => {
+    const { id } = await insertUser(database)
+    expect(await saveHiddenProtocols(id, ["kucoin", "nowhere", "phemex", "kucoin"])).toEqual([
+      "phemex",
+      "kucoin",
+    ])
+    expect((await loadTradeDashboardStart(id)).hiddenProtocols).toEqual(["phemex", "kucoin"])
   })
 })
 
 describe("the remembered trade panel layouts", () => {
-  const horizontal = { blocks: 20, chart: 58, market: 22 }
+  const horizontal = { blocks: 20, chart: 80 }
   const vertical = { workspace: 72, trades: 28 }
 
   it("starts empty and keeps each panel group in the account", async () => {
@@ -369,8 +402,7 @@ describe("the remembered trade panel layouts", () => {
       {
         [tradePanelLayoutKey.workspaceHorizontal]: {
           blocks: 10,
-          chart: 80,
-          market: 10,
+          chart: 90,
         },
       },
       database

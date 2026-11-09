@@ -118,7 +118,7 @@ describe("remembered trade panel layouts", () => {
     const values = new Map<string, string>([
       [
         tradePanelLayoutKey.workspaceHorizontal,
-        JSON.stringify({ blocks: 20, chart: 58, market: 22 }),
+        JSON.stringify({ blocks: 20, chart: 80 }),
       ],
       [tradePanelLayoutKey.backtestVertical, "not json"],
       [
@@ -133,8 +133,7 @@ describe("remembered trade panel layouts", () => {
     expect(imported).toEqual({
       [tradePanelLayoutKey.workspaceHorizontal]: {
         blocks: 20,
-        chart: 58,
-        market: 22,
+        chart: 80,
       },
       [tradePanelLayoutKey.flowRunVertical]: { workspace: 65, trades: 35 },
     })

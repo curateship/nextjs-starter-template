@@ -368,22 +368,22 @@ export function IntervalPicker({
       onValueChange={(next) => onChange(next as ChartInterval)}
       className="gap-0"
     >
-      <div className="inline-flex h-8 w-fit items-center rounded-lg p-0.5 text-muted-foreground">
+      {/* The pill tabs' look: a grey track with the chosen timeframe on a
+          white pill, and the arrow inside the same track (Tyler, 8 Nov 2026:
+          "change the timeframe ui to this"). The one control in this header
+          row with a background; the rest stay bare (31 Oct 2026). */}
+      <div className="inline-flex h-8 w-fit items-center rounded-lg bg-muted/60 p-0.5 text-muted-foreground">
         <TabsList
           aria-label="Candle intervals"
-          // No tray behind the timeframes, like every other button in the
-          // header, so the chosen one sits on a grey pill instead of white.
-          className="h-7 rounded-none bg-transparent p-0 [&>[data-slot=tabs-pill]]:bg-muted [&>[data-slot=tabs-pill]]:shadow-none"
+          // The track is the box around it, so the arrow sits inside it too.
+          className="h-7 rounded-none bg-transparent p-0"
         >
           {headerIntervals.map((option) => (
             <TabsTrigger
               key={option}
               value={option}
               aria-label={`Show ${option} candles`}
-              className={cn(
-                "in-data-[pill=pending]:data-[state=active]:bg-muted in-data-[pill=pending]:data-[state=active]:shadow-none",
-                option === value ? "px-2" : "hidden md:inline-flex"
-              )}
+              className={cn(option === value ? undefined : "hidden md:inline-flex")}
             >
               {option}
             </TabsTrigger>
@@ -398,7 +398,7 @@ export function IntervalPicker({
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Candle interval"
-                  className="rounded-md"
+                  className="h-7 rounded-md hover:bg-background/70"
                 >
                   <ChevronDownIcon className="size-3.5" />
                 </Button>

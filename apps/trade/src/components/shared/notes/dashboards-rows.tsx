@@ -82,8 +82,12 @@ export function DashboardsRows<Key extends string>({
             // capture runs before the editor's own listener.
             onMouseDownCapture={(event) => event.preventDefault()}
             aria-current={picked ? "true" : undefined}
+            // The name takes the room the count leaves, and shortens only
+            // when there is none: an empty middle column used to take the
+            // room first, so "Overview" read "Overvi…" in a narrow panel
+            // with space to spare (Trade, 8 Nov 2026).
             className={cn(
-              "grid min-h-9 min-w-0 grid-cols-[auto_minmax(0.375rem,1fr)_auto] items-center gap-2 rounded-lg px-2.5 py-1 text-left text-sm",
+              "grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2.5 py-1 text-left text-sm",
               "hover:[&>span:first-child]:text-foreground",
               focusRingInset
             )}
@@ -97,7 +101,6 @@ export function DashboardsRows<Key extends string>({
               <SlideBar on={picked} />
               <span className="min-w-0 truncate">{section.label}</span>
             </span>
-            <span />
             {section.value !== undefined ? (
               <span className="shrink-0 rounded-full bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground tabular-nums">
                 {section.value}

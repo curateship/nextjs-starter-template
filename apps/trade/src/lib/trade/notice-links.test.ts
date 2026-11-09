@@ -38,7 +38,7 @@ describe("the page a flow notice came off", () => {
 
 describe("which addresses this app will follow", () => {
   it("follows a path of its own", () => {
-    expect(isOwnAppHref("/admin/hyper-liquid?market=x")).toBe(true)
+    expect(isOwnAppHref("/trade?market=x")).toBe(true)
     expect(isOwnAppHref("/flow-runs/run-7")).toBe(true)
   })
 

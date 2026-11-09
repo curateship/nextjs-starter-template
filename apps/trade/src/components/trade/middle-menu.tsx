@@ -53,8 +53,9 @@ MenuRow.displayName = "MenuRow"
 /**
  * The ⋮ at the end of the dashboard's one middle header (Tyler, 7 Nov 2026:
  * "Move the close all into a 3 dotted dropdown in the middle header", then
- * "Move the wallet into the 3 dotted dropdown"). It is the last thing in the
- * header, as the Admin 3 panel design puts it. A box a row opens stays open
+ * "Move the wallet into the 3 dotted dropdown"), and since 8 Nov 2026 the
+ * market's Folders and Pin to top, from the right panel that went. It is the
+ * last thing in the header, as the Admin 3 panel design puts it. A box a row opens stays open
  * over it, so the menu does not close under the wallet list or Close all.
  */
 export function MiddleMenu({ children }: { children: React.ReactNode }) {
@@ -75,7 +76,7 @@ export function MiddleMenu({ children }: { children: React.ReactNode }) {
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Wallet and Close all</TooltipContent>
+        <TooltipContent>Wallet, Folders, Pin to top and Close all</TooltipContent>
       </Tooltip>
       <PopoverContent
         align="end"

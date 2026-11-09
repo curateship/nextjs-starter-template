@@ -1,6 +1,17 @@
 import { eq, sql } from "drizzle-orm"
 
-import { parseMarketKey, type ProtocolId } from "@/lib/protocols/contracts"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import {
+  hasDashboard,
+  parseMarketKey,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
+import {
+  isDashboardView,
+  OVERVIEW_VIEW,
+  readHiddenProtocols,
+  type DashboardView,
+} from "@/lib/trade/dashboard-view"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import { readChartOptions, type ChartOptions } from "@/lib/trade/chart-options"
 import {
@@ -12,8 +23,7 @@ import { readGoal, type Goal } from "@/lib/trade/goal"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
 import {
-  normalizeTradingDashboardWidgets,
-  type TradingDashboardWidgetLayout,
+  readTradingWidgetLayout,
 } from "@/lib/trade/dashboard/widgets"
 import {
   readQuickOrderPrefs,
@@ -419,32 +429,128 @@ export async function saveLastWalletId(
     })
 }
 
-/** The trading dashboard arrangement, separate from the platform Overview. */
-export async function loadTradingDashboardWidgets(
+/**
+ * The Trade dashboard's Overview widgets, one layout per person, kept apart
+ * from the shell's Admin Overview. Nothing saved is the starting layout.
+ */
+export async function loadTradingOverviewWidgets(
   userId: string
-): Promise<TradingDashboardWidgetLayout> {
+): Promise<WidgetLayout> {
   const row = await db
-    .select({ dashboardWidgets: tradePrefs.dashboardWidgets })
+    .select({ overviewWidgets: tradePrefs.overviewWidgets })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  return normalizeTradingDashboardWidgets(row[0]?.dashboardWidgets)
+  return readTradingWidgetLayout(row[0]?.overviewWidgets)
 }
 
-/** Remember the complete arrangement against this account. */
-export async function saveTradingDashboardWidgets(
+/** Remember the whole layout against this account, cleaned, and answer with what was stored. */
+export async function saveTradingOverviewWidgets(
   userId: string,
   value: unknown
-): Promise<TradingDashboardWidgetLayout> {
-  const dashboardWidgets = normalizeTradingDashboardWidgets(value)
+): Promise<WidgetLayout> {
+  const overviewWidgets = readTradingWidgetLayout(value)
   await db
     .insert(tradePrefs)
-    .values({ userId, dashboardWidgets, updatedAt: new Date() })
+    .values({ userId, overviewWidgets, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { dashboardWidgets, updatedAt: new Date() },
+      set: { overviewWidgets, updatedAt: new Date() },
     })
-  return dashboardWidgets
+  return overviewWidgets
+}
+
+/**
+ * Where a bare `/trade` opens: the Protocols block's row picked last, the
+ * exchange picked last (whose blocks Overview keeps showing), and the
+ * exchanges hidden from the block. A value this build does not know reads
+ * as nothing saved.
+ */
+export type TradeDashboardStart = {
+  view: DashboardView | null
+  protocol: ProtocolId | null
+  hiddenProtocols: ProtocolId[]
+  /** "Hide empty blocks", off until switched on. */
+  hideEmptyBlocks: boolean
+}
+
+export async function loadTradeDashboardStart(
+  userId: string
+): Promise<TradeDashboardStart> {
+  const [row] = await db
+    .select({
+      view: tradePrefs.dashboardView,
+      protocol: tradePrefs.dashboardProtocol,
+      hidden: tradePrefs.hiddenProtocols,
+      hideEmptyBlocks: tradePrefs.hideEmptyBlocks,
+    })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return {
+    view: isDashboardView(row?.view) ? row.view : null,
+    protocol: row?.protocol && hasDashboard(row.protocol) ? row.protocol : null,
+    hiddenProtocols: readHiddenProtocols(row?.hidden),
+    hideEmptyBlocks: row?.hideEmptyBlocks ?? false,
+  }
+}
+
+/** Switches "Hide empty blocks" on or off for this account. */
+export async function saveHideEmptyBlocks(
+  userId: string,
+  hideEmptyBlocks: boolean
+): Promise<boolean> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, hideEmptyBlocks, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { hideEmptyBlocks, updatedAt: new Date() },
+    })
+  return hideEmptyBlocks
+}
+
+/**
+ * The row just picked. Picking an exchange also makes it the one Overview
+ * keeps showing; picking Overview leaves that exchange as it was.
+ */
+export async function saveTradeDashboardView(
+  userId: string,
+  view: DashboardView
+): Promise<void> {
+  const protocol = view === OVERVIEW_VIEW ? undefined : view
+  await db
+    .insert(tradePrefs)
+    .values({
+      userId,
+      dashboardView: view,
+      dashboardProtocol: protocol ?? null,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        dashboardView: view,
+        ...(protocol ? { dashboardProtocol: protocol } : {}),
+        updatedAt: new Date(),
+      },
+    })
+}
+
+/** The exchanges hidden from the Protocols block, cleaned, answered as stored. */
+export async function saveHiddenProtocols(
+  userId: string,
+  value: unknown
+): Promise<ProtocolId[]> {
+  const hiddenProtocols = readHiddenProtocols(value)
+  await db
+    .insert(tradePrefs)
+    .values({ userId, hiddenProtocols, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { hiddenProtocols, updatedAt: new Date() },
+    })
+  return hiddenProtocols
 }
 
 /**

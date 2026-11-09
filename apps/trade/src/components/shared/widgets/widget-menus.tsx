@@ -13,13 +13,14 @@ import {
 import { ErrorRow } from "@/components/ui/error-row"
 import {
   BOTTOM_ROW_COLUMNS,
+  noWidgetsText,
+  offeredWidgets,
   placeWidget,
   setRowColumns,
   TOP_ROW_COLUMNS,
-  widgetChoices,
-  type WidgetBoard,
   type WidgetLayout,
   type WidgetRowName,
+  type WidgetSource,
 } from "@/lib/admin-dashboard/overview-widgets"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
@@ -32,16 +33,6 @@ const ROW_TITLES: Record<WidgetRowName, string> = { top: "Top row", bottom: "Bot
 function columnsLabel(columns: number) {
   if (columns === 0) return "None"
   return columns === 1 ? "1 column" : `${columns} columns`
-}
-
-/**
- * What a dashboard with no widgets to offer says, in place of a list: the
- * CRM's, until an app adds one (Tyler, 8 Nov 2026: "We dont have any CRM
- * widgets so lets leave it empty for now").
- */
-const NO_WIDGETS: Record<WidgetBoard, string> = {
-  admin: "No widgets yet.",
-  crm: "No CRM widgets yet.",
 }
 
 /** Every widget on the dashboard now, for marking the ones a pick would move. */
@@ -57,13 +48,12 @@ function placedIds(layout: WidgetLayout) {
  * With no widgets to offer, the spots are left out and it says so.
  */
 export function WidgetSettings({
-  board,
   layout,
   error,
   onRetry,
   onChange,
-}: {
-  board: WidgetBoard
+  ...source
+}: WidgetSource & {
   /** Null while it is read, or when the read failed. */
   layout: WidgetLayout | null
   error: string | null
@@ -77,7 +67,7 @@ export function WidgetSettings({
       <p className="p-3 text-sm text-muted-foreground">Reading…</p>
     )
   }
-  const choices = widgetChoices(board)
+  const choices = offeredWidgets(source)
   const labelOf = (id: string | null) => choices.find((choice) => choice.id === id)?.label
   const spotOptions = [
     { value: EMPTY, label: "Empty" },
@@ -103,7 +93,7 @@ export function WidgetSettings({
           onPick={(value) => onChange(setRowColumns(layout, "bottom", Number(value)))}
         />
       </PickGroup>
-      {choices.length === 0 ? <p className="px-1 text-sm text-muted-foreground">{NO_WIDGETS[board]}</p> : null}
+      {choices.length === 0 ? <p className="px-1 text-sm text-muted-foreground">{noWidgetsText(source)}</p> : null}
       {(choices.length === 0 ? [] : rows).map((name) => (
         <PickGroup key={name} title={ROW_TITLES[name]}>
           {layout[name].spots.map((id, index) => (
@@ -130,18 +120,16 @@ export type Spot = { row: WidgetRowName; index: number }
  * A widget's ⋮, in the place of its range line (Tyler, 8 Nov 2026: "Remove
  * the label and add a 3 vertical dots dropdown here to replace a widget"):
  * every widget to swap in, this one ticked, then Remove widget under a line,
- * which leaves the spot empty. Shown while the widget's heading is pointed
- * at, as a block's ⋮ is, and always on a phone.
+ * which leaves the spot empty. Always shown (8 Nov 2026).
  */
 export function WidgetMenu({
   title,
-  board,
   layout,
   spot,
   onChange,
-}: {
+  ...source
+}: WidgetSource & {
   title: string
-  board: WidgetBoard
   layout: WidgetLayout
   spot: Spot
   onChange: (layout: WidgetLayout) => void
@@ -155,13 +143,15 @@ export function WidgetMenu({
           variant="ghost"
           size="icon-sm"
           aria-label={`More for ${title}`}
-          className="ml-auto shrink-0 text-muted-foreground opacity-0 group-hover/widget:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+          // Always on screen (Tyler, 8 Nov 2026: "put the 3 dots icon always
+          // appear on widgets"), not only while the heading is pointed at.
+          className="ml-auto shrink-0 text-muted-foreground"
         >
           <EllipsisVerticalIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" collisionPadding={16} className="max-h-[min(60vh,24rem)] w-max min-w-60">
-        <WidgetChoices board={board} layout={layout} current={current} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
+        <WidgetChoices source={source} layout={layout} current={current} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => onChange(placeWidget(layout, spot.row, spot.index, null))}>
           <Trash2Icon className="size-4" />
@@ -179,21 +169,20 @@ export function WidgetMenu({
  * with nothing to press.
  */
 export function EmptySpot({
-  board,
   layout,
   spot,
   onChange,
-}: {
-  board: WidgetBoard
+  ...source
+}: WidgetSource & {
   layout: WidgetLayout
   spot: Spot
   onChange: (layout: WidgetLayout) => void
 }) {
   const [open, setOpen] = React.useState(false)
-  if (widgetChoices(board).length === 0) {
+  if (offeredWidgets(source).length === 0) {
     return (
       <div className="grid min-h-32 place-items-center rounded-[var(--shell-widget-radius,1rem)] border border-dashed p-4 text-sm text-muted-foreground">
-        {NO_WIDGETS[board]}
+        {noWidgetsText(source)}
       </div>
     )
   }
@@ -215,7 +204,7 @@ export function EmptySpot({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center" collisionPadding={16} className="max-h-[min(60vh,24rem)] w-max min-w-60">
-        <WidgetChoices board={board} layout={layout} current={null} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
+        <WidgetChoices source={source} layout={layout} current={null} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -226,12 +215,12 @@ export function EmptySpot({
  * elsewhere says so, and picking it moves it here.
  */
 function WidgetChoices({
-  board,
+  source,
   layout,
   current,
   onPick,
 }: {
-  board: WidgetBoard
+  source: WidgetSource
   layout: WidgetLayout
   current: string | null
   onPick: (id: string) => void
@@ -239,7 +228,7 @@ function WidgetChoices({
   const placed = placedIds(layout)
   return (
     <>
-      {widgetChoices(board).map((choice) => {
+      {offeredWidgets(source).map((choice) => {
         const Icon = choice.icon
         return (
           // One line a row: the menu is as wide as its longest name and

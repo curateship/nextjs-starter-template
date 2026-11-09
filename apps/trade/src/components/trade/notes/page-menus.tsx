@@ -1,12 +1,20 @@
 import * as React from "react"
-import { CheckIcon, LockIcon, LockOpenIcon, PlusIcon } from "lucide-react"
-
 import {
-  PickGroup,
-  PickMenuRow,
-  PickRow,
-  RowButton,
-} from "@/components/trade/notes/pick-rows"
+  CheckIcon,
+  FolderIcon,
+  PinIcon,
+  PlusIcon,
+} from "lucide-react"
+
+import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { MenuRow } from "@/components/trade/middle-menu"
+import { PickGroup, PickMenuRow } from "@/components/trade/notes/pick-rows"
+import {
+  CoverRow,
+  LockRow,
+  type PageCover,
+  type PageLock,
+} from "@/components/shared/notes/page-rows"
 import { TabbedMenu } from "@/components/trade/notes/tabbed-menu"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,103 +24,66 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ImageUpload } from "@/components/shared/image-upload"
 import { Input } from "@/components/ui/input"
 import type {
   MarketFolder,
   MarketFolderActions,
 } from "@/lib/trade/market-folders"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import { TRADING_WIDGET_OFFER } from "@/lib/trade/dashboard/widgets"
 import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
 
 /**
- * The two ⋮ menus on the trading dashboard (the Admin 3 panel design, 7 Nov
- * 2026): My settings over the exchange's page on the left, and the market's
- * menu over its page on the right. Each is the tabbed ⋮ of grouped rows, and
- * every row saves itself.
+ * The Trade dashboard's menus (the Admin 3 panel design): the tabbed ⋮ over
+ * the left page, and the market's rows in the chart header's ⋮. Every row
+ * saves itself.
  */
 
-/**
- * "Lock the notes", under a menu's groups, as on every page in the design.
- * Locked, the page reads only, blocks and all, and the server refuses a save.
- */
-function LockRow({
-  locked,
-  busy,
-  onLock,
-}: {
-  locked: boolean
-  busy: boolean
-  onLock: (locked: boolean) => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      disabled={busy}
-      className="w-full justify-start gap-2 px-2 font-normal"
-      onClick={() => onLock(!locked)}
-    >
-      {locked ? (
-        <LockOpenIcon className="size-4" />
-      ) : (
-        <LockIcon className="size-4" />
-      )}
-      {locked ? "Unlock the notes" : "Lock the notes"}
-    </Button>
-  )
-}
-
-export type PageLock = {
-  locked: boolean
-  busy: boolean
-  setLocked: (locked: boolean) => void
-}
-
-export type PageCover = {
-  url: string | null
-  busy: boolean
-  set: (url: string | null) => void
+/** What the Widgets tab of the dashboard's ⋮ reads and changes. */
+export type WidgetChoices = {
+  layout: WidgetLayout | null
+  error: string | null
+  onRetry: () => void
+  onChange: (layout: WidgetLayout) => void
 }
 
 /**
- * The page's cover photo, as a row: "None" until one is added, and the
- * upload in the small box the row opens (Tyler, 7 Nov 2026: "both panel is
- * missing cover photo", then "the settings dropdown options needs to follow
- * standard"). The picture lies faintly behind the panel's header.
+ * The ⋮ over the Trade dashboard's left page, as the Admin page's ⋮ (8 Nov
+ * 2026): General holds the page's cover photo and its lock, the shell's own
+ * rows (`shared/notes/page-rows.tsx`; Tyler: "cover photos is not using shell
+ * standard"); Widgets sets
+ * Overview's rows and spots, as the shell's Widgets tab
+ * does ("widgets are not in settings"). Every row saves itself.
  */
-function CoverRow({ cover }: { cover: PageCover }) {
-  return (
-    <PickRow
-      label="Cover photo"
-      value={cover.url ? "Added" : "None"}
-      empty={!cover.url}
-      disabled={cover.busy}
-    >
-      <ImageUpload
-        label="Cover photo"
-        showLabel={false}
-        value={cover.url ?? ""}
-        aspect="video"
-        fit="cover"
-        emptyLabel="Add a cover photo"
-        onChange={(url) => cover.set(url || null)}
-      />
-    </PickRow>
-  )
-}
-
-/** The ⋮ over the exchange's own page: My settings, General holding the lock. */
-export function ExchangePageMenu({
+export function DashboardPageMenu({
   lock,
   cover,
+  hideEmptyBlocks,
+  widgets,
+  alerts,
 }: {
+  /**
+   * The alerts, fired and waiting, as a tab of the ⋮ after Widgets (Tyler,
+   * 8 Nov 2026: "Put the alerts archive here and remove the alert block. We
+   * already have these alert in the notification tray").
+   */
+  alerts: React.ReactNode
   lock: PageLock
   cover: PageCover
+  /**
+   * "Hide empty blocks": Manual trades, Grid trades and DCA trades leave the
+   * page while they have nothing to show (Tyler, 8 Nov 2026).
+   */
+  hideEmptyBlocks: { on: boolean; onChange: (on: boolean) => void }
+  widgets: WidgetChoices
 }) {
   return (
     <TabbedMenu
-      label="My settings"
-      align="end"
+      label="Dashboard settings"
+      // Opens to the right, over the middle, from the ⋮ at the left panel's
+      // right end, rather than hanging off the screen's left edge (Tyler,
+      // 8 Nov 2026: "the left panel dropdown to align right").
+      align="start"
       tabs={[
         {
           value: "general",
@@ -121,6 +92,17 @@ export function ExchangePageMenu({
             <div className="grid gap-3 p-3">
               <PickGroup title="Page">
                 <CoverRow cover={cover} />
+                <PickMenuRow
+                  label="Hide empty blocks"
+                  value={hideEmptyBlocks.on ? "On" : "Off"}
+                  empty={!hideEmptyBlocks.on}
+                  options={[
+                    { value: "on", label: "On" },
+                    { value: "off", label: "Off" },
+                  ]}
+                  selected={hideEmptyBlocks.on ? "on" : "off"}
+                  onPick={(next) => hideEmptyBlocks.onChange(next === "on")}
+                />
               </PickGroup>
               <LockRow
                 locked={lock.locked}
@@ -130,19 +112,37 @@ export function ExchangePageMenu({
             </div>
           ),
         },
+        {
+          value: "widgets",
+          label: "Widgets",
+          content: (
+            <WidgetSettings
+              offer={TRADING_WIDGET_OFFER}
+              layout={widgets.layout}
+              error={widgets.error}
+              onRetry={widgets.onRetry}
+              onChange={widgets.onChange}
+            />
+          ),
+        },
+        {
+          value: "alerts",
+          label: "Alerts",
+          content: alerts,
+        },
       ]}
     />
   )
 }
 
 /**
- * The Folders row: the market's folders ticked, and one press adds the market
- * to a folder or takes it out, leaving the list open for the next. "New
- * folder" at the foot names a folder that starts with this market in it.
- * This is what the star in the chart header did (Tyler, 7 Nov 2026: "we move
- * the add to folder and pinned function there").
+ * Folders, as a row of the chart header's ⋮ (Tyler, 8 Nov 2026: no right
+ * panel, so the market's Folders and Pin to top moved here): the market's
+ * folders ticked, and one press adds the market to a folder or takes it out,
+ * leaving the list open for the next. "New folder" at the foot names a folder
+ * that starts with this market in it.
  */
-function FoldersRow({
+export function FoldersMenuRow({
   marketKey,
   folders,
   actions,
@@ -151,7 +151,6 @@ function FoldersRow({
   folders: readonly MarketFolder[]
   actions: MarketFolderActions
 }) {
-  const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
   const ordered = React.useMemo(
     () =>
@@ -165,10 +164,6 @@ function FoldersRow({
   const holding = ordered.filter((folder) =>
     folder.marketKeys.includes(marketKey)
   )
-  const value =
-    holding.length === 0
-      ? "None"
-      : holding.map((folder) => folder.name).join(", ")
   async function create(event: React.FormEvent) {
     event.preventDefault()
     const trimmed = name.trim()
@@ -176,19 +171,21 @@ function FoldersRow({
     if (await actions.create(marketKey, trimmed)) setName("")
   }
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <RowButton
+        <MenuRow
+          icon={<FolderIcon />}
           label="Folders"
-          // Its own truncating box, so a long list ends in "…" rather than
-          // losing its first folder off the left.
-          value={<span className="min-w-0 truncate">{value}</span>}
-          empty={holding.length === 0}
-          open={open}
+          detail={
+            holding.length === 0
+              ? "None"
+              : holding.map((folder) => folder.name).join(", ")
+          }
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
+        side="left"
+        align="start"
         collisionPadding={16}
         className="max-h-[min(60vh,24rem)] w-60"
       >
@@ -243,79 +240,21 @@ function FoldersRow({
   )
 }
 
-/** Pin to top: the market's chip in the header's pinned row, saved on the account. */
-function PinRow({ marketKey }: { marketKey: string }) {
+/**
+ * Pin to top, as a row of the chart header's ⋮: one press puts the market's
+ * chip in the header's pinned row, or takes it out. Saved on the account.
+ */
+export function PinMenuRow({ marketKey }: { marketKey: string }) {
   const { pins, loaded, busy, store } = usePinnedMarkets()
   const pinned = pins.includes(marketKey)
   return (
-    <PickMenuRow
+    <MenuRow
+      icon={<PinIcon />}
       label="Pin to top"
-      value={pinned ? "On" : "Off"}
-      empty={!pinned}
+      detail={pinned ? "On" : "Off"}
+      aria-pressed={pinned}
       disabled={!loaded || busy}
-      options={[
-        { value: "on", label: "On" },
-        { value: "off", label: "Off" },
-      ]}
-      selected={pinned ? "on" : "off"}
-      onPick={(next) => void store.setPin(marketKey, next === "on")}
-    />
-  )
-}
-
-/**
- * The ⋮ in the right panel's header: General holds the market on the chart's
- * folders and Pin to top, then the All markets page's cover photo and lock.
- * 20.4rem wide, as a record's menu is.
- */
-export function MarketPageMenu({
-  marketKey,
-  folders,
-  folderActions,
-  lock,
-  cover,
-}: {
-  marketKey: string | null
-  folders: readonly MarketFolder[]
-  folderActions: MarketFolderActions
-  lock: PageLock
-  cover: PageCover
-}) {
-  return (
-    <TabbedMenu
-      label="Market menu"
-      align="end"
-      width="20.4rem"
-      tabs={[
-        {
-          value: "general",
-          label: "General",
-          content: (
-            <div className="grid gap-3 p-3">
-              {marketKey ? (
-                <PickGroup title="This market">
-                  <FoldersRow
-                    marketKey={marketKey}
-                    folders={folders}
-                    actions={folderActions}
-                  />
-                  <PinRow marketKey={marketKey} />
-                </PickGroup>
-              ) : null}
-              {marketKey ? (
-                <PickGroup title="Page">
-                  <CoverRow cover={cover} />
-                </PickGroup>
-              ) : null}
-              <LockRow
-                locked={lock.locked}
-                busy={lock.busy}
-                onLock={lock.setLocked}
-              />
-            </div>
-          ),
-        },
-      ]}
+      onClick={() => void store.setPin(marketKey, !pinned)}
     />
   )
 }

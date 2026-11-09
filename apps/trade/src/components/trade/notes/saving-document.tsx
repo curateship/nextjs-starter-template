@@ -75,10 +75,16 @@ export function SavingDocument({
   placeholder = "Write something",
   locked = false,
   className,
+  flushRef,
 }: {
   /** The page's document as JSON text, or "". Read once, when it first shows. */
   value: string
   onSave: (json: string) => Promise<unknown>
+  /**
+   * Handed the save-now, so the dashboard can save what was just typed
+   * before it moves to another exchange, which draws this page again.
+   */
+  flushRef?: React.MutableRefObject<(() => void) | null>
   placeholder?: string
   /**
    * Shown, not written in, at full strength: Lock the notes. The shell's editor fades whatever it can't write in, which
@@ -114,6 +120,13 @@ export function SavingDocument({
 
   // Closing, or opening another, saves what was typed.
   React.useEffect(() => flush, [flush])
+  React.useEffect(() => {
+    if (!flushRef) return
+    flushRef.current = flush
+    return () => {
+      if (flushRef.current === flush) flushRef.current = null
+    }
+  }, [flush, flushRef])
 
 
   return (

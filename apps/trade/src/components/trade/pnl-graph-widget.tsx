@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
 
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -267,10 +268,17 @@ function axisUsd(value: number) {
 export function PnlGraphWidget({
   overview,
   className,
+  bare = false,
 }: {
   overview: TradingOverview
   className: string
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title
+   * and the ⋮: no frame of its own, and no title.
+   */
+  bare?: boolean
 }) {
+  const Frame = bare ? "div" : Card
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null)
   const [range, setRange] = useState<ProfitRange>({
     preset: "all",
@@ -298,7 +306,7 @@ export function PnlGraphWidget({
   ).length
 
   return (
-    <Card className={cn("min-h-0 gap-0 py-0", className)}>
+    <Frame className={cn("flex min-h-0 flex-col gap-0 py-0", className)}>
       <DashboardCardHeader className="flex-wrap items-start gap-x-4 gap-y-3 px-5 py-4">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
@@ -353,12 +361,25 @@ export function PnlGraphWidget({
             )}
           </div>
         </div>
-        <ProfitRangeControls
-          data={data}
-          range={range}
-          dates={rangeDates}
-          onRange={setRange}
-        />
+        {bare ? (
+          // In the widget card, the period and dates sit in its heading
+          // beside the ⋮ ("move buttons here").
+          <WidgetHeadingActions>
+            <ProfitRangeControls
+              data={data}
+              range={range}
+              dates={rangeDates}
+              onRange={setRange}
+            />
+          </WidgetHeadingActions>
+        ) : (
+          <ProfitRangeControls
+            data={data}
+            range={range}
+            dates={rangeDates}
+            onRange={setRange}
+          />
+        )}
       </DashboardCardHeader>
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(18rem,32%)_1fr] lg:divide-x">
@@ -376,7 +397,7 @@ export function PnlGraphWidget({
           figures={figures}
         />
       </div>
-    </Card>
+    </Frame>
   )
 }
 

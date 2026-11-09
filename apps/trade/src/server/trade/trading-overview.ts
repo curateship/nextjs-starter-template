@@ -1,6 +1,11 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm"
 
-import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
+import {
+  DASHBOARD_PROTOCOLS,
+  parseMarketKey,
+  protocolLabel,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import {
   buildTradingOverviewBots,
   buildTradingOverviewProfit,
@@ -322,6 +327,38 @@ export async function loadActiveTradesSnapshot(
       walletRead.credentials
     )),
   }
+}
+
+/**
+ * How many trades are open on each exchange with a place on the Trade
+ * dashboard, for the number on its row in the Protocols block (8 Nov 2026).
+ * Every wallet counts, practice ones too, as in Active Trades. An exchange
+ * with a wallet that did not answer is left out, so its row shows no number
+ * rather than a count that is short.
+ */
+export async function loadOpenPositionCounts(
+  userId: string
+): Promise<Partial<Record<ProtocolId, number>>> {
+  const walletRead = await listWalletsWithCredentials(userId)
+  const { activeTrades, activeTradesUnavailable } = await loadActiveTrades(
+    userId,
+    walletRead.wallets,
+    walletRead.credentials
+  )
+  const unread = new Set(
+    walletRead.wallets
+      .filter((wallet) => activeTradesUnavailable.includes(wallet.id))
+      .map((wallet) => wallet.protocol)
+  )
+  const counts: Partial<Record<ProtocolId, number>> = {}
+  for (const protocol of DASHBOARD_PROTOCOLS) {
+    if (!unread.has(protocol)) counts[protocol] = 0
+  }
+  for (const trade of activeTrades) {
+    const protocol = parseMarketKey(trade.marketKey)?.protocol
+    if (protocol && counts[protocol] !== undefined) counts[protocol] += 1
+  }
+  return counts
 }
 
 async function loadActiveTrades(

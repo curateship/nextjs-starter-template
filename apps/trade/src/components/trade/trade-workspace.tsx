@@ -44,7 +44,6 @@ import {
 } from "@/components/trade/market-header"
 import { TestnetStrip } from "@/components/trade/market-list-panel"
 import { MarketPicker } from "@/components/trade/market-picker"
-import { MarketIcon } from "@/components/trade/market-icon"
 import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
 import { IndicatorsMenu } from "@/components/trade/indicators-menu"
 import { CardFolds } from "@/components/trade/card-folds"
@@ -75,7 +74,6 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   marketSymbol,
   parseMarketKey,
-  protocolLabel,
   type MarketRow,
   type NetworkId,
   type ProtocolId,
@@ -118,8 +116,8 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { cn } from "@/lib/utils"
 import {
-  ExchangePageMenu,
-  MarketPageMenu,
+  FoldersMenuRow,
+  PinMenuRow,
 } from "@/components/trade/notes/page-menus"
 import {
   TradeBlocksProvider,
@@ -127,18 +125,21 @@ import {
 } from "@/components/trade/notes/trade-block-views"
 import {
   TradePageBody,
-  useTradePage,
+  type TradePage,
 } from "@/components/trade/notes/trade-page-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { PageCover } from "@/components/trade/notes/page-cover"
+import { PageCover } from "@/components/shared/notes/page-cover"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { InfoIcon, PanelLeftCloseIcon, PanelRightCloseIcon } from "lucide-react"
+import {
+  InfoIcon,
+  PanelLeftCloseIcon,
+  PanelLeftDashedIcon,
+} from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { DashboardCore } from "@/lib/api/trade/dashboard"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { PANEL_GUTTER } from "@/lib/trade/panel-gutter"
 import { STILL_PANEL } from "@/lib/trade/panel-fit"
@@ -146,10 +147,6 @@ import {
   type TradePanelLayouts,
   useRememberedPanelLayoutInPlace,
 } from "@/lib/trade/panel-layout"
-import {
-  EXCHANGE_PAGE_MARKET,
-  SHARED_PAGE_MARKET,
-} from "@/lib/trade/trade-pages"
 
 /**
  * No focus ring on a panel divider.
@@ -160,6 +157,7 @@ import {
  */
 const NO_RING = "focus-visible:ring-0"
 const NO_SLOTS: readonly HTMLElement[] = []
+const NO_HIDDEN_BLOCKS: ReadonlySet<string> = new Set()
 
 /** The middle panel's tabs, in the order they sit. */
 const MIDDLE_TABS: readonly ActivityTab[] = [
@@ -209,8 +207,10 @@ function resolveSelection(
 }
 
 /**
- * The Trade workspace: markets on the left, the market you picked in the
- * middle, the account on the right, and what you are holding along the bottom.
+ * The Trade dashboard at `/trade` (8 Nov 2026): the left page of blocks, with
+ * the Protocols block that picks what the middle shows, and the middle, which
+ * is Overview's widgets or the picked exchange's chart and tables. There is
+ * no right panel (Tyler: "I dont want a right panel").
  *
  * Built on the same panel parts as the Automation Canvas rather than a second
  * panel system of its own, so resizing, collapsing, the reopen tabs and the
@@ -239,8 +239,13 @@ export function TradeWorkspace({
   initialCardFolds,
   initialQuickOrder,
   initialPanelLayouts,
-  initialPages,
   initialWallets,
+  page,
+  pageMenu,
+  protocolsBlock,
+  protocolsMenu,
+  hideEmptyBlocks,
+  overview,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -286,8 +291,28 @@ export function TradeWorkspace({
   initialQuickOrder: QuickOrderPrefs
   /** Divider positions owned by this account. */
   initialPanelLayouts: TradePanelLayouts
-  /** The exchange's page and the All markets page, from the same answer. */
-  initialPages: DashboardCore["pages"]
+  /**
+   * The left page, one per person, held above this workspace so it carries
+   * on unchanged when the exchange changes.
+   */
+  page: TradePage
+  /**
+   * The ⋮ over the left page: General, Widgets and Alerts. Handed the alerts
+   * list, which this workspace reads.
+   */
+  pageMenu: (parts: { alerts: React.ReactNode }) => React.ReactNode
+  /** What the Protocols block draws: Overview and the exchanges. */
+  protocolsBlock: React.ReactNode
+  /** The Protocols block's ⋮ rows: each exchange's eye. */
+  protocolsMenu: React.ReactNode
+  /** "Hide empty blocks" from the page's ⋮: empty trade blocks leave the page. */
+  hideEmptyBlocks: boolean
+  /**
+   * Overview's widgets while Overview is picked, drawn in the middle's place
+   * with no panel of their own; null while an exchange is picked. The chart
+   * stays mounted under it, so going back to the exchange never reloads it.
+   */
+  overview: React.ReactNode | null
   /** The account panel's first answer from the same opening call. */
   initialWallets: DashboardBootstrap["wallets"]
   /** The picked market's key, carried in the address bar. */
@@ -304,11 +329,12 @@ export function TradeWorkspace({
   const desktop = useWideScreen()
   // A phone: Browse market shows its magnifier alone.
   const phone = useIsMobile()
-  // Under 1280px the three panels show one at a time behind a pill row (the
-  // Admin 3 panel design, 7 Nov 2026), opening on the chart.
-  const [narrowView, setNarrowView] = React.useState<
-    "blocks" | "chart" | "market"
-  >("chart")
+  // Under 1280px the two panels show one at a time behind a pill row: Page,
+  // and the picked row's name (Tyler, 8 Nov 2026: "Page and the middle").
+  const [narrowView, setNarrowView] = React.useState<"blocks" | "chart">(
+    "chart"
+  )
+  const showingOverview = overview !== null
   // Memoised: the workspace re-renders on every poll and every price tick,
   // and a fresh answer each time made every panel below re-do its own work.
   const selection = React.useMemo(
@@ -316,7 +342,6 @@ export function TradeWorkspace({
     [catalogs, selectedKey]
   )
   const [blocksCollapsed, setBlocksCollapsed] = React.useState(false)
-  const [marketCollapsed, setMarketCollapsed] = React.useState(false)
 
   // ----- Market folders: one exchange, optimistic item changes -------------
   const [folders, setFolders] = React.useState(initialFolders)
@@ -559,7 +584,6 @@ export function TradeWorkspace({
   )
 
   const blocksPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const marketPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
@@ -576,14 +600,15 @@ export function TradeWorkspace({
   const restoreFullscreenLayouts = React.useRef(false)
 
   const enterChartFullscreen = React.useCallback(() => {
-    if (selection.kind !== "market") return
+    // Overview has no chart on screen to make full screen.
+    if (selection.kind !== "market" || showingOverview) return
     restoreFullscreenLayouts.current = false
     fullscreenLayout.current = horizontalLayout.getLayout()
-    // Full screen is the chart: the middle panel's chart tab, both pages away.
+    // Full screen is the chart: the middle panel's chart tab, the page away.
     setActivityTab("chart")
-    horizontalLayout.setLayout({ blocks: 0, chart: 100, market: 0 })
+    horizontalLayout.setLayout({ blocks: 0, chart: 100 })
     setChartFullscreen(true)
-  }, [horizontalLayout, selection.kind, setActivityTab])
+  }, [horizontalLayout, selection.kind, setActivityTab, showingOverview])
 
   const exitChartFullscreen = React.useCallback(() => {
     restoreFullscreenLayouts.current = true
@@ -659,16 +684,10 @@ export function TradeWorkspace({
     toggleBlocksPanel()
     horizontalLayout.rememberLayout()
   }, [horizontalLayout, toggleBlocksPanel])
-  const toggleMarketPanel = usePanelToggle(marketPanelRef)
-  const toggleMarket = React.useCallback(() => {
-    toggleMarketPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleMarketPanel])
 
-  // Double-clicking the empty part of a side panel shuts it, and
+  // Double-clicking the empty part of the left panel shuts it, and
   // double-clicking what is left of it opens it again.
   const blocksDoubleClick = useBlankSpaceDoubleClick(toggleBlocks)
-  const marketDoubleClick = useBlankSpaceDoubleClick(toggleMarket)
 
   // The finished trade drawn on the chart, picked in the Journal. It lives up
   // here because two panels share it: the table below decides which one, and
@@ -858,6 +877,27 @@ export function TradeWorkspace({
     [onSelectMarket, setActivityTab]
   )
 
+  // Which trade blocks have nothing to show, each told by its own panel,
+  // which alone knows what it lists. Kept by block name.
+  const [emptyBlocks, setEmptyBlocks] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const emptyReporters = React.useMemo(() => {
+    const report = (block: string) => (empty: boolean) =>
+      setEmptyBlocks((was) => {
+        if (was.has(block) === empty) return was
+        const next = new Set(was)
+        if (empty) next.add(block)
+        else next.delete(block)
+        return next
+      })
+    return {
+      grid: report("grid-trades"),
+      dca: report("dca-trades"),
+      manual: report("manual-trades"),
+    }
+  }, [])
+
   // Grids and DCA ladders are two blocks, fed the same read.
   const smartOrderPanel = (kind: SmartOrdersPanelKind) => (
     <SmartOrdersPanel
@@ -880,6 +920,22 @@ export function TradeWorkspace({
       onRetry={trading.retry}
       onResumeSmartOrder={trading.resumeSmartOrder}
       onSelectMarket={pickMarket}
+      onEmptyChange={emptyReporters[kind]}
+    />
+  )
+
+  // The alerts, fired and waiting: a tab of the page's ⋮ since 8 Nov 2026,
+  // not a block (Tyler: "Put the alerts archive here and remove the alert
+  // block. We already have these alert in the notification tray").
+  const alertsArchive = (
+    <PriceAlertsMenu
+      alerts={priceAlerts.alerts}
+      error={priceAlerts.error}
+      onRetry={() => void priceAlerts.refresh()}
+      onSelectMarket={pickMarket}
+      onDelete={priceAlerts.remove}
+      lines={linesForPanel}
+      onCleared={onAlertsCleared}
     />
   )
 
@@ -904,17 +960,7 @@ export function TradeWorkspace({
         onRetry={trading.retry}
         onSelectMarket={pickMarket}
         selectedKey={selectedKey}
-      />
-    ),
-    alerts: (
-      <PriceAlertsMenu
-        alerts={priceAlerts.alerts}
-        error={priceAlerts.error}
-        onRetry={() => void priceAlerts.refresh()}
-        onSelectMarket={pickMarket}
-        onDelete={priceAlerts.remove}
-        lines={linesForPanel}
-        onCleared={onAlertsCleared}
+        onEmptyChange={emptyReporters.manual}
       />
     ),
     scanner: (
@@ -926,6 +972,9 @@ export function TradeWorkspace({
         onSelectMarket={pickMarket}
       />
     ),
+    protocols: protocolsBlock,
+    protocolsMenu,
+    hidden: hideEmptyBlocks ? emptyBlocks : NO_HIDDEN_BLOCKS,
     folders: (
       <MarketFoldersMenu
         panelRows={panelRows}
@@ -944,22 +993,8 @@ export function TradeWorkspace({
     ),
   }
 
-  // The two pages, both one per exchange: the exchange's own on the left,
-  // and All markets on the right, which every market shows (Tyler, 7 Nov
-  // 2026: "We should make both left and right panel all protocol wide").
-  const exchangePage = useTradePage({
-    protocol,
-    pageKey: EXCHANGE_PAGE_MARKET,
-    initial: initialPages.exchange,
-  })
-  const sharedPage = useTradePage({
-    protocol,
-    pageKey: SHARED_PAGE_MARKET,
-    initial: initialPages.shared,
-  })
-
-  // The left panel: the exchange's own page of blocks, under its name and My
-  // settings. The folder manager takes the page's place while it is open, the
+  // The left panel: the dashboard's page of blocks, under its name and its
+  // ⋮. The folder manager takes the page's place while it is open, the
   // way the Inbox does in Project, and the page stays mounted under it.
   const blocksColumn = (
     <WorkspacePanel
@@ -971,11 +1006,11 @@ export function TradeWorkspace({
           a table's line instead of its own Divider lines line (Tyler, 7 Nov
           2026: "this left panel header divider is not wired to the styling
           setting"). */}
-      <PageCover url={exchangePage.cover.url} />
+      <PageCover url={page.cover.url} />
       <div className="relative shrink-0">
         <DashboardCardHeader
           // Over a cover the line goes see-through, as on Project's pages.
-          className={cn(exchangePage.cover.url && "border-b-transparent")}
+          className={cn(page.cover.url && "border-b-transparent")}
         >
           {/* Shuts the left panel, as a double-click on its blank space does
               (Tyler, 7 Nov 2026: "add a collasible icon here to collapse the
@@ -998,9 +1033,9 @@ export function TradeWorkspace({
             </Tooltip>
           ) : null}
           <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
-            {protocolLabel(protocol)}
+            Trade
           </span>
-          <ExchangePageMenu lock={exchangePage.lock} cover={exchangePage.cover} />
+          {pageMenu({ alerts: alertsArchive })}
         </DashboardCardHeader>
       </div>
       {folderManagerOpen ? (
@@ -1022,109 +1057,7 @@ export function TradeWorkspace({
         className={cn("relative min-h-0 flex-1", folderManagerOpen && "hidden")}
       >
         <div className={cn(PANEL_GUTTER, "pt-0")}>
-          <TradePageBody page={exchangePage} />
-        </div>
-      </ScrollArea>
-    </WorkspacePanel>
-  )
-
-  // The right panel: the All markets page, the same on every market, under
-  // the market's name, its facts and its ⋮, which holds its folders and Pin
-  // to top.
-  const marketColumn = (
-    <WorkspacePanel
-      data-trade-page="shared"
-      onDoubleClick={marketDoubleClick}
-      className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
-    >
-      <PageCover url={sharedPage.cover.url} />
-      {/* Wrapped for the same reason as the left panel's header. */}
-      <div className="relative shrink-0">
-      <DashboardCardHeader
-        className={cn(sharedPage.cover.url && "border-b-transparent")}
-      >
-        {/* The market's own icon before its name (Tyler, 7 Nov 2026: "Add the
-            market favicon"), a first-letter circle where the exchange has
-            no art. */}
-        {/* 16px in from the panel's edge, where the left panel's first icon
-            and this panel's own collapse icon sit (Tyler, 7 Nov 2026:
-            "padding is not consistence"). */}
-        {selection.kind === "market" ? (
-          <span className="ml-1 flex shrink-0">
-            <MarketIcon
-              symbol={selection.row.symbol}
-              iconUrl={selection.row.iconUrl}
-            />
-          </span>
-        ) : null}
-        {selection.kind === "market" ? (
-          <>
-            <span
-              className={cn("min-w-0 truncate", dashboardCardHeadingClassName)}
-            >
-              {selection.row.symbol}
-            </span>
-            {/* The market's facts, in a tooltip on the "i" after its name
-                (Tyler, 7 Nov 2026: "move the market info into a tool top in
-                the header", then "Where is the "i" icon?"). */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`About ${selection.row.symbol} market`}
-                  className="shrink-0 text-muted-foreground"
-                >
-                  <InfoIcon className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" align="center" className="p-0">
-                <MarketInfoFacts selection={selection} />
-              </TooltipContent>
-            </Tooltip>
-            <span aria-hidden className="flex-1" />
-          </>
-        ) : (
-          <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
-            No market
-          </span>
-        )}
-        <MarketPageMenu
-          marketKey={selection.kind === "market" ? selection.row.key : null}
-          folders={folders}
-          folderActions={folderActions}
-          lock={sharedPage.lock}
-          cover={sharedPage.cover}
-        />
-        {/* Shuts the right panel, at its outer edge as the left panel's
-            button is at its own (Tyler, 7 Nov 2026: "add a collapsible icon
-            here"). The slim tab at the chart's edge brings it back. */}
-        {desktop ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Hide the market"
-                className="-mr-1 shrink-0 rounded-lg"
-                onClick={toggleMarket}
-              >
-                <PanelRightCloseIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Hide the market</TooltipContent>
-          </Tooltip>
-        ) : null}
-      </DashboardCardHeader>
-      </div>
-      <ScrollArea className="relative min-h-0 flex-1">
-        <div className={cn(PANEL_GUTTER, "pt-0")}>
-          <TradePageBody
-            page={sharedPage}
-            placeholder="Type / for a block every market shows"
-          />
+          <TradePageBody page={page} />
         </div>
       </ScrollArea>
     </WorkspacePanel>
@@ -1132,10 +1065,27 @@ export function TradeWorkspace({
 
   // The chart's controls sit in the middle panel's one header, beside its
   // tabs (Tyler, 7 Nov 2026: "There should only be one middle header"): the
-  // timeframe, Indicators and View options. Browse market leads the header. The wallet is a row
+  // Browse market, the timeframe, Indicators and View options. The wallet is a row
   // in that header's ⋮. Narrow, the timeframe shows only the one picked.
   const chartControls = (narrowHeader: boolean) => (
     <>
+      {/* The primary Browse market button, on the header's right just before
+          the timeframes (Tyler, 8 Nov 2026: "move the brwose market button
+          here"; it led the header from 7 Nov). */}
+      {selection.kind === "market" ? (
+        <MarketPicker
+          phone={phone}
+          key={protocol}
+          rows={marketRows}
+          selected={selection.row}
+          capabilities={selection.picker}
+          folders={folders}
+          folderActions={folderActions}
+          onSelect={pickMarket}
+          venueLabel={selection.protocolLabel}
+          onSearchBeyond={onSearchMarkets}
+        />
+      ) : null}
       <IntervalPicker
         phone={narrowHeader}
         value={interval}
@@ -1160,14 +1110,9 @@ export function TradeWorkspace({
     ) : null
 
   // A Rules block counts while its page is on screen: not in full screen,
-  // and not while its side panel is shut on a wide screen.
-  const shownRulesSlots = chartFullscreen
-    ? NO_SLOTS
-    : rulesSlots.filter((slot) =>
-        slot.closest("[data-trade-page=shared]")
-          ? !(desktop && marketCollapsed)
-          : !(desktop && blocksCollapsed)
-      )
+  // and not while the left panel is shut on a wide screen.
+  const shownRulesSlots =
+    chartFullscreen || (desktop && blocksCollapsed) ? NO_SLOTS : rulesSlots
 
   const chart = (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -1248,25 +1193,36 @@ export function TradeWorkspace({
             onAddOpened={addOpened}
           />
         </div>
-        {/* Shown where a side panel disappeared, so getting it back is
-            findable without remembering that the divider still drags. */}
-        {desktop && blocksCollapsed && !chartFullscreen ? (
-          <PanelReopenTab
-            side="left"
-            label="Show blocks"
-            onClick={toggleBlocks}
-          />
-        ) : null}
-        {desktop && marketCollapsed && !chartFullscreen ? (
-          <PanelReopenTab
-            side="right"
-            label="Show market"
-            onClick={toggleMarket}
-          />
-        ) : null}
       </div>
     </div>
   )
+
+  // The market's facts, in a tooltip on the "i" inside the chart tab, after
+  // the market's name (Tyler, 8 Nov 2026: "for the market info, just add the
+  // tooltip beside market ticker on the middle tab"). A tab is itself a
+  // button, so the "i" is not a second one inside it: pointing at it shows
+  // the facts, and a press on it stays the "i"'s, never the tab's.
+  const marketInfo =
+    selection.kind === "market" ? (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="img"
+            aria-label={`About ${selection.row.symbol} market`}
+            data-market-info=""
+            className="-mr-1 ml-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            onPointerDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <InfoIcon className="size-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" align="start" className="p-0">
+          <MarketInfoFacts selection={selection} />
+        </TooltipContent>
+      </Tooltip>
+    ) : null
 
   // The middle panel: the chart and the three tables as tabs (Tyler, 7 Nov
   // 2026: "[marketname chart][positions][journal]", with Open orders kept as
@@ -1302,30 +1258,45 @@ export function TradeWorkspace({
               selection.kind === "market"
                 ? `${selection.row.symbol} chart`
                 : "Chart",
+            info: marketInfo,
             content: chart,
             only: chartFullscreen,
           }}
-          controls={chartControls}
-          // The primary Browse market button, at the header's start before
-          // the tabs (Tyler, 7 Nov 2026: "make it primary and put it here").
+          // The shut left panel comes back from the header's start, as on the
+          // shell's dashboards (Tyler, 8 Nov 2026: "put the uncollapse here
+          // like how shell does it"), in place of the slim tab on the edge.
           lead={
-            <>
-      {selection.kind === "market" ? (
-        <MarketPicker
-          phone={phone}
-          key={protocol}
-          rows={marketRows}
-          selected={selection.row}
-          capabilities={selection.picker}
-          folders={folders}
-          folderActions={folderActions}
-          onSelect={pickMarket}
-          venueLabel={selection.protocolLabel}
-          onSearchBeyond={onSearchMarkets}
-        />
-      ) : null}
-            </>
+            desktop && blocksCollapsed && !chartFullscreen ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Show the page"
+                    className="-ml-1 shrink-0 rounded-lg"
+                    onClick={toggleBlocks}
+                  >
+                    <PanelLeftDashedIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Show the page</TooltipContent>
+              </Tooltip>
+            ) : null
           }
+          menuRows={
+            selection.kind === "market" ? (
+              <>
+                <FoldersMenuRow
+                  marketKey={selection.row.key}
+                  folders={folders}
+                  actions={folderActions}
+                />
+                <PinMenuRow marketKey={selection.row.key} />
+              </>
+            ) : null
+          }
+          controls={chartControls}
           wallet={{
             name: account.activeWallet?.label ?? null,
             menu: (trigger) => (
@@ -1344,7 +1315,31 @@ export function TradeWorkspace({
     </WorkspacePanel>
   )
 
-  // Under 1280px: one panel at a time behind a pill row, opening on the chart.
+  // Overview in the middle's place: the widgets straight on the dashboard,
+  // with no panel of their own, as the shell's Admin Overview. The chart and
+  // its tables stay mounted under it, out of sight. The knob at the edge
+  // brings the shut left panel back, as on the chart.
+  const middleOrOverview = (
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      {showingOverview ? (
+        <div data-trade-overview="" className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {overview}
+          {desktop && blocksCollapsed ? (
+            <PanelReopenTab side="left" label="Show blocks" onClick={toggleBlocks} />
+          ) : null}
+        </div>
+      ) : null}
+      <div
+        className={showingOverview ? "hidden" : "flex min-h-0 min-w-0 flex-1 flex-col"}
+        inert={showingOverview}
+      >
+        {middle}
+      </div>
+    </div>
+  )
+
+  // Under 1280px: one panel at a time behind a pill row, opening on the
+  // middle: Page, and the picked row's name.
   const narrow = (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <Tabs
@@ -1352,18 +1347,20 @@ export function TradeWorkspace({
         onValueChange={(value) => setNarrowView(value as typeof narrowView)}
       >
         <TabsList>
-          <TabsTrigger value="blocks">Blocks</TabsTrigger>
+          <TabsTrigger value="blocks">Page</TabsTrigger>
           <TabsTrigger value="chart">
-            {selection.kind === "market" ? selection.row.symbol : "Chart"}
+            {showingOverview
+              ? "Overview"
+              : selection.kind === "market"
+                ? selection.row.symbol
+                : "Chart"}
           </TabsTrigger>
-          <TabsTrigger value="market">Market</TabsTrigger>
         </TabsList>
       </Tabs>
       {(
         [
           ["blocks", blocksColumn],
-          ["chart", middle],
-          ["market", marketColumn],
+          ["chart", middleOrOverview],
         ] as const
       ).map(([side, content]) => (
         <div
@@ -1394,10 +1391,12 @@ export function TradeWorkspace({
         panelRef={blocksPanelRef}
         collapsible
         collapsedSize="0%"
-        // Each side panel opens at its narrowest, 16%, and drags to 36%; the
+        // The left panel opens at its narrowest, 15.2%, 5% narrower than the
+        // design's 16% (Tyler, 8 Nov 2026: "shrink the left side panel 5%
+        // narrower"), and drags to 36%; the
         // middle takes the rest (the Admin 3 panel design).
-        defaultSize="16%"
-        minSize="16%"
+        defaultSize="15.2%"
+        minSize="15.2%"
         maxSize="36%"
         // A smaller window shrinks the chart, never the page beside it.
         groupResizeBehavior="preserve-pixel-size"
@@ -1407,21 +1406,7 @@ export function TradeWorkspace({
       </ResizablePanel>
       <ResizableHandle gap collapsed={blocksCollapsed} className={NO_RING} />
       <ResizablePanel id="chart" minSize="32%">
-        {middle}
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={marketCollapsed} className={NO_RING} />
-      <ResizablePanel
-        id="market"
-        panelRef={marketPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="16%"
-        minSize="16%"
-        maxSize="36%"
-        groupResizeBehavior="preserve-pixel-size"
-        onResize={(size) => setMarketCollapsed(size.asPercentage < 0.5)}
-      >
-        <div className="flex h-full min-h-0">{marketColumn}</div>
+        {middleOrOverview}
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (

@@ -4,6 +4,7 @@ import { AdditionBoundary } from "@/components/shared/widgets/addition-boundary"
 import { WidgetCard } from "@/components/shared/widgets/widget-card"
 import { EmptySpot, WidgetMenu, type Spot } from "@/components/shared/widgets/widget-menus"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import type { AdminAddition, AdminAdditionProps } from "@/lib/admin-dashboard/admin-additions"
 import {
   appWidgetId,
@@ -11,6 +12,7 @@ import {
   type WidgetBoard,
   type WidgetLayout,
   type WidgetRowName,
+  type WidgetSource,
 } from "@/lib/admin-dashboard/overview-widgets"
 import type { AnalyticsRange } from "@/lib/analytics/range"
 import { appAdminWidgets, appCrmWidgets } from "@/lib/app-options"
@@ -21,7 +23,9 @@ import { cn } from "@/lib/utils"
  * row to have 2 col and bottom row to have 3 col (2 row max)"), straight on
  * the dashboard beside the left panel, with no panel or header of its own.
  * The Admin dashboard's Overview and the CRM's both draw this; each says
- * which it is (`board`), for its own layout and its own widgets.
+ * which it is (`board`), for its own layout and its own widgets. An app's own
+ * dashboard passes `offer` instead, its own list of widgets, and draws every
+ * one of them with `drawWidget`: it has no app widgets loaded by key.
  *
  * - **Wide:** the rows share the height, so the whole of Overview fits with
  *   no page scroll, and a long list scrolls inside its own card ("Fill the
@@ -33,16 +37,15 @@ import { cn } from "@/lib/utils"
  * that id; an empty one is pressed to add a widget there.
  */
 export function WidgetGrid({
-  board,
   layout,
   days,
   onChange,
   drawWidget,
-}: {
-  board: WidgetBoard
+  ...source
+}: WidgetSource & {
   layout: WidgetLayout
-  /** The range handed to the app's widgets. */
-  days: AnalyticsRange
+  /** The range handed to the app's widgets; not used with `offer`. */
+  days?: AnalyticsRange
   onChange: (layout: WidgetLayout) => void
   /** The dashboard's own widgets; null for an id that is not one, which is then the app's. */
   drawWidget?: (id: string, menu: WidgetMenuProps) => React.ReactNode | null
@@ -52,25 +55,34 @@ export function WidgetGrid({
   return (
     <div className="@container min-h-0 flex-1 overflow-y-auto @3xl:overflow-hidden">
       <div
+        style={{ gap: pageGutter }}
         className={cn(
-          // The site gap between the cards, and none round them: the cards'
-          // own edges line up with the left panel's.
-          "grid grid-cols-[minmax(0,1fr)] gap-3.75 @3xl:h-full",
+          // The site's gutter between the cards, from Settings → Styling, the
+          // same gap the panels keep between themselves (Tyler, 8 Nov 2026:
+          // "the widgets doesnt follow the gutter settings"), and none round
+          // them: the cards' own edges line up with the left panel's.
+          "grid grid-cols-[minmax(0,1fr)] @3xl:h-full",
           rows.length === 2 ? "@3xl:grid-rows-2" : "@3xl:grid-rows-1"
         )}
       >
         {rows.map((row) => (
           <div
             key={row.name}
-            className="grid grid-cols-[minmax(0,1fr)] gap-3.75 @3xl:min-h-0 @3xl:[grid-template-columns:repeat(var(--widget-columns),minmax(0,1fr))]"
-            style={{ "--widget-columns": row.columns } as React.CSSProperties}
+            className="grid grid-cols-[minmax(0,1fr)] @3xl:min-h-0 @3xl:[grid-template-columns:repeat(var(--widget-columns),minmax(0,1fr))]"
+            style={{ "--widget-columns": row.columns, gap: pageGutter } as React.CSSProperties}
           >
             {row.spots.map((id, index) => {
-              const menu = { board, layout, spot: { row: row.name, index }, onChange }
+              const menu: WidgetMenuProps = { ...source, layout, spot: { row: row.name, index }, onChange }
               if (!id) return <EmptySpot key={`empty-${index}`} {...menu} />
+              const drawn = drawWidget?.(id, menu)
               return (
                 <React.Fragment key={id}>
-                  {drawWidget?.(id, menu) ?? <AppWidget id={id} days={days} menu={menu} />}
+                  {drawn ??
+                    (source.board && days ? (
+                      <AppWidget id={id} board={source.board} days={days} menu={menu} />
+                    ) : (
+                      <EmptySpot {...menu} />
+                    ))}
                 </React.Fragment>
               )
             })}
@@ -81,9 +93,8 @@ export function WidgetGrid({
   )
 }
 
-/** What a widget's ⋮ needs: the dashboard, the layout, its spot, and the change. */
-export type WidgetMenuProps = {
-  board: WidgetBoard
+/** What a widget's ⋮ needs: where its widgets come from, the layout, its spot, and the change. */
+export type WidgetMenuProps = WidgetSource & {
   layout: WidgetLayout
   spot: Spot
   onChange: (layout: WidgetLayout) => void
@@ -119,8 +130,18 @@ function appWidget(board: WidgetBoard, id: string) {
   return made.get(id)
 }
 
-function AppWidget({ id, days, menu }: { id: string; days: AnalyticsRange; menu: WidgetMenuProps }) {
-  const made = appWidget(menu.board, id)
+function AppWidget({
+  id,
+  board,
+  days,
+  menu,
+}: {
+  id: string
+  board: WidgetBoard
+  days: AnalyticsRange
+  menu: WidgetMenuProps
+}) {
+  const made = appWidget(board, id)
   if (!made) return <EmptySpot {...menu} />
   const { Lazy } = made
   return (

@@ -2,10 +2,6 @@ import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  BookOpenIcon,
-  CandlestickChartIcon,
-  LayersIcon,
-  ScrollTextIcon,
   Trash2Icon,
   WalletIcon,
   XIcon,
@@ -23,9 +19,15 @@ import {
 import { useCopyNotes } from "@/components/social/use-copy-notes"
 import type { Trading } from "@/components/trade/use-trading"
 import {
-  DashboardCardTab,
   DashboardCardHeader,
+  dashboardCardTabClassName,
 } from "@/components/shared/dashboard-card-header"
+import {
+  UnderlineTabsTrack,
+  underlineTabClassName,
+  useDashboardTabStyle,
+} from "@/components/shared/dashboard-tabs"
+import { Tabs as TabsPrimitive } from "radix-ui"
 import { Button } from "@/components/ui/button"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -36,7 +38,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   marketSymbol,
   type MarketCatalog,
@@ -82,29 +84,90 @@ const PositionMarginDialog = React.lazy(() =>
 export type ActivityTab = "chart" | "positions" | "orders" | "journal"
 
 /**
- * The shell's tab header (`DashboardCardTabsHeader`) with one more slot, at
- * its start, built from the same two shell parts so the row matches it
- * exactly: the primary Browse market button sits before the tabs (Tyler,
- * 7 Nov 2026: "make it primary and put it here", pointing left of the chart
- * tab).
+ * The shell's tab header (`DashboardCardTabsHeader`), built from the same
+ * shell parts so the row matches it exactly. Browse market sits with the
+ * chart's controls on the right, before the timeframes (Tyler, 8 Nov 2026:
+ * "move the brwose market button here").
+ *
+ * The tabs are drawn the way Settings → Styling → Dashboard tabs says, grey
+ * pills or words with a line under the one showing, as every dashboard's are
+ * (Tyler, 8 Nov 2026: "wire the tabs to the dashboard tab option in
+ * settings"). They are not the shell's `DashboardTabs` because they share one
+ * tab set with the chart and tables they show.
  */
+const MiddleTabStyle = React.createContext<"pills" | "underline">("pills")
+
 function TabsHeader({
   lead,
   action,
   children,
 }: {
+  /** At the header's start: the button that reopens a shut left panel. */
   lead?: React.ReactNode
   action?: React.ReactNode
   children: React.ReactNode
 }) {
+  const style = useDashboardTabStyle()
   return (
     <DashboardCardHeader>
-      {lead ? <div className="flex shrink-0 items-center">{lead}</div> : null}
-      <TabsList className="min-w-0 justify-start">{children}</TabsList>
+      {lead}
+      <MiddleTabStyle.Provider value={style}>
+        {style === "underline" ? (
+          // Out to the header's top and bottom edges, so the line sits on its divider.
+          <div className="-my-3 flex min-w-0 flex-1 self-stretch">
+            <UnderlineTabsTrack>{children}</UnderlineTabsTrack>
+          </div>
+        ) : (
+          <TabsList className="min-w-0 justify-start">{children}</TabsList>
+        )}
+      </MiddleTabStyle.Provider>
       {action ? (
         <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>
       ) : null}
     </DashboardCardHeader>
+  )
+}
+
+/**
+ * One middle tab: its name and its count, with no icon (Tyler, 8 Nov 2026:
+ * "remove the icons in the middle tabs"), as a pill in the grey track or as a
+ * word over the sliding line, whichever the header draws.
+ */
+function MiddleTab({
+  label,
+  count,
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Trigger> & {
+  label: React.ReactNode
+  count?: number
+}) {
+  const style = React.useContext(MiddleTabStyle)
+  const inside = (
+    <>
+      {label}
+      {count !== undefined ? (
+        <span className="ml-[3px] inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-xs leading-none font-medium text-muted-foreground tabular-nums">
+          {count}
+        </span>
+      ) : null}
+    </>
+  )
+  if (style === "pills") {
+    return (
+      <TabsTrigger className={cn("flex-none", dashboardCardTabClassName, className)} {...props}>
+        {inside}
+      </TabsTrigger>
+    )
+  }
+  return (
+    <TabsPrimitive.Trigger
+      data-slot="dashboard-tab"
+      className={cn(underlineTabClassName, dashboardCardTabClassName, className)}
+      {...props}
+    >
+      {inside}
+    </TabsPrimitive.Trigger>
   )
 }
 
@@ -174,10 +237,20 @@ export function ActivityPanel({
   chart,
   controls,
   wallet,
+  menuRows,
   lead,
 }: {
-  /** Before the tabs, at the header's start: the primary Browse market button. */
+  /**
+   * At the header's start, before the tabs: the button that reopens a shut
+   * left panel, as the shell's dashboards have it (Tyler, 8 Nov 2026: "put
+   * the uncollapse here like how shell does it").
+   */
   lead?: React.ReactNode
+  /**
+   * The market's own rows in the ⋮, after Wallet: Folders and Pin to top
+   * (8 Nov 2026, from the right panel that went).
+   */
+  menuRows?: React.ReactNode
   /**
    * The chart's controls in the one middle header (Tyler, 7 Nov 2026: "There
    * should only be one middle header"): the timeframe, Indicators, View
@@ -196,6 +269,12 @@ export function ActivityPanel({
    */
   chart?: {
     label: string
+    /**
+     * Drawn inside the chart tab after its name: the "i" whose tooltip holds
+     * the market's facts (Tyler, 8 Nov 2026: "for the market info, just add
+     * the tooltip beside market ticker on the middle tab").
+     */
+    info?: React.ReactNode
     content: React.ReactNode
     /** Full screen: the chart alone, with the tab row out of sight but the chart never re-drawn. */
     only?: boolean
@@ -358,16 +437,10 @@ export function ActivityPanel({
   // The three words and Close all together are wider than a phone. The word
   // stays on the tab that is open, and the other two keep their picture and
   // their count. A screen reader still reads the full name of all three.
-  const tabProps = (which: ActivityTab, word: string) => ({
-    label: (
-      <span
-        className={
-          which === tab ? undefined : narrow ? "hidden" : "hidden sm:inline"
-        }
-      >
-        {word}
-      </span>
-    ),
+  // Every tab keeps its name: with no icon there is nothing else to show,
+  // and a header too narrow for them all scrolls its tab row sideways.
+  const tabProps = (_which: ActivityTab, word: string) => ({
+    label: <span>{word}</span>,
     "aria-label": word,
   })
 
@@ -526,6 +599,7 @@ export function ActivityPanel({
                     />
                   )
                 : null}
+              {menuRows}
             {/* The emergency button: one press opens the list of what can go,
                 a second press does it. Positions, watched prices and smart
                 orders all start ticked, and untick whatever should stay —
@@ -564,10 +638,15 @@ export function ActivityPanel({
         }
       >
         {chart ? (
-          <DashboardCardTab
+          <MiddleTab
             value="chart"
-            icon={<CandlestickChartIcon className="size-4" />}
             {...tabProps("chart", chart.label)}
+            label={
+              <>
+                {tabProps("chart", chart.label).label}
+                {chart.info}
+              </>
+            }
           />
         ) : null}
         <PositionsGlance
@@ -575,24 +654,21 @@ export function ActivityPanel({
           markets={markets}
           onSelectMarket={onSelectMarket}
         >
-          <DashboardCardTab
+          <MiddleTab
             value="positions"
-            icon={<LayersIcon className="size-4" />}
             {...tabProps("positions", "Positions")}
             count={countOf(visible.length)}
             onPointerDown={pressTab("positions")}
           />
         </PositionsGlance>
-        <DashboardCardTab
+        <MiddleTab
           value="orders"
-          icon={<ScrollTextIcon className="size-4" />}
           {...tabProps("orders", "Open orders")}
           count={countOf(trading.orders.length + trading.watchOrders.length)}
           onPointerDown={pressTab("orders")}
         />
-        <DashboardCardTab
+        <MiddleTab
           value="journal"
-          icon={<BookOpenIcon className="size-4" />}
           {...tabProps("journal", "Journal")}
           count={countOf(trading.trades.length + unmatchedHistory.length)}
           onPointerDown={pressTab("journal")}

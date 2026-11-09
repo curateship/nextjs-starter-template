@@ -1,44 +1,46 @@
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
-import type { ProtocolId } from "@/lib/protocols/contracts"
-import { storedTradePage, type TradePage } from "@/lib/trade/trade-pages"
+import { readCoverImages } from "@/lib/notes/page-cover"
+import { openedPageBody, storedTradePage, type TradePage } from "@/lib/trade/trade-pages"
 import { db, type CustomShellDb } from "@/server/db"
-import { tradePages } from "@/server/trade/schema"
+import { tradeDashboardPages } from "@/server/trade/schema"
 
 /**
- * The dashboard's two pages (the Admin 3 panel design, 7 Nov 2026), each read
- * and written only by its owner, both one per exchange: `marketKey` "" is the
- * exchange's own page on the left, "*" the All markets page on the right.
+ * The Trade dashboard's left page (8 Nov 2026), one per person and read and
+ * written only by its owner. It is the same page whichever exchange is
+ * picked; its blocks follow the exchange.
  */
 
 export const PAGE_LOCKED_MESSAGE =
   "This page is locked. Unlock the notes to change it."
 
-/** One page, or `null` body when it was never written, so the starting page shows. */
+/**
+ * The page, or a `null` body when it was never written, so the starting page
+ * shows. A written page always comes back holding its Protocols block, the
+ * way Admin's page always holds its Dashboards block.
+ */
 export async function loadTradePage(
   userId: string,
-  protocol: ProtocolId,
-  marketKey: string,
   database: CustomShellDb = db
-): Promise<{ body: string | null; locked: boolean; coverUrl: string | null }> {
+): Promise<{ body: string | null; locked: boolean; coverUrl: string | null; coverImages: string[] }> {
   const [row] = await database
     .select({
-      body: tradePages.body,
-      locked: tradePages.locked,
-      coverUrl: tradePages.coverUrl,
+      body: tradeDashboardPages.body,
+      locked: tradeDashboardPages.locked,
+      coverUrl: tradeDashboardPages.coverUrl,
+      coverImages: tradeDashboardPages.coverImages,
     })
-    .from(tradePages)
-    .where(
-      and(
-        eq(tradePages.userId, userId),
-        eq(tradePages.protocol, protocol),
-        eq(tradePages.marketKey, marketKey)
-      )
-    )
+    .from(tradeDashboardPages)
+    .where(eq(tradeDashboardPages.userId, userId))
     .limit(1)
   return row
-    ? { body: row.body, locked: row.locked, coverUrl: row.coverUrl }
-    : { body: null, locked: false, coverUrl: null }
+    ? {
+        body: openedPageBody(row.body),
+        locked: row.locked,
+        coverUrl: row.coverUrl,
+        coverImages: readCoverImages(row.coverImages),
+      }
+    : { body: null, locked: false, coverUrl: null, coverImages: [] }
 }
 
 /**
@@ -48,33 +50,25 @@ export async function loadTradePage(
  */
 export async function saveTradePage(
   userId: string,
-  protocol: ProtocolId,
-  marketKey: string,
   text: string,
   database: CustomShellDb = db
-): Promise<Omit<TradePage, "coverUrl">> {
+): Promise<Pick<TradePage, "body" | "locked">> {
   const body = storedTradePage(text)
   return database.transaction(async (tx) => {
     const [row] = await tx
-      .select({ locked: tradePages.locked })
-      .from(tradePages)
-      .where(
-        and(
-          eq(tradePages.userId, userId),
-          eq(tradePages.protocol, protocol),
-          eq(tradePages.marketKey, marketKey)
-        )
-      )
+      .select({ locked: tradeDashboardPages.locked })
+      .from(tradeDashboardPages)
+      .where(eq(tradeDashboardPages.userId, userId))
       .for("update")
     if (row?.locked) throw new Error(PAGE_LOCKED_MESSAGE)
     await tx
-      .insert(tradePages)
-      .values({ userId, protocol, marketKey, body })
+      .insert(tradeDashboardPages)
+      .values({ userId, body })
       .onConflictDoUpdate({
-        target: [tradePages.userId, tradePages.protocol, tradePages.marketKey],
+        target: tradeDashboardPages.userId,
         set: { body, updatedAt: new Date() },
       })
-    return { body, locked: false }
+    return { body: openedPageBody(body), locked: false }
   })
 }
 
@@ -85,42 +79,40 @@ export async function saveTradePage(
  */
 export async function setTradePageLocked(
   userId: string,
-  protocol: ProtocolId,
-  marketKey: string,
   locked: boolean,
   shownBody: string,
   database: CustomShellDb = db
 ) {
   const body = storedTradePage(shownBody)
   await database
-    .insert(tradePages)
-    .values({ userId, protocol, marketKey, body, locked })
+    .insert(tradeDashboardPages)
+    .values({ userId, body, locked })
     .onConflictDoUpdate({
-      target: [tradePages.userId, tradePages.protocol, tradePages.marketKey],
+      target: tradeDashboardPages.userId,
       set: { locked, updatedAt: new Date() },
     })
   return { locked }
 }
 
 /**
- * Sets or clears the page's cover photo. A page that was never written has no
+ * Sets the page's cover (none, the sky, or a picture) and its own pictures
+ * together, as the shell's pages do. A page that was never written has no
  * row, so the first cover saves what the page shows with it, as the lock does.
  */
 export async function setTradePageCover(
   userId: string,
-  protocol: ProtocolId,
-  marketKey: string,
-  coverUrl: string | null,
+  cover: { coverUrl: string | null; coverImages: string[] },
   shownBody: string,
   database: CustomShellDb = db
 ) {
   const body = storedTradePage(shownBody)
+  const coverImages = readCoverImages(cover.coverImages)
   await database
-    .insert(tradePages)
-    .values({ userId, protocol, marketKey, body, coverUrl })
+    .insert(tradeDashboardPages)
+    .values({ userId, body, coverUrl: cover.coverUrl, coverImages })
     .onConflictDoUpdate({
-      target: [tradePages.userId, tradePages.protocol, tradePages.marketKey],
-      set: { coverUrl, updatedAt: new Date() },
+      target: tradeDashboardPages.userId,
+      set: { coverUrl: cover.coverUrl, coverImages, updatedAt: new Date() },
     })
-  return { coverUrl }
+  return { coverUrl: cover.coverUrl, coverImages }
 }

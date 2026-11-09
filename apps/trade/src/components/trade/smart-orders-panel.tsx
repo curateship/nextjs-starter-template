@@ -134,6 +134,14 @@ type SmartOrdersViewProps = {
   settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
+  /**
+   * Told whenever the panel has no row to show, or has one again, so the
+   * dashboard can hide an empty block when "Hide empty blocks" is on. Still
+   * reading is not empty, and a failed read with nothing listed is never
+   * empty: its Try again has to stay reachable. Reported before paint, so a
+   * block is never drawn for a frame and then taken away.
+   */
+  onEmptyChange?: (empty: boolean) => void
   onRetry: () => void
   onResumeSmartOrder: (order: SmartOrder) => Promise<boolean>
   onSelectMarket: (marketKey: string) => void
@@ -202,6 +210,7 @@ function SmartOrdersView({
   onRetry,
   onResumeSmartOrder,
   onSelectMarket,
+  onEmptyChange,
   kind,
 }: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
   const [cached, setCached] = React.useState<ReturnType<
@@ -340,6 +349,12 @@ function SmartOrdersView({
     sort,
     trades,
   ])
+  // Empty is the "none working" answer: not while it is still being read
+  // with nothing cached, and never after a failed read.
+  const empty = rows.length === 0 && !failed && (settled || cached !== null)
+  useEffectBeforePaint(() => {
+    onEmptyChange?.(empty)
+  }, [empty, onEmptyChange])
 
   // Every column reads from the left, headings and figures alike (Tyler,
   // 13 Sep 2026). PnL and Banked used to hug the right edge, which left a hole

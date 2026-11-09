@@ -5,20 +5,15 @@ import {
   useFiredPriceAlerts,
   type LineAlertsForPanel,
 } from "@/components/trade/price-alerts-panel"
-import {
-  useBlockCount,
-  useBlockOpen,
-} from "@/components/trade/notes/trade-block-views"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { clearAlerts, getClearAlertsErrorMessage } from "@/lib/api/trade/alerts"
 import type { PriceAlert } from "@/lib/trade/price-alerts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Active and fired chart alerts, the dashboard's Alerts block (the Admin 3
- * panel design, 7 Nov 2026). The block's heading carries the count of alerts
- * fired since the block was last open, and an open block counts what it shows
- * as seen.
+ * Active and fired chart alerts, the Alerts tab of the Trade dashboard page's
+ * ⋮ (8 Nov 2026; a block on the page until then). It has no count of its own:
+ * a fired alert is told by the bell's notification tray.
  */
 export function PriceAlertsMenu({
   alerts,
@@ -37,27 +32,11 @@ export function PriceAlertsMenu({
   lines: LineAlertsForPanel
   onCleared: () => Promise<void>
 }) {
-  const open = useBlockOpen()
   const [clearing, setClearing] = React.useState(false)
   const [confirmClear, setConfirmClear] = React.useState<
     "active" | "fired" | null
   >(null)
   const fired = useFiredPriceAlerts()
-  // **Opening the menu clears the red count** (Tyler, 29 Sep 2026). The fired
-  // alerts stay in the list until they are cleared or binned, so the count on
-  // the siren is what has fired since it was last looked at, not how many rows
-  // the Fired tab holds. Anything that fires afterwards brings it back.
-  const [seen, setSeen] = React.useState<readonly string[]>([])
-  const firedIds = React.useMemo(
-    () => [
-      ...fired.alerts.map((alert) => alert.id),
-      ...lines.fired.map((alert) => alert.id),
-    ],
-    [fired.alerts, lines.fired]
-  )
-  const firedCount = open
-    ? 0
-    : firedIds.filter((id) => !seen.includes(id)).length
   const clear = React.useCallback(
     async (kind: "active" | "fired") => {
       if (clearing) return
@@ -73,12 +52,6 @@ export function PriceAlertsMenu({
     },
     [clearing, fired, onCleared]
   )
-  // An open block counts what it shows as seen, as opening the menu does.
-  const seenKey = firedIds.join(",")
-  React.useEffect(() => {
-    if (open) setSeen(seenKey ? seenKey.split(",") : [])
-  }, [open, seenKey])
-  useBlockCount(firedCount)
   const content = (
     <PriceAlertsPanelContent
       alerts={alerts}

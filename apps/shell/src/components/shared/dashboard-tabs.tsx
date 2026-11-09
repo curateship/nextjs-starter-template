@@ -26,8 +26,12 @@ export type DashboardTab = {
 /** Which style the tabs around a `DashboardTabButton` are drawn in. */
 const TabStyle = React.createContext<DashboardTabStyle>(DEFAULT_DASHBOARD_TABS)
 
-/** The style this site picked in Settings → Styling, pills when it never chose. */
-function useDashboardTabStyle(): DashboardTabStyle {
+/**
+ * The style this site picked in Settings → Styling, pills when it never chose.
+ * Exported for a dashboard whose tabs cannot be `DashboardTabs`, such as
+ * Trade's middle panel, whose tabs share one tab set with what they show.
+ */
+export function useDashboardTabStyle(): DashboardTabStyle {
   const runtime = useOptionalShellRuntime()
   return runtime?.config.styling.dashboardTabs ?? DEFAULT_DASHBOARD_TABS
 }
@@ -114,12 +118,6 @@ function UnderlineTabs({
   after?: React.ReactNode
   className?: string
 }) {
-  const { trackRef, trackProps, pillProps } = useSlidingPill<HTMLDivElement>({
-    selected: '[data-slot="dashboard-tab"][data-state="active"]',
-    observe: '[data-slot="dashboard-tab"]',
-    attributes: ["data-state"],
-    variant: "underline",
-  })
   return (
     <TabsPrimitive.Root
       value={value}
@@ -127,32 +125,59 @@ function UnderlineTabs({
       // Out to the header's top and bottom edges, so the line sits on its divider.
       className={cn("-my-3 flex min-w-0 flex-1 self-stretch", className)}
     >
-      <ScrollArea className="h-full min-w-0" viewportClassName="[&>div]:h-full">
-        <div ref={trackRef} {...trackProps} className="relative flex h-full w-max items-stretch gap-5 px-1">
-          <span data-slot="dashboard-tab-line" {...pillProps} />
-          <TabsPrimitive.List className="flex items-stretch gap-5">
-            {tabs.map((tab) => (
-              <TabsPrimitive.Trigger
-                key={tab.value}
-                value={tab.value}
-                aria-label={tab.ariaLabel}
-                data-slot="dashboard-tab"
-                className={underlineTabClassName}
-              >
-                {tab.label}
-                {tab.count !== undefined ? <TabsCount>{tab.count}</TabsCount> : null}
-              </TabsPrimitive.Trigger>
-            ))}
-          </TabsPrimitive.List>
-          {after}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      <UnderlineTabsTrack after={after}>
+        {tabs.map((tab) => (
+          <TabsPrimitive.Trigger
+            key={tab.value}
+            value={tab.value}
+            aria-label={tab.ariaLabel}
+            data-slot="dashboard-tab"
+            className={underlineTabClassName}
+          >
+            {tab.label}
+            {tab.count !== undefined ? <TabsCount>{tab.count}</TabsCount> : null}
+          </TabsPrimitive.Trigger>
+        ))}
+      </UnderlineTabsTrack>
     </TabsPrimitive.Root>
   )
 }
 
-const underlineTabClassName = cn(
+/**
+ * The underline row itself, inside a tab set the caller already has: the
+ * triggers in a sliding-line track that scrolls sideways when it runs out of
+ * room. A trigger in it is a Radix tab trigger with `data-slot="dashboard-tab"`
+ * and `underlineTabClassName`. Exported for a dashboard whose tabs share one
+ * tab set with what they show, such as Trade's middle panel (8 Nov 2026), so
+ * it can follow the same Settings → Styling choice.
+ */
+export function UnderlineTabsTrack({
+  children,
+  after,
+}: {
+  children: React.ReactNode
+  after?: React.ReactNode
+}) {
+  const { trackRef, trackProps, pillProps } = useSlidingPill<HTMLDivElement>({
+    selected: '[data-slot="dashboard-tab"][data-state="active"]',
+    observe: '[data-slot="dashboard-tab"]',
+    attributes: ["data-state"],
+    variant: "underline",
+  })
+  return (
+    <ScrollArea className="h-full min-w-0" viewportClassName="[&>div]:h-full">
+      <div ref={trackRef} {...trackProps} className="relative flex h-full w-max items-stretch gap-5 px-1">
+        <span data-slot="dashboard-tab-line" {...pillProps} />
+        <TabsPrimitive.List className="flex items-stretch gap-5">{children}</TabsPrimitive.List>
+        {after}
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
+  )
+}
+
+/** How a tab in the underline row looks; see `UnderlineTabsTrack`. */
+export const underlineTabClassName = cn(
   "relative z-10 inline-flex items-center gap-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors",
   slidingPillMotionClassName,
   "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",

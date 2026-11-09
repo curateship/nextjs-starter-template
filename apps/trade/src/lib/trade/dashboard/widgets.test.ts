@@ -1,69 +1,44 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  createDefaultTradingDashboardWidgets,
-  normalizeTradingDashboardWidgets,
+  DEFAULT_TRADING_WIDGET_LAYOUT,
+  readTradingWidgetLayout,
+  TRADING_WIDGET_OFFER,
   tradingOverviewWidgetReads,
-} from "./widgets"
+} from "@/lib/trade/dashboard/widgets"
 
-describe("the trading dashboard layout", () => {
-  it("uses the familiar layout before a choice has been saved", () => {
-    expect(normalizeTradingDashboardWidgets(null)).toEqual(
-      createDefaultTradingDashboardWidgets()
-    )
-  })
-
-  it("puts active trades on a new dashboard", () => {
-    expect(createDefaultTradingDashboardWidgets().top).toContain(
-      "active-trades"
-    )
-  })
-
-  it("puts running bots beside the trades on a new dashboard", () => {
-    expect(createDefaultTradingDashboardWidgets().left).toEqual([
+/** The Trade dashboard's Overview widgets, in the shell's rows. */
+describe("the Trade Overview's widgets", () => {
+  it("offers Trade's six widgets and nothing of the shell's", () => {
+    expect(TRADING_WIDGET_OFFER.choices.map((choice) => choice.id)).toEqual([
+      "equity",
+      "active-trades",
       "running-bots",
+      "profit-calendar",
+      "trades",
+      "moving-now",
     ])
   })
 
-  it("puts the combined PnL Graph first on a new dashboard", () => {
-    expect(createDefaultTradingDashboardWidgets().top[0]).toBe("equity")
-  })
-
-  it("keeps a dashboard somebody emptied on purpose", () => {
-    expect(
-      normalizeTradingDashboardWidgets({ top: [], left: [], right: [] })
-    ).toEqual({ top: [], left: [], right: [] })
-  })
-
-  it("drops unknown cards and repeats", () => {
-    expect(
-      normalizeTradingDashboardWidgets({
-        top: ["equity", "running-bots", "gone"],
-        left: ["wallets", "equity"],
-        right: ["trades"],
-      })
-    ).toEqual({
-      top: ["equity", "running-bots"],
-      left: [],
-      right: ["trades"],
+  it("starts fresh with PnL Graph and Active Trades over Running bots and All trades", () => {
+    expect(readTradingWidgetLayout(null)).toEqual(DEFAULT_TRADING_WIDGET_LAYOUT)
+    expect(DEFAULT_TRADING_WIDGET_LAYOUT).toEqual({
+      top: { columns: 2, spots: ["equity", "active-trades"] },
+      bottom: { columns: 2, spots: ["running-bots", "trades"] },
     })
   })
 
-  it("asks only for the optional figures that are placed", () => {
+  it("asks for positions and bots only when their widgets are shown", () => {
+    expect(tradingOverviewWidgetReads(DEFAULT_TRADING_WIDGET_LAYOUT)).toEqual({
+      includeActiveTrades: true,
+      includeBots: true,
+    })
     expect(
       tradingOverviewWidgetReads({
-        top: ["equity"],
-        left: [],
-        right: ["trades"],
+        top: { columns: 1, spots: ["equity"] },
+        // A bottom row set to None hides what it held.
+        bottom: { columns: 0, spots: ["running-bots"] },
       })
     ).toEqual({ includeActiveTrades: false, includeBots: false })
-
-    expect(
-      tradingOverviewWidgetReads({
-        top: ["active-trades"],
-        left: ["running-bots"],
-        right: [],
-      })
-    ).toEqual({ includeActiveTrades: true, includeBots: true })
   })
 })

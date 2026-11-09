@@ -18,7 +18,6 @@ import {
   PlayIcon,
   RadarIcon,
   ShieldCheckIcon,
-  SirenIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -32,14 +31,16 @@ import {
 } from "@/components/trade/notes/note-block-views"
 import { NoteFolds } from "@/components/trade/notes/note-folds"
 import {
-  AlertsBlockView,
   DcaTradesBlockView,
   FoldersBlockView,
   GridTradesBlockView,
   ManualTradesBlockView,
+  ProtocolsBlockView,
   RulesBlockView,
   ScannerBlockView,
 } from "@/components/trade/notes/trade-block-views"
+import { keepOnPage } from "@/components/shared/notes/note-block-nodes"
+import { PROTOCOLS_BLOCK_NODE } from "@/lib/trade/trade-pages"
 
 /**
  * The "/" blocks on a Trade page (the Admin 3 panel design, 7 Nov 2026),
@@ -63,14 +64,14 @@ export type BlockKey =
   | "manualTrades"
   | "gridTrades"
   | "dcaTrades"
-  | "alerts"
   | "scanner"
   | "folders"
 
 /**
  * The "/" list's two groups, as Project's. Basic blocks are what the writer
  * types or pastes in; advanced blocks show something live from the
- * dashboard: the exchange's trades, alerts and folders, or the market's facts.
+ * dashboard: the exchange's trades, scanner and folders. Alerts are not a
+ * block since 8 Nov 2026: they are a tab of the page's ⋮ and the bell's tray.
  */
 export type BlockGroup = "basic" | "advanced"
 export const BLOCK_GROUP_LABEL: Record<BlockGroup, string> = { basic: "Basic blocks", advanced: "Advanced blocks" }
@@ -93,7 +94,6 @@ export const BLOCKS: { key: BlockKey; label: string; icon: LucideIcon; group: Bl
   { key: "manualTrades", label: "Manual trades", icon: ListOrderedIcon, group: "advanced" },
   { key: "gridTrades", label: "Grid trades", icon: Grid2x2Icon, group: "advanced" },
   { key: "dcaTrades", label: "DCA trades", icon: LayersIcon, group: "advanced" },
-  { key: "alerts", label: "Alerts", icon: SirenIcon, group: "advanced" },
   { key: "scanner", label: "Scanner", icon: RadarIcon, group: "advanced" },
   { key: "folders", label: "Folders", icon: FolderIcon, group: "advanced" },
 ]
@@ -261,9 +261,11 @@ export const BLOCK_NODES: Extensions = [
   blockNode("noteManualTrades", {}, ManualTradesBlockView),
   blockNode("noteGridTrades", {}, GridTradesBlockView),
   blockNode("noteDcaTrades", {}, DcaTradesBlockView),
-  blockNode("noteAlerts", {}, AlertsBlockView),
   blockNode("noteScanner", {}, ScannerBlockView),
   blockNode("noteFolders", {}, FoldersBlockView),
+  // The Protocols block is fixed, as Admin's Dashboards block is (8 Nov
+  // 2026): never offered in the "/" list, never deleted, only moved.
+  keepOnPage(blockNode(PROTOCOLS_BLOCK_NODE, {}, ProtocolsBlockView)),
   Callout,
   Fold,
   TaskList,
@@ -285,7 +287,6 @@ export const BLOCK_NODE_NAMES: Record<BlockKey, readonly string[]> = {
   manualTrades: ["noteManualTrades"],
   gridTrades: ["noteGridTrades"],
   dcaTrades: ["noteDcaTrades"],
-  alerts: ["noteAlerts"],
   scanner: ["noteScanner"],
   folders: ["noteFolders"],
   checklist: ["taskList", "taskItem"],

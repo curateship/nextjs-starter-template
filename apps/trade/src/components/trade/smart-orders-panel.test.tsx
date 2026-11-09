@@ -290,6 +290,33 @@ describe("the Smart orders panel", () => {
   // Hide on empty (Tyler, 8 Oct 2026): the dashboard leaves out a panel that
   // says it is empty, so "empty" has to mean "nothing to show" and never
   // "could not read".
+  // "Hide empty blocks" (Tyler, 8 Nov 2026) hides a block only on the "none
+  // working" answer: never while it is still reading, never after a failed
+  // read, whose Try again has to stay reachable.
+  it("says it is empty only when it has answered that nothing is working", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    window.localStorage.clear()
+    const host = document.createElement("div")
+    const root = createRoot(host)
+    const told = vi.fn()
+    const show = (state: { smartOrders: readonly SmartOrder[]; settled: boolean; failed: boolean }) =>
+      act(async () => {
+        root.render(<SmartOrdersPanel {...shared} {...state} onEmptyChange={told} />)
+      })
+
+    await show({ smartOrders: [], settled: false, failed: false })
+    expect(told).toHaveBeenLastCalledWith(false)
+    await show({ smartOrders: [], settled: true, failed: true })
+    expect(told).toHaveBeenLastCalledWith(false)
+    await show({ smartOrders: [], settled: true, failed: false })
+    expect(told).toHaveBeenLastCalledWith(true)
+    await show({ smartOrders: [xmrGrid], settled: true, failed: false })
+    expect(told).toHaveBeenLastCalledWith(false)
+    await act(async () => root.unmount())
+  })
+
   it("lists grids under Grid and ladders under DCA", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

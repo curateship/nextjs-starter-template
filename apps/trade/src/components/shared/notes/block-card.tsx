@@ -261,8 +261,12 @@ export function BlockCard({
           {/* One white tile with rounded corners (Tyler, 7 Nov 2026: "THis should
               be rounded corner"). A table's grey heading and totals rows turn
               white inside it, or they melt into the grey block around the tile
-              and its corners read as square. */}
-          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card">
+              and its corners read as square. Their line is then the Divider
+              lines colour alone: the table line's grey band, there to match a
+              grey heading row, goes clear, or it drew a grey line Settings
+              could not change (Tyler, 8 Nov 2026: "this border here is not
+              wired to the styling setting"). */}
+          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
             {children}
           </div>
         </CollapsibleContent>

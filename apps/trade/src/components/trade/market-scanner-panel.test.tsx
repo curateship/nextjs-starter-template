@@ -285,7 +285,7 @@ it("shows signed movement, unavailable values and exact chart navigation", async
   expect(rows[0].lastElementChild?.className).toContain("text-emerald")
   expect(rows[1].lastElementChild?.className).toContain("text-destructive")
   expect(rows[1].getAttribute("href")).toBe(
-    "/protocols/aster?market=aster%3Amainnet%3ABTCUSDT"
+    "/trade?market=aster%3Amainnet%3ABTCUSDT"
   )
   expect(rows[2].lastElementChild?.textContent).toBe("0.00%")
   expect(rows[3].lastElementChild?.textContent).toBe("—")

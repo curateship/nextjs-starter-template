@@ -141,8 +141,8 @@ The left panel stays put while the section changes: only the middle and
 - **A widget's own ⋮**, at the right of its heading, lists every widget to
   swap in, this one ticked and any already shown elsewhere marked "Moves
   here", then Remove widget, which leaves the spot empty. Each row stays on
-  one line; the menu is as wide as its longest. It shows while the
-  widget's heading is pointed at, and always on a phone.
+  one line; the menu is as wide as its longest. It is always on
+  screen (Tyler, 8 Nov 2026: "put the 3 dots icon always appear on widgets").
 - **An empty spot** reads "Add a widget". Pressing it opens the same list,
   and the pick goes right there.
 - **Saving:** a change shows at once and saves for the whole site, so every

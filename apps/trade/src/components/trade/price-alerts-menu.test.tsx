@@ -29,7 +29,6 @@ vi.mock("@/lib/toast/error-toast", () => ({
 
 import * as React from "react"
 
-import { BlockHeadingContext } from "@/components/trade/notes/trade-block-views"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -80,32 +79,9 @@ afterEach(async () => {
   delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
 })
 
-/**
- * A stand-in for the Alerts block around the list: it shows the heading's
- * count and folds or opens the block, as the page's block card does.
- */
-function InBlock({
-  startOpen,
-  children,
-}: {
-  startOpen: boolean
-  children: React.ReactNode
-}) {
-  const [open, setOpen] = React.useState(startOpen)
-  const [count, setCount] = React.useState<number | undefined>(undefined)
-  const heading = React.useMemo(
-    () => ({ actions: null, setCount, open }),
-    [open]
-  )
-  return (
-    <TooltipProvider>
-      <span data-testid="count">{count ?? ""}</span>
-      <button type="button" aria-label="Fold or open" onClick={() => setOpen(!open)} />
-      <BlockHeadingContext.Provider value={heading}>
-        {children}
-      </BlockHeadingContext.Provider>
-    </TooltipProvider>
-  )
+/** The tab's list sits in the page ⋮'s tooltips. */
+function InMenu({ children }: { children: React.ReactNode }) {
+  return <TooltipProvider>{children}</TooltipProvider>
 }
 
 const noLines = {
@@ -117,11 +93,7 @@ const noLines = {
   onSwitchOff: () => {},
 }
 
-function count() {
-  return document.querySelector('[data-testid="count"]')?.textContent
-}
-
-describe("the Alerts block", () => {
+describe("the Alerts tab of the page's ⋮", () => {
   it.each([false, true])(
     "clicking a fired alert opens its market, and a delete that fails puts the row back, failure=%s",
     async (fails) => {
@@ -129,7 +101,7 @@ describe("the Alerts block", () => {
       if (fails) api.removeFired.mockRejectedValue(new Error("refused"))
       await act(async () =>
         root.render(
-          <InBlock startOpen>
+          <InMenu>
             <PriceAlertsMenu
               alerts={[]}
               error={null}
@@ -139,7 +111,7 @@ describe("the Alerts block", () => {
               lines={noLines}
               onCleared={async () => {}}
             />
-          </InBlock>
+          </InMenu>
         )
       )
       await vi.waitFor(() => buttonStartingWith("ETH"))
@@ -148,46 +120,17 @@ describe("the Alerts block", () => {
       expect(api.removeFired).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000002"
       )
-      // The block was open, so the alert counted as seen (Tyler, 29 Sep 2026).
-      expect(count()).toBe("0")
       expect(document.body.textContent?.includes("ETH")).toBe(fails)
       if (fails) expect(errors.show).toHaveBeenCalledWith("Delete failed.")
     }
   )
-
-  it("counts a fired alert on the heading until the block is opened", async () => {
-    await act(async () => {
-      root.render(
-        <InBlock startOpen={false}>
-          <PriceAlertsMenu
-            alerts={[]}
-            error={null}
-            onRetry={() => {}}
-            onSelectMarket={() => {}}
-            onDelete={() => {}}
-            lines={noLines}
-            onCleared={async () => {}}
-          />
-        </InBlock>
-      )
-    })
-
-    await vi.waitFor(() => expect(count()).toBe("1"))
-    await act(async () => button("Fold or open").click())
-    // The fired alert is still in the list. Only the count goes, because it
-    // means "fired since you last looked" (Tyler, 29 Sep 2026).
-    expect(count()).toBe("0")
-    await act(async () => button("Fold or open").click())
-    expect(count()).toBe("0")
-    expect(document.body.textContent).toContain("ETH")
-  })
 
   it("walks the list one row at a time and clears only the visible tab", async () => {
     const onCleared = vi.fn().mockResolvedValue(undefined)
     const onSelectMarket = vi.fn()
     await act(async () => {
       root.render(
-        <InBlock startOpen>
+        <InMenu>
           <PriceAlertsMenu
             alerts={[
               {
@@ -207,7 +150,7 @@ describe("the Alerts block", () => {
             lines={noLines}
             onCleared={onCleared}
           />
-        </InBlock>
+        </InMenu>
       )
     })
 
@@ -252,14 +195,6 @@ describe("the Alerts block", () => {
     expect(onCleared).toHaveBeenCalledTimes(2)
   })
 })
-
-function button(name: string) {
-  const found = document.querySelector<HTMLButtonElement>(
-    `button[aria-label="${name}"]`
-  )
-  if (!found) throw new Error(`Missing ${name}`)
-  return found
-}
 
 function buttonStartingWith(text: string) {
   const found = Array.from(

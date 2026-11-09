@@ -1,7 +1,10 @@
 # The trading overview
 
-`/admin/trading-overview` answers the account-wide money question without
-belonging to one exchange. PnL Graph, short for profit and loss, is the main
+Overview, the first row of the Trade dashboard's Protocols block
+(`/trade?view=overview`, `dashboard-blocks.md`), answers the account-wide money
+question without belonging to one exchange. It was its own page at
+`/admin/trading-overview` until 8 Nov 2026. Its widgets now sit in the shell's
+widget cards and rows, and a member opens their own. PnL Graph, short for profit and loss, is the main
 card. Its layout copies the design Tyler sent on 23 Sep 2026
 (`workspace/docs/assets/pasted-image-1790208001182205000.png`).
 
@@ -23,21 +26,22 @@ card. Its layout copies the design Tyler sent on 23 Sep 2026
   monospace. Five dates run along the bottom, the first and last flush with the
   line's ends. A chart narrower than 480px shows only the first, middle and last
   date so the labels never touch. The other wallets' lines are not drawn.
-- **What the card leaves out on purpose:** the "PnL Graph" title and its icon, the
-  grey subheader bars, the small line in each wallet row, the coloured wallet
+- **What the card leaves out on purpose:** a second "PnL Graph" title inside
+  the card (the widget card's heading names it once, with its icon and ⋮,
+  since 8 Nov 2026), the grey subheader bars, the small line in each wallet row, the coloured wallet
   squares, and the "7 days ago · last read just now" line. The dates button
   names the period instead.
 
-Overview panels size themselves to their contents. There are no draggable
-panel dividers or saved panel sizes. Populated tables grow with their rows;
-the bottom panel in each column expands to fill any remaining space. Panels
-above it keep their content height. On narrow screens, only the final panel
-fills the space below the stacked content. Long content scrolls with the page,
-while wide tables keep their horizontal scrollbars. The profit graph keeps
-its own minimum drawing space, and the wallet list grows with its rows.
-The two lower columns use a fixed 55/45 split on wide screens and stack below
-1280px. A single occupied column uses the full width. Widget placement and
-ordering are still managed in dashboard settings.
+The widgets sit in the shell's rows (8 Nov 2026): a top row of 1 to 4 columns
+and a bottom row of None or 1 to 4, set in the Widgets tab of the dashboard's
+⋮, and swapped or removed from each widget's own ⋮. Wide, the two rows share
+the height and a long list scrolls inside its card. Narrow, the widgets stack
+at their own height and Overview scrolls. Each person keeps their own layout
+(`trade_prefs.overview_widgets`), starting with PnL Graph and Active Trades on
+top and Running bots and All trades under them. The card's heading holds the
+name and the count, and a table's Filter sits in that heading beside the ⋮ (8 Nov
+2026: "move the buttons here"). PnL Graph's period tabs and dates button sit
+there too. Widgets are the site's gutter apart.
 
 The left side starts with All wallets and then lists each real mainnet wallet.
 
@@ -58,8 +62,10 @@ The left side starts with All wallets and then lists each real mainnet wallet.
   All wallets stays pinned first. Unavailable results stay at the bottom when
   sorting by money. The last sort is remembered in this browser.
 
-The overview asks Trade's server again every fifteen seconds while the browser
-tab is visible. One answer updates every placed widget. Active Trades reads
+The overview asks Trade's server as it opens, then again every fifteen seconds
+while the browser tab is visible and Overview is the row picked. The first read
+asks every exchange and takes a few seconds, and "Reading your overview" shows
+until it lands; one that fails says so, with Try again. One answer updates every placed widget. Active Trades reads
 positions only when that widget is placed, and Running bots follows the same
 rule for bot runs. Hiding the tab stops the clock. Showing it makes one
 catch-up read and starts the clock again, without replaying missed turns. A
@@ -95,9 +101,7 @@ Active Trades is the account-wide exception to the real-money totals. It lists
 every open position across every protocol and every wallet, including practice
 and testnet wallets. Practice and Testnet rows name their account type so
 pretend money cannot be read as real money. Real rows carry no account-type
-chip. New dashboards put Active Trades under PnL Graph;
-an account with a saved arrangement finds it under Settings → Widgets until it
-is placed.
+chip. A fresh layout puts Active Trades beside PnL Graph on the top row.
 
 The Active Trades table has five columns: ticker, type, order, current position
 value, and current profit in dollars and as a share of the money the trade
@@ -180,10 +184,8 @@ menu and total. It does not ask every exchange for a full account balance first.
 That balance is not part of the Active Trades answer, and waiting for it left
 the header on loading dashes long after the rest of the workspace had opened.
 
-Running bots is the fourth trading-overview widget. A new or reset dashboard
-puts it in the left column, beside All trades. A saved arrangement keeps its
-choices and finds Running bots under Settings → Widgets until somebody places
-it.
+Running bots is the fourth trading-overview widget. A fresh layout puts it on
+the bottom row, beside All trades.
 
 Running bots uses the same table shape as Active Trades. Its columns are
 Automation, Status, Markets, Positions, and Made or lost. Markets is how many
@@ -215,8 +217,9 @@ its last banked dollar figure until the overview is read again.
 
 Profit calendar is the P&L page's month grid as an overview widget. It draws
 the same component, `src/components/pnl/pnl-month-grid.tsx`, inside
-`src/components/trade/profit-calendar-widget.tsx`. New and reset dashboards
-leave it out, so it waits under Settings → Widgets until somebody places it.
+`src/components/trade/profit-calendar-widget.tsx`. A fresh layout leaves it
+out, so it waits in the Widgets tab, an empty spot's "Add a widget" or another
+widget's ⋮ until somebody places it.
 
 - **Where its dollars come from:** it splits the overview's own real fills by
   Toronto day. It asks the server for nothing extra and updates with the
@@ -275,14 +278,7 @@ Trade rows inherit the dashboard's Inter typeface, including market names and
 Money values. Their numbers keep tabular spacing without switching to a
 monospace face.
 
-Settings has two Widgets tabs and they do not share an arrangement. The
-trading Widgets tab sits in the "This app" card and saves its top, left, right,
-and hidden lists per account in `trade_prefs`. The platform Widgets tab sits in
-the "Platform" card and saves the platform Overview arrangement in the shell
-settings. Moving or resetting a card in one tab never changes the other.
-The trading Widgets route arrives with its saved arrangement, and the Markets
-route arrives with its saved daily-volume cutoff. When Widgets needs a browser
-read, its titled card stays visible with the shared loading row inside.
-Reset dashboard is an outline action inside the collapsible card. Folding the
-card hides Reset too. Reset opens the existing confirmation before changing
-the arrangement.
+Widgets are not in Settings any more (Tyler, 8 Nov 2026: "widgets are not in
+settings"). The trading layout is set on the dashboard itself and saved per
+account; the platform Admin Overview keeps its own layout for the whole site.
+Moving a card in one never changes the other.

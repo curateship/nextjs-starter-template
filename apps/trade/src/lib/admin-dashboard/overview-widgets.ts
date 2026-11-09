@@ -73,6 +73,39 @@ export function widgetChoices(board: WidgetBoard): WidgetChoice[] {
   ]
 }
 
+/**
+ * An app's own grid of widgets, on a dashboard that is neither Admin's nor
+ * the CRM's: the widgets it offers, and what an empty list says. Trade's
+ * dashboard is one (8 Nov 2026), with its six trading widgets and a layout
+ * saved per account (`WidgetStore` in `use-widget-layout.ts`).
+ */
+export type WidgetOffer = { choices: readonly WidgetChoice[]; none?: string }
+
+/**
+ * Where a grid's widgets come from: a board, whose list the shell builds, or
+ * an app's own offer. Exactly one is given.
+ */
+export type WidgetSource = { board: WidgetBoard; offer?: undefined } | { board?: undefined; offer: WidgetOffer }
+
+const NO_WIDGETS: Record<WidgetBoard, string> = {
+  admin: "No widgets yet.",
+  crm: "No CRM widgets yet.",
+}
+
+/** The widgets a grid offers, from its board or its own offer. */
+export function offeredWidgets(source: WidgetSource): readonly WidgetChoice[] {
+  return source.offer ? source.offer.choices : widgetChoices(source.board)
+}
+
+/**
+ * What a grid with nothing to offer says: the CRM's, until an app adds one
+ * (Tyler, 8 Nov 2026: "We dont have any CRM widgets so lets leave it empty
+ * for now").
+ */
+export function noWidgetsText(source: WidgetSource): string {
+  return source.offer ? (source.offer.none ?? "No widgets yet.") : NO_WIDGETS[source.board]
+}
+
 export const TOP_ROW_COLUMNS = [1, 2, 3, 4] as const
 /** 0 is None: one row only. */
 export const BOTTOM_ROW_COLUMNS = [0, 1, 2, 3, 4] as const

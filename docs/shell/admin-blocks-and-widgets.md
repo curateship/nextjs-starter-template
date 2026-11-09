@@ -91,6 +91,47 @@ A CRM widget gets the same props. The CRM has no Date range of its own, so
 Admin's (`admin_widget_layouts`, board `crm`), and its keys only have to
 differ from each other.
 
+## A grid of an app's own
+
+An app can draw the same grid of widgets on a dashboard of its own, with its
+own list of widgets and its own place to keep the layout. Trade's dashboard
+is the first (8 Nov 2026): its six trading widgets, with the layout kept per
+account rather than per site.
+
+```tsx
+const store: WidgetStore = { load: loadMyLayout, save: saveMyLayout, message: myErrorMessage }
+const widgets = useWidgetLayout(store, seedFromTheRoute)
+
+<WidgetGrid offer={{ choices: MY_WIDGETS }} layout={widgets.layout} onChange={widgets.change}
+  drawWidget={(id, menu) => <MyWidget id={id} menu={menu} />} />
+<WidgetSettings offer={{ choices: MY_WIDGETS }} layout={widgets.layout} error={widgets.error}
+  onRetry={widgets.retry} onChange={widgets.change} />
+```
+
+- **`offer`** goes where `board` would: the widgets offered in the Widgets
+  tab, each widget's ⋮ and an empty spot, and, as `none`, what an empty list
+  says. Exactly one of `board` and `offer` is given.
+- **`drawWidget`** draws every widget of an offer. There are no app widgets
+  loaded by key on a grid of its own, so an id it does not draw shows as an
+  empty spot.
+- **The layout** has the same shape and rules: `cleanWidgetLayout`,
+  `placeWidget`, `setRowColumns` and `widgetsShown` in
+  `src/lib/admin-dashboard/overview-widgets.ts` work on it as they do on
+  Admin's. The app's server cleans what it stores with `cleanWidgetLayout`
+  and its own list of ids.
+- **A widget's own buttons**, a Filter or a period picker, go in the card's
+  heading beside its ⋮ through `WidgetHeadingActions` from `widget-card.tsx`
+  (Tyler, 8 Nov 2026: "move the buttons here"). Outside a widget card it draws
+  them where it is. A heading too narrow for them puts them and the ⋮ on a
+  second line under the name.
+- **Spacing and lines:** widgets sit the site's gutter apart (`pageGutter`,
+  Settings → Styling), and a table's heading row inside a widget's or a
+  block's tile is the tile's colour with the Divider lines colour alone as
+  its line (8 Nov 2026).
+- **The store** answers each save with the layout as stored, the way
+  Admin's does, and its `message` turns a failure into words for the error
+  row and the toast.
+
 ## What the shell does with them
 
 - **The "/" list** on the Admin page offers the shell's Plans, then the
