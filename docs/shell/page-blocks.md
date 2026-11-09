@@ -102,7 +102,9 @@ All of them are in `src/components/shared/notes/`, with their rules in
   but only use the sky one"). It follows the real sunrise and sunset of the
   city in Settings → General → Sky city, golden hour the 90 minutes before
   sunset and sunset the hour after; with no city, fixed hours on the viewer's
-  clock, night from 6 PM (`src/lib/notes/sky-city.ts`).
+  clock, night from 6 PM (`src/lib/notes/sky-city.ts`). The sky is blank on
+  the server's draw, because the server's clock is not the viewer's. A cover
+  drawn after the page is in the browser has its sky in the same frame.
 - **The right panel carries the cover on** (Tyler, 8 Nov 2026: "Add the same
   cover image pattern as in the left panel for the right panel too but for
   the sky default bg, make it an extension of the left panel. Meaning that we

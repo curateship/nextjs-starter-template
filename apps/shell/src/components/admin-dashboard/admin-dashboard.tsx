@@ -164,14 +164,17 @@ export function AdminDashboard({
   const tab = adminTabOf(search)
   const days = adminRangeOf(search)
 
-  const pagesRead = useLoad(loadAdminPages, getAdminErrorMessage)
-  const plansRead = useLoad(loadAdminPlans, getAdminErrorMessage)
+  const pagesRead = useLoad(loadAdminPages, getAdminErrorMessage, { remember: "admin-pages" })
+  const plansRead = useLoad(loadAdminPlans, getAdminErrorMessage, { remember: "admin-plans" })
   const pages = pagesRead.data
   const [planOpen, setPlanOpen] = React.useState<AdminPlan | "new" | null>(null)
 
   // The counts beside the Dashboards block's rows, read again on each
   // section switch, after whatever was changed in the last one.
-  const countsRead = useLoad(loadAdminSectionCounts, getAdminErrorMessage, { keys: [loaded.tab] })
+  const countsRead = useLoad(loadAdminSectionCounts, getAdminErrorMessage, {
+    keys: [loaded.tab],
+    remember: "admin-section-counts",
+  })
 
   const pickTab = (next: AdminTab) => void navigate({ search: adminTabSearch(next, days) })
   const router = useRouter()

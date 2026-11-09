@@ -74,6 +74,11 @@ and not linked it outside. The Ui is all over the place as well."
     the last 12px in, lined up with the header.
   - Group headings across the table with a muted count and Project's fold
     button, folding the rows under them. The Inbox groups by Today, Yesterday, This week and Earlier.
+  - A group's first row has 8px above it and its last row 12px below it,
+    before the next heading or the end of the table. Rows in the middle keep
+    4px (Tyler, 9 Nov 2026: "Add some spacing for the top item and add a bit
+    bigger spacing for bottom item"; `GROUP_EDGES` in `crm-table.tsx`). A
+    folded group and a table with no groups change nothing.
   - One line per row, no line between rows, and no shade on the open one,
     exactly as Project draws them (Tyler: "THe one you made is inconsistence
     and a bit off"). Each row starts with Project's 10px dot, in one palette
@@ -96,7 +101,12 @@ and not linked it outside. The Ui is all over the place as well."
     last open row's shrinks away (`OpenBar` in `crm-table.tsx`). A pressed
     row shows open at once and the record opens after the bar, because
     drawing the record froze a bar growing at the same time; with less motion
-    asked for it opens at once. Names are grey, black while pointed at and
+    asked for it opens at once. Only a bar already on screen when a person
+    presses slides. A bar drawn after that, by a refresh, a new dashboard or
+    the row the page opens by itself on arrival, snaps into place (Tyler,
+    9 Nov 2026: "whenever i load a page, the black pill animation pushes in
+    every time. We have to disable that", then "if it has to refresh then
+    dont add animation"; `src/lib/layout/press-motion.ts`). Names are grey, black while pointed at and
     while open ("change the items to gray and if hover over it turns black
     and when selected it stays black"). The same rows draw the Admin
     dashboard's Users, Feedback and Media library lists.

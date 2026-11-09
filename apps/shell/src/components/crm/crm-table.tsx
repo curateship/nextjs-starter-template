@@ -21,6 +21,7 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import { initialsFor } from "@/lib/crm/inbox-time"
+import { pressSlideClassName } from "@/lib/layout/press-motion"
 import { cn } from "@/lib/utils"
 
 /** Whether the table showing has its end column of open buttons. */
@@ -102,7 +103,7 @@ export function CrmTable<Column extends string>({
     <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
       <Table
         containerClassName="overflow-visible"
-        className="[&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3 [&_[data-column=select]]:w-8 [&_[data-column=select]]:min-w-8 [&_[data-column=select]+*]:pl-2"
+        className={`[&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3 [&_[data-column=select]]:w-8 [&_[data-column=select]]:min-w-8 [&_[data-column=select]+*]:pl-2 ${GROUP_EDGES}`}
       >
         <SortableTableHeader
           columns={columns}
@@ -147,6 +148,20 @@ export function CrmTable<Column extends string>({
     </RowPress.Provider>
   )
 }
+
+/**
+ * Room at a group's edges (Tyler, 9 Nov 2026: "Add some spacing for the top
+ * item and add a bit bigger spacing for bottom item"). The first row under a
+ * group heading gets 8px above it in place of 4px, and a group's last row
+ * gets 12px below it, before the next heading or the table's end. Rows in
+ * the middle keep their 4px. A folded group, with one heading straight under
+ * another, an ungrouped table and the empty line change nothing.
+ */
+const GROUP_EDGES = [
+  "[&_[data-slot=table-group-row]+tr:not([data-slot=table-group-row])>td]:pt-2",
+  "[&_tr:not([data-slot=table-group-row]):has(+[data-slot=table-group-row])>td]:pb-3",
+  "[&_[data-slot=table-group-row]~tr:not([data-slot=table-group-row]):last-child>td]:pb-3",
+].join(" ")
 
 /** How many columns a group heading spans, handed down from the table. */
 const CrmTableSpan = React.createContext(1)
@@ -221,8 +236,10 @@ const BAR_MS = 220
  * with no width until its row opens: then its width grows over 220ms on
  * cubic-bezier(0.2, 0.8, 0.2, 1), sliding the name over, while the last
  * row's shrinks away. Closed, its margin cancels the cell's 8px gap, so the
- * name sits where it always did. `flex: none`, so it never shrinks. Put it
- * first in a main cell's row of parts; `MainCell` does.
+ * name sits where it always did. It slides only when a press finds it on
+ * screen; one drawn after, as on a refresh, snaps open (`press-motion.ts`).
+ * `flex: none`, so it never shrinks. Put it first in a main cell's row of
+ * parts; `MainCell` does.
  */
 export function OpenBar() {
   const open = React.useContext(RowOpen)
@@ -231,7 +248,8 @@ export function OpenBar() {
       aria-hidden
       data-open-bar=""
       className={cn(
-        "h-1.5 flex-none rounded-full bg-foreground transition-[width,margin-right] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+        "h-1.5 flex-none rounded-full bg-foreground",
+        pressSlideClassName,
         open ? "mr-0 w-3" : "-mr-2 w-0"
       )}
     />

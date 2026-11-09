@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { focusRingInset } from "@/lib/layout/focus-ring"
+import { pressSlideClassName } from "@/lib/layout/press-motion"
 import { cn } from "@/lib/utils"
 
 /**
@@ -45,7 +46,9 @@ export type SideRow = {
  * The bar before a picked name: on every row, with no width until its row is
  * picked; then its width and the gap after it grow, sliding the name over
  * (Tyler, 8 Nov 2026: "animation is not smooth. Follow this", 220ms on
- * cubic-bezier(0.2, 0.8, 0.2, 1)). `flex: none`, so it never shrinks.
+ * cubic-bezier(0.2, 0.8, 0.2, 1)). It slides only when a press finds it on
+ * screen; one drawn after, as on a refresh, snaps in (`press-motion.ts`).
+ * `flex: none`, so it never shrinks.
  */
 export function SlideBar({ on }: { on: boolean }) {
   return (
@@ -53,7 +56,8 @@ export function SlideBar({ on }: { on: boolean }) {
       aria-hidden
       data-dashboards-bar=""
       className={cn(
-        "h-1.5 flex-none rounded-full bg-foreground transition-[width,margin-right] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+        "h-1.5 flex-none rounded-full bg-foreground",
+        pressSlideClassName,
         on ? "mr-2 w-3" : "mr-0 w-0"
       )}
     />

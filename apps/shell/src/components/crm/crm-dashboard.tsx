@@ -43,7 +43,7 @@ import {
   type CrmTab,
 } from "@/lib/crm/crm-search"
 import { panelLayoutKey } from "@/lib/layout/panel-layout"
-import { useLoad } from "@/lib/hooks/use-load"
+import { rememberedLoad, useLoad } from "@/lib/hooks/use-load"
 import { useListSearchNavigate } from "@/lib/nav/list-search"
 import type { StoredPage } from "@/lib/notes/page-body"
 import { cn } from "@/lib/utils"
@@ -88,6 +88,9 @@ const RECORD_LABELS: Record<Exclude<CrmTab, "overview">, string> = {
   system: "Email",
 }
 
+/** The name the left page's read is kept under between visits. */
+const CRM_PAGE_READ = "crm-page"
+
 /**
  * The CRM dashboard: one screen for all the app's email (Part C of the CRM
  * task; Tyler, 7 Nov 2026: "I want to consolidate them all into one CRM
@@ -122,26 +125,37 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
   const overview = loaded.tab === "overview"
 
   // The left page, and the figures its blocks draw, read once here.
-  const [figures, setFigures] = React.useState<CrmBlockFigures | null>(null)
-  const pageRead = useLoad(loadCrmPage, getCrmPageErrorMessage, { onLoad: (read) => setFigures(read.figures) })
+  // Both start from the last visit's copy, so coming back from Admin draws
+  // the page, its cover and its counts at once and reads again behind them.
+  const [figures, setFigures] = React.useState<CrmBlockFigures | null>(
+    () => rememberedLoad<Awaited<ReturnType<typeof loadCrmPage>>>(CRM_PAGE_READ)?.figures ?? null
+  )
+  const pageRead = useLoad(loadCrmPage, getCrmPageErrorMessage, {
+    remember: CRM_PAGE_READ,
+    onLoad: (read) => setFigures(read.figures),
+  })
   const crmPage = pageRead.data?.page ?? null
   const setCrmPage = (page: StoredPage) => pageRead.setData((current) => (current ? { ...current, page } : current))
   // Each fresh read of the section reads the figures again too, so a count
   // on the left never disagrees with the list beside it. The first is
   // skipped: the page's own read brought them.
   const firstLoad = React.useRef(loaded)
+  const setPageRead = pageRead.setData
   React.useEffect(() => {
     if (loaded === firstLoad.current) return
     let cancelled = false
     loadCrmBlockFigures()
       .then((next) => {
-        if (!cancelled) setFigures(next)
+        if (cancelled) return
+        setFigures(next)
+        // Into the kept copy too, so coming back never shows older counts.
+        setPageRead((current) => (current ? { ...current, figures: next } : current))
       })
       .catch(() => undefined)
     return () => {
       cancelled = true
     }
-  }, [loaded])
+  }, [loaded, setPageRead])
 
   // Overview's widgets, held here so the left ⋮'s Widgets tab can set them
   // on every section, and the Dashboards block can count them.

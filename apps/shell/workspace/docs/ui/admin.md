@@ -161,7 +161,11 @@ The left panel stays put while the section changes: only the middle and
   over 220ms on cubic-bezier(0.2, 0.8, 0.2, 1), sliding the name over, while
   the last row's bar shrinks away (Tyler, 8 Nov 2026: "animation is not
   smooth. Follow this"). The bar never shrinks to fit (`flex: none`). No row
-  is shaded.
+  is shaded. Only a bar already on screen when a person presses slides. A
+  bar drawn after a refresh, or picked by the page itself on arrival, snaps
+  in (Tyler, 9 Nov 2026: "whenever i load a page, the black pill animation
+  pushes in every time. We have to disable that", then "if it has to
+  refresh then dont add animation"; `src/lib/layout/press-motion.ts`).
 - **A press switches after the bar.** The row picked changes at once, and
   the section switch waits the bar's 220ms: drawing a new section keeps the
   browser busy for 100 to 185ms, and a bar growing then skipped most of its
@@ -343,6 +347,14 @@ page (`SideRows` in `components/shared/notes/side-rows.tsx`):
   `?orphan=`. The search, type, sort and page stay in the browser.
 
 ## Arriving and the address
+
+Moving between Admin and the CRM draws the left page, its cover and its
+counts in the first frame (Tyler, 9 Nov 2026: "clicking through the
+dashboards kept loading the top header and its background. It should load
+instantly"). Each dashboard keeps its last read of the page in the tab's
+memory (`useLoad`'s `remember`), starts from that copy and reads again
+behind it. The first visit after a full page load still waits for the read
+once.
 
 Opened at its bare address, Admin goes back to the section, range and record
 it last had in this browser. A section picked starts the address again with
