@@ -144,7 +144,9 @@ import {
 } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRememberedChoice } from "@/lib/remembered-choice"
-import { PANEL_GUTTER } from "@/lib/trade/panel-gutter"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
+import { DEFAULT_LEFT_PANEL_WIDTH, clampSidePanelWidth } from "@/lib/layout/styling-values"
+import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { STILL_PANEL } from "@/lib/trade/panel-fit"
 import {
   type TradePanelLayouts,
@@ -590,6 +592,13 @@ export function TradeWorkspace({
   )
 
   const blocksPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  // The left panel's opening width and its narrowest, from Settings →
+  // Styling → Side panels, as every shell dashboard's (Tyler, 9 Nov 2026:
+  // "the panel width is also not wired").
+  const blocksWidth = clampSidePanelWidth(
+    useOptionalShellRuntime()?.config.styling?.leftPanelWidth,
+    DEFAULT_LEFT_PANEL_WIDTH
+  )
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
@@ -1391,12 +1400,11 @@ export function TradeWorkspace({
         panelRef={blocksPanelRef}
         collapsible
         collapsedSize="0%"
-        // The left panel opens at its narrowest, 15.2%, 5% narrower than the
-        // design's 16% (Tyler, 8 Nov 2026: "shrink the left side panel 5%
-        // narrower"), and drags to 36%; the
-        // middle takes the rest (the Admin 3 panel design).
-        defaultSize="15.2%"
-        minSize="15.2%"
+        // The left panel opens at its narrowest, the Side panels setting's
+        // left width, and drags to 36%; the middle takes the rest (the Admin
+        // 3 panel design).
+        defaultSize={`${blocksWidth}%`}
+        minSize={`${blocksWidth}%`}
         maxSize="36%"
         // A smaller window shrinks the chart, never the page beside it.
         groupResizeBehavior="preserve-pixel-size"

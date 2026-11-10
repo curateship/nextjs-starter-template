@@ -172,7 +172,10 @@ function Frame({
       data-selected={selected || undefined}
       data-trade-block={name}
       data-note-block=""
-      className="group/block relative [&_a]:text-inherit! [&_a:hover]:text-foreground!"
+      // Edge to edge, from Settings → Styling → Blocks, as the shell's
+      // BlockCard: the block reaches past the panel's side space to its edges.
+      // Image, video and link blocks keep the space, as they do in the shell.
+      className="group/block relative mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)] [&_a]:text-inherit! [&_a:hover]:text-foreground!"
     >
       {children}
     </NodeViewWrapper>

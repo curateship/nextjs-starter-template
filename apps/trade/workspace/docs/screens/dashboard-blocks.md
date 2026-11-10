@@ -151,7 +151,11 @@ The heading is the block's name, then the block's ⋮ (Tyler, 8 Nov 2026: "this
 is suppoosed to be a 3 dot dropdown with delete in the bottom"): the block's
 own rows, then Delete block at the bottom under a line, as the shell's blocks
 have. There is no bin. Blocks sit 15px from the panel's sides, 15px apart, and the first one
-15px under the header. An empty line above a block goes with Backspace or
+15px under the header. With Settings → Styling → Blocks → Edge to edge on,
+the Trade blocks (Protocols, Grid trades and the rest) reach the panel's left
+and right edges instead, as the shell's app blocks do (Tyler, 9 Nov 2026:
+"the trade dashboard block edge is not wired to panel settings"). Image,
+video and link blocks keep the 15px either way. An empty line above a block goes with Backspace or
 Delete. A click in the space above the first block, or between two blocks,
 starts a line there to write on. The panel inside a block is one white tile 3px
 inside the grey block. Pressing the name folds it, and this browser remembers
@@ -288,12 +292,14 @@ right").
 
 ## Widths and narrow screens
 
-- **Widths:** the left panel opens at its narrowest, 15.2%, 5% narrower than
-  the design's 16% (Tyler, 8 Nov 2026: "shrink the left side panel 5%
-  narrower"), about 219px at 1440 wide, and drags to 36%; the middle is at
-  least 32%. Widths are saved on the account. The layout key is
-  `trade-workspace-horizontal-4`, so a width saved before is not applied and
-  the panel opens at its new narrowest.
+- **Widths:** the left panel opens at its narrowest, the left width set in
+  Settings → Styling → Side panels, as every shell dashboard does (Tyler,
+  9 Nov 2026: "the panel width is also not wired"). At 12% that is 150px of
+  the dashboard at 1440 wide. It drags to 36%, and the middle is at least
+  32%. A dragged width is saved on the account under
+  `trade-workspace-horizontal-4` and is kept when the setting changes, unless
+  it is now narrower than the setting. Settings' Reset panels button only
+  clears widths kept in the browser, so it does not reset this one.
 - **Shutting the left panel:** the button in its header, a double-click on its
   blank space, or a drag. On an exchange, a button at the start of the middle
   header brings it back, before the tabs, as on the shell's dashboards (Tyler,
