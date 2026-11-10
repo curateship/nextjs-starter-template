@@ -63,3 +63,22 @@ Every shell change up to 860d43fa8 (9 Nov) is in Project, from the 7 Nov merge e
 **One shell change made here.** `src/components/shared/three-panels.tsx` exports `SideTogglesProvider`, so Project's own frame (`src/components/project/three-panels.tsx`, which keeps `narrowStart`, the extra phone tab and the remembered task) can use the shell's `PanelReopenButton` and `SidePanelCollapseButton` unchanged. Made in `apps/shell` and copied here, so the two files match. The other 12 apps get it at their next merge.
 
 **Kept as Project's own.** `src/app/` and `routeTree.gen.ts`, which the dev server rebuilt with the new and removed routes.
+
+## Shell merge, 10 November 2026
+
+Every shell change up to 33c87ec4b (10 Nov) is in Project, from the 9 Nov merge 860d43fa8: 170 files replaced, 56 added and 14 deleted. Every replaced file was an unedited copy of the shell's file at 860d43fa8, except `src/components/shared/three-panels.tsx`, whose one extra line (the `SideTogglesProvider` export) the shell now has too. Tyler asked for it on 10 Nov 2026: "merge shell to project".
+
+**What arrived.**
+
+- **Accounts, subscribers and leads are three separate lists.** Signing up no longer puts someone on the mailing list, and Leads is its own CRM section. Conversations lost open, closed and snooze.
+- **Automations is one three-panel dashboard** at `/admin/automations`, with Automations and Waiting on you on its left page. The old `/admin/automations/<id>` and template addresses are gone, and the templates sit in the editor's Templates tab.
+- **Pages, Styling and Navigations are sections of the Admin dashboard**, out of Settings.
+- **Settings → Styling** gained Blocks (body shade, border, edge to edge), widget styling, Side panels widths with a Reset panels button, and "Modal and popover".
+- **The header's Settings cog can hold links**, and every link editor in Navigations opens as a popover.
+- **A widget's ⋮** holds the widget's own options, then Manage widgets.
+
+**Two Project files changed to follow the shell.** The Inbox card's automation notice opens the run in the Automations dashboard, as the bell does: an approval in Waiting on you, a failure on its flow's Runs tab (`src/components/project/inbox-card.tsx`). `src/lib/layout/scaffold-styling.ts` keeps its values and takes the shell's renamed `ScaffoldStyling` type.
+
+**Migrations.** The shell's 0111 to 0114 are Project's 0175 to 0178, the same files renumbered. Applied to the local database only. **Warning for the next deploy:** 0175 (the shell's 0111) deletes every mailing-list contact marked "Account" on the live database, and 0168 from the last merge drops the referrals and changelog tables.
+
+**Kept as Project's own.** `src/app/`, `workspace/`, and `routeTree.gen.ts`, rebuilt without the two removed automation routes.

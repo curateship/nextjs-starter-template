@@ -232,7 +232,8 @@ function BlockKindCard({
         </span>
         <span className="grid min-w-0 gap-1">
           <span className="truncate text-sm font-medium">{choice.label}</span>
-          <span className="text-xs text-muted-foreground">{choice.hint}</span>
+          {/* One line: an app's own block may say more than the shell's four words. */}
+          <span className="truncate text-xs text-muted-foreground">{choice.hint}</span>
         </span>
       </div>
       {/* The way in that is not a drag. The card itself does nothing when it

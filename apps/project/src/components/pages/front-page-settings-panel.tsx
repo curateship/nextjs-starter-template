@@ -56,6 +56,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { useSiteAddress } from "@/lib/hooks/use-site-address"
+import { pageEditSearch } from "@/lib/admin-dashboard/page-edit-search"
 
 /**
  * The right panel with no block selected: the settings that belong to the page
@@ -137,8 +138,8 @@ export function FrontPageSettingsPanel({
       // The address can have changed, and this screen is keyed by it, so the
       // editor moves with the page rather than looking at one that is gone.
       await router.navigate({
-        to: "/admin/pages/edit",
-        search: { path: saved.path },
+        to: "/admin/dashboard",
+        search: pageEditSearch(saved.path),
         replace: true,
       })
       await router.invalidate()

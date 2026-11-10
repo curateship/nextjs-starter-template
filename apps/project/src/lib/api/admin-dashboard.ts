@@ -14,7 +14,7 @@ import {
 import { adminSectionCounts, type AdminSectionCounts } from "@/server/admin-dashboard/section-counts"
 import { getWidgetLayout, saveWidgetLayout } from "@/server/admin-dashboard/widgets"
 import { adminGet, adminPost } from "@/server/guards"
-import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { publicPagesWorkspaceId, workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { createErrorMessage } from "./error-message"
 
@@ -68,8 +68,11 @@ const setCoverFn = createServerFn({ method: "POST" })
 const loadCountsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<AdminSectionCounts> => {
-    const workspaceId = await workspaceIdForRequest(context.user.id)
-    return adminSectionCounts(workspaceId)
+    const [workspaceId, pagesWorkspaceId] = await Promise.all([
+      workspaceIdForRequest(context.user.id),
+      publicPagesWorkspaceId(context.user.id),
+    ])
+    return adminSectionCounts(workspaceId, pagesWorkspaceId)
   })
 
 const boardSchema = z.enum(WIDGET_BOARDS)

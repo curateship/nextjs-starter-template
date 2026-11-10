@@ -1,6 +1,7 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { cn } from "@/lib/utils"
 
 /**
@@ -23,6 +24,38 @@ export function WidgetHeadingActions({ children }: { children: React.ReactNode }
 }
 
 /**
+ * A widget's own options for its ⋮: a Filter's groups, a graph's period and
+ * dates (Tyler, 10 Nov 2026: "remove the widget management out of the widget
+ * itself ... and replace it with filter", then the period and dates "into the
+ * dotted dropdown"). Undefined outside a widget card.
+ */
+const WidgetOptionsContext = React.createContext<
+  { options: React.ReactNode; setOptions: (options: React.ReactNode) => void } | undefined
+>(undefined)
+
+/**
+ * Hands a widget's options to its card's ⋮, which draws them above Manage
+ * widgets while it is open. They are drawn inside the ⋮, so they are rows and
+ * fields, not buttons that open boxes of their own. Outside a widget card it
+ * draws nothing; a widget on a page of its own keeps its own buttons.
+ */
+export function WidgetMenuOptions({ children }: { children: React.ReactNode }) {
+  const setOptions = React.useContext(WidgetOptionsContext)?.setOptions
+  // Handed over after every render, so the ⋮ shows the widget's latest
+  // choices; taken back when the widget goes.
+  useEffectBeforePaint(() => {
+    setOptions?.(children)
+  })
+  useEffectBeforePaint(() => () => setOptions?.(null), [setOptions])
+  return null
+}
+
+/** What the widget handed its ⋮ with `WidgetMenuOptions`; null when nothing. */
+export function useWidgetMenuOptions() {
+  return React.useContext(WidgetOptionsContext)?.options ?? null
+}
+
+/**
  * One Overview widget (Tyler, 8 Nov 2026: "Widget is almost like blocks but
  * with some small differences. One, it will have a different ui styling (we
  * use the same styling as currant block but seprate them)").
@@ -31,9 +64,10 @@ export function WidgetHeadingActions({ children }: { children: React.ReactNode }
  * `shared/notes/block-card.tsx`): one light grey box, a heading band with the
  * icon, title and count, and what it shows on a white tile 3px inside it. It
  * is its own component so a widget's look can change without touching
- * blocks. Unlike a block it has no fold. Its ⋮ swaps it for another widget
- * or removes it (`WidgetMenu`), and it fills the spot it is in, its list
- * scrolling inside the tile. A widget's own buttons sit in the heading before
+ * blocks. Unlike a block it has no fold. Its ⋮ holds the widget's own
+ * options, put there with `WidgetMenuOptions`, then Manage widgets
+ * (`WidgetMenu`), and it fills the spot it is in, its list scrolling inside
+ * the tile. A widget's own buttons, such as a link, sit in the heading before
  * the ⋮, put there with `WidgetHeadingActions`.
  */
 export function WidgetCard({
@@ -54,15 +88,21 @@ export function WidgetCard({
   className?: string
 }) {
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
+  const [options, setOptions] = React.useState<React.ReactNode>(null)
+  const optionsValue = React.useMemo(() => ({ options, setOptions }), [options])
   return (
+    <WidgetOptionsContext.Provider value={optionsValue}>
     <section
       aria-label={title}
       data-widget=""
       // Corners and grey from Settings → Styling → Widgets, their own since
       // widgets sit on the shaded page, not in a panel (Tyler, 8 Nov 2026).
       // The fallbacks are the blocks' look, which widgets started with.
+      // Border, Border shade and Shadow, and the tile's Body shade below,
+      // are the blocks' four for widgets (Tyler, 9 Nov 2026: "add the same 2
+      // styling feature for widgets"), off unless changed.
       className={cn(
-        "group/widget flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--shell-widget-radius,1rem)] [background:color-mix(in_oklab,var(--muted)_var(--shell-widget-shade,50%),var(--card))]",
+        "group/widget flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[var(--shell-widget-radius,1rem)] border-solid border-[length:var(--shell-widget-border,0px)] [border-color:color-mix(in_oklab,var(--foreground)_var(--shell-widget-border-shade,10%),transparent)] [box-shadow:var(--shell-widget-shadow,none)] [background:color-mix(in_oklab,var(--muted)_var(--shell-widget-shade,50%),var(--card))]",
         className
       )}
     >
@@ -87,12 +127,13 @@ export function WidgetCard({
             Divider lines colour alone, as in a block's tile. */}
         <div
           data-widget-tile=""
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[calc(var(--shell-widget-radius,1rem)-var(--shell-widget-inset,3px))] bg-card text-sm [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[calc(var(--shell-widget-radius,1rem)-var(--shell-widget-inset,3px)-var(--shell-widget-border,0px))] [--widget-body:color-mix(in_oklab,var(--muted)_var(--shell-widget-body-shade,0%),var(--card))] bg-[var(--widget-body)] text-sm [&_thead_th]:!bg-[var(--widget-body)] [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]"
         >
           {children}
         </div>
         </WidgetActionsContext.Provider>
       </div>
     </section>
+    </WidgetOptionsContext.Provider>
   )
 }

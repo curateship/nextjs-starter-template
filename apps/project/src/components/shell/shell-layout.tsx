@@ -12,6 +12,7 @@ import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
 import { AnnouncementBanners } from "@/components/shell/announcement-banner"
+import { AnnouncementRefreshContext } from "@/components/shell/announcement-refresh"
 import { UploadLine } from "@/components/media/upload-line"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
@@ -104,6 +105,7 @@ import {
   type FaviconLink,
 } from "@/lib/favicon"
 import type { UserAnnouncement } from "@/lib/announcement"
+import { loadMyAnnouncements } from "@/lib/api/content/announcements"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import { logout } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
@@ -318,7 +320,7 @@ export function ShellLayout({
   // header, and name the field, instead of dropping the edit in silence. The
   // header is the only warning that reaches you when the edit that broke the
   // save happened on another settings tab (e.g. the sidebar's Reset, or a hex
-  // code left half-typed on Public → Styling).
+  // code left half-typed in Admin → Styling → Public).
   // Returns whether it saved.
   const saveConfigNow = React.useCallback(async () => {
     if (configSaveTimerRef.current) {
@@ -581,6 +583,26 @@ export function ShellLayout({
     window.location.href = "/login"
   }, [])
 
+  // The banners: the page load's, then whatever a live check finds. A new
+  // page load replaces them.
+  const [banners, setBanners] = React.useState(announcements)
+  const [bannersFrom, setBannersFrom] = React.useState(announcements)
+  if (bannersFrom !== announcements) {
+    setBannersFrom(announcements)
+    setBanners(announcements)
+  }
+  const refreshAnnouncements = React.useCallback(async () => {
+    try {
+      const next = await loadMyAnnouncements()
+      setBanners((current) =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next
+      )
+    } catch {
+      // A failed check says nothing: the banners on screen are the last ones
+      // that were true, and the next check is at most a minute away.
+    }
+  }, [])
+
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
       config,
@@ -647,6 +669,7 @@ export function ShellLayout({
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
+    <AnnouncementRefreshContext.Provider value={refreshAnnouncements}>
       <div className="shell-canvas min-h-screen" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
@@ -748,8 +771,8 @@ export function ShellLayout({
                   of ids so a fresh load after one is retired starts from the
                   server's list, not a stale local one. */}
               <AnnouncementBanners
-                key={announcements.map((item) => item.id).join("|")}
-                announcements={announcements}
+                key={banners.map((item) => item.id).join("|")}
+                announcements={banners}
               />
               <Outlet />
             </DashboardContent>
@@ -784,6 +807,7 @@ export function ShellLayout({
           onProfileSaved={() => router.invalidate()}
         />
       </div>
+    </AnnouncementRefreshContext.Provider>
     </ShellRuntimeContext.Provider>
   )
 }

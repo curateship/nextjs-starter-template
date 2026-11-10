@@ -24,6 +24,13 @@ import { db, getDatabaseUrl } from "@/server/db"
 // ---------------------------------------------------------------------------
 
 const CHANNEL = "custom_shell_notification"
+/**
+ * The payload that nudges every open tab, not one person's: an announcement
+ * was put up, changed or taken down, and its banner and tray notice are
+ * worked out per person when they ask (`loadUserAnnouncements`). A user id is
+ * never `*`.
+ */
+const EVERYONE = "*"
 const RECONNECT_DELAY_MS = 2000
 
 /**
@@ -66,6 +73,21 @@ function emitToUser(userId: string) {
       console.error("Notification listener failed", error)
     }
   }
+}
+
+/** What a nudge from Postgres does: one person's tabs, or every tab for `*`. */
+function handleNotification(message: { payload?: string }) {
+  if (message.payload === EVERYONE) {
+    for (const userId of bus.listenersByUser.keys()) emitToUser(userId)
+  } else if (message.payload) emitToUser(message.payload)
+}
+
+// A dev-server reload runs this module again but keeps the connection above,
+// which still holds the handler from the last run. Hand it this one, so an
+// edit to the handler applies without restarting the server.
+if (bus.listenClient) {
+  bus.listenClient.removeAllListeners("notification")
+  bus.listenClient.on("notification", handleNotification)
 }
 
 function scheduleReconnect() {
@@ -113,9 +135,7 @@ function ensureListening(): Promise<void> {
       connectionString: getDatabaseUrl(),
       application_name: "custom_shell_notifications_listen",
     })
-    client.on("notification", (message) => {
-      if (message.payload) emitToUser(message.payload)
-    })
+    client.on("notification", handleNotification)
     client.on("error", (error) => {
       console.error("Notification LISTEN client error", error)
       scheduleReconnect()
@@ -201,6 +221,23 @@ export async function publishNotificationCreatedMany(
     await database.execute(
       sql`select pg_notify(${CHANNEL}, recipient) from (values ${rows}) as recipients(recipient)`
     )
+  } catch (error) {
+    console.error("Notification publish failed", error)
+  }
+}
+
+/**
+ * Says something changed that every open tab should look at again, such as
+ * an announcement put up, changed or taken down (Tyler, 9 Nov 2026: "The
+ * announcement and tray notification doesnt show up until I refresh the
+ * page"). Each tab then asks for its own banners, which also writes the tray
+ * notice it is owed, and its bell count. Tabs on other sites ask too and find
+ * nothing new; one nudge for everybody is cheaper than working out who
+ * belongs to which site. Never fatal, as above.
+ */
+export async function publishToEveryone(database: NotificationPublisher = db): Promise<void> {
+  try {
+    await database.execute(sql`select pg_notify(${CHANNEL}, ${EVERYONE})`)
   } catch (error) {
     console.error("Notification publish failed", error)
   }

@@ -11,6 +11,6 @@ import { readContactsSearch } from "@/lib/contacts/contacts-search"
 export const Route = createFileRoute("/_authenticated/admin/contacts")({
   validateSearch: readContactsSearch,
   beforeLoad: ({ search }) => {
-    throw redirect({ to: "/admin/crm", search: { tab: "people", ...search }, replace: true })
+    throw redirect({ to: "/admin/crm", search: { tab: "subscribers", ...search }, replace: true })
   },
 })

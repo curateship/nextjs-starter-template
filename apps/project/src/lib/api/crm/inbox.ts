@@ -22,7 +22,6 @@ import {
   markThreadUnread,
   setThreadSaved,
   setThreadStatus,
-  setThreadStatuses,
   waitingCutoff,
   type ManyThreadsResult,
 } from "@/server/crm/inbox"
@@ -170,7 +169,6 @@ export type Conversation = {
 
 const listSchema = z.object({
   search: z.string().trim().max(200).optional(),
-  status: z.enum([...CRM_THREAD_STATUSES, "all"]).optional(),
   stage: z.enum([...CRM_STAGES, "all"]).optional(),
   unreadOnly: z.boolean().optional(),
   savedOnly: z.boolean().optional(),
@@ -222,6 +220,10 @@ const loadInboxFn = createServerFn({ method: "GET" })
     const { waitingOnly, ...rest } = data
     const filter = {
       ...rest,
+      // The inbox is every conversation that is not closed: closed now means
+      // only a blocked sender's, and nothing else closes or snoozes one
+      // (9 Nov 2026).
+      status: "open" as const,
       waitingSince: waitingOnly ? (waitingSince ?? undefined) : undefined,
       toAddressTakesUnknown:
         Boolean(data.toAddress) &&
@@ -479,31 +481,6 @@ const markManyReadFn = createServerFn({ method: "POST" })
   })
 
 /**
- * Opens, snoozes or closes every ticked conversation, in one request.
- *
- * No `CRM_THREAD_NOT_FOUND` here, unlike the one-thread version. A ticked set
- * where one row has since been dealt with elsewhere should still write the
- * other nineteen, and the counts that come back say what happened.
- */
-const setManyStatusFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(
-    threadIdsSchema.extend({
-      status: z.enum(CRM_THREAD_STATUSES),
-      snoozedUntil: z.string().datetime().nullable().optional(),
-    })
-  )
-  .handler(async ({ data, context }): Promise<ManyThreadsResult> => {
-    const workspaceId = await currentWorkspaceId(context.user.id)
-    return setThreadStatuses(
-      workspaceId,
-      data.threadIds,
-      data.status,
-      data.snoozedUntil ? new Date(data.snoozedUntil) : null
-    )
-  })
-
-/**
  * Asks Resend again for one message's body, at somebody's request.
  *
  * The same work the background pass does, on a button, because waiting fifteen
@@ -615,13 +592,6 @@ export function markConversationsRead(threadIds: string[]) {
   return markManyReadFn({ data: { threadIds } })
 }
 
-export function setConversationsStatus(
-  threadIds: string[],
-  status: CrmThreadStatus,
-  snoozedUntil?: string | null
-) {
-  return setManyStatusFn({ data: { threadIds, status, snoozedUntil } })
-}
 
 export function markConversationUnread(threadId: string) {
   return markUnreadFn({ data: { threadId } })

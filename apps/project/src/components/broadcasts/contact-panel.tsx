@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { ContactTagsBox } from "@/components/broadcasts/contact-tags-box"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { PickGroup, PickMenuRow, PickRow } from "@/components/shared/notes/pick-rows"
+import { PanelCard } from "@/components/shared/panel-card"
 import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
@@ -26,12 +27,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { InlineError } from "@/components/ui/inline-error"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import {
   deleteContacts,
   getContactErrorMessage,
   loadContactDetail,
-  saveContactNotes,
   saveContactTags,
   setContactsStatus,
   type ContactDelivery,
@@ -43,7 +43,7 @@ import {
   removeContactsFromWorkspaceSegment,
   type SegmentItem,
 } from "@/lib/api/people/contact-segments"
-import { CONTACT_NOTES_MAX, CSV_IMPORT_SOURCE } from "@/lib/contacts/contact-csv"
+import { CSV_IMPORT_SOURCE } from "@/lib/contacts/contact-csv"
 import {
   CONTACT_SEGMENT_STATUSES,
   segmentStatusDotClassName,
@@ -57,11 +57,7 @@ import { formatDate } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useLoad } from "@/lib/hooks/use-load"
-import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-
-/** How long the Notes box waits after the last key before it saves. */
-const NOTES_SAVE_DELAY_MS = 700
 
 /**
  * The Contacts dashboard's right panel: the open person, as Tyler's mock of
@@ -131,8 +127,12 @@ export function ContactPanel({
  * - **⋮, General:** Person (address, where they came from, when they joined,
  *   whether they can sign in), then List (status, tags, segments), each a
  *   grouped row that saves itself, then Delete in red under a line.
- * - **Body:** Notes, saved as typed, then Activity: what happened to each
- *   email they were sent.
+ * - **Body:** two grey cards (Settings → Styling → Panel cards; Tyler, 9 Nov
+ *   2026: "remove the note feature for subscribers. Add a card there ... that
+ *   show subscriber basic informations like: Date added, status, tags,
+ *   segments and came from. The activity should also be in a card").
+ *   Details reads those five back; they are changed from the ⋮. Activity is
+ *   what happened to each email they were sent.
  * - **Footer:** their status in words, and Take off or Put back on the list.
  */
 function OpenContact({
@@ -218,9 +218,6 @@ function OpenContact({
                       <PickRow label="Joined" value={formatDate(contact.created_at)} disabled>
                         {null}
                       </PickRow>
-                      <PickRow label="Type" value={contact.userId ? "Account" : "Subscriber"} disabled>
-                        {null}
-                      </PickRow>
                     </PickGroup>
                     <PickGroup
                       title="List"
@@ -290,9 +287,24 @@ function OpenContact({
         }
         body={
           <>
-            <NotesBox key={contact.id} contactId={contact.id} saved={detail.notes} />
-            <section className="grid gap-2" aria-label="Activity">
-              <h3 className="px-0.5 text-sm font-medium text-muted-foreground">Activity</h3>
+            <PanelCard storageId="crm-subscriber-details" title="Details">
+              <div className="grid gap-2">
+                <DetailRow label="Added" value={formatDate(contact.created_at)} />
+                <DetailRow
+                  label="Status"
+                  value={
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden className={cn("size-2 shrink-0 rounded-full", segmentStatusDotClassName[contact.status])} />
+                      {segmentStatusLabels[contact.status]}
+                    </span>
+                  }
+                />
+                <DetailRow label="Tags" value={<BadgeList items={contact.tags} />} />
+                <DetailRow label="Segments" value={<BadgeList items={detail.segments.map((one) => one.name)} />} />
+                <DetailRow label="Came from" value={contact.source || "Not recorded"} />
+              </div>
+            </PanelCard>
+            <PanelCard storageId="crm-subscriber-activity" title="Activity">
               <ActivityList
                 contact={contact}
                 history={detail.history}
@@ -322,7 +334,7 @@ function OpenContact({
                   </Button>
                 </div>
               ) : null}
-            </section>
+            </PanelCard>
           </>
         }
         footer={
@@ -520,64 +532,29 @@ function SegmentsBox({
 }
 
 /**
- * The Notes box (Tyler, 20 Oct 2026: "Add Notes, saves as you type"). It
- * saves 700ms after the last key, at once when the box is left, and before
- * the panel moves to somebody else. The card's heading says Saving… and then
- * Saved. A refused save keeps what was typed and says why.
+ * A label and its value on one line, as the Admin user panel's Profile card
+ * reads; a value with no room beside its label goes under it.
  */
-function NotesBox({ contactId, saved }: { contactId: string; saved: string }) {
-  const [text, setText] = React.useState(saved)
-  const [state, setState] = React.useState<"idle" | "saving" | "saved" | "failed">("idle")
-  const lastSaved = React.useRef(saved)
-  const pending = React.useRef<string | null>(null)
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const flush = React.useCallback(
-    async (quiet = false) => {
-      if (timer.current) clearTimeout(timer.current)
-      timer.current = null
-      const next = pending.current
-      pending.current = null
-      if (next === null || next === lastSaved.current) return
-      if (!quiet) setState("saving")
-      try {
-        await saveContactNotes(contactId, next)
-        lastSaved.current = next
-        if (!quiet) setState("saved")
-      } catch (error) {
-        if (!quiet) setState("failed")
-        showErrorToast(getContactErrorMessage(error))
-      }
-    },
-    [contactId]
-  )
-
-  // Leaving for another person saves what is still waiting.
-  React.useEffect(() => () => void flush(true), [flush])
-
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <section className="grid gap-2" aria-label="Notes">
-      <h3 className="flex items-center gap-2 px-0.5 text-sm font-medium text-muted-foreground">
-        Notes
-        <span className="text-xs font-normal">
-          {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : state === "failed" ? "Not saved" : null}
-        </span>
-      </h3>
-      <Textarea
-        aria-label="Notes"
-        rows={2}
-        maxLength={CONTACT_NOTES_MAX}
-        value={text}
-        placeholder="Anything worth remembering about them."
-        onChange={(event) => {
-          setText(event.target.value)
-          pending.current = event.target.value
-          if (timer.current) clearTimeout(timer.current)
-          timer.current = setTimeout(() => void flush(), NOTES_SAVE_DELAY_MS)
-        }}
-        onBlur={() => void flush()}
-      />
-    </section>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
+      <span className="min-w-0 text-sm text-muted-foreground">{label}</span>
+      <span className="ml-auto min-w-0 max-w-full truncate text-right text-sm font-medium">{value}</span>
+    </div>
+  )
+}
+
+/** Tags or segments as small chips, or "None". */
+function BadgeList({ items }: { items: string[] }) {
+  if (!items.length) return <>None</>
+  return (
+    <span className="flex flex-wrap justify-end gap-1">
+      {items.map((item) => (
+        <Badge key={item} variant="outline" className="bg-background font-normal">
+          {item}
+        </Badge>
+      ))}
+    </span>
   )
 }
 
@@ -677,7 +654,6 @@ function ActivityList({
 /** How the join reads, by where they came from. */
 function joinedWords(source: string | null): string {
   if (!source) return "Joined"
-  if (source === "Account") return "Joined by making an account"
   if (source === "Added by hand") return "Added by hand"
   if (source === CSV_IMPORT_SOURCE) return "Added from a CSV file"
   return `Joined from ${source}`

@@ -20,7 +20,20 @@ import type { CrmTab } from "@/lib/crm/crm-search"
  */
 export type CrmSectionPanels = {
   middle: React.ReactNode
-  right: { label: string; showLabel: string; content: React.ReactNode }
+  /**
+   * The middle drawn with no card of its own, straight on the page, so the
+   * section can draw its own panels there: an open automation's step list
+   * and canvas, side by side (Tyler, 9 Nov 2026: "return the left panel as
+   * it was before", then "where is the other left panel?").
+   */
+  bare?: boolean
+  /**
+   * Null for a section that has no right panel at the moment, such as the
+   * Automations dashboard's table or a canvas with no step picked (Trade's
+   * Bots dashboard: "just dont show the right panel until a node is clicked
+   * on"). The dashboard then draws two panels.
+   */
+  right: { label: string; showLabel: string; content: React.ReactNode } | null
   ids: string[]
   showMiddleFor?: string
   showRightFor?: string
@@ -30,19 +43,25 @@ export type CrmSectionPanels = {
 export type CrmFrame = (panels: CrmSectionPanels) => React.ReactNode
 
 /** What the section showing tells the frame, for `ThreePanels`. */
-export type CrmSectionPlace = {
-  section: CrmTab
+export type CrmSectionPlace<Section extends string = CrmTab> = {
+  section: Section
   ids: string[]
   showMiddleFor?: string
   showRightFor?: string
+  /** False while the section has no right panel. */
+  hasRight: boolean
+  /** True while the middle has no card of its own (`CrmSectionPanels.bare`). */
+  bare: boolean
   rightLabel: string
   rightShowLabel: string
 }
 
-function samePlace(a: CrmSectionPlace | null, b: CrmSectionPlace) {
+function samePlace<Section extends string>(a: CrmSectionPlace<Section> | null, b: CrmSectionPlace<Section>) {
   return (
     a !== null &&
     a.section === b.section &&
+    a.hasRight === b.hasRight &&
+    a.bare === b.bare &&
     a.showMiddleFor === b.showMiddleFor &&
     a.showRightFor === b.showRightFor &&
     a.rightLabel === b.rightLabel &&
@@ -55,11 +74,11 @@ function samePlace(a: CrmSectionPlace | null, b: CrmSectionPlace) {
  * The frame's half: where the right panel's spot is, what the section showing
  * reported, and the `frame` each section is handed.
  */
-export function useCrmFrame(section: CrmTab) {
+export function useCrmFrame<Section extends string = CrmTab>(section: Section) {
   const [rightSpot, setRightSpot] = React.useState<HTMLDivElement | null>(null)
-  const [reported, setReported] = React.useState<CrmSectionPlace | null>(null)
+  const [reported, setReported] = React.useState<CrmSectionPlace<Section> | null>(null)
   const report = React.useCallback(
-    (next: CrmSectionPlace) => setReported((current) => (samePlace(current, next) ? current : next)),
+    (next: CrmSectionPlace<Section>) => setReported((current) => (samePlace(current, next) ? current : next)),
     []
   )
   // Until the section showing has reported, nothing: the rows from the one
@@ -76,36 +95,41 @@ export function useCrmFrame(section: CrmTab) {
  * stands, its record drawn into the right panel's spot, its windows, and its
  * rows told to the frame.
  */
-function SectionPanels({
+function SectionPanels<Section extends string>({
   section,
   panels,
   rightSpot,
   onReport,
 }: {
-  section: CrmTab
+  section: Section
   panels: CrmSectionPanels
   rightSpot: HTMLDivElement | null
-  onReport: (place: CrmSectionPlace) => void
+  onReport: (place: CrmSectionPlace<Section>) => void
 }) {
   // Compared as text: a section hands over a fresh list every render.
   const idsText = panels.ids.join("\n")
   const { showMiddleFor, showRightFor } = panels
-  const { label: rightLabel, showLabel: rightShowLabel } = panels.right
+  const hasRight = panels.right !== null
+  const bare = panels.bare ?? false
+  const rightLabel = panels.right?.label ?? ""
+  const rightShowLabel = panels.right?.showLabel ?? ""
   React.useEffect(() => {
     onReport({
       section,
       ids: idsText ? idsText.split("\n") : [],
       showMiddleFor,
       showRightFor,
+      hasRight,
+      bare,
       rightLabel,
       rightShowLabel,
     })
-  }, [section, idsText, showMiddleFor, showRightFor, rightLabel, rightShowLabel, onReport])
+  }, [section, idsText, showMiddleFor, showRightFor, hasRight, bare, rightLabel, rightShowLabel, onReport])
 
   return (
     <>
       {panels.middle}
-      {rightSpot ? createPortal(panels.right.content, rightSpot) : null}
+      {rightSpot && panels.right ? createPortal(panels.right.content, rightSpot) : null}
       {panels.windows}
     </>
   )

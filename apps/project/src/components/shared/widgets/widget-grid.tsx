@@ -145,7 +145,7 @@ function AppWidget({
   if (!made) return <EmptySpot {...menu} />
   const { Lazy } = made
   return (
-    <WidgetCard title={made.label} icon={made.icon} menu={<WidgetMenu title={made.label} {...menu} />}>
+    <WidgetCard title={made.label} icon={made.icon} menu={<WidgetMenu title={made.label} />}>
       <AdditionBoundary kind="widget">
         <React.Suspense fallback={<p className="p-3 text-sm text-muted-foreground">Reading…</p>}>
           <ScrollArea className="min-h-0 flex-1">
