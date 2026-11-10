@@ -24,15 +24,11 @@ import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
 import { UsersTab, type UsersLoaded } from "@/components/admin-dashboard/users-tab"
 import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
 import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
-import { AddAccountDialog } from "@/components/admin/add-account-dialog"
+import { useAccountForm } from "@/components/admin/add-account-dropdown"
+import { useAnnouncementForm } from "@/components/admin-dashboard/new-announcement-form"
+import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { PlanDialog } from "@/components/admin/plan-dialog"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
 import { MenuFooterButton } from "@/components/shared/notes/tabbed-menu"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
@@ -178,11 +174,6 @@ export function AdminDashboard({
 
   const pickTab = (next: AdminTab) => void navigate({ search: adminTabSearch(next, days) })
   const router = useRouter()
-  // The Admin header's + (Tyler, 9 Nov 2026: "Add a + icon here with a
-  // dropdown to add announcements and users").
-  const [addingUser, setAddingUser] = React.useState(false)
-  const newAnnouncement = () =>
-    void navigate({ search: { ...adminTabSearch("announcements", days), draft: "1" } })
   const pickRange = (next: AnalyticsRange) =>
     void navigate({
       // The section is written too, so the address is never a bare one, which
@@ -366,7 +357,18 @@ export function AdminDashboard({
             <AdminPagePanel
               title="Admin"
               menuLabel="Admin settings"
-              actions={<AddMenu onNewAnnouncement={newAnnouncement} onNewUser={() => setAddingUser(true)} />}
+              actions={
+                <AddMenu
+                  onAnnouncementCreated={async () => {
+                    countsRead.retry()
+                    if (loaded.tab === "announcements") await router.invalidate()
+                  }}
+                  onAccountCreated={async () => {
+                    countsRead.retry()
+                    if (loaded.tab === "users") await router.invalidate()
+                  }}
+                />
+              }
               page={pages?.left ?? null}
               error={pagesRead.error}
               onRetry={pagesRead.retry}
@@ -454,18 +456,6 @@ export function AdminDashboard({
               }
         }
       >
-        <AddAccountDialog
-          // Remounts on every open, so the last invite's fields never linger.
-          key={addingUser ? "add-user-open" : "add-user-closed"}
-          open={addingUser}
-          onClose={() => setAddingUser(false)}
-          onCreated={async () => {
-            setAddingUser(false)
-            countsRead.retry()
-            // On Users, the list reads again with the new account in it.
-            if (loaded.tab === "users") await router.invalidate()
-          }}
-        />
         <PlanDialog
           key={planOpen === "new" ? "new-plan" : (planOpen?.id ?? "plan-closed")}
           open={planOpen !== null}
@@ -518,15 +508,63 @@ function TabPanels({
 
 /**
  * The + in the Admin header, before the ⋮ (Tyler, 9 Nov 2026: "Add a + icon
- * here with a dropdown to add announcements and users"), drawn as the CRM's
- * is. New announcement opens Announcements with a blank one on the right;
- * New user opens the Add account window over whatever section is showing.
+ * here with a dropdown to add announcements and users"). New announcement and
+ * New user each turn the dropdown into their form, so nothing moves the admin
+ * to another section or opens a window ("Add new announcemtn here should be a
+ * dropdown instead of forwarding me to the right panel"; "make it a dropdown
+ * instead of modal").
  */
-function AddMenu({ onNewAnnouncement, onNewUser }: { onNewAnnouncement: () => void; onNewUser: () => void }) {
+function AddMenu({
+  onAnnouncementCreated,
+  onAccountCreated,
+}: {
+  onAnnouncementCreated: () => Promise<void>
+  onAccountCreated: () => Promise<void>
+}) {
   const [open, setOpen] = React.useState(false)
+  const [making, setMaking] = React.useState<"announcement" | "account" | null>(null)
+  const announcement = useAnnouncementForm(onAnnouncementCreated)
+  const account = useAccountForm(onAccountCreated)
+  const form = making === "account" ? account : announcement
+  const choice = (kind: "announcement" | "account", icon: React.ReactNode, label: string) => (
+    <Button
+      type="button"
+      role="menuitem"
+      variant="ghost"
+      className="w-full justify-start gap-2 px-2 font-normal"
+      onClick={() => setMaking(kind)}
+    >
+      {icon}
+      {label}
+    </Button>
+  )
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
-      <DropdownMenuTrigger asChild>
+    <NewRecordDropdown
+      label={making === "account" ? "New user" : "New announcement"}
+      align="start"
+      open={open}
+      onOpenChange={(next) => {
+        // Each opening starts at the two choices; a password is never kept.
+        if (next) setMaking(null)
+        else account.forgetPassword()
+        setOpen(next)
+      }}
+      choices={
+        making === null ? (
+          <div className="grid" role="menu" aria-label="Add to Admin">
+            {choice("announcement", <MegaphoneIcon className="size-4 text-muted-foreground" />, "New announcement")}
+            {choice("account", <UserPlusIcon className="size-4 text-muted-foreground" />, "New user")}
+          </div>
+        ) : undefined
+      }
+      submitLabel={making === "account" ? "Create account" : "Publish announcement"}
+      busy={form.saving}
+      onSubmit={() =>
+        void form.submit().then((created) => {
+          if (created) setOpen(false)
+        })
+      }
+      trigger={
         <Button
           type="button"
           variant="ghost"
@@ -536,17 +574,9 @@ function AddMenu({ onNewAnnouncement, onNewUser }: { onNewAnnouncement: () => vo
         >
           <PlusIcon className="size-4" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
-        <DropdownMenuItem onSelect={onNewAnnouncement}>
-          <MegaphoneIcon className="size-4 text-muted-foreground" />
-          New announcement
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onNewUser}>
-          <UserPlusIcon className="size-4 text-muted-foreground" />
-          New user
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+    >
+      {form.fields}
+    </NewRecordDropdown>
   )
 }

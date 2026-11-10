@@ -82,9 +82,6 @@ export type CrmBlocks = {
   onDeleteSegment?: (segmentId: string) => void
   /** The Segments block's ⋮, Add a segment: the People tab's new segment window. */
   onNewSegment: () => void
-  /** The left header +'s Add subscriber and Add lead: that section's New form. */
-  onNewSubscriber: () => void
-  onNewLead: () => void
 }
 
 const CrmBlocksContext = React.createContext<CrmBlocks | null>(null)

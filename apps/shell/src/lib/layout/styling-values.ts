@@ -124,6 +124,13 @@ export type ShellStyling = {
   leftPanelWidth?: number
   rightPanelWidth?: number
   /**
+   * The width an open automation's step list opens at, in pixels (Tyler,
+   * 9 Nov 2026: "this panel save is inconsistent ... add a panel size
+   * setting in settings"). It holds that width while the right panel comes
+   * and goes. Unset is 280px, the narrowest the tab names fit at.
+   */
+  stepListWidth?: number
+  /**
    * The Admin dashboard's sections left out of its Dashboards block, from the
    * block's ⋮ (Tyler, 9 Nov 2026: "the dashboard block is missing the 3 dot
    * dropdown and need to add the hide/show dashboards", as Trade's Protocols
@@ -308,6 +315,10 @@ export const DEFAULT_BLOCK_BORDER_SHADE = 10
 export const DEFAULT_LEFT_PANEL_WIDTH = 10
 export const DEFAULT_RIGHT_PANEL_WIDTH = 16
 export const MAX_SIDE_PANEL_WIDTH = 36
+/** An open automation's step list: 280px unless changed, from 200 to 480. */
+export const DEFAULT_STEP_LIST_WIDTH = 280
+export const MIN_STEP_LIST_WIDTH = 200
+export const MAX_STEP_LIST_WIDTH = 480
 export const MAX_BLOCK_INSET = 16
 // Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
@@ -377,6 +388,11 @@ export function clampBlockBorderShade(value: unknown): number {
 /** A side panel's width, never under `narrowest`, which is also its default. */
 export function clampSidePanelWidth(value: unknown, narrowest: number): number {
   return clampInt(value, narrowest, MAX_SIDE_PANEL_WIDTH, narrowest)
+}
+
+/** The step list's width in pixels, 200 to 480. */
+export function clampStepListWidth(value: unknown): number {
+  return clampInt(value, MIN_STEP_LIST_WIDTH, MAX_STEP_LIST_WIDTH, DEFAULT_STEP_LIST_WIDTH)
 }
 
 /** A Dashboards block's hidden sections: names only, once each, never Overview. */
@@ -522,6 +538,7 @@ export function normalizeStyling(value: unknown): ShellStyling {
       ? { hiddenLeadStages: cleanHiddenSections(styling.hiddenLeadStages) }
       : {}),
     ...(styling.rightPanelWidth === undefined ? {} : { rightPanelWidth: clampSidePanelWidth(styling.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH) }),
+    ...(styling.stepListWidth === undefined ? {} : { stepListWidth: clampStepListWidth(styling.stepListWidth) }),
     // Widgets keep to the blocks' ranges.
     ...(styling.widgetRadius === undefined ? {} : { widgetRadius: clampBlockRadius(styling.widgetRadius) }),
     ...(styling.widgetShade === undefined ? {} : { widgetShade: clampBlockShade(styling.widgetShade) }),

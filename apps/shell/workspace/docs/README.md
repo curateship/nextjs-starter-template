@@ -29,6 +29,7 @@ local setup docs.
 ## Automations
 
 - [Automations](automations/overview.md)
+- [The Automations dashboard](automations/dashboard.md): Automations, Runs and Waiting on you in the Admin 3 panel design
 - [Automation run refresh](automations/run-refresh.md)
 - [App-owned automation run results](automations/app-owned-run-results.md)
 

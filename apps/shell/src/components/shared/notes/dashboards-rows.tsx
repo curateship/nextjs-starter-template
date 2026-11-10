@@ -39,11 +39,19 @@ export function DashboardsRows<Key extends string>({
   sections,
   current,
   onPick,
+  onRepick,
 }: {
   sections: readonly DashboardSection<Key>[]
   /** The section showing now, from the address. */
   current: Key
   onPick: (key: Key) => void
+  /**
+   * A press on the section already showing. Left out, it does nothing; the
+   * Automations dashboard uses it to go from an open canvas back to its table
+   * (as Trade's Bots dashboard does: "if im in the canvas, clicking the
+   * sidebar link here doesnt work").
+   */
+  onRepick?: (key: Key) => void
 }) {
   const [pressed, setPressed] = React.useState<{ key: Key; from: Key } | null>(null)
   if (pressed && current !== pressed.from) setPressed(null)
@@ -55,6 +63,7 @@ export function DashboardsRows<Key extends string>({
     window.clearTimeout(timer.current)
     if (key === current) {
       setPressed(null)
+      onRepick?.(key)
       return
     }
     setPressed({ key, from: current })

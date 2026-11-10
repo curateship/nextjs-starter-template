@@ -105,6 +105,8 @@ import {
   DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
   DEFAULT_LEFT_PANEL_WIDTH,
+  MAX_STEP_LIST_WIDTH,
+  MIN_STEP_LIST_WIDTH,
   MAX_SIDE_PANEL_WIDTH,
 } from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
@@ -263,6 +265,7 @@ const shellStylingSchema = z.object({
   blockEdgeToEdge: z.boolean().optional(),
   leftPanelWidth: z.number().int().min(DEFAULT_LEFT_PANEL_WIDTH).max(MAX_SIDE_PANEL_WIDTH).optional(),
   rightPanelWidth: z.number().int().min(16).max(36).optional(),
+  stepListWidth: z.number().int().min(MIN_STEP_LIST_WIDTH).max(MAX_STEP_LIST_WIDTH).optional(),
   hiddenAdminSections: z.array(z.string().min(1).max(40)).max(20).optional(),
   hiddenCrmSections: z.array(z.string().min(1).max(40)).max(20).optional(),
   hiddenLeadStages: z.array(z.string().min(1).max(40)).max(20).optional(),

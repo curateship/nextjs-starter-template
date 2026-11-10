@@ -29,7 +29,7 @@ describe("the automation palette's panel gutter", () => {
       />
     )
 
-    expect(markup).toContain("flex flex-col gap-4 p-3")
+    expect(markup).toContain("flex flex-col gap-4 px-1.5 py-3")
     expect(markup).not.toContain("p-4 sm:p-5")
   })
 

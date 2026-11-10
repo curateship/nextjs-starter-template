@@ -46,6 +46,8 @@ export type AutomationRunItem = {
   subject_label: string | null
   /** The step that started it, or null when somebody pressed Run. */
   trigger_name: string | null
+  /** The approval step a waiting run stopped at, or null. */
+  approval_step_name: string | null
   started_at: string
   finished_at: string | null
   is_test: boolean
@@ -90,13 +92,8 @@ export type AutomationRunDeliveryPageItem = {
   clicked: number
 }
 
-/** What the editor's bottom panel opens with: both tabs, in one round trip. */
-export type AutomationRunsPanelData = {
-  runs: AutomationRunItem[]
-  total: number
-  waiting: AutomationRunItem[]
-  waiting_total: number
-}
+/** One page of a run list and how many runs match in all. */
+export type AutomationRunsPage = { runs: AutomationRunItem[]; total: number }
 
 const automationIdSchema = z.object({
   automationId: z.string().min(1).max(36),
@@ -115,6 +112,11 @@ const testContactSearchSchema = z.object({
 })
 
 const runListSchema = automationIdSchema.extend({
+  offset: z.number().int().min(0).max(100_000).default(0),
+})
+
+const waitingSchema = z.object({
+  search: z.string().trim().max(120).optional(),
   offset: z.number().int().min(0).max(100_000).default(0),
 })
 
@@ -143,30 +145,14 @@ export const getAutomationRunErrorMessage = createErrorMessage(
   "We could not update that automation run. Please try again."
 )
 
-const loadRunsPanelFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(automationIdSchema)
-  .handler(async ({ data, context }): Promise<AutomationRunsPanelData> => {
-    // The SITE's runs, not the person's. These read by workspace, and passing
-    // a user id here matched no rows at all — every flow's Runs tab said it had
-    // never run while the runs sat in the table.
-    const workspaceId = await workspaceIdForRequest(context.user.id)
-    const [flow, waiting] = await Promise.all([
-      readRunsForAutomation(workspaceId, data.automationId),
-      readRunsAwaitingApproval(workspaceId),
-    ])
-    return {
-      runs: flow.runs.map(serializeRun),
-      total: flow.total,
-      waiting: waiting.runs.map(serializeRun),
-      waiting_total: waiting.total,
-    }
-  })
-
+/**
+ * One flow's runs, newest first, tests included: an open flow's Runs tab and
+ * its email page's Runs tab, the only places runs are listed.
+ */
 const listRunsForAutomationFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(runListSchema)
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }): Promise<AutomationRunsPage> => {
     const workspaceId = await workspaceIdForRequest(context.user.id)
     const page = await readRunsForAutomation(
       workspaceId,
@@ -178,9 +164,12 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
 
 const listWaitingRunsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }) => {
+  .inputValidator(waitingSchema)
+  .handler(async ({ data, context }): Promise<AutomationRunsPage> => {
     const waiting = await readRunsAwaitingApproval(
-      await workspaceIdForRequest(context.user.id)
+      await workspaceIdForRequest(context.user.id),
+      undefined,
+      { offset: data.offset, search: data.search }
     )
     return { runs: waiting.runs.map(serializeRun), total: waiting.total }
   })
@@ -327,16 +316,12 @@ const deleteAutomationRunFn = createServerFn({ method: "POST" })
     return { ok: result.deleted.length > 0 }
   })
 
-export function loadAutomationRunsPanel(automationId: string) {
-  return loadRunsPanelFn({ data: { automationId } })
-}
-
 export function listRunsForAutomation(automationId: string, offset: number) {
   return listRunsForAutomationFn({ data: { automationId, offset } })
 }
 
-export function listWaitingRuns() {
-  return listWaitingRunsFn()
+export function listWaitingRuns(options: { search?: string; offset?: number } = {}) {
+  return listWaitingRunsFn({ data: { search: options.search, offset: options.offset ?? 0 } })
 }
 
 export function getAutomationRun(runId: string) {
@@ -389,6 +374,7 @@ function serializeRun(run: AutomationRunRow): AutomationRunItem {
     step_count: run.stepCount,
     subject_label: run.subjectLabel,
     trigger_name: run.triggerName,
+    approval_step_name: run.approvalStepName,
     started_at: run.startedAt.toISOString(),
     finished_at: run.finishedAt?.toISOString() ?? null,
     is_test: run.testRun,

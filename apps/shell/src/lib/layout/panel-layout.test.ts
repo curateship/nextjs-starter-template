@@ -12,7 +12,7 @@ describe("forgetPanelWidths", () => {
     const admin = sidePanelWidthsKey(panelLayoutKey.admin, 14, 16)
     // An app's own dashboard, with a key the shell does not list.
     const project = sidePanelWidthsKey("project-page-horizontal-3", 20, 0)
-    for (const key of [crm, admin, project, panelLayoutKey.frontPageEditor, panelLayoutKey.automationEditorVertical]) {
+    for (const key of [crm, admin, project, panelLayoutKey.frontPageEditor, panelLayoutKey.automations]) {
       localStorage.setItem(key, JSON.stringify({ left: 30, middle: 50, right: 20 }))
     }
     localStorage.setItem(panelLayoutKey.crmPlace, "{}")

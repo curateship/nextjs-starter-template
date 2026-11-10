@@ -74,6 +74,7 @@ export function AutomationFlowCanvas({
   onDeleteNode,
   onSizeChange,
   onDropNode,
+  onNodeContextMenu,
 }: {
   graph: AutomationGraph
   errors: AutomationValidationError[]
@@ -85,6 +86,8 @@ export function AutomationFlowCanvas({
   onDeleteNode: (nodeId: string) => void
   onSizeChange: (size: CanvasSize) => void
   onDropNode?: (position: CanvasPoint) => void
+  /** A right-click on a step, with the pointer's place on the screen. */
+  onNodeContextMenu?: (nodeId: string, x: number, y: number) => void
 }) {
   const canvasRef = React.useRef<HTMLDivElement | null>(null)
   const dragRef = React.useRef<DragState | null>(null)
@@ -385,7 +388,10 @@ export function AutomationFlowCanvas({
       onPointerDown={(event) => {
         if (event.button !== 0 || event.target !== event.currentTarget) return
         event.preventDefault()
-        onSelectNode(null)
+        // The picked step stays picked, its settings open on the right, while
+        // the empty canvas is pressed or dragged (Tyler, 9 Nov 2026: "when i
+        // tap on the canvas, it unslect the node. change that back so it
+        // doesnt"). A picked connection still lets go. Escape lets go of both.
         onSelectEdge(null)
         setPanning(true)
         dragRef.current = {
@@ -534,6 +540,7 @@ export function AutomationFlowCanvas({
               onSelectNode(node.id)
               onSelectEdge(null)
             }}
+            onContextMenu={onNodeContextMenu ? (x, y) => onNodeContextMenu(node.id, x, y) : undefined}
             onMoveStart={(event) => {
               const point = worldFromClient(event.clientX, event.clientY)
               dragRef.current = {

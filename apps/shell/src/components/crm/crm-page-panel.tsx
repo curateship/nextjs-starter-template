@@ -11,7 +11,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SavingDocument } from "@/components/shared/notes/saving-document"
 import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
-import { NameDialog } from "@/components/shared/dashboard/name-dialog"
+import { useSubscriberForm } from "@/components/broadcasts/new-contact-dropdown"
+import { useBroadcastForm, useSegmentForm } from "@/components/crm/crm-add-forms"
+import { useLeadForm } from "@/components/crm/new-lead-dropdown"
+import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -25,12 +28,6 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   addCrmAddress,
@@ -43,7 +40,8 @@ import {
   setCrmUnansweredDays,
   type CrmBlockFigures,
 } from "@/lib/api/crm/page"
-import { createBroadcast, getBroadcastErrorMessage } from "@/lib/api/email/broadcasts"
+import { contactFilterOptions, getContactErrorMessage, loadContactsPage } from "@/lib/api/people/contacts"
+import type { SegmentRuleOptions } from "@/lib/contacts/contact-segments"
 import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
 import { LockedPageContext } from "@/components/shared/notes/block-card"
 import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
@@ -79,7 +77,6 @@ export function CrmPagePanel({
   widgets,
   onPageChange,
   onFiguresChanged,
-  onNewsletterCreated,
 }: {
   /** Null while the page is first read, or when the read failed. */
   page: StoredPage | null
@@ -92,8 +89,6 @@ export function CrmPagePanel({
   onPageChange: (page: StoredPage) => void
   /** Reads the figures again, and the inbox with them, after an address changed. */
   onFiguresChanged: () => void
-  /** Opens a newsletter just made from the + menu on the Broadcasts tab. */
-  onNewsletterCreated: (broadcastId: string) => void
 }) {
   const [busy, setBusy] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
@@ -165,12 +160,7 @@ export function CrmPagePanel({
           {/* The name alone, as the Admin header has it (Tyler, 9 Nov 2026:
               "remove this label", of the open conversations under it). */}
           <span className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>CRM</span>
-          <AddMenuButton
-            onNewSubscriber={blocks.onNewSubscriber}
-            onNewLead={blocks.onNewLead}
-            onNewSegment={blocks.onNewSegment}
-            onNewsletterCreated={onNewsletterCreated}
-          />
+          <AddMenuButton onAdded={onFiguresChanged} />
           {page ? (
             <TabbedMenu
               label="CRM settings"
@@ -382,72 +372,116 @@ export function CrmPagePanel({
 /** The chase's choices, in days; 0 is off. */
 const CHASE_CHOICES = [0, 1, 2, 3, 5, 7, 14]
 
+type AddKind = "subscriber" | "lead" | "segment" | "broadcast"
+
 /**
  * The + in the left header: the four things the CRM adds (Tyler, 9 Nov 2026:
  * "The left header dropdown should now chnage to: Add a subscriber, add a
  * lead, add a segment and add a broadcast", then "remove the \"a\" so its
  * just Add subscriber").
  *
- * - **Add subscriber / Add lead:** that section, its New button open on the
- *   form.
- * - **Add segment:** the Subscribers section's new segment window.
- * - **Add broadcast:** a name, then the newsletter opens on Broadcasts.
+ * Picking one turns the dropdown into its form, and making it keeps the
+ * admin where they are: nothing moves to another section or opens a window
+ * ("in crm. Fix all of these ... they either forward somewhere else or open a
+ * modal"). The subscriber and lead forms are Subscribers' and Leads' own;
+ * Add segment is a segment from rules (`crm-add-forms.tsx`); Add broadcast
+ * makes a draft newsletter by its name, written in Broadcasts.
  *
  * Adding an address mail arrives at moved to the ⋮'s Emails tab.
  */
-function AddMenuButton({
-  onNewSubscriber,
-  onNewLead,
-  onNewSegment,
-  onNewsletterCreated,
-}: {
-  onNewSubscriber: () => void
-  onNewLead: () => void
-  onNewSegment: () => void
-  onNewsletterCreated: (broadcastId: string) => void
-}) {
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  const [namingNewsletter, setNamingNewsletter] = React.useState(false)
+function AddMenuButton({ onAdded }: { onAdded: () => void }) {
+  const [open, setOpen] = React.useState(false)
+  const [making, setMaking] = React.useState<AddKind | null>(null)
+  // The tags in use and the rule builder's choices, read once a form that
+  // needs them is picked.
+  const needsOptions = making === "subscriber" || making === "segment"
+  const [options, setOptions] = React.useState<SegmentRuleOptions | null>(null)
+  React.useEffect(() => {
+    if (!needsOptions || options) return
+    let cancelled = false
+    loadContactsPage({ limit: 1 })
+      .then((page) => {
+        if (!cancelled) setOptions(contactFilterOptions(page))
+      })
+      .catch((error) => showErrorToast(getContactErrorMessage(error)))
+    return () => {
+      cancelled = true
+    }
+  }, [needsOptions, options])
+
+  const added = async () => {
+    // A new segment or person changes the left page's blocks too.
+    setOptions(null)
+    onAdded()
+  }
+  const forms = {
+    subscriber: useSubscriberForm(options?.tags ?? [], added),
+    lead: useLeadForm(added),
+    segment: useSegmentForm(options, added),
+    broadcast: useBroadcastForm(added),
+  }
+  const form = making ? forms[making] : null
+  const LABELS: Record<AddKind, { label: string; submit: string }> = {
+    subscriber: { label: "Add subscriber", submit: "Create contact" },
+    lead: { label: "Add lead", submit: "Create lead" },
+    segment: { label: "Add segment", submit: "Create segment" },
+    broadcast: { label: "Add broadcast", submit: "Create newsletter" },
+  }
+  const choice = (kind: AddKind, icon: React.ReactNode) => (
+    <Button
+      type="button"
+      role="menuitem"
+      variant="ghost"
+      className="w-full justify-start gap-2 px-2 font-normal"
+      onClick={() => setMaking(kind)}
+    >
+      {icon}
+      {LABELS[kind].label}
+    </Button>
+  )
 
   return (
-    <>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Add to the CRM"
-            className={cn("shrink-0", menuOpen && "bg-muted")}
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem onSelect={onNewSubscriber}>
-            <UserPlusIcon className="size-4 text-muted-foreground" />
-            Add subscriber
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onNewLead}>
-            <HandshakeIcon className="size-4 text-muted-foreground" />
-            Add lead
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onNewSegment}>
-            <UsersIcon className="size-4 text-muted-foreground" />
-            Add segment
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setNamingNewsletter(true)}>
-            <NewspaperIcon className="size-4 text-muted-foreground" />
-            Add broadcast
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <NewNewsletterDialog
-        open={namingNewsletter}
-        onClose={() => setNamingNewsletter(false)}
-        onCreated={onNewsletterCreated}
-      />
-    </>
+    <NewRecordDropdown
+      label={making ? LABELS[making].label : "Add to the CRM"}
+      align="start"
+      wide={making === "segment"}
+      open={open}
+      onOpenChange={(next) => {
+        // Each opening starts at the four choices.
+        if (next) setMaking(null)
+        setOpen(next)
+      }}
+      choices={
+        making === null ? (
+          <div className="grid" role="menu" aria-label="Add to the CRM">
+            {choice("subscriber", <UserPlusIcon className="size-4 text-muted-foreground" />)}
+            {choice("lead", <HandshakeIcon className="size-4 text-muted-foreground" />)}
+            {choice("segment", <UsersIcon className="size-4 text-muted-foreground" />)}
+            {choice("broadcast", <NewspaperIcon className="size-4 text-muted-foreground" />)}
+          </div>
+        ) : undefined
+      }
+      submitLabel={making ? LABELS[making].submit : ""}
+      busy={form?.saving ?? false}
+      onSubmit={() =>
+        void form?.submit().then((created) => {
+          if (created) setOpen(false)
+        })
+      }
+      trigger={
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Add to the CRM"
+          className={cn("shrink-0", open && "bg-muted")}
+        >
+          <PlusIcon className="size-4" />
+        </Button>
+      }
+    >
+      {form?.fields}
+    </NewRecordDropdown>
   )
 }
 
@@ -527,59 +561,6 @@ function AddAddressDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function NewNewsletterDialog({
-  open,
-  onClose,
-  onCreated,
-}: {
-  open: boolean
-  onClose: () => void
-  onCreated: (broadcastId: string) => void
-}) {
-  const [name, setName] = React.useState("")
-  const [creating, setCreating] = React.useState(false)
-
-  const create = async () => {
-    if (creating) return
-    if (!name.trim()) {
-      showErrorToast("Give the newsletter a name first.")
-      return
-    }
-    setCreating(true)
-    try {
-      const made = await createBroadcast(name.trim())
-      setName("")
-      onClose()
-      onCreated(made.id)
-    } catch (error) {
-      showErrorToast(getBroadcastErrorMessage(error))
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  return (
-    <NameDialog
-      open={open}
-      title="Add a newsletter"
-      description="Name it, then it opens on Broadcasts to write. Only you see the name."
-      cardTitle="Newsletter details"
-      inputId="crm-new-newsletter-name"
-      value={name}
-      onValueChange={setName}
-      maxLength={255}
-      placeholder="March update"
-      busy={creating}
-      submitLabel="Create newsletter"
-      onSubmit={() => void create()}
-      onClose={() => {
-        setName("")
-        onClose()
-      }}
-    />
   )
 }
 

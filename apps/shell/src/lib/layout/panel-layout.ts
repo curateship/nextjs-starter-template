@@ -111,8 +111,14 @@ export function useRememberedPanelLayout(key: string, defaults?: Layout) {
  * different cards, which is what arranging the Overview's widgets produces.
  */
 export const panelLayoutKey = {
-  automationEditorHorizontal: "automation-editor-horizontal-2",
-  automationEditorVertical: "automation-editor-vertical",
+  // The Automations dashboard (Tyler, 9 Nov 2026, the Admin 3 panel design):
+  // the left page, then the table or canvas, then the run or the picked step.
+  // Two keys, because a layout kept for three panels does not fit two: the
+  // table and a canvas with no step picked are two panels.
+  automations: "automations-horizontal-1",
+  automationsTwo: "automations-two-horizontal-1",
+  // Not a layout: where the Automations dashboard was, for `useDashboardPlace`.
+  automationsPlace: "automations-place",
   // One key, not two: the CRM has no bottom panel, so there is no second
   // group whose height needs remembering.
   //

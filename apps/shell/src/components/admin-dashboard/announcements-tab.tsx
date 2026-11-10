@@ -153,18 +153,6 @@ export function AnnouncementsTab({
     })
   const startNew = () => guarded(() => setDrafting(true))
 
-  // New announcement from the Admin header's +: a blank one opens here, and
-  // the flag leaves the address once it has, so Back or a reload does not
-  // open another.
-  const [draftAsked, setDraftAsked] = React.useState(false)
-  if (listSearch.draft && !draftAsked) {
-    setDraftAsked(true)
-    setDrafting(true)
-  }
-  React.useEffect(() => {
-    if (listSearch.draft) setListSearch({ draft: undefined })
-  }, [listSearch.draft, setListSearch])
-
   const [massSelect, setMassSelect] = React.useState(false)
   const selection = useSelection()
   const listKey = `${q}|${shows}|${sort}|${direction}|${page}|${pageSize}`

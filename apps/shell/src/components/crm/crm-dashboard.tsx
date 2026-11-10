@@ -6,7 +6,6 @@ import { CrmBroadcastsTab } from "@/components/crm/crm-broadcasts-tab"
 import { CrmSegmentActionsContext, useCrmFrame, type CrmSegmentActions } from "@/components/crm/crm-frame"
 import { CrmPagePanel } from "@/components/crm/crm-page-panel"
 import { askForNewSegment, CrmPeopleTab } from "@/components/crm/crm-people-tab"
-import { askToAdd } from "@/lib/crm/add-asks"
 import { CrmSystemEmailsTab } from "@/components/crm/crm-system-emails-tab"
 import { CrmLeadsTab } from "@/components/crm/crm-leads-tab"
 import { CrmWorkspace } from "@/components/crm/crm-workspace"
@@ -271,14 +270,6 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
         : goTo(crmTabSearch("subscribers", { segment: segmentId || undefined })),
     onEditSegment: segmentActions?.onEdit,
     onDeleteSegment: segmentActions?.onDelete,
-    onNewSubscriber: () => {
-      askToAdd("subscriber")
-      if (!onPeople) goTo(crmTabSearch("subscribers"))
-    },
-    onNewLead: () => {
-      askToAdd("lead")
-      if (!onLeads) goTo(crmTabSearch("leads"))
-    },
     onNewSegment:
       segmentActions?.onNew ??
       (() => {
@@ -400,12 +391,6 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
               figures={figures}
               onPageChange={setCrmPage}
               onFiguresChanged={reload}
-              onNewsletterCreated={(broadcastId) =>
-                // Read the list again first, then open the new one, as the
-                // Broadcasts section's own New newsletter does: the other way
-                // round the row raced in.
-                void router.invalidate().then(() => goTo(crmTabSearch("broadcasts", { open: broadcastId })))
-              }
               blocks={blocks}
               widgets={
                 <WidgetSettings

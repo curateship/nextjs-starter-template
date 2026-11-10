@@ -67,10 +67,15 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 - **Left:** the Admin page, one per site, beside every section. Its header
   has the title, a **+** and the ⋮.
 - **The +** (Tyler, 9 Nov 2026: "Add a + icon here with a dropdown to add
-  announcements and users") has New announcement, which opens Announcements
-  with a blank one on the right (through `?draft=1`, taken out of the
-  address once it has), and New user, which opens the Add account window
-  over whatever section is showing.
+  announcements and users") opens a dropdown with New announcement and New
+  user. Picking one turns the dropdown into its form, and nothing moves to
+  another section or opens a window ("Add new announcemtn here should be a
+  dropdown instead of forwarding me to the right panel").
+  - **New announcement:** title, message, kind, and where it shows (the
+    banner, the tray, or both). It starts at once with no end; dates and
+    showing it to visitors are set on it in Announcements
+    (`new-announcement-form.tsx`).
+  - **New user:** the same form as Users' Add account.
 - **The ⋮** is 20.4rem wide, 10% under the menu's usual 22.7rem ("reduce
   the left panel dropdown width by 10%"), and has three tabs. General holds
   Cover photo (None, Sky, the page's pictures and +,
@@ -291,7 +296,11 @@ page (`SideRows` in `components/shared/notes/side-rows.tsx`):
   ("the status col and these are not gray").
 - **List:** every account, with the role tabs, search, Filter (Status, which
   includes Locked out), Mass select for deleting or restoring the ticked rows,
-  and Add account. Paging and the search ask the server again in place. A
+  and Add account, a dropdown form under the button, not a window ("In users
+  add account button, make it a dropdown instead of modal"): name, email,
+  role, and an optional password. Left empty, they are emailed a link to set
+  their own; typed, no email goes. Clicking away keeps what was typed except
+  the password (`add-account-dropdown.tsx`). Paging and the search ask the server again in place. A
   right-click on a row offers View as member, Restore and Delete; your own
   account has no Delete anywhere.
 - **The person on the right:** pressing a row opens them; with nothing open,
@@ -329,6 +338,11 @@ page (`SideRows` in `components/shared/notes/side-rows.tsx`):
   round it, the one showing solid black ("fix this ui"). Uploads land in
   your own library whatever the Owner filter says, and Upload's tooltip says
   so.
+- **Gallery tiles** show the picture and its kind (Image, Video), with no
+  file name (Tyler, 9 Nov 2026: "in media library, remove the file name on
+  image"). The name is the tile's label to a screen reader, and shows on the
+  right once the file is open; a picture that fails to load leaves the tile
+  blank rather than printing the name.
 - **Orphans** are choices in Type: Orphaned files, No record in DB, and
   Missing in storage. Picking one scans the bucket once. While they show, the
   ⋮ also has Scan storage again and Delete all, which clears only the orphans

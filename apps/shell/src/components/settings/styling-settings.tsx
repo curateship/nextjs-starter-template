@@ -38,6 +38,9 @@ import {
   DEFAULT_BLOCK_BORDER,
   MAX_SIDE_PANEL_WIDTH,
   DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_STEP_LIST_WIDTH,
+  MAX_STEP_LIST_WIDTH,
+  MIN_STEP_LIST_WIDTH,
   DEFAULT_RIGHT_PANEL_WIDTH,
   DEFAULT_BLOCK_BORDER_SHADE,
   DEFAULT_BLOCK_SHADOW,
@@ -97,6 +100,7 @@ export function StylingSettings({
   const widgetShadow = styling.widgetShadow ?? blockShadow
   const leftPanelWidth = styling.leftPanelWidth ?? DEFAULT_LEFT_PANEL_WIDTH
   const rightPanelWidth = styling.rightPanelWidth ?? DEFAULT_RIGHT_PANEL_WIDTH
+  const stepListWidth = styling.stepListWidth ?? DEFAULT_STEP_LIST_WIDTH
   // The page is drawn from the slider's own number rather than the live
   // --shell-canvas, so the preview moves with the thumb even before the
   // root variable catches up. The rail preview mixes from this page too.
@@ -382,8 +386,22 @@ export function StylingSettings({
           onChange={(value) => update({ rightPanelWidth: value })}
           help="The same for the right panel, 16% at the narrowest. A dashboard with no right panel gives the middle its room."
         />
+        {/* Tyler, 9 Nov 2026: "this panel save is inconsistent ... add a
+            panel size setting in settings", of an open automation's step
+            list. In pixels, so it is the same width whether or not the right
+            panel is open. */}
+        <SliderRow
+          label="Automation step list width"
+          value={stepListWidth}
+          min={MIN_STEP_LIST_WIDTH}
+          max={MAX_STEP_LIST_WIDTH}
+          step={10}
+          valueLabel={stepListWidth === DEFAULT_STEP_LIST_WIDTH ? `${stepListWidth}px · Default` : `${stepListWidth}px`}
+          onChange={(value) => update({ stepListWidth: value })}
+          help="The list of steps beside an open automation's canvas. It opens at this width every time and keeps it while the right panel opens and shuts. Under 272px its tabs show icons."
+        />
         <p className="text-xs text-muted-foreground">
-          A panel you drag to a new width keeps it in that browser. Moving a slider here starts every browser from the new widths again.
+          A left or right panel you drag to a new width keeps it in that browser. Moving a slider here starts every browser from the new widths again.
         </p>
         <FieldGroup label="Preview" className="gap-2">
           <div className="flex h-20 max-w-md gap-1.5 rounded-lg border bg-[var(--shell-canvas)] p-1.5">

@@ -1,27 +1,27 @@
 # Automations
 
-The automation list lets an admin:
+Automations live on one dashboard at `/admin/automations`, described in
+[The Automations dashboard](dashboard.md): the flows table, every run, and
+the runs waiting on you, with a flow's canvas opening in the middle. From
+there an admin can:
 
 - Create a flow from a blank canvas or template.
 - Search, duplicate, rename, and delete flows.
 - Test a flow against one contact.
 - Turn a flow live or take it offline.
 
-The editor has a node palette, a canvas, an inspector, and a resizable Runs
-panel. Changes save after 700 milliseconds of quiet time. The editor compiles
-and validates the graph before a run can start.
-
-The automation editor's frame is `src/components/broadcasts/editor-frame.tsx`,
-and it saves with `src/lib/hooks/use-auto-save.ts`.
+A flow's canvas saves 700 milliseconds after the last change. The editor
+compiles and validates the graph before a run can start. It saves with
+`src/lib/hooks/use-auto-save.ts`.
 
 A Send email step's "Open email builder" opens the same email page a
 newsletter is written on in the CRM (`send-email-editor.tsx`, on
 `src/components/crm/email-page.tsx`; Tyler, 7 Nov 2026, chose to move it
-over). The subject, the preview line and Rich text are typed in place, and
-each block's options are behind the cog in its bar. The header holds Back to
-flow, which saves first, and the email's ⋮: General (subject, preview line,
-From name), Who gets it, and Runs, the history the old editor drew along its
-bottom. The step's settings are stored as before. The automation editor still refuses to save a flow with no name and
+over). It takes the dashboard's middle until Back to flow. The subject, the
+preview line and Rich text are typed in place, and each block's options are
+behind the cog in its bar. The header holds Back to flow, which saves first,
+and the email's ⋮: General (subject, preview line, From name), Who gets it,
+and Runs, this flow's runs. The step's settings are stored as before. The automation editor still refuses to save a flow with no name and
 says so in the top bar.
 
 Every step that picks a segment, the Audience step included, uses the same
@@ -47,13 +47,14 @@ Templates are ordinary flow definitions that can be copied and then edited.
 
 ## Templates
 
-Templates live in a Templates tab in the editor's left panel, after Fav and
-All nodes. They have no dashboard of their own (Tyler, 8 Nov 2026: "No need to
-have template its own dashboard").
+Templates live in the Templates tab of an open flow's step list, after Fav
+and All nodes. They have no dashboard of their own (Tyler, 8 Nov
+2026: "No need to have template its own dashboard").
 
-- **A card opens that template on the canvas** at
-  `/admin/automations/templates/<key>`, and the tab stays open there with the
-  card outlined. The arrow in the canvas header goes back to the automations.
+- **A card opens that template's canvas** in the dashboard's middle, at
+  `/admin/automations?tab=automations&template=<key>`, and the card is outlined
+  while it is open. Automations in the Dashboards block goes back to the
+  table.
 - **The card's ⋮ holds Edit details and Reset to built-in.** Edit details
   changes the name and description the New automation picker shows. Reset
   appears only on a template that has been changed.
@@ -63,11 +64,8 @@ have template its own dashboard").
 - **Resetting or renaming the template that is open** saves its canvas first,
   then the canvas takes what the server holds. Without that order an edit
   still waiting to save could land on top of the reset.
-- **The old address `/admin/automations/templates` is gone**, not forwarded.
-  The editor's Templates tab is the only way to the templates.
-- **At the left panel's narrowest the three tabs are icons only.** The names
-  need 281px side by side and the panel opens at about 170px, so the names
-  show once the panel is 308px or wider.
+- **The old addresses `/admin/automations/templates` and
+  `/admin/automations/templates/<key>` are gone**, not forwarded.
 
 The cards are `src/components/automations/automation-template-cards.tsx`, and
 the tab is in `automation-palette.tsx`.
@@ -83,10 +81,10 @@ the run when the graph has finished. A step can:
 - Retry.
 - Create a delivery record for later work.
 
-The Runs panel shows the saved history and step details.
-Runs and delivery histories use the same Load more button and block a repeated
-click until the next page returns. A failed load stays in the panel with Try
-again. A saved step failure uses the shared inline error text, so it remains
+The Runs and Waiting on you sections, and an open flow's Runs tab, show the
+saved history; the open run shows its step details on the right. Runs and
+delivery histories use the same Load more button and block a repeated click
+until the next page returns. A failed load stays in place with Try again. A saved step failure uses the shared inline error text, so it remains
 beside the step that produced it without opening a second alert box.
 
 The global pause switch stops automation work without deleting flows or runs.

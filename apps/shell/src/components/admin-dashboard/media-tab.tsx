@@ -823,7 +823,10 @@ export function MediaTab({
                     <MediaThumbnail
                       url={item.url}
                       fileType={item.file_type}
-                      alt={item.alt_text ?? item.original_name}
+                      // Empty: the tile's own button names the file, and a
+                      // picture that fails to load would print the name here
+                      // ("remove the file name on image").
+                      alt=""
                       className="h-full w-full"
                       // Two tiles to a row at the narrowest, eight at the widest middle.
                       sizes="(min-width: 1536px) 12vw, (min-width: 1280px) 15vw, 50vw"
@@ -1115,9 +1118,9 @@ function Tile({
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {badge}
         </span>
-        <span className="absolute right-2 bottom-2 left-2 truncate rounded bg-background/90 px-1.5 py-0.5 text-left text-[10px]">
-          {label}
-        </span>
+        {/* No file name on the tile (Tyler, 9 Nov 2026: "in media library,
+            remove the file name on image"); it is the tile's name to a screen
+            reader and shows on the right once the file is open. */}
       </button>
       <div className="absolute top-2 right-2 flex gap-1">
         {tick ? (

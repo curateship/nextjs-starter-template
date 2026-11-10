@@ -98,13 +98,6 @@ export type AdminAnnouncementsSearch = {
   sort?: AnnouncementSortColumn
   direction?: "asc" | "desc"
   page?: number
-  /**
-   * "1" opens a blank announcement on the right, from the Admin header's +,
-   * and is taken out of the address once it has. In the address rather than
-   * held in memory, because the + switches section and the section is drawn
-   * afresh.
-   */
-  draft?: "1"
 }
 
 /**
@@ -137,7 +130,6 @@ export type AdminSearch = {
   status?: UserStatusFilter
   type?: FeedbackTypeFilter
   shows?: AnnouncementStatusFilter
-  draft?: "1"
   orphan?: string
   owner?: string
 }
@@ -171,7 +163,6 @@ function readAdminAnnouncementsSearch(search: Record<string, unknown>): AdminAnn
     ...readOpenSearch(search),
     q: readSearchText(search.q),
     shows: readOneOf(search.shows, ANNOUNCEMENT_STATUS_FILTERS),
-    draft: readOneOf(search.draft, ["1"] as const),
     sort: readOneOf(search.sort, ANNOUNCEMENT_SORT_COLUMNS),
     direction: readDirection(search.direction),
     page: readPage(search.page),

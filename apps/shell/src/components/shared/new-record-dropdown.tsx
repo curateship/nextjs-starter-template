@@ -24,6 +24,8 @@ export function NewRecordDropdown({
   onSubmit,
   trigger,
   choices,
+  align = "end",
+  wide = false,
   children,
 }: {
   /** The form's name, read out: "New contact". */
@@ -41,12 +43,27 @@ export function NewRecordDropdown({
    * somebody. The screen swaps it for the form once one is picked.
    */
   choices?: React.ReactNode
+  /** "start" for a + at a left panel's header, so it opens over the middle. */
+  align?: "start" | "end"
+  /** 30rem rather than 20rem, for a form holding a rule builder (Add segment). */
+  wide?: boolean
   children: React.ReactNode
 }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="end" className={choices ? "w-56 p-1.5" : "w-80 p-3"}>
+      {/* transition-none: the popover's duration-100 is for its opening
+          animation, but with no property named it also eased the width, so
+          picking a choice slid the wider form out from the left (Tyler,
+          9 Nov 2026: "its clicking one of these that slides in from the
+          left"). The form now replaces the choices at once. */}
+      <PopoverContent align={align} className={
+          choices
+            ? "w-56 p-1.5 transition-none"
+            : wide
+              ? "w-[min(30rem,calc(100vw-2rem))] p-3 transition-none"
+              : "w-80 p-3 transition-none"
+        }>
         {choices ?? (
         <form
           className="grid gap-4"

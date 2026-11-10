@@ -386,10 +386,13 @@ export function NotificationCenter({
       setOpen(false)
 
       if (action.kind === "automationRun") {
+        // An approval opens in Waiting on you; a failure opens on its flow's
+        // own Runs tab, the one place runs are listed.
         void navigate({
-          to: "/admin/automations/$automationId",
-          params: { automationId: action.automationId },
-          search: { run: action.runId, node: action.nodeId },
+          to: "/admin/automations",
+          search: action.waiting
+            ? { tab: "waiting", open: action.runId }
+            : { tab: "automations", open: action.automationId, full: true, pane: "runs", run: action.runId },
         })
       } else if (action.kind === "billing") {
         void navigate({

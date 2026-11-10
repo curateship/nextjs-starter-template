@@ -408,7 +408,7 @@ type LiveCountState =
   | { status: "error"; message: string }
 
 /** The draft's current reach, recalculated only after its rules settle. */
-function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
+export function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
   const [attempt, setAttempt] = React.useState(0)
   const [state, setState] = React.useState<LiveCountState>({
     status: "counting",

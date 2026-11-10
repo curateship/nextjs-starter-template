@@ -173,13 +173,20 @@ Three panels, and each has one job:
   design, holding "/" blocks. The header's **+** opens a menu of four
   (Tyler, 9 Nov 2026: "The left header dropdown should now chnage to: Add a
   subscriber, add a lead, add a segment and add a broadcast", then "remove
-  the \"a\" so its just Add subscriber"): **Add subscriber** and **Add lead**
-  (move to that section if needed and open its New button on the form),
-  **Add segment** (the new segment window on Subscribers) and **Add
-  broadcast** (a name, then it opens on Broadcasts to write). The hand-over
-  to the New button is `askToAdd` in `src/lib/crm/add-asks.ts`, never a key
-  in the address, so a reload does not open the form again. `AddMenuButton`
-  in `src/components/crm/crm-page-panel.tsx`.
+  the \"a\" so its just Add subscriber"). Picking one turns the dropdown
+  into its form, and making it keeps the admin where they are: nothing moves
+  to another section or opens a window (Tyler, 9 Nov 2026: "in crm. Fix all
+  of these ... they either forward somewhere else or open a modal").
+  - **Add subscriber** and **Add lead:** the same forms as Subscribers' New
+    contact and Leads' New lead (`useSubscriberForm`, `useLeadForm`).
+  - **Add segment:** a name, an optional description, the same rules and
+    live count as the segment window, in a 30rem box. A hand-picked segment
+    is made on Subscribers, by ticking people.
+  - **Add broadcast:** a name; the newsletter is made as a draft and written
+    in Broadcasts.
+  - The forms are `crm-add-forms.tsx` and the two dropdowns' own files;
+    `AddMenuButton` in `src/components/crm/crm-page-panel.tsx`. Making
+    anything reads the page's blocks and the list again.
 - **Middle, the inbox.** One row per conversation, under the All, Unread,
   Saved and Waiting views. Each row is the read dot, the person's initials
   in a small round avatar, then their name (Tyler, 9 Nov 2026: "Users,

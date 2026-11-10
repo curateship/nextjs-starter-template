@@ -2596,6 +2596,23 @@ export const customShellCrmPages = pgTable("crm_pages", {
 })
 
 /**
+ * The Automations dashboard's left page, one per site (Tyler, 9 Nov 2026),
+ * in the shape of `crm_pages`: the editor document as JSON text, its cover
+ * photo and cover pictures, and its lock. "" is a page nobody has written on,
+ * which shows the starting blocks.
+ */
+export const customShellAutomationPages = pgTable("automation_pages", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  locked: boolean("locked").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
  * The Admin dashboard's page, one per site (Tyler, 8 Nov 2026): the left page
  * beside every section, with what is written on it, its cover and cover
  * pictures, and its lock. The same shape as `crm_pages`, keyed by side as
