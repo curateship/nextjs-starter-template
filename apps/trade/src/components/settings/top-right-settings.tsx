@@ -27,7 +27,7 @@ import {
 } from "@/components/settings/nav-editor-shared"
 import { NavLinkDestinationCard } from "@/components/settings/nav-link-destination-card"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Dialog,
@@ -75,7 +75,14 @@ type TopRightSettingsProps = {
  * as the same control.
  */
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
+
+/**
+ * The dashed chip at the end of a row that adds a link (Tyler, 9 Nov 2026,
+ * the Navigations redesign: "+ Add" drawn like an empty chip).
+ */
+export const ADD_CHIP_CLASS =
+  "flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 bg-background px-4 dark:border-zinc-600 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:text-foreground"
 
 /**
  * One app-owned chip. A saved row whose control the app no longer offers draws
@@ -133,8 +140,8 @@ function SortableFixedChip({
         <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
         </span>
-        <span className="flex h-8 max-w-56 items-center gap-2 px-3 text-sm font-medium">
-          <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex h-8 max-w-56 items-center gap-2 px-1.5 text-sm font-medium">
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{meta.label}</span>
           {/* A switched-off built-in stays right here wearing this pill — that
               is how it comes back. Deleting is a links-only thing. */}
@@ -144,16 +151,12 @@ function SortableFixedChip({
             </span>
           ) : null}
         </span>
-        <label
-          className="flex size-8 shrink-0 items-center justify-center rounded-md"
-          title={item.visible ? "Visible" : "Hidden"}
-        >
-          <Checkbox
-            checked={item.visible}
-            onCheckedChange={(checked) => onVisibleChange(checked === true)}
-          />
-          <span className="sr-only">Show {meta.label}</span>
-        </label>
+        <Switch
+          className="mx-1.5 shrink-0"
+          checked={item.visible}
+          onCheckedChange={onVisibleChange}
+          aria-label={`Show ${meta.label}`}
+        />
         {/* Says where the control sits on a phone and moves it on a press:
             in the header row, or folded into the three-dot dropdown. */}
         {phone ? (
@@ -224,10 +227,10 @@ export function SortableLinkChip({
           type="button"
           variant="ghost"
           onClick={() => onDialogOpenChange(true)}
-          className="max-w-56 justify-start gap-2 px-3 text-sm font-medium"
+          className="h-8 max-w-56 justify-start gap-2 px-1.5 text-sm font-medium"
           aria-label={`Edit settings for ${itemName}`}
         >
-          <span className="shrink-0">{renderShellIcon(item.icon, "h-4 w-4")}</span>
+          <span className="shrink-0 text-muted-foreground">{renderShellIcon(item.icon, "h-4 w-4")}</span>
           {/* An unnamed link reads as a placeholder, the same muted grey an
               empty input uses — never as normal text. */}
           <span
@@ -245,21 +248,18 @@ export function SortableLinkChip({
           ) : null}
         </Button>
         {visibility ? (
-          <label className="flex size-8 shrink-0 items-center justify-center rounded-md">
-            <Checkbox
-              checked={visibility.visible}
-              onCheckedChange={(checked) =>
-                visibility.onVisibleChange(checked === true)
-              }
-            />
-            <span className="sr-only">Show {itemName}</span>
-          </label>
+          <Switch
+            className="mx-1.5 shrink-0"
+            checked={visibility.visible}
+            onCheckedChange={visibility.onVisibleChange}
+            aria-label={`Show ${itemName}`}
+          />
         ) : null}
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="shrink-0"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
           onClick={onDelete}
           aria-label={`Delete ${itemName}`}
         >
@@ -420,6 +420,19 @@ export function TopRightSettings({
         storageId={card.storageId}
         title={card.title}
         description={card.description}
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            aria-label={reset.label}
+            onClick={() => setResetOpen(true)}
+          >
+            <RotateCcwIcon className="h-4 w-4" />
+            Reset
+          </Button>
+        }
       >
         {/* A stable id keeps the server and browser renders in step, so the
             chips do not jump on the first paint the way an id mismatch makes
@@ -481,25 +494,15 @@ export function TopRightSettings({
               <button
                 type="button"
                 onClick={handleAddLink}
-                className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                className={ADD_CHIP_CLASS}
                 aria-label="Add link"
-                title="Add link"
               >
                 <PlusIcon className="h-4 w-4" />
+                Add
               </button>
             </div>
           </SortableContext>
         </DndContext>
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setResetOpen(true)}
-          >
-            <RotateCcwIcon className="h-4 w-4" />
-            {reset.label}
-          </Button>
-        </div>
       </CollapsibleSettingsCard>
 
       <ConfirmDialog

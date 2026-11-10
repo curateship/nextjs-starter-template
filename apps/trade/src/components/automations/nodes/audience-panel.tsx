@@ -405,7 +405,7 @@ function AudiencePreviewNote({
             ) : (
               <Link
                 to="/admin/crm"
-                search={{ tab: "people" }}
+                search={{ tab: "subscribers" }}
                 className="underline underline-offset-2 hover:text-foreground"
               >
                 Look people up in CRM, People

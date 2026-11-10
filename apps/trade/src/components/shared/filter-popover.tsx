@@ -52,7 +52,11 @@ export function FilterPopover({
       </PopoverTrigger>
       <PopoverContent align="end" className={cn("grid w-80 gap-3 p-3", contentClassName)}>
         {children}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Clear and the save button take the header buttons' own light grey
+            line, not the Divider lines colour (Tyler, 9 Nov 2026: "the clear
+            button should also match the header button border"); see
+            `CrmListHeader`. */}
+        <div className="grid grid-cols-2 gap-2 [&_[data-variant=outline]]:border-zinc-200/60 dark:[&_[data-variant=outline]]:border-zinc-700/60">
           <Button type="button" variant="outline" onClick={onClear}>
             Clear
           </Button>

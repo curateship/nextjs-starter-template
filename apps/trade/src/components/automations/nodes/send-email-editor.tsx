@@ -72,8 +72,10 @@ export function SendEmailEditor({
   const { fields, change, saveNow } = useEmailDraft({ incoming, version: 0, onSave: save })
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <RecordFrame
+        // Drawn in the Automations dashboard's middle, so no right collapse.
+        collapse={false}
         avatar={<MailIcon aria-hidden />}
         title={`${automationName} email`}
         line="Sent by this automation"

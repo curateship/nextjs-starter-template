@@ -9,6 +9,7 @@ import {
   SearchIcon,
   UserRoundIcon,
   type LucideIcon,
+  ChevronRightIcon,
 } from "lucide-react"
 
 import {
@@ -19,7 +20,7 @@ import {
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import {
   PUBLIC_HEADER_ACTION_HINTS,
   PUBLIC_HEADER_ACTION_LABELS,
@@ -28,7 +29,7 @@ import {
 } from "@/lib/pages/public-header-actions"
 
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
 
 const ACTION_ICONS: Record<PublicHeaderActionId, LucideIcon> = {
   search: SearchIcon,
@@ -127,6 +128,8 @@ function ActionChip({
           >
             <Icon className="h-4 w-4 shrink-0" />
             {label}
+            {/* It opens settings of its own, so it says it leads on. */}
+            <ChevronRightIcon aria-hidden className="size-3.5 text-muted-foreground" />
           </Button>
         ) : (
           <span
@@ -143,16 +146,12 @@ function ActionChip({
           </span>
         )}
         {canHide ? (
-          <label
-            className="flex size-8 shrink-0 items-center justify-center rounded-md"
-            title={action.hidden ? "Hidden" : "Visible"}
-          >
-            <Checkbox
-              checked={!action.hidden}
-              onCheckedChange={(checked) => onVisibleChange(checked === true)}
-            />
-            <span className="sr-only">{`Show ${label}`}</span>
-          </label>
+          <Switch
+            className="mx-1.5 shrink-0"
+            checked={!action.hidden}
+            onCheckedChange={onVisibleChange}
+            aria-label={`Show ${label}`}
+          />
         ) : null}
       </div>
     </div>

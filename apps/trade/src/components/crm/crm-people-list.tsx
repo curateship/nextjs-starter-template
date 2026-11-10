@@ -1,10 +1,7 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import {
-  FileDownIcon,
-  MessagesSquareIcon,
+  HandshakeIcon,
   Trash2Icon,
-  UploadIcon,
   UserMinusIcon,
   UserPlusIcon,
 } from "lucide-react"
@@ -12,17 +9,16 @@ import { toast } from "sonner"
 
 import { ContactBulkMenu } from "@/components/broadcasts/contact-bulk-menu"
 import { ContactFilterMenu } from "@/components/broadcasts/contact-filter-menu"
-import { ContactImportDialog, downloadContactSample } from "@/components/broadcasts/contact-import"
+import { ContactImportDialog } from "@/components/broadcasts/contact-import"
 import { NewContactDropdown } from "@/components/broadcasts/new-contact-dropdown"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
-import { Chip, CrmTable, CrmTableRow, Dot, DOT, MainCell } from "@/components/crm/crm-table"
+import { Chip, CrmTable, CrmTableRow, Dot, MainCell } from "@/components/crm/crm-table"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { TableCell, TableSortButton } from "@/components/ui/table"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import { ViewMenu, type ViewChoice } from "@/components/shared/view-menu"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { addLeadToContactList, getLeadErrorMessage } from "@/lib/api/crm/leads"
 import {
   contactFilterOptions,
   deleteContacts,
@@ -31,16 +27,15 @@ import {
   type ContactItem,
   type ContactSortColumn,
   type ContactsPage,
-  type LeadPersonItem,
 } from "@/lib/api/people/contacts"
+import { addSubscriberToLeads } from "@/lib/api/crm/leads"
 import type { SegmentItem } from "@/lib/api/people/contact-segments"
 import {
   segmentStatusDotClassName,
   segmentStatusLabels,
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
-import { CRM_STAGE_LABELS } from "@/lib/crm/crm"
-import { crmTabSearch, type CrmPeopleSearch } from "@/lib/crm/crm-search"
+import type { CrmPeopleSearch } from "@/lib/crm/crm-search"
 import { formatInboxTime } from "@/lib/crm/inbox-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -48,7 +43,6 @@ import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** Tags a row shows before it stops; the rest are in the person's ⋮. */
 const TAGS_SHOWN = 2
@@ -76,14 +70,16 @@ function fullName(contact: ContactItem) {
  * (`CrmTable`), laid out the way Project lays out its tasks (Tyler, 7 Nov 2026).
  *
  * - **Header:** the CRM's one header. "N selected" while contacts are ticked,
- *   then Filter (the segment rules), New contact, and the ⋮ with Search, Mass
- *   select, then Upload a CSV file and Download a sample file.
+ *   then the search box, Select, Filter (the segment rules), and New contact,
+ *   which offers Add a contact and Upload a CSV file. No ⋮: the sample file
+ *   was taken off (Tyler, 9 Nov 2026: "Remove the download sample file
+ *   feature").
  * - **Pills:** All, Leads, Subscribers, Opted out, then each segment.
  * - **Rows:** the name and when they were added; the address; then which
  *   kind they are ("Lead", "Lead + Subscriber", or their list status), a
  *   lead's stage, and their first tags.
  * - **Right-click:** Mass select, then Take off or Put back on the list and
- *   Delete for a contact; Open the conversation and Add to contacts for a lead.
+ *   Delete.
  *
  * Only contacts are ticked: every bulk change is a change to the mailing list,
  * and a lead is not on it.
@@ -104,6 +100,7 @@ export function CrmPeopleList({
   onOpen,
   onSaveAsSegment,
   onRefresh,
+  onOpenLead,
 }: {
   data: ContactsPage
   listSearch: CrmPeopleSearch
@@ -124,8 +121,9 @@ export function CrmPeopleList({
   onOpen: (id: string | undefined) => void
   onSaveAsSegment: (rules: SegmentRules, searchExcluded: boolean) => void
   onRefresh: () => Promise<void>
+  /** Opens a lead in the Leads section. */
+  onOpenLead: (leadId: string) => void
 }) {
-  const navigate = useNavigate({ from: "/admin/crm" })
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
   const page = listSearch.page ?? 1
@@ -135,7 +133,7 @@ export function CrmPeopleList({
 
   const [massSelect, setMassSelect] = React.useState(false)
   const selection = useSelection()
-  const listKey = `${searchQuery}|${listSearch.sort}|${listSearch.direction}|${page}|${pageSize}|${listSearch.view}|${JSON.stringify(rules)}`
+  const listKey = `${searchQuery}|${listSearch.sort}|${listSearch.direction}|${page}|${pageSize}|${JSON.stringify(rules)}`
   useClearSelectionOnListChange(selection.setSelected, listKey)
   // "Everybody who matches" was picked for this list, or null. It stops being
   // true the moment the list changes.
@@ -177,7 +175,6 @@ export function CrmPeopleList({
       ),
     },
     { key: "email", label: "Email", column: "preview", className: "hidden md:hidden @xl:table-cell" },
-    { key: "kind", label: "Kind", sortable: false, column: "preview" },
     { key: "status", label: "Status", column: "preview", className: "hidden md:hidden @4xl:table-cell" },
     // Each column shows only once the middle is wide enough for every one
     // before it as well, so the table never runs past the panel. `md:hidden`
@@ -188,7 +185,7 @@ export function CrmPeopleList({
     { key: "created", label: "Added", column: "meta" },
   ]
   const contactById = new Map(data.contacts.map((contact) => [contact.id, contact]))
-  const visibleIds = data.rows.flatMap((row) => (row.kind === "contact" ? [row.id] : []))
+  const visibleIds = data.contacts.map((contact) => contact.id)
   const selectedIds = visibleIds.filter((id) => selection.selected.has(id))
   const pageFullyTicked = visibleIds.length > 0 && selectedIds.length === visibleIds.length
 
@@ -207,36 +204,7 @@ export function CrmPeopleList({
       await onRefresh()
     })
 
-  const addLead = async (lead: LeadPersonItem) => {
-    try {
-      await addLeadToContactList(lead.id)
-      toast.success(`${lead.email} is on the mailing list now.`)
-      await onRefresh()
-    } catch (error) {
-      showErrorToast(getLeadErrorMessage(error))
-    }
-  }
-
   const rowMenuItems = (id: string): RowMenuItem[] => {
-    const row = data.rows.find((entry) => entry.id === id)
-    if (!row) return []
-    if (row.kind === "lead") {
-      const lead = row.lead
-      return [
-        ...(lead.newestThreadId
-          ? [
-              {
-                label: "Open the conversation",
-                icon: <MessagesSquareIcon className="size-4" />,
-                onSelect: () => void navigate({ search: crmTabSearch("inbox", { open: lead.newestThreadId ?? undefined }) }),
-              },
-            ]
-          : []),
-        ...(lead.contactId
-          ? []
-          : [{ label: "Add to contacts", icon: <UserPlusIcon className="size-4" />, onSelect: () => void addLead(lead) }]),
-      ]
-    }
     const contact = contactById.get(id)
     if (!contact) return []
     const mailable = contact.status === "subscribed" || contact.status === "cold"
@@ -245,6 +213,21 @@ export function CrmPeopleList({
         label: mailable ? "Take off the list" : "Put back on the list",
         icon: mailable ? <UserMinusIcon className="size-4" /> : <UserPlusIcon className="size-4" />,
         onSelect: () => flipContact(contact),
+      },
+      // A subscriber can be a lead too (Tyler, 9 Nov 2026: "in subscribers, I
+      // should be able to right click and add subscriber to lead as well").
+      // They stay here; the toast's Open shows the lead.
+      {
+        label: "Add to leads",
+        icon: <HandshakeIcon className="size-4" />,
+        onSelect: () =>
+          void runRow(async () => {
+            const { leadId, existed } = await addSubscriberToLeads(contact.id)
+            toast.success(existed ? `${contact.email} is already a lead.` : `${contact.email} is now a lead too.`, {
+              action: { label: "Open", onClick: () => onOpenLead(leadId) },
+            })
+            await onRefresh()
+          }),
       },
       { label: "Delete contact", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleteTarget(contact) },
     ]
@@ -299,6 +282,7 @@ export function CrmPeopleList({
               await onRefresh()
               onOpen(contactId)
             }}
+            onImport={() => setImportOpen(true)}
           />
         }
         menuLabel="More for people"
@@ -310,10 +294,6 @@ export function CrmPeopleList({
           onChange: (text) => setListSearch({ q: text.trim() ? text : undefined, page: undefined }),
         }}
         massSelect={{ on: massSelect, onToggle: () => toggleMassSelect() }}
-        menuItems={[
-          { label: "Upload a CSV file", icon: <UploadIcon className="size-4" />, onClick: () => setImportOpen(true) },
-          { label: "Download a sample file", icon: <FileDownIcon className="size-4" />, onClick: downloadContactSample },
-        ]}
       />
 
       <CrmTable<ContactSortColumn | "kind" | "tags" | "opened">
@@ -336,7 +316,7 @@ export function CrmPeopleList({
             : null
         }
         empty={
-          data.rows.length > 0 ? null : searchQuery.trim() || conditions.length ? (
+          data.contacts.length > 0 ? null : searchQuery.trim() || conditions.length ? (
             <span className="grid justify-items-center gap-2">
               {searchQuery.trim() ? `Nobody matches "${searchQuery.trim()}".` : "Nobody matches."}
               <Button
@@ -348,49 +328,12 @@ export function CrmPeopleList({
                 Clear filters
               </Button>
             </span>
-          ) : listSearch.view === "leads" ? (
-            "No leads yet. Everyone who writes in lands here."
           ) : (
-            "Nobody here yet. Everyone who signs up or writes in lands here."
+            "No subscribers yet. New contact adds one or imports a CSV file; accounts are not on this list."
           )
         }
       >
-        {data.rows.map((row) => {
-          if (row.kind === "lead") {
-            const lead = row.lead
-            const name = lead.name?.trim() || lead.email
-            return (
-              <CrmTableRow
-                key={`lead-${lead.id}`}
-                open={lead.id === openId}
-                label={name}
-                // A lead is not on the mailing list, so there is nothing to tick.
-                tick={massSelect ? { shown: true, ticked: false, none: true, onToggle: () => undefined } : null}
-                onOpen={() => onOpen(lead.id)}
-                onRightClick={(x, y) => setRightClick({ id: lead.id, x, y })}
-              >
-                <MainCell name={name} lead={<Dot className={DOT.stage[lead.stage]} label={CRM_STAGE_LABELS[lead.stage]} />} />
-                <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
-                  <span className="block max-w-64 truncate text-muted-foreground">{lead.email}</span>
-                </TableCell>
-                <TableCell column="preview">
-                  <Chip>{lead.contactId ? "Lead + Subscriber" : "Lead"}</Chip>
-                </TableCell>
-                <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
-                  <Chip muted>{CRM_STAGE_LABELS[lead.stage]}</Chip>
-                </TableCell>
-                <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
-                  <TagChips tags={lead.tags} />
-                </TableCell>
-                <TableCell column="mutedMeta" className="hidden @6xl:table-cell">
-                  Not sent any
-                </TableCell>
-                <TableCell column="mutedMeta">{formatInboxTime(lead.created_at)}</TableCell>
-              </CrmTableRow>
-            )
-          }
-          const contact = contactById.get(row.id)
-          if (!contact) return null
+        {data.contacts.map((contact) => {
           const name = fullName(contact) || contact.email
           return (
             <CrmTableRow
@@ -411,15 +354,11 @@ export function CrmPeopleList({
             >
               <MainCell
                 name={name}
+                avatar={{ name: fullName(contact), email: contact.email }}
                 lead={<Dot className={segmentStatusDotClassName[contact.status]} label={segmentStatusLabels[contact.status]} />}
-              >
-                {contact.userId ? <Chip muted>Account</Chip> : null}
-              </MainCell>
+              />
               <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
                 <span className="block max-w-64 truncate text-muted-foreground">{contact.email}</span>
-              </TableCell>
-              <TableCell column="preview">
-                <Chip>{row.leadId ? "Lead + Subscriber" : "Subscriber"}</Chip>
               </TableCell>
               <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
                 <Chip muted>{segmentStatusLabels[contact.status]}</Chip>
@@ -460,9 +399,7 @@ export function CrmPeopleList({
             on: massSelect,
             onToggle: () =>
               toggleMassSelect(
-                !massSelect && data.rows.find((entry) => entry.id === rightClick.id)?.kind === "contact"
-                  ? rightClick.id
-                  : undefined
+                !massSelect ? rightClick.id : undefined
               ),
           }}
           items={rowMenuItems(rightClick.id)}

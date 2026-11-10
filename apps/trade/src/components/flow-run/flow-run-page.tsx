@@ -9,11 +9,11 @@ import { FlowRunTradesPanel } from "@/components/flow-run/flow-run-trades-panel"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import { OpenRunPanel } from "@/components/bots/bots-record"
 import {
-  BOTTOM_COLLAPSED_HEIGHT,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
 import {
@@ -44,6 +44,14 @@ import {
   type TradePanelLayouts,
   useRememberedPanelLayoutInPlace,
 } from "@/lib/trade/panel-layout"
+
+/**
+ * The bottom panel folds down to its own header and its 2px of edge, not to
+ * nothing, so its title never disappears. Kept here since the shell's
+ * resizable panels stopped exporting it with the automation editor's bottom
+ * panel (9 Nov 2026).
+ */
+const BOTTOM_COLLAPSED_HEIGHT = `${DASHBOARD_CARD_HEADER_HEIGHT_PX + 2}px`
 
 /**
  * One bot opened on the Bots dashboard (9 Nov 2026): the money line or a

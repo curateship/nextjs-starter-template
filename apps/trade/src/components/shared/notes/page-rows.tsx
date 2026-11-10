@@ -4,7 +4,7 @@ import { LockIcon, LockOpenIcon, PlusIcon, XIcon } from "lucide-react"
 import { MediaPicker } from "@/components/media/media-picker"
 import { CoverSky } from "@/components/shared/notes/cover-sky"
 import { PickRow } from "@/components/shared/notes/pick-rows"
-import { Button } from "@/components/ui/button"
+import { MenuFooterButton } from "@/components/shared/notes/tabbed-menu"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { MAX_COVER_IMAGES, SKY_COVER } from "@/lib/notes/page-cover"
 import { cn } from "@/lib/utils"
@@ -12,12 +12,15 @@ import { cn } from "@/lib/utils"
 /**
  * The two rows every page's ⋮ holds in the Admin 3 panel design, copied from
  * Trade's `page-menus.tsx` (7 Nov 2026): the cover photo, under a "Page"
- * group, and "Lock the notes" under the groups. An app's own ⋮ puts them in
+ * group, and "Lock blocks" under the groups. An app's own ⋮ puts them in
  * its `TabbedMenu` beside its own rows.
  */
 
 /**
- * "Lock the notes", under a menu's groups, as on every page in the design.
+ * "Lock blocks", the General tab's footer, under a line across the menu
+ * (Tyler, 9 Nov 2026: "this should be in the bottom and rename it to \"Lock
+ * blocks\"", then "this should sepearted with divider just like the new
+ * plan footer"). Pass it as the tab's `footer`.
  * Locked, the page reads only, blocks and all, and the server refuses a save.
  */
 export function LockRow({
@@ -30,20 +33,13 @@ export function LockRow({
   onLock: (locked: boolean) => void
 }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
+    <MenuFooterButton
+      icon={locked ? <LockOpenIcon /> : <LockIcon />}
       disabled={busy}
-      className="w-full justify-start gap-2 px-2 font-normal"
       onClick={() => onLock(!locked)}
     >
-      {locked ? (
-        <LockOpenIcon className="size-4" />
-      ) : (
-        <LockIcon className="size-4" />
-      )}
-      {locked ? "Unlock the notes" : "Lock the notes"}
-    </Button>
+      {locked ? "Unlock blocks" : "Lock blocks"}
+    </MenuFooterButton>
   )
 }
 

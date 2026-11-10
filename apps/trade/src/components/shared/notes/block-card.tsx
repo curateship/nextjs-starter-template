@@ -1,10 +1,14 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, Trash2Icon } from "lucide-react"
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, GripVerticalIcon, Trash2Icon } from "lucide-react"
 
 import { FoldHeading } from "@/components/shared/notes/fold-heading"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +45,8 @@ export type BlockHeading = {
   actions: HTMLElement | null
   setCount: (count: number | undefined) => void
   setMenu: (items: BlockMenuItem[] | undefined) => void
+  /** Called with the rows' `sortKey`s in their new order after a drag. */
+  setReorder: (reorder: ((keys: string[]) => void) | undefined) => void
   open: boolean
 }
 
@@ -49,6 +55,20 @@ export type BlockMenuItem = {
   label: string
   icon?: React.ReactNode
   onSelect: () => void
+  /** At the row's end, such as the eye on a show-or-hide row. */
+  end?: React.ReactNode
+  /** Greyed, such as a section that is hidden. */
+  muted?: boolean
+  /** Pressing it leaves the menu open, for the next press (a show-or-hide list). */
+  keepOpen?: boolean
+  /** Read out in place of the label, such as "Hide Users". */
+  ariaLabel?: string
+  /**
+   * Given, the row has a grip and drags into a new order among the other
+   * rows that have one (Tyler, 9 Nov 2026: "I want to be able to drag and
+   * drop dashboard item positions", of the Dashboards block's ⋮).
+   */
+  sortKey?: string
 }
 
 /** Exported so a panel's tests can stand in for the block around it. */
@@ -84,15 +104,27 @@ export function useBlockCount(count: number | undefined) {
  * segment and delete block"). The rows are read when the menu opens, so a
  * caller may hand a new array every render.
  */
-export function useBlockMenu(items: BlockMenuItem[] | undefined) {
+export function useBlockMenu(items: BlockMenuItem[] | undefined, onReorder?: (keys: string[]) => void) {
   const heading = React.useContext(BlockHeadingContext)
   const setMenu = heading?.setMenu
+  const setReorder = heading?.setReorder
+  const latestReorder = React.useRef(onReorder)
+  React.useEffect(() => {
+    latestReorder.current = onReorder
+  })
+  const canReorder = Boolean(onReorder)
+  React.useEffect(() => {
+    if (!setReorder || !canReorder) return
+    setReorder(() => (keys: string[]) => latestReorder.current?.(keys))
+    return () => setReorder(undefined)
+  }, [setReorder, canReorder])
   const latest = React.useRef(items)
   React.useEffect(() => {
     latest.current = items
   })
-  // Keyed on the labels, so a new array with the same rows changes nothing.
-  const labels = JSON.stringify(items?.map((item) => item.label) ?? [])
+  // Keyed on the labels and whether each is greyed, so a new array with the
+  // same rows changes nothing, and a row shown or hidden redraws its eye.
+  const labels = JSON.stringify(items?.map((item) => [item.label, item.muted === true, item.sortKey]) ?? [])
   React.useEffect(() => {
     if (!setMenu) return
     // The effect above has already stored this render's rows.
@@ -108,6 +140,21 @@ export function useBlockMenu(items: BlockMenuItem[] | undefined) {
     return () => setMenu(undefined)
   }, [setMenu, labels])
 }
+
+/**
+ * What a locked page lets its blocks do: be deleted, after asking, by
+ * unlocking the page and saving it without them (Tyler, 9 Nov 2026: "every
+ * bloick must have a delete block option except dashboard block", then "Ask,
+ * then unlock and delete"). The page panel provides it; a page that cannot be
+ * locked leaves it out, and its blocks only offer Delete block while the
+ * editor is editable.
+ */
+export const LockedPageContext = React.createContext<{
+  /** True while the page is locked. */
+  locked: boolean
+  /** Unlocks the page and saves it without this block's node. */
+  removeBlock: (nodeName: string) => Promise<void>
+} | null>(null)
 
 /** Whether the block holding this panel is open, or true outside a block. */
 export function useBlockOpen() {
@@ -129,7 +176,12 @@ export function BlockFrame({
       data-selected={selected || undefined}
       data-page-block={name}
       data-note-block=""
-      className="group/block relative [&_a]:text-inherit! [&_a:hover]:text-foreground!"
+      // Edge to edge, from Settings → Styling → Blocks: the block reaches
+      // past the panel's side space to its edges (Tyler, 9 Nov 2026: "edge
+      // to edge but for advanced blocks only"). Only app blocks draw this
+      // frame, so basic blocks keep the space. Outside a panel that sets
+      // --panel-gutter it moves nothing.
+      className="group/block relative mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)] [&_a]:text-inherit! [&_a:hover]:text-foreground!"
     >
       {children}
     </NodeViewWrapper>
@@ -145,6 +197,7 @@ export function BlockFrame({
 export function BlockCard({
   editable,
   onRemove,
+  onRemoveLocked,
   moves,
   kind,
   title,
@@ -154,6 +207,11 @@ export function BlockCard({
   editable: boolean
   /** Left out for a fixed block, which has no Delete block. */
   onRemove?: () => void
+  /**
+   * Delete block on a locked page: asked first, then the page is unlocked
+   * and saved without the block. Left out where the page has no lock.
+   */
+  onRemoveLocked?: () => Promise<void>
   /**
    * A fixed block's Move up and Move down, worked out as its ⋮ opens, so
    * only a move that can happen is offered.
@@ -170,8 +228,14 @@ export function BlockCard({
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
   const [count, setCount] = React.useState<number | undefined>(undefined)
   const [menu, setMenu] = React.useState<BlockMenuItem[] | undefined>(undefined)
+  const [reorder, setReorder] = React.useState<((keys: string[]) => void) | undefined>(undefined)
+  const [askingDelete, setAskingDelete] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+  // Delete block shows on every block but a fixed one: straight away while
+  // the page can be written on, and after asking while it is locked.
+  const canDelete = Boolean(onRemove && (editable || onRemoveLocked))
   const heading = React.useMemo(
-    () => ({ actions, setCount, setMenu, open }),
+    () => ({ actions, setCount, setMenu, setReorder, open }),
     [actions, open]
   )
   return (
@@ -189,7 +253,11 @@ export function BlockCard({
       // reads a shade lighter than the solid grey. What shows through is
       // blurred, like frosted glass ("how about we make it gassuan blur like
       // a glass effect"). The white tile under the heading stays solid.
-      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] backdrop-blur-md [background:color-mix(in_oklab,color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))_60%,transparent)]"
+      // Border and Shadow, also from Settings → Styling → Blocks, put a line
+      // round the block, as dark as Border shade sets, and a soft shadow under
+      // it; both are off unless changed (Tyler, 9 Nov 2026: "add a border and
+      // shade around the block").
+      className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[var(--shell-block-radius,1rem)] border-solid border-[length:var(--shell-block-border,0px)] [border-color:color-mix(in_oklab,var(--foreground)_var(--shell-block-border-shade,10%),transparent)] [box-shadow:var(--shell-block-shadow,none)] backdrop-blur-md [background:color-mix(in_oklab,color-mix(in_oklab,var(--muted)_var(--shell-block-shade,50%),var(--card))_60%,transparent)]"
     >
       <BlockHeadingContext.Provider value={heading}>
         <FoldHeading
@@ -201,7 +269,11 @@ export function BlockCard({
           // As tall as the panel's own header, its title dark grey (Tyler,
           // 8 Nov 2026: "Make the block header the same height as the
           // panel's header", then "blocks header should be dark gray").
-          className="min-h-[var(--dashboard-card-header-height,57px)] [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
+          // 14px at its right, not the band's 10px, so the block's ⋮ (28px)
+          // has its dots under the panel header's ⋮ (32px, 12px in) when the
+          // block reaches the panel's edges (Tyler, 9 Nov 2026: "the right
+          // padding here should be the same so its aligned").
+          className="min-h-[var(--dashboard-card-header-height,57px)] !pr-3.5 [&>button[aria-hidden]]:hidden [&>h2]:!m-0 [&>h2]:!p-0 [&>h2]:!text-base [&>h2]:!leading-tight [&>h2]:!font-semibold [&>h2]:!text-foreground/75"
         >
           {/* The panel's own buttons, shown while the block is open. */}
           <span
@@ -214,7 +286,7 @@ export function BlockCard({
               heading is pointed at, never for a row inside the tile ("hover
               over the item should only show the item 3 dot, not the header
               too"). */}
-          {menu?.length || (editable && (onRemove || moves)) ? (
+          {menu?.length || canDelete || (editable && moves) ? (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -228,17 +300,33 @@ export function BlockCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                {(menu ?? []).map((item) => (
-                  <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
+                {reorder && menu?.some((item) => item.sortKey) ? (
+                  <SortableMenuRows items={menu.filter((item) => item.sortKey)} onReorder={reorder} />
+                ) : null}
+                {(menu ?? []).filter((item) => !(reorder && item.sortKey)).map((item) => (
+                  <DropdownMenuItem
+                    key={item.label}
+                    aria-label={item.ariaLabel}
+                    onSelect={(event) => {
+                      if (item.keepOpen) event.preventDefault()
+                      item.onSelect()
+                    }}
+                  >
                     {item.icon}
-                    {item.label}
+                    <span className={cn("min-w-0 flex-1 truncate", item.muted && "text-muted-foreground")}>
+                      {item.label}
+                    </span>
+                    {item.end ? <span className="ml-auto flex text-muted-foreground [&_svg]:size-4">{item.end}</span> : null}
                   </DropdownMenuItem>
                 ))}
                 {editable && moves ? <MoveRows moves={moves} after={Boolean(menu?.length)} /> : null}
-                {editable && onRemove ? (
+                {canDelete ? (
                   <>
                     {menu?.length ? <DropdownMenuSeparator /> : null}
-                    <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => (editable ? onRemove?.() : setAskingDelete(true))}
+                    >
                       <Trash2Icon className="size-4" />
                       Delete block
                     </DropdownMenuItem>
@@ -265,17 +353,134 @@ export function BlockCard({
               lines colour alone: the table line's grey band, there to match a
               grey heading row, goes clear, or it drew a grey line Settings
               could not change (Tyler, 8 Nov 2026: "this border here is not
-              wired to the styling setting"). */}
-          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
+              wired to the styling setting"). The tile's own shade comes from
+              Settings → Styling → Blocks → Body shade, white unless changed
+              (Tyler, 9 Nov 2026: "change the shade of the block body bg"),
+              and the table rows follow it. */}
+          <div data-block-tile="" className="flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px)-var(--shell-block-border,0px))] [--block-body:color-mix(in_oklab,var(--muted)_var(--shell-block-body-shade,0%),var(--card))] bg-[var(--block-body)] text-sm [&_tfoot_td]:!bg-[var(--block-body)] [&_tfoot_tr]:!bg-[var(--block-body)] [&_thead_th]:!bg-[var(--block-body)] [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
             {children}
           </div>
         </CollapsibleContent>
       </BlockHeadingContext.Provider>
+      {onRemoveLocked ? (
+        <ConfirmDialog
+          open={askingDelete}
+          onOpenChange={(open) => {
+            if (!open) setAskingDelete(false)
+          }}
+          title="This page is locked"
+          description={`Unlock it and delete the ${title} block?`}
+          confirmLabel="Unlock and delete"
+          loading={deleting}
+          onConfirm={async () => {
+            setDeleting(true)
+            try {
+              await onRemoveLocked()
+              setAskingDelete(false)
+            } finally {
+              setDeleting(false)
+            }
+          }}
+        />
+      ) : null}
     </Collapsible>
   )
 }
 
 /** A fixed block's moves, under any rows of the block's own. */
+/**
+ * Rows of a block's ⋮ that drag into a new order: a grip, the name and its
+ * end mark. A press still does the row's own thing; a drag of 6px or more
+ * moves it instead, and the press that ends a drag is not taken as one.
+ */
+function SortableMenuRows({
+  items,
+  onReorder,
+}: {
+  items: BlockMenuItem[]
+  onReorder: (keys: string[]) => void
+}) {
+  const keys = items.map((item) => item.sortKey ?? item.label)
+  const [order, setOrder] = React.useState(keys)
+  // A new order from outside, such as the save landing, replaces the one shown.
+  const keysText = keys.join("\n")
+  const [seen, setSeen] = React.useState(keysText)
+  if (seen !== keysText) {
+    setSeen(keysText)
+    setOrder(keys)
+  }
+  const dragged = React.useRef(false)
+  // The pointer only: the menu's own keys move between rows and press one.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const byKey = new Map(items.map((item) => [item.sortKey ?? item.label, item]))
+  const end = (event: DragEndEvent) => {
+    window.setTimeout(() => {
+      dragged.current = false
+    }, 0)
+    const from = order.indexOf(String(event.active.id))
+    const to = event.over ? order.indexOf(String(event.over.id)) : -1
+    if (from < 0 || to < 0 || from === to) return
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    if (moved !== undefined) next.splice(to, 0, moved)
+    setOrder(next)
+    onReorder(next)
+  }
+  return (
+    <DndContext
+      id="block-menu-rows"
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={() => {
+        dragged.current = true
+      }}
+      onDragCancel={() => {
+        dragged.current = false
+      }}
+      onDragEnd={end}
+    >
+      <SortableContext items={order} strategy={verticalListSortingStrategy}>
+        {order.map((key) => {
+          const item = byKey.get(key)
+          return item ? <SortableMenuRow key={key} id={key} item={item} dragged={dragged} /> : null
+        })}
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+function SortableMenuRow({
+  id,
+  item,
+  dragged,
+}: {
+  id: string
+  item: BlockMenuItem
+  dragged: React.RefObject<boolean>
+}) {
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <DropdownMenuItem
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("touch-none", isDragging && "relative z-10 bg-accent")}
+      aria-label={item.ariaLabel}
+      // Only the pointer handlers: the drag's own role and tab stop would
+      // take the row's place in the menu for a screen reader.
+      {...listeners}
+      onSelect={(event) => {
+        if (item.keepOpen || dragged.current) event.preventDefault()
+        if (dragged.current) return
+        item.onSelect()
+      }}
+    >
+      <GripVerticalIcon aria-hidden className="-ml-1 size-3.5 text-muted-foreground/60" />
+      <span className={cn("min-w-0 flex-1 truncate", item.muted && "text-muted-foreground")}>{item.label}</span>
+      {item.end ? <span className="ml-auto flex text-muted-foreground [&_svg]:size-4">{item.end}</span> : null}
+    </DropdownMenuItem>
+  )
+}
+
 function MoveRows({ moves, after }: { moves: () => BlockMenuItem[]; after: boolean }) {
   // Worked out once as the menu opens: the rows are drawn only while it is open.
   const [rows] = React.useState(moves)
@@ -335,7 +540,8 @@ function moveBlock(editor: NodeViewProps["editor"], pos: number, direction: -1 |
  * `Draw` on the tile. Pass the result to `blockNode`.
  */
 export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec) {
-  return function PageBlockView({ editor, selected, deleteNode, getPos }: NodeViewProps) {
+  return function PageBlockView({ editor, node, selected, deleteNode, getPos }: NodeViewProps) {
+    const lockedPage = React.useContext(LockedPageContext)
     const moves = () => {
       const pos = getPos()
       if (typeof pos !== "number") return []
@@ -351,6 +557,9 @@ export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec)
         <BlockCard
           editable={editor.isEditable}
           onRemove={fixed ? undefined : deleteNode}
+          onRemoveLocked={
+            !fixed && lockedPage?.locked ? () => lockedPage.removeBlock(node.type.name) : undefined
+          }
           moves={fixed ? moves : undefined}
           kind={kind}
           title={title}

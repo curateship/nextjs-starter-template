@@ -87,6 +87,72 @@ export type ShellStyling = {
   blockShade?: number
   blockInset?: number
   /**
+   * How grey a block's body is, the tile under its heading (Tyler, 9 Nov
+   * 2026: "add a block styling option to change the shade of the block body
+   * bg"): 0 white to 100 the theme's muted grey. Unset is white, the look
+   * the tile always had.
+   */
+  blockBodyShade?: number
+  /**
+   * A line round the whole block, in px, and a soft shadow under it, 0 none
+   * to 100 the strongest (Tyler, 9 Nov 2026: "Add another styling option to
+   * add a border and shade around the block"). Unset is neither, the look
+   * blocks always had.
+   */
+  blockBorder?: number
+  blockShadow?: number
+  /**
+   * How dark the block's line is, 0 to 100 of the theme's text colour. The
+   * Divider lines colour was too faint to see as a block's edge.
+   */
+  blockBorderShade?: number
+  /**
+   * Advanced blocks, the live ones an app draws in `BlockCard`, reach the
+   * panel's sides instead of sitting inside its 15px space (Tyler, 9 Nov
+   * 2026: "Add another option for blocks that its edge to edge but for
+   * advanced blocks only"). Basic blocks keep the space. Unset is off.
+   */
+  blockEdgeToEdge?: boolean
+  /**
+   * How wide a three-panel dashboard's left and right panels open, as a share
+   * of the dashboard's width, 14 (left) or 16 (right) to 36 (Tyler, 9 Nov 2026: "Add another
+   * option for me to adjust the default width of the left and right panel").
+   * Unset is 14 on the left and 16 on the right (Tyler, 9 Nov 2026:
+   * "default 14% on left and 16% on right"), and neither goes narrower. A
+   * width dragged in a browser still outranks it there.
+   */
+  leftPanelWidth?: number
+  rightPanelWidth?: number
+  /**
+   * The width an open automation's step list opens at, in pixels (Tyler,
+   * 9 Nov 2026: "this panel save is inconsistent ... add a panel size
+   * setting in settings"). It holds that width while the right panel comes
+   * and goes. Unset is 280px, the narrowest the tab names fit at.
+   */
+  stepListWidth?: number
+  /**
+   * The Admin dashboard's sections left out of its Dashboards block, from the
+   * block's ⋮ (Tyler, 9 Nov 2026: "the dashboard block is missing the 3 dot
+   * dropdown and need to add the hide/show dashboards", as Trade's Protocols
+   * block does). Overview is never among them. For the whole site, with the
+   * rest of its look. Unset hides nothing.
+   */
+  hiddenAdminSections?: string[]
+  /**
+   * The order of the Admin dashboard's sections under Overview, dragged in
+   * the Dashboards block's ⋮ (Tyler, 9 Nov 2026: "I want to be able to drag
+   * and drop dashboard item positions"). Overview stays first. A section not
+   * named keeps its own place after the named ones. Unset is the shell's
+   * order.
+   */
+  adminSectionOrder?: string[]
+  /** The same for the CRM's Dashboards block (Tyler, 9 Nov 2026: "apply all the design pattern we did for dashboard to crm"). */
+  hiddenCrmSections?: string[]
+  /** The CRM's section order, as `adminSectionOrder` (9 Nov 2026). */
+  crmSectionOrder?: string[]
+  /** Stages the CRM's Leads card leaves out, from its ⋮ (9 Nov 2026). */
+  hiddenLeadStages?: string[]
+  /**
    * Overview's widgets, set apart from the blocks (Tyler, 8 Nov 2026:
    * "Because the widget sits in a shaded background it needs its own block
    * styling options"): the same three, corners in px, the grey 0 to 100
@@ -96,6 +162,15 @@ export type ShellStyling = {
   widgetRadius?: number
   widgetShade?: number
   widgetInset?: number
+  /**
+   * The blocks' Body shade, Border, Border shade and Shadow for widgets
+   * (Tyler, 9 Nov 2026: "add the same 2 styling feature for widgets"). Unset
+   * follows the blocks' settings, as the three above do.
+   */
+  widgetBodyShade?: number
+  widgetBorder?: number
+  widgetBorderShade?: number
+  widgetShadow?: number
   /**
    * The grey folding cards in a right panel, such as a person's Profile and
    * Plan on the Admin dashboard (`PanelCard`, Tyler, 8 Nov 2026: "Add styling
@@ -233,6 +308,27 @@ export const DEFAULT_BLOCK_RADIUS = 16
 export const MAX_BLOCK_RADIUS = 32
 export const DEFAULT_BLOCK_SHADE = 50
 export const DEFAULT_BLOCK_INSET = 3
+/** The block's body is white unless changed. */
+export const DEFAULT_BLOCK_BODY_SHADE = 0
+/** No line and no shadow round a block unless changed. */
+export const DEFAULT_BLOCK_BORDER = 0
+export const MAX_BLOCK_BORDER = 3
+export const DEFAULT_BLOCK_SHADOW = 0
+export const DEFAULT_BLOCK_BORDER_SHADE = 10
+/**
+ * A side panel opens at 10% on the left and 16% on the right unless changed,
+ * and neither drags or is set narrower than that (Tyler, 9 Nov 2026:
+ * "default 14% on left and 16% on right", "make the 14 and 16 default and
+ * cannot go lower than that", then "Set left side panel narrowest default to
+ * 10%"). Both go up to 36%.
+ */
+export const DEFAULT_LEFT_PANEL_WIDTH = 10
+export const DEFAULT_RIGHT_PANEL_WIDTH = 16
+export const MAX_SIDE_PANEL_WIDTH = 36
+/** An open automation's step list: 280px unless changed, from 200 to 480. */
+export const DEFAULT_STEP_LIST_WIDTH = 280
+export const MIN_STEP_LIST_WIDTH = 200
+export const MAX_STEP_LIST_WIDTH = 480
 export const MAX_BLOCK_INSET = 16
 // Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
@@ -281,6 +377,63 @@ export function clampBlockRadius(value: unknown): number {
 
 export function clampBlockShade(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_BLOCK_SHADE)
+}
+
+export function clampBlockBodyShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_BLOCK_BODY_SHADE)
+}
+
+export function clampBlockBorder(value: unknown): number {
+  return clampInt(value, 0, MAX_BLOCK_BORDER, DEFAULT_BLOCK_BORDER)
+}
+
+export function clampBlockShadow(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_BLOCK_SHADOW)
+}
+
+export function clampBlockBorderShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_BLOCK_BORDER_SHADE)
+}
+
+/** A side panel's width, never under `narrowest`, which is also its default. */
+export function clampSidePanelWidth(value: unknown, narrowest: number): number {
+  return clampInt(value, narrowest, MAX_SIDE_PANEL_WIDTH, narrowest)
+}
+
+/** The step list's width in pixels, 200 to 480. */
+export function clampStepListWidth(value: unknown): number {
+  return clampInt(value, MIN_STEP_LIST_WIDTH, MAX_STEP_LIST_WIDTH, DEFAULT_STEP_LIST_WIDTH)
+}
+
+/** A Dashboards block's hidden sections: names only, once each, never Overview. */
+/**
+ * The sections in the order saved, Overview first whatever was saved, and any
+ * the saved order does not name after the named ones in their own order.
+ */
+export function orderSections<T extends string>(all: readonly T[], saved: readonly string[] | undefined): T[] {
+  const rest = all.filter((section) => section !== "overview")
+  const named = (saved ?? []).filter((section): section is T => (rest as readonly string[]).includes(section))
+  return [
+    ...all.filter((section) => section === "overview"),
+    ...named,
+    ...rest.filter((section) => !named.includes(section)),
+  ]
+}
+
+function cleanHiddenSections(sections: unknown[]): string[] {
+  return [
+    ...new Set(sections.filter((section): section is string => typeof section === "string" && section !== "overview")),
+  ].slice(0, 20)
+}
+
+/**
+ * The block's shadow at a strength of 0 to 100: at 100 the black under it is
+ * 20% solid, about as strong as a lifted card's. 0 is none.
+ */
+export function blockShadowCss(strength: number): string {
+  if (strength <= 0) return "none"
+  const alpha = (strength * 0.2) / 100
+  return `0 2px 12px rgb(0 0 0 / ${alpha.toFixed(3)})`
 }
 
 export function clampBlockInset(value: unknown): number {
@@ -393,10 +546,38 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.blockRadius === undefined ? {} : { blockRadius: clampBlockRadius(styling.blockRadius) }),
     ...(styling.blockShade === undefined ? {} : { blockShade: clampBlockShade(styling.blockShade) }),
     ...(styling.blockInset === undefined ? {} : { blockInset: clampBlockInset(styling.blockInset) }),
+    ...(styling.blockBodyShade === undefined ? {} : { blockBodyShade: clampBlockBodyShade(styling.blockBodyShade) }),
+    ...(styling.blockBorder === undefined ? {} : { blockBorder: clampBlockBorder(styling.blockBorder) }),
+    ...(styling.blockShadow === undefined ? {} : { blockShadow: clampBlockShadow(styling.blockShadow) }),
+    ...(styling.blockBorderShade === undefined ? {} : { blockBorderShade: clampBlockBorderShade(styling.blockBorderShade) }),
+    ...(typeof styling.blockEdgeToEdge === "boolean" ? { blockEdgeToEdge: styling.blockEdgeToEdge } : {}),
+    ...(styling.leftPanelWidth === undefined ? {} : { leftPanelWidth: clampSidePanelWidth(styling.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH) }),
+    ...(Array.isArray(styling.hiddenAdminSections)
+      ? { hiddenAdminSections: cleanHiddenSections(styling.hiddenAdminSections) }
+      : {}),
+    ...(Array.isArray(styling.hiddenCrmSections)
+      ? { hiddenCrmSections: cleanHiddenSections(styling.hiddenCrmSections) }
+      : {}),
+    // The same rule cleans an order: strings, once each, never Overview.
+    ...(Array.isArray(styling.adminSectionOrder)
+      ? { adminSectionOrder: cleanHiddenSections(styling.adminSectionOrder) }
+      : {}),
+    ...(Array.isArray(styling.crmSectionOrder)
+      ? { crmSectionOrder: cleanHiddenSections(styling.crmSectionOrder) }
+      : {}),
+    ...(Array.isArray(styling.hiddenLeadStages)
+      ? { hiddenLeadStages: cleanHiddenSections(styling.hiddenLeadStages) }
+      : {}),
+    ...(styling.rightPanelWidth === undefined ? {} : { rightPanelWidth: clampSidePanelWidth(styling.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH) }),
+    ...(styling.stepListWidth === undefined ? {} : { stepListWidth: clampStepListWidth(styling.stepListWidth) }),
     // Widgets keep to the blocks' ranges.
     ...(styling.widgetRadius === undefined ? {} : { widgetRadius: clampBlockRadius(styling.widgetRadius) }),
     ...(styling.widgetShade === undefined ? {} : { widgetShade: clampBlockShade(styling.widgetShade) }),
     ...(styling.widgetInset === undefined ? {} : { widgetInset: clampBlockInset(styling.widgetInset) }),
+    ...(styling.widgetBodyShade === undefined ? {} : { widgetBodyShade: clampBlockBodyShade(styling.widgetBodyShade) }),
+    ...(styling.widgetBorder === undefined ? {} : { widgetBorder: clampBlockBorder(styling.widgetBorder) }),
+    ...(styling.widgetBorderShade === undefined ? {} : { widgetBorderShade: clampBlockBorderShade(styling.widgetBorderShade) }),
+    ...(styling.widgetShadow === undefined ? {} : { widgetShadow: clampBlockShadow(styling.widgetShadow) }),
     ...(styling.panelCardBackground === undefined
       ? {}
       : { panelCardBackground: normalizeBackground(styling.panelCardBackground, DEFAULT_PANEL_CARD_COLOR) }),
@@ -606,11 +787,26 @@ export function getBlockStyleVars(styling: ShellStyling): Record<string, string>
     "--shell-block-radius": `${clampBlockRadius(styling.blockRadius)}px`,
     "--shell-block-shade": `${clampBlockShade(styling.blockShade)}%`,
     "--shell-block-inset": `${clampBlockInset(styling.blockInset)}px`,
+    "--shell-block-body-shade": `${clampBlockBodyShade(styling.blockBodyShade)}%`,
+    "--shell-block-border": `${clampBlockBorder(styling.blockBorder)}px`,
+    "--shell-block-shadow": blockShadowCss(clampBlockShadow(styling.blockShadow)),
+    "--shell-block-border-shade": `${clampBlockBorderShade(styling.blockBorderShade)}%`,
+    // 1 reaches past the panel's space, 0 keeps it; the block multiplies.
+    "--shell-block-bleed": styling.blockEdgeToEdge === true ? "1" : "0",
   }
 }
 
 /** The block CSS variable names, used to clear stale values. */
-export const BLOCK_STYLE_VAR_NAMES = ["--shell-block-radius", "--shell-block-shade", "--shell-block-inset"] as const
+export const BLOCK_STYLE_VAR_NAMES = [
+  "--shell-block-radius",
+  "--shell-block-shade",
+  "--shell-block-inset",
+  "--shell-block-body-shade",
+  "--shell-block-border",
+  "--shell-block-shadow",
+  "--shell-block-border-shade",
+  "--shell-block-bleed",
+] as const
 
 /**
  * Overview's widgets' look (Settings → Styling → Widgets), on the root as the
@@ -623,11 +819,23 @@ export function getWidgetStyleVars(styling: ShellStyling): Record<string, string
     "--shell-widget-radius": `${clampBlockRadius(styling.widgetRadius ?? styling.blockRadius)}px`,
     "--shell-widget-shade": `${clampBlockShade(styling.widgetShade ?? styling.blockShade)}%`,
     "--shell-widget-inset": `${clampBlockInset(styling.widgetInset ?? styling.blockInset)}px`,
+    "--shell-widget-body-shade": `${clampBlockBodyShade(styling.widgetBodyShade ?? styling.blockBodyShade)}%`,
+    "--shell-widget-border": `${clampBlockBorder(styling.widgetBorder ?? styling.blockBorder)}px`,
+    "--shell-widget-border-shade": `${clampBlockBorderShade(styling.widgetBorderShade ?? styling.blockBorderShade)}%`,
+    "--shell-widget-shadow": blockShadowCss(clampBlockShadow(styling.widgetShadow ?? styling.blockShadow)),
   }
 }
 
 /** The widget CSS variable names, used to clear stale values. */
-export const WIDGET_STYLE_VAR_NAMES = ["--shell-widget-radius", "--shell-widget-shade", "--shell-widget-inset"] as const
+export const WIDGET_STYLE_VAR_NAMES = [
+  "--shell-widget-radius",
+  "--shell-widget-shade",
+  "--shell-widget-inset",
+  "--shell-widget-body-shade",
+  "--shell-widget-border",
+  "--shell-widget-border-shade",
+  "--shell-widget-shadow",
+] as const
 
 /** A panel card's colours left to the theme, the look they always had. */
 export const DEFAULT_PANEL_CARD_COLOR: ShellBackground = { mode: "default", strength: 40, color: "#ffffff" }

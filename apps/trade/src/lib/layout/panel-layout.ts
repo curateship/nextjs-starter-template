@@ -21,7 +21,7 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
  * The layout is saved per browser, not per account. Every key belongs in
  * `panelLayoutKey` below so they cannot collide or drift.
  */
-export function useRememberedPanelLayout(key: string) {
+export function useRememberedPanelLayout(key: string, defaults?: Layout) {
   const [group, groupRef] = useGroupCallbackRef()
   // The key whose saved layout is on the group now. Nothing is saved for a
   // key until then: a group that adds or drops a panel (Admin's Overview has
@@ -51,6 +51,16 @@ export function useRememberedPanelLayout(key: string) {
     let tries = 0
     const apply = () => {
       if (!saved) {
+        // A new key with defaults handed in (the side panels' widths from
+        // Settings → Styling) moves a group already on screen to them, so a
+        // changed width shows at once rather than on the next visit.
+        if (defaults) {
+          try {
+            group.setLayout(defaults)
+          } catch {
+            // A group still settling keeps the widths it was drawn with.
+          }
+        }
         setAppliedKey(key)
         return
       }
@@ -101,8 +111,14 @@ export function useRememberedPanelLayout(key: string) {
  * different cards, which is what arranging the Overview's widgets produces.
  */
 export const panelLayoutKey = {
-  automationEditorHorizontal: "automation-editor-horizontal-2",
-  automationEditorVertical: "automation-editor-vertical",
+  // The Automations dashboard (Tyler, 9 Nov 2026, the Admin 3 panel design):
+  // the left page, then the table or canvas, then the run or the picked step.
+  // Two keys, because a layout kept for three panels does not fit two: the
+  // table and a canvas with no step picked are two panels.
+  automations: "automations-horizontal-1",
+  automationsTwo: "automations-two-horizontal-1",
+  // Not a layout: where the Automations dashboard was, for `useDashboardPlace`.
+  automationsPlace: "automations-place",
   // One key, not two: the CRM has no bottom panel, so there is no second
   // group whose height needs remembering.
   //
@@ -138,4 +154,42 @@ export const panelLayoutKey = {
   dashboardColumns: (page: string) => `custom-shell-${page}-columns`,
   dashboardColumn: (page: string, side: "left" | "right", cards: string) =>
     `custom-shell-${page}-${side}-${cards}`,
+}
+
+/**
+ * The key a three-panel dashboard keeps its dragged widths under: its own
+ * layout key, then the opening widths from Settings → Styling → Side panels,
+ * so a changed default starts every browser from the new widths
+ * (`ThreePanels`).
+ */
+export function sidePanelWidthsKey(layoutKey: string, left: number, right: number) {
+  return `${layoutKey}:${left}-${right}`
+}
+
+/** What `sidePanelWidthsKey` makes, whichever app's dashboard made it. */
+const SIDE_PANEL_WIDTHS_KEY = /:\d+-\d+$/
+
+/**
+ * Forgets every panel width this browser kept, so each three-panel dashboard
+ * opens at the widths set in Settings → Styling → Side panels again, and each
+ * editor at its own defaults (Tyler, 9 Nov 2026: "Add a reset panel button
+ * here to reset all the panels to its default size", then "Not default 10 and
+ * 16 but to the default I set it as"). The site's widths are not touched.
+ * Where a dashboard was (`…Place`) and how its widget columns are split are
+ * not widths, and stay.
+ */
+export function forgetPanelWidths() {
+  const fixed = new Set<string>(
+    Object.entries(panelLayoutKey)
+      .filter(([name, key]) => typeof key === "string" && !name.endsWith("Place"))
+      .map(([, key]) => key as string)
+  )
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    for (const key of keys) {
+      if (key && (fixed.has(key) || SIDE_PANEL_WIDTHS_KEY.test(key))) localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage that cannot be read holds no widths to forget.
+  }
 }

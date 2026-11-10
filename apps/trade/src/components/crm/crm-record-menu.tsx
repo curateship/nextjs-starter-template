@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BanIcon, ForwardIcon, MailOpenIcon, PaperclipIcon, SparklesIcon, UserPlusIcon, XIcon } from "lucide-react"
+import { BanIcon, ForwardIcon, MailOpenIcon, PaperclipIcon, SparklesIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react"
 
 import {
   PickDayRow,
@@ -23,9 +23,7 @@ import {
 import {
   CRM_STAGE_LABELS,
   CRM_STAGES,
-  CRM_THREAD_STATUS_LABELS,
   type CrmStage,
-  type CrmThreadStatus,
 } from "@/lib/crm/crm"
 import { normalizeLeadTag } from "@/lib/crm/lead-tags"
 import { centsToDollars, dollarsToCents } from "@/lib/crm/money"
@@ -43,7 +41,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  *   Follow up, then Conversation. Every row saves itself, on its own, so two
  *   people editing one lead never write a stale copy over each other. The
  *   address is the lead, so its row opens nothing. Under the groups: Mark
- *   unread, Add to contacts, and Block in red under a line.
+ *   unread, Add to subscribers, and Block in red under a line.
  * - **Files:** every file the conversation carried.
  */
 export function CrmRecordMenu({
@@ -51,11 +49,11 @@ export function CrmRecordMenu({
   lead,
   siteTags,
   onLeadChanged,
-  onStatusChange,
   onMarkUnread,
   onSummarise,
   onForward,
   onBlock,
+  onOpenContact,
 }: {
   conversation: Conversation
   /** Null while the lead is still being read. */
@@ -63,12 +61,17 @@ export function CrmRecordMenu({
   /** Every tag the site uses, offered while typing a new one. */
   siteTags: string[]
   onLeadChanged: () => void
-  onStatusChange: (status: CrmThreadStatus, snoozedUntil?: string | null) => void
   onMarkUnread: () => void
   /** Writes what the conversation is about (CRM task 32); null when it is too short to need one. */
   onSummarise: (() => void) | null
   onForward: () => void
   onBlock: () => void
+  /**
+   * Opens the person's contact, for a lead already on the mailing list. The
+   * lead panel's footer had it until the conversation took that panel's
+   * place on People (9 Nov 2026).
+   */
+  onOpenContact?: (contactId: string) => void
 }) {
   const [open, setOpen] = React.useState(false)
 
@@ -106,39 +109,6 @@ export function CrmRecordMenu({
             <div className="grid gap-4 p-3">
               <LeadFactGroups lead={lead} siteTags={siteTags} save={save} onLeadChanged={onLeadChanged} />
 
-              <PickGroup title="Conversation">
-                <PickMenuRow
-                  label="Status"
-                  value={CRM_THREAD_STATUS_LABELS[conversation.status]}
-                  options={(["open", "closed"] as const).map((status) => ({
-                    value: status,
-                    label: CRM_THREAD_STATUS_LABELS[status],
-                  }))}
-                  selected={conversation.status}
-                  onPick={(status) => onStatusChange(status as CrmThreadStatus, null)}
-                />
-                <PickDayRow
-                  label="Snooze until"
-                  value={
-                    conversation.status === "snoozed" && conversation.snoozed_until
-                      ? formatDate(conversation.snoozed_until)
-                      : "None"
-                  }
-                  empty={conversation.status !== "snoozed"}
-                  day={
-                    conversation.status === "snoozed" && conversation.snoozed_until
-                      ? new Date(conversation.snoozed_until)
-                      : null
-                  }
-                  clearLabel="Bring it back now"
-                  onPick={(day) =>
-                    day
-                      ? onStatusChange("snoozed", day.toISOString())
-                      : onStatusChange("open", null)
-                  }
-                />
-              </PickGroup>
-
               <div className="grid">
                 <ActionRow
                   icon={<MailOpenIcon className="size-4" />}
@@ -169,7 +139,19 @@ export function CrmRecordMenu({
                     {conversation.summary ? "Summarise it again" : "Summarise"}
                   </ActionRow>
                 ) : null}
-                {lead.contactId ? null : (
+                {lead.contactId ? (
+                  onOpenContact ? (
+                    <ActionRow
+                      icon={<UsersIcon className="size-4" />}
+                      onClick={() => {
+                        setOpen(false)
+                        onOpenContact(lead.contactId ?? "")
+                      }}
+                    >
+                      Open in Subscribers
+                    </ActionRow>
+                  ) : null
+                ) : (
                   <AddToContactsRow leadId={lead.id} onAdded={onLeadChanged} />
                 )}
                 <div aria-hidden className="-mx-3 my-1.5 border-t" />
@@ -281,7 +263,7 @@ export function LeadFactGroups({
 
       <PickGroup title="Deal">
         <PickMenuRow
-          label="Stage"
+          label="Status"
           value={CRM_STAGE_LABELS[lead.stage]}
           options={CRM_STAGES.map((stage) => ({
             value: stage,
@@ -394,7 +376,7 @@ export function AddToContactsRow({
         }
       }}
     >
-      {adding ? "Adding…" : "Add to contacts"}
+      {adding ? "Adding…" : "Add to subscribers"}
     </ActionRow>
   )
 }

@@ -176,20 +176,9 @@ function crmLink(): ShellItem {
   }
 }
 
+/** The Pages screen, Admin's Pages section since 9 Nov 2026 (`removePagesLink`). */
 const PAGES_LINK_ID = "item-admin-pages"
 const PAGES_HREF = "/admin/pages"
-
-function pagesLink(): ShellItem {
-  return {
-    type: "item",
-    id: PAGES_LINK_ID,
-    label: "Pages",
-    href: PAGES_HREF,
-    icon: "panelsTopLeft",
-    visible: true,
-    roles: ["admin"],
-  }
-}
 
 
 /** Screens that became part of Admin on 8 Nov 2026, or went with it. */
@@ -207,15 +196,10 @@ const AUTOMATIONS_HREF = "/admin/automations"
 const AUTOMATION_TEMPLATES_LINK_ID = "item-automation-templates"
 const AUTOMATION_TEMPLATES_HREF = "/admin/automations/templates"
 
-function automationTemplatesChildLink(): ShellChildItem {
-  return {
-    id: AUTOMATION_TEMPLATES_LINK_ID,
-    label: "Templates",
-    href: AUTOMATION_TEMPLATES_HREF,
-  }
-}
-
-/** The automation canvas and the templates used to start new flows. */
+/**
+ * The automation list. Its templates are a tab in the editor's left panel,
+ * so the link has no Templates child (Tyler, 8 Nov 2026).
+ */
 const AUTOMATIONS_LINK: ShellItem = {
   type: "item",
   id: AUTOMATIONS_LINK_ID,
@@ -224,7 +208,6 @@ const AUTOMATIONS_LINK: ShellItem = {
   icon: "workflow",
   visible: true,
   roles: ["admin"],
-  children: [automationTemplatesChildLink()],
 }
 
 const NEWSLETTER_LINK_ID = "item-newsletter"
@@ -257,7 +240,7 @@ function systemEmailsChildLink(): ShellChildItem {
  * workspace should pick up. A workspace is brought up to this number once, ever
  * — see `applyNavigationUpgrade`.
  */
-export const NAVIGATION_VERSION = 24
+export const NAVIGATION_VERSION = 26
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -1069,12 +1052,9 @@ async function applyNavigationUpgrade(
   if (settings.navVersion < 15) {
     sections = removeMediaChildLinks(sections)
   }
-  if (settings.navVersion < 17) {
-    sections = addPagesLink(sections)
-  }
-  if (settings.navVersion < 18) {
-    sections = addAutomationTemplatesLink(sections)
-  }
+  // Step 17 added a Pages link and step 26 takes it out again, so 17 is gone,
+  // as 18 is: step 18 added a Templates link under Automations, and step 25
+  // took it out (9 Nov 2026).
   if (settings.navVersion < 19) {
     sections = addMeteredUsageLink(sections)
   }
@@ -1092,6 +1072,12 @@ async function applyNavigationUpgrade(
   }
   if (settings.navVersion < 24) {
     sections = removeMediaLibraryLink(sections)
+  }
+  if (settings.navVersion < 25) {
+    sections = removeAutomationTemplatesLink(sections)
+  }
+  if (settings.navVersion < 26) {
+    sections = removePagesLink(sections)
   }
 
   const [updated] = await database
@@ -1231,52 +1217,6 @@ export function addMeteredUsageLink(
     if (at !== index) return section
     const entries = [...section.entries]
     entries.push(meteredUsageLink())
-    return { ...section, entries }
-  })
-}
-
-/**
- * Puts the Pages link in a sidebar saved before the page existed. An emptied
- * sidebar stays empty, a
- * link that is already there (by id or address, hidden included) is never
- * doubled, and it runs once per workspace on the navVersion stamp. It lands
- * right after Traffic — the public pages next to the visits they get.
- */
-export function addPagesLink(sections: ShellSection[]): ShellSection[] {
-  if (!sections.length) return sections
-
-  const isPages = (link: { id: string; href?: string }) =>
-    link.id === PAGES_LINK_ID || link.href === PAGES_HREF
-
-  const alreadyThere = sections.some((section) =>
-    section.entries.some(
-      (entry) =>
-        isPages(entry) ||
-        (isShellItem(entry) && (entry.children ?? []).some(isPages))
-    )
-  )
-  if (alreadyThere) return sections
-
-  const isTraffic = (link: { id: string; href?: string }) =>
-    link.id === TRAFFIC_LINK_ID || link.href === TRAFFIC_HREF
-
-  const sectionIndex = sections.findIndex((section) =>
-    section.entries.some(isTraffic)
-  )
-  const administration = sections.findIndex(
-    (section) => section.id === "section-administration"
-  )
-  const index = sectionIndex >= 0 ? sectionIndex : Math.max(0, administration)
-
-  return sections.map((section, at) => {
-    if (at !== index) return section
-    const trafficAt = section.entries.findIndex(isTraffic)
-    const entries = [...section.entries]
-    entries.splice(
-      trafficAt >= 0 ? trafficAt + 1 : entries.length,
-      0,
-      pagesLink()
-    )
     return { ...section, entries }
   })
 }
@@ -1546,17 +1486,41 @@ const MEDIA_HREF = "/admin/media"
  * left with nothing in it goes.
  */
 export function removeMediaLibraryLink(sections: ShellSection[]): ShellSection[] {
-  const isMedia = (link: { id: string; href?: string }) => link.id === MEDIA_LINK_ID || link.href === MEDIA_HREF
+  return removeLinkKeepingChildren(sections, (link) => link.id === MEDIA_LINK_ID || link.href === MEDIA_HREF)
+}
+
+/**
+ * Takes the Pages link out (Tyler, 9 Nov 2026: "Create a new link called
+ * "Pages" under overview", in the Admin dashboard's Dashboards block). The
+ * Pages list is Admin's Pages section, and `/admin/pages` forwards there.
+ * The same rules as the Media link's: links hung under it move up into its
+ * place, and a section left with nothing in it goes.
+ */
+export function removePagesLink(sections: ShellSection[]): ShellSection[] {
+  return removeLinkKeepingChildren(sections, (link) => link.id === PAGES_LINK_ID || link.href === PAGES_HREF)
+}
+
+/**
+ * Takes every link `matches` names out of a sidebar, wherever it sits. A
+ * top-level one's children move up into its place, keeping its icon where
+ * they have none; a child one just goes. A section left empty by it goes too,
+ * and a section that was empty already stays. The sections come back
+ * unchanged when nothing matched.
+ */
+function removeLinkKeepingChildren(
+  sections: ShellSection[],
+  matches: (link: { id: string; href?: string }) => boolean
+): ShellSection[] {
   let changed = false
   const result = sections
     .map((section) => ({
       ...section,
       entries: section.entries.flatMap((entry): ShellEntry[] => {
         if (!isShellItem(entry)) return [entry]
-        if (isMedia(entry)) {
+        if (matches(entry)) {
           changed = true
           return (entry.children ?? [])
-            .filter((child) => !isMedia(child))
+            .filter((child) => !matches(child))
             .map((child) => ({
               type: "item" as const,
               id: child.id,
@@ -1568,7 +1532,7 @@ export function removeMediaLibraryLink(sections: ShellSection[]): ShellSection[]
             }))
         }
         const children = entry.children ?? []
-        const kept = children.filter((child) => !isMedia(child))
+        const kept = children.filter((child) => !matches(child))
         if (kept.length === children.length) return [entry]
         changed = true
         return [kept.length ? { ...entry, children: kept } : stripChildren(entry)]
@@ -1578,41 +1542,36 @@ export function removeMediaLibraryLink(sections: ShellSection[]): ShellSection[]
   return changed ? result : sections
 }
 
-/** Adds Templates beneath an existing Automations sidebar item. */
-export function addAutomationTemplatesLink(
+/**
+ * Takes the Templates link out from under Automations, or wherever an admin
+ * moved it. The templates are a tab in the automation editor's left panel now
+ * (Tyler, 8 Nov 2026: "No need to have template its own dashboard"), and
+ * `/admin/automations/templates` is no longer an address.
+ */
+export function removeAutomationTemplatesLink(
   sections: ShellSection[]
 ): ShellSection[] {
-  if (!sections.length) return sections
-
-  const isAutomations = (link: { id: string; href?: string }) =>
-    link.id === AUTOMATIONS_LINK_ID || link.href === AUTOMATIONS_HREF
+  let changed = false
   const isTemplates = (link: { id: string; href?: string }) =>
     link.id === AUTOMATION_TEMPLATES_LINK_ID ||
     link.href === AUTOMATION_TEMPLATES_HREF
-  const alreadyThere = sections.some((section) =>
-    section.entries.some(
-      (entry) =>
-        isTemplates(entry) ||
-        (isShellItem(entry) && (entry.children ?? []).some(isTemplates))
-    )
-  )
-  if (alreadyThere) return sections
-  const hasAutomations = sections.some((section) =>
-    section.entries.some((entry) => isShellItem(entry) && isAutomations(entry))
-  )
-  if (!hasAutomations) return sections
 
-  return sections.map((section) => ({
+  const result = sections.map((section) => ({
     ...section,
-    entries: section.entries.map((entry) => {
-      if (!isShellItem(entry) || !isAutomations(entry)) return entry
-      const children = entry.children?.length ? [...entry.children] : []
-      return {
-        ...entry,
-        children: [...children, automationTemplatesChildLink()],
+    entries: section.entries.flatMap((entry) => {
+      if (isShellItem(entry) && isTemplates(entry)) {
+        changed = true
+        return []
       }
+      if (!isShellItem(entry) || !entry.children?.length) return [entry]
+      const children = entry.children.filter((child) => !isTemplates(child))
+      if (children.length === entry.children.length) return [entry]
+      changed = true
+      return [children.length ? { ...entry, children } : stripChildren(entry)]
     }),
   }))
+
+  return changed ? result : sections
 }
 
 /**
@@ -2179,9 +2138,9 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       entries: [
         // Admin holds Users, Plans, Feedback and Announcements, so the
         // links that once hung under the Overview are gone (8 Nov 2026).
+        // Pages is Admin's Pages section since 9 Nov 2026.
         adminLink(),
         crmLink(),
-        pagesLink(),
       ],
     },
     {

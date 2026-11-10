@@ -17,10 +17,6 @@ const ROUTE_TITLES: Record<string, string> = {
   "/_authenticated/admin/": "Admin",
   "/_authenticated/admin/dashboard": "Admin",
   "/_authenticated/admin/automations": "Automations",
-  "/_authenticated/admin/automations/$automationId": "Automation",
-  "/_authenticated/admin/automations/templates": "Automation templates",
-  "/_authenticated/admin/automations/templates/$templateKey":
-    "Automation template",
   "/_authenticated/admin/crm": "CRM",
   "/_authenticated/admin/media": "Media",
   "/_authenticated/admin/membership": "Membership",

@@ -30,12 +30,12 @@ const failedNotification: NotificationItem = {
 }
 
 describe("notificationAction", () => {
-  it("opens a failed run and selects its failed node", () => {
+  it("opens a failed run on its flow's Runs tab", () => {
     expect(notificationAction(failedNotification)).toEqual({
       kind: "automationRun",
       automationId: "automation-1",
       runId: "run-1",
-      nodeId: "webhook-1",
+      waiting: false,
     })
   })
 })

@@ -1,8 +1,6 @@
 import * as React from "react"
 import {
-  ArchiveIcon,
   BanIcon,
-  ClockIcon,
   ListChecksIcon,
   MailOpenIcon,
   StarIcon,
@@ -21,7 +19,6 @@ import {
   SelectedMenuRow,
 } from "@/components/shared/mass-select"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -50,11 +46,8 @@ import {
   CRM_INBOX_SORTS,
   CRM_STAGE_LABELS,
   CRM_STAGES,
-  CRM_THREAD_STATUS_LABELS,
-  CRM_THREAD_STATUSES,
   type CrmInboxSort,
   type CrmStage,
-  type CrmThreadStatus,
 } from "@/lib/crm/crm"
 import { formatInboxTime } from "@/lib/crm/inbox-time"
 import { cn } from "@/lib/utils"
@@ -62,7 +55,6 @@ import { hasReplyDraft, type ReplyDrafts } from "@/lib/crm/reply-drafts"
 
 export type InboxFilters = {
   search: string
-  status: CrmThreadStatus | "all"
   stage: CrmStage | "all"
   /** The pill under the header: All, Unread, Saved, Waiting, or the local Outbox. */
   view: CrmInboxView
@@ -79,8 +71,6 @@ export type InboxFilters = {
 export type InboxRowActions = {
   onSave: (thread: InboxThread, saved: boolean) => void
   onMarkUnread: (thread: InboxThread) => void
-  onSnooze: (thread: InboxThread, until: Date) => void
-  onClose: (thread: InboxThread) => void
   onBlock: (thread: InboxThread) => void
 }
 
@@ -144,8 +134,6 @@ export function InboxListPanel({
   onToggleTick,
   onClearTicks,
   onMarkTickedRead,
-  onCloseTicked,
-  onSnoozeTicked,
   onLoadMore,
 }: {
   threads: InboxThread[]
@@ -211,8 +199,6 @@ export function InboxListPanel({
   onToggleTick: (threadId: string) => void
   onClearTicks: () => void
   onMarkTickedRead: () => void
-  onCloseTicked: () => void
-  onSnoozeTicked: (until: Date) => void
   onLoadMore: () => void
 }) {
   const appliedSearch = filters.search
@@ -226,7 +212,6 @@ export function InboxListPanel({
   // What Filter holds, so its button can count what is on. The tabs are not
   // counted: they have their own place in the header.
   const narrowed =
-    (filters.status !== "open" ? 1 : 0) +
     (filters.stage !== "all" ? 1 : 0) +
     (filters.toAddress ? 1 : 0) +
     (filters.tag ? 1 : 0) +
@@ -245,7 +230,6 @@ export function InboxListPanel({
 
   const clearFilters = () =>
     onFiltersChange({
-      status: "open",
       stage: "all",
       toAddress: "",
       tag: "",
@@ -289,37 +273,9 @@ export function InboxListPanel({
                     <MailOpenIcon className="size-4 text-muted-foreground" />
                     Mark read
                   </SelectedMenuRow>
-                  <SelectedMenuRow
-                    onClick={() => {
-                      menu.close()
-                      onCloseTicked()
-                    }}
-                  >
-                    <ArchiveIcon className="size-4 text-muted-foreground" />
-                    Close
-                  </SelectedMenuRow>
-                  <SelectedMenuRow page="snooze" onClick={() => menu.step("snooze")}>
-                    <ClockIcon className="size-4 text-muted-foreground" />
-                    Snooze until
-                  </SelectedMenuRow>
                 </>
               )}
-              pages={{
-                snooze: {
-                  title: "Snooze until",
-                  content: (menu) => (
-                    <Calendar
-                      mode="single"
-                      autoFocus
-                      onSelect={(date) => {
-                        if (!date) return
-                        menu.close()
-                        onSnoozeTicked(date)
-                      }}
-                    />
-                  ),
-                },
-              }}
+              pages={{}}
             />
           ) : null
         }
@@ -332,28 +288,7 @@ export function InboxListPanel({
             // dropdown is too wide").
             contentClassName="w-60"
           >
-            <FilterRow id="inbox-status" label="Which conversations">
-              <Select
-                value={filters.status}
-                onValueChange={(value) =>
-                  onFiltersChange({ status: value as CrmThreadStatus | "all" })
-                }
-              >
-                <SelectTrigger id="inbox-status" className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All conversations</SelectItem>
-                  {CRM_THREAD_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {CRM_THREAD_STATUS_LABELS[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterRow>
-
-            <FilterRow id="inbox-stage" label="Stage">
+            <FilterRow id="inbox-stage" label="Status">
               <Select
                 value={filters.stage}
                 onValueChange={(value) =>
@@ -364,7 +299,7 @@ export function InboxListPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any stage</SelectItem>
+                  <SelectItem value="all">Any status</SelectItem>
                   {CRM_STAGES.map((stage) => (
                     <SelectItem key={stage} value={stage}>
                       {CRM_STAGE_LABELS[stage]}
@@ -545,7 +480,6 @@ export function InboxListPanel({
                     onClick={() =>
                       onFiltersChange({
                         search: "",
-                        status: "open",
                         stage: "all",
                         toAddress: "",
                         tag: "",
@@ -643,8 +577,8 @@ function FilterRow({
 /**
  * A row's right-click menu (the Admin 3 panel design; Tyler picked it on
  * 7 Nov 2026): Mass select first ("Hide select" while on), then Save, Mark
- * unread, Snooze and Close, then Block under a line. It opens at the pointer.
- * Snooze swaps the menu for a month at the same spot, a pick snoozing it.
+ * unread, then Block under a line. It opens at the pointer. Snooze and Close
+ * were taken out on 9 Nov 2026.
  */
 function RowRightClickMenu({
   at,
@@ -661,32 +595,6 @@ function RowRightClickMenu({
   actions: InboxRowActions
   onClose: () => void
 }) {
-  const [snoozing, setSnoozing] = React.useState(false)
-  if (snoozing) {
-    return (
-      <Popover open onOpenChange={(open) => (open ? undefined : onClose())}>
-        <PopoverTrigger asChild>
-          <PointAnchor x={at.x} y={at.y} />
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          aria-label="Snooze until"
-          className="w-auto p-0"
-          onCloseAutoFocus={(event) => event.preventDefault()}
-        >
-          <Calendar
-            mode="single"
-            autoFocus
-            onSelect={(date) => {
-              if (!date) return
-              onClose()
-              actions.onSnooze(thread, date)
-            }}
-          />
-        </PopoverContent>
-      </Popover>
-    )
-  }
   return (
     // Not modal, so a right-click on another row moves the menu there in one go.
     <DropdownMenu open onOpenChange={(open) => (open ? undefined : onClose())} modal={false}>
@@ -709,19 +617,6 @@ function RowRightClickMenu({
         <DropdownMenuItem onSelect={() => actions.onMarkUnread(thread)}>
           <MailOpenIcon className="size-4" />
           Mark unread
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault()
-            setSnoozing(true)
-          }}
-        >
-          <ClockIcon className="size-4" />
-          Snooze until
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => actions.onClose(thread)}>
-          <ArchiveIcon className="size-4" />
-          Close
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => actions.onBlock(thread)}>
@@ -780,6 +675,7 @@ function InboxRow({
     >
       <MainCell
         name={who}
+        avatar={{ name: thread.leadName, email: thread.leadEmail }}
         strong={thread.unread}
         lead={<Dot className={thread.unread ? DOT.unread : DOT.read} label={thread.unread ? "Unread" : "Read"} />}
       >
@@ -804,7 +700,6 @@ function InboxRow({
       </TableCell>
       <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
         <span className="flex items-center gap-1">
-          {thread.status !== "open" ? <Chip muted>{CRM_THREAD_STATUS_LABELS[thread.status]}</Chip> : null}
           {addressLabel ? <Chip muted>To {addressLabel}</Chip> : null}
           {thread.tags.slice(0, 2).map((tag) => (
             <Chip key={tag} muted>{tag}</Chip>
@@ -831,7 +726,7 @@ function INBOX_COLUMNS(sort: CrmInboxSort): TableHeaderColumn<"who" | "words" | 
     // `md:hidden` takes away a preview column's own `md:table-cell`, which
     // showed it on any laptop however narrow the middle, running the table
     // past it. Each shows only once there is room for every column before it.
-    { key: "stage", label: "Stage", sortable: false, column: "preview", className: "hidden md:hidden @4xl:table-cell" },
+    { key: "stage", label: "Status", sortable: false, column: "preview", className: "hidden md:hidden @4xl:table-cell" },
     { key: "more", label: "Tags", sortable: false, column: "preview", className: "hidden md:hidden @5xl:table-cell" },
     { key: "when", label: "When", column: "meta" },
   ]

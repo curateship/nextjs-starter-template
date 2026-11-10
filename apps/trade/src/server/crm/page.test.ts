@@ -171,9 +171,10 @@ describe("the CRM's left page", () => {
       ["support@inbox.example.com", 1],
     ])
     expect(figures.openCount).toBe(2)
-    // The Dashboards block's counts: everybody once (the lead, no contacts
-    // yet), and the newsletters.
-    expect(figures.peopleCount).toBe(1)
+    // The Dashboards block's counts: the lead, no subscribers yet, and the
+    // newsletters.
+    expect(figures.leadCount).toBe(1)
+    expect(figures.subscriberCount).toBe(0)
     expect(figures.broadcastCount).toBe(1)
     expect(figures.stages.quoted).toBe(1)
     expect(figures.followUps).toHaveLength(1)

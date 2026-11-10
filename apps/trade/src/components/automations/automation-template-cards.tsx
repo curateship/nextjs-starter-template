@@ -1,15 +1,11 @@
 import * as React from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
-import {
-  LayoutTemplateIcon,
-  RotateCcwIcon,
-  SettingsIcon,
-  WorkflowIcon,
-} from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { PencilIcon, RotateCcwIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { DashboardTable } from "@/components/shared/dashboard-table"
-import { Badge } from "@/components/ui/badge"
+import { AUTOMATION_TEMPLATE_ICONS } from "@/components/automations/automation-template-icons"
+import { EmptyRow } from "@/components/shared/feed-card"
+import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -24,12 +20,6 @@ import {
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
   getAutomationTemplateErrorMessage,
@@ -37,34 +27,45 @@ import {
   saveAutomationTemplateDetails,
   type AutomationTemplateDetail,
   type AutomationTemplateListItem,
-  type AutomationTemplatesPage,
 } from "@/lib/api/automations/automation-templates"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useLastValue } from "@/lib/hooks/use-last-value"
-import { formatDate } from "@/lib/format/format-time"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
-function toListItem(
-  template: AutomationTemplateDetail
-): AutomationTemplateListItem {
-  return {
-    key: template.key,
-    name: template.name,
-    description: template.description,
-    steps: template.steps,
-    isCustomized: template.isCustomized,
-    isValid: template.isValid,
-    updated_at: template.updated_at,
-  }
+/**
+ * What the editor is told when a template changes from its ⋮.
+ *
+ * `before` runs ahead of the save, so the open template's own canvas edits are
+ * on the server first and cannot land on top of a reset. It answers false when
+ * that save failed, and the change stops there. `after` hands over what the
+ * server now holds: the editor keeps the list, so the card redraws from it,
+ * and the open canvas and its name take it too.
+ */
+export type AutomationTemplateChangeHooks = {
+  before?: (key: AutomationTemplateListItem["key"]) => Promise<boolean>
+  after: (template: AutomationTemplateDetail) => Promise<unknown> | void
 }
 
-export function AutomationTemplatesPage({
-  initial,
+/**
+ * The automation editor's Templates tab (Tyler, 8 Nov 2026: "Move automation
+ * templates in a new tab here", "No need to have template its own dashboard").
+ *
+ * A card opens that template on the canvas. Its ⋮ holds the two things the old
+ * Templates dashboard did besides that: the name and description the New
+ * automation picker shows, and Reset, for a template that has been changed.
+ */
+export function AutomationTemplateCards({
+  templates,
+  openTemplateKey,
+  hooks,
 }: {
-  initial: AutomationTemplatesPage
+  templates: AutomationTemplateListItem[]
+  /** The template on the canvas, when the editor is editing one. */
+  openTemplateKey?: string
+  hooks: AutomationTemplateChangeHooks
 }) {
-  const navigate = useNavigate()
-  const [templates, setTemplates] = React.useState(initial.templates)
   const [detailsTarget, setDetailsTarget] =
     React.useState<AutomationTemplateListItem | null>(null)
   const [resetTarget, setResetTarget] =
@@ -98,15 +99,6 @@ export function AutomationTemplatesPage({
     setAttempted(false)
   }
 
-  const updateTemplate = (template: AutomationTemplateDetail) => {
-    const item = toListItem(template)
-    setTemplates((current) =>
-      current.map((candidate) =>
-        candidate.key === item.key ? item : candidate
-      )
-    )
-  }
-
   const saveDetails = async () => {
     if (!detailsTarget || saving) return
     setAttempted(true)
@@ -119,12 +111,13 @@ export function AutomationTemplatesPage({
       return
     }
     await runSave(async () => {
+      if ((await hooks.before?.(detailsTarget.key)) === false) return
       const saved = await saveAutomationTemplateDetails({
         templateKey: detailsTarget.key,
         name,
         description,
       })
-      updateTemplate(saved)
+      await hooks.after(saved)
       toast.success(`Saved "${saved.name}".`)
       closeDetails()
     })
@@ -133,8 +126,9 @@ export function AutomationTemplatesPage({
   const resetTemplate = async () => {
     if (!resetTarget || resetting) return
     await runReset(async () => {
+      if ((await hooks.before?.(resetTarget.key)) === false) return
       const reset = await resetAutomationTemplate(resetTarget.key)
-      updateTemplate(reset)
+      await hooks.after(reset)
       toast.success(`Reset "${reset.name}" to the built-in version.`)
       setResetTarget(null)
     })
@@ -142,117 +136,21 @@ export function AutomationTemplatesPage({
 
   return (
     <>
-      <DashboardTable
-        title="Automation templates"
-        icon={<LayoutTemplateIcon />}
-        count={templates.length}
-        header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="main">Template</TableHead>
-              <TableHead column="meta" className="hidden md:table-cell">
-                Flow
-              </TableHead>
-              <TableHead column="meta">Status</TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                Last edited
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-        }
-        isEmpty={templates.length === 0}
-        emptyText="No automation templates are available."
-        emptyColSpan={5}
-        footer={{
-          type: "summary",
-          count: templates.length,
-          label:
-            "Future automations use these saved versions. Existing flows are not changed.",
-        }}
-      >
+      {/* A column the panel's own width, as the node cards have. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
         {templates.map((template) => (
-          <TableRow
+          <TemplateCard
             key={template.key}
-            className="group"
-            rowAction={() =>
-              void navigate({
-                to: "/admin/automations/templates/$templateKey",
-                params: { templateKey: template.key },
-              })
-            }
-          >
-            <TableCell column="main">
-              <div className="flex min-w-0 items-center gap-2">
-                <Link
-                  to="/admin/automations/templates/$templateKey"
-                  params={{ templateKey: template.key }}
-                  className="min-w-0 max-w-96 truncate font-medium underline-offset-2 group-hover:underline"
-                >
-                  {template.name}
-                </Link>
-                {!template.isValid ? (
-                  <span className="shrink-0 text-sm text-destructive">
-                    This template has a step to fix.
-                  </span>
-                ) : null}
-              </div>
-              <span className="mt-0.5 block max-w-xl truncate text-sm text-muted-foreground">
-                {template.description}
-              </span>
-            </TableCell>
-            <TableCell column="mutedMeta" className="hidden md:table-cell">
-              <span className="block max-w-80 truncate">
-                {template.steps.join(" → ")}
-              </span>
-            </TableCell>
-            <TableCell column="meta">
-              <Badge variant={template.isCustomized ? "secondary" : "outline"}>
-                {template.isCustomized ? "Customized" : "Built in"}
-              </Badge>
-            </TableCell>
-            <TableCell column="mutedMeta" className="hidden sm:table-cell">
-              {template.updated_at ? formatDate(template.updated_at) : "—"}
-            </TableCell>
-            <TableCell column="actions">
-                {template.isCustomized ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Reset ${template.name}`}
-                    onClick={() => setResetTarget(template)}
-                  >
-                    <RotateCcwIcon className="size-4" />
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit flow for ${template.name}`}
-                  onClick={() =>
-                    void navigate({
-                      to: "/admin/automations/templates/$templateKey",
-                      params: { templateKey: template.key },
-                    })
-                  }
-                >
-                  <WorkflowIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit details for ${template.name}`}
-                  onClick={() => openDetails(template)}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-            </TableCell>
-          </TableRow>
+            template={template}
+            open={template.key === openTemplateKey}
+            onEditDetails={() => openDetails(template)}
+            onReset={() => setResetTarget(template)}
+          />
         ))}
-      </DashboardTable>
+        {templates.length === 0 ? (
+          <EmptyRow>No automation templates are available.</EmptyRow>
+        ) : null}
+      </div>
 
       <FormDialog
         open={detailsTarget !== null}
@@ -275,7 +173,8 @@ export function AutomationTemplatesPage({
             <DialogBody>
               <Card size="sm">
                 <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
+                  {/* A column the panel's own width, as the node cards have. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
                     <Label htmlFor="automation-template-name">Name</Label>
                     <Input
                       id="automation-template-name"
@@ -288,7 +187,8 @@ export function AutomationTemplatesPage({
                       onChange={(event) => setName(event.target.value)}
                     />
                   </div>
-                  <div className="grid gap-2">
+                  {/* A column the panel's own width, as the node cards have. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
                     <Label htmlFor="automation-template-description">
                       Description
                     </Label>
@@ -341,5 +241,87 @@ export function AutomationTemplatesPage({
         onConfirm={() => void resetTemplate()}
       />
     </>
+  )
+}
+
+function TemplateCard({
+  template,
+  open,
+  onEditDetails,
+  onReset,
+}: {
+  template: AutomationTemplateListItem
+  open: boolean
+  onEditDetails: () => void
+  onReset: () => void
+}) {
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const Icon = AUTOMATION_TEMPLATE_ICONS[template.key]
+
+  return (
+    <div className="relative">
+      <Link
+        to="/admin/automations"
+        search={{ tab: "automations", template: template.key }}
+        aria-current={open ? "page" : undefined}
+        className={cn(
+          "flex w-full items-start gap-2 overflow-hidden rounded-lg border bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30",
+          open && "border-primary bg-muted/30",
+          focusRingInset
+        )}
+      >
+        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          <Icon className="size-3.5" />
+        </span>
+        <span className="min-w-0 flex-1 overflow-hidden">
+          <span className="block truncate text-xs font-medium">
+            {template.name}
+          </span>
+          <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">
+            {template.description}
+          </span>
+          {template.isCustomized || !template.isValid ? (
+            <span
+              className={cn(
+                "block truncate text-[10px] leading-4",
+                template.isValid ? "text-muted-foreground" : "text-destructive"
+              )}
+            >
+              {template.isValid ? "Customized" : "Has a step to fix"}
+            </span>
+          ) : null}
+        </span>
+      </Link>
+      <div className="absolute top-1 right-1">
+        <FoldingMenu
+          label={`More for ${template.name}`}
+          align="start"
+          fit
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+        >
+          <MenuAction
+            icon={<PencilIcon className="size-4" />}
+            onClick={() => {
+              setMenuOpen(false)
+              onEditDetails()
+            }}
+          >
+            Edit details
+          </MenuAction>
+          {template.isCustomized ? (
+            <MenuAction
+              icon={<RotateCcwIcon className="size-4" />}
+              onClick={() => {
+                setMenuOpen(false)
+                onReset()
+              }}
+            >
+              Reset to built-in
+            </MenuAction>
+          ) : null}
+        </FoldingMenu>
+      </div>
+    </div>
   )
 }

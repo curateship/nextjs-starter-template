@@ -50,16 +50,28 @@ export function InspectorCard({
   // The card is grey so the fields sitting on it can be white and read as the
   // parts you type into. Setting that here, once, means a node task writing new
   // fields gets it for free and cannot forget.
+  // One column the card's own width: a long field or note wraps inside it
+  // rather than stretching the card past a narrow right panel. Its grey, its
+  // border and the border's colour come from Settings → Styling → Panel
+  // cards, as every grey card in a right panel does (`data-slot="panel-card"`
+  // in theme.css; Tyler, 9 Nov 2026: "the right panel card should be wired
+  // to the card settings"), so it names no colour of its own.
   const shell = cn(
-    "grid gap-3 rounded-lg border bg-muted/60 p-3",
+    "grid grid-cols-[minmax(0,1fr)] gap-3 rounded-lg p-3",
     "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
   )
-  if (!title) return <section className={shell}>{children}</section>
+  if (!title)
+    return (
+      <section data-slot="panel-card" className={shell}>
+        {children}
+      </section>
+    )
 
   return (
     <Collapsible
       open={open}
       onOpenChange={setOpen}
+      data-slot="panel-card"
       className={cn("group/card", shell)}
     >
       <h2 className="text-sm font-semibold">
@@ -76,7 +88,7 @@ export function InspectorCard({
           </button>
         </CollapsibleTrigger>
       </h2>
-      <CollapsibleContent data-collapse-key={noFlashKey} className="grid gap-3">
+      <CollapsibleContent data-collapse-key={noFlashKey} className="grid grid-cols-[minmax(0,1fr)] gap-3">
         {children}
       </CollapsibleContent>
     </Collapsible>

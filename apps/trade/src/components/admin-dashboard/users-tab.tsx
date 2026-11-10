@@ -15,7 +15,7 @@ import {
 import type { AdminFrame } from "@/components/admin-dashboard/admin-dashboard"
 import { FilterRow, TagChips } from "@/components/admin-dashboard/list-parts"
 import { UserPanel } from "@/components/admin-dashboard/user-panel"
-import { AddAccountDialog } from "@/components/admin/add-account-dialog"
+import { AddAccountDropdown } from "@/components/admin/add-account-dropdown"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, Dot, MainCell } from "@/components/crm/crm-table"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
@@ -173,7 +173,6 @@ export function UsersTab({
   // stops. Ticks clear whenever the list changes, so every one is on this page.
   const tickedPaying = ticked.filter((account) => account.planIsPaid || account.paused).length
 
-  const [adding, setAdding] = React.useState(false)
   const [ask, setAsk] = React.useState<AccountAsk | null>(null)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [rightClick, setRightClick] = React.useState<{ id: string; x: number; y: number } | null>(null)
@@ -336,10 +335,15 @@ export function UsersTab({
           </FilterPopover>
         }
         primary={
-          <DashboardToolbarButton type="button" aria-label="Add account" onClick={() => setAdding(true)}>
-            <PlusIcon className="size-4" />
-            <span className="@max-3xl:sr-only">Add account</span>
-          </DashboardToolbarButton>
+          <AddAccountDropdown
+            onCreated={refresh}
+            trigger={
+              <DashboardToolbarButton type="button" aria-label="Add account">
+                <PlusIcon className="size-4" />
+                <span className="@max-3xl:sr-only">Add account</span>
+              </DashboardToolbarButton>
+            }
+          />
         }
         menuLabel="More for users"
         search={{
@@ -419,7 +423,7 @@ export function UsersTab({
                 onDelete={own ? undefined : () => setAsk({ kind: "delete", account: targetOfRow(account) })}
                 onRightClick={(x, y) => setRightClick({ id: account.id, x, y })}
               >
-                <MainCell name={account.name} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
+                <MainCell name={account.name} avatar={{ name: account.name, email: account.email }} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
                   {own ? <Chip muted>You</Chip> : null}
                 </MainCell>
                 <TableCell column="preview" className="hidden w-full max-w-0 min-w-40 text-right md:hidden @2xl:table-cell">
@@ -497,16 +501,6 @@ export function UsersTab({
     ready: shownKey === listKey,
     windows: (
       <>
-        <AddAccountDialog
-          // Remounts on every open, so the last invite's fields never linger.
-          key={adding ? "add-open" : "add-closed"}
-          open={adding}
-          onClose={() => setAdding(false)}
-          onCreated={async () => {
-            setAdding(false)
-            await refresh()
-          }}
-        />
         <AccountActionDialogs
           ask={ask}
           onClose={() => setAsk(null)}

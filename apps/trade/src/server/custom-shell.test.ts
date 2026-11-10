@@ -120,14 +120,14 @@ import {
   authTokenTtlMs,
 } from "@/lib/email/auth-token-expiry"
 import {
-  addAutomationTemplatesLink,
+  removeAutomationTemplatesLink,
   addMeteredUsageLink,
-  addPagesLink,
   addSystemEmailsLink,
   removeMediaChildLinks,
   removeEmailScreenLinks,
   foldScreensIntoAdmin,
   removeMediaLibraryLink,
+  removePagesLink,
   removeSegmentsLink,
   foldMembershipIntoOverview,
   createUserWorkspace,
@@ -1290,9 +1290,6 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/admin/automations",
         visible: true,
-        children: [
-          { label: "Templates", href: "/admin/automations/templates" },
-        ],
       },
       {
         type: "item",
@@ -1312,12 +1309,6 @@ describe("custom shell workspaces", () => {
         type: "item",
         label: "CRM",
         href: "/admin/crm",
-        visible: true,
-      },
-      {
-        type: "item",
-        label: "Pages",
-        href: "/admin/pages",
         visible: true,
       },
     ])
@@ -1344,9 +1335,6 @@ describe("custom shell workspaces", () => {
         label: "Automations",
         href: "/admin/automations",
         visible: true,
-        children: [
-          { label: "Templates", href: "/admin/automations/templates" },
-        ],
       },
       {
         type: "item",
@@ -1956,10 +1944,13 @@ describe("metered usage link", () => {
       // and Traffic out, all part of it.
       ["item-admin-overview", []],
       ["item-crm", []], // 20
-      ["item-admin-pages", []], // 17, beside Traffic
+      // 17 put Pages in beside Traffic until 26 took it out again, the Pages
+      // list being Admin's Pages section, so a sidebar never gets it now.
       // 13 adds System emails and 21 takes Segments out; 22 takes the whole
       // Newsletter link out, its screens being the CRM's now.
-      ["item-automations", ["item-automation-templates"]], // 18
+      // 25 would take a Templates link out; the templates are a tab in the
+      // automation editor.
+      ["item-automations", []],
       // 15 took Media's children out; 24 takes Media out, its screen being
       // Admin's Media library section.
     ])
@@ -1967,139 +1958,48 @@ describe("metered usage link", () => {
 })
 
 describe("pages link", () => {
-  /** A sidebar as a workspace saved it before the Pages screen existed. */
-  function savedSections(): ShellSection[] {
-    return [
+  const item = (id: string, label: string, href: string, children?: ShellChildItem[]): ShellItem => ({
+    type: "item",
+    id,
+    label,
+    href,
+    icon: "panelsTopLeft",
+    visible: true,
+    ...(children ? { children } : {}),
+  })
+  const labels = (sections: ShellSection[]) =>
+    sections.map((section) => [
+      section.title,
+      (section.entries as ShellItem[]).map((entry) => [entry.label, entry.children?.map((child) => child.label) ?? []]),
+    ])
+
+  it("takes the Pages link out, keeping links hung under it in its place", () => {
+    const sections: ShellSection[] = [
       {
         id: "section-administration",
         title: "Administration",
         entries: [
-          {
-            type: "item",
-            id: "item-admin-traffic",
-            label: "Traffic",
-            href: "/admin/traffic",
-            icon: "chart-line",
-            visible: true,
-          },
-        ],
-      },
-      {
-        id: "section-platform-settings",
-        title: "Platform Settings",
-        entries: [
-          {
-            type: "item",
-            id: "item-settings",
-            label: "Settings",
-            href: "/admin/settings",
-            icon: "settings",
-            visible: true,
-          },
+          item("item-admin-overview", "Admin", "/admin/dashboard"),
+          item("item-admin-pages", "Pages", "/admin/pages", [{ id: "item-home", label: "Home", href: "/" }]),
         ],
       },
     ]
-  }
-
-  function idsIn(sections: ShellSection[], index: number) {
-    return sections[index].entries.map((entry) => entry.id)
-  }
-
-  it("puts Pages right after the Traffic link", () => {
-    const sections = addPagesLink(savedSections())
-
-    expect(idsIn(sections, 0)).toEqual([
-      "item-admin-traffic",
-      "item-admin-pages",
-    ])
-    expect(idsIn(sections, 1)).toEqual(["item-settings"])
-    expect(sections[0].entries[1]).toMatchObject({
-      href: "/admin/pages",
-      icon: "panelsTopLeft",
-      roles: ["admin"],
-      visible: true,
-    })
+    expect(labels(removePagesLink(sections))).toEqual([["Administration", [["Admin", []], ["Home", []]]]])
   })
 
-  it("hands it out once, however many times it runs", () => {
-    const once = addPagesLink(savedSections())
-    const twice = addPagesLink(once)
-
-    expect(idsIn(twice, 0)).toEqual([
-      "item-admin-traffic",
-      "item-admin-pages",
-    ])
-    // Nothing changed, so nothing to write back.
-    expect(twice).toBe(once)
-  })
-
-  it("leaves a link somebody rebuilt by hand alone", () => {
-    const sections = savedSections()
-    sections[1].entries.push({
-      type: "item",
-      id: "my-own-pages",
-      label: "Public pages",
-      href: "/admin/pages",
-      icon: "panelsTopLeft",
-      visible: true,
-    })
-
-    expect(addPagesLink(sections)).toBe(sections)
-  })
-
-  it("counts a hidden Pages link as already there", () => {
-    const sections = savedSections()
-    sections[0].entries.push({
-      type: "item",
-      id: "item-admin-pages",
-      label: "Pages",
-      href: "/admin/pages",
-      icon: "panelsTopLeft",
-      visible: false,
-    })
-
-    expect(addPagesLink(sections)).toBe(sections)
-  })
-
-  it("counts one nested under another link as already there", () => {
-    const sections = savedSections()
-    ;(sections[0].entries[0] as ShellItem).children = [
-      { id: "item-admin-pages", label: "Pages", href: "/admin/pages" },
+  it("finds one renamed by its address, and drops a section it emptied", () => {
+    const sections: ShellSection[] = [
+      { id: "s1", title: "Site", entries: [item("my-pages", "Public pages", "/admin/pages")] },
+      { id: "s2", title: "Platform", entries: [item("item-settings", "Settings", "/admin/settings")] },
     ]
-
-    expect(addPagesLink(sections)).toBe(sections)
+    expect(labels(removePagesLink(sections))).toEqual([["Platform", [["Settings", []]]]])
   })
 
-  it("falls back to the end of Administration when Traffic is gone", () => {
-    const sections = savedSections()
-    sections[0].entries = [
-      {
-        type: "item",
-        id: "item-admin-membership",
-        label: "Membership",
-        href: "/admin/membership",
-        icon: "id-card",
-        visible: true,
-      },
+  it("leaves a sidebar without it exactly as it was", () => {
+    const sections: ShellSection[] = [
+      { id: "s", title: "Platform", entries: [item("item-settings", "Settings", "/admin/settings")] },
     ]
-
-    expect(idsIn(addPagesLink(sections), 0)).toEqual([
-      "item-admin-membership",
-      "item-admin-pages",
-    ])
-  })
-
-  it("falls back to the first section when Administration is gone", () => {
-    const sections = savedSections().slice(1)
-
-    expect(idsIn(addPagesLink(sections), 0)).toEqual([
-      "item-settings",
-      "item-admin-pages",
-    ])
-  })
-
-  it("leaves an emptied sidebar empty", () => {
-    expect(addPagesLink([])).toEqual([])
+    expect(removePagesLink(sections)).toBe(sections)
   })
 })
 
@@ -2112,39 +2012,45 @@ describe("automation templates sidebar link", () => {
     icon: "workflow" as const,
     visible: true,
   }
-  const section = (entry: ShellItem): ShellSection[] => [
-    { id: "section-platform-settings", title: "Platform", entries: [entry] },
+  const templates = {
+    id: "item-automation-templates",
+    label: "Templates",
+    href: "/admin/automations/templates",
+  }
+  const section = (...entries: ShellItem[]): ShellSection[] => [
+    { id: "section-platform-settings", title: "Platform", entries },
   ]
 
-  it("adds Templates beneath the existing parent", () => {
-    const [updated] = addAutomationTemplatesLink(section(automations))
-    expect(updated.entries[0]).toMatchObject({
-      label: "My flows",
-      children: [{ label: "Templates", href: "/admin/automations/templates" }],
-    })
-  })
-
-  it("keeps existing children and never adds Templates twice", () => {
-    const withChild = section({
-      ...automations,
-      children: [{ id: "custom-child", label: "Runs", href: "/runs" }],
-    })
-    const once = addAutomationTemplatesLink(withChild)
-    const twice = addAutomationTemplatesLink(once)
-
-    expect((once[0].entries[0] as ShellItem).children).toMatchObject([
+  it("takes Templates out, keeping the other children", () => {
+    const [updated] = removeAutomationTemplatesLink(
+      section({
+        ...automations,
+        children: [{ id: "custom-child", label: "Runs", href: "/runs" }, templates],
+      })
+    )
+    expect((updated.entries[0] as ShellItem).children).toMatchObject([
       { label: "Runs", href: "/runs" },
-      { label: "Templates", href: "/admin/automations/templates" },
     ])
-    expect(twice).toBe(once)
   })
 
-  it("leaves a sidebar without Automations alone", () => {
-    const sections: ShellSection[] = [
-      { id: "section-platform-settings", title: "Platform", entries: [] },
-    ]
-    expect(addAutomationTemplatesLink(sections)).toBe(sections)
-    expect(addAutomationTemplatesLink([])).toEqual([])
+  it("leaves Automations with no children once Templates was its only one", () => {
+    const [updated] = removeAutomationTemplatesLink(
+      section({ ...automations, children: [templates] })
+    )
+    expect(updated.entries[0]).toMatchObject({ label: "My flows" })
+    expect((updated.entries[0] as ShellItem).children ?? []).toEqual([])
+  })
+
+  it("takes out a Templates link an admin moved to the top level", () => {
+    const [updated] = removeAutomationTemplatesLink(
+      section(automations, { ...templates, type: "item", icon: "workflow", visible: true })
+    )
+    expect(updated.entries).toMatchObject([{ label: "My flows" }])
+  })
+
+  it("leaves a sidebar without Templates as it was", () => {
+    const sections = section(automations)
+    expect(removeAutomationTemplatesLink(sections)).toBe(sections)
   })
 })
 

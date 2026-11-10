@@ -14,7 +14,44 @@ import { cn } from "@/lib/utils"
  * for the Admin 3 panel design: Travel's trip ⋮ and activity ⋮ are this
  * menu (Tyler, 6 Nov 2026).
  */
-export type MySettingsTab = { value: string; label: string; content: React.ReactNode }
+export type MySettingsTab = {
+  value: string
+  label: string
+  content: React.ReactNode
+  /**
+   * The tab's one action under its rows, such as Lock blocks or New plan,
+   * drawn by the menu under a line across it, the same on every tab (Tyler,
+   * 9 Nov 2026: "make both footer the same ui"). It stays in view when the
+   * rows scroll. Use `MenuFooterButton`.
+   */
+  footer?: React.ReactNode
+}
+
+/** A tab's footer action: a full-width row with its icon, as every ⋮ footer is. */
+export function MenuFooterButton({
+  icon,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  icon: React.ReactNode
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={disabled}
+      className="w-full justify-start gap-2 px-2 font-normal [&_svg]:size-4"
+      onClick={onClick}
+    >
+      {icon}
+      {children}
+    </Button>
+  )
+}
 
 /**
  * The ⋮ with tabbed settings that My settings is, shared by the task panel's
@@ -94,6 +131,7 @@ export function TabbedMenu({
           {/* Plain rows, no lines between them (Tyler, 6 Nov 2026: "Remove email and dividers"). */}
           <div className="grid grid-cols-[minmax(0,1fr)] py-1">{shown?.content}</div>
         </ScrollArea>
+        {shown?.footer ? <div className="border-t p-1.5">{shown.footer}</div> : null}
       </PopoverContent>
     </Popover>
   )
