@@ -338,14 +338,34 @@ export function MarketPicker({
       }}
     >
       <PopoverTrigger asChild>
-        {/* The dashboard's one primary button, at the start of the middle
-            header (Tyler, 7 Nov 2026: "Add another button called "Browse
-            market" to open market picker", then "needs to be an actual button
-            that follows the ui standard. make it primary"). */}
-        <Button ref={triggerRef} type="button" className="shrink-0" aria-label="Browse market">
-          <SearchIcon className="size-4" />
-          <span className={phone ? "sr-only" : undefined}>Browse market</span>
-        </Button>
+        {/* Drawn as a search box, the shared toolbar search's look, that opens
+            the market list with its own search box ready to type in (Tyler,
+            10 Nov 2026: "turn the browse button into a search box and
+            clicking it will open the browse market modal"). It is 30%
+            narrower than the toolbar search ("reduce the search field by
+            30%"). On a phone it is the magnifier alone. */}
+        {phone ? (
+          <Button
+            ref={triggerRef}
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            aria-label="Browse market"
+          >
+            <SearchIcon className="size-4" />
+          </Button>
+        ) : (
+          <button
+            ref={triggerRef}
+            type="button"
+            aria-label="Browse market"
+            className="flex h-8 w-[126px] min-w-0 shrink items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-expanded:border-ring lg:w-[168px] dark:bg-input/30"
+          >
+            <SearchIcon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Search markets</span>
+          </button>
+        )}
       </PopoverTrigger>
       {pinnedAt ? <PopoverPrimitive.Anchor virtualRef={anchor} /> : null}
       <PopoverContent
@@ -361,7 +381,11 @@ export function MarketPicker({
         }}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
-          contentRef.current?.focus()
+          // Opened from the header's search box, so the typing carries on in
+          // the list's own box. A phone keeps the list in view instead of
+          // raising its keyboard over it.
+          if (phone) contentRef.current?.focus()
+          else searchRef.current?.focus()
         }}
         // Keep the catalogue compact on a desktop while still capping it to
         // the viewport on a narrow screen.

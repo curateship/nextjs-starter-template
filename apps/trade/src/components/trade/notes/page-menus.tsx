@@ -183,11 +183,8 @@ export function FoldersMenuRow({
         <MenuRow
           icon={<FolderIcon />}
           label="Folders"
-          detail={
-            holding.length === 0
-              ? "None"
-              : holding.map((folder) => folder.name).join(", ")
-          }
+          detail="None"
+          chips={holding.map((folder) => folder.name)}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent

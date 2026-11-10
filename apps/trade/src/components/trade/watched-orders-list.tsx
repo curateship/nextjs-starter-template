@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { useShownColumns } from "@/components/trade/block-columns"
 import { OrderPanelTotals } from "@/components/trade/order-panel-totals"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { TradeBadge } from "@/components/trade/trade-badge"
@@ -345,6 +346,10 @@ export function WatchedOrdersList({
     onEmptyChange?.(empty)
   }, [empty, onEmptyChange])
 
+  // The columns this table's block hides from its ⋮ (`block-columns.tsx`).
+  // A hidden column that the rows are sorted by keeps their order.
+  const shows = useShownColumns()
+
   const heading = (column: ManualOrderColumn, label: string) => (
     <TableSortButton
       active={sort === column}
@@ -406,15 +411,21 @@ export function WatchedOrdersList({
                   <TableHead className="w-[34%] px-1">
                     {heading("ticker", "Ticker")}
                   </TableHead>
-                  <TableHead className="w-[22%] px-1">
-                    {heading("type", "Type")}
-                  </TableHead>
-                  <TableHead className="w-[20%] px-1">
-                    {heading("held", "Value")}
-                  </TableHead>
-                  <TableHead className="w-[24%] px-1">
-                    {heading("pnl", "PnL")}
-                  </TableHead>
+                  {shows("type") ? (
+                    <TableHead className="w-[22%] px-1">
+                      {heading("type", "Type")}
+                    </TableHead>
+                  ) : null}
+                  {shows("value") ? (
+                    <TableHead className="w-[20%] px-1">
+                      {heading("held", "Value")}
+                    </TableHead>
+                  ) : null}
+                  {shows("pnl") ? (
+                    <TableHead className="w-[24%] px-1">
+                      {heading("pnl", "PnL")}
+                    </TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -433,10 +444,12 @@ export function WatchedOrdersList({
                     <TableCell className="py-2 pr-2 pl-1">
                       <div className="grid min-w-0 gap-1">
                         <div className="flex min-w-0 items-center gap-1">
-                          <MarketIcon
-                            symbol={row.symbol}
-                            iconUrl={row.iconUrl}
-                          />
+                          {shows("avatar") ? (
+                            <MarketIcon
+                              symbol={row.symbol}
+                              iconUrl={row.iconUrl}
+                            />
+                          ) : null}
                           <span
                             className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm"
                             title={row.symbol}
@@ -449,21 +462,26 @@ export function WatchedOrdersList({
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="px-1 py-2">
-                      <TradeBadge tone={row.winningSide ? "made" : "lost"}>
-                        {row.type}
-                      </TradeBadge>
-                    </TableCell>
-                    <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
-                      <span className="text-muted-foreground">
-                        {row.money === null ? "—" : formatWholeUsd(row.money)}
-                      </span>
-                    </TableCell>
+                    {shows("type") ? (
+                      <TableCell className="px-1 py-2">
+                        <TradeBadge tone={row.winningSide ? "made" : "lost"}>
+                          {row.type}
+                        </TradeBadge>
+                      </TableCell>
+                    ) : null}
+                    {shows("value") ? (
+                      <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                        <span className="text-muted-foreground">
+                          {row.money === null ? "—" : formatWholeUsd(row.money)}
+                        </span>
+                      </TableCell>
+                    ) : null}
                     {/* **A waiting level borrows the PnL column for its
                         distance** (Tyler, 14 Sep 2026). It is not a profit and
                         must never read as one, so it takes the muted colour
                         every other "nothing here" in this table wears, while a
                         real profit keeps the money colour and the weight. */}
+                    {shows("pnl") ? (
                     <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
                       {row.profit !== null ? (
                         <PnlAmount
@@ -484,6 +502,7 @@ export function WatchedOrdersList({
                         </span>
                       )}
                     </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>

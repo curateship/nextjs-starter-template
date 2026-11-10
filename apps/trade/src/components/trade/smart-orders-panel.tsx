@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { useShownColumns } from "@/components/trade/block-columns"
 import { OrderPanelTotals } from "@/components/trade/order-panel-totals"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -356,6 +357,10 @@ function SmartOrdersView({
     onEmptyChange?.(empty)
   }, [empty, onEmptyChange])
 
+  // The columns this table's block hides from its ⋮ (`block-columns.tsx`).
+  // A hidden column that the rows are sorted by keeps their order.
+  const shows = useShownColumns()
+
   // Every column reads from the left, headings and figures alike (Tyler,
   // 13 Sep 2026). PnL and Banked used to hug the right edge, which left a hole
   // between Value and PnL once Value was moved to the left.
@@ -407,15 +412,21 @@ function SmartOrdersView({
                 <TableHead className="w-[34%] px-1">
                   {heading("ticker", "Ticker")}
                 </TableHead>
-                <TableHead className="w-[22%] px-1">
-                  {heading("type", "Type")}
-                </TableHead>
-                <TableHead className="w-[20%] px-1">
-                  {heading("held", "Value")}
-                </TableHead>
-                <TableHead className="w-[24%] px-1">
-                  {heading("pnl", "PnL")}
-                </TableHead>
+                {shows("type") ? (
+                  <TableHead className="w-[22%] px-1">
+                    {heading("type", "Type")}
+                  </TableHead>
+                ) : null}
+                {shows("value") ? (
+                  <TableHead className="w-[20%] px-1">
+                    {heading("held", "Value")}
+                  </TableHead>
+                ) : null}
+                {shows("pnl") ? (
+                  <TableHead className="w-[24%] px-1">
+                    {heading("pnl", "PnL")}
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -449,12 +460,14 @@ function SmartOrdersView({
                               keyExpired={keyExpired}
                               walletName={walletName(order.walletId)}
                             >
-                              <MarketIcon
-                                symbol={symbol}
-                                iconUrl={
-                                  markets.get(order.marketKey)?.iconUrl ?? null
-                                }
-                              />
+                              {shows("avatar") ? (
+                                <MarketIcon
+                                  symbol={symbol}
+                                  iconUrl={
+                                    markets.get(order.marketKey)?.iconUrl ?? null
+                                  }
+                                />
+                              ) : null}
                               <button
                                 type="button"
                                 onClick={() => onSelectMarket(order.marketKey)}
@@ -475,7 +488,8 @@ function SmartOrdersView({
                           {order.plan.paused ? (
                             <span
                               className={cn(
-                                "flex items-center gap-1 pl-6 text-xs",
+                                "flex items-center gap-1 text-xs",
+                                shows("avatar") && "pl-6",
                                 WARNING
                               )}
                             >
@@ -488,7 +502,8 @@ function SmartOrdersView({
                           ) : keyExpired ? (
                             <span
                               className={cn(
-                                "block truncate pl-6 text-xs",
+                                "block truncate text-xs",
+                                shows("avatar") && "pl-6",
                                 LOST_MONEY
                               )}
                             >
@@ -497,22 +512,27 @@ function SmartOrdersView({
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="px-1 py-2">
-                        <TradeBadge
-                          tone={
-                            smartOrderType(order) === "long" ? "made" : "lost"
-                          }
-                        >
-                          {smartOrderType(order) === "long" ? "Long" : "Short"}
-                        </TradeBadge>
-                      </TableCell>
-                      <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
-                        <span className="text-muted-foreground">
-                          {heldMoney === null
-                            ? "—"
-                            : formatWholeUsd(heldMoney)}
-                        </span>
-                      </TableCell>
+                      {shows("type") ? (
+                        <TableCell className="px-1 py-2">
+                          <TradeBadge
+                            tone={
+                              smartOrderType(order) === "long" ? "made" : "lost"
+                            }
+                          >
+                            {smartOrderType(order) === "long" ? "Long" : "Short"}
+                          </TradeBadge>
+                        </TableCell>
+                      ) : null}
+                      {shows("value") ? (
+                        <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                          <span className="text-muted-foreground">
+                            {heldMoney === null
+                              ? "—"
+                              : formatWholeUsd(heldMoney)}
+                          </span>
+                        </TableCell>
+                      ) : null}
+                      {shows("pnl") ? (
                       <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
                         {openProfit === null ? (
                           <span className="text-muted-foreground">—</span>
@@ -524,6 +544,7 @@ function SmartOrdersView({
                           </PnlAmount>
                         )}
                       </TableCell>
+                      ) : null}
                     </TableRow>
                   )
                 }

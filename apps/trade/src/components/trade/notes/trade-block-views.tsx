@@ -15,6 +15,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { BlockColumnsMenuRows, BlockHiddenColumns } from "@/components/trade/block-columns"
 import { FoldHeading } from "@/components/trade/notes/fold-heading"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,6 +33,7 @@ import {
   collapseStorageKey,
   useRememberedCollapse,
 } from "@/lib/remembered-choice"
+import { isTradeTableBlock } from "@/lib/trade/block-columns"
 import { cn } from "@/lib/utils"
 
 /**
@@ -498,12 +500,25 @@ function blockView({ kind, title, icon, draw, menu, fixed = false }: BlockSpec) 
           editable={editor.isEditable}
           onRemove={fixed ? undefined : deleteNode}
           moves={fixed ? moves : undefined}
-          menu={blocks && menu ? menu(blocks) : undefined}
+          menu={
+            blocks && menu
+              ? menu(blocks)
+              : blocks && isTradeTableBlock(kind)
+                ? <BlockColumnsMenuRows block={kind} />
+                : undefined
+          }
           kind={kind}
           title={title}
           icon={icon}
         >
-          {blocks ? draw(blocks) : <NotHere />}
+          {!blocks ? (
+            <NotHere />
+          ) : isTradeTableBlock(kind) ? (
+            // Manual, Grid and DCA trades hide the columns picked in their ⋮.
+            <BlockHiddenColumns block={kind}>{draw(blocks)}</BlockHiddenColumns>
+          ) : (
+            draw(blocks)
+          )}
         </BlockCard>
       </Frame>
     )

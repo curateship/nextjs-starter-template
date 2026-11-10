@@ -24,7 +24,8 @@ sees only their own wallets, orders and widgets there —
   control does not.
 - **Middle — the market you picked.** One header: the market's chart,
   Positions, Open orders and the Journal as tabs, then on the right the
-  primary Browse market button (moved there 8 Nov 2026), the timeframe control (1m to 1d, remembered per browser, 4h the default),
+  Browse market search box (moved there 8 Nov 2026, a search box since
+  10 Nov 2026), the timeframe control (1m to 1d, remembered per browser, 4h the default),
   Indicators and View options, and a ⋮ holding Wallet, the market's Folders
   and Pin to top, and Close all (`dashboard-blocks.md`).
   Indicators and View options are buttons of their own (Tyler, 7 Nov 2026:

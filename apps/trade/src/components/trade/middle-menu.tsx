@@ -2,6 +2,7 @@ import * as React from "react"
 import { EllipsisVerticalIcon } from "lucide-react"
 
 import { keepOpenForInnerBoxes } from "@/components/trade/notes/pick-rows"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -17,8 +18,11 @@ import { cn } from "@/lib/utils"
 
 /**
  * One line in the middle panel's ⋮: a picture, a word, and sometimes a quiet
- * detail such as the wallet in use. It is the trigger the wallet menu and
- * Close all are handed, so each still opens its own box, unchanged.
+ * detail such as the wallet in use, or chips such as the market's folders. It
+ * is the trigger the wallet menu and Close all are handed, so each still opens
+ * its own box, unchanged. Rows are 32px, one step tighter than the 36px they
+ * were (Tyler, 10 Nov 2026: "Reduce the spacing a bit and give the folders
+ * label a chip design").
  */
 export const MenuRow = React.forwardRef<
   HTMLButtonElement,
@@ -26,14 +30,20 @@ export const MenuRow = React.forwardRef<
     icon: React.ReactNode
     label: string
     detail?: string
+    /**
+     * Names drawn as chips at the row's end, in place of `detail`. The first
+     * shows, and a count such as "+1" stands for the rest, since the menu has
+     * room for one.
+     */
+    chips?: readonly string[]
   }
->(({ icon, label, detail, className, ...props }, ref) => (
+>(({ icon, label, detail, chips, className, ...props }, ref) => (
   <button
     ref={ref}
     type="button"
     {...props}
     className={cn(
-      "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-expanded:bg-muted",
+      "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 aria-expanded:bg-muted",
       className
     )}
   >
@@ -41,7 +51,16 @@ export const MenuRow = React.forwardRef<
       {icon}
     </span>
     <span className="shrink-0">{label}</span>
-    {detail ? (
+    {chips?.length ? (
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-1">
+        <Badge variant="secondary" className="min-w-0 shrink justify-start">
+          <span className="truncate">{chips[0]}</span>
+        </Badge>
+        {chips.length > 1 ? (
+          <Badge variant="secondary">+{chips.length - 1}</Badge>
+        ) : null}
+      </span>
+    ) : detail ? (
       <span className="min-w-0 flex-1 truncate text-right text-muted-foreground">
         {detail}
       </span>

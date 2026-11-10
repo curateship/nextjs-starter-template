@@ -2,8 +2,17 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { DASHBOARD_PROTOCOLS, type ProtocolId } from "@/lib/protocols/contracts"
+import {
+  HIDEABLE_COLUMNS,
+  TRADE_TABLE_BLOCKS,
+  type HiddenBlockColumns,
+} from "@/lib/trade/block-columns"
 import { isDashboardView, type DashboardView } from "@/lib/trade/dashboard-view"
 import { userGet, userPost } from "@/server/guards"
+import {
+  loadHiddenBlockColumns,
+  saveHiddenBlockColumns,
+} from "@/server/trade/block-columns"
 import {
   loadTradeDashboardStart,
   saveHiddenProtocols,
@@ -68,6 +77,35 @@ const saveHideEmptyFn = createServerFn({ method: "POST" })
 /** Switches "Hide empty blocks" for the signed-in person, answered as stored. */
 export function saveHideEmptyDashboardBlocks(hide: boolean) {
   return saveHideEmptyFn({ data: { hide } })
+}
+
+const loadColumnsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(({ context }) => loadHiddenBlockColumns(context.user.id))
+
+/** The columns each trade block hides for the signed-in person. */
+export function loadHiddenTradeBlockColumns() {
+  return loadColumnsFn()
+}
+
+const columnList = z.array(z.enum(HIDEABLE_COLUMNS)).max(HIDEABLE_COLUMNS.length)
+const columnsSchema = z.object({
+  hidden: z.object(
+    Object.fromEntries(TRADE_TABLE_BLOCKS.map((block) => [block, columnList.optional()])) as Record<
+      (typeof TRADE_TABLE_BLOCKS)[number],
+      z.ZodOptional<typeof columnList>
+    >
+  ),
+})
+
+const saveColumnsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(columnsSchema)
+  .handler(({ context, data }) => saveHiddenBlockColumns(context.user.id, data.hidden))
+
+/** Every trade block's hidden columns, answered as stored. */
+export function saveHiddenTradeBlockColumns(hidden: HiddenBlockColumns) {
+  return saveColumnsFn({ data: { hidden } })
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   ProtocolsRows,
   useProtocolPositionCounts,
 } from "@/components/trade/protocols-block"
+import { BlockColumnsProvider } from "@/components/trade/block-columns"
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
 import {
   TradingOverviewGrid,
@@ -42,11 +43,18 @@ import {
 import { saveLastMarket, searchMarkets } from "@/lib/api/trade/markets"
 import {
   getTradeDashboardErrorMessage,
+  loadHiddenTradeBlockColumns,
   loadTradeDashboardStartRead,
   saveDashboardView,
   saveHiddenDashboardProtocols,
+  saveHiddenTradeBlockColumns,
   saveHideEmptyDashboardBlocks,
 } from "@/lib/api/trade/trade-dashboard"
+import type {
+  HiddenBlockColumns,
+  HideableColumn,
+  TradeTableBlock,
+} from "@/lib/trade/block-columns"
 import {
   getTradingOverviewErrorMessage,
   loadTradingOverviewLayout,
@@ -217,11 +225,12 @@ export async function tradeDashboardLoader({ deps }: { deps: TradeDashboardDeps 
       ? "testnet"
       : "mainnet"
   const exchange = loadDashboardExchange(protocol, network).catch(exchangeUnanswered)
-  const [core, start] = await Promise.all([
+  const [core, start, columns] = await Promise.all([
     loadDashboardCore(protocol, network).catch(coreUnanswered),
     startPromise,
+    loadHiddenTradeBlockColumns().catch(() => null),
   ])
-  return { ...core, protocol, network, exchange, start }
+  return { ...core, protocol, network, exchange, start, columns }
 }
 
 type TradeDashboardData = Awaited<ReturnType<typeof tradeDashboardLoader>>
@@ -291,6 +300,31 @@ export function TradeDashboard() {
       }
     })
   }, [])
+
+  // ----- The columns each trade block hides, saved in turn ---------------
+  const [columns, setColumns] = React.useState<HiddenBlockColumns>(() => data.columns ?? {})
+  // The latest choice, so two quick presses on different blocks build on each other.
+  const latestColumns = React.useRef(columns)
+  const storedColumns = React.useRef(columns)
+  const columnsQueue = React.useRef<Promise<void>>(Promise.resolve())
+  const changeColumns = React.useCallback((block: TradeTableBlock, hidden: HideableColumn[]) => {
+    const next = { ...latestColumns.current, [block]: hidden }
+    latestColumns.current = next
+    setColumns(next)
+    columnsQueue.current = columnsQueue.current.then(async () => {
+      try {
+        storedColumns.current = await saveHiddenTradeBlockColumns(next)
+      } catch (error) {
+        latestColumns.current = storedColumns.current
+        setColumns(storedColumns.current)
+        showErrorToast(getTradeDashboardErrorMessage(error))
+      }
+    })
+  }, [])
+  const blockColumns = React.useMemo(
+    () => ({ hidden: columns, change: changeColumns }),
+    [columns, changeColumns]
+  )
 
   // ----- "Hide empty blocks", saved on the account -----------------------
   const [hideEmpty, setHideEmpty] = React.useState(start.hideEmptyBlocks)
@@ -396,6 +430,7 @@ export function TradeDashboard() {
 
   return (
     <ManageWidgetsProvider value={manageWidgets}>
+    <BlockColumnsProvider value={blockColumns}>
     <ExchangeDashboard
       // Drawn again for each exchange and network, as each exchange's own
       // page was, so nothing one exchange held shows on the next.
@@ -408,6 +443,7 @@ export function TradeDashboard() {
       hideEmptyBlocks={hideEmpty}
       overview={overview}
     />
+    </BlockColumnsProvider>
     </ManageWidgetsProvider>
   )
 }
@@ -435,7 +471,7 @@ function ExchangeDashboard({
   hideEmptyBlocks: boolean
   overview: React.ReactNode | null
 }) {
-  const { exchange, network, lastWalletIds, protocol, start: _start, ...core } = data
+  const { exchange, network, lastWalletIds, protocol, start: _start, columns: _columns, ...core } = data
   const label = protocolLabel(protocol)
   // The exchange-facing half of the opening answer, null until it streams
   // in. Everything below composes the two halves so the workspace paints its

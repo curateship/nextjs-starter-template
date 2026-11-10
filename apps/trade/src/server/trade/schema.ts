@@ -236,6 +236,14 @@ export const tradePrefs = pgTable("trade_prefs", {
    * the page while they have nothing to show.
    */
   hideEmptyBlocks: boolean("hide_empty_blocks").notNull().default(false),
+  /**
+   * The columns each trade block hides, from its ⋮ (`block-columns.ts`),
+   * such as `{ "grid-trades": ["avatar", "type"] }`.
+   */
+  hiddenBlockColumns: jsonb("hidden_block_columns")
+    .$type<import("@/lib/trade/block-columns").HiddenBlockColumns>()
+    .notNull()
+    .default({}),
   pinnedMarkets: jsonb("pinned_markets").$type<string[]>().notNull().default([]),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.

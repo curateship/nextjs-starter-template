@@ -173,6 +173,24 @@ at most.
 | Scanner | The market scanner's matches, its cog and broom in the heading, `market-scanner.md` |
 | Folders | The folders and their coins; a new folder and Manage folders in its ⋮, `market-folders.md` |
 
+- **The totals row has no lines** above or below it (Tyler, 10 Nov 2026:
+  "Remove footer borders"). Its shade alone sets it apart. The Positions
+  table's total keeps its lines.
+- **Hiding columns:** Manual trades, Grid trades and DCA trades each list
+  Avatar, Type, Value and PnL in their ⋮, an open eye on a column that shows
+  and an eye with a slash on one that is hidden (Tyler, 10 Nov 2026: "I want
+  to hide certain col in the dropdown here ... I want to hide avatar, type
+  value and pnl", then "All three, each its own"). One press swaps it and the
+  menu stays open. Avatar is the coin's picture beside the ticker; Ticker
+  always shows. The totals row drops the same columns, so each sum stays under
+  its heading, and "10 trades" wraps onto two lines in a narrow block rather
+  than run into the Value sum. Rows sorted by a column that is then hidden
+  keep that order.
+  Each block keeps its own list, saved on the account
+  (`trade_prefs.hidden_block_columns`, migration
+  `0248_trade_hidden_block_columns.sql`), and the ⋮ works with the page locked
+  too.
+
 - **Hide empty blocks**, in the page's ⋮ → General, On or Off, saved on the
   account (`trade_prefs.hide_empty_blocks`, migration
   `0236_trade_hide_empty_blocks.sql`; Tyler, 8 Nov 2026: "why is the block
@@ -279,10 +297,19 @@ right").
   tabs to the dashboard tab option in settings"), then on the right Browse
   market, the timeframe in its grey track, Indicators, View options and the
   ⋮. Browse market sits just before the
-  timeframes (Tyler, 8 Nov 2026: "move the brwose market button here"), the
-  header's one primary button.
+  timeframes (Tyler, 8 Nov 2026: "move the brwose market button here"). It is
+  drawn as a search box reading "Search markets" (Tyler, 10 Nov 2026: "turn
+  the browse button into a search box and clicking it will open the browse
+  market modal"). It is 126px wide and 168px on a wide screen, 30% narrower
+  than the toolbar search ("reduce the search field by 30%"). A press opens the
+  market list with the cursor already in the list's own search box, so typing
+  starts at once. On a phone it is the magnifier alone, and the list opens
+  without raising the keyboard.
 - **The ⋮** holds Wallet, then the market's Folders and Pin to top, then Close
-  all while there is something for it to take off. Folders lists every folder
+  all while there is something for it to take off. Its rows are 32px high
+  (36px before 10 Nov 2026, when Tyler asked to "Reduce the spacing a bit").
+  The Folders row shows the market's first folder as a grey chip, then a
+  second chip counting the rest, such as "+1", or "None". Folders lists every folder
   of this exchange with the market's ticked; one press adds or removes it and
   the list stays open, and "New folder" at the foot starts a folder with this
   market in it. Pin to top is On or Off, one press, `pinned-markets.md`.
