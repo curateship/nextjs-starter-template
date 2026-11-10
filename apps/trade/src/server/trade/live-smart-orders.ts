@@ -140,6 +140,7 @@ import {
   tradeWallets,
 } from "@/server/trade/schema"
 import { recordEngineError } from "@/server/trade/engine-errors"
+import { carryOrderAim } from "@/server/trade/order-aims"
 import { rememberEngineTimestamp } from "./engine-memory"
 
 /**
@@ -1943,6 +1944,9 @@ export async function reconcileLiveLaddersOnce(
                   entry.kind === "watch"
                     ? entry.plan.clientOrderId
                     : undefined,
+                // A chase's re-place keeps its first price; anything else is
+                // measured against the price it goes out at.
+                aimedPx: pending.input.aimedPx ?? "sent",
                 copied: entry.kind === "watch" && Boolean(entry.plan.copyId),
               })
               recordSmartOrderSendSuccess(entry.plan)
@@ -2064,6 +2068,9 @@ export async function reconcileLiveLaddersOnce(
                   // fresh quote has already left it.
                   marketOnly: true,
                   marketGuardPx: input.triggerPx,
+                  // The level's own price is what it aimed at; the market
+                  // fill is measured against it.
+                  aimedPx: input.triggerPx ?? "sent",
                 })
                 recordSmartOrderSendSuccess(entry.plan)
                 refusalHolds.delete(holdKey)
@@ -3050,12 +3057,18 @@ async function restoreLiveOrders(input: {
       tpPx: null,
       slPx: null,
       restingOnly: true,
+      // Put back as it was, so it keeps the aim of the order it replaces.
+      aimedPx: null,
     })
       .then((outcome) => {
         if (outcome.status !== "resting" || !outcome.orderId) {
           failed = true
           return
         }
+        void carryOrderAim(
+          { userId: input.userId, walletId: input.wallet.id, orderId: order.id },
+          outcome.orderId
+        )
         replacePlanOrderId(input.kind, input.plan, order.id, outcome.orderId)
       })
       .catch(() => {

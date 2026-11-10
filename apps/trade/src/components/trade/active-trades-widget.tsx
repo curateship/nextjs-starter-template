@@ -2,9 +2,9 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { ListChecksIcon } from "lucide-react"
 
-import { WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
+import { WidgetHeadingActions, WidgetMenuOptions } from "@/components/shared/widgets/widget-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
+import { CountedFilterMenu, CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import {
@@ -79,20 +79,21 @@ export function ActiveTradesWidget({
         ? "No active trades found in the wallets that answered."
         : "No active trades across your wallets."
 
+  const filters = {
+    trades: overview.activeTrades,
+    protocols,
+    walletIds,
+    onProtocolsChange: setProtocols,
+    onWalletsChange: setWalletIds,
+    onClear: () => {
+      setProtocols(null)
+      setWalletIds(null)
+    },
+  }
   const actions = (
     <div className="flex items-center gap-2">
       {headerAction}
-      <ActiveTradeFilters
-        trades={overview.activeTrades}
-        protocols={protocols}
-        walletIds={walletIds}
-        onProtocolsChange={setProtocols}
-        onWalletsChange={setWalletIds}
-        onClear={() => {
-          setProtocols(null)
-          setWalletIds(null)
-        }}
-      />
+      <ActiveTradeFilters {...filters} />
     </div>
   )
   const Frame = bare ? "div" : TableSurface
@@ -100,8 +101,13 @@ export function ActiveTradesWidget({
     <Frame className={cn("flex h-full min-h-0 flex-col", className)}>
       {bare ? (
         // The title and count are on the widget card's heading, and the
-        // filter sits there too, beside the ⋮ ("move the buttons here").
-        <WidgetHeadingActions>{actions}</WidgetHeadingActions>
+        // filter is in its ⋮ (Tyler, 10 Nov 2026: "replace it with filter").
+        <>
+          {headerAction ? <WidgetHeadingActions>{headerAction}</WidgetHeadingActions> : null}
+          <WidgetMenuOptions>
+            <ActiveTradeFilters {...filters} inMenu />
+          </WidgetMenuOptions>
+        </>
       ) : (
         <DashboardCardTitleHeader
           className="border-b-0"
@@ -342,6 +348,7 @@ function ActiveTradeFilters({
   onProtocolsChange,
   onWalletsChange,
   onClear,
+  inMenu = false,
 }: {
   trades: TradingOverviewActiveTrade[]
   protocols: readonly string[] | null
@@ -349,9 +356,12 @@ function ActiveTradeFilters({
   onProtocolsChange: (protocols: string[] | null) => void
   onWalletsChange: (walletIds: string[] | null) => void
   onClear: () => void
+  /** Drawn inside the widget's ⋮ rather than as its own Filter button. */
+  inMenu?: boolean
 }) {
+  const Filter = inMenu ? CountedFilterMenu : CountedFilterPopover
   return (
-    <CountedFilterPopover
+    <Filter
       items={trades}
       groups={[
         {

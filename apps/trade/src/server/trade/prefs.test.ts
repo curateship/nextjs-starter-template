@@ -328,7 +328,7 @@ describe("where a bare /trade opens", () => {
 })
 
 describe("the remembered trade panel layouts", () => {
-  const horizontal = { blocks: 20, chart: 80 }
+  const backtest = { workspace: 70, trades: 30 }
   const vertical = { workspace: 72, trades: 28 }
 
   it("starts empty and keeps each panel group in the account", async () => {
@@ -343,8 +343,8 @@ describe("the remembered trade panel layouts", () => {
 
     await saveTradePanelLayout(
       id,
-      tradePanelLayoutKey.workspaceHorizontal,
-      horizontal,
+      tradePanelLayoutKey.backtestVertical,
+      backtest,
       database
     )
     await saveTradePanelLayout(
@@ -357,7 +357,7 @@ describe("the remembered trade panel layouts", () => {
     expect(await loadTradePanelLayouts(id, database)).toMatchObject({
       legacyImported: true,
       current: {
-        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+        [tradePanelLayoutKey.backtestVertical]: backtest,
         [tradePanelLayoutKey.flowRunVertical]: vertical,
       },
     })
@@ -378,14 +378,14 @@ describe("the remembered trade panel layouts", () => {
 
     await saveTradePanelLayout(
       id,
-      tradePanelLayoutKey.workspaceHorizontal,
-      horizontal,
+      tradePanelLayoutKey.backtestVertical,
+      backtest,
       database
     )
 
     expect(await loadTradePanelLayouts(id, database)).toMatchObject({
       current: {
-        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+        [tradePanelLayoutKey.backtestVertical]: backtest,
       },
     })
   })
@@ -394,22 +394,22 @@ describe("the remembered trade panel layouts", () => {
     const { id } = await insertUser(database)
     await importLegacyTradePanelLayouts(
       id,
-      { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+      { [tradePanelLayoutKey.backtestVertical]: backtest },
       database
     )
     const saved = await importLegacyTradePanelLayouts(
       id,
       {
-        [tradePanelLayoutKey.workspaceHorizontal]: {
-          blocks: 10,
-          chart: 90,
+        [tradePanelLayoutKey.backtestVertical]: {
+          workspace: 60,
+          trades: 40,
         },
       },
       database
     )
 
-    expect(saved.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
-      horizontal
+    expect(saved.current[tradePanelLayoutKey.backtestVertical]).toEqual(
+      backtest
     )
   })
 
@@ -431,13 +431,13 @@ describe("the remembered trade panel layouts", () => {
 
     const saved = await importLegacyTradePanelLayouts(
       id,
-      { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+      { [tradePanelLayoutKey.backtestVertical]: backtest },
       database
     )
 
     expect(saved.headerProfitVisible).toBe(false)
-    expect(saved.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
-      horizontal
+    expect(saved.current[tradePanelLayoutKey.backtestVertical]).toEqual(
+      backtest
     )
   })
 })

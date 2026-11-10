@@ -6,6 +6,8 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { useWidgetLayout, type WidgetStore } from "@/components/shared/widgets/use-widget-layout"
 import { DashboardPageMenu } from "@/components/trade/notes/page-menus"
+import { useTabbedMenuState } from "@/components/shared/notes/tabbed-menu"
+import { ManageWidgetsProvider } from "@/components/shared/widgets/widget-menus"
 import { useTradePage, type TradePage } from "@/components/trade/notes/trade-page-panel"
 import {
   ProtocolsMenuRows,
@@ -267,6 +269,10 @@ export function TradeDashboard() {
   // here, so it carries on as the exchange changes.
   const page = useTradePage({ initial: data.page })
   const widgets = useWidgetLayout(OVERVIEW_LAYOUT_STORE, null)
+  // The left page's ⋮, held here so a widget's Manage widgets opens it at Widgets.
+  const leftMenu = useTabbedMenuState()
+  const { openAt: openLeftMenuAt } = leftMenu
+  const manageWidgets = React.useCallback(() => openLeftMenuAt("widgets"), [openLeftMenuAt])
   const overviewRead = useTradingOverview(onOverview)
   const counts = useProtocolPositionCounts()
 
@@ -347,6 +353,7 @@ export function TradeDashboard() {
 
   const pageMenu = ({ alerts }: { alerts: React.ReactNode }) => (
     <DashboardPageMenu
+      menuState={leftMenu}
       alerts={alerts}
       lock={page.lock}
       cover={page.cover}
@@ -388,6 +395,7 @@ export function TradeDashboard() {
   )
 
   return (
+    <ManageWidgetsProvider value={manageWidgets}>
     <ExchangeDashboard
       // Drawn again for each exchange and network, as each exchange's own
       // page was, so nothing one exchange held shows on the next.
@@ -400,6 +408,7 @@ export function TradeDashboard() {
       hideEmptyBlocks={hideEmpty}
       overview={overview}
     />
+    </ManageWidgetsProvider>
   )
 }
 

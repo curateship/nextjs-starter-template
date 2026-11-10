@@ -26,6 +26,7 @@ import { bnbRefusalError, bnbRefusalSentence, type BnbRefusal } from "@/server/p
 import {
   tradeLiveFills,
   tradeLiveJournal,
+  tradeOrderAims,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -197,6 +198,7 @@ function orderInput(walletId: string) {
     reduceOnly: false,
     tpPx: null,
     slPx: null,
+    aimedPx: "sent" as const,
   }
 }
 
@@ -314,6 +316,26 @@ describe("the rails around placing", () => {
         )
         expect(fill?.note).toBe("Filled $5,000.00 of the $50,000.00 asked for.")
       })
+    })
+  })
+
+  it("keeps the price an order was aimed at, by its order id, for slippage", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    accountFetch.mockResolvedValue({ equity: 1e6, free: 1e6, inTrades: 0, openProfit: 0 })
+    place.mockResolvedValue({
+      status: "resting",
+      orderId: "first-send",
+      avgPx: null,
+      filledSz: null,
+      protection: null,
+      protectionNote: null,
+    })
+    // A chase's re-place passes its first price, never its own.
+    await placeLiveOrder(userId, { ...orderInput(walletId), aimedPx: 88_000, byHand: true })
+    await vi.waitFor(async () => {
+      const [aim] = await database.select().from(tradeOrderAims)
+      expect(aim).toMatchObject({ orderId: "first-send", walletId, side: "buy", aimedPx: 88_000 })
     })
   })
 

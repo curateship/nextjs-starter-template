@@ -14,7 +14,7 @@ import { PageCover } from "@/components/shared/notes/page-cover"
 import { CoverRow, LockRow } from "@/components/shared/notes/page-rows"
 import { PickGroup } from "@/components/shared/notes/pick-rows"
 import { SavingDocument } from "@/components/shared/notes/saving-document"
-import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { TabbedMenu, type TabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -45,6 +45,7 @@ type MenuTab = React.ComponentProps<typeof TabbedMenu>["tabs"][number]
  */
 export function BotsPagePanel({
   menuTabs,
+  menuState,
   page,
   error,
   onRetry,
@@ -53,6 +54,8 @@ export function BotsPagePanel({
 }: {
   /** Tabs after General in the ⋮. */
   menuTabs: MenuTab[]
+  /** The ⋮'s open state and tab, held by the dashboard so a widget's Manage widgets opens it at Widgets. */
+  menuState: TabbedMenuState
   /** Null while the page is first read, or when the read failed. */
   page: StoredPage | null
   error: string | null
@@ -61,7 +64,7 @@ export function BotsPagePanel({
   onPageChange: (page: StoredPage) => void
 }) {
   const [busy, setBusy] = React.useState(false)
-  const [menuOpen, setMenuOpen] = React.useState(false)
+  const { open: menuOpen, onOpenChange: setMenuOpen } = menuState
   // Made once: the editor's blocks must not change while the page shows.
   const [pageBlocks] = React.useState(botsBlocks)
 
@@ -92,6 +95,8 @@ export function BotsPagePanel({
               align="start"
               open={menuOpen}
               onOpenChange={setMenuOpen}
+              tab={menuState.tab}
+              onTabChange={menuState.onTabChange}
               tabs={[
                 {
                   value: "general",

@@ -17,8 +17,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
+import { WidgetMenuOptions } from "@/components/shared/widgets/widget-card"
 
+import { FilterHeading } from "@/components/trade/counted-filter-popover"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
@@ -362,16 +364,16 @@ export function PnlGraphWidget({
           </div>
         </div>
         {bare ? (
-          // In the widget card, the period and dates sit in its heading
-          // beside the ⋮ ("move buttons here").
-          <WidgetHeadingActions>
-            <ProfitRangeControls
+          // In the widget card, the period and dates are in its ⋮ (Tyler,
+          // 10 Nov 2026: "also move this into the dotted dropdown").
+          <WidgetMenuOptions>
+            <ProfitRangeMenu
               data={data}
               range={range}
               dates={rangeDates}
               onRange={setRange}
             />
-          </WidgetHeadingActions>
+          </WidgetMenuOptions>
         ) : (
           <ProfitRangeControls
             data={data}
@@ -401,18 +403,15 @@ export function PnlGraphWidget({
   )
 }
 
-function ProfitRangeControls({
-  data,
-  range,
-  dates,
-  onRange,
-}: {
+type ProfitRangeProps = {
   data: TradingOverviewProfitChartPoint[]
   range: ProfitRange
   dates: ReturnType<typeof profitRangeDates>
   onRange: (range: ProfitRange) => void
-}) {
-  const [open, setOpen] = useState(false)
+}
+
+/** The period's picks: a preset, or a From or To date that keeps them in order. */
+function profitRangeChoices({ dates, onRange }: Pick<ProfitRangeProps, "dates" | "onRange">) {
   const choosePreset = (preset: RangePreset) =>
     onRange({ preset, from: null, to: null })
   const chooseFrom = (date: Date | undefined) => {
@@ -433,6 +432,68 @@ function ProfitRangeControls({
       to: nextTo,
     })
   }
+  return { choosePreset, chooseFrom, chooseTo }
+}
+
+/**
+ * The period and dates inside the widget's ⋮: the presets, then From and To,
+ * each applying at once. With no history yet there are no dates to pick, and
+ * it says so.
+ */
+function ProfitRangeMenu({ data, range, dates, onRange }: ProfitRangeProps) {
+  const { choosePreset, chooseFrom, chooseTo } = profitRangeChoices({ dates, onRange })
+  return (
+    <div className="grid gap-3 p-3">
+      <FilterHeading className="px-1">Dates</FilterHeading>
+      {/* A dropdown rather than six tabs (Tyler, 10 Nov 2026: "Make this a
+          dropdown"). Picked dates read Custom until a preset is picked. */}
+      <Select value={range.preset} onValueChange={(value) => choosePreset(value as RangePreset)}>
+        <SelectTrigger aria-label="Profit date range" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {RANGE_PRESETS.map((preset) => (
+            <SelectItem key={preset} value={preset}>
+              {RANGE_LABELS[preset]}
+            </SelectItem>
+          ))}
+          {range.preset === "custom" ? <SelectItem value="custom">Custom</SelectItem> : null}
+        </SelectContent>
+      </Select>
+      {data.length === 0 ? (
+        <p className="px-1 text-sm text-muted-foreground">No profit history to pick dates from yet.</p>
+      ) : (
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="pnl-menu-from-date">From</Label>
+            <DatePicker
+              short
+              id="pnl-menu-from-date"
+              value={dates.from === undefined ? undefined : new Date(dates.from)}
+              onChange={chooseFrom}
+              placeholder="From"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="pnl-menu-to-date">To</Label>
+            <DatePicker
+              short
+              id="pnl-menu-to-date"
+              value={dates.to === undefined ? undefined : new Date(dates.to)}
+              onChange={chooseTo}
+              placeholder="To"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The period and dates as buttons, for the graph on a page of its own. */
+function ProfitRangeControls({ data, range, dates, onRange }: ProfitRangeProps) {
+  const [open, setOpen] = useState(false)
+  const { choosePreset, chooseFrom, chooseTo } = profitRangeChoices({ dates, onRange })
 
   return (
     <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">

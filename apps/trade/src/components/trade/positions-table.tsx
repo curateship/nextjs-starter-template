@@ -58,6 +58,7 @@ import {
 } from "@/lib/trade/live-trades"
 import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
+import { fillsSlippage } from "@/lib/trade/slippage"
 import { ifStoppedChange } from "@/lib/trade/if-stopped"
 import { positionStopPx } from "@/lib/trade/position-stop"
 import {
@@ -160,6 +161,7 @@ type PositionColumn =
   | "projected"
   | "ifStopped"
   | "fees"
+  | "slippage"
   | "unrealized"
 
 const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
@@ -171,6 +173,7 @@ const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
   { key: "projected", label: "At target / stop" },
   { key: "ifStopped", label: "If stopped" },
   { key: "fees", label: "Fees" },
+  { key: "slippage", label: "Slippage" },
   { key: "unrealized", label: "Making / losing" },
 ]
 
@@ -198,6 +201,7 @@ type TradeColumn =
   | "exit"
   | "size"
   | "pnl"
+  | "slippage"
   | "ending"
   /**
    * When the trade ended. No column of its own: it is the order the Journal
@@ -216,6 +220,7 @@ const TRADE_COLUMNS: ColumnSpec<TradeColumn>[] = [
   { key: "exit", label: "Out at" },
   { key: "size", label: "Size" },
   { key: "pnl", label: "Made / lost" },
+  { key: "slippage", label: "Slippage" },
   { key: "ending", label: "How it ended" },
 ]
 
@@ -252,6 +257,7 @@ function CopyNoteRow({
       <Cell className="text-muted-foreground">
         {formatDateTime(new Date(note.at))}
       </Cell>
+      <Cell>&mdash;</Cell>
       <Cell>&mdash;</Cell>
       <Cell>&mdash;</Cell>
       <Cell>&mdash;</Cell>
@@ -321,6 +327,36 @@ function Cell({
 function sumMoney(values: readonly (number | null)[]): number | null {
   if (values.some((value) => value === null || !Number.isFinite(value))) return null
   return values.reduce<number>((total, value) => total + (value ?? 0), 0)
+}
+
+/**
+ * Slippage in a row: the dollars between the price each order was first
+ * placed at and the price it filled at, signed like Made / lost
+ * (`lib/trade/slippage.ts`). A dash when any fill's aim is unknown.
+ */
+function SlippageCell({ value }: { value: number | null }) {
+  return (
+    <Cell>
+      {value === null ? (
+        <span className="text-muted-foreground">&mdash;</span>
+      ) : (
+        <PnlAmount className={moneyTone(value)}>{formatSignedUsd(value)}</PnlAmount>
+      )}
+    </Cell>
+  )
+}
+
+/** The Slippage heading's note, the same in both tables. */
+function SlippageInfo() {
+  return (
+    <InfoMark label="What slippage measures">
+      The difference between the price each order was first placed at and the
+      price it filled at, in dollars. Negative means the fill cost more than
+      aimed for. A chased order is measured from its first price. A dash means
+      a fill came from before this was recorded on 10 Nov 2026, or from an
+      order this app did not place, such as a Close.
+    </InfoMark>
+  )
 }
 
 /** Targets and stops are optional. Add the projections that exist. */
@@ -633,6 +669,7 @@ function PositionRow({
           </span>
         )}
       </Cell>
+      <SlippageCell value={fees?.slippage ?? null} />
       <Cell>
         {entryUnknown || unpriced ? (
           // No entry price to measure from, or no price to measure to.
@@ -920,6 +957,9 @@ export function PositionsTable({
             return position.live
               ? (feesOf(position)?.paid ?? Number.POSITIVE_INFINITY)
               : position.feesPaid
+          case "slippage":
+            // A row with no answer sorts to the end, as a missing stop does.
+            return feesOf(position)?.slippage ?? Number.NEGATIVE_INFINITY
           default:
             return positionProfit(position, mark)
         }
@@ -935,7 +975,7 @@ export function PositionsTable({
         footer={settled && !failed && rows.length > 0 ? (
           <TotalsFooter columns={POSITION_COLUMNS}
             practiceIncluded={includesPractice(rows, realWallets)}
-            signed={["unrealized", "ifStopped"]}
+            signed={["unrealized", "ifStopped", "slippage"]}
             customCells={{
               projected: <span className="flex items-center gap-1" title="Sum of available target and stop projections. Positions without a projection are excluded.">
                 <TotalMoney value={sumProjections(rows.map((position) => position.owned?.entryKnown === false ? null : targetsProfit(position)))} />
@@ -952,6 +992,7 @@ export function PositionsTable({
               value: sumMoney(rows.map((position) => position.owned?.priced === false ? null : positionValue(position, markOf(position)))),
               margin: rows.every((position) => position.owned) ? null : sumMoney(rows.map((position) => position.owned ? 0 : marginOf(position))),
               unrealized: sumMoney(rows.map((position) => position.owned?.priced === false || position.owned?.entryKnown === false ? null : positionProfit(position, markOf(position)))),
+              slippage: sumMoney(rows.map((position) => feesOf(position)?.slippage ?? null)),
               ifStopped: sumProjections(rows.map((position) => {
                 const stopPx = stopPxOf(position)
                 return stopPx == null || position.owned?.priced === false ? null : ifStoppedChange({ szi: position.szi, mark: markOf(position), stopPx })
@@ -976,6 +1017,8 @@ export function PositionsTable({
               figure is the engine&rsquo;s own. A dash means nothing has been
               reported yet, which is not the same as nothing charged.
             </InfoMark>
+          ) : key === "slippage" ? (
+            <SlippageInfo />
           ) : undefined
         }
         renderRow={(position) => (
@@ -1360,6 +1403,7 @@ export function TradesTable({
           case "exit":
           case "size":
           case "pnl":
+          case "slippage":
             return 0
           default:
             return row.note.at
@@ -1392,6 +1436,8 @@ export function TradesTable({
           return trade?.sz ?? Math.abs(position?.szi ?? 0)
         case "pnl":
           return trade?.pnl ?? 0
+        case "slippage":
+          return (trade ? fillsSlippage(trade.fills) : null) ?? Number.NEGATIVE_INFINITY
         case "ending":
           return trade
             ? tradeEndingLabel(trade)
@@ -1425,6 +1471,7 @@ export function TradesTable({
       sort={sort}
       direction={direction}
       onSort={toggleSort}
+      headerInfo={(key) => (key === "slippage" ? <SlippageInfo /> : undefined)}
       actions
       leadingHeader={
         <Checkbox
@@ -1494,6 +1541,7 @@ export function TradesTable({
                 {row.trade.returnPct.toFixed(1)}%
               </span>
             </Cell>
+            <SlippageCell value={fillsSlippage(row.trade.fills)} />
             <Cell>
               <TradeBadge tone={endingTone(row.trade)}>
                 {tradeEndingLabel(row.trade)}
@@ -1616,6 +1664,8 @@ export function TradesTable({
                 <>&mdash;</>
               )}
             </Cell>
+            <Cell>&mdash;</Cell>
+            {/* An incomplete history's fills are not a whole trade. */}
             <Cell>&mdash;</Cell>
             <Cell>
               <span className="inline-flex items-center gap-1.5">

@@ -60,11 +60,14 @@ describe("remembered trade panel layouts", () => {
     const saved = readTradePanelLayouts({
       legacyImported: true,
       current: {
-        [tradePanelLayoutKey.workspaceHorizontal]: {
+        [tradePanelLayoutKey.backtestVertical]: {
           markets: 20,
           chart: 58,
           account: 22,
         },
+        // The Trade dashboard's widths moved to the browser on 10 Nov 2026;
+        // an account still holding them reads without them.
+        "trade-workspace-horizontal-4": { blocks: 20, chart: 80 },
         [tradePanelLayoutKey.flowRunVertical]: {
           workspace: 72,
           trades: 28,
@@ -78,8 +81,9 @@ describe("remembered trade panel layouts", () => {
     })
 
     expect(
-      saved.current[tradePanelLayoutKey.workspaceHorizontal]
+      saved.current[tradePanelLayoutKey.backtestVertical]
     ).toBeUndefined()
+    expect(saved.current).not.toHaveProperty("trade-workspace-horizontal-4")
     expect(saved.current[tradePanelLayoutKey.flowRunVertical]).toEqual({
       workspace: 72,
       trades: 28,
@@ -116,10 +120,6 @@ describe("remembered trade panel layouts", () => {
 
   it("reads every valid old browser key and ignores malformed neighbours", () => {
     const values = new Map<string, string>([
-      [
-        tradePanelLayoutKey.workspaceHorizontal,
-        JSON.stringify({ blocks: 20, chart: 80 }),
-      ],
       [tradePanelLayoutKey.backtestVertical, "not json"],
       [
         tradePanelLayoutKey.flowRunVertical,
@@ -131,10 +131,6 @@ describe("remembered trade panel layouts", () => {
     })
 
     expect(imported).toEqual({
-      [tradePanelLayoutKey.workspaceHorizontal]: {
-        blocks: 20,
-        chart: 80,
-      },
       [tradePanelLayoutKey.flowRunVertical]: { workspace: 65, trades: 35 },
     })
   })

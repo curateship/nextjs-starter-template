@@ -269,6 +269,7 @@ export async function openPartClose(
         ...order,
         walletId: wallet.id,
         byHand: true,
+        aimedPx: "sent",
       })
       return {
         kind: "sold",

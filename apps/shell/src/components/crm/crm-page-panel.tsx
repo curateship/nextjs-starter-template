@@ -9,7 +9,7 @@ import { CoverRow, LockRow } from "@/components/shared/notes/page-rows"
 import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SavingDocument } from "@/components/shared/notes/saving-document"
-import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { MenuFooterButton, TabbedMenu, type TabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { useSubscriberForm } from "@/components/broadcasts/new-contact-dropdown"
 import { useBroadcastForm, useSegmentForm } from "@/components/crm/crm-add-forms"
@@ -75,6 +75,7 @@ export function CrmPagePanel({
   figures,
   blocks,
   widgets,
+  menuState,
   onPageChange,
   onFiguresChanged,
 }: {
@@ -86,12 +87,14 @@ export function CrmPagePanel({
   blocks: Omit<CrmBlocks, "figures">
   /** The ⋮'s Widgets tab: Overview's rows and spots. */
   widgets: React.ReactNode
+  /** The ⋮'s open state and tab, held by the dashboard so a widget's Manage widgets opens it at Widgets. */
+  menuState: TabbedMenuState
   onPageChange: (page: StoredPage) => void
   /** Reads the figures again, and the inbox with them, after an address changed. */
   onFiguresChanged: () => void
 }) {
   const [busy, setBusy] = React.useState(false)
-  const [menuOpen, setMenuOpen] = React.useState(false)
+  const { open: menuOpen, onOpenChange: setMenuOpen } = menuState
   const [removing, setRemoving] = React.useState<{ id: string; address: string } | null>(null)
   const [addingAddress, setAddingAddress] = React.useState(false)
 
@@ -175,6 +178,8 @@ export function CrmPagePanel({
               width="20.25rem"
               open={menuOpen}
               onOpenChange={setMenuOpen}
+              tab={menuState.tab}
+              onTabChange={menuState.onTabChange}
               tabs={[
                 {
                   value: "general",

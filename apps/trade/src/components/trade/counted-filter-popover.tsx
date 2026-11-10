@@ -38,17 +38,7 @@ export function CountedFilterPopover<Item>({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 gap-2 p-0">
-        {groups.map((group, index) => (
-          <React.Fragment key={group.label}>
-            {index > 0 ? <div className="border-t" /> : null}
-            <FilterGroup
-              label={group.label}
-              value={group.value}
-              options={countedOptions(items, group.valueOf, group.labelOf)}
-              onChange={group.onChange}
-            />
-          </React.Fragment>
-        ))}
+        <CountedFilterGroups items={items} groups={groups} />
         <div className="flex items-center justify-between border-t p-2.5">
           <Button type="button" variant="ghost" onClick={onClear}>
             Clear all
@@ -59,6 +49,67 @@ export function CountedFilterPopover<Item>({
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+/**
+ * The filter's groups alone, each with its counted choices, split by a line.
+ * The popover above draws them, and so does a widget's ⋮
+ * (`CountedFilterMenu`).
+ */
+function CountedFilterGroups<Item>({
+  items,
+  groups,
+}: {
+  items: readonly Item[]
+  groups: readonly CountedFilterGroup<Item>[]
+}) {
+  return groups.map((group, index) => (
+    <React.Fragment key={group.label}>
+      {index > 0 ? <div className="border-t" /> : null}
+      <FilterGroup
+        label={group.label}
+        value={group.value}
+        options={countedOptions(items, group.valueOf, group.labelOf)}
+        onChange={group.onChange}
+      />
+    </React.Fragment>
+  ))
+}
+
+/**
+ * The same filter inside a widget's ⋮, in place of its Filter button (Tyler,
+ * 10 Nov 2026: "replace it with filter"). Each pick applies at once; Clear
+ * filters shows under the groups only while one is set.
+ */
+export function CountedFilterMenu<Item>({
+  items,
+  groups,
+  onClear,
+}: {
+  items: readonly Item[]
+  groups: readonly CountedFilterGroup<Item>[]
+  onClear: () => void
+}) {
+  const active = groups.some((group) => Boolean(group.value))
+  return (
+    <div className="grid">
+      <CountedFilterGroups items={items} groups={groups} />
+      {active ? (
+        <div className="border-t p-1.5">
+          <Button type="button" variant="ghost" className="w-full justify-start" onClick={onClear}>
+            Clear filters
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** A group's small-caps name in a filter, and in a widget's ⋮ beside one. */
+export function FilterHeading({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <p className={cn("text-xs font-medium tracking-wide text-muted-foreground uppercase", className)}>{children}</p>
   )
 }
 
@@ -77,9 +128,7 @@ function FilterGroup({
 
   return (
     <div className="grid gap-0.5 p-2.5">
-      <p className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
+      <FilterHeading className="px-2 pb-1">{label}</FilterHeading>
       {options.map((option) => (
         <FilterOption
           key={option.value}

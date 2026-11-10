@@ -1,16 +1,20 @@
 import * as React from "react"
-import { CheckIcon, EllipsisVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, EllipsisVerticalIcon, LayoutGridIcon, PlusIcon } from "lucide-react"
 
-import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { keepOpenForInnerBoxes, PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { MenuFooterButton } from "@/components/shared/notes/tabbed-menu"
+import { useShowLeftPanel } from "@/components/shared/three-panels"
+import { useWidgetMenuOptions } from "@/components/shared/widgets/widget-card"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   BOTTOM_ROW_COLUMNS,
   noWidgetsText,
@@ -117,48 +121,84 @@ export function WidgetSettings({
 export type Spot = { row: WidgetRowName; index: number }
 
 /**
- * A widget's ⋮, in the place of its range line (Tyler, 8 Nov 2026: "Remove
- * the label and add a 3 vertical dots dropdown here to replace a widget"):
- * every widget to swap in, this one ticked, then Remove widget under a line,
- * which leaves the spot empty. Always shown (8 Nov 2026).
+ * Opens the page's widget settings: the Widgets tab of the left panel's ⋮.
+ * The dashboard that holds that ⋮ provides it; a widget's ⋮ has no Manage
+ * widgets row without it.
  */
-export function WidgetMenu({
-  title,
-  layout,
-  spot,
-  onChange,
-  ...source
-}: WidgetSource & {
-  title: string
-  layout: WidgetLayout
-  spot: Spot
-  onChange: (layout: WidgetLayout) => void
-}) {
-  const current = layout[spot.row].spots[spot.index]
+const ManageWidgets = React.createContext<(() => void) | null>(null)
+
+export const ManageWidgetsProvider = ManageWidgets.Provider
+
+/**
+ * A widget's ⋮, at the heading's right end and always shown (Tyler, 8 Nov
+ * 2026: "put the 3 dots icon always appear on widgets"). It holds the
+ * widget's own options, handed over with `WidgetMenuOptions` (a Filter's
+ * groups, a graph's period and dates), then, under a line, Manage widgets,
+ * which shows the left panel and opens its ⋮ at Widgets, where widgets are
+ * swapped, placed and removed (Tyler, 10 Nov 2026: "remove the widget
+ * management out of the widget itself", then "replace delete widget with
+ * 'Manage widgets' link that opens up the left top header widget tab").
+ */
+export function WidgetMenu({ title }: { title: string }) {
+  const [open, setOpen] = React.useState(false)
+  // Set by Manage widgets: the keyboard is not sent back to this ⋮, which
+  // would count as a press outside the left ⋮ it opens and shut it again.
+  const handingOver = React.useRef(false)
+  const options = useWidgetMenuOptions()
+  const manage = React.useContext(ManageWidgets)
+  const showLeft = useShowLeftPanel()
+  if (!options && !manage) return null
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           aria-label={`More for ${title}`}
-          // Always on screen (Tyler, 8 Nov 2026: "put the 3 dots icon always
-          // appear on widgets"), not only while the heading is pointed at.
-          className="ml-auto shrink-0 text-muted-foreground"
+          className={cn("ml-auto shrink-0 text-muted-foreground", open && "bg-muted text-foreground")}
         >
           <EllipsisVerticalIcon className="size-4" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" collisionPadding={16} className="max-h-[min(60vh,24rem)] w-max min-w-60">
-        <WidgetChoices source={source} layout={layout} current={current} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={() => onChange(placeWidget(layout, spot.row, spot.index, null))}>
-          <Trash2Icon className="size-4" />
-          Remove widget
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        collisionPadding={16}
+        aria-label={`More for ${title}`}
+        onInteractOutside={keepOpenForInnerBoxes}
+        onCloseAutoFocus={(event) => {
+          if (!handingOver.current) return
+          handingOver.current = false
+          event.preventDefault()
+        }}
+        // 18rem, then 30% narrower (Tyler, 10 Nov 2026: "reduce the widgets
+        // dropdown by 30%").
+        className="w-[12.6rem] gap-0 p-0"
+      >
+        {options ? (
+          <ScrollArea className="min-h-0" viewportClassName="max-h-[min(60vh,28rem)]">
+            {options}
+          </ScrollArea>
+        ) : null}
+        {manage ? (
+          <div className={cn("p-1.5", options && "border-t")}>
+            <MenuFooterButton
+              icon={<LayoutGridIcon />}
+              onClick={() => {
+                handingOver.current = true
+                setOpen(false)
+                showLeft?.()
+                // The left panel may have been shut, or behind its pill on a
+                // narrow screen: its ⋮ opens once it is drawn.
+                requestAnimationFrame(() => requestAnimationFrame(manage))
+              }}
+            >
+              Manage widgets
+            </MenuFooterButton>
+          </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   )
 }
 

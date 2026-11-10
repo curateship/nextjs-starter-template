@@ -215,7 +215,7 @@ function drawOrders(state: { settled: boolean; failed: boolean }): string {
 }
 
 function drawTrades(state: { settled: boolean; failed: boolean }): string {
-  return renderToStaticMarkup(
+  return draw(
     <TradesTable
       {...shared}
       {...state}
@@ -305,7 +305,7 @@ describe("the bottom panel's tables say what they know", () => {
         onResume={async () => true}
       />
     )
-    const trades = renderToStaticMarkup(
+    const trades = draw(
       <TradesTable
         {...shared}
         trades={[liveTrade("mainnet")]}
@@ -544,6 +544,7 @@ describe("the bottom panel's tables say what they know", () => {
 
     await act(async () => {
       root.render(
+        <TooltipProvider>
         <TradesTable
           {...shared}
           trades={[trade("one", "BTC"), trade("two", "ETH")]}
@@ -558,6 +559,7 @@ describe("the bottom panel's tables say what they know", () => {
           tickAllState={() => false}
           onLoadOlder={() => {}}
         />
+        </TooltipProvider>
       )
     })
 
@@ -1121,10 +1123,10 @@ describe("position and order totals", () => {
 
   it("adds displayed position value, margin, profit and stop changes", () => {
     const rows = [1, 2, 3].map((size, i) => ({ ...position("P" + i, size), entryPx: 90, slPx: 80 }))
-    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "—/-$60.00", "-$120.00", "$0.00", "+$60.00", ""])
+    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "—/-$60.00", "-$120.00", "$0.00", "—", "+$60.00", ""])
     expect(cells(renderPositions(rows.slice(0, 1)))[2]).toBe("$100.00")
     expect(cells(renderPositions(rows, true, false, 110))[2]).toBe("$660.00")
-    expect(cells(renderPositions(rows, true, false, 110))[8]).toBe("+$120.00")
+    expect(cells(renderPositions(rows, true, false, 110))[9]).toBe("+$120.00")
   })
 
   it("totals target and stop projections separately, with fees and rebates", () => {
@@ -1153,11 +1155,55 @@ describe("position and order totals", () => {
     expect(cells(renderPositions([row], true, false, 100, [{ ...fill, sz: 0.5 }]))[7]).toBe("—")
   })
 
+  it("shows slippage in dollars on each position and in the total, from the fills' aims", () => {
+    // Slippage, "aimed vs filled" (Tyler, 10 Nov 2026). A live position whose
+    // 1 coin was bought at $101 against an aim of $100, and a practice one
+    // whose 2 coins were bought at $99 against $100.
+    const live = { ...position("BTC", 1), walletId: "live-wallet",
+      live: { marginUsed: 100, liquidationPx: null, tpOrderId: null, slOrderId: null } }
+    const practice = position("SOL", 2)
+    const fill = (row: TradePosition, px: number, sz: number, aimedPx?: number): LiveFill => ({
+      fillId: `${row.id}-fill`, orderId: `${row.id}-order`, walletId: row.walletId,
+      marketKey: row.marketKey, side: "buy", px, sz, at: 1, closedPnl: 0, fee: 0,
+      dir: "Open Long", liquidation: false, aimedPx })
+    const host = renderPositions([live, practice], true, false, 100, [fill(live, 101, 1, 100), fill(practice, 99, 2, 100)])
+    const heads = Array.from(host.querySelectorAll("thead th")).map((th) => th.textContent)
+    const at = heads.findIndex((head) => head?.startsWith("Slippage"))
+    expect(at).toBeGreaterThan(-1)
+    const shown = Array.from(host.querySelectorAll("tbody tr")).map((row) => row.children[at]?.textContent)
+    expect(shown).toEqual(["-$1.00", "+$2.00"])
+    expect(cells(host)[8]).toBe("+$1.00")
+
+    // One fill with no aim makes that row a dash, and the total with it.
+    const unaimed = renderPositions([live, practice], true, false, 100, [fill(live, 101, 1), fill(practice, 99, 2, 100)])
+    expect(Array.from(unaimed.querySelectorAll("tbody tr")).map((row) => row.children[at]?.textContent)).toEqual(["—", "+$2.00"])
+    expect(cells(unaimed)[8]).toBe("—")
+  })
+
+  it("shows a Journal trade's slippage from its fills' aims", () => {
+    const trade: LiveTrade = { ...liveTrade("mainnet"), fills: [
+      { fillId: "in", orderId: "in", walletId: "live-wallet", marketKey: "hyperliquid:mainnet:BTC",
+        side: "buy", px: 100.5, sz: 1, at: 1, closedPnl: 0, fee: 0, dir: "Open Long", liquidation: false, aimedPx: 100 },
+      { fillId: "out", orderId: "out", walletId: "live-wallet", marketKey: "hyperliquid:mainnet:BTC",
+        side: "sell", px: 110, sz: 1, at: 2, closedPnl: 10, fee: 0, dir: "Close Long", liquidation: false, aimedPx: 110 },
+    ] }
+    const host = document.createElement("div")
+    host.innerHTML = draw(
+      <TradesTable {...shared} trades={[trade]} settled={true} failed={false} selectedId={null}
+        onSelectTrade={() => {}} onRemove={() => {}} ticked={new Set<string>()}
+        onTickTrade={() => {}} onTickVisible={() => {}} tickAllState={() => false} />
+    )
+    const heads = Array.from(host.querySelectorAll("thead th")).map((th) => th.textContent)
+    const at = heads.findIndex((head) => head?.startsWith("Slippage"))
+    expect(host.querySelector("tbody tr")?.children[at]?.textContent).toBe("-$0.50")
+  })
+
   it("does not label incomplete sums as complete totals", () => {
     const rows = [position("BTC", 1), { ...position("SOL", 1), owned: { priced: false, entryKnown: false } }]
     const totals = cells(renderPositions(rows))
     expect(totals[2]).toBe("—")
-    expect(totals[8]).toBe("—")
+    // Making / losing, after Slippage.
+    expect(totals[9]).toBe("—")
     expect(totals[6]).toBe("—")
   })
 

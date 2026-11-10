@@ -12,7 +12,7 @@ import {
   topPageRows,
 } from "@/components/admin-dashboard/figure-rows"
 import { WidgetCard } from "@/components/shared/widgets/widget-card"
-import { WidgetGrid, type WidgetMenuProps } from "@/components/shared/widgets/widget-grid"
+import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
 import { WidgetMenu } from "@/components/shared/widgets/widget-menus"
 import { EmptyChart, LegendDot } from "@/components/shared/dashboard/chart-card"
 import { DailyBarChart } from "@/components/shared/dashboard/daily-bar-chart"
@@ -57,9 +57,9 @@ export function OverviewTab({
       layout={layout}
       days={days}
       onChange={onChange}
-      drawWidget={(id, menu) => {
+      drawWidget={(id) => {
         const shell = SHELL_WIDGET_BY_ID.get(id)
-        return shell ? <ShellWidget id={shell.id} figures={figures} menu={menu} /> : null
+        return shell ? <ShellWidget id={shell.id} figures={figures} /> : null
       }}
     />
   )
@@ -95,7 +95,7 @@ function ListBody({ rows, empty }: { rows: SideRow[]; empty: string }) {
   )
 }
 
-function ShellWidget({ id, figures, menu }: { id: ShellWidgetId; figures: OverviewFigures; menu: WidgetMenuProps }) {
+function ShellWidget({ id, figures }: { id: ShellWidgetId; figures: OverviewFigures }) {
   const { traffic, ai, metered } = figures
   const widget = SHELL_WIDGET_BY_ID.get(id)!
   const Icon = widget.icon
@@ -104,7 +104,7 @@ function ShellWidget({ id, figures, menu }: { id: ShellWidgetId; figures: Overvi
       title={widget.label}
       icon={<Icon />}
       count={count}
-      menu={<WidgetMenu title={widget.label} {...menu} />}
+      menu={<WidgetMenu title={widget.label} />}
     >
       {body}
     </WidgetCard>

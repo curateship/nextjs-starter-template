@@ -15,7 +15,7 @@ import {
   type PageCover,
   type PageLock,
 } from "@/components/shared/notes/page-rows"
-import { TabbedMenu } from "@/components/trade/notes/tabbed-menu"
+import { TabbedMenu, type TabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -61,7 +61,10 @@ export function DashboardPageMenu({
   hideEmptyBlocks,
   widgets,
   alerts,
+  menuState,
 }: {
+  /** The ⋮'s open state and tab, held by the dashboard so a widget's Manage widgets opens it at Widgets. */
+  menuState: TabbedMenuState
   /**
    * The alerts, fired and waiting, as a tab of the ⋮ after Widgets (Tyler,
    * 8 Nov 2026: "Put the alerts archive here and remove the alert block. We
@@ -84,6 +87,10 @@ export function DashboardPageMenu({
       // right end, rather than hanging off the screen's left edge (Tyler,
       // 8 Nov 2026: "the left panel dropdown to align right").
       align="start"
+      open={menuState.open}
+      onOpenChange={menuState.onOpenChange}
+      tab={menuState.tab}
+      onTabChange={menuState.onTabChange}
       tabs={[
         {
           value: "general",

@@ -270,6 +270,7 @@ async function moveOrder(
   // The first order is not a chase and does not wait for the gate — an arrow
   // that had to queue behind a rate limit before it could ask for a price at
   // all would be a strategy that acts a random number of seconds late.
+  const fresh = plan.orderId === null
   if (plan.orderId !== null) {
     if (now - plan.chasedAt < CHASE_EVERY_MS) return false
     const walletLast = walletChasedAt.get(book.wallet.id) ?? 0
@@ -283,9 +284,13 @@ async function moveOrder(
   // to be the "before" that a fill can be measured against.
   plan.heldWhenPlaced = book.positions.get(marketKey)?.szi ?? 0
   plan.missingSince = 0
+  // The first send's price is what every chase of this order is measured
+  // against; an order going out with nothing before it starts its own.
+  if (fresh || plan.aimedPx === undefined) plan.aimedPx = wanted
   plan.orderId = await deps.insertOrder({
     marketKey,
     side,
+    aimedPx: plan.aimedPx,
     px: wanted,
     sz,
     leverage: 1,

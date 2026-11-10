@@ -55,7 +55,7 @@ export function BotsOverview({
       offer={BOTS_WIDGET_OFFER}
       layout={layout}
       onChange={onChange}
-      drawWidget={(id, menu) => {
+      drawWidget={(id) => {
         const widget = findBotsWidget(id)
         if (!widget) return null
         const Icon = widget.icon
@@ -64,7 +64,7 @@ export function BotsOverview({
             title={widget.label}
             icon={<Icon />}
             count={bots.length}
-            menu={<WidgetMenu title={widget.label} {...menu} />}
+            menu={<WidgetMenu title={widget.label} />}
           >
             <RunningBotsWidget
               bare
