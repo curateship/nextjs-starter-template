@@ -13,7 +13,7 @@ All of them are in `src/components/shared/`.
   "Set left side panel narrowest default to 10%"; both sides 16% before). Each side's default is also the narrowest it drags to,
   as Tyler has wanted since 31 Oct 2026 ("The default width needs to be the
   narrowest width the panel have"; 9 Nov: "cannot go lower than that").
-  Settings → Styling → Side panels can open them wider, up to 36%
+  Admin → Styling → Side panels can open them wider, up to 36%
   each (Tyler, 9 Nov 2026; the app's `workspace/docs/settings/side-panel-widths.md`).
   A side panel drags shut, comes back from a tab on the middle
   panel's edge, and a double-click on blank space toggles it. Widths are kept
@@ -111,7 +111,7 @@ All of them are in `src/components/shared/`.
 
 - **`dashboard-tabs.tsx`, `DashboardTabs` and `DashboardTabButton`.** The tabs
   in a panel header, with a count after the word. They are drawn the way
-  Settings → Styling → **Dashboard tabs** says for the whole site: the grey
+  Admin → Styling → **Dashboard tabs** says for the whole site: the grey
   pills, or words with a line under the one showing. Tyler, 20 Oct 2026: "Line
   tab or pill tabs should be a choice all apps can make", with pills for a
   site that never chose. Either way the marker slides to the tab picked, on

@@ -13,11 +13,18 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { PublicHeaderActionsEditor } from "@/components/settings/public-header-actions-editor"
 import { PublicSocialEditor } from "@/components/settings/public-social-editor"
-import { SettingsCardSection } from "@/components/settings/settings-card-section"
-import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import {
+  ChoiceTiles,
+  LogoMark,
+  MenuDashes,
+  SettingsRow,
+  SettingsRowsCard,
+  SettingsTile,
+  SwitchTile,
+  TextLines,
+} from "@/components/settings/settings-rows"
 import { PublicUserPanelDialog } from "@/components/settings/public-user-panel-settings"
 import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import {
@@ -65,6 +72,13 @@ import {
 } from "@/lib/pages/public-device"
 import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { NumberField } from "@/components/ui/number-field"
 import {
   PUBLIC_BREADCRUMB_HINTS,
@@ -111,6 +125,7 @@ import {
 import type { PublicUserPanel } from "@/lib/pages/public-user-panel"
 import { isSafeWrittenPageLink } from "@/lib/pages/written-page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { ADD_CHIP_CLASS } from "@/components/settings/top-right-settings"
 import { cn } from "@/lib/utils"
 
 type PublicSiteSettingsProps = {
@@ -142,7 +157,7 @@ type PublicSiteSettingsProps = {
 }
 
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
 
 export function PublicSiteSettings({
   navigation,
@@ -171,17 +186,18 @@ export function PublicSiteSettings({
   const [editingUserPanel, setEditingUserPanel] = React.useState(false)
 
   return (
-    // Three cards, one per part of a public page: the header, the trail under
-    // it, and the footer. They were six until 25 Sep 2026; the menu and the
-    // user panel are the header, and the copyright line is the footer.
+    // Three cards of rows, one per part of a public page: the header, the
+    // trail under it, and the footer (Tyler, 9 Nov 2026: "redesign the
+    // public page", with a drawing; `settings-rows.tsx` holds the pieces).
     <CardGroup>
-      <PublicHeaderSettings
-        header={publicHeader}
-        pageWidth={pageWidth}
-        chromeFont={chromeFont}
-        onChange={onPublicHeaderChange}
-        onChromeFontChange={onChromeFontChange}
-      >
+      <SettingsRowsCard>
+        <PublicHeaderRows
+          header={publicHeader}
+          pageWidth={pageWidth}
+          chromeFont={chromeFont}
+          onChange={onPublicHeaderChange}
+          onChromeFontChange={onChromeFontChange}
+        />
         <PublicLinkEditor
           id="public-menu"
           title="Public menu"
@@ -190,46 +206,58 @@ export function PublicSiteSettings({
           onLinksChange={onNavigationChange}
           onSaveConfig={onSaveConfig}
           allowGroups
-          asSection
         />
-        <SettingsCardSection
+        <SettingsRow
           title="Action items"
-          description="The controls at the right-hand end of the header. Drag them into the order they should appear, and untick one to leave it out. The account corner opens its own settings."
+          description="The controls at the right-hand end of the header. Drag them into the order they should appear, and switch one off to leave it out. The account corner opens its own settings."
         >
           <PublicHeaderActionsEditor
             actions={headerActions}
             onActionsChange={onHeaderActionsChange}
             onEditUserPanel={() => setEditingUserPanel(true)}
           />
-        </SettingsCardSection>
-      </PublicHeaderSettings>
-      <PublicBreadcrumbSettings
-        breadcrumbs={publicBreadcrumbs}
-        onChange={onPublicBreadcrumbsChange}
-      />
-      <PublicLinkEditor
-        id="public-footer"
-        title="Public footer"
-        description="Links shown at the bottom of every public page, in the order you put them."
-        links={footer}
-        onLinksChange={onFooterChange}
-        onSaveConfig={onSaveConfig}
-      >
-        <SettingsCardSection
+        </SettingsRow>
+      </SettingsRowsCard>
+
+      <SettingsRowsCard>
+        <PublicBreadcrumbSettings
+          breadcrumbs={publicBreadcrumbs}
+          onChange={onPublicBreadcrumbsChange}
+        />
+      </SettingsRowsCard>
+
+      <SettingsRowsCard>
+        <PublicLinkEditor
+          id="public-footer"
+          title="Public footer"
+          description="Links shown at the bottom of every public page, in the order you put them."
+          links={footer}
+          onLinksChange={onFooterChange}
+          onSaveConfig={onSaveConfig}
+        />
+        <SettingsRow
           title="Footer alignment"
           description="Where the logo, the description, the social buttons, the links and the copyright line sit."
         >
-          <SettingsSelectRow
+          <ChoiceTiles
             id="public-footer-alignment"
             label="Alignment"
             hint={PUBLIC_FOOTER_ALIGNMENT_HINTS[footerAlignment]}
             value={footerAlignment}
-            options={PUBLIC_FOOTER_ALIGNMENTS}
-            optionLabel={(value) => PUBLIC_FOOTER_ALIGNMENT_LABELS[value]}
-            onValueChange={onFooterAlignmentChange}
+            onChange={onFooterAlignmentChange}
+            options={PUBLIC_FOOTER_ALIGNMENTS.map((alignment) => ({
+              value: alignment,
+              label: PUBLIC_FOOTER_ALIGNMENT_LABELS[alignment],
+              drawing: (
+                <TextLines
+                  align={alignment === "center" ? "center" : "left"}
+                  faint={alignment === "inherit"}
+                />
+              ),
+            }))}
           />
-        </SettingsCardSection>
-        <SettingsCardSection
+        </SettingsRow>
+        <SettingsRow
           title="Social accounts"
           description="Drawn as buttons under the site's description. Drag them into the order they should appear."
         >
@@ -238,13 +266,13 @@ export function PublicSiteSettings({
             onLinksChange={onFooterSocialChange}
             onSaveConfig={onSaveConfig}
           />
-        </SettingsCardSection>
-        <SettingsCardSection
+        </SettingsRow>
+        <SettingsRow
           title="Copyright"
           description="One short copyright line shown beneath the footer links. Leave it empty to show nothing."
         >
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="public-footer-copyright-input">
+          <div className="grid w-full max-w-md gap-2">
+            <FieldLabel htmlFor="public-footer-copyright-input" className="font-normal">
               Copyright
             </FieldLabel>
             <Input
@@ -255,8 +283,8 @@ export function PublicSiteSettings({
               onChange={(event) => onFooterCopyrightChange(event.target.value)}
             />
           </div>
-        </SettingsCardSection>
-      </PublicLinkEditor>
+        </SettingsRow>
+      </SettingsRowsCard>
 
       {editingUserPanel ? (
         <PublicUserPanelDialog
@@ -273,7 +301,7 @@ export function PublicSiteSettings({
 }
 
 /**
- * The per-kind switches for the "Home / Page" trail.
+ * The per-kind switches for the "Home / Page" trail, one row of switch tiles.
  *
  * One switch per kind rather than per page: the shell's public pages are flat,
  * so a page list would be dozens of rows all saying the same thing.
@@ -286,149 +314,233 @@ function PublicBreadcrumbSettings({
   onChange: (breadcrumbs: PublicBreadcrumbs) => void
 }) {
   return (
-    <CollapsibleSettingsCard
-      storageId="public-breadcrumbs"
+    <SettingsRow
       title="Breadcrumbs"
       description="Show a short trail under the header, so a visitor arriving from a search result can see where they are. The front page never shows one."
-      contentClassName="grid gap-4"
     >
       {PUBLIC_BREADCRUMB_KINDS.map((kind) => (
-        <SettingsSwitchRow
+        <SwitchTile
           key={kind}
           id={`public-breadcrumbs-${kind}`}
           checked={breadcrumbs[kind]}
-          onCheckedChange={(checked) =>
-            onChange({ ...breadcrumbs, [kind]: checked })
-          }
+          onCheckedChange={(checked) => onChange({ ...breadcrumbs, [kind]: checked })}
           label={PUBLIC_BREADCRUMB_LABELS[kind]}
           hint={PUBLIC_BREADCRUMB_HINTS[kind]}
         />
       ))}
-    </CollapsibleSettingsCard>
+    </SettingsRow>
   )
 }
 
-function PublicHeaderSettings({
+/** A number in pixels in a tile, its unit drawn inside the box. */
+function PixelTile({
+  id,
+  label,
+  hint,
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+}: {
+  id: string
+  label: string
+  hint: string
+  value: number
+  min: number
+  max: number
+  disabled?: boolean
+  onChange: (value: number) => void
+}) {
+  return (
+    <SettingsTile className="relative w-52">
+      <NumberField
+        id={id}
+        label={label}
+        hint={hint}
+        value={value}
+        min={min}
+        max={max}
+        disabled={disabled}
+        labelClassName="[&_label]:font-normal"
+        inputClassName="h-9 w-full pr-8"
+        onChange={onChange}
+      />
+      <span aria-hidden className="pointer-events-none absolute right-6 bottom-3 flex h-9 items-center text-xs text-muted-foreground">
+        px
+      </span>
+    </SettingsTile>
+  )
+}
+
+/**
+ * The header's own settings, three rows: how it behaves, its sizes, and its
+ * look. Logo size and Menu position are picked by a small drawing of each.
+ */
+function PublicHeaderRows({
   header,
   pageWidth,
   chromeFont,
   onChange,
   onChromeFontChange,
-  children,
 }: {
   header: PublicHeader
   pageWidth: number
   chromeFont: PublicThemeChromeFont
   onChange: (header: PublicHeader) => void
   onChromeFontChange: (font: PublicThemeChromeFont) => void
-  /** The menu and the user panel, drawn as sections under the layout fields. */
-  children?: React.ReactNode
 }) {
   const update = (patch: Partial<PublicHeader>) =>
     onChange({ ...header, ...patch })
 
   return (
-    <CollapsibleSettingsCard
-      storageId="public-header-layout"
-      title="Header layout"
-      description="Choose how the full public header behaves on every public page."
-      contentClassName="grid gap-4"
-    >
-      <SettingsSelectRow
-        id="public-header-font"
-        label="Navigation & footer font"
-        hint="The face the public header and footer read in. Same as the body leaves them on the site's own font."
-        value={chromeFont}
-        options={PUBLIC_THEME_CHROME_FONTS}
-        optionLabel={(font) => PUBLIC_THEME_HEADING_FONT_LABELS[font]}
-        onValueChange={onChromeFontChange}
-      />
+    <>
+      <SettingsRow
+        title="Header behaviour"
+        description="Choose how the full public header behaves on every public page."
+      >
+        <SwitchTile
+          id="public-header-sticky"
+          checked={header.sticky}
+          onCheckedChange={(sticky) => update({ sticky })}
+          label="Sticky header"
+          hint="Keeps the header at the top while a visitor scrolls."
+        />
+        <SwitchTile
+          id="public-header-full-width"
+          checked={header.fullWidth}
+          onCheckedChange={(fullWidth) => update({ fullWidth })}
+          label="Full width"
+          hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
+        />
+        <SettingsTile className="flex w-52 items-center justify-between gap-2 py-2">
+          <FieldLabel
+            htmlFor="public-header-blur"
+            hint="How much the page behind the header is blurred as it scrolls under a sticky header. A solid header colour from Styling covers it."
+            className="min-w-0 font-normal"
+          >
+            Glass blur
+          </FieldLabel>
+          <Select
+            value={header.blur}
+            onValueChange={(blur) => update({ blur: blur as PublicHeader["blur"] })}
+          >
+            <SelectTrigger id="public-header-blur" className="h-8 w-auto">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_HEADER_BLURS.map((blur) => (
+                <SelectItem key={blur} value={blur}>
+                  {PUBLIC_HEADER_BLUR_LABELS[blur]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingsTile>
+      </SettingsRow>
 
-      <SettingsSwitchRow
-        id="public-header-sticky"
-        checked={header.sticky}
-        onCheckedChange={(sticky) => update({ sticky })}
-        label="Sticky header"
-        hint="Keeps the header at the top while a visitor scrolls."
-      />
-
-      <SettingsSwitchRow
-        id="public-header-full-width"
-        checked={header.fullWidth}
-        onCheckedChange={(fullWidth) => update({ fullWidth })}
-        label="Full width"
-        hint="Spreads the logo, menu and buttons across the whole window instead of stopping at a set width."
-      />
-
-      {header.fullWidth ? null : (
-        <NumberField
+      <SettingsRow title="Header sizing">
+        <PixelTile
           id="public-header-width"
           label="Navigation width"
-          hint={`The widest the logo, menu and buttons spread, in pixels, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`}
+          hint={
+            header.fullWidth
+              ? "Full width is on, so the header spans the whole window and this number waits until it is off."
+              : `The widest the logo, menu and buttons spread, from ${MIN_PUBLIC_HEADER_WIDTH} to ${MAX_PUBLIC_HEADER_WIDTH}. It follows the page width in Styling until you type a number here.`
+          }
           value={header.width ?? pageWidth}
           min={MIN_PUBLIC_HEADER_WIDTH}
           max={MAX_PUBLIC_HEADER_WIDTH}
-          inputClassName="w-full sm:w-32"
+          disabled={header.fullWidth}
           onChange={(width) => update({ width })}
         />
-      )}
+        <PixelTile
+          id="public-header-logo-gap"
+          label="Space after the logo"
+          hint={`Empty space between the logo and the first menu word, from ${MIN_PUBLIC_HEADER_LOGO_GAP} to ${MAX_PUBLIC_HEADER_LOGO_GAP}. It moves the menu along the bar on screens 1024px and wider. Phones are unchanged, because the menu is behind the menu button there.`}
+          value={header.logoGap}
+          min={MIN_PUBLIC_HEADER_LOGO_GAP}
+          max={MAX_PUBLIC_HEADER_LOGO_GAP}
+          onChange={(logoGap) => update({ logoGap })}
+        />
+        <PixelTile
+          id="public-header-menu-font-size"
+          label="Menu text size"
+          hint={`How big the menu words are, from ${MIN_PUBLIC_HEADER_MENU_FONT_SIZE} to ${MAX_PUBLIC_HEADER_MENU_FONT_SIZE}. ${DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE} is the size the menu has always been. Every word in the menu follows it, on a phone as well, including the links inside a group.`}
+          value={header.menuFontSize}
+          min={MIN_PUBLIC_HEADER_MENU_FONT_SIZE}
+          max={MAX_PUBLIC_HEADER_MENU_FONT_SIZE}
+          onChange={(menuFontSize) => update({ menuFontSize })}
+        />
+        <ChoiceTiles
+          id="public-header-logo-size"
+          label="Logo size"
+          hint="Sets the logo height to 32, 48 or 64 pixels."
+          value={header.logoSize}
+          onChange={(logoSize) => update({ logoSize })}
+          options={PUBLIC_HEADER_LOGO_SIZES.map((size) => ({
+            value: size,
+            label: size === "small" ? "Small" : size === "large" ? "Large" : "Medium",
+            drawing: (
+              <span className="flex w-full items-center justify-between">
+                <LogoMark size={size} />
+                <MenuDashes />
+              </span>
+            ),
+          }))}
+        />
+      </SettingsRow>
 
-      <SettingsSelectRow
-        id="public-header-menu-alignment"
-        label="Menu position"
-        hint="Centre places the desktop menu in the middle of the page. Phone navigation stays in its menu button."
-        value={header.menuAlignment}
-        options={PUBLIC_HEADER_MENU_ALIGNMENTS}
-        optionLabel={(alignment) => (alignment === "center" ? "Centre" : "Left")}
-        onValueChange={(menuAlignment) => update({ menuAlignment })}
-      />
-
-      <SettingsSelectRow
-        id="public-header-logo-size"
-        label="Logo size"
-        hint="Sets the logo height to 32, 48, or 64 pixels."
-        value={header.logoSize}
-        options={PUBLIC_HEADER_LOGO_SIZES}
-        optionLabel={(size) =>
-          size === "small" ? "Small" : size === "large" ? "Large" : "Standard"
-        }
-        onValueChange={(logoSize) => update({ logoSize })}
-      />
-
-      <NumberField
-        id="public-header-logo-gap"
-        label="Space after the logo"
-        hint={`Empty space between the logo and the first menu word, in pixels, from ${MIN_PUBLIC_HEADER_LOGO_GAP} to ${MAX_PUBLIC_HEADER_LOGO_GAP}. It moves the menu along the bar on screens 1024px and wider. Phones are unchanged, because the menu is behind the menu button there.`}
-        value={header.logoGap}
-        min={MIN_PUBLIC_HEADER_LOGO_GAP}
-        max={MAX_PUBLIC_HEADER_LOGO_GAP}
-        inputClassName="w-full sm:w-32"
-        onChange={(logoGap) => update({ logoGap })}
-      />
-
-      <NumberField
-        id="public-header-menu-font-size"
-        label="Menu text size"
-        hint={`How big the menu words are, in pixels, from ${MIN_PUBLIC_HEADER_MENU_FONT_SIZE} to ${MAX_PUBLIC_HEADER_MENU_FONT_SIZE}. ${DEFAULT_PUBLIC_HEADER_MENU_FONT_SIZE} is the size the menu has always been. Every word in the menu follows it, on a phone as well, including the links inside a group.`}
-        value={header.menuFontSize}
-        min={MIN_PUBLIC_HEADER_MENU_FONT_SIZE}
-        max={MAX_PUBLIC_HEADER_MENU_FONT_SIZE}
-        inputClassName="w-full sm:w-32"
-        onChange={(menuFontSize) => update({ menuFontSize })}
-      />
-
-      <SettingsSelectRow
-        id="public-header-blur"
-        label="Glass blur effect"
-        hint="How much the page behind the header is blurred as it scrolls under a sticky header. A solid header colour from Styling covers it."
-        value={header.blur}
-        options={PUBLIC_HEADER_BLURS}
-        optionLabel={(blur) => PUBLIC_HEADER_BLUR_LABELS[blur]}
-        onValueChange={(blur) => update({ blur })}
-      />
-
-      {children}
-    </CollapsibleSettingsCard>
+      <SettingsRow title="Header style">
+        <SettingsTile className="w-52">
+          <FieldLabel
+            htmlFor="public-header-font"
+            hint="The face the public header and footer read in. Same as the body leaves them on the site's own font."
+            className="font-normal"
+          >
+            Navigation &amp; footer font
+          </FieldLabel>
+          <Select
+            value={chromeFont}
+            onValueChange={(font) => onChromeFontChange(font as PublicThemeChromeFont)}
+          >
+            <SelectTrigger id="public-header-font" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PUBLIC_THEME_CHROME_FONTS.map((font) => (
+                <SelectItem key={font} value={font}>
+                  {PUBLIC_THEME_HEADING_FONT_LABELS[font]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingsTile>
+        <ChoiceTiles
+          id="public-header-menu-alignment"
+          label="Menu position"
+          hint="Centre places the desktop menu in the middle of the page. Phone navigation stays in its menu button."
+          value={header.menuAlignment}
+          onChange={(menuAlignment) => update({ menuAlignment })}
+          options={PUBLIC_HEADER_MENU_ALIGNMENTS.map((alignment) => ({
+            value: alignment,
+            label: alignment === "center" ? "Centre" : "Left",
+            drawing:
+              alignment === "center" ? (
+                <span className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
+                  <LogoMark size="small" />
+                  <MenuDashes />
+                </span>
+              ) : (
+                <span className="flex w-full items-center gap-1.5">
+                  <LogoMark size="small" />
+                  <MenuDashes />
+                </span>
+              ),
+          }))}
+        />
+      </SettingsRow>
+    </>
   )
 }
 
@@ -440,8 +552,6 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   onLinksChange,
   onSaveConfig,
   allowGroups = false,
-  asSection = false,
-  children,
 }: {
   id: string
   title: string
@@ -450,10 +560,6 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
   onLinksChange: (links: T[]) => void
   onSaveConfig: () => Promise<boolean>
   allowGroups?: boolean
-  /** Drawn inside another card rather than as a card of its own. */
-  asSection?: boolean
-  /** Further sections inside this editor's card, under its links. */
-  children?: React.ReactNode
 }) {
   const [openIndex, setOpenIndex] = React.useState<number | null>(null)
   const [creatingGroup, setCreatingGroup] = React.useState(false)
@@ -560,11 +666,11 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                  className={ADD_CHIP_CLASS}
                   aria-label="Add item to public menu"
-                  title="Add menu item"
                 >
                   <PlusIcon className="h-4 w-4" />
+                  Add
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-44">
@@ -585,11 +691,11 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
                 type="button"
                 disabled={footerAtLimit}
                 onClick={addLink}
-                className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                className={cn(ADD_CHIP_CLASS, "disabled:cursor-not-allowed disabled:opacity-50")}
                 aria-label={`Add link to ${title.toLowerCase()}`}
-                title="Add link"
               >
                 <PlusIcon className="h-4 w-4" />
+                Add
               </button>
             </DisabledReason>
           )}
@@ -600,21 +706,9 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
 
   return (
     <>
-      {asSection ? (
-        <SettingsCardSection title={title} description={description}>
-          {editor}
-        </SettingsCardSection>
-      ) : (
-        <CollapsibleSettingsCard
-          storageId={id}
-          title={title}
-          description={description}
-          contentClassName="space-y-4"
-        >
-          {editor}
-          {children}
-        </CollapsibleSettingsCard>
-      )}
+      <SettingsRow title={title} description={description}>
+        {editor}
+      </SettingsRow>
 
       <ConfirmDialog
         open={Boolean(pendingDeleteEntry)}

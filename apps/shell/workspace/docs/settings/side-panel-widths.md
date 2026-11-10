@@ -1,6 +1,6 @@
 # Side panel widths
 
-Settings → Styling → Side panels sets how wide the left and right panels open
+Admin → Styling → Side panels sets how wide the left and right panels open
 on every three-panel dashboard (`ThreePanels` in
 `src/components/shared/three-panels.tsx`): the CRM, the Admin dashboard and
 any other. Tyler asked for it on 9 Nov 2026: "Add another option for me to

@@ -320,7 +320,7 @@ export function ShellLayout({
   // header, and name the field, instead of dropping the edit in silence. The
   // header is the only warning that reaches you when the edit that broke the
   // save happened on another settings tab (e.g. the sidebar's Reset, or a hex
-  // code left half-typed on Public → Styling).
+  // code left half-typed in Admin → Styling → Public).
   // Returns whether it saved.
   const saveConfigNow = React.useCallback(async () => {
     if (configSaveTimerRef.current) {

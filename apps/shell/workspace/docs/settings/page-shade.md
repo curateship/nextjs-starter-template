@@ -1,7 +1,7 @@
 # The gutter shade
 
 The page behind the cards, in the middle of every dashboard, has its own
-shade, and an admin sets it in Settings → Styling → Gutter shade. Tyler asked
+shade, and an admin sets it in Admin → Styling → Gutter shade. Tyler asked
 for it on 7 November 2026, after finding the left menu could change shade but
 the middle could not.
 

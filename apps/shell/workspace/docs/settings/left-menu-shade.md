@@ -1,7 +1,7 @@
 # The left menu shade
 
 The left menu and the bar along the top share one background, and an admin
-sets how light it is in Settings → Styling → Left menu shade. Tyler asked for
+sets how light it is in Admin → Styling → Left menu shade. Tyler asked for
 the card on 30 October 2026.
 
 ## What the slider means

@@ -35,7 +35,7 @@
 
 ## Borders
 
-- **Every border comes from the border settings in Settings → Styling.** No
+- **Every border comes from the border settings in Admin → Styling.** No
   component names its own border shade. Divider and frame lines are a plain
   `border` / `border-b` / `border-t` with no color class, so they take
   `--border`, the variable the Divider lines setting writes. Card and surface

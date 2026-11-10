@@ -255,7 +255,7 @@ the guess that one might:
   and `featurePost`. Everyone signs in on the one `/login`; `/home` sends an
   app role to its landing page. The app's invite endpoint makes the account
   with `inviteAccount` (`src/server/people/invite.ts`), and the site admin can
-  also pick the role on Admin → Users. Settings → Navigation edits each role's
+  also pick the role on Admin → Users. Admin → Navigations edits each role's
   menu under its own name. A header control, quick setting or left header
   content that names no `roles` is for admins and members only, so an app role
   sees one only when the app names it. Unset declares no roles, and every

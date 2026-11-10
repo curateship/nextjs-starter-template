@@ -41,7 +41,7 @@ pixels wider than the space there is. `clip` rather than `hidden`, because
 is the default, and it is what every row saved before this choice existed reads
 as.
 
-Follow the site means the row reads Settings > Styling > Page frame > Content
+Follow the site means the row reads Admin > Styling > Public > Page frame > Content
 alignment, the app-wide choice that moves all public content at once. The other
 three override it for that one row, so a centred site can still have a
 left-aligned FAQ, or a left-aligned site one centred hero.

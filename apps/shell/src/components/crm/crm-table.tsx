@@ -269,8 +269,15 @@ export function CrmTableRow({
   onOpen,
   onDelete,
   onRightClick,
+  cog,
   children,
 }: {
+  /**
+   * What the cog does in place of opening the row, and what it is called:
+   * a Pages row's cog opens its page in the builder (Tyler, 9 Nov 2026: "in
+   * pages table clicking on the cog should go to the editor").
+   */
+  cog?: { label: string; onPress: () => void }
   /** A bin after the open button, as Project's rows have; the caller asks first. */
   onDelete?: () => void
   open: boolean
@@ -357,7 +364,13 @@ export function CrmTableRow({
       <RowOpen.Provider value={shownOpen}>{children}</RowOpen.Provider>
       {withActions ? (
       <TableCell column="actions">
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open ${label}`} onClick={press}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={cog?.label ?? `Open ${label}`}
+          onClick={cog ? cog.onPress : press}
+        >
           <SettingsIcon className="size-4" />
         </Button>
         {onDelete ? (

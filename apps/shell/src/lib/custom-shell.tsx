@@ -870,7 +870,7 @@ export function shellConfigSaveRefusal(config: ShellConfig): string | null {
     return "add a workspace name"
   }
   const colour = publicThemeColorProblem(config.publicTheme)
-  return colour ? `fix the ${colour} on Public \u2192 Styling` : null
+  return colour ? `fix the ${colour} in Admin \u2192 Styling \u2192 Public` : null
 }
 
 /**

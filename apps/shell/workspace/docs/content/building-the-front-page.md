@@ -193,7 +193,7 @@ address, so a page whose address changes stays on the list.
 **Only pages an admin added can be ticked.** They are the ones with a picture
 and a description to put on a card. The page being built is left off its own
 list, because a card linking to the page it sits on goes nowhere. The cards
-follow the order of the list in the panel, which is the Pages screen's own order
+follow the order of the list in the panel, which is Admin's Pages section's own order
 by address, so there is nothing to drag. One block shows up to 24 pages.
 
 **A card is left out for a visitor who could not open its page.** A switched-off
@@ -310,7 +310,7 @@ outside the block entirely, where no background reaches.
 
 ## Adding a page
 
-Press **Add a page** on the Pages screen. It asks for a name, an address, a
+Press **Add a page** on Admin's Pages section. It asks for a name, an address, a
 description and a picture, makes the page, and opens it in the editor with one empty rich text
 block waiting.
 Everything else about the page is built there, including its own settings.
@@ -375,7 +375,7 @@ permission, not plumbing. The front page is the only page in this shell's code
 that says it, and **every page an admin adds says it by existing** — those pages
 are there to be built.
 
-## The Pages screen has two tabs
+## Admin's Pages section has two tabs
 
 **Pages** holds the ones an admin builds: a page made of blocks, and a page they
 wrote the words of. Each says how many blocks it holds, and clicking its name
@@ -400,7 +400,7 @@ first tab with nothing else to change. The chosen tab is in the address as
 `?group=system`, so the screen can be linked and survives a reload.
 
 **An admin edits the site the website serves.** On a deployment with one public
-front door, the editor, the Pages screen and the website all read the same site,
+front door, the editor, Admin's Pages section and the website all read the same site,
 whichever site the admin happens to be switched to. With workspace domains on,
 every site has its own address and the editor follows the switcher. The public
 menu and footer already worked this way, and the blocks follow them.

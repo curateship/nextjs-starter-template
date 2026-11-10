@@ -37,13 +37,13 @@ Waiting on you Dashboards block   runs stopped at an approval step         the r
 - **A step card is its name, then its description on one line** cut short
   with "…" ("Remove subheader", then "return the subheader but make it
   shorter").
-- **The step list's tabs are words, drawn as Settings → Styling → Dashboard
+- **The step list's tabs are words, drawn as Admin → Styling → Dashboard
   tabs says** (pills or underlined), with icons only when the panel is under
   17rem (272px) and the words would not fit ("remove icons and wire the tabs
   styling to the setting", then "return back the icons for when theres no
   room for the tabs text").
 - **A step's settings card is a panel card:** its grey, border and border
-  colour come from Settings → Styling → Panel cards ("the right panel card
+  colour come from Admin → Styling → Panel cards ("the right panel card
   should be wired to the card settings").
 - **A press on the empty canvas keeps the step picked** ("when i tap on the
   canvas, it unslect the node. change that back so it doesnt"). A press on a
@@ -62,7 +62,7 @@ Waiting on you Dashboards block   runs stopped at an approval step         the r
   how it ended").
 - **The step list stays on the Runs tab** ("clicking on the runs tab should
   not close the left panel").
-- **The step list's width is a setting**, Settings → Styling → Side panels
+- **The step list's width is a setting**, Admin → Styling → Side panels
   → Automation step list width, in pixels, 280 unless changed ("this panel
   save is inconsistent ... add a panel size setting in settings"). It opens
   at that width every time and keeps its pixels while the right panel opens

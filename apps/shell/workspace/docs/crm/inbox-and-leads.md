@@ -340,7 +340,7 @@ not open. Those two lines only appear when they are true, so an ordinary row
 stays three lines.
 
 **The panels start at 10%, 74% and 16%**, the widths every `ThreePanels`
-dashboard opens at unless Settings → Styling → Side panels sets others
+dashboard opens at unless Admin → Styling → Side panels sets others
 (`settings/side-panel-widths.md`), and each browser remembers where you drag
 the dividers.
 When those starting widths move again, the key in

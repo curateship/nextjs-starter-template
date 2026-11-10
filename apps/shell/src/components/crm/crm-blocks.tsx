@@ -37,6 +37,7 @@ import { CRM_SECTIONS_NODE } from "@/lib/crm/crm-page"
 import { SYSTEM_EMAIL_KINDS } from "@/lib/system-emails/kinds"
 import { CRM_TAB_LABELS, CRM_TABS, type CrmTab } from "@/lib/crm/crm-search"
 import { formatDate } from "@/lib/format/format-time"
+import { orderSections } from "@/lib/layout/styling-values"
 
 /**
  * The CRM's own "/" blocks on its left page (the Admin 3 panel design,
@@ -53,6 +54,9 @@ export type CrmBlocks = {
   /** Sections left out of the Dashboards block, and changing them from its ⋮. */
   hiddenSections: readonly CrmTab[]
   onHiddenSectionsChange: (hidden: CrmTab[]) => void
+  /** The sections' saved order, dragged in the block's ⋮, as Admin's. */
+  sectionOrder?: readonly string[]
+  onSectionOrderChange?: (order: string[]) => void
   /** How many widgets Overview shows; null while the layout is read. */
   widgetCount: number | null
   /** The address the inbox is narrowed to, lowered, or "". */
@@ -177,9 +181,11 @@ export function CrmSectionsBlock() {
   // and the section showing keeping its row until another is picked.
   const hidden = blocks?.hiddenSections ?? []
   const changeHidden = blocks?.onHiddenSectionsChange
+  // In the order saved, dragged in the ⋮, as Admin's. Overview stays first.
+  const ordered = orderSections(DASHBOARD_TABS, blocks?.sectionOrder)
   useBlockMenu(
     changeHidden
-      ? DASHBOARD_TABS.filter((section) => section !== "overview").map((section) => {
+      ? ordered.filter((section) => section !== "overview").map((section) => {
           const isHidden = hidden.includes(section)
           return {
             label: CRM_TAB_LABELS[section],
@@ -187,11 +193,13 @@ export function CrmSectionsBlock() {
             muted: isHidden,
             keepOpen: true,
             end: isHidden ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />,
+            sortKey: section,
             onSelect: () =>
               changeHidden(isHidden ? hidden.filter((other) => other !== section) : [...hidden, section]),
           }
         })
-      : undefined
+      : undefined,
+    blocks?.onSectionOrderChange
   )
   if (!blocks) return <NotHere />
   const { figures } = blocks
@@ -199,7 +207,7 @@ export function CrmSectionsBlock() {
     <DashboardsRows
       current={blocks.section}
       onPick={blocks.onPickSection}
-      sections={DASHBOARD_TABS.filter((section) => section === blocks.section || !hidden.includes(section)).map((section) => ({
+      sections={ordered.filter((section) => section === blocks.section || !hidden.includes(section)).map((section) => ({
         key: section,
         label: CRM_TAB_LABELS[section],
         value:

@@ -48,17 +48,33 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 - "redesign the block ui", drawn on the Plans block, and New plan "Move this
   into the dropdown".
 
-## Tyler's rule (9 Nov 2026)
+## Tyler's rules (9 Nov 2026)
 
 - "Move the announcement from the top left settings into its own
   dashboard": Announcements is a section of its own, beside Feedback, and
   the ⋮ no longer has its tab.
+- "I want to consolidate the pages, navigation and styling into the admin
+  dashboard. Create a new link called "Pages" under overview and below that
+  a link called "Styling. We'll pull the styling from settings here
+  including platform and public styling. Also add another link called
+  "Navigations" and add the platforms navigation, members navigation and
+  public navigation. The right panel is where we'll adjust all the
+  settings." The task is `workspace/tasks/admin-pages-styling-navigations.md`.
+- Navigations, after a list with each link's settings on the right was
+  tried: "that doesnt work either. It should just look and work the same as
+  it was before". So it draws Settings' own editors.
+- "fix the pages settings footer"; of the Navigations cards, "wire the
+  background to card background setting", then "redesign the navigation
+  page" with a drawing and "unwire the card to setting".
 
 ## What each panel holds
 
 | Section | Middle | Right |
 | --- | --- | --- |
 | Overview | Widgets, in up to two rows, with no panel of their own | None |
+| Pages | Every public page, a tab each for Your pages and System pages | The page picked: who can see it, its address, visits, Open and Edit page |
+| Styling | The style groups as a grid of drawn tiles, a tab each for Platform and Public | The group picked: its sliders, pickers and preview |
+| Navigations | Settings' navigation editors, a tab each for Platform, Members, each app role and Public | None |
 | Users | Every account, a tab per role, with Filter (Status) | The person picked |
 | Feedback | Every piece of feedback, with Filter (Type) | The thread picked, with a reply box |
 | Announcements | Every announcement, with Filter (Status) | The announcement picked, changed in place, or a new one |
@@ -67,8 +83,8 @@ tasks are `workspace/tasks/features/admin/admin.md` and
 - **Left:** the Admin page, one per site, beside every section. Its header
   has the title, a **+** and the ⋮.
 - **The +** (Tyler, 9 Nov 2026: "Add a + icon here with a dropdown to add
-  announcements and users") opens a dropdown with New announcement and New
-  user. Picking one turns the dropdown into its form, and nothing moves to
+  announcements and users") opens a dropdown with New page, New
+  announcement and New user. Picking one turns the dropdown into its form, and nothing moves to
   another section or opens a window ("Add new announcemtn here should be a
   dropdown instead of forwarding me to the right panel").
   - **New announcement:** title, message, kind, and where it shows (the
@@ -76,6 +92,8 @@ tasks are `workspace/tasks/features/admin/admin.md` and
     showing it to visitors are set on it in Announcements
     (`new-announcement-form.tsx`).
   - **New user:** the same form as Users' Add account.
+  - **New page:** the same form as Pages' New page. Creating it opens the
+    page builder.
 - **The ⋮** is 20.4rem wide, 10% under the menu's usual 22.7rem ("reduce
   the left panel dropdown width by 10%"), and has three tabs. General holds
   Cover photo (None, Sky, the page's pictures and +,
@@ -117,6 +135,106 @@ The left panel stays put while the section changes: only the middle and
   and anything being typed there carry on across a switch. A page or plan
   list that could not be read says so, with Try again.
 
+## Pages
+
+The `/admin/pages` screen until 9 Nov 2026.
+
+- **Middle:** every public page, one row each: its name (with how many
+  blocks a page built from blocks holds), Address, Who can see it and
+  Visits over the last 30 days, the most visited first. The header has the
+  tabs Your pages and System pages with their counts (`lib/pages/page-groups.ts`
+  says which is which), the search box and New page. A row's cog opens a
+  page built from blocks in the builder (Tyler, 9 Nov 2026: "in pages table
+  clicking on the cog should go to the editor"); any other page's cog opens
+  it on the right, as pressing the row does. A row's right-click
+  has Open in a new tab, Edit page and, for a page an admin wrote, Delete
+  page.
+- **New page** is a dropdown form under the button: name, address,
+  description and an optional picture (`new-page-form.tsx`). Creating it
+  opens it in the builder, because everything on a page is built there.
+- **Right:** the page picked (`page-panel.tsx`). The Page card has Who can
+  see it (Everyone, Members only, Switched off; a page that is how people
+  reach the app cannot be hidden, and says so), the address, visits,
+  blocks, who made it and its line of description. The not-found and
+  maintenance pages add What it says, their heading and message, saved as
+  they are typed, with a preview; empty uses the shell's own words.
+- **Its footer** has Open and, for a page built from blocks, Edit page,
+  which opens the builder in this section. They sit side by side
+  once the panel is 15rem wide and stack full width below that, so neither
+  word is ever cut (Tyler: "fix the pages settings footer", when the
+  footer also said who could see the page and pushed Edit page onto a
+  second line).
+- **Its ⋮:** the address and visits, Open in a new tab, and Delete page for
+  a page an admin wrote, which asks first.
+- **The builder opens here, as an open automation does** (Tyler, 9 Nov 2026:
+  "Clicking on editing a page should not forward me to an isolated page
+  editor. Look at how automation does it ... copy its patter (except the
+  canvas middle is the pages drag and drop)"; `page-builder.tsx`). The left
+  page stays. The middle, with no card of its own, holds Add a block, the
+  kinds you can add, as a panel at the automation step list's width, then
+  the page's blocks in the order a visitor reads them, dragged into order.
+  The right holds the picked block's fields, or Page settings with none
+  picked. There is no way back in its header: pressing Pages in the
+  Dashboards block goes back to the list.
+- The address is `?edit=` and the page's address beside `?open=`.
+  `/admin/pages/edit?path=…` forwards there, and a page not built from
+  blocks opens the list instead.
+
+## Styling
+
+Settings → Styling and Settings → Public → Styling until 9 Nov 2026.
+
+- **Middle:** the tabs Platform and Public, then the side's groups as a grid
+  of tiles (Tyler, 9 Nov 2026: "The styling table works better as grid with
+  an image graphic mockup showing what each styling changes", then a
+  drawing of the tiles, "something like this ui",
+  `workspace/docs/assets/pasted-image-1794279350967868000.png`). Each tile
+  is a light grey picture with faint guide lines and a small white window
+  in the middle, named in a typewriter face, the part the group changes in
+  the darker grey; a window's backdrop is dimmed for Modal and Cards inside
+  modals (`styling-mockups.tsx`). Under it, the name and a muted line of up
+  to two lines. Tiles are at least 11rem wide, as many to a row as fit, and
+  the picked one lifts on a soft shadow. Platform: Spacing & borders,
+  Divider lines, Dashboard tabs, Dark mode, Gutter shade, Side panels,
+  Blocks, Widgets, Panel cards, Left menu shade, Modal, Cards inside modals.
+  Public: Presets, Brand, Page frame, Spacing & borders, Header & footer,
+  Modal.
+- **Right:** the group picked, its own words, sliders, pickers and preview,
+  saved as they change with the rest of the site's settings. The panel
+  draws the whole Styling screen with only that group's card showing
+  (`SettingsCardOnly` in `collapsible-settings-card.tsx`), so the values two
+  groups share, such as Widgets starting from Blocks, stay in one place.
+- The address keeps the side (`?side=public`) and the group (`?open=`, the
+  card's id).
+
+## Navigations
+
+Settings → Navigation, Members → Navigation, each role's Navigation and
+Public → Navigation until 9 Nov 2026.
+
+- **Two panels:** the left page, then the middle with a tab per navigation
+  in its header: Platform, Members, a tab per role the app declares, and
+  Public. There is no right panel.
+- **The middle is Settings' own editors, unchanged** (Tyler: "It should
+  just look and work the same as it was before"). Platform: Your sidebar
+  (with Top left shows and Top left max items), Top left shortcuts and Your
+  top right menu. Members: the member sidebar and member top right menu.
+  A role: that role's sidebar. Public: Header layout with the menu and
+  action items, Breadcrumbs and Public footer. Links drag into order and
+  open their own windows, as they did.
+- **The look** is Tyler's drawing of the same day ("redesign the navigation
+  page"): white cards 16px apart with a faint edge of their own on a light
+  grey,
+  sections as bordered boxes with a grey heading row, switches in place of
+  tick boxes, dashed "+ Add" chips and Add section, and each card's reset at
+  the right of its heading. `../settings/administration-and-personalization.md`
+  has the detail. The cards were tied to Panel cards' grey for a time; "unwire
+  the card to setting" undid it.
+- **Reset to defaults** on Your sidebar resets every setting, as Reset all to
+  defaults did, keeping saved public presets.
+- The address keeps the tab (`?nav=members`, `?nav=public`,
+  `?nav=role-<role>`).
+
 ## Announcements
 
 - **Middle:** one row per announcement: a dot for its status (green
@@ -154,9 +272,11 @@ The left panel stays put while the section changes: only the middle and
 
 ## The Dashboards block
 
-- **What it holds:** a row each for Overview, Users, Feedback,
-  Announcements and Media library. Overview counts the widgets it shows
-  ("the overview should have a number too (number of widgets)"). Users counts accounts, Feedback counts
+- **What it holds:** a row each for Overview, Pages, Styling, Navigations,
+  Users, Feedback, Announcements and Media library. Overview counts the widgets it shows
+  ("the overview should have a number too (number of widgets)"). Pages
+  counts every public page, both tabs. Styling counts its groups, both
+  tabs. Navigations counts its tabs. Users counts accounts, Feedback counts
   pieces of feedback, Announcements counts the site's announcements whatever
   their dates, and Media library counts files, each as its list counts
   them with nothing filtered.
@@ -178,14 +298,21 @@ The left panel stays put while the section changes: only the middle and
   any block's row also stays out of the page editor, which would otherwise
   select the whole block.
 - **Pressing a row** shows that section. On a phone the middle comes forward.
-- **Show and hide:** the block's ⋮ lists Users, Feedback, Announcements and
-  Media library, an open eye on one that shows and an eye with a slash on one
+- **Order:** the rows in the block's ⋮ drag into a new order, and the block
+  follows (Tyler, 9 Nov 2026: "I want to be able to drag and drop dashboard
+  item positions"). Overview stays first. The order is the site's, saved
+  with its look as `adminSectionOrder` beside `hiddenAdminSections`; a
+  section it does not name keeps its own place after the named ones
+  (`orderSections` in `lib/layout/styling-values.ts`). A press still shows
+  or hides a row; a drag of 6px or more moves it instead. The CRM's block
+  does the same, saved as `crmSectionOrder`.
+- **Show and hide:** the block's ⋮ lists every section but Overview, an open eye on one that shows and an eye with a slash on one
   that is hidden (Tyler, 9 Nov 2026: "the dashboard block is missing the 3
   dot dropdown and need to add the hide/show dashboards", drawn on Trade's
   Protocols block). One press swaps it and the menu stays open. Overview is
   never hidden. The section showing keeps its row until another is picked.
   The list is the site's, saved with its look as `hiddenAdminSections` in
-  Settings → Styling's values, so it works whether the page is locked or
+  Admin → Styling's values, so it works whether the page is locked or
   not. A hidden section's address still opens it.
 - **Lined up with the header:** the rows start 12px in, so the bar and the
   names start where the header's and the block's icons are drawn (a 16px
@@ -233,7 +360,7 @@ The left panel stays put while the section changes: only the middle and
   Fewer columns take away the last spots and the widgets in them. More columns
   add empty spots.
 - **The look:** a widget is its own card (`widget-card.tsx`), with its own
-  corners, grey and edge in Settings → Styling → Widgets
+  corners, grey and edge in Admin → Styling → Widgets
   (`workspace/docs/settings/block-styling.md`), following the blocks' until
   set. It is drawn like a page block: the grey box, the heading band with its icon, title,
   count and ⋮, and a white tile 3px inside. It has no fold. Being its own
@@ -396,6 +523,9 @@ Year shows there too.
 
 ## The old addresses
 
+`/admin/pages` forwards to Pages (carrying `?open=` with a page's
+address), and Settings' old Navigation and Styling rows forward to
+Navigations and Styling on the matching tab (since 9 Nov 2026).
 `/admin/users`, `/admin/feedback`, `/admin/plans`, `/admin/announcements`,
 `/admin/analytics`, `/admin/traffic`, `/admin/ai`, `/admin/ai-usage`,
 `/admin/referrals` and `/admin/media` forward to Admin, to the matching
@@ -408,7 +538,9 @@ Referrals land on Admin's last place.
 The left menu's version 23 step makes the Overview link "Admin" (keeping a
 name somebody gave it) and takes out every link to a screen Admin holds or
 that was removed with it. Version 24 takes the Media link out the same way,
-moving any link hung under it into its place.
+moving any link hung under it into its place. Version 26 does the same
+with the Pages link (`removePagesLink`), and a new site's sidebar no longer
+has one.
 
 ## Where it lives
 
@@ -436,7 +568,14 @@ moving any link hung under it into its place.
   stored by `src/server/admin-dashboard/widgets.ts` in `admin_widget_layouts`,
   one row per site and dashboard (migration 0107; the `board` column, `admin`
   or `crm`, from 0110).
-- Counts: `src/server/admin-dashboard/section-counts.ts`.
+- Counts: `src/server/admin-dashboard/section-counts.ts`; Pages reads the
+  site whose public pages are built (`publicPagesWorkspaceId`), so its count
+  matches its list.
+- Pages, Styling and Navigations: `pages-tab.tsx` and `page-panel.tsx`,
+  `styling-tab.tsx`, `navigation-tab.tsx` in `components/admin-dashboard/`.
+  They write the site's settings through `useShellConfigPatch`
+  (`components/settings/use-shell-config-patch.ts`), which always builds on
+  the newest copy, so a write that lands late never undoes a newer one.
 - An app's own blocks and widgets: `admin.blocks` and `admin.widgets` in its
   `src/app/options.ts` (`src/lib/admin-dashboard/admin-additions.ts`).
 - Windows: `components/admin/plan-dialog.tsx`. The announcement window was

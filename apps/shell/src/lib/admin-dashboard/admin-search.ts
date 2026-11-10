@@ -2,6 +2,8 @@ import { ANALYTICS_DEFAULT_RANGE, readAnalyticsRange, type AnalyticsRange } from
 import { FEEDBACK_TYPES } from "@/lib/feedback/feedback-type"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { readDirection, readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
+import { appRoles } from "@/lib/app-options"
+import { PAGE_GROUPS, type PageGroup } from "@/lib/pages/page-groups"
 import type { Role } from "@/lib/role-id"
 import { allRoles } from "@/lib/roles"
 
@@ -10,8 +12,11 @@ import { allRoles } from "@/lib/roles"
  * Admin in place of the Overview, Users, Plans, Feedback, Announcements and
  * the Analytics screens; `workspace/tasks/features/admin/admin.md`).
  *
- * - `?tab=` picks the section the middle shows: Overview, Users, Feedback,
- *   Announcements or Media library (Announcements moved out of the left
+ * - `?tab=` picks the section the middle shows: Overview, Pages, Styling,
+ *   Navigations, Users, Feedback, Announcements or Media library (Pages,
+ *   Styling and Navigations came in from their own screen and Settings on
+ *   9 Nov 2026: "consolidate the pages, navigation and styling into the
+ *   admin dashboard") (Announcements moved out of the left
  *   page's ⋮ into a section of its own, Tyler, 9 Nov 2026: "Move the
  *   announcement from the top left settings into its own dashboard"). The left page's Dashboards block picks it (Tyler, 8 Nov
  *   2026: "we're moving the 3 tabs ... to the left side as a block and we
@@ -24,11 +29,23 @@ import { allRoles } from "@/lib/roles"
  *   the record open on the right (`?open=`). Picking a tab starts the address
  *   again with that tab alone, so a search on Users never filters Feedback.
  */
-export const ADMIN_TABS = ["overview", "users", "feedback", "announcements", "media"] as const
+export const ADMIN_TABS = [
+  "overview",
+  "pages",
+  "styling",
+  "navigation",
+  "users",
+  "feedback",
+  "announcements",
+  "media",
+] as const
 export type AdminTab = (typeof ADMIN_TABS)[number]
 
 export const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   overview: "Overview",
+  pages: "Pages",
+  styling: "Styling",
+  navigation: "Navigations",
   users: "Users",
   feedback: "Feedback",
   announcements: "Announcements",
@@ -113,6 +130,52 @@ export type AdminMediaSearch = {
 }
 
 /**
+ * Pages' keys (Tyler, 9 Nov 2026: "Create a new link called "Pages" under
+ * overview"): the page open on the right, known by its address because a page
+ * the code declares has no other id, then the list state.
+ */
+export type AdminPagesSearch = {
+  open?: string
+  q?: string
+  /** Your pages when absent. */
+  group?: PageGroup
+  /**
+   * The page being built, by its address: the builder takes the middle and
+   * the right, as an open automation does (Tyler, 9 Nov 2026: "Clicking on
+   * editing a page should not forward me to an isolated page editor. Look at
+   * how automation does it").
+   */
+  edit?: string
+}
+
+/** Which styling a Styling tab shows: the signed-in app's, or the public site's. */
+const STYLING_SIDES = ["platform", "public"] as const
+export type StylingSide = (typeof STYLING_SIDES)[number]
+
+/** Styling's keys: the side, then the group open on the right. */
+export type AdminStylingSearch = {
+  /** Platform when absent. */
+  side?: StylingSide
+  open?: string
+}
+
+/**
+ * Which navigation a Navigations tab shows. A role the app declares is
+ * `role-` and its id, so it never clashes with the three the shell has.
+ */
+export type NavigationAudience = "platform" | "members" | "public" | `role-${string}`
+
+export function navigationAudiences(): NavigationAudience[] {
+  return ["platform", "members", ...appRoles().map((role) => `role-${role.id}` as const), "public"]
+}
+
+/** Navigations' one key: which navigation's editors show. */
+export type AdminNavigationSearch = {
+  /** Platform when absent. */
+  nav?: NavigationAudience
+}
+
+/**
  * Every key the address can hold. Only the open tab's are ever set
  * (`readAdminSearch`); a tab reads its own back with its reader below.
  */
@@ -132,6 +195,10 @@ export type AdminSearch = {
   shows?: AnnouncementStatusFilter
   orphan?: string
   owner?: string
+  group?: PageGroup
+  edit?: string
+  side?: StylingSide
+  nav?: NavigationAudience
 }
 
 export function readAdminUsersSearch(search: Record<string, unknown>): AdminUsersSearch {
@@ -182,10 +249,42 @@ export function readAdminMediaSearch(search: Record<string, unknown>): AdminMedi
   }
 }
 
+function readAdminPagesSearch(search: Record<string, unknown>): AdminPagesSearch {
+  return {
+    // An address, not an id, so longer than an id's 36 characters.
+    open: readText(search.open, 512),
+    q: readSearchText(search.q),
+    group: readOneOf(search.group, PAGE_GROUPS),
+    edit: readPagePath(search.edit),
+  }
+}
+
+/** A page's address: it starts with "/" and is no longer than one may be. */
+function readPagePath(value: unknown) {
+  return typeof value === "string" && value.startsWith("/") && value.length <= 512 ? value : undefined
+}
+
+function readAdminStylingSearch(search: Record<string, unknown>): AdminStylingSearch {
+  return {
+    side: readOneOf(search.side, STYLING_SIDES),
+    open: readText(search.open, 80),
+  }
+}
+
+function readAdminNavigationSearch(search: Record<string, unknown>): AdminNavigationSearch {
+  return {
+    // Read when the address is, not at import: the list of roles is the app's.
+    nav: readOneOf(search.nav, navigationAudiences()),
+  }
+}
+
 /** Every value is checked before use; a key the open tab does not own is dropped. */
 export function readAdminSearch(search: Record<string, unknown>): AdminSearch {
   const tab = readOneOf(search.tab, ADMIN_TABS)
   const range = readAnalyticsRange(search.range)
+  if (tab === "pages") return { tab, range, ...readAdminPagesSearch(search) }
+  if (tab === "styling") return { tab, range, ...readAdminStylingSearch(search) }
+  if (tab === "navigation") return { tab, range, ...readAdminNavigationSearch(search) }
   if (tab === "users") return { tab, range, ...readAdminUsersSearch(search) }
   if (tab === "feedback") return { tab, range, ...readAdminFeedbackSearch(search) }
   if (tab === "announcements") return { tab, range, ...readAdminAnnouncementsSearch(search) }

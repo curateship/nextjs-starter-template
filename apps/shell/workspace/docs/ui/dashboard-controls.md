@@ -8,7 +8,7 @@ Dashboard controls follow these shared rules:
 - A chart-header tab strip occupies one grid row and lines up with the title and
   icon.
 - Tabs in a card header are `DashboardTabs`, so they follow
-  Settings → Styling → Dashboard tabs like every other dashboard header: pills,
+  Admin → Styling → Dashboard tabs like every other dashboard header: pills,
   or words with a line under the one showing. Tyler, 4 Nov 2026: "wire the
   dashboard widgets tabs to the settings tab styling".
 - An underlined tab's line sits on the header's bottom divider, not floating

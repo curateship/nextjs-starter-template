@@ -40,7 +40,7 @@ Steps 1 to 12 were deleted on 3 Nov 2026. That day every live site was at 12 or
 later, and the oldest was a Trade site at 12. Steps 13 to 21 stay, because Trade
 had sites at 12 and 18 and Fitness one at 20. A local database with a menu older
 than 12 skips straight to step 13, so it can be missing links such as Traffic
-or AI usage until they are added by hand in Settings → Navigation.
+or AI usage until they are added by hand in Admin → Navigations.
 
 Step 25 (8 Nov 2026) takes the Templates link out from under Automations,
 because templates are a tab in the automation editor now. Step 18, which added

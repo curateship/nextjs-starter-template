@@ -125,7 +125,7 @@ const widgets = useWidgetLayout(store, seedFromTheRoute)
   them where it is. A heading too narrow for them puts them and the ⋮ on a
   second line under the name.
 - **Spacing and lines:** widgets sit the site's gutter apart (`pageGutter`,
-  Settings → Styling), and a table's heading row inside a widget's or a
+  Admin → Styling), and a table's heading row inside a widget's or a
   block's tile is the tile's colour with the Divider lines colour alone as
   its line (8 Nov 2026).
 - **The store** answers each save with the layout as stored, the way

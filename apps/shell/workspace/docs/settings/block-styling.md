@@ -1,6 +1,6 @@
 # Block, widget and panel card styling
 
-Settings → Styling → Blocks sets how every page block looks, on every page:
+Admin → Styling → Blocks sets how every page block looks, on every page:
 the CRM's left page, Project's pages, Trade's dashboard blocks, anywhere a
 page holds "/" blocks drawn as `BlockCard`
 (`src/components/shared/notes/block-card.tsx`). Tyler asked for it on
@@ -66,7 +66,7 @@ the thumb; every real block changes live too.
 
 ## Widgets
 
-Settings → Styling → Widgets is the same three settings for the widgets on
+Admin → Styling → Widgets is the same three settings for the widgets on
 the Admin dashboard's Overview and the CRM's (`WidgetCard` in
 `src/components/shared/widgets/widget-card.tsx`). Tyler split them off on
 8 Nov 2026: "Because the widget sits in a shaded background it needs its own
@@ -89,7 +89,7 @@ panel.
 
 ## Panel cards
 
-Settings → Styling → Panel cards sets the background and the line of the grey
+Admin → Styling → Panel cards sets the background and the line of the grey
 folding cards in a right panel, such as a person's Profile and Plan on the
 Admin dashboard (`PanelCard` and `PanelBox` in
 `src/components/shared/panel-card.tsx`). Tyler asked for it on 8 Nov 2026:

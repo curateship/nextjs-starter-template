@@ -15,6 +15,7 @@ import {
 } from "@/components/settings/nav-editor-shared"
 import { SettingsSelectRow } from "@/components/settings/settings-select-row"
 import { Button } from "@/components/ui/button"
+import { ADD_CHIP_CLASS } from "@/components/settings/top-right-settings"
 import { cn } from "@/lib/utils"
 import {
   Card,
@@ -48,7 +49,7 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
 
 /**
  * The social accounts in the public footer, edited the way the footer links
@@ -129,11 +130,11 @@ export function PublicSocialEditor({
                 type="button"
                 disabled={full}
                 onClick={() => setCreating(true)}
-                className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                className={cn(ADD_CHIP_CLASS, "disabled:cursor-not-allowed disabled:opacity-50")}
                 aria-label="Add a social account"
-                title="Add account"
               >
                 <PlusIcon className="h-4 w-4" />
+                Add
               </button>
             </DisabledReason>
           </div>

@@ -112,24 +112,26 @@ export function CrmListHeader({
   primary?: React.ReactNode
   /** "More for the inbox". */
   menuLabel: string
-  search: { value: string; onChange: (value: string) => void; placeholder: string; label: string; name: string }
+  /** Null on a list too short to need one, such as Admin's Styling groups. */
+  search: { value: string; onChange: (value: string) => void; placeholder: string; label: string; name: string } | null
   massSelect: { on: boolean; onToggle: () => void } | null
   menuItems?: { label: string; icon: React.ReactNode; onClick: () => void }[]
 }) {
-  const [text, setText] = useSyncedDraft(search.value)
+  const [text, setText] = useSyncedDraft(search?.value ?? "")
   const [menuOpen, setMenuOpen] = React.useState(false)
 
   // The owner rebuilds the callback every render, so it waits in a ref and the
   // timer is keyed on the words alone.
-  const changeRef = React.useRef(search.onChange)
+  const changeRef = React.useRef(search?.onChange)
   React.useEffect(() => {
-    changeRef.current = search.onChange
+    changeRef.current = search?.onChange
   })
+  const searchValue = search?.value ?? ""
   React.useEffect(() => {
-    if (text === search.value) return
-    const timer = setTimeout(() => changeRef.current(text), 300)
+    if (text === searchValue) return
+    const timer = setTimeout(() => changeRef.current?.(text), 300)
     return () => clearTimeout(timer)
-  }, [text, search.value])
+  }, [text, searchValue])
 
   return (
     <DashboardCardHeader className="@container gap-2">
@@ -145,6 +147,7 @@ export function CrmListHeader({
         {selected}
         {/* A search box that is always there (Tyler, 9 Nov 2026: "make the
             search an actual search field"); Escape clears it. */}
+        {search ? (
         <DashboardToolbarSearch
           className="min-w-0 shrink"
           inputClassName="sm:w-40 lg:w-48"
@@ -157,6 +160,7 @@ export function CrmListHeader({
             if (event.key === "Escape" && text) setText("")
           }}
         />
+        ) : null}
         {massSelect ? (
           <DashboardToolbarButton
             type="button"

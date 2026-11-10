@@ -65,7 +65,7 @@ their old role listed until they are moved.
 - **Each app role has its own left menu.** It never falls back to the members'
   menu, which holds the member home. Until an admin edits it, the
   role gets the `menu` its app declared.
-- **Settings → Navigation edits it.** The Platform settings card lists each
+- **Admin → Navigations edits it.** The Platform settings card lists each
   app role under its own name, between Members and Public, with a Navigation
   row. It is the same editor as the members' sidebar, and saves itself the
   same way. Reset puts the app's starting menu back. The menus are saved

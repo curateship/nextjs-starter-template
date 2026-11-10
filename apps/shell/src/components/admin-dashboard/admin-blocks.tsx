@@ -10,6 +10,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { appBlockNodeName, type AdminAdditionProps } from "@/lib/admin-dashboard/admin-additions"
 import { ADMIN_SECTIONS_NODE, SHELL_ADMIN_BLOCK_KEYS } from "@/lib/admin-dashboard/admin-page"
 import { ADMIN_TAB_LABELS, ADMIN_TABS, type AdminTab } from "@/lib/admin-dashboard/admin-search"
+import { orderSections } from "@/lib/layout/styling-values"
 import type { AnalyticsRange } from "@/lib/analytics/range"
 import type { AdminSectionCounts } from "@/lib/api/admin-dashboard"
 import type { AdminPlan } from "@/lib/api/billing/admin-plans"
@@ -32,11 +33,18 @@ export type AdminBlocks = {
   /** The section the middle shows, and picking another. */
   tab: AdminTab
   onPickTab: (tab: AdminTab) => void
+  /** A press on the section already showing, which takes it back to its list. */
+  onRepickTab?: (tab: AdminTab) => void
   /** Sections left out of the block, and changing them from its ⋮. */
   hiddenSections: readonly AdminTab[]
   onHiddenSectionsChange: (hidden: AdminTab[]) => void
+  /** The sections' saved order, dragged in the block's ⋮; unset is the shell's. */
+  sectionOrder?: readonly string[]
+  onSectionOrderChange?: (order: string[]) => void
   /** Null while they are read, or when the read failed. */
   counts: AdminSectionCounts | null
+  /** Counts worked out in the browser from the settings: Styling's groups, Navigations' links. */
+  localCounts?: Partial<Record<AdminTab, number>>
   /** How many widgets Overview shows; null while the layout is read. */
   widgetCount: number | null
   /** The range picked on Overview, handed to the app's blocks. */
@@ -63,14 +71,15 @@ function Reading() {
 
 const SECTION_COUNT: Record<AdminTab, keyof AdminSectionCounts | null> = {
   overview: null,
+  pages: "pages",
+  styling: null,
+  navigation: null,
   users: "users",
   feedback: "feedback",
   announcements: "announcements",
   media: "media",
 }
 
-/** Every section but Overview can be hidden; Overview is where the dashboard starts. */
-const HIDEABLE_TABS = ADMIN_TABS.filter((tab) => tab !== "overview")
 
 /**
  * Overview, Users, Feedback, Announcements and Media library, the one
@@ -89,9 +98,13 @@ export function SectionsBlock() {
   const blocks = React.useContext(AdminBlocksContext)
   const hidden = blocks?.hiddenSections ?? []
   const changeHidden = blocks?.onHiddenSectionsChange
+  // In the order saved, dragged in the ⋮ (Tyler, 9 Nov 2026: "I want to be
+  // able to drag and drop dashboard item positions"). Overview stays first,
+  // and is never hidden: it is where the dashboard starts.
+  const ordered = orderSections(ADMIN_TABS, blocks?.sectionOrder)
   useBlockMenu(
     changeHidden
-      ? HIDEABLE_TABS.map((tab) => {
+      ? ordered.filter((tab) => tab !== "overview").map((tab) => {
           const isHidden = hidden.includes(tab)
           return {
             label: ADMIN_TAB_LABELS[tab],
@@ -99,26 +112,32 @@ export function SectionsBlock() {
             muted: isHidden,
             keepOpen: true,
             end: isHidden ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />,
+            sortKey: tab,
             onSelect: () =>
               changeHidden(isHidden ? hidden.filter((other) => other !== tab) : [...hidden, tab]),
           }
         })
-      : undefined
+      : undefined,
+    blocks?.onSectionOrderChange
   )
   if (!blocks) return <Unplaced />
   return (
     <DashboardsRows
       current={blocks.tab}
       onPick={blocks.onPickTab}
-      sections={ADMIN_TABS.filter((tab) => tab === blocks.tab || !hidden.includes(tab)).map((tab) => {
+      onRepick={blocks.onRepickTab}
+      sections={ordered.filter((tab) => tab === blocks.tab || !hidden.includes(tab)).map((tab) => {
         const counted = SECTION_COUNT[tab]
+        const local = blocks.localCounts?.[tab]
         return {
           key: tab,
           label: ADMIN_TAB_LABELS[tab],
           value:
             tab === "overview"
               ? blocks.widgetCount?.toLocaleString()
-              : counted && blocks.counts
+              : local !== undefined
+                ? local.toLocaleString()
+                : counted && blocks.counts
                 ? blocks.counts[counted].toLocaleString()
                 : undefined,
         }

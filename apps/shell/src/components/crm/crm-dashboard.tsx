@@ -245,6 +245,9 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
     hiddenSections,
     onHiddenSectionsChange: (hidden: CrmTab[]) =>
       onConfigChange({ ...config, styling: { ...config.styling, hiddenCrmSections: hidden } }),
+    sectionOrder: config.styling.crmSectionOrder,
+    onSectionOrderChange: (order: string[]) =>
+      onConfigChange({ ...config, styling: { ...config.styling, crmSectionOrder: order } }),
     widgetCount: widgets.layout ? widgetsShown(widgets.layout) : null,
     activeAddress: onInbox ? filters.toAddress.toLowerCase() : "",
     openThreadId: onInbox && filters.view !== "outbox" ? (search.open ?? null) : null,

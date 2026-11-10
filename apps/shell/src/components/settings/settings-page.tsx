@@ -5,36 +5,18 @@ import { AiSettings } from "@/components/settings/ai-settings"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
-import { MemberSettings } from "@/components/settings/member-settings"
-import { RoleNavigationSettings } from "@/components/settings/role-navigation-settings"
 import {
   PublicSeoSettings,
   PublicSocialSettings,
 } from "@/components/settings/public-metadata-settings"
-import { PublicSiteSettings } from "@/components/settings/public-site-settings"
-import { PublicThemeSettings } from "@/components/settings/public-theme-settings"
-import { SidebarSettings } from "@/components/settings/sidebar-settings"
 import { StripeSettings } from "@/components/settings/stripe-settings"
-import { StylingSettings } from "@/components/settings/styling-settings"
-import { TopRightSettings } from "@/components/settings/top-right-settings"
-import { TopLeftNavigationSettings } from "@/components/settings/top-left-navigation-settings"
-import { TopLeftShortcutsSettings } from "@/components/settings/top-left-shortcuts-settings"
 import { CardGroup } from "@/components/ui/card"
-import {
-  appHeaderRightActionsForRole,
-  appRoles,
-  appSettingsTabs,
-  type AppRole,
-} from "@/lib/app-options"
-import { appRoleFor } from "@/lib/roles"
-import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { MOVED_SETTINGS_TAB_IDS } from "@/lib/admin-dashboard/moved-settings"
+import { appSettingsTabs } from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 import {
-  createDefaultShellConfig,
-  createDefaultTopRightNavigation,
-  shellConfigSaveRefusal,
   type ShellConfig,
   type ShellMaintenance,
   type ShellSessionPolicy,
@@ -46,11 +28,15 @@ import {
  * Security, Notifications, Storage and AI were rows here until 25 Sep 2026;
  * each was one card, so each became a card on General settings instead. AI got
  * its own row back on 8 Oct 2026 at Tyler's request.
+ *
+ * Navigation and Styling were rows here until 9 Nov 2026, when they moved
+ * into the Admin dashboard's Navigations and Styling sections with the
+ * members', each role's and the public site's (Tyler: "consolidate the pages,
+ * navigation and styling into the admin dashboard"). Their addresses forward
+ * there (`lib/admin-dashboard/moved-settings.ts`).
  */
 const settingsTabs = [
   { id: "general", label: "General settings" },
-  { id: "navigation", label: "Navigation" },
-  { id: "styling", label: "Styling" },
   { id: "email", label: "Email" },
   { id: "payments", label: "Payments" },
   { id: "ai", label: "AI" },
@@ -95,6 +81,14 @@ const audienceGroups = [
   },
 ] as const
 
+/**
+ * True for a row that moved into the Admin dashboard and is drawn here only
+ * when the app has a screen of its own for it.
+ */
+function movedUnlessClaimed(id: string) {
+  return (MOVED_SETTINGS_TAB_IDS as readonly string[]).includes(id) && !extraTabs().some((tab) => tab.id === id)
+}
+
 /** The same rows, flat, for the id checks that do not care which block. */
 const audienceTabs: readonly { id: SettingsTabId; label: string }[] =
   audienceGroups.flatMap((group) => group.tabs.map((tab) => ({ ...tab })))
@@ -102,24 +96,17 @@ const audienceTabs: readonly { id: SettingsTabId; label: string }[] =
 export type SettingsTabId =
   | (typeof settingsTabs)[number]["id"]
   | (typeof audienceGroups)[number]["tabs"][number]["id"]
-  | `${typeof ROLE_NAVIGATION_PREFIX}${string}`
 
 /**
- * Each app role's own Navigation row is this followed by the role's id, under
- * a heading of the role's name, between Members and Public.
+ * Every id the shell itself owns, what an app's tab may not be called. The
+ * moved Navigation and Styling ids stay on it, so an app cannot quietly take
+ * an address that now forwards to the Admin dashboard.
  */
-const ROLE_NAVIGATION_PREFIX = "role-navigation-"
-
-/** The app role whose Navigation row this is, or null for any other row. */
-function roleForTab(tab: string): AppRole | null {
-  if (!tab.startsWith(ROLE_NAVIGATION_PREFIX)) return null
-  return appRoleFor(tab.slice(ROLE_NAVIGATION_PREFIX.length))
-}
-
-/** Every id the shell itself owns — what an app's tab may not be called. */
 const shellSettingsTabIds: readonly string[] = [
   ...settingsTabs.map((tab) => tab.id),
   ...audienceTabs.map((tab) => tab.id),
+  "navigation",
+  "styling",
 ]
 
 /**
@@ -140,38 +127,24 @@ const railRow = (tab: { id: string; label: string }) => ({
 })
 
 /**
- * The blocks in the Platform card: the admin's own rows, then Members, then
- * one block per role the app declared, then Public.
+ * The Platform card's rows, one list with no headings: the admin's own rows,
+ * then SEO and Social (Tyler, 9 Nov 2026: "move the 2 settings in public into
+ * platform settings and remove that subsection"). The Members and Public
+ * headings went once Navigation and Styling moved into the Admin dashboard
+ * left them with too little to head.
  *
- * The first block carries no heading, because the card's own title already
- * names it. A row the app has claimed keeps its position here rather than
- * moving into the app's card, so Public → Styling stays between Navigation and
- * SEO whoever draws it.
+ * A Members or Public row that moved there shows only when the app claimed
+ * it with a screen of its own, and then under the app's own name for it, in
+ * its old place in the order. A claimed row stays here rather than moving
+ * into the app's card.
  */
 function platformCardGroups(): readonly SettingsTabGroupSection[] {
   const own = extraTabs()
   const claim = (id: string) => own.find((tab) => tab.id === id)
-
-  const [members, ...rest] = audienceGroups.map((group) => ({
-    label: group.label,
-    tabs: group.tabs.map((tab) => railRow(claim(tab.id) ?? tab)),
-  }))
-  const roleGroups = appRoles().map((role) => ({
-    label: role.label,
-    tabs: [
-      {
-        id: `${ROLE_NAVIGATION_PREFIX}${role.id}` as const,
-        label: "Navigation",
-      },
-    ],
-  }))
-
-  return [
-    { tabs: settingsTabs.map(railRow) },
-    members,
-    ...roleGroups,
-    ...rest,
-  ]
+  const audienceRows = audienceGroups.flatMap((group) =>
+    group.tabs.filter((tab) => !movedUnlessClaimed(tab.id)).map((tab) => railRow(claim(tab.id) ?? tab))
+  )
+  return [{ tabs: [...settingsTabs.map(railRow), ...audienceRows] }]
 }
 
 /**
@@ -203,8 +176,7 @@ function shellDraws(activeTab: SettingsTabId, id: SettingsTabId): boolean {
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
   const known =
-    shellSettingsTabIds.includes(segment) ||
-    roleForTab(segment) !== null ||
+    (shellSettingsTabIds.includes(segment) && !movedUnlessClaimed(segment)) ||
     extraTabs().some((tab) => tab.id === segment)
   return known ? (segment as SettingsTabId) : "general"
 }
@@ -213,7 +185,6 @@ export function SettingsPage({
   activeTab,
   config,
   onConfigChange,
-  onSaveConfig,
   onMaintenanceChange,
   maintenanceBusy,
   onSessionPolicyChange,
@@ -222,49 +193,14 @@ export function SettingsPage({
   activeTab: SettingsTabId
   config: ShellConfig
   onConfigChange: (config: ShellConfig) => void
+  /** Kept for the routes, which hand every screen the same runtime. */
   onSaveConfig: () => Promise<boolean>
   onMaintenanceChange: (maintenance: ShellMaintenance) => Promise<boolean>
   maintenanceBusy: boolean
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
-  // Every handler below builds a whole new config by spreading this one, and
-  // some of them run long after the render that made them. One runs when a
-  // save comes back, another when a font finishes uploading. Spreading the
-  // render's own `config` there rebuilds the settings as they were when the
-  // screen last drew and silently undoes anything typed since. The ref is
-  // always the current one.
-  //
-  // Written before the paint rather than during the render: a ref set while
-  // rendering is a write React may throw away and redo, and the rule against it
-  // is an error here. Before the paint is still before any handler can run,
-  // because a click cannot happen in a frame the browser has not drawn.
-  const latestConfig = React.useRef(config)
-  useEffectBeforePaint(() => {
-    latestConfig.current = config
-  }, [config])
-  const changeConfig = React.useCallback(
-    (part: Partial<ShellConfig>) =>
-      onConfigChange({ ...latestConfig.current, ...part }),
-    [onConfigChange]
-  )
-  // The public theme is one record inside the config, so a change to one of
-  // its fields spreads the current theme too, never the render's.
-  const changePublicTheme = React.useCallback(
-    (part: Partial<ShellConfig["publicTheme"]>) =>
-      onConfigChange({
-        ...latestConfig.current,
-        publicTheme: { ...latestConfig.current.publicTheme, ...part },
-      }),
-    [onConfigChange]
-  )
-
-  const adminHeaderActions = appHeaderRightActionsForRole("admin")
-  const memberHeaderActions = appHeaderRightActionsForRole("member")
-  const adminHeaderActionIds = adminHeaderActions.map((action) => action.id)
-  const memberHeaderActionIds = memberHeaderActions.map((action) => action.id)
   const appRows = appCardRows()
-  const navigationRole = roleForTab(activeTab)
 
   return (
     <div
@@ -272,7 +208,9 @@ export function SettingsPage({
       style={{ gap: pageGutter }}
     >
       <div
-        className="flex w-full shrink-0 flex-col lg:w-48"
+        // 14rem, up from 12rem, so the cards' extra room never wraps
+        // "Platform settings" onto two lines.
+        className="flex w-full shrink-0 flex-col lg:w-56"
         style={{ gap: pageGutter }}
       >
         {/* Every screen the shell itself draws: the admin's own rows, then the
@@ -310,70 +248,6 @@ export function SettingsPage({
             sessionPolicyBusy={sessionPolicyBusy}
           />
         ) : null}
-        {shellDraws(activeTab, "public-navigation") ? (
-          <PublicSiteSettings
-            navigation={config.publicNavigation}
-            footer={config.publicFooter}
-            footerSocial={config.publicFooterSocial}
-            footerCopyright={config.publicFooterCopyright}
-            footerAlignment={config.publicTheme.footerAlignment}
-            publicHeader={config.publicHeader}
-            pageWidth={config.publicTheme.pageWidth}
-            chromeFont={config.publicTheme.chromeFont}
-            headerActions={config.publicHeaderActions}
-            publicUserPanel={config.publicUserPanel}
-            publicBreadcrumbs={config.publicBreadcrumbs}
-            onNavigationChange={(publicNavigation) =>
-              changeConfig({ publicNavigation })
-            }
-            onFooterChange={(publicFooter) =>
-              changeConfig({ publicFooter })
-            }
-            onFooterSocialChange={(publicFooterSocial) =>
-              changeConfig({ publicFooterSocial })
-            }
-            onFooterAlignmentChange={(footerAlignment) =>
-              changePublicTheme({ footerAlignment })
-            }
-            onFooterCopyrightChange={(publicFooterCopyright) =>
-              changeConfig({ publicFooterCopyright })
-            }
-            onPublicHeaderChange={(publicHeader) =>
-              changeConfig({ publicHeader })
-            }
-            onChromeFontChange={(chromeFont) =>
-              changePublicTheme({ chromeFont })
-            }
-            onHeaderActionsChange={(publicHeaderActions) =>
-              changeConfig({ publicHeaderActions })
-            }
-            onPublicUserPanelChange={(publicUserPanel) =>
-              changeConfig({ publicUserPanel })
-            }
-            onPublicBreadcrumbsChange={(publicBreadcrumbs) =>
-              changeConfig({ publicBreadcrumbs })
-            }
-            onSaveConfig={onSaveConfig}
-          />
-        ) : null}
-        {shellDraws(activeTab, "public-styling") ? (
-          <PublicThemeSettings
-            theme={config.publicTheme}
-            presets={config.publicThemePresets}
-            publicFont={config.publicFont}
-            onThemeChange={(publicTheme) =>
-              changeConfig({ publicTheme })
-            }
-            onPresetsChange={(publicThemePresets) =>
-              changeConfig({ publicThemePresets })
-            }
-            onFontStateChange={(publicTheme, publicFont) =>
-              changeConfig({ publicTheme, publicFont })
-            }
-            onSaveConfig={onSaveConfig}
-            saveRefusal={shellConfigSaveRefusal(config)}
-          />
-        ) : null}
         {shellDraws(activeTab, "public-seo") ? (
           <PublicSeoSettings config={config} onConfigChange={onConfigChange} />
         ) : null}
@@ -382,123 +256,6 @@ export function SettingsPage({
             config={config}
             onConfigChange={onConfigChange}
           />
-        ) : null}
-        {activeTab === "navigation" ? (
-          <CardGroup>
-            <SidebarSettings
-              topLeftNavigation={
-                <TopLeftNavigationSettings
-                  config={config}
-                  onConfigChange={onConfigChange}
-                  audience="admin"
-                />
-              }
-              sections={config.sections}
-              onSectionsChange={(sections) =>
-                changeConfig({ sections })
-              }
-              onSaveConfig={onSaveConfig}
-              card={{
-                storageId: "sidebar",
-                title: "Your sidebar",
-                description:
-                  "The links you see in your own sidebar, in the order you put them. What members see is on the Members → Navigation page.",
-              }}
-              reset={{
-                label: "Reset all to defaults",
-                description:
-                  "Every sidebar section and link is deleted. The workspace name, subheader, home route, logo, rows per page, sidebar width, top-right menu, all public settings, and signed-in styling go back to their defaults. Saved public presets are kept. This cannot be undone.",
-                // A preset is a look the admin built and named, not a setting,
-                // and it is the way back after a reset lands on a look nobody
-                // wanted. Resetting the sidebar must not delete the lot.
-                onReset: () =>
-                  onConfigChange({
-                    ...createDefaultShellConfig(),
-                    publicThemePresets: config.publicThemePresets,
-                  }),
-              }}
-            />
-            <TopLeftShortcutsSettings
-              shortcuts={config.topLeftShortcuts}
-              onShortcutsChange={(topLeftShortcuts) =>
-                changeConfig({ topLeftShortcuts })
-              }
-              onSaveConfig={onSaveConfig}
-            />
-            <TopRightSettings
-              items={config.topRightNavigation}
-              onItemsChange={(topRightNavigation) =>
-                changeConfig({ topRightNavigation })
-              }
-              onSaveConfig={onSaveConfig}
-              appActions={adminHeaderActions}
-              card={{
-                storageId: "top-right",
-                title: "Your top right menu",
-                description:
-                  "The buttons in the top right of your own header, in the order you put them. What members see is on the Members → Navigation page.",
-              }}
-              reset={{
-                label: "Reset top right menu",
-                description:
-                  "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
-                onReset: () =>
-                  changeConfig({
-                    topRightNavigation: createDefaultTopRightNavigation(
-                      adminHeaderActionIds
-                    ),
-                  }),
-              }}
-            />
-          </CardGroup>
-        ) : null}
-        {shellDraws(activeTab, "member-navigation") ? (
-          <CardGroup>
-            <MemberSettings
-              config={config}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
-            <TopRightSettings
-              items={config.memberTopRightNavigation}
-              onItemsChange={(memberTopRightNavigation) =>
-                changeConfig({ memberTopRightNavigation })
-              }
-              onSaveConfig={onSaveConfig}
-              appActions={memberHeaderActions}
-              card={{
-                storageId: "member-top-right",
-                title: "Member top right menu",
-                description:
-                  "The buttons every member sees in the top right of their header, in the order you put them. Your own menu is on the Platform → Navigation page and is not affected.",
-              }}
-              reset={{
-                label: "Reset member menu",
-                description:
-                  "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
-                onReset: () =>
-                  changeConfig({
-                    memberTopRightNavigation: createDefaultTopRightNavigation(
-                      memberHeaderActionIds
-                    ),
-                  }),
-              }}
-            />
-          </CardGroup>
-        ) : null}
-        {navigationRole ? (
-          <CardGroup>
-            <RoleNavigationSettings
-              key={navigationRole.id}
-              role={navigationRole}
-              config={config}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
-          </CardGroup>
-        ) : null}
-        {activeTab === "styling" ? (
-          <StylingSettings config={config} onConfigChange={onConfigChange} />
         ) : null}
         {activeTab === "email" ? <EmailSettings /> : null}
         {activeTab === "payments" ? <StripeSettings /> : null}
@@ -586,7 +343,12 @@ function SettingsTabGroup({
       storageId={storageId}
       size="sm"
       title={title}
-      contentClassName="px-3 pt-2"
+      // 8px more round the title and rows than the small card's own 12px
+      // (Tyler, 9 Nov 2026: "add some spacing here", of the rail's two card
+      // titles), keeping the small card's title size, and 16px between the
+      // title and its first row ("still no spacing").
+      className="px-2 data-[size=sm]:py-5"
+      contentClassName="px-3 pt-4"
     >
       {groups.length === 0 && empty ? (
         // A sentence rather than a blank card: the card is drawn whether or not

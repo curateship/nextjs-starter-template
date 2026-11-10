@@ -138,8 +138,18 @@ export type ShellStyling = {
    * rest of its look. Unset hides nothing.
    */
   hiddenAdminSections?: string[]
+  /**
+   * The order of the Admin dashboard's sections under Overview, dragged in
+   * the Dashboards block's ⋮ (Tyler, 9 Nov 2026: "I want to be able to drag
+   * and drop dashboard item positions"). Overview stays first. A section not
+   * named keeps its own place after the named ones. Unset is the shell's
+   * order.
+   */
+  adminSectionOrder?: string[]
   /** The same for the CRM's Dashboards block (Tyler, 9 Nov 2026: "apply all the design pattern we did for dashboard to crm"). */
   hiddenCrmSections?: string[]
+  /** The CRM's section order, as `adminSectionOrder` (9 Nov 2026). */
+  crmSectionOrder?: string[]
   /** Stages the CRM's Leads card leaves out, from its ⋮ (9 Nov 2026). */
   hiddenLeadStages?: string[]
   /**
@@ -396,6 +406,20 @@ export function clampStepListWidth(value: unknown): number {
 }
 
 /** A Dashboards block's hidden sections: names only, once each, never Overview. */
+/**
+ * The sections in the order saved, Overview first whatever was saved, and any
+ * the saved order does not name after the named ones in their own order.
+ */
+export function orderSections<T extends string>(all: readonly T[], saved: readonly string[] | undefined): T[] {
+  const rest = all.filter((section) => section !== "overview")
+  const named = (saved ?? []).filter((section): section is T => (rest as readonly string[]).includes(section))
+  return [
+    ...all.filter((section) => section === "overview"),
+    ...named,
+    ...rest.filter((section) => !named.includes(section)),
+  ]
+}
+
 function cleanHiddenSections(sections: unknown[]): string[] {
   return [
     ...new Set(sections.filter((section): section is string => typeof section === "string" && section !== "overview")),
@@ -533,6 +557,13 @@ export function normalizeStyling(value: unknown): ShellStyling {
       : {}),
     ...(Array.isArray(styling.hiddenCrmSections)
       ? { hiddenCrmSections: cleanHiddenSections(styling.hiddenCrmSections) }
+      : {}),
+    // The same rule cleans an order: strings, once each, never Overview.
+    ...(Array.isArray(styling.adminSectionOrder)
+      ? { adminSectionOrder: cleanHiddenSections(styling.adminSectionOrder) }
+      : {}),
+    ...(Array.isArray(styling.crmSectionOrder)
+      ? { crmSectionOrder: cleanHiddenSections(styling.crmSectionOrder) }
       : {}),
     ...(Array.isArray(styling.hiddenLeadStages)
       ? { hiddenLeadStages: cleanHiddenSections(styling.hiddenLeadStages) }

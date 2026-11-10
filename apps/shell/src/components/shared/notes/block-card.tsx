@@ -1,7 +1,10 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, Trash2Icon } from "lucide-react"
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, GripVerticalIcon, Trash2Icon } from "lucide-react"
 
 import { FoldHeading } from "@/components/shared/notes/fold-heading"
 import { Button } from "@/components/ui/button"
@@ -42,6 +45,8 @@ export type BlockHeading = {
   actions: HTMLElement | null
   setCount: (count: number | undefined) => void
   setMenu: (items: BlockMenuItem[] | undefined) => void
+  /** Called with the rows' `sortKey`s in their new order after a drag. */
+  setReorder: (reorder: ((keys: string[]) => void) | undefined) => void
   open: boolean
 }
 
@@ -58,6 +63,12 @@ export type BlockMenuItem = {
   keepOpen?: boolean
   /** Read out in place of the label, such as "Hide Users". */
   ariaLabel?: string
+  /**
+   * Given, the row has a grip and drags into a new order among the other
+   * rows that have one (Tyler, 9 Nov 2026: "I want to be able to drag and
+   * drop dashboard item positions", of the Dashboards block's ⋮).
+   */
+  sortKey?: string
 }
 
 /** Exported so a panel's tests can stand in for the block around it. */
@@ -93,16 +104,27 @@ export function useBlockCount(count: number | undefined) {
  * segment and delete block"). The rows are read when the menu opens, so a
  * caller may hand a new array every render.
  */
-export function useBlockMenu(items: BlockMenuItem[] | undefined) {
+export function useBlockMenu(items: BlockMenuItem[] | undefined, onReorder?: (keys: string[]) => void) {
   const heading = React.useContext(BlockHeadingContext)
   const setMenu = heading?.setMenu
+  const setReorder = heading?.setReorder
+  const latestReorder = React.useRef(onReorder)
+  React.useEffect(() => {
+    latestReorder.current = onReorder
+  })
+  const canReorder = Boolean(onReorder)
+  React.useEffect(() => {
+    if (!setReorder || !canReorder) return
+    setReorder(() => (keys: string[]) => latestReorder.current?.(keys))
+    return () => setReorder(undefined)
+  }, [setReorder, canReorder])
   const latest = React.useRef(items)
   React.useEffect(() => {
     latest.current = items
   })
   // Keyed on the labels and whether each is greyed, so a new array with the
   // same rows changes nothing, and a row shown or hidden redraws its eye.
-  const labels = JSON.stringify(items?.map((item) => [item.label, item.muted === true]) ?? [])
+  const labels = JSON.stringify(items?.map((item) => [item.label, item.muted === true, item.sortKey]) ?? [])
   React.useEffect(() => {
     if (!setMenu) return
     // The effect above has already stored this render's rows.
@@ -206,13 +228,14 @@ export function BlockCard({
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
   const [count, setCount] = React.useState<number | undefined>(undefined)
   const [menu, setMenu] = React.useState<BlockMenuItem[] | undefined>(undefined)
+  const [reorder, setReorder] = React.useState<((keys: string[]) => void) | undefined>(undefined)
   const [askingDelete, setAskingDelete] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   // Delete block shows on every block but a fixed one: straight away while
   // the page can be written on, and after asking while it is locked.
   const canDelete = Boolean(onRemove && (editable || onRemoveLocked))
   const heading = React.useMemo(
-    () => ({ actions, setCount, setMenu, open }),
+    () => ({ actions, setCount, setMenu, setReorder, open }),
     [actions, open]
   )
   return (
@@ -277,7 +300,10 @@ export function BlockCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44">
-                {(menu ?? []).map((item) => (
+                {reorder && menu?.some((item) => item.sortKey) ? (
+                  <SortableMenuRows items={menu.filter((item) => item.sortKey)} onReorder={reorder} />
+                ) : null}
+                {(menu ?? []).filter((item) => !(reorder && item.sortKey)).map((item) => (
                   <DropdownMenuItem
                     key={item.label}
                     aria-label={item.ariaLabel}
@@ -362,6 +388,99 @@ export function BlockCard({
 }
 
 /** A fixed block's moves, under any rows of the block's own. */
+/**
+ * Rows of a block's ⋮ that drag into a new order: a grip, the name and its
+ * end mark. A press still does the row's own thing; a drag of 6px or more
+ * moves it instead, and the press that ends a drag is not taken as one.
+ */
+function SortableMenuRows({
+  items,
+  onReorder,
+}: {
+  items: BlockMenuItem[]
+  onReorder: (keys: string[]) => void
+}) {
+  const keys = items.map((item) => item.sortKey ?? item.label)
+  const [order, setOrder] = React.useState(keys)
+  // A new order from outside, such as the save landing, replaces the one shown.
+  const keysText = keys.join("\n")
+  const [seen, setSeen] = React.useState(keysText)
+  if (seen !== keysText) {
+    setSeen(keysText)
+    setOrder(keys)
+  }
+  const dragged = React.useRef(false)
+  // The pointer only: the menu's own keys move between rows and press one.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const byKey = new Map(items.map((item) => [item.sortKey ?? item.label, item]))
+  const end = (event: DragEndEvent) => {
+    window.setTimeout(() => {
+      dragged.current = false
+    }, 0)
+    const from = order.indexOf(String(event.active.id))
+    const to = event.over ? order.indexOf(String(event.over.id)) : -1
+    if (from < 0 || to < 0 || from === to) return
+    const next = [...order]
+    const [moved] = next.splice(from, 1)
+    if (moved !== undefined) next.splice(to, 0, moved)
+    setOrder(next)
+    onReorder(next)
+  }
+  return (
+    <DndContext
+      id="block-menu-rows"
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={() => {
+        dragged.current = true
+      }}
+      onDragCancel={() => {
+        dragged.current = false
+      }}
+      onDragEnd={end}
+    >
+      <SortableContext items={order} strategy={verticalListSortingStrategy}>
+        {order.map((key) => {
+          const item = byKey.get(key)
+          return item ? <SortableMenuRow key={key} id={key} item={item} dragged={dragged} /> : null
+        })}
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+function SortableMenuRow({
+  id,
+  item,
+  dragged,
+}: {
+  id: string
+  item: BlockMenuItem
+  dragged: React.RefObject<boolean>
+}) {
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <DropdownMenuItem
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("touch-none", isDragging && "relative z-10 bg-accent")}
+      aria-label={item.ariaLabel}
+      // Only the pointer handlers: the drag's own role and tab stop would
+      // take the row's place in the menu for a screen reader.
+      {...listeners}
+      onSelect={(event) => {
+        if (item.keepOpen || dragged.current) event.preventDefault()
+        if (dragged.current) return
+        item.onSelect()
+      }}
+    >
+      <GripVerticalIcon aria-hidden className="-ml-1 size-3.5 text-muted-foreground/60" />
+      <span className={cn("min-w-0 flex-1 truncate", item.muted && "text-muted-foreground")}>{item.label}</span>
+      {item.end ? <span className="ml-auto flex text-muted-foreground [&_svg]:size-4">{item.end}</span> : null}
+    </DropdownMenuItem>
+  )
+}
+
 function MoveRows({ moves, after }: { moves: () => BlockMenuItem[]; after: boolean }) {
   // Worked out once as the menu opens: the rows are drawn only while it is open.
   const [rows] = React.useState(moves)
