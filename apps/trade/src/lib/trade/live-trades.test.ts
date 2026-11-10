@@ -14,6 +14,7 @@ import {
   type LiveFill,
   type LiveTriggerKind,
 } from "@/lib/trade/live-trades"
+import { fillsSlippage } from "@/lib/trade/slippage"
 
 /**
  * Turning real fills into real trades.
@@ -124,6 +125,37 @@ describe("buildLiveTrades", () => {
     expect(long?.pnl).toBeCloseTo(9, 10)
     expect(short?.pnl).toBeCloseTo(4, 10)
     expect(short?.entryPx).toBe(110)
+  })
+
+  it("keeps each fill's aim through a flip, so each trade's slippage is its own share", () => {
+    // Slippage reads the aims off a trade's own fills (Tyler, 10 Nov 2026:
+    // "aimed vs filled"); a builder that dropped them would leave every
+    // Journal row a dash.
+    const trades = buildLiveTrades(
+      [
+        fill({ side: "buy", px: 101, sz: 1, at: 0, aimedPx: 100 }),
+        // Sells two at $110, aimed at $111: one closes the long, one opens a short.
+        fill({
+          fillId: "flip",
+          side: "sell",
+          px: 110,
+          sz: 2,
+          at: MINUTE,
+          closedPnl: 9,
+          dir: "Long > Short",
+          aimedPx: 111,
+        }),
+        fill({ side: "buy", px: 105, sz: 1, at: 2 * MINUTE, closedPnl: 5, aimedPx: 104 }),
+      ],
+      noTriggers
+    )
+
+    const long = trades.find((one) => one.direction === "long")!
+    const short = trades.find((one) => one.direction === "short")!
+    // Long: bought $1 above its aim, sold its 1 coin $1 below. -$2.
+    expect(fillsSlippage(long.fills)).toBeCloseTo(-2, 10)
+    // Short: its 1 coin of the flip sold $1 below aim, bought back $1 above. -$2.
+    expect(fillsSlippage(short.fills)).toBeCloseTo(-2, 10)
   })
 
   it("leaves out a position that is still open", () => {

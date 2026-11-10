@@ -58,6 +58,7 @@ import {
   pricesEverySale,
 } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
+import { stampFillAims } from "@/server/trade/order-aims"
 import {
   bumpTradeHistory,
   tradeHistoryStamp,
@@ -1533,6 +1534,18 @@ export async function loadLiveHistory(
   // and the Journal both ask, and a fill that arrived unstamped is read as a
   // ladder's. See `stampGridFills`.
   const fills = await stampGridFills(userId, walletIds, raw)
+  // The price each fill's order was aimed at, for the Slippage columns; a
+  // fired stop's or target's level stands in for an order this app never sent.
+  await stampFillAims(
+    userId,
+    walletIds,
+    fills,
+    new Map(
+      triggerRows
+        .filter((row) => (row.kind === "stop" || row.kind === "target") && row.px > 0)
+        .map((row) => [`${row.walletId}:${row.orderId}`, row.px])
+    )
+  )
 
   // "none" rows are answers, not triggers: they are there so the exchange is
   // never asked twice, and a trade they belong to simply says "Closed".

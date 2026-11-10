@@ -2,11 +2,11 @@ import * as React from "react"
 import { InfoIcon } from "lucide-react"
 
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
-import { WidgetCard, WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
+import { WidgetCard, WidgetMenuOptions } from "@/components/shared/widgets/widget-card"
 import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
 import { WidgetMenu } from "@/components/shared/widgets/widget-menus"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
-import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
+import { CountedFilterMenu } from "@/components/trade/counted-filter-popover"
 import { MovingNowWidget } from "@/components/trade/market-explorer/moving-now-widget"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
 import { ProfitCalendarWidget } from "@/components/trade/profit-calendar-widget"
@@ -79,7 +79,7 @@ export function TradingOverviewGrid({
       offer={TRADING_WIDGET_OFFER}
       layout={layout}
       onChange={onChange}
-      drawWidget={(id, menu) => {
+      drawWidget={(id) => {
         const widget = findTradingDashboardWidget(id)
         if (!widget) return null
         const Icon = widget.icon
@@ -88,7 +88,7 @@ export function TradingOverviewGrid({
             title={widget.label}
             icon={<Icon />}
             count={widgetCount(widget.id, overview)}
-            menu={<WidgetMenu title={widget.label} {...menu} />}
+            menu={<WidgetMenu title={widget.label} />}
           >
             {renderWidget(widget.id, overview, WIDGET_FILL, onOpenBot, onOpenRecipes)}
           </WidgetCard>
@@ -298,8 +298,8 @@ function TradesTable({
       className={cn(className, BARE_TABLE)}
       header={
         // The title and count are on the widget card's heading, and the
-        // filter sits there too, beside the ⋮ ("move the buttons here").
-        <WidgetHeadingActions>
+        // filter is in its ⋮ (Tyler, 10 Nov 2026: "replace it with filter").
+        <WidgetMenuOptions>
           <TradeFilters
             fills={overview.fills}
             venues={venues}
@@ -318,7 +318,7 @@ function TradesTable({
               setPage(1)
             }}
           />
-        </WidgetHeadingActions>
+        </WidgetMenuOptions>
       }
       columns={TRADE_COLUMNS}
       rows={visible}
@@ -465,7 +465,7 @@ function TradeFilters({
   onClear: () => void
 }) {
   return (
-    <CountedFilterPopover
+    <CountedFilterMenu
       items={fills}
       groups={[
         {

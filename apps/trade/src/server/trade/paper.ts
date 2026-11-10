@@ -403,6 +403,7 @@ export async function saveBook(
         reason: entry.reason,
         fillTime: new Date(entry.fillTime),
         orderId: entry.orderId,
+        aimedPx: entry.aimedPx ?? null,
       }))
     )
     // A fill a copy's order made gets its fee row in the same write, so the
@@ -806,6 +807,7 @@ function toTradeFill(row: JournalRow): LiveFill {
     liquidation: row.reason === "liquidated",
     ending: PAPER_ENDINGS[row.reason] ?? "closed",
     live: false,
+    aimedPx: row.aimedPx,
   }
 }
 

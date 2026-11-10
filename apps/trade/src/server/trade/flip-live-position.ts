@@ -69,6 +69,7 @@ export async function flipLivePosition(userId: string, input: FlipLivePositionIn
         byHand: true,
         tpPx: null,
         slPx: null,
+        aimedPx: "sent",
       })
       if (opened.status !== "filled" || !Number.isFinite(opened.filledSz) || (opened.filledSz ?? 0) < sz) {
         return { complete: false as const }

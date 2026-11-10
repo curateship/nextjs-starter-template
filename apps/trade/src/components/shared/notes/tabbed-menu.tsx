@@ -54,10 +54,33 @@ export function MenuFooterButton({
 }
 
 /**
+ * A tabbed ⋮'s open state and tab, held by the page so something outside the
+ * menu can open it at one tab: a widget's Manage widgets opens the left
+ * panel's ⋮ at Widgets (Tyler, 10 Nov 2026). Hand `open`, `tab` and their two
+ * setters to `TabbedMenu`; `openAt` opens it showing that tab.
+ */
+export function useTabbedMenuState() {
+  const [state, setState] = React.useState<{ open: boolean; tab: string | undefined }>({
+    open: false,
+    tab: undefined,
+  })
+  return {
+    open: state.open,
+    tab: state.tab,
+    onOpenChange: React.useCallback((open: boolean) => setState((was) => ({ ...was, open })), []),
+    onTabChange: React.useCallback((tab: string) => setState((was) => ({ ...was, tab })), []),
+    openAt: React.useCallback((tab: string) => setState({ open: true, tab }), []),
+  }
+}
+
+export type TabbedMenuState = ReturnType<typeof useTabbedMenuState>
+
+/**
  * The ⋮ with tabbed settings that My settings is, shared by the task panel's
  * ⋮ (Tyler, 6 Nov 2026: "It needs to copy the Ui of the left panel tabs").
- * `open` and `onOpenChange` let the page close it from outside, and
- * `onCloseAutoFocus` send the keyboard somewhere other than the ⋮.
+ * `open` and `onOpenChange` let the page close it from outside, `tab` and
+ * `onTabChange` pick the tab from outside (`useTabbedMenuState`), and
+ * `onCloseAutoFocus` sends the keyboard somewhere other than the ⋮.
  */
 export function TabbedMenu({
   label,
@@ -66,6 +89,8 @@ export function TabbedMenu({
   width = "22.7rem",
   open: openFromOutside,
   onOpenChange,
+  tab: tabFromOutside,
+  onTabChange,
   onCloseAutoFocus,
 }: {
   label: string
@@ -75,11 +100,20 @@ export function TabbedMenu({
   width?: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** The tab showing, when the page holds it; undefined shows the first. */
+  tab?: string
+  onTabChange?: (tab: string) => void
   onCloseAutoFocus?: (event: Event) => void
 }) {
   const [ownOpen, setOwnOpen] = React.useState(false)
   const open = openFromOutside ?? ownOpen
-  const [tab, setTab] = React.useState(tabs[0]?.value ?? "")
+  const [ownTab, setOwnTab] = React.useState(tabs[0]?.value ?? "")
+  const tab = onTabChange ? (tabFromOutside ?? tabs[0]?.value ?? "") : ownTab
+  const setTab = (next: string) => {
+    if (onTabChange) onTabChange(next)
+    else setOwnTab(next)
+  }
+  // Opened from its own ⋮, it starts on the first tab.
   function change(next: boolean) {
     if (!next && document.activeElement instanceof HTMLElement) document.activeElement.blur()
     if (next) setTab(tabs[0]?.value ?? "")

@@ -102,6 +102,48 @@ have landed.
 Sorting by the column puts the biggest loss first. Rows with no stop sort to
 the end, the way a missing liquidation price already does.
 
+## Slippage
+
+Positions and the Journal each have a Slippage column (Tyler, 10 Nov 2026:
+"Add a col for slippage on position table and journal", then "aimed vs
+filled"). It is after Fees on Positions and after Made / lost in the Journal.
+
+- **What it measures:** the price each order was first placed at against the
+  price it filled at, times the size, in dollars. A buy of 2 coins aimed at
+  $100 that filled at $101 reads "-$2.00".
+- **The sign:** like Made / lost. Negative means the fill cost more than
+  aimed for, positive means it did better.
+- **A chase is measured from its first price.** A watched order or a strategy
+  signal that follows the price re-places its order many times. Every one of
+  those orders carries the price of the first send, kept on the order's saved
+  plan (`aimedPx`), so the column shows how far the chase walked.
+- **Where each aim comes from:**
+  - an order placed by hand, a ladder rung, a part close or a flip: the price
+    it went out at, the fresh price for a market order;
+  - a watched order or a strategy signal: the price the engine first asked
+    for. A watch that joins the front of the book can go out a tick from
+    that, so its slippage can read a tick's worth when it filled where it sat;
+  - a grid level: the level's own price;
+  - a stop or target that fired: its level, from the stops and targets
+    written down per order;
+  - a practice fill: the waiting order's own price, or a stop's level before
+    the practice slippage cost. A practice chase is measured from the order
+    that filled, not the chase's first price.
+- **Where it is kept:** `trade_order_aims` (migration 0247), one row per real
+  order by its exchange order id, written after the exchange answers and
+  never in the way of the order (`server/trade/order-aims.ts`). Practice fills
+  keep theirs in `trade_paper_journal.aimed_px`. An order put back under a new
+  id after a failed change keeps its first aim.
+- **A dash, never a short number.** A row shows a dash when any of its fills
+  has no aim: every fill before 10 Nov 2026, every fill from an order placed
+  by code older than this (the engine only records aims once Trade has
+  restarted on it, and the live site only after a deploy), a Close or flatten (no exchange
+  returns an order id for one), a KuCoin order that was dragged (KuCoin gives
+  the moved order a new id this app never sees), and fills of orders placed
+  outside this app. An open position whose fills on hand do not reach its
+  start also shows a dash. An incomplete Journal history always does.
+- **The total** under Positions adds every row and is a dash if any row is.
+
 ## Positions without a stop
 
 Once the practice and real-wallet reads have both finished, a position with no
@@ -149,7 +191,7 @@ introduced.
 
 ## Totals under positions and open orders
 
-Positions totals Value, Margin, Projected P&L, If stopped, Fees and Unrealized P&L. Open orders
+Positions totals Value, Margin, Projected P&L, If stopped, Fees, Slippage and Unrealized P&L. Open orders
 totals Value using each waiting price times its order size. The footer uses
 the existing shared table footer slot and opaque sticky-row background. It
 stays visible at the bottom while the table scrolls, with each sum under its

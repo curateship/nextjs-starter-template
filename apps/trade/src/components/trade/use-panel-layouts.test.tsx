@@ -26,7 +26,7 @@ vi.mock("@/lib/api/trade/panel-layouts", () => ({
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
 const marker = "trade-panel-layouts-account-import-v1"
-const horizontal = { blocks: 20, chart: 80 }
+const backtest = { workspace: 70, trades: 30 }
 const scope = { protocol: "hyperliquid", network: "mainnet" } as const
 const empty: TradePanelLayouts = {
   legacyImported: false,
@@ -76,12 +76,12 @@ describe("the browser-to-account panel layout handoff", () => {
       latest.current = value
     }
     localStorage.setItem(
-      tradePanelLayoutKey.workspaceHorizontal,
-      JSON.stringify(horizontal)
+      tradePanelLayoutKey.backtestVertical,
+      JSON.stringify(backtest)
     )
     const imported: TradePanelLayouts = {
       legacyImported: true,
-      current: { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+      current: { [tradePanelLayoutKey.backtestVertical]: backtest },
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
@@ -94,19 +94,19 @@ describe("the browser-to-account panel layout handoff", () => {
     })
 
     expect(api.importLegacy).toHaveBeenCalledWith({
-      [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+      [tradePanelLayoutKey.backtestVertical]: backtest,
     })
     expect(latest.current?.layouts).toEqual(imported)
     expect(
-      localStorage.getItem(tradePanelLayoutKey.workspaceHorizontal)
+      localStorage.getItem(tradePanelLayoutKey.backtestVertical)
     ).toBeNull()
     expect(localStorage.getItem(marker)).toBe("done")
   })
 
   it("removes old browser copies when the account already owns the layout", async () => {
     localStorage.setItem(
-      tradePanelLayoutKey.workspaceHorizontal,
-      JSON.stringify(horizontal)
+      tradePanelLayoutKey.backtestVertical,
+      JSON.stringify(backtest)
     )
 
     await act(async () => {
@@ -120,7 +120,7 @@ describe("the browser-to-account panel layout handoff", () => {
 
     expect(api.importLegacy).not.toHaveBeenCalled()
     expect(
-      localStorage.getItem(tradePanelLayoutKey.workspaceHorizontal)
+      localStorage.getItem(tradePanelLayoutKey.backtestVertical)
     ).toBeNull()
     expect(localStorage.getItem(marker)).toBe("done")
   })
@@ -145,8 +145,8 @@ describe("the browser-to-account panel layout handoff", () => {
 
     act(() => {
       latest.current?.remember(
-        tradePanelLayoutKey.workspaceHorizontal,
-        horizontal
+        tradePanelLayoutKey.backtestVertical,
+        backtest
       )
       latest.current?.remember(tradePanelLayoutKey.flowRunVertical, {
         workspace: 72,
@@ -205,12 +205,12 @@ describe("the browser-to-account panel layout handoff", () => {
       current: ReturnType<typeof useTradePanelLayouts> | null
     } = { current: null }
     const importing = deferred<TradePanelLayouts>()
-    const newer = { markets: 10, chart: 80, "smart-orders": 10 }
+    const newer = { workspace: 60, trades: 40 }
     api.importLegacy.mockReturnValue(importing.promise)
     api.save.mockResolvedValue(undefined)
     localStorage.setItem(
-      tradePanelLayoutKey.workspaceHorizontal,
-      JSON.stringify(horizontal)
+      tradePanelLayoutKey.backtestVertical,
+      JSON.stringify(backtest)
     )
 
     await act(async () => {
@@ -225,14 +225,14 @@ describe("the browser-to-account panel layout handoff", () => {
     })
 
     act(() => {
-      latest.current?.remember(tradePanelLayoutKey.workspaceHorizontal, newer)
+      latest.current?.remember(tradePanelLayoutKey.backtestVertical, newer)
     })
     expect(api.save).not.toHaveBeenCalled()
 
     await act(async () => {
       importing.resolve({
         legacyImported: true,
-        current: { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+        current: { [tradePanelLayoutKey.backtestVertical]: backtest },
         openMarketRows: {},
         headerProfitVisible: true,
         chartToolbarPosition: null,
@@ -242,10 +242,10 @@ describe("the browser-to-account panel layout handoff", () => {
     })
 
     expect(
-      latest.current?.layouts.current[tradePanelLayoutKey.workspaceHorizontal]
+      latest.current?.layouts.current[tradePanelLayoutKey.backtestVertical]
     ).toEqual(newer)
     expect(api.save).toHaveBeenCalledWith(
-      tradePanelLayoutKey.workspaceHorizontal,
+      tradePanelLayoutKey.backtestVertical,
       newer
     )
   })

@@ -1,5 +1,6 @@
 import type { LiveFill } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
+import { fillSlippage } from "@/lib/trade/slippage"
 
 /**
  * What a real position has cost in fees, added up by this app from the fills
@@ -37,6 +38,12 @@ export type PositionFees = {
    * count covers its whole life. False means it starts part way in.
    */
   whole: boolean
+  /**
+   * Slippage over the same fills, in dollars, negative when it cost money
+   * (`lib/trade/slippage.ts`). Null unless every counted fill knows the price
+   * it was aimed at and the count covers the whole position.
+   */
+  slippage: number | null
 }
 
 /** Sizes below this are the exchange's rounding dust, not a position. */
@@ -85,6 +92,7 @@ export function positionFees(
   const tolerance = Math.max(DUST, Math.abs(position.szi) * 1e-6)
   let counted = 0
   let paid = 0
+  let slipped: number | null = 0
   let countedFills = 0
   let countedFrom = ordered[0].at
   let whole = false
@@ -100,6 +108,8 @@ export function positionFees(
     const part = sameWay ? Math.min(fill.sz, Math.abs(missing)) : fill.sz
 
     paid += fill.fee * (part / fill.sz)
+    const slip = fillSlippage(fill, part)
+    slipped = slipped === null || slip === null ? null : slipped + slip
     counted += signed > 0 ? part : -part
     countedFills += 1
     countedFrom = fill.at
@@ -110,5 +120,5 @@ export function positionFees(
     }
   }
 
-  return { paid, countedFrom, countedFills, whole }
+  return { paid, countedFrom, countedFills, whole, slippage: whole ? slipped : null }
 }

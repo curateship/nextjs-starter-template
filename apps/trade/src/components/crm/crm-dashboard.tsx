@@ -15,7 +15,8 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import { useWidgetLayout } from "@/components/shared/widgets/use-widget-layout"
 import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
-import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { ManageWidgetsProvider, WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { useTabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { ANALYTICS_DEFAULT_RANGE } from "@/lib/analytics/range"
@@ -159,6 +160,10 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
   // Overview's widgets, held here so the left ⋮'s Widgets tab can set them
   // on every section, and the Dashboards block can count them.
   const widgets = useWidgetLayout("crm", loaded.tab === "overview" ? loaded.widgets : null)
+  // The left ⋮, held here so a widget's Manage widgets opens it at Widgets.
+  const leftMenu = useTabbedMenuState()
+  const { openAt: openLeftMenuAt } = leftMenu
+  const manageWidgets = React.useCallback(() => openLeftMenuAt("widgets"), [openLeftMenuAt])
 
   // People's segment windows, while People shows (`useHandSegmentActions`).
   const [segmentActions, setSegmentActions] = React.useState<CrmSegmentActions | null>(null)
@@ -369,6 +374,7 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
     <CrmSegmentActionsContext.Provider value={setSegmentActions}>
       {/* The left page's cover carries on behind the record on the right. */}
       <RightCoverProvider value={crmPage?.coverUrl ?? null}>
+      <ManageWidgetsProvider value={manageWidgets}>
       <ThreePanels
         // Overview is two panels, with a layout of its own.
         layoutKey={overview ? panelLayoutKey.crmOverview : panelLayoutKey.crmWorkspace}
@@ -395,6 +401,7 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
               onPageChange={setCrmPage}
               onFiguresChanged={reload}
               blocks={blocks}
+              menuState={leftMenu}
               widgets={
                 <WidgetSettings
                   board="crm"
@@ -433,6 +440,7 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
               }
         }
       />
+      </ManageWidgetsProvider>
       </RightCoverProvider>
     </CrmSegmentActionsContext.Provider>
   )

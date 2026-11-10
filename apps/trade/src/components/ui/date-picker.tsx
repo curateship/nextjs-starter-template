@@ -18,6 +18,9 @@ import {
  *
  * `defaultOpen` opens the calendar on first draw, and `onOpenChange` hears
  * every open and close, so a caller can tell a close without a pick.
+ * `short` writes the month as three letters, "Nov 10, 2026", for a narrow
+ * place such as a widget's ⋮ (Tyler, 10 Nov 2026: "shorten the month text to
+ * something like November to Nov").
  */
 export function DatePicker({
   value,
@@ -28,6 +31,7 @@ export function DatePicker({
   className,
   defaultOpen = false,
   onOpenChange,
+  short = false,
   "aria-invalid": ariaInvalid,
 }: {
   value: Date | undefined
@@ -38,6 +42,7 @@ export function DatePicker({
   className?: string
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  short?: boolean
   "aria-invalid"?: boolean
 }) {
   const [open, setOpenState] = React.useState(defaultOpen)
@@ -62,7 +67,7 @@ export function DatePicker({
           )}
         >
           <CalendarIcon className="size-4 text-muted-foreground" />
-          {value ? format(value, "PPP") : placeholder}
+          {value ? format(value, short ? "MMM d, yyyy" : "PPP") : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

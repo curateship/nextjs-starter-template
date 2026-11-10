@@ -296,10 +296,13 @@ right").
   Settings → Styling → Side panels, as every shell dashboard does (Tyler,
   9 Nov 2026: "the panel width is also not wired"). At 12% that is 150px of
   the dashboard at 1440 wide. It drags to 36%, and the middle is at least
-  32%. A dragged width is saved on the account under
-  `trade-workspace-horizontal-4` and is kept when the setting changes, unless
-  it is now narrower than the setting. Settings' Reset panels button only
-  clears widths kept in the browser, so it does not reset this one.
+  32%. A dragged width is kept in this browser, as on every shell dashboard,
+  under `trade-workspace-horizontal-5:` plus the setting's widths (`:12-0`
+  at 12%). Changing the setting starts the panel from the new width, and
+  Settings' Reset panels button forgets the dragged one (Tyler, 10 Nov 2026:
+  "yea fix it"). A shut panel is kept shut the same way. Full screen never saves a width. Until
+  10 Nov 2026 the width was saved on the account under
+  `trade-workspace-horizontal-4`; the server no longer reads that copy.
 - **Shutting the left panel:** the button in its header, a double-click on its
   blank space, or a drag. On an exchange, a button at the start of the middle
   header brings it back, before the tabs, as on the shell's dashboards (Tyler,

@@ -273,6 +273,13 @@ export type PaperJournalEntry = {
    * position.
    */
   orderId: string | null
+  /**
+   * The price this fill was aimed at, for slippage (10 Nov 2026): the waiting
+   * order's own price, or a stop's level before the practice slippage cost.
+   * Null on fills from before then, and absent on the live engine's own
+   * in-memory copies of real fills, which are never saved.
+   */
+  aimedPx?: number | null
 }
 
 /** Everything the fill arithmetic reads and rewrites. */

@@ -99,10 +99,59 @@ beforeEach(() => {
     value: "visible",
   })
   window.localStorage.clear()
+  // The period dropdown scrolls its picked option into view; jsdom has no
+  // scrolling or pointer capture of its own.
+  Element.prototype.scrollIntoView ??= () => {}
+  Element.prototype.hasPointerCapture ??= () => false
+  Element.prototype.releasePointerCapture ??= () => {}
   host = document.createElement("div")
   document.body.append(host)
   root = createRoot(host)
 })
+
+/**
+ * Opens PnL Graph's ⋮, where its period and dates are (Tyler, 10 Nov 2026:
+ * "also move this into the dotted dropdown"), and hands back the menu.
+ */
+async function openGraphMenu() {
+  const more = host.querySelector<HTMLButtonElement>('button[aria-label="More for PnL Graph"]')
+  expect(more).not.toBeNull()
+  await act(async () => more?.click())
+  const menu = document.querySelector<HTMLElement>('[data-slot="popover-content"]')
+  expect(menu).not.toBeNull()
+  return menu!
+}
+
+/** Picks one of the period presets from the ⋮'s dropdown (10 Nov 2026). */
+async function pickPreset(menu: HTMLElement, label: string) {
+  const trigger = menu.querySelector<HTMLButtonElement>('[aria-label="Profit date range"]')
+  expect(trigger).not.toBeNull()
+  await act(async () => {
+    trigger?.focus()
+    trigger?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  })
+  const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+    (one) => one.textContent === label
+  )
+  expect(option).toBeDefined()
+  await act(async () => {
+    option?.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "mouse" }))
+    option?.click()
+  })
+}
+
+/** The preset the ⋮'s dropdown shows. */
+function shownPreset(menu: HTMLElement) {
+  return menu.querySelector('[aria-label="Profit date range"]')?.textContent
+}
+
+/** What the From and To pickers in the ⋮ show. */
+function shownDates(menu: HTMLElement) {
+  return [
+    menu.querySelector("#pnl-menu-from-date")?.textContent,
+    menu.querySelector("#pnl-menu-to-date")?.textContent,
+  ]
+}
 
 afterEach(() => {
   act(() => root.unmount())
@@ -112,7 +161,7 @@ afterEach(() => {
 })
 
 describe("what the widgets say about when they started", () => {
-  it("puts the result for the selected row in the card's header", () => {
+  it("puts the result for the selected row in the card's header", async () => {
     const shown = show("2026-08-24T16:00:00.000Z")
     expect(shown).toContain("Profit and loss · All wallets")
     expect(shown).toContain("+$190.00+3.65%")
@@ -135,43 +184,28 @@ describe("what the widgets say about when they started", () => {
     expect(host.querySelector('section[aria-label="PnL Graph"] h2')?.textContent).toBe("PnL Graph")
     expect(shown.split("PnL Graph")).toHaveLength(2)
     expect(shown).not.toContain("1 wallet")
-    expect(shown).toContain("1D1W1M3M6MAll")
-    expect(shown).toContain("Aug 20 – Aug 24, 2026")
+    // The period and dates are in the widget's ⋮, not on the card.
+    expect(shown).not.toContain("1D1W1M3M6MAll")
+    const menu = await openGraphMenu()
+    // A dropdown showing the preset, and the dates with three-letter months.
+    expect(shownPreset(menu)).toBe("All")
+    expect(shownDates(menu)).toEqual(["Aug 20, 2026", "Aug 24, 2026"])
   })
 
-  it("filters 1D to today and names the day on the dates button", async () => {
+  it("filters 1D to today and shows the day in the ⋮'s dates", async () => {
     show("2026-08-24T16:00:00.000Z")
-    const today = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent === "1D"
-    )
+    const menu = await openGraphMenu()
+    await pickPreset(menu, "1D")
 
-    await act(async () => {
-      today?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
-
-    expect(
-      host.querySelector('[role="tab"][aria-selected="true"]')?.textContent
-    ).toBe("1D")
-    expect(
-      host.querySelector('button[aria-label^="Dates shown"]')?.textContent
-    ).toBe("Aug 24, 2026")
+    expect(shownPreset(menu)).toBe("1D")
+    expect(shownDates(menu)).toEqual(["Aug 24, 2026", "Aug 24, 2026"])
   })
 
-  it("moves the dates button with the calendar", async () => {
+  it("moves the ⋮'s dates with the calendar", async () => {
     show("2026-08-25T16:00:00.000Z")
-    const today = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent === "1D"
-    )
-    await act(async () => {
-      today?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      )
-    })
-    expect(
-      host.querySelector('button[aria-label^="Dates shown"]')?.textContent
-    ).toBe("Aug 25, 2026")
+    const menu = await openGraphMenu()
+    await pickPreset(menu, "1D")
+    expect(shownDates(menu)).toEqual(["Aug 25, 2026", "Aug 25, 2026"])
   })
 
   it("selects All wallets first and makes the whole card follow the selection", () => {

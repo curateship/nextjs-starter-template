@@ -42,6 +42,13 @@ export type LiveFill = {
   sz: number
   /** Epoch ms, the exchange's clock. */
   at: number
+  /**
+   * The price its order was first placed at, for slippage (Tyler, 10 Nov
+   * 2026: "aimed vs filled"). Kept from when the order went out, through
+   * every re-place of a chase. Null or missing on fills from before it was
+   * recorded, and on any fill whose order this app did not place.
+   */
+  aimedPx?: number | null
   /** What it banked, the exchange's own figure. Zero on a fill that opened. */
   closedPnl: number
   fee: number

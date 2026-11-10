@@ -103,14 +103,13 @@ const store: WidgetStore = { load: loadMyLayout, save: saveMyLayout, message: my
 const widgets = useWidgetLayout(store, seedFromTheRoute)
 
 <WidgetGrid offer={{ choices: MY_WIDGETS }} layout={widgets.layout} onChange={widgets.change}
-  drawWidget={(id, menu) => <MyWidget id={id} menu={menu} />} />
+  drawWidget={(id) => <MyWidget id={id} />} />
 <WidgetSettings offer={{ choices: MY_WIDGETS }} layout={widgets.layout} error={widgets.error}
   onRetry={widgets.retry} onChange={widgets.change} />
 ```
 
 - **`offer`** goes where `board` would: the widgets offered in the Widgets
-  tab, each widget's ⋮ and an empty spot, and, as `none`, what an empty list
-  says. Exactly one of `board` and `offer` is given.
+  tab and an empty spot, and, as `none`, what an empty list says. Exactly one of `board` and `offer` is given.
 - **`drawWidget`** draws every widget of an offer. There are no app widgets
   loaded by key on a grid of its own, so an id it does not draw shows as an
   empty spot.
@@ -119,11 +118,31 @@ const widgets = useWidgetLayout(store, seedFromTheRoute)
   `src/lib/admin-dashboard/overview-widgets.ts` work on it as they do on
   Admin's. The app's server cleans what it stores with `cleanWidgetLayout`
   and its own list of ids.
-- **A widget's own buttons**, a Filter or a period picker, go in the card's
-  heading beside its ⋮ through `WidgetHeadingActions` from `widget-card.tsx`
-  (Tyler, 8 Nov 2026: "move the buttons here"). Outside a widget card it draws
-  them where it is. A heading too narrow for them puts them and the ⋮ on a
-  second line under the name.
+- **A widget's ⋮** (`WidgetMenu`, drawn as `<WidgetMenu title={label} />`)
+  holds the widget's own options, then, under a line, Manage widgets (Tyler,
+  10 Nov 2026: "remove the widget management out of the widget itself ... and
+  replace it with filter", the period and dates "into the dotted dropdown",
+  then "replace delete widget with 'Manage widgets' link that opens up the
+  left top header widget tab"). Swapping, placing and removing a widget
+  happen only in the left panel's Widgets tab.
+  - **Options** are handed over with `WidgetMenuOptions` from
+    `widget-card.tsx`. They are drawn inside the ⋮, so they are rows and
+    fields that apply at once (a filter's groups, a period's presets and
+    dates), never a button that opens a box of its own. Outside a widget card
+    `WidgetMenuOptions` draws nothing.
+  - **Manage widgets** shows the left panel (opens it when shut, switches to
+    its pill when narrow, through `useShowLeftPanel` from `three-panels.tsx`)
+    and opens its ⋮ at Widgets. The dashboard provides what that does with
+    `ManageWidgetsProvider` from `widget-menus.tsx`, holding its left ⋮ with
+    `useTabbedMenuState()` from `tabbed-menu.tsx` and calling
+    `openAt("widgets")`. A frame of the app's own provides
+    `ShowLeftPanelProvider`. Without a provider the row is left out, and a ⋮
+    with neither options nor Manage widgets is not drawn.
+- **A widget's other buttons**, such as a link, go in the card's heading
+  beside its ⋮ through `WidgetHeadingActions` from `widget-card.tsx` (Tyler,
+  8 Nov 2026: "move the buttons here"). Outside a widget card it draws them
+  where it is. A heading too narrow for them puts them and the ⋮ on a second
+  line under the name.
 - **Spacing and lines:** widgets sit the site's gutter apart (`pageGutter`,
   Admin → Styling), and a table's heading row inside a widget's or a
   block's tile is the tile's colour with the Divider lines colour alone as
@@ -139,8 +158,8 @@ const widgets = useWidgetLayout(store, seedFromTheRoute)
   from its key (`trip-count` is `noteAdminAppTripCount`), so the app never
   names one, and the server keeps it on a saved page because it reads the
   same keys.
-- **The Widgets tab** of the Admin ⋮, each widget's own ⋮ and an empty
-  spot's "Add a widget" offer the shell's nine widgets, then the app's. An app widget is stored in the layout as `app:<key>`. If the app
+- **The Widgets tab** of the Admin ⋮ and an empty spot's "Add a widget"
+  offer the shell's nine widgets, then the app's. An app widget is stored in the layout as `app:<key>`. If the app
   later drops it, its spot reads as Empty.
 - **Refused out loud:** a key the shell already uses (the blocks `sections`
   and `plans`; the nine widget ids in `overview-widgets.ts`), a key used

@@ -664,6 +664,36 @@ export const tradeGridOrderRungs = pgTable(
 )
 
 /**
+ * The price each real order was first placed at, by its exchange order id,
+ * for slippage (Tyler, 10 Nov 2026: "aimed vs filled"; migration 0247). A
+ * fill reports its order id, and this is what it is compared with. A chase's
+ * every re-place, and an order moved to a new id, carry the first price, not
+ * their own. Written after the exchange has answered and never in the way of
+ * the order (`recordOrderAim` in `order-aims.ts`).
+ */
+export const tradeOrderAims = pgTable(
+  "trade_order_aims",
+  {
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
+    aimedPx: doublePrecision("aimed_px").notNull(),
+    placedAt: timestamp("placed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.orderId] }),
+    check("trade_order_aims_side_check", sql`${table.side} IN ('buy', 'sell')`),
+    check("trade_order_aims_px_check", sql`${table.aimedPx} > 0`),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
  * The stop and take-profit orders that have been seen sitting on a position,
  * written down once each so that later — when the position is long gone — a
  * fill can be matched to the order that caused it.
@@ -922,6 +952,12 @@ export const tradePaperJournal = pgTable(
      * order id does.
      */
     orderId: varchar("order_id", { length: 128 }),
+    /**
+     * The price this fill was aimed at, for slippage (10 Nov 2026, migration
+     * 0247): the order's first price, or the stop's level for a stop. Null on
+     * practice fills from before then.
+     */
+    aimedPx: doublePrecision("aimed_px"),
     /** Binned from the list. The row still counts towards the wallet's cash. */
     hidden: boolean("hidden").notNull().default(false),
     reason: varchar("reason", { length: 16 })

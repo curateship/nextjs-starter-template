@@ -101,7 +101,8 @@ import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import { tradeWorkspacePanelKey } from "@/lib/trade/panel-keys"
+import { sidePanelWidthsKey } from "@/lib/layout/panel-layout"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import {
   favFolder,
@@ -145,11 +146,13 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
+import { ShowLeftPanelProvider } from "@/components/shared/three-panels"
 import { DEFAULT_LEFT_PANEL_WIDTH, clampSidePanelWidth } from "@/lib/layout/styling-values"
 import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { STILL_PANEL } from "@/lib/trade/panel-fit"
 import {
   type TradePanelLayouts,
+  useBrowserPanelLayout,
   useRememberedPanelLayoutInPlace,
 } from "@/lib/trade/panel-layout"
 
@@ -161,6 +164,8 @@ import {
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
+/** The Trade dashboard's two panels, in `tradeWorkspacePanelKey`'s layouts. */
+const WORKSPACE_PANEL_IDS: readonly string[] = ["blocks", "chart"]
 const NO_SLOTS: readonly HTMLElement[] = []
 const NO_HIDDEN_BLOCKS: ReadonlySet<string> = new Set()
 
@@ -602,11 +607,16 @@ export function TradeWorkspace({
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
+  // The left page | middle widths live in this browser, keyed by the Side
+  // panels width, so Reset panels and a changed setting both reach them.
+  const horizontalStored = useBrowserPanelLayout(
+    sidePanelWidthsKey(tradeWorkspacePanelKey, blocksWidth, 0),
+    WORKSPACE_PANEL_IDS
+  )
   const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[horizontalKey],
-    panelLayouts.layouts.current[horizontalKey],
-    (layout) => panelLayouts.remember(horizontalKey, layout)
+    WORKSPACE_PANEL_IDS,
+    horizontalStored.layout,
+    horizontalStored.save
   )
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayout = React.useRef<ReturnType<
@@ -699,6 +709,15 @@ export function TradeWorkspace({
     toggleBlocksPanel()
     horizontalLayout.rememberLayout()
   }, [horizontalLayout, toggleBlocksPanel])
+  // Brings the left page into view for a widget's Manage widgets, which then
+  // opens its ⋮ at Widgets: opened when shut, or switched to when narrow.
+  const showBlocks = React.useCallback(() => {
+    if (!desktop) {
+      setNarrowView("blocks")
+      return
+    }
+    if (blocksPanelRef.current?.isCollapsed()) toggleBlocks()
+  }, [desktop, toggleBlocks])
 
   // Double-clicking the empty part of the left panel shuts it, and
   // double-clicking what is left of it opens it again.
@@ -1425,6 +1444,7 @@ export function TradeWorkspace({
     // One memory of which settings cards are folded, for every window under
     // here — the ladder window and a live ladder's exits both draw the same
     // cards, and folding one in one place should mean it is folded in both.
+    <ShowLeftPanelProvider value={showBlocks}>
     <CardFolds initial={initialCardFolds}>
       <TradeBlocksProvider value={tradeBlocks}>
         <div
@@ -1498,6 +1518,7 @@ export function TradeWorkspace({
         </div>
       </TradeBlocksProvider>
     </CardFolds>
+    </ShowLeftPanelProvider>
   )
 }
 

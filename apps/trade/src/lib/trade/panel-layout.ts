@@ -182,6 +182,38 @@ export function useRememberedPanelLayoutInPlace(
   }
 }
 
+/**
+ * A panel layout kept in this browser under `key`, for
+ * `useRememberedPanelLayoutInPlace`. It is read before the first paint, never
+ * on the server, and read again whenever `key` changes; a key with nothing
+ * kept under it hands back null, so the panels' own default sizes stand.
+ */
+export function useBrowserPanelLayout(key: string, panelIds: readonly string[]) {
+  const [stored, setStored] = React.useState<{ key: string; layout: Layout | null } | null>(null)
+  useEffectBeforePaint(() => {
+    let layout: Layout | null = null
+    try {
+      const text = localStorage.getItem(key)
+      layout = text ? matchingPanelLayout(JSON.parse(text), panelIds) : null
+    } catch {
+      // Storage that cannot be read, or holds something else, keeps the defaults.
+    }
+    setStored({ key, layout })
+  }, [key, panelIds])
+  const save = React.useCallback(
+    (layout: Layout) => {
+      setStored({ key, layout })
+      try {
+        localStorage.setItem(key, JSON.stringify(layout))
+      } catch {
+        // Storage may be blocked; the drag still holds for this visit.
+      }
+    },
+    [key]
+  )
+  return { layout: stored?.key === key ? (stored.layout ?? undefined) : undefined, save }
+}
+
 /** A saved layout only when it names every panel on the current screen. */
 export function matchingPanelLayout(
   value: unknown,

@@ -34,14 +34,31 @@ card. Its layout copies the design Tyler sent on 23 Sep 2026
 
 The widgets sit in the shell's rows (8 Nov 2026): a top row of 1 to 4 columns
 and a bottom row of None or 1 to 4, set in the Widgets tab of the dashboard's
-⋮, and swapped or removed from each widget's own ⋮. Wide, the two rows share
+⋮, which is also where a widget is swapped or removed. Wide, the two rows share
 the height and a long list scrolls inside its card. Narrow, the widgets stack
 at their own height and Overview scrolls. Each person keeps their own layout
 (`trade_prefs.overview_widgets`), starting with PnL Graph and Active Trades on
 top and Running bots and All trades under them. The card's heading holds the
-name and the count, and a table's Filter sits in that heading beside the ⋮ (8 Nov
-2026: "move the buttons here"). PnL Graph's period tabs and dates button sit
-there too. Widgets are the site's gutter apart.
+name, the count and the widget's ⋮. Widgets are the site's gutter apart.
+
+Each widget's ⋮ holds that widget's own options, then Manage widgets under a
+line (Tyler, 10 Nov 2026: "remove the widget management out of the widget
+itself ... and replace it with filter", the period and dates "into the dotted
+dropdown", then "replace delete widget with 'Manage widgets' link that opens
+up the left top header widget tab"):
+
+- **Active Trades and All trades:** the Exchange and Wallet filter, each pick
+  applying at once, and Clear filters under them while one is narrowed.
+- **PnL Graph:** Dates, with the 1D to All presets in a dropdown (Tyler,
+  10 Nov 2026: "Make this a dropdown"), then the From and To date pickers,
+  each writing the month as three letters, "Nov 10, 2026" ("shorten the month
+  text to something like November to Nov"). Picked dates make the dropdown
+  read Custom. With no history yet the pickers are replaced by a line saying
+  so.
+- **The rest** (Running bots, Profit calendar, Moving now): Manage widgets
+  alone. Moving now keeps its All markets link in the heading.
+- **Manage widgets** opens the left page if it was shut, or switches to it on
+  a narrow screen, then opens the left page's ⋮ at its Widgets tab.
 
 The left side starts with All wallets and then lists each real mainnet wallet.
 
@@ -77,13 +94,11 @@ dates button.
 
 - **The tabs:** 1D, 1W, 1M, 3M, 6M and All. 1D means the current calendar day
   from midnight, not the last 24 hours.
-- **The dates button:** it names the period on screen, such as "Aug 20 – Sep
-  23, 2026", or one date when the period is a single day. Clicking it opens a
-  small window with labelled From and To date pickers, Reset and Done.
-- **Picking a date:** the chart changes at once. Done only closes the window.
-  Reset returns to All and closes it.
-- **No history yet:** the dates button is greyed out, and hovering or focusing
-  it explains that there is no history to pick a range from yet.
+- **The dates:** From and To in the widget's ⋮, each showing the date it
+  holds. Picking one changes the chart at once and makes the period custom.
+  Picking a preset again drops the custom dates.
+- **No history yet:** the ⋮ says there is no profit history to pick dates
+  from yet, in place of the date pickers.
 - **What the dates change:** only the chart. The header figure and the four
   figures above the chart always describe the whole record. Dates outside the
   recorded history show that no results fall inside the range. The graph does
@@ -119,10 +134,12 @@ with the largest P/L first. Every heading sorts, and Filter narrows the rows by
 exchange, wallet, or both. Every exchange and wallet starts checked. More than
 one may stay checked, and unchecking a choice removes its rows. Clear all resets
 the menu to every row. Each choice shows its row count in a muted badge directly
-beside the exchange or wallet name. The checkmark stays at the far right. The
-Filter button counts how many groups are narrowed.
-Active Trades and Trades use the same checked Filter menu. Each menu keeps its
-own open state when both widgets sit on screen. A
+beside the exchange or wallet name. The checkmark stays at the far right. On
+Overview the filter is in the widget's ⋮ and Clear all is Clear filters,
+shown only while a group is narrowed; elsewhere it is a Filter button that
+counts how many groups are narrowed.
+Active Trades and Trades use the same checked filter. Each keeps its own
+choices when both widgets sit on screen. A
 wallet that could not be read does not add an
 orange warning row above the trades that did answer. When no trades answer, the
 empty wording still avoids claiming that every wallet was empty. A market whose
@@ -223,7 +240,7 @@ green for money made, red for money lost, plain grey for a day with no
 trades. It draws `src/components/pnl/pnl-month-grid.tsx` inside
 `src/components/trade/profit-calendar-widget.tsx`, and a public profile draws
 the same grid. A fresh layout leaves it out, so it waits in the Widgets tab,
-an empty spot's "Add a widget" or another widget's ⋮ until somebody places it.
+or an empty spot's "Add a widget" until somebody places it.
 
 Until 8 Nov 2026 the grid also sat on a P&L page at `/pnl`, beside the whole
 Journal, pattern cards and an AI score out of 100. Tyler removed that page

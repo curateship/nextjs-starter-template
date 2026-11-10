@@ -369,6 +369,8 @@ function MockPanelGroup(props: {
 
 const { TradeWorkspace } = await import("@/components/trade/trade-workspace")
 
+const WORKSPACE_WIDTHS_KEY = "trade-workspace-horizontal-5:10-0"
+
 let host: HTMLDivElement
 let root: Root
 
@@ -388,9 +390,13 @@ beforeEach(() => {
   rememberedLayouts.mockClear()
   rememberedToolbarPosition.mockClear()
   layoutSetEvents.length = 0
+  // The dashboard's widths are kept in this browser, under the Side panels
+  // width (10%, the default, with no site settings here).
+  localStorage.setItem(WORKSPACE_WIDTHS_KEY, JSON.stringify({ blocks: 20, chart: 80 }))
 })
 
 afterEach(async () => {
+  localStorage.clear()
   await act(async () => root.unmount())
   host.remove()
   vi.unstubAllGlobals()
@@ -449,12 +455,7 @@ function renderWorkspace(overview: React.ReactNode | null) {
         initialTradingRules={DEFAULT_TRADING_RULES}
         initialPanelLayouts={{
           legacyImported: true,
-          current: {
-            "trade-workspace-horizontal-4": {
-              blocks: 20,
-              chart: 80,
-            },
-          },
+          current: {},
           openMarketRows: {},
           headerProfitVisible: true,
           chartToolbarPosition: null,
@@ -551,10 +552,12 @@ describe("the trade dashboard", () => {
     expect(rememberedToolbarPosition).toHaveBeenCalledWith({ x: 0.2, y: 0.4 })
 
     await act(async () => clickButton("Resize horizontal group"))
-    expect(rememberedLayouts).toHaveBeenCalledWith(
-      "trade-workspace-horizontal-4",
-      { blocks: 25, chart: 75 }
-    )
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_WIDTHS_KEY) ?? "null")).toEqual({
+      blocks: 25,
+      chart: 75,
+    })
+    // Nothing goes to the account any more.
+    expect(rememberedLayouts).not.toHaveBeenCalled()
 
     vi.useFakeTimers()
     showErrorToast.mockClear()

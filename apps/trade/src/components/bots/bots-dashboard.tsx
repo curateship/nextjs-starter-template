@@ -11,7 +11,8 @@ import { BotRunsSection, type BotRunsLoaded } from "@/components/bots/bot-runs-s
 import { RecipesSection, type RecipesLoaded } from "@/components/bots/recipes-section"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
 import { useWidgetLayout, type WidgetStore } from "@/components/shared/widgets/use-widget-layout"
-import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { ManageWidgetsProvider, WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { useTabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import { ErrorRow } from "@/components/ui/error-row"
 import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
@@ -138,6 +139,10 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
   const [changes, setChanges] = React.useState(0)
   const countsRead = useLoad(loadBotsCounts, getBotsErrorMessage, { keys: [loaded.view, changes] })
   const widgets = useWidgetLayout(BOTS_WIDGET_STORE, loaded.view === "overview" ? loaded.layout : null)
+  // The left ⋮, held here so a widget's Manage widgets opens it at Widgets.
+  const leftMenu = useTabbedMenuState()
+  const { openAt: openLeftMenuAt } = leftMenu
+  const manageWidgets = React.useCallback(() => openLeftMenuAt("widgets"), [openLeftMenuAt])
 
   const go = React.useCallback(
     (next: BotsSearch, how?: { push?: boolean }) => void navigate({ search: next, replace: !how?.push }),
@@ -205,6 +210,7 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
 
   return (
     <RightCoverProvider value={pageRead.data?.coverUrl ?? null}>
+    <ManageWidgetsProvider value={manageWidgets}>
       <ThreePanels
         // Overview is two panels, with a layout of its own.
         layoutKey={twoPanels ? botsPanelKey.twoPanels : botsPanelKey.dashboard}
@@ -222,6 +228,7 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
               onRetry={pageRead.retry}
               blocks={blocks}
               onPageChange={setPage}
+              menuState={leftMenu}
               menuTabs={[
                 {
                   value: "widgets",
@@ -265,6 +272,7 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
               }
         }
       />
+    </ManageWidgetsProvider>
     </RightCoverProvider>
   )
 }

@@ -28,7 +28,7 @@ import type { PageEditorData } from "@/lib/api/content/page-editor"
 import { STYLE_GROUP_COUNT, StylingTab } from "@/components/admin-dashboard/styling-tab"
 import { OverviewTab } from "@/components/admin-dashboard/overview-tab"
 import { useWidgetLayout } from "@/components/shared/widgets/use-widget-layout"
-import { WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { ManageWidgetsProvider, WidgetSettings } from "@/components/shared/widgets/widget-menus"
 import { UsersTab, type UsersLoaded } from "@/components/admin-dashboard/users-tab"
 import type { OverviewFigures } from "@/lib/admin-dashboard/overview-figures"
 import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
@@ -38,7 +38,7 @@ import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { PlanDialog } from "@/components/admin/plan-dialog"
 import { Button } from "@/components/ui/button"
 import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
-import { MenuFooterButton } from "@/components/shared/notes/tabbed-menu"
+import { MenuFooterButton, useTabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
@@ -212,6 +212,10 @@ export function AdminDashboard({
   // Overview's widgets, held here so the left ⋮'s Widgets tab can set them
   // on every section, and the Dashboards block can count them.
   const widgets = useWidgetLayout("admin", loaded.tab === "overview" ? loaded.widgets : null)
+  // The left ⋮, held here so a widget's Manage widgets opens it at Widgets.
+  const leftMenu = useTabbedMenuState()
+  const { openAt: openLeftMenuAt } = leftMenu
+  const manageWidgets = React.useCallback(() => openLeftMenuAt("widgets"), [openLeftMenuAt])
 
   // The sections the Dashboards block leaves out, kept with the site's look
   // and saved as the rest of Settings is.
@@ -394,6 +398,7 @@ export function AdminDashboard({
     <OpenPersonProvider value={openPerson}>
       {/* The left page's cover carries on behind the record on the right. */}
       <RightCoverProvider value={pages?.left?.coverUrl ?? null}>
+      <ManageWidgetsProvider value={manageWidgets}>
       <ThreePanels
         // Overview is two panels, with a layout of its own.
         layoutKey={twoPanels ? panelLayoutKey.adminOverview : panelLayoutKey.admin}
@@ -415,6 +420,7 @@ export function AdminDashboard({
             <AdminPagePanel
               title="Admin"
               menuLabel="Admin settings"
+              menuState={leftMenu}
               actions={
                 <AddMenu
                   onPageCreated={async (path) => {
@@ -528,6 +534,7 @@ export function AdminDashboard({
           }}
         />
       </ThreePanels>
+      </ManageWidgetsProvider>
       </RightCoverProvider>
     </OpenPersonProvider>
   )

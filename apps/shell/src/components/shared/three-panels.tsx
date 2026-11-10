@@ -57,6 +57,20 @@ const SideToggles = React.createContext<{
 export const SideTogglesProvider = SideToggles.Provider
 
 /**
+ * Brings the left panel into view, wide or narrow: opens it when shut, and on
+ * a narrow screen switches to it. A widget's Manage widgets uses it before
+ * opening the left panel's ⋮ (Tyler, 10 Nov 2026). Null outside a frame.
+ */
+const ShowLeftPanel = React.createContext<(() => void) | null>(null)
+
+/** For an app's own frame, such as Trade's dashboard, to provide the same. */
+export const ShowLeftPanelProvider = ShowLeftPanel.Provider
+
+export function useShowLeftPanel() {
+  return React.useContext(ShowLeftPanel)
+}
+
+/**
  * In the middle panel's header, the button that brings a shut side panel
  * back, in place of the knob on the middle's edge (Tyler, 8 Nov 2026: "Put
  * the uncollapse icon here ... and remove this knob", with Lucide's
@@ -293,8 +307,18 @@ export function ThreePanels({
     [toggleLeft, toggleRight, leftState.collapsed, rightState.collapsed, hasRight]
   )
 
+  const showLeft = React.useCallback(() => {
+    if (!wide) {
+      setNarrowView("left")
+      return
+    }
+    const panel = leftRef.current
+    if (panel?.isCollapsed()) panel.expand()
+  }, [wide])
+
   if (!wide) {
     return (
+      <ShowLeftPanel.Provider value={showLeft}>
       <div className="flex min-h-0 flex-1 flex-col gap-2">
         <Tabs value={narrowView} onValueChange={(value) => setNarrowView(value as typeof narrowView)}>
           <TabsList>
@@ -318,10 +342,12 @@ export function ThreePanels({
         })}
         {children}
       </div>
+      </ShowLeftPanel.Provider>
     )
   }
 
   return (
+    <ShowLeftPanel.Provider value={showLeft}>
     <SideToggles.Provider value={toggles}>
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
@@ -389,5 +415,6 @@ export function ThreePanels({
       {children}
     </div>
     </SideToggles.Provider>
+    </ShowLeftPanel.Provider>
   )
 }
