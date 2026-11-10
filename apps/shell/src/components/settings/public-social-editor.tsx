@@ -24,17 +24,14 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
-import { FormDialog } from "@/components/ui/form-dialog"
+import {
+  EditPopoverBody,
+  EditPopoverFooter,
+  EditPopoverHeader,
+  FormPopover,
+} from "@/components/ui/edit-popover"
 import { Input } from "@/components/ui/input"
 import {
   MAX_PUBLIC_SOCIAL_LINKS,
@@ -49,7 +46,7 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
+  "w-fit max-w-full rounded-xl border border-zinc-200/40 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300/40 dark:border-zinc-700/40"
 
 /**
  * The social accounts in the public footer, edited the way the footer links
@@ -68,6 +65,8 @@ export function PublicSocialEditor({
   const sensors = useNavSensors()
   const [openIndex, setOpenIndex] = React.useState<number | null>(null)
   const [creating, setCreating] = React.useState(false)
+  // The + the add popover hangs from.
+  const addRef = React.useRef<HTMLButtonElement>(null)
   const [pendingDeleteIndex, setPendingDeleteIndex] = React.useState<
     number | null
   >(null)
@@ -127,6 +126,7 @@ export function PublicSocialEditor({
               reason={PUBLIC_SOCIAL_LINKS_FULL_MESSAGE}
             >
               <button
+                ref={addRef}
                 type="button"
                 disabled={full}
                 onClick={() => setCreating(true)}
@@ -144,6 +144,7 @@ export function PublicSocialEditor({
       {creating ? (
         <SocialDialog
           link={null}
+          anchorRef={addRef}
           onClose={() => setCreating(false)}
           onSave={async (next) => {
             const saved = await saveLinks([...links, next])
@@ -192,6 +193,7 @@ function SocialChip({
 }) {
   const label = PUBLIC_SOCIAL_PLATFORM_LABELS[link.platform]
   const chip = useSortableChip(id, label)
+  const nameRef = React.useRef<HTMLButtonElement>(null)
 
   return (
     <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
@@ -200,6 +202,7 @@ function SocialChip({
           <GripVertical className="h-4 w-4" />
         </span>
         <Button
+          ref={nameRef}
           type="button"
           variant="ghost"
           className="max-w-56 justify-start px-3 text-sm font-medium"
@@ -223,6 +226,7 @@ function SocialChip({
       {dialogOpen ? (
         <SocialDialog
           link={link}
+          anchorRef={nameRef}
           onClose={() => onDialogOpenChange(false)}
           onSave={async (next) => {
             const saved = await onSave(next)
@@ -247,10 +251,13 @@ function SocialChip({
  */
 function SocialDialog({
   link,
+  anchorRef,
   onClose,
   onSave,
 }: {
   link: PublicSocialLink | null
+  /** The chip or + that opened it, which the popover hangs from. */
+  anchorRef: React.RefObject<HTMLElement | null>
   onClose: () => void
   onSave: (link: PublicSocialLink) => Promise<boolean>
 }) {
@@ -285,20 +292,24 @@ function SocialDialog({
   }
 
   return (
-    <FormDialog open dirty={dirty} busy={saving} onClose={onClose}>
+    <FormPopover
+      dirty={dirty}
+      busy={saving}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      aria-label={PUBLIC_SOCIAL_PLATFORM_LABELS[draft.platform]}
+    >
       {(requestClose) => (
-        <DialogContent variant="admin" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {PUBLIC_SOCIAL_PLATFORM_LABELS[draft.platform]}
-            </DialogTitle>
-            <DialogDescription>
-              {link
+        <>
+          <EditPopoverHeader
+            title={PUBLIC_SOCIAL_PLATFORM_LABELS[draft.platform]}
+            description={
+              link
                 ? "Edit this social account."
-                : "Add a social account to the public footer."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
+                : "Add a social account to the public footer."
+            }
+          />
+          <EditPopoverBody>
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Account</CardTitle>
@@ -341,8 +352,8 @@ function SocialDialog({
                 </div>
               </CardContent>
             </Card>
-          </DialogBody>
-          <DialogFooter>
+          </EditPopoverBody>
+          <EditPopoverFooter>
             <Button
               type="button"
               variant="outline"
@@ -354,9 +365,9 @@ function SocialDialog({
             <Button type="button" disabled={saving} onClick={() => void save()}>
               Done
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </EditPopoverFooter>
+        </>
       )}
-    </FormDialog>
+    </FormPopover>
   )
 }

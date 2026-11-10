@@ -778,8 +778,8 @@ export function StylingSettings({
 
       <CollapsibleSettingsCard
         storageId="styling-modal"
-        title="Modal"
-        description="Dialogs like Send Feedback. Changes apply to any open modal live."
+        title="Modal and popover"
+        description="Windows like Send Feedback, and the popovers that edit links in Navigations. Changes apply to any open one live."
         contentClassName="space-y-6"
       >
         <SliderRow
