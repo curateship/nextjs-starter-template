@@ -479,6 +479,11 @@ export type Trading = {
   ) => Promise<void>
   closeAll: () => Promise<void>
   /**
+   * Closes the positions ticked in the Positions tab, and only those. The real
+   * ones travel in one request, as Close all's do.
+   */
+  closeSome: (positions: readonly TradePosition[]) => Promise<void>
+  /**
    * The bin on a Journal row and the Remove button over ticked rows — one
    * door for both, taking however many trades were chosen. The trades' fills
    * come off the list and nothing else moves: a practice wallet's cash is the
@@ -2799,6 +2804,68 @@ export function useTrading(
     }
   }, [refresh, positions, gridsEndedByClosing])
 
+  const closeSome: Trading["closeSome"] = React.useCallback(
+    async (picked) => {
+      if (picked.length === 0) return
+      setPending((count) => count + 1)
+      const real = picked.filter((one) => one.live)
+      const practice = picked.filter((one) => !one.live)
+      // The grids these positions were carrying leave the chart on the press,
+      // as Close all's do, and a refusal puts them back.
+      const endedGrids = picked.flatMap((one) =>
+        gridsEndedByClosing(one.walletId, one.marketKey)
+      )
+      const pressedAt = Date.now()
+      if (endedGrids.length > 0) {
+        setCancelling((held) => {
+          const next = new Map(held)
+          for (const id of endedGrids) next.set(id, pressedAt)
+          return next
+        })
+      }
+      try {
+        const [live, ...paper] = await Promise.allSettled([
+          real.length > 0
+            ? closeLivePositions(
+                real.map((held) => ({ walletId: held.walletId, marketKey: held.marketKey }))
+              )
+            : Promise.resolve({ closed: 0, refused: [] as string[] }),
+          ...practice.map((held) => closePaperPosition(held.walletId, held.marketKey)),
+        ])
+        const refusedPaper = paper.filter((answer) => answer.status === "rejected")
+        const liveRefused =
+          live.status === "rejected" ? real.length : live.value.refused.length
+        if (refusedPaper.length > 0 || liveRefused > 0) {
+          // The answer does not say which coins stayed open, so every grid
+          // comes back and the next read settles which are really gone.
+          setCancelling((held) => {
+            const next = new Map(held)
+            for (const id of endedGrids) next.delete(id)
+            return next
+          })
+          const first =
+            live.status === "rejected"
+              ? getLiveErrorMessage(live.reason)
+              : live.value.refused.length > 0
+                ? getLiveErrorMessage(new Error(live.value.refused[0]))
+                : getPaperErrorMessage(
+                    (refusedPaper[0] as PromiseRejectedResult).reason
+                  )
+          const refused = liveRefused + refusedPaper.length
+          showErrorToast(
+            refused === 1
+              ? first
+              : `${refused} of ${picked.length} positions were not closed. The first said: ${first}`
+          )
+        }
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    },
+    [refresh, gridsEndedByClosing]
+  )
+
   /**
    * Every ladder and grid you placed, stood down in one press.
    *
@@ -3119,6 +3186,7 @@ export function useTrading(
     closePart,
     flip,
     closeAll,
+    closeSome,
     hideTrades,
     placeLadder,
     cancelRung,

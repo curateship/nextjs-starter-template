@@ -120,12 +120,6 @@ export function laddersAndGridsYouPlaced(
  * The smart orders the Smart orders panel lists — ladders, grids and signals
  * somebody placed themselves.
  *
- * **The same list decides which positions the Positions tab leaves out.** A
- * coin one of these is running is already on screen in the right-hand panel,
- * with the strategy that owns it, so listing its position again in the bottom
- * panel put the same holding on screen twice. One function so the two lists
- * can never disagree about which coins those are.
- *
  * A flow's working orders are not here: the flow has its own run dashboard,
  * and its position stays in the Positions tab because nothing else on this
  * screen shows it. A paused flow order is the exception. It needs the reason
@@ -134,10 +128,7 @@ export function laddersAndGridsYouPlaced(
  *
  * A watched price is never here, paused or not. It is a plain order waiting
  * at a price, and it lives under Open orders, in Manual orders and on its
- * chart; a paused one gets its Resume on the Open orders row. Listing it here
- * used to take its coin off the Positions tab with it: on 2 Sep 2026 a half
- * close of SOL paused, jumped into this panel, and the SOL position vanished
- * from the bottom panel while the money was still on the exchange.
+ * chart; a paused one gets its Resume on the Open orders row.
  */
 export function smartOrdersYouPlaced(
   orders: readonly SmartOrder[]

@@ -126,7 +126,7 @@ export function TabbedMenu({
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label={label} className={cn(open && "bg-muted")}>
+            <Button type="button" variant="ghost" size="icon" aria-label={label} data-more-button="" className={cn(open && "bg-muted")}>
               <EllipsisVerticalIcon className="size-4" />
             </Button>
           </PopoverTrigger>

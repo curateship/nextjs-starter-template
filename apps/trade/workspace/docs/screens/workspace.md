@@ -1,19 +1,21 @@
 # The Trade workspace
 
-One dashboard at `/trade` since 8 Nov 2026: the left page of blocks, and the
+One dashboard at `/trade` since 8 Nov 2026: the left page of blocks, the
 middle, which is Overview's widgets or the exchange picked in the Protocols
-block. There is no right panel. A member opens it as well as an admin, and
+block, and, with an exchange picked, the trade details on the right
+(`trade-details-panel.md`, 10 Nov 2026). Overview has no right panel. A
+member opens it as well as an admin, and
 sees only their own wallets, orders and widgets there —
 `who-can-open-a-protocol-screen.md` says who gets what, and
 `dashboard-blocks.md` explains the page, the Protocols block and Overview.
 
 ```
-┌────────────┬────────────────────────────────────────────┐
-│ The page   │ [BTC chart ⓘ][Positions][Open orders]       │
-│ of blocks: │ [Journal]                                   │
-│ Protocols, │ Chart                                       │
-│ Rules, …   │ (or Overview's widgets)                     │
-└────────────┴────────────────────────────────────────────┘
+┌────────────┬──────────────────────────────────────┬──────────┐
+│ The page   │ [BTC chart ⓘ][Positions][Open orders] │ The open │
+│ of blocks: │ [Journal]                             │ trade    │
+│ Protocols, │ Chart                                 │ (not on  │
+│ Rules, …   │ (or Overview's widgets)               │ Overview)│
+└────────────┴──────────────────────────────────────┴──────────┘
 ```
 
 - **Left, the dashboard's page.** A page of "/" blocks, one per person: the
@@ -161,8 +163,8 @@ the blocks in `src/components/trade/notes/trade-block-views.tsx`.
   dashboard, as before. A paused one does show here, in its kind's panel, because
   this panel owns the Resume button.
 - **A paused signal trade shows under DCA.** It is the one other kind the panel
-  lets through, and the Positions tab leaves its coin out, so with no panel its
-  holding would vanish from the screen. The ladder engine runs signal trades,
+  lets through, so its strategy has somewhere on this dashboard with a Resume
+  button. The ladder engine runs signal trades,
   so DCA is its nearest home. Its details card says "Signals".
 - **Each tab's empty answer names its own kind.** "No grid of your own is
   working" on Grid, "No DCA ladder of your own is working" on DCA. Still reading
@@ -196,25 +198,18 @@ when the shell returned even though the saved percentages were unchanged.
 
 ### What the Positions tab lists
 
-The Positions tab lists everything you are holding **except the coins the Smart
-orders panel is already showing on the right** (decided 24 Aug 2026). A ladder's
-coin appears there under the strategy that owns it, with what that strategy is
-doing, so listing its position here too put the same holding on screen twice and
-neither copy said which was which.
+The Positions tab lists every position you hold (Tyler, 10 Nov 2026: "fix the
+positions tab to show all positions and not just manual trades"). A coin that
+a grid or DCA ladder you placed is running carries a small Grid or DCA badge
+on its row, so the same holding in the Grid or DCA block and here reads as one.
+A flow's position is listed too.
 
-There is no filter to switch. The panel on the right is the other half of this
-list, not a hidden state, and the old All positions / Manual only dropdown is
-gone.
+From 24 Aug to 10 Nov 2026 the tab left out every coin your own grids and
+ladders were running, and said they were in the Smart orders panel instead.
 
-A flow's position stays in this tab. Nothing else on this screen shows it — the
-flow's own orders live on that run's dashboard — so leaving it out would be
-money with nowhere on the page to see it.
-
-The tab's own count is the number of rows drawn, so the count and the table
-never disagree. **Close all is the exception, and it says so**: it closes the
-coins a ladder or grid is running as well, so its Positions row can read 5 while
-the tab reads 4, and the list names how many of the five are in the panel on the
-right rather than in this tab.
+The tab's own count is the number of rows drawn, so the count, the table and
+Close all's Positions row always agree. Clicking a row opens it in the right
+panel (`trade-details-panel.md`).
 
 Hovering over the Positions tab opens a small popover with the ticker, Type
 (the same Long/Short and leverage badge as the table), current value and current profit or loss for every position in
@@ -280,9 +275,6 @@ in a hurry:
   The line says "waiting" rather than "resting on the exchange", because a
   practice wallet's orders wait inside this app and no exchange has heard of
   them.
-- **A coin a ladder or grid is running closes with the rest**, and the line says
-  how many, because those coins are listed in the Smart orders panel rather than
-  the Positions tab and the row's count would otherwise look wrong.
 
 With nothing ticked the list says so, and Confirm close all is still pressable:
 pressing it answers with a toast rather than sitting greyed out with no way to

@@ -1,7 +1,8 @@
 # The Trade dashboard: its page, its blocks and Overview
 
 Trade is one dashboard at `/trade`, in the Admin 3 panel design
-(`.agents/skills/Design/admin-3-panel-design/SKILL.md`) with no right panel.
+(`.agents/skills/Design/admin-3-panel-design/SKILL.md`), with the trade
+details on the right once an exchange is picked (`trade-details-panel.md`).
 It takes the place of the trading overview and of every exchange's own
 dashboard. Tyler asked for it on 8 Nov 2026: "I want to revamp the trade
 dashboard and consolidate everything into one 3 panel dashboard. The protocols
@@ -50,9 +51,12 @@ market ticker on the middle tab." The task is
   six widgets ("Trade's six only").
 - `/trade` opens on the row picked last, and on Overview the first time
   ("Last one you had").
-- No right panel. Folders and Pin to top are in the chart header's ⋮ ("Chart
-  header's ⋮"), and the All markets page was deleted with what was written on
-  it ("Delete it").
+- No right panel on Overview. Folders and Pin to top are in the chart
+  header's ⋮ ("Chart header's ⋮"), and the All markets page was deleted with
+  what was written on it ("Delete it"). On 10 Nov 2026 Tyler added a right
+  panel once an exchange is picked ("I want to add a right panel in the
+  positions and journal tab", then "Any chart should have a right panel to
+  show its previous trade history"): `trade-details-panel.md`.
 - One left page, started fresh ("Start fresh"): nothing was copied from the
   old page per exchange.
 - The market's facts are a tooltip on an "i" inside the chart tab ("Inside the

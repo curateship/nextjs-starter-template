@@ -5,14 +5,17 @@ import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
 import { ALL_ROW } from "@/lib/trade/market-folders"
 import type {
   ChartToolbarPosition,
+  JournalView,
   MarketPanelScope,
 } from "@/lib/trade/panel-layout"
+import { TRADE_MAKERS } from "@/lib/trade/trade-maker"
 import type { TradesPopoverKind } from "@/lib/trade/trades-popover-columns"
 import { userPost } from "@/server/guards"
 import {
   saveHiddenTradeColumns as saveHiddenTradeColumnsForUser,
   saveChartToolbarPosition as saveChartToolbarPositionForUser,
   saveOpenMarketRow as saveOpenMarketRowForUser,
+  saveJournalView as saveJournalViewForUser,
 } from "@/server/trade/prefs"
 
 import { createErrorMessage } from "../error-message"
@@ -71,6 +74,23 @@ const saveHiddenTradeColumnsFn = createServerFn({ method: "POST" })
 
 export function saveHiddenTradeColumns(kind: TradesPopoverKind, columns: readonly string[]) {
   return saveHiddenTradeColumnsFn({ data: { kind, columns: [...columns] } })
+}
+
+const saveJournalViewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      hidePractice: z.boolean(),
+      makers: z.array(z.enum(TRADE_MAKERS)).max(TRADE_MAKERS.length),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveJournalViewForUser(context.user.id, data)
+    return { saved: true }
+  })
+
+export function saveJournalView(view: JournalView) {
+  return saveJournalViewFn({ data: { hidePractice: view.hidePractice, makers: [...view.makers] } })
 }
 
 export function saveChartToolbarPosition(

@@ -1,8 +1,10 @@
 # The dashboard on a phone
 
-Below 1280px the Trade dashboard shows one panel at a time behind two pills:
+Below 1280px the Trade dashboard shows one panel at a time behind its pills:
 Page, and the picked row's name, Overview or the market's symbol (Tyler, 8 Nov
-2026: "Page and the middle", `dashboard-blocks.md`). It opens on the middle. Below 768px the top row folds
+2026: "Page and the middle", `dashboard-blocks.md`), then Trade, the right
+panel, once an exchange is picked (`trade-details-panel.md`). Opening a row in
+Positions or the Journal moves to Trade. It opens on the middle. Below 768px the top row folds
 too, as described here.
 
 768px is the width the shell already calls a phone, in

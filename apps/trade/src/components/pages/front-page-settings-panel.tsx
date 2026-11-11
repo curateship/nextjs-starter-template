@@ -1,6 +1,12 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ExternalLinkIcon, FileTextIcon, Loader2Icon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  FileTextIcon,
+  Loader2Icon,
+  MoveVerticalIcon,
+  SearchIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -192,7 +198,7 @@ export function FrontPageSettingsPanel({
       <ScrollArea className="min-h-0 flex-1">
         <InspectorCollapseAllProvider signal={collapseAll.signal}>
           <div className="grid gap-4 p-4 sm:p-5">
-            <InspectorCard
+            <InspectorCard icon={<FileTextIcon />}
               storageId="front-page-page-settings"
               title="This page"
               description="What this page is called in the app, where it answers, and who may reach it."
@@ -347,7 +353,7 @@ export function FrontPageSettingsPanel({
               </div>
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<SearchIcon />}
               storageId="front-page-page-seo"
               title="Search engines"
               description={
@@ -430,7 +436,7 @@ export function FrontPageSettingsPanel({
               )}
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<MoveVerticalIcon />}
               storageId="front-page-page-spacing"
               title="Spacing"
               description="How much air the page leaves between one block and the next."

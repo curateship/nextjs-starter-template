@@ -40,6 +40,7 @@ import {
   marketPanelScopeKey,
   readOpenMarketRows,
   readChartToolbarPosition,
+  readJournalView,
   readTradePanelLayouts,
   type MarketPanelScope,
   type TradePanelLayouts,
@@ -887,6 +888,19 @@ export async function saveHiddenTradeColumns(
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
     hiddenTradeColumns: readHiddenTradeColumns({ ...layouts.hiddenTradeColumns, [kind]: value }),
+  }))
+}
+
+/** Remember the Journal's filter and its hide-practice switch. */
+export async function saveJournalView(
+  userId: string,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const view = readJournalView(value)
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    journalView: view,
   }))
 }
 

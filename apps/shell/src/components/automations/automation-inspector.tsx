@@ -123,7 +123,7 @@ export function AutomationInspector({
           {/* One column the panel's own width, so a narrow right panel wraps
               the settings rather than running them past its edge. Its 16px is
               the panel gutter, so a card set to edge to edge reaches the side. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [--panel-gutter:1rem] [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-0 p-4 [--panel-gutter:1rem] [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
             {/* No line describing the step under its name: its settings say
                 it (Tyler, 10 Nov 2026: "all these tooltips are not
                 nesessary"). With no step picked, the panel says what to do. */}
@@ -134,7 +134,7 @@ export function AutomationInspector({
             )}
 
             {nodeErrors.length > 0 ? (
-              <InlineError className="grid gap-1">
+              <InlineError className="mb-4 grid gap-1">
                 <div className="mb-1 flex items-center gap-1.5 font-medium">
                   <AlertCircleIcon className="size-3.5" />
                   {selectedNode

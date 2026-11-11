@@ -325,3 +325,25 @@ Every shell change since the 9 Nov merge (shell `6c188c318`) is in Trade, up to 
 **Trade's own change to follow the shell.** The recipe step panel (`recipes/recipe-inspector.tsx`) is Trade's copy of the automation step panel, so it took the same two changes: its 16px is the panel gutter, so edge-to-edge cards reach its sides, and the step's description line under its name is gone.
 
 **No migration was new.** The panel card settings are stored in the workspace's styling settings.
+
+## Shell fix copied in, 11 November 2026
+
+`src/lib/api/shell-settings.ts` was fixed in `apps/shell` and copied here
+unchanged: the Styling save now accepts the right panel width down to 12%,
+the Side panels slider's own floor, where it said 16% and refused the save
+with a raw "too_small" message (Tyler hit it while resizing panels). The other
+apps get it at their next shell merge.
+
+The same day these shell changes were made in `apps/shell` and copied here
+unchanged, for the other apps to take at their next merge: side panels slide
+when folded (`usePanelFold`, used by `ThreePanels`, the page and automation
+editors, Trade's dashboard and Trade's recipe editor), a header's ⋮ sits 24px
+from its neighbours (`DashboardCardHeader`, `TabbedMenu`), every right panel
+card has an icon, and `MainCell` clamps a long name to one line instead of
+squeezing the column to 160px. `docs/shell/three-column-dashboards.md` has
+each.
+
+Later the same day: side panel cards sit flush with no gap (`PANEL_GUTTER`,
+the automation step panel), and two "/" blocks in a row on a left page lose
+the 15px between them. Trade keeps its own page editor
+(`src/components/trade/notes/saving-document.tsx`), which took the same rule.

@@ -1,6 +1,13 @@
 import type * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { HardDriveIcon, SquareMousePointerIcon, UserIcon } from "lucide-react"
+import {
+  CreditCardIcon,
+  HardDriveIcon,
+  ReceiptTextIcon,
+  ShieldAlertIcon,
+  SquareMousePointerIcon,
+  UserIcon,
+} from "lucide-react"
 
 import type { AccountAsk } from "@/components/admin-dashboard/account-actions"
 import { aiAllowanceText, subscriptionStatusText } from "@/components/admin-dashboard/account-words"
@@ -118,7 +125,7 @@ function UserCards({ detail }: { detail: AccountDetail }) {
   const { profile, subscription, storage, securityReports } = detail
   return (
     <>
-      <PanelCard storageId="admin-user-profile" title="Profile">
+      <PanelCard icon={<UserIcon />} storageId="admin-user-profile" title="Profile">
         <Rows>
           <DetailRow label="Role" value={roleLabel(profile.role)} />
           <DetailRow
@@ -161,7 +168,7 @@ function UserCards({ detail }: { detail: AccountDetail }) {
       </PanelCard>
 
       {securityReports.count > 0 ? (
-        <PanelCard storageId="admin-user-security" title="Security reports" meta={securityReports.count}>
+        <PanelCard icon={<ShieldAlertIcon />} storageId="admin-user-security" title="Security reports" meta={securityReports.count}>
           <Note>
             They marked a password-reset or sign-in email as unwanted. The report stopped only that link and did not
             lock the account.
@@ -176,7 +183,7 @@ function UserCards({ detail }: { detail: AccountDetail }) {
         </PanelCard>
       ) : null}
 
-      <PanelCard storageId="admin-user-plan" title="Plan" meta={subscription.planName}>
+      <PanelCard icon={<CreditCardIcon />} storageId="admin-user-plan" title="Plan" meta={subscription.planName}>
         <Note>
           {/* "Nobody is billing this account" is true of a paused plan and
               still the wrong thing to say: it reads as somebody who never
@@ -235,7 +242,7 @@ function UserCards({ detail }: { detail: AccountDetail }) {
         </Rows>
       </PanelCard>
 
-      <PanelCard storageId="admin-user-storage" title="Storage" meta={formatFileSize(storage.bytes)}>
+      <PanelCard icon={<HardDriveIcon />} storageId="admin-user-storage" title="Storage" meta={formatFileSize(storage.bytes)}>
         <Rows>
           <DetailRow label="Files" value={storage.files.toLocaleString()} />
           <DetailRow label="Space used" value={formatFileSize(storage.bytes)} />
@@ -248,7 +255,7 @@ function UserCards({ detail }: { detail: AccountDetail }) {
         </Button>
       </PanelCard>
 
-      <PanelCard storageId="admin-user-billing" title="Billing history" meta={detail.billingHistory.length}>
+      <PanelCard icon={<ReceiptTextIcon />} storageId="admin-user-billing" title="Billing history" meta={detail.billingHistory.length}>
         {/* Says when the recording started whether or not there is anything
             in it: a member who has paid for two years would otherwise look
             like one who joined last month. */}

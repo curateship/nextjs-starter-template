@@ -13,12 +13,14 @@ export const botsPanelKey = {
 } as const
 
 /**
- * The Trade dashboard's left page | the middle (8 Nov 2026: "I dont want a
- * right panel"), kept in this browser under `sidePanelWidthsKey`, with the
- * left width from Settings → Styling → Side panels on the end. A changed
- * setting starts from the new width, and Settings' Reset panels forgets a
- * dragged one, as on every shell dashboard (Tyler, 10 Nov 2026: "yea fix it",
- * on Reset panels not reaching Trade). It was kept on the account until then,
- * under `trade-workspace-horizontal-4`; the server no longer reads that copy.
+ * The Trade dashboard's left page | the middle | the trade details, kept in
+ * this browser under `sidePanelWidthsKey`, with the left and right widths
+ * from Settings → Styling → Side panels on the end (Overview has no right
+ * panel, so its right width is 0). A changed setting starts from the new
+ * width, and Settings' Reset panels forgets a dragged one, as on every shell
+ * dashboard. Bumped from 5 to 6 on 10 Nov 2026, when the right panel came in
+ * ("I want to add a right panel in the positions and journal tab"), so
+ * widths saved for two panels open at the new defaults. It was kept on the
+ * account under `trade-workspace-horizontal-4`.
  */
-export const tradeWorkspacePanelKey = "trade-workspace-horizontal-5"
+export const tradeWorkspacePanelKey = "trade-workspace-horizontal-6"

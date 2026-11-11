@@ -24,6 +24,7 @@ import { useDashboardPlace } from "@/lib/layout/dashboard-place"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { sidePanelWidthsKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
@@ -299,8 +300,12 @@ export function ThreePanels({
   const layout = useRememberedPanelLayout(widthsKey, defaultLayout)
   const leftState = usePanelCollapsed(leftRef)
   const rightState = usePanelCollapsed(rightRef)
-  const toggleLeft = usePanelToggle(leftRef)
-  const toggleRight = usePanelToggle(rightRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapLeft = usePanelToggle(leftRef)
+  const snapRight = usePanelToggle(rightRef)
+  const toggleLeft = React.useCallback(() => fold(snapLeft), [fold, snapLeft])
+  const toggleRight = React.useCallback(() => fold(snapRight), [fold, snapRight])
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
   const hasRight = Boolean(right)
@@ -320,8 +325,8 @@ export function ThreePanels({
       return
     }
     const panel = leftRef.current
-    if (panel?.isCollapsed()) panel.expand()
-  }, [wide])
+    if (panel?.isCollapsed()) fold(() => panel.expand())
+  }, [wide, fold])
 
   if (!wide) {
     return (
@@ -360,7 +365,7 @@ export function ThreePanels({
       <ResizablePanelGroup
         groupRef={layout.groupRef}
         orientation="horizontal"
-        className="min-h-0 flex-1"
+        className={cn("min-h-0 flex-1", foldingClassName)}
         onLayoutChanged={layout.onLayoutChanged}
       >
         <ResizablePanel

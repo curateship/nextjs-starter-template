@@ -1,10 +1,32 @@
 import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
+import { createPortal } from "react-dom"
 import {
+  ListChecksIcon,
+  PlusIcon,
+  SettingsIcon,
   Trash2Icon,
   WalletIcon,
   XIcon,
 } from "lucide-react"
+
+import { CrmRowMenu } from "@/components/crm/crm-row"
+import { PanelReopenButton } from "@/components/shared/three-panels"
+import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
+import {
+  TradeDetailsPanel,
+  type DetailsSubject,
+} from "@/components/trade/details/trade-details-panel"
+import { useRememberedId } from "@/components/trade/details/use-remembered-id"
+import type { JournalOpenRow } from "@/components/trade/positions-table"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { EMPTY_JOURNAL_VIEW, type JournalView } from "@/lib/trade/panel-layout"
+import {
+  TRADE_MAKER_LABELS,
+  tradeMaker,
+  type TradeMaker,
+} from "@/lib/trade/trade-maker"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import { CloseAllMenu } from "@/components/trade/close-all-menu"
@@ -55,10 +77,7 @@ import {
   type LiveTrade,
   type RemovableTradeHistory,
 } from "@/lib/trade/live-trades"
-import {
-  laddersAndGridsYouPlaced,
-  smartOrdersYouPlaced,
-} from "@/lib/trade/smart-plan"
+import { laddersAndGridsYouPlaced } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import {
   positionProfit,
@@ -238,7 +257,27 @@ export function ActivityPanel({
   wallet,
   menuRows,
   lead,
+  detailsSlot,
+  chartMarketKey,
+  onShowOnChart,
+  onDetailsOpened,
+  journalView,
+  onJournalViewChange,
 }: {
+  /**
+   * Where the right panel draws, the Trade dashboard's third panel (Tyler,
+   * 10 Nov 2026). Null on Overview and before the panel is on screen.
+   */
+  detailsSlot?: HTMLElement | null
+  /** The coin on the chart, which the chart and Open orders tabs open. */
+  chartMarketKey?: string | null
+  /** Draws a Journal trade on the chart and goes to the chart tab. */
+  onShowOnChart?: (trade: LiveTrade) => void
+  /** A row was opened in the right panel, so a phone can show it. */
+  onDetailsOpened?: () => void
+  /** The Journal's filter and its hide-practice switch, kept on the account. */
+  journalView?: JournalView
+  onJournalViewChange?: (view: JournalView) => void
   /**
    * At the header's start, before the tabs: the button that reopens a shut
    * left panel, as the shell's dashboards have it (Tyler, 8 Nov 2026: "put
@@ -316,12 +355,43 @@ export function ActivityPanel({
     () => unmatchedTradeHistories(trading.journalFills, trading.positions),
     [trading.journalFills, trading.positions]
   )
+  // ----- The Journal's filter: who placed it, and practice hidden ----------
+  const view = journalView ?? EMPTY_JOURNAL_VIEW
+  const makerOf = React.useCallback(
+    (row: { fills: LiveTrade["fills"]; copiedFrom?: string }): TradeMaker =>
+      tradeMaker(row.fills, row.copiedFrom),
+    []
+  )
+  const keepJournalRow = React.useCallback(
+    (row: { live: boolean; fills: LiveTrade["fills"]; copiedFrom?: string }) =>
+      (!view.hidePractice || row.live) &&
+      (view.makers.length === 0 || view.makers.includes(makerOf(row))),
+    [view.hidePractice, view.makers, makerOf]
+  )
+  const journalTrades = React.useMemo(
+    () => trading.trades.filter(keepJournalRow),
+    [trading.trades, keepJournalRow]
+  )
+  const journalHistory = React.useMemo(
+    () => unmatchedHistory.filter(keepJournalRow),
+    [unmatchedHistory, keepJournalRow]
+  )
+  const journalFilterItems = React.useMemo(
+    () =>
+      [...trading.trades, ...unmatchedHistory]
+        .filter((row) => !view.hidePractice || row.live)
+        .map((row) => makerOf(row)),
+    [trading.trades, unmatchedHistory, view.hidePractice, makerOf]
+  )
+
+  // What the Journal lists right now, so a tick never outlives its row being
+  // filtered away and Remove (n) only ever means rows on screen.
   const removableHistory = React.useMemo(
     () => [
-      ...trading.trades,
-      ...unmatchedHistory.filter((history) => !history.open),
+      ...journalTrades,
+      ...journalHistory.filter((history) => !history.open),
     ],
-    [trading.trades, unmatchedHistory]
+    [journalTrades, journalHistory]
   )
   // The bin on a row and the Remove button over ticked rows both ask first.
   // Nothing here can be put back from the screen, and the two lists sit under
@@ -377,29 +447,13 @@ export function ActivityPanel({
   }, [catalogs])
 
   /**
-   * What this table lists: everything held except the coins the Smart orders
-   * panel is already showing on the right (decided 24 Aug 2026).
-   *
-   * A ladder's coin appears there under the strategy that owns it, with what
-   * that strategy is doing, so listing its position here too put the same
-   * holding on screen twice and neither copy said which was which. There is
-   * no filter to switch: the panel on the right is the other half of this
-   * list, not a hidden state.
-   *
-   * A flow's position stays here. Nothing else on this screen shows it — the
-   * flow's own orders live on its run dashboard — so leaving it out would be
-   * money with nowhere on the page to see it.
+   * What this table lists: every position held (Tyler, 10 Nov 2026: "fix the
+   * positions tab to show all positions and not just manual trades"). A coin
+   * a grid or DCA ladder you placed is running carries a Grid or DCA badge on
+   * its row, so the same holding in the Grid block and here reads as one.
+   * Until then, from 24 Aug 2026, those coins were left out of this tab.
    */
-  const visible = React.useMemo(() => {
-    const managed = new Set(
-      smartOrdersYouPlaced(trading.smartOrders).map(
-        (order) => `${order.walletId}:${order.marketKey}`
-      )
-    )
-    return trading.positions.filter(
-      (position) => !managed.has(`${position.walletId}:${position.marketKey}`)
-    )
-  }, [trading.positions, trading.smartOrders])
+  const visible = trading.positions
 
   // The ladders and grids one press would stand down. The same list the menu
   // counts and the action works through, so the two cannot disagree.
@@ -418,6 +472,84 @@ export function ActivityPanel({
       ),
     [wallets]
   )
+
+  // ----- The right panel's open record, per tab ---------------------------
+  const [openPositionId, setOpenPositionId] = useRememberedId("trade-details-open-position")
+  const [openJournalId, setOpenJournalId] = useRememberedId("trade-details-open-journal")
+  const [positionRows, setPositionRows] = React.useState<string[]>([])
+  const [journalRows, setJournalRows] = React.useState<string[]>([])
+  // The remembered record, or the first row when it has gone or none was
+  // picked yet, so the panel is never empty while the list has rows.
+  const shownPositionId =
+    openPositionId && visible.some((one) => one.id === openPositionId)
+      ? openPositionId
+      : (positionRows[0] ?? null)
+  const shownJournalId =
+    openJournalId && journalRows.includes(openJournalId)
+      ? openJournalId
+      : (journalRows[0] ?? null)
+  const subject: DetailsSubject | null = (() => {
+    if (tab === "positions") {
+      const position = visible.find((one) => one.id === shownPositionId)
+      return position ? { kind: "position", position } : null
+    }
+    if (tab === "journal") {
+      const trade = journalTrades.find((one) => one.id === shownJournalId)
+      if (trade) return { kind: "trade", trade }
+      const history = journalHistory.find((one) => one.id === shownJournalId)
+      return history ? { kind: "history", history } : null
+    }
+    return chartMarketKey ? { kind: "coin", marketKey: chartMarketKey } : null
+  })()
+  const openJournalRow = (row: JournalOpenRow) => {
+    const id = row.kind === "finished" ? row.trade.id : row.history.id
+    setOpenJournalId(id)
+    // Drawn on the chart under the tab, which stays where it is: the chart
+    // tab is one press away, and Show on chart is that press.
+    if (row.kind === "finished") onShowTrade(row.trade)
+    onDetailsOpened?.()
+  }
+  const openPosition = (position: TradePosition) => {
+    setOpenPositionId(position.id)
+    onDetailsOpened?.()
+  }
+
+  // ----- Mass select and the right-click menus ----------------------------
+  const [positionMass, setPositionMass] = React.useState(false)
+  const [journalMass, setJournalMass] = React.useState(false)
+  const positionTicks = useSelection()
+  const { setSelected: setPositionTicks } = positionTicks
+  const tickedPositions = React.useMemo(
+    () => visible.filter((one) => positionTicks.selected.has(one.id)),
+    [visible, positionTicks.selected]
+  )
+  React.useEffect(() => {
+    const listed = new Set(visible.map((one) => one.id))
+    setPositionTicks((current) => {
+      const next = new Set([...current].filter((id) => listed.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [visible, setPositionTicks])
+  const [closingTicked, setClosingTicked] = React.useState<TradePosition[] | null>(null)
+  const [confirmingClose, setConfirmingClose] = React.useState<TradePosition | null>(null)
+  const [positionMenu, setPositionMenu] = React.useState<{
+    position: TradePosition
+    x: number
+    y: number
+  } | null>(null)
+  const [journalMenu, setJournalMenu] = React.useState<{
+    row: JournalOpenRow
+    x: number
+    y: number
+  } | null>(null)
+  const togglePositionMass = (startWith?: string) => {
+    setPositionMass(!positionMass)
+    setPositionTicks(positionMass || !startWith ? new Set() : new Set([startWith]))
+  }
+  const toggleJournalMass = (startWith?: string) => {
+    setJournalMass(!journalMass)
+    setJournalTicks(journalMass || !startWith ? new Set() : new Set([startWith]))
+  }
 
   // Resolved against the live list every render, so a position closed by its
   // own stop while its window is open closes the window instead of editing
@@ -558,7 +690,59 @@ export function ActivityPanel({
                 confirm the bin on one row uses. Only there once something is
                 ticked — a button that could do nothing would just be
                 furniture. */}
-            {tab === "journal" && tickedTrades.length > 0 ? (
+            {tab === "positions" && positionMass && tickedPositions.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={trading.busy}
+                aria-label={`Close ${tickedPositions.length} ticked positions`}
+                onClick={() => setClosingTicked(tickedPositions)}
+              >
+                <XIcon className="size-4" />
+                <span className="max-sm:sr-only">Close </span>(
+                {tickedPositions.length})
+              </Button>
+            ) : null}
+            {(tab === "positions" && positionMass) || (tab === "journal" && journalMass) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => (tab === "positions" ? togglePositionMass() : toggleJournalMass())}
+              >
+                <ListChecksIcon className="size-4" />
+                <span className="max-sm:sr-only">Hide select</span>
+              </Button>
+            ) : null}
+            {tab === "journal" && onJournalViewChange ? (
+              <CountedFilterPopover
+                items={journalFilterItems}
+                groups={[
+                  {
+                    label: "Placed by",
+                    value: view.makers.length === 0 ? null : view.makers,
+                    valueOf: (maker) => maker,
+                    labelOf: (maker) => TRADE_MAKER_LABELS[maker],
+                    onChange: (value) =>
+                      onJournalViewChange({ ...view, makers: (value ?? []) as TradeMaker[] }),
+                  },
+                ]}
+                extraActive={view.hidePractice ? 1 : 0}
+                extra={
+                  <div className="flex items-center justify-between gap-3 px-2">
+                    <Label htmlFor="journal-hide-practice" className="text-sm font-normal">
+                      Hide practice trades
+                    </Label>
+                    <Switch
+                      id="journal-hide-practice"
+                      checked={view.hidePractice}
+                      onCheckedChange={(on) => onJournalViewChange({ ...view, hidePractice: on })}
+                    />
+                  </div>
+                }
+                onClear={() => onJournalViewChange({ hidePractice: false, makers: [] })}
+              />
+            ) : null}
+            {tab === "journal" && journalMass && tickedTrades.length > 0 ? (
               <Button
                 type="button"
                 variant="outline"
@@ -599,7 +783,6 @@ export function ActivityPanel({
                   />
                 }
                 positions={trading.positions}
-                managed={trading.positions.length - visible.length}
                 watched={trading.watchOrders}
                 smart={standing}
                 restingOrders={trading.orders.length}
@@ -617,6 +800,7 @@ export function ActivityPanel({
               />
             ) : null}
             </MiddleMenu>
+            {detailsSlot ? <PanelReopenButton side="right" label="Show the trade" /> : null}
           </>
         }
       >
@@ -653,7 +837,7 @@ export function ActivityPanel({
         <MiddleTab
           value="journal"
           {...tabProps("journal", "Journal")}
-          count={countOf(trading.trades.length + unmatchedHistory.length)}
+          count={countOf(journalTrades.length + journalHistory.length)}
           onPointerDown={pressTab("journal")}
         />
       </TabsHeader>
@@ -693,6 +877,22 @@ export function ActivityPanel({
             onClosePart={(position, ask) =>
               void trading.closePart(position, ask)
             }
+            openId={shownPositionId}
+            onOpen={openPosition}
+            onRows={setPositionRows}
+            onRightClick={(position, x, y) => setPositionMenu({ position, x, y })}
+            ticks={
+              positionMass
+                ? {
+                    ticked: positionTicks.selected,
+                    toggle: positionTicks.toggle,
+                    toggleVisible: positionTicks.toggleVisible,
+                    state: positionTicks.selectAllState,
+                  }
+                : null
+            }
+            confirming={confirmingClose}
+            onConfirmingChange={setConfirmingClose}
           />
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
@@ -723,13 +923,16 @@ export function ActivityPanel({
       <TabsContent value="journal" className="min-h-0 flex-1">
         <ScrollArea className="h-full">
           <TradesTable
-            trades={trading.trades}
-            unmatchedHistory={unmatchedHistory}
+            trades={journalTrades}
+            unmatchedHistory={journalHistory}
             copyNotes={copyNotes.notes}
             onRemoveCopyNote={copyNotes.remove}
             markets={markets}
             walletName={walletName}
-            selectedId={shownTrade?.id ?? null}
+            openId={shownJournalId}
+            onRows={setJournalRows}
+            onRightClick={(row, x, y) => setJournalMenu({ row, x, y })}
+            selectShown={journalMass}
             busy={trading.busy}
             settled={trading.settled}
             failed={trading.failed}
@@ -737,11 +940,7 @@ export function ActivityPanel({
             onLoadOlder={() => void trading.loadOlderTrades()}
             olderBusy={trading.olderTradesBusy}
             olderDone={trading.olderTradesDone}
-            // Pressing the row already drawn puts the chart back to itself,
-            // so the same press both shows and hides.
-            onSelectTrade={(trade) =>
-              onShowTrade(trade.id === shownTrade?.id ? null : trade)
-            }
+            onOpenRow={openJournalRow}
             onSelectMarket={onSelectMarket}
             onRemove={(trade) => setRemovingTrades([trade])}
             ticked={journalTicks.selected}
@@ -753,6 +952,126 @@ export function ActivityPanel({
         </ScrollArea>
       </TabsContent>
 
+      {positionMenu ? (
+        <CrmRowMenu
+          at={positionMenu}
+          massSelect={{
+            on: positionMass,
+            onToggle: () => togglePositionMass(positionMenu.position.id),
+          }}
+          items={[
+            {
+              label: "Add to position",
+              icon: <PlusIcon className="size-4" />,
+              onSelect: () => onAddToPosition(positionMenu.position),
+            },
+            ...(positionMenu.position.owned
+              ? []
+              : [
+                  {
+                    label: "Stop and target",
+                    icon: <SettingsIcon className="size-4" />,
+                    onSelect: () => setEditing(positionMenu.position),
+                  },
+                ]),
+            {
+              label: positionMenu.position.owned ? "Sell all" : "Close position",
+              icon: <XIcon className="size-4" />,
+              destructive: true,
+              onSelect: () => setConfirmingClose(positionMenu.position),
+            },
+          ]}
+          onClose={() => setPositionMenu(null)}
+        />
+      ) : null}
+      {journalMenu ? (
+        <CrmRowMenu
+          at={journalMenu}
+          massSelect={{
+            on: journalMass,
+            onToggle: () =>
+              toggleJournalMass(
+                journalMenu.row.kind === "finished"
+                  ? journalMenu.row.trade.id
+                  : journalMenu.row.history.open
+                    ? undefined
+                    : journalMenu.row.history.id
+              ),
+          }}
+          items={
+            journalMenu.row.kind === "unmatched" && journalMenu.row.history.open
+              ? []
+              : [
+                  {
+                    label: "Delete",
+                    icon: <Trash2Icon className="size-4" />,
+                    destructive: true,
+                    onSelect: () =>
+                      setRemovingTrades([
+                        journalMenu.row.kind === "finished"
+                          ? journalMenu.row.trade
+                          : journalMenu.row.history,
+                      ]),
+                  },
+                ]
+          }
+          onClose={() => setJournalMenu(null)}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={closingTicked !== null}
+        onOpenChange={(open) => {
+          if (!open) setClosingTicked(null)
+        }}
+        title={
+          closingTicked && closingTicked.length === 1
+            ? `Close ${marketSymbol(closingTicked[0].marketKey)}?`
+            : `Close ${closingTicked?.length ?? 0} positions?`
+        }
+        description={
+          closingTicked && closingTicked.some((one) => realWallets.has(one.walletId))
+            ? "Each one is sold at whatever its market costs right now, real money included. Only the ticked positions close."
+            : "Each one is sold at whatever its market costs right now. Only the ticked positions close."
+        }
+        confirmLabel={
+          closingTicked && closingTicked.length === 1 ? "Close it" : "Close them"
+        }
+        onConfirm={() => {
+          if (closingTicked) void trading.closeSome(closingTicked)
+          setClosingTicked(null)
+          togglePositionMass()
+        }}
+      />
+      {detailsSlot
+        ? createPortal(
+            <TradeDetailsPanel
+              subject={subject}
+              data={{
+                markets,
+                positions: visible,
+                trades: trading.trades,
+                fills: trading.journalFills,
+                positionFills: trading.fills,
+                smartOrders: trading.smartOrders,
+                walletName,
+                busy: trading.busy,
+              }}
+              actions={{
+                onClose: setConfirmingClose,
+                onAdd: onAddToPosition,
+                onEdit: setEditing,
+                onShowOnChart: (trade) => onShowOnChart?.(trade),
+                onRemove: (trade) => setRemovingTrades([trade]),
+                onOpenTrade: (trade) => {
+                  onTabChange("journal")
+                  setOpenJournalId(trade.id)
+                  onShowTrade(trade)
+                },
+              }}
+            />,
+            detailsSlot
+          )
+        : null}
       <ConfirmDialog
         open={removingTrades !== null}
         onOpenChange={(open) => {

@@ -35,7 +35,7 @@ import {
   type RecipeDetail,
 } from "@/lib/api/trade/recipes"
 import { useLastValue } from "@/lib/hooks/use-last-value"
-import { useBlankSpaceDoubleClick, usePanelCollapsed, usePanelToggle } from "@/lib/layout/panel-collapse"
+import { useBlankSpaceDoubleClick, usePanelCollapsed, usePanelFold, usePanelToggle } from "@/lib/layout/panel-collapse"
 import { clampStepListWidth, DEFAULT_STEP_LIST_WIDTH, MIN_STEP_LIST_WIDTH } from "@/lib/layout/styling-values"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { compileRecipeGraph } from "@/lib/recipes/compile"
@@ -85,7 +85,10 @@ export function RecipeEditor({
   const stepListWidth = clampStepListWidth(config.styling.stepListWidth ?? DEFAULT_STEP_LIST_WIDTH)
   const stepsRef = React.useRef<PanelImperativeHandle | null>(null)
   const stepsState = usePanelCollapsed(stepsRef)
-  const toggleSteps = usePanelToggle(stepsRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapSteps = usePanelToggle(stepsRef)
+  const toggleSteps = React.useCallback(() => fold(snapSteps), [fold, snapSteps])
   const stepsDoubleClick = useBlankSpaceDoubleClick(toggleSteps)
   // A step pressed in the step list shows on the right first, "Not added yet",
   // and goes on the canvas with its Add step button; the card's + and a drag
@@ -481,7 +484,7 @@ export function RecipeEditor({
       // A new width from Settings starts the list again at it.
       key={stepListWidth}
       orientation="horizontal"
-      className="min-h-0 flex-1"
+      className={cn("min-h-0 flex-1", foldingClassName)}
     >
       <ResizablePanel
         id="steps"

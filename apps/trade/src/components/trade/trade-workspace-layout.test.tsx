@@ -288,6 +288,7 @@ vi.mock("@/lib/trade/live-market", () => ({
 vi.mock("@/lib/layout/panel-collapse", () => ({
   useBlankSpaceDoubleClick: () => vi.fn(),
   usePanelCollapsed: () => ({ collapsed: false, onResize: vi.fn() }),
+  usePanelFold: () => ({ fold: (change: () => void) => change(), className: undefined }),
   usePanelToggle: () => vi.fn(),
 }))
 vi.mock("@/lib/remembered-choice", () => ({
@@ -318,7 +319,7 @@ function MockPanelGroup(props: {
   const { orientation, groupRef, onLayoutChanged, children } = props
   const groupName = props["data-panel-group"] ?? orientation
   const opening = React.useMemo<Record<string, number>>(
-    (): Record<string, number> => ({ blocks: 20, chart: 80 }),
+    (): Record<string, number> => ({ blocks: 20, chart: 68, details: 12 }),
     []
   )
   const [layout, setLayout] = React.useState<Record<string, number>>(opening)
@@ -356,7 +357,7 @@ function MockPanelGroup(props: {
         type="button"
         aria-label={`Resize ${groupName} group`}
         onClick={() => {
-          const next = { blocks: 25, chart: 75 }
+          const next = { blocks: 25, chart: 63, details: 12 }
           layoutRef.current = next
           setLayout(next)
           changed(next, { isUserInteraction: true })
@@ -369,7 +370,7 @@ function MockPanelGroup(props: {
 
 const { TradeWorkspace } = await import("@/components/trade/trade-workspace")
 
-const WORKSPACE_WIDTHS_KEY = "trade-workspace-horizontal-5:10-0"
+const WORKSPACE_WIDTHS_KEY = "trade-workspace-horizontal-6:10-12"
 
 let host: HTMLDivElement
 let root: Root
@@ -392,7 +393,7 @@ beforeEach(() => {
   layoutSetEvents.length = 0
   // The dashboard's widths are kept in this browser, under the Side panels
   // width (10%, the default, with no site settings here).
-  localStorage.setItem(WORKSPACE_WIDTHS_KEY, JSON.stringify({ blocks: 20, chart: 80 }))
+  localStorage.setItem(WORKSPACE_WIDTHS_KEY, JSON.stringify({ blocks: 20, chart: 68, details: 12 }))
 })
 
 afterEach(async () => {
@@ -457,7 +458,7 @@ function renderWorkspace(overview: React.ReactNode | null) {
           openMarketRows: {},
           headerProfitVisible: true,
           chartToolbarPosition: null,
-          hiddenTradeColumns: {},
+          hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
         }}
         initialWallets={{
           rows: [],
@@ -481,12 +482,14 @@ function renderWorkspace(overview: React.ReactNode | null) {
 }
 
 describe("the trade dashboard", () => {
-  it("is two panels whose full screen restores without remounting the chart", async () => {
+  it("is three panels whose full screen restores without remounting the chart", async () => {
     await act(async () => root.render(renderWorkspace(null)))
 
     expect(chartMounts.count).toBe(1)
-    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 80 })
-    // No right panel and no bottom row: the tables are tabs in the middle.
+    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 68, details: 12 })
+    // The trade details on the right (10 Nov 2026), and no bottom row: the
+    // tables are tabs in the middle.
+    expect(host.querySelector('[data-panel="details"]')).not.toBeNull()
     expect(host.querySelector('[data-panel="market"]')).toBeNull()
     expect(host.querySelector('[data-panel-group="vertical"]')).toBeNull()
     expect(
@@ -522,17 +525,17 @@ describe("the trade dashboard", () => {
     expect(
       host.querySelector('[data-chart-fullscreen="true"]')?.className
     ).toContain("bg-background")
-    expect(layoutOf("horizontal")).toEqual({ blocks: 0, chart: 100 })
+    expect(layoutOf("horizontal")).toEqual({ blocks: 0, chart: 100, details: 0 })
     expect(chartMounts.count).toBe(1)
 
     layoutSetEvents.length = 0
     await act(async () => clickButton("Exit full screen"))
-    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 80 })
+    expect(layoutOf("horizontal")).toEqual({ blocks: 20, chart: 68, details: 12 })
     expect(layoutSetEvents).toEqual([
       {
         orientation: "horizontal",
         fullscreen: false,
-        layout: { blocks: 20, chart: 80 },
+        layout: { blocks: 20, chart: 68, details: 12 },
       },
     ])
     expect(chartMounts.count).toBe(1)
@@ -553,7 +556,8 @@ describe("the trade dashboard", () => {
     await act(async () => clickButton("Resize horizontal group"))
     expect(JSON.parse(localStorage.getItem(WORKSPACE_WIDTHS_KEY) ?? "null")).toEqual({
       blocks: 25,
-      chart: 75,
+      chart: 63,
+      details: 12,
     })
     // Nothing goes to the account any more.
     expect(rememberedLayouts).not.toHaveBeenCalled()
@@ -580,6 +584,8 @@ describe("the trade dashboard", () => {
     expect(overview).not.toBeNull()
     // The chart never unmounts, so going back to the exchange draws nothing again.
     expect(chartMounts.count).toBe(1)
+    // Overview has no right panel.
+    expect(host.querySelector('[data-panel="details"]')).toBeNull()
     const panel = host.querySelector('[data-testid="activity-panel"]')
     expect(panel?.closest(".hidden")).not.toBeNull()
     // F does nothing on Overview: there is no chart on screen.

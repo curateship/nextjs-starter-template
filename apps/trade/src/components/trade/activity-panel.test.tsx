@@ -19,6 +19,8 @@ vi.mock("@/lib/trade/live-market", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+  getRouteApi: () => ({ useLoaderData: () => ({ user: { id: "user" } }) }),
+  useNavigate: () => () => {},
 }))
 
 vi.mock("@/components/trade/positions-table", () => ({

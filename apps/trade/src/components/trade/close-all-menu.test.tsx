@@ -101,7 +101,6 @@ const ALL: CloseAllPick = { positions: true, watched: true, smart: true }
 
 async function ask(input: {
   positions?: TradePosition[]
-  managed?: number
   watched?: TradeOrder[]
   smart?: (SmartLadder | SmartGrid)[]
   restingOrders?: number
@@ -113,7 +112,6 @@ async function ask(input: {
     root.render(
       <CloseAllChoices
         positions={input.positions ?? []}
-        managed={input.managed ?? 0}
         watched={input.watched ?? []}
         smart={input.smart ?? []}
         restingOrders={input.restingOrders ?? 0}
@@ -181,21 +179,6 @@ describe("the list Close all opens", () => {
 
     expect(said.body).toContain("1 grid stop")
     expect(said.body).not.toContain("ends that ladder for good")
-  })
-
-  it("says why the row can count more than the Positions tab lists", async () => {
-    const said = await ask({
-      positions: [
-        position("hyperliquid:mainnet:BTC", "practice"),
-        position("hyperliquid:mainnet:CHIP", "practice"),
-      ],
-      managed: 1,
-      smart: [ladder("CHIP", "grid", "practice")],
-    })
-
-    expect(said.rows[0].count).toBe("2")
-    expect(said.body).toContain("1 of them is a coin a ladder or grid is running")
-    expect(said.body).toContain("it closes with the rest")
   })
 
   it("warns that a resting order can buy straight back in", async () => {

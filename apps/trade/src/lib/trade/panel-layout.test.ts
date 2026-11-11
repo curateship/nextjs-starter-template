@@ -92,3 +92,15 @@ describe("remembered trade panel layouts", () => {
     ).toBeNull()
   })
 })
+
+describe("the Journal's saved view", () => {
+  it("keeps the known makers and the practice switch, and drops anything else", async () => {
+    const { readJournalView } = await import("@/lib/trade/panel-layout")
+    expect(readJournalView({ hidePractice: true, makers: ["grid", "nonsense", "bot"] })).toEqual({
+      hidePractice: true,
+      makers: ["grid", "bot"],
+    })
+    expect(readJournalView(null)).toEqual({ hidePractice: false, makers: [] })
+    expect(readTradePanelLayouts({}).journalView).toEqual({ hidePractice: false, makers: [] })
+  })
+})

@@ -46,11 +46,7 @@ import {
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { sumProfits, sumValues } from "@/lib/trade/order-panel-sums"
-import {
-  gridRoundTrips,
-  type LiveFill,
-  type LiveTrade,
-} from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 import { LOST_MONEY, moneyTone, WARNING } from "@/lib/trade/money-tone"
 import {
@@ -68,6 +64,7 @@ import {
   type SmartOrderPosition,
   writeSmartOrdersCache,
 } from "@/lib/trade/dashboard-cache"
+import { smartOrderSales, type SmartOrderSale } from "@/lib/trade/smart-order-sales"
 import { cn } from "@/lib/utils"
 
 /**
@@ -854,103 +851,27 @@ function gridHeldToSell(order: Extract<SmartOrder, { kind: "grid" }>): number {
 /** How many sales are listed before the list gets in the way of reading it. */
 const SHOW_AT_MOST = 12
 
-type Sale = {
-  fillId: string
-  at: number
-  /** Gross dollars bought or sold by the closing fill. */
-  amountUsd: number
-  /** Null when the venue sold but never said what the sale banked. */
-  money: number | null
-}
-
 /**
- * What one smart order has actually banked, and each sale that banked it.
- *
- * **Read off the fills, not off the plan.** A grid's levels say what they were
- * set to do; the fills say what happened, in the exchange's own figures, fee
- * included. Every closing fill on this coin since the order was placed counts
- * — there is one smart order per coin per wallet, so on this coin, over this
- * stretch of time, they are its sales.
- *
- * Finished round trips are counted too, for the kinds that do go flat. A grid
- * rarely does, which is exactly why its sells sit in the open fills instead.
- *
- * **A sell is a sale even when the venue states no profit for it.** This used
- * to count only fills carrying a closed profit, and on KuCoin that is never a
- * grid's fills: KuCoin reports money per POSITION closed, not per fill, and a
- * grid selling a fifth of what it holds never closes a position. So a KuCoin
- * grid recycled all week and the panel still said "Nothing sold yet". A grid
- * and a ladder are both long only, so a sell on their coin is a sale, whoever
- * is keeping the books.
- *
- * What the venue would not state is left NULL rather than counted as zero.
- * Zero is a real answer, meaning the sale broke even, and printing it for a
- * sale that made money is the kind of wrong that gets believed.
- *
- * **A grid's sale is worth what its own level made.** The venue books every
- * partial sell against the position average, and while a grid is working that
- * average is held up by the expensive levels still holding, so a level that
- * did its job reads as a loss. The panel said "$1.15 banked" on a CHIP level
- * that put $4.28 in the account. `gridRoundTrips` has the arithmetic. It also
- * answers where KuCoin says nothing at all, because it is worked out from the
- * fills rather than asked for.
+ * The newest sales one smart order has banked, for the popover, with the
+ * total over all of them. The rules for what a sale is and what it is worth
+ * are `smartOrderSales`'s; the details panel lists every one.
  */
 export function bankedBy(
   order: SmartOrder,
   fills: readonly LiveFill[],
   trades: readonly LiveTrade[]
 ): {
-  sells: Sale[]
+  sells: SmartOrderSale[]
   total: number
   capped: boolean
   /** Sales the venue never put a figure on, so the total is short of them. */
   unpriced: number
 } {
-  const mine = (walletId: string, marketKey: string, at: number) =>
-    walletId === order.walletId &&
-    marketKey === order.marketKey &&
-    at >= order.createdAt
-
-  // Over every fill, not only this order's: a level's round trip is paid out
-  // of the trade that level opened with, and that trade has to still be in the
-  // list for the closing one to be worth anything.
-  const levels = gridRoundTrips(
-    fills,
-    order.kind === "grid" ? order.plan.direction : "long"
-  )
-
-  const sales: Sale[] = []
-  for (const fill of fills) {
-    if (!mine(fill.walletId, fill.marketKey, fill.at)) continue
-    const level = levels.get(fill.fillId)
-    // A stated profit, or a sell out of a long-only order. The first also
-    // catches a short being bought back, which the second cannot see.
-    const stated = fill.closedPnl !== 0
-    if (!level && !stated && fill.side !== "sell") continue
-    sales.push({
-      fillId: fill.fillId,
-      at: fill.at,
-      amountUsd: Math.abs(fill.px * fill.sz),
-      money: level ? level.money : stated ? fill.closedPnl - fill.fee : null,
-    })
-  }
-  for (const trade of trades) {
-    if (!mine(trade.walletId, trade.marketKey, trade.closedAt)) continue
-    sales.push({
-      fillId: trade.id,
-      at: trade.closedAt,
-      amountUsd: Math.abs(trade.exitPx * trade.sz),
-      money: trade.pnl,
-    })
-  }
-
-  sales.sort((left, right) => right.at - left.at)
-  const total = sales.reduce((sum, sale) => sum + (sale.money ?? 0), 0)
+  const sales = smartOrderSales(order, fills, trades)
   return {
-    sells: sales.slice(0, SHOW_AT_MOST),
-    total,
-    capped: sales.length > SHOW_AT_MOST,
-    /** Sales the venue never put a figure on, so the total is short of them. */
-    unpriced: sales.filter((sale) => sale.money === null).length,
+    sells: sales.sells.slice(0, SHOW_AT_MOST),
+    total: sales.total,
+    capped: sales.sells.length > SHOW_AT_MOST,
+    unpriced: sales.unpriced,
   }
 }

@@ -82,17 +82,17 @@ fixed in one is fixed in both.
   dropped once the press is over. Nobody selects text by pressing a tab, so
   there is nothing lost.
 - **Journal rows can be removed one at a time or many at once.** Every row
-  keeps its own bin, and every row also has a checkbox. Ticking rows puts a
-  Remove (n) button in the tab bar — the button is only there while something
-  is ticked — and the checkbox in the table header ticks or unticks every
-  listed row. One row or many, the same confirm asks first, and confirming
-  only hides the fills behind the trades: a practice wallet's cash is added up
-  from its fills, so nothing about the money moves. Ticking a row never draws
-  its trade on the chart, and a tick disappears with its row when a refresh
-  takes the trade away, so Remove (n) can only ever mean rows on screen. The
-  Journal is the one table with checkboxes on purpose — positions
-  and open orders are a live readout where a row can close itself between the
-  tick and the button, so their actions stay one row at a time.
+  keeps its own bin. A right-click on a row offers Mass select and Delete
+  (Tyler, 10 Nov 2026: "Add right click ability for journal to delete and mass
+  select"). Mass select shows the tick boxes, hidden otherwise, and ticking
+  rows puts a Remove (n) button in the tab bar; the checkbox in the table
+  header ticks or unticks every listed row. One row or many, the same confirm
+  asks first, and confirming only hides the fills behind the trades: a
+  practice wallet's cash is added up from its fills, so nothing about the
+  money moves. A tick disappears with its row when a refresh takes the trade
+  away, so Remove (n) can only ever mean rows on screen. Positions has the
+  same right-click and Mass select, with Close (n) over the ticked rows;
+  `trade-details-panel.md` has both.
 
 ## Narrow screens
 

@@ -155,9 +155,15 @@ export function useCollapseAllCommand(setOpen: (open: boolean) => void) {
 export function InspectorCard({
   storageId,
   title,
+  icon,
   description,
   children,
 }: {
+  /**
+   * Before the title, 16px and muted, as a panel card draws one (Tyler, 11
+   * Nov 2026: every right panel card has an icon).
+   */
+  icon?: React.ReactNode
   /**
    * Names this card in the remembered open/shut state. Plain characters only:
    * the script that keeps a shut card shut before the first paint skips any
@@ -197,7 +203,12 @@ export function InspectorCard({
               focusRingInset
             )}
           >
-            <span>{title}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              {icon ? (
+                <span className="flex shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span>
+              ) : null}
+              <span>{title}</span>
+            </span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
           </button>
         </CollapsibleTrigger>

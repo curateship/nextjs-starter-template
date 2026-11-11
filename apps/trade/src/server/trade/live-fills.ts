@@ -58,6 +58,7 @@ import {
   pricesEverySale,
 } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
+import { stampFillOwners } from "@/server/trade/fill-owners"
 import { stampFillAims } from "@/server/trade/order-aims"
 import {
   bumpTradeHistory,
@@ -1454,6 +1455,25 @@ export async function loadLiveHistoryIfChanged(
   return { history: await loadLiveHistory(userId, walletIds), stamp }
 }
 
+/** One stored real fill in the shape the trade builder reads. */
+export function liveFillFromRow(row: typeof tradeLiveFills.$inferSelect): LiveFill {
+  return {
+    fillId: row.fillId,
+    orderId: row.orderId,
+    walletId: row.walletId,
+    marketKey: row.marketKey,
+    side: row.side,
+    px: row.px,
+    sz: row.sz,
+    at: Number(row.at),
+    closedPnl: row.closedPnl,
+    fee: row.fee,
+    dir: row.dir,
+    liquidation: row.liquidation,
+    live: true,
+  }
+}
+
 export async function loadLiveHistory(
   userId: string,
   walletIds: readonly string[],
@@ -1499,21 +1519,7 @@ export async function loadLiveHistory(
             )
           )
 
-  const raw: LiveFill[] = fillRows.map((row) => ({
-    fillId: row.fillId,
-    orderId: row.orderId,
-    walletId: row.walletId,
-    marketKey: row.marketKey,
-    side: row.side,
-    px: row.px,
-    sz: row.sz,
-    at: Number(row.at),
-    closedPnl: row.closedPnl,
-    fee: row.fee,
-    dir: row.dir,
-    liquidation: row.liquidation,
-    live: true,
-  }))
+  const raw: LiveFill[] = fillRows.map(liveFillFromRow)
   for (const protocol of new Set(
     raw.map((fill) => parseMarketKey(fill.marketKey)?.protocol)
   )) {
@@ -1533,7 +1539,11 @@ export async function loadLiveHistory(
   // Which of these a grid level made, before anything reads them. The arrows
   // and the Journal both ask, and a fill that arrived unstamped is read as a
   // ladder's. See `stampGridFills`.
-  const fills = await stampGridFills(userId, walletIds, raw)
+  const fills = await stampFillOwners(
+    userId,
+    walletIds,
+    await stampGridFills(userId, walletIds, raw)
+  )
   // The price each fill's order was aimed at, for the Slippage columns; a
   // fired stop's or target's level stands in for an order this app never sent.
   await stampFillAims(

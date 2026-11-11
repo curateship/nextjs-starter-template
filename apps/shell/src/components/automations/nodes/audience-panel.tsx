@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SlidersHorizontalIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import {
@@ -91,7 +92,7 @@ export default function AudienceFields({
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`audience-${node.id}-kind`}

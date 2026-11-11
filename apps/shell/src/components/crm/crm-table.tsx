@@ -430,11 +430,15 @@ export function MainCell({
 }) {
   return (
     <TableCell column="main" className="min-w-40">
-      {/* No width of its own (`w-0`), then the cell's full width: a long name
-          is cut short instead of widening the table, which pushed a row's
-          last buttons out of sight (Trade's Backtests, 11 Nov 2026). The
-          cell's 160px keeps a name readable. */}
-      <span className="flex w-0 min-w-full items-center gap-2">
+      {/* The name is clamped to one line rather than kept on one line
+          (`line-clamp-1`, breaking anywhere): the table then sizes the column
+          by the whole name when there is room, and cuts it short with "…"
+          only when there is not. A long name never widens the table past a
+          row's last buttons (Trade's Backtests, 11 Nov 2026), and a short
+          table never squeezes names to the 160px floor while other columns
+          are cut as well (the Users table read "Bet...", Tyler, 11 Nov
+          2026). */}
+      <span className="flex min-w-0 items-center gap-2">
         <OpenBar />
         {lead}
         {avatar ? (
@@ -442,7 +446,7 @@ export function MainCell({
             <AvatarFallback className="text-[0.5625rem] font-medium">{initialsFor(avatar.name, avatar.email)}</AvatarFallback>
           </Avatar>
         ) : null}
-        <span data-row-name="" className={cn("truncate", strong ? "font-semibold" : "font-medium")}>
+        <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
           {name}
         </span>
         {children}

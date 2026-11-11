@@ -220,8 +220,8 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
       {...shared}
       {...state}
       trades={[]}
-      selectedId={null}
-      onSelectTrade={() => {}}
+      openId={null}
+      onOpenRow={() => {}}
       onRemove={() => {}}
       ticked={new Set<string>()}
       onTickTrade={() => {}}
@@ -242,8 +242,9 @@ describe("the bottom panel's tables say what they know", () => {
         unmatchedHistory={[stale, open]}
         settled={true}
         failed={false}
-        selectedId={null}
-        onSelectTrade={() => {}}
+        openId={null}
+        onOpenRow={() => {}}
+        selectShown
         onRemove={() => {}}
         ticked={new Set<string>()}
         onTickTrade={() => {}}
@@ -311,8 +312,8 @@ describe("the bottom panel's tables say what they know", () => {
         trades={[liveTrade("mainnet")]}
         settled={true}
         failed={false}
-        selectedId={null}
-        onSelectTrade={() => {}}
+        openId={null}
+        onOpenRow={() => {}}
         onRemove={() => {}}
         ticked={new Set<string>()}
         onTickTrade={() => {}}
@@ -508,7 +509,7 @@ describe("the bottom panel's tables say what they know", () => {
           trades={[trade("SOL", 50, 60), trade("USELESS", 10, 100)]}
           settled={true}
           failed={false}
-          selectedId={null}
+          openId={null}
         />
       </TooltipProvider>
     )
@@ -550,8 +551,9 @@ describe("the bottom panel's tables say what they know", () => {
           trades={[trade("one", "BTC"), trade("two", "ETH")]}
           settled={true}
           failed={false}
-          selectedId={null}
-          onSelectTrade={(chosen) => opened.push(chosen.id)}
+          openId={null}
+          selectShown
+          onOpenRow={(row) => opened.push(row.kind === "finished" ? row.trade.id : row.history.id)}
           onRemove={() => {}}
           ticked={new Set<string>()}
           onTickTrade={(id) => ticked.push(id)}
@@ -1189,8 +1191,8 @@ describe("position and order totals", () => {
     ] }
     const host = document.createElement("div")
     host.innerHTML = draw(
-      <TradesTable {...shared} trades={[trade]} settled={true} failed={false} selectedId={null}
-        onSelectTrade={() => {}} onRemove={() => {}} ticked={new Set<string>()}
+      <TradesTable {...shared} trades={[trade]} settled={true} failed={false} openId={null}
+        onOpenRow={() => {}} onRemove={() => {}} ticked={new Set<string>()}
         onTickTrade={() => {}} onTickVisible={() => {}} tickAllState={() => false} />
     )
     const heads = Array.from(host.querySelectorAll("thead th")).map((th) => th.textContent)
@@ -1320,5 +1322,58 @@ describe("the flip position action", () => {
       await act(async () => root.unmount())
       host.remove()
     }
+  })
+})
+
+describe("every position, and the right panel's rows (10 Nov 2026)", () => {
+  it("lists a coin a grid you placed is running, badged Grid, and marks the open row", () => {
+    const held = position("BTC", 1)
+    const grid = {
+      id: "grid-1",
+      kind: "grid",
+      status: "active",
+      flowRunId: null,
+      walletId: held.walletId,
+      marketKey: held.marketKey,
+      createdAt: 0,
+      updatedAt: 0,
+      plan: { direction: "long", topPx: 200, bottomPx: 50, stopLoss: null, baseWatch: null },
+    } as unknown as SmartOrder
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        smartOrders={[grid]}
+        positions={[held]}
+        settled={true}
+        failed={false}
+        openId={held.id}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+    expect(html).toContain(">Grid<")
+    expect(html).toContain('data-state="selected"')
+    // No tick boxes until Mass select is on.
+    expect(html).not.toContain('aria-label="Select the BTC position"')
+  })
+
+  it("keeps the Journal's tick boxes hidden until Mass select", () => {
+    const props = {
+      ...shared,
+      trades: [liveTrade("mainnet")],
+      settled: true,
+      failed: false,
+      openId: null,
+      ticked: new Set<string>(),
+      onTickTrade: () => {},
+      onTickVisible: () => {},
+      tickAllState: () => false as const,
+    }
+    expect(draw(<TradesTable {...props} />)).not.toContain('aria-label="Select every removable Journal row"')
+    expect(draw(<TradesTable {...props} selectShown />)).toContain('aria-label="Select every removable Journal row"')
   })
 })

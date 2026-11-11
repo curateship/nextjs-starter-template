@@ -66,15 +66,20 @@ screen: anything not written there has not been agreed yet.
 - `no-success-toasts.md` — nothing pops up when something works (Tyler, 10
   Nov 2026); errors and part-done results still do, and which ones those are.
 - [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
+- `trade-details-panel.md` — the Trade dashboard's right panel (10 Nov 2026):
+  what the chart, Positions and Journal tabs open in it, every grid sale read
+  from the server, who placed a trade, the footer buttons, right-click and
+  Mass select, and the Journal's Placed by filter and Hide practice switch.
 - `dashboard-blocks.md` — the one Trade dashboard at `/trade` (8 Nov 2026):
   the left page with the fixed Protocols block (Overview and each exchange,
   with open positions counts, hidden from the ⋮), the trading blocks, Overview
   of widgets in the shell's rows, the chart tab's "i" and the ⋮'s Folders and
-  Pin to top, with no right panel, and the one Trade link in the left menu.
+  Pin to top, no right panel on Overview, and the one Trade link in the left menu.
 - `dashboard-on-a-phone.md` — the Trade dashboard on a phone: the Page and
   middle pills, the top row and the tables.
-- `workspace.md` — the trading workspace: its panels, the Positions tab, Close
-  all, Long/Short badge columns, and where the navigation lives.
+- `workspace.md` — the trading workspace: its panels, the Positions tab (every
+  position, Grid and DCA badges), Close all, Long/Short badge columns, and
+  where the navigation lives.
 - `trading-overview.md` — Overview's six widgets on the Trade dashboard: PnL
   Graph's dates and figures, Active Trades, Running bots, Profit calendar and
   All trades, their fifteen-second read, the shell's rows they sit in, and the

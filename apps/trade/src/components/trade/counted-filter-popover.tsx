@@ -21,13 +21,19 @@ export function CountedFilterPopover<Item>({
   items,
   groups,
   onClear,
+  extra,
+  extraActive = 0,
 }: {
   items: readonly Item[]
   groups: readonly CountedFilterGroup<Item>[]
   onClear: () => void
+  /** More filters after the groups, such as the Journal's Hide practice switch. */
+  extra?: React.ReactNode
+  /** How many of those are set, for the button's count. */
+  extraActive?: number
 }) {
   const [open, setOpen] = React.useState(false)
-  const active = groups.filter((group) => Boolean(group.value)).length
+  const active = groups.filter((group) => Boolean(group.value)).length + extraActive
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -39,6 +45,7 @@ export function CountedFilterPopover<Item>({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 gap-2 p-0">
         <CountedFilterGroups items={items} groups={groups} />
+        {extra ? <div className="border-t p-2.5">{extra}</div> : null}
         <div className="flex items-center justify-between border-t p-2.5">
           <Button type="button" variant="ghost" onClick={onClear}>
             Clear all

@@ -39,7 +39,7 @@ import {
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useBlankSpaceDoubleClick, usePanelCollapsed, usePanelToggle } from "@/lib/layout/panel-collapse"
+import { useBlankSpaceDoubleClick, usePanelCollapsed, usePanelFold, usePanelToggle } from "@/lib/layout/panel-collapse"
 import {
   clampStepListWidth,
   DEFAULT_STEP_LIST_WIDTH,
@@ -183,7 +183,10 @@ export function AutomationEditor({
   const stepListWidth = clampStepListWidth(config.styling.stepListWidth ?? DEFAULT_STEP_LIST_WIDTH)
   const stepsRef = React.useRef<PanelImperativeHandle | null>(null)
   const stepsState = usePanelCollapsed(stepsRef)
-  const toggleSteps = usePanelToggle(stepsRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapSteps = usePanelToggle(stepsRef)
+  const toggleSteps = React.useCallback(() => fold(snapSteps), [fold, snapSteps])
   const stepsDoubleClick = useBlankSpaceDoubleClick(toggleSteps)
   const templateModeAtStart = React.useRef(mode === "template")
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
@@ -877,7 +880,7 @@ export function AutomationEditor({
       // A new width from Settings starts the list again at it.
       key={stepListWidth}
       orientation="horizontal"
-      className="min-h-0 flex-1"
+      className={cn("min-h-0 flex-1", foldingClassName)}
     >
       <ResizablePanel
         id="steps"

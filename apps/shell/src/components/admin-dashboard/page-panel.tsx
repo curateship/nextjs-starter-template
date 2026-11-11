@@ -1,6 +1,14 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { ExternalLinkIcon, PanelsTopLeftIcon, PencilIcon, Trash2Icon, WrenchIcon } from "lucide-react"
+import {
+  ExternalLinkIcon,
+  FileTextIcon,
+  PanelsTopLeftIcon,
+  PencilIcon,
+  Trash2Icon,
+  TypeIcon,
+  WrenchIcon,
+} from "lucide-react"
 
 import { MenuActionRow } from "@/components/admin-dashboard/list-parts"
 import { EmptyRecord, RecordFrame } from "@/components/crm/record-frame"
@@ -137,7 +145,7 @@ export function PagePanel({
       }
       body={
         <>
-          <PanelCard storageId="admin-page-facts" title="The page">
+          <PanelCard icon={<FileTextIcon />} storageId="admin-page-facts" title="The page">
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <FieldLabel
@@ -247,7 +255,7 @@ function SystemCopyCard({ path }: { path: keyof typeof SYSTEM_PAGE_COPY }) {
     patch((current) => ({ publicSystemCopy: { ...current.publicSystemCopy, [field]: value } }))
 
   return (
-    <PanelCard storageId="admin-page-words" title="What it says">
+    <PanelCard icon={<TypeIcon />} storageId="admin-page-words" title="What it says">
       <div className="grid gap-4">
         <p className="text-xs text-muted-foreground">{page.description} Leave a field empty and the page uses the shell's own wording.</p>
         <div className="grid gap-2">

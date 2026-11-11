@@ -533,8 +533,8 @@ export function WatchedOrdersList({
  * which is not this screen. Counting them anyway took the coin off this panel
  * without putting it anywhere else: ARB, held by an automation on 16 Sep 2026,
  * was on the Positions tab and nowhere in Manual orders (Tyler). The rule is
- * now the one `smartOrdersYouPlaced` states, the same one the Positions tab
- * filters by, so the two lists can never disagree about which coins a
+ * now the one `smartOrdersYouPlaced` states, the same one the Grid and DCA
+ * blocks list by, so the blocks can never disagree about which coins a
  * strategy owns.
  *
  * Sorted by what was put in rather than by what it is worth now, so a row

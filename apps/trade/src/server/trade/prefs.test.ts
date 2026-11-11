@@ -332,7 +332,7 @@ describe("the remembered trade panel choices", () => {
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-      hiddenTradeColumns: {},
+      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
     })
   })
 

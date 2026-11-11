@@ -105,6 +105,20 @@ export type LiveFill = {
    * It decides which half of the event's sentence this is.
    */
   gridPairOut?: boolean
+  /**
+   * The smart order or bot that placed this fill's order, when one did:
+   * missing on a fill placed by hand. Stamped where the fills are read
+   * (`stampFillOwners`), because only the server knows which smart orders
+   * were working the coin at that moment.
+   */
+  owner?: FillOwner
+}
+
+/** The smart order, and the bot run when a bot placed it, behind one fill. */
+export type FillOwner = {
+  kind: "grid" | "dca" | "signal" | "watch"
+  ladderId: string
+  flowRunId: string | null
 }
 
 /** What ended a trade. */

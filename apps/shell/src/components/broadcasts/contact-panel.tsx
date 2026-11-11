@@ -1,6 +1,8 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  ActivityIcon,
+  InfoIcon,
   Loader2Icon,
   PlusIcon,
   SquareMousePointerIcon,
@@ -287,7 +289,7 @@ function OpenContact({
         }
         body={
           <>
-            <PanelCard storageId="crm-subscriber-details" title="Details">
+            <PanelCard icon={<InfoIcon />} storageId="crm-subscriber-details" title="Details">
               <div className="grid gap-2">
                 <DetailRow label="Added" value={formatDate(contact.created_at)} />
                 <DetailRow
@@ -304,7 +306,7 @@ function OpenContact({
                 <DetailRow label="Came from" value={contact.source || "Not recorded"} />
               </div>
             </PanelCard>
-            <PanelCard storageId="crm-subscriber-activity" title="Activity">
+            <PanelCard icon={<ActivityIcon />} storageId="crm-subscriber-activity" title="Activity">
               <ActivityList
                 contact={contact}
                 history={detail.history}

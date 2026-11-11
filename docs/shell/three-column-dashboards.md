@@ -17,8 +17,17 @@ All of them are in `src/components/shared/`.
   narrowest width the panel have"; 9 Nov: "cannot go lower than that").
   Admin → Styling → Side panels can open them wider, up to 36%
   each (Tyler, 9 Nov 2026; the app's `workspace/docs/settings/side-panel-widths.md`).
+  The settings save accepts the same 12% floor for the right width
+  (`src/lib/api/shell-settings.ts`). Until 11 Nov 2026 it still said 16%, so
+  every Styling save with the right width at 12 to 15% was refused with a raw
+  "too_small" message.
   A side panel drags shut, comes back from a tab on the middle
-  panel's edge, and a double-click on blank space toggles it. Widths are kept
+  panel's edge, and a double-click on blank space toggles it. Folding or
+  opening slides over 240ms (`usePanelFold` in `src/lib/layout/panel-collapse.ts`,
+  used by `ThreePanels` and the page and automation editors), rather than
+  snapping and jumping again a frame later as the gap closed (Tyler, 11 Nov
+  2026: "make it smooth"); a dragged divider still follows the pointer at once.
+  Widths are kept
   in the browser under a key listed in `panelLayoutKey`
   (`src/lib/layout/panel-layout.ts`). Under 1280px one panel shows at a time
   under a row of pills, and all three stay mounted. `showRightFor` switches a
@@ -82,7 +91,25 @@ All of them are in `src/components/shared/`.
   Trade's Backtests rows use both: a chart that opens the run's chart and a
   recipe icon that opens its recipe (Tyler, 11 Nov 2026).
   A long name in `MainCell` is cut short rather than widening the table, so
-  the buttons at the row's end stay in view.
+  the buttons at the row's end stay in view. It is clamped to one line, not
+  given no width, so the column still sizes to the whole name when there is
+  room: with no width of its own the column fell to its 160px floor and the
+  Users table read "Bet..." (Tyler, 11 Nov 2026).
+- **Cards and blocks in a side panel sit flush, one under the next** (Tyler,
+  11 Nov 2026: "remove the spacing here for the right panels", then "the same
+  for left panels too"). `PANEL_GUTTER` keeps its 15px at the panel's edges
+  and has no gap between cards, the automation step panel likewise, and two
+  "/" blocks in a row on a left page lose the 15px between them
+  (`saving-document.tsx`); a block next to written text keeps it.
+- **Every card in a right panel has an icon** before its title (Tyler, 11 Nov
+  2026, after Trade's details panel): `PanelCard`, the automation step
+  `InspectorCard` and the shared `InspectorCard` (used by the email and page
+  editors) all take `icon`.
+- **A ⋮ in a panel header sits 24px from the icons beside it.** Its dots are
+  narrower than an icon, so `DashboardCardHeader` pulls any button marked
+  `data-more-button` (the `TabbedMenu` trigger) 6px into the gap on each side
+  (Tyler, 11 Nov 2026: "the icon spacing of the right panel has to match with
+  the spacing from the middle panel").
 - **`panel-card.tsx`, `PanelCard` and `PanelHeading`.** The grey folding card
   of a side panel, which remembers being open or shut, with a muted note after
   its title, a badge, a button of its own and a footer of buttons. Its cog and its own buttons show only while the card is

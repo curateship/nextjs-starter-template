@@ -60,6 +60,7 @@ import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
 import { fillsSlippage } from "@/lib/trade/slippage"
 import { ifStoppedChange } from "@/lib/trade/if-stopped"
+import { targetsProfit } from "@/lib/trade/targets-profit"
 import { positionStopPx } from "@/lib/trade/position-stop"
 import {
   LOST_MONEY,
@@ -87,13 +88,10 @@ import { panelSectionBarClassName, stickyPanelSectionBarClassName } from "@/lib/
  * every other table in the app uses, so a column here behaves exactly like a
  * column anywhere else.
  *
- * The positions and orders tables do *not* take mass selection from the
- * shell's dashboard tables. They are a live readout where a row can close
- * itself between the tick you tick it and the button you press, so every
- * action there is on the one row it sits in, and the single bulk action —
- * Close all — lives in the tab bar where it cannot be mistaken for one. The
- * Journal is different: its rows are finished trades that sit still, so it
- * alone has checkboxes and a Remove button over the ticked rows.
+ * Positions and the Journal take Mass select from a row's right-click
+ * (Tyler, 10 Nov 2026): tick boxes show only while it is on, and the ticked
+ * rows gather in one button in the header, Close (n) or Remove (n). Open
+ * orders has none.
  *
  * Prices are read once for the whole table rather than per row, so the column
  * you sorted by and the figure printed in the row are always the same number.
@@ -108,20 +106,6 @@ function TestnetBadge({ marketKey }: { marketKey: string }) {
 /** Marks a row from a practice wallet, so pretend money never reads as real. */
 function PracticeBadge() {
   return <TradeBadge>Practice</TradeBadge>
-}
-
-function targetsProfit(position: TradePosition): number | null {
-  if (position.targets.length === 0) return null
-  return position.targets.reduce((sum, target) => {
-    const sz = target.sz ?? Math.abs(position.szi)
-    return (
-      sum +
-      projectedProfit(
-        { szi: Math.sign(position.szi) * sz, entryPx: position.entryPx },
-        target.px
-      )
-    )
-  }, 0)
 }
 
 /**
@@ -234,6 +218,7 @@ function CopyNoteRow({
   market,
   wallet,
   busy,
+  selectShown,
   onSelectMarket,
   onRemove,
 }: {
@@ -241,12 +226,14 @@ function CopyNoteRow({
   market: MarketRow | null
   wallet: string
   busy: boolean
+  /** Keeps the tick column's place while Mass select is on. */
+  selectShown: boolean
   onSelectMarket?: (marketKey: string) => void
   onRemove?: (note: CopyNote) => void
 }) {
   return (
     <TableRow className="border-t">
-      <td data-column="select" className="w-8 px-3 py-2" />
+      {selectShown ? <td data-column="select" className="w-8 px-3 py-2" /> : null}
       <MarketCell
         marketKey={note.marketKey}
         market={market}
@@ -366,8 +353,10 @@ function sumProjections(values: readonly (number | null)[]): number | null {
 }
 
 function TotalsFooter<Key extends string>({
-  columns, totals, signed = [], practiceIncluded, customCells = {},
+  columns, totals, signed = [], practiceIncluded, customCells = {}, lead = false,
 }: {
+  /** A tick column comes first, so the totals keep under their own columns. */
+  lead?: boolean
   columns: readonly ColumnSpec<Key>[]
   totals: Partial<Record<Key, number | null>>
   customCells?: Partial<Record<Key, React.ReactNode>>
@@ -378,6 +367,7 @@ function TotalsFooter<Key extends string>({
   return (
     <tfoot className="sticky bottom-0 z-10">
       <tr className={stickyPanelSectionBarClassName}>
+        {lead ? <td aria-hidden /> : null}
         {columns.map(({ key }, index) => {
           if (index === 0) return (
             <th key={key} scope="row" className="px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground">
@@ -510,6 +500,11 @@ function PositionRow({
   busy,
   stopPx,
   adding,
+  open,
+  smartKind,
+  tick,
+  onOpen,
+  onRightClick,
   onSelectMarket,
   onAdd,
   onMargin,
@@ -523,9 +518,16 @@ function PositionRow({
   mark: number
   /** What it has cost in fees, or null on a real one with nothing swept. */
   fees: PositionFees | null
-  /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
   adding: boolean
+  /** Shown in the right panel now. */
+  open: boolean
+  /** The grid or DCA ladder you placed that is running this coin, if one is. */
+  smartKind: "grid" | "dca" | null
+  /** Mass select is on: the row's tick box, and a press ticks the row. */
+  tick: { ticked: boolean; onToggle: () => void } | null
+  onOpen: () => void
+  onRightClick?: (x: number, y: number) => void
   /**
    * Where the stop sits, from the position or its running grid, or null when
    * there is none. Undefined until a settled read has actually looked.
@@ -560,12 +562,37 @@ function PositionRow({
 
   return (
     <TableRow
-      // The whole row charts its market, which is what its name already did —
-      // one action, a target the width of the panel instead of six characters.
+      // The whole row charts its market and opens the position in the right
+      // panel (Tyler, 10 Nov 2026: "Clicking on the trade open the right panel
+      // to show more details"). With Mass select on, a press ticks it instead.
       // The buttons at the end keep their own clicks; see `column="actions"`.
-      rowAction={() => onSelectMarket(position.marketKey)}
-      className="border-t hover:bg-muted/40"
+      rowAction={
+        tick
+          ? tick.onToggle
+          : () => {
+              onSelectMarket(position.marketKey)
+              onOpen()
+            }
+      }
+      data-state={open ? "selected" : undefined}
+      onContextMenu={(event: React.MouseEvent) => {
+        if (!onRightClick) return
+        const selected = window.getSelection()
+        if (selected && !selected.isCollapsed) return
+        event.preventDefault()
+        onRightClick(event.clientX, event.clientY)
+      }}
+      className={cn("border-t hover:bg-muted/40", tick?.ticked && "bg-muted/40")}
     >
+      {tick ? (
+        <td data-column="select" className="w-8 px-3 py-2">
+          <Checkbox
+            checked={tick.ticked}
+            onCheckedChange={tick.onToggle}
+            aria-label={`Select the ${marketSymbol(position.marketKey)} position`}
+          />
+        </td>
+      ) : null}
       <MarketCell
         marketKey={position.marketKey}
         market={market}
@@ -574,12 +601,17 @@ function PositionRow({
             {position.live ? (
               <TestnetBadge marketKey={position.marketKey} />
             ) : null}
+            {/* The same coin is in the Grid or DCA block too: one holding,
+                said so on both. */}
+            {smartKind ? (
+              <TradeBadge>{smartKind === "grid" ? "Grid" : "DCA"}</TradeBadge>
+            ) : null}
             {missingStop ? (
               <MissingStopBadge marketKey={position.marketKey} />
             ) : null}
           </>
         }
-        onSelect={() => onSelectMarket(position.marketKey)}
+        onSelect={tick ? tick.onToggle : () => onSelectMarket(position.marketKey)}
       />
       <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
         <PositionSideBadge position={position} />
@@ -835,7 +867,30 @@ export function PositionsTable({
   onFlip,
   onClose,
   onClosePart,
+  openId = null,
+  onOpen,
+  onRows,
+  onRightClick,
+  ticks = null,
+  confirming: confirmingProp,
+  onConfirmingChange,
 }: {
+  /** The position shown in the right panel now. */
+  openId?: string | null
+  onOpen?: (position: TradePosition) => void
+  /** The rows' ids in the order drawn, for opening the first on arrival. */
+  onRows?: (ids: string[]) => void
+  onRightClick?: (position: TradePosition, x: number, y: number) => void
+  /** Mass select, while it is on. */
+  ticks?: {
+    ticked: ReadonlySet<string>
+    toggle: (id: string) => void
+    toggleVisible: (ids: string[]) => void
+    state: (ids: string[]) => boolean | "indeterminate"
+  } | null
+  /** The position whose close window is open, when the caller owns it. */
+  confirming?: TradePosition | null
+  onConfirmingChange?: (position: TradePosition | null) => void
   pendingAdditions?: readonly { walletId: string; marketKey: string }[]
   positions: readonly TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
@@ -876,7 +931,9 @@ export function PositionsTable({
   /** Sells a piece of it, with a limit that follows the price. */
   onClosePart: (position: TradePosition, ask: PartCloseAsk) => void
 }) {
-  const [confirming, setConfirming] = React.useState<TradePosition | null>(null)
+  const [ownConfirming, setOwnConfirming] = React.useState<TradePosition | null>(null)
+  const confirming = onConfirmingChange ? (confirmingProp ?? null) : ownConfirming
+  const setConfirming = onConfirmingChange ?? setOwnConfirming
   // Money columns start biggest-first, which is the order anybody scanning a
   // list of positions actually wants. If stopped starts with the biggest loss
   // first, because that column exists to find the trade that hurts most.
@@ -967,13 +1024,41 @@ export function PositionsTable({
     [positions, direction, sort, markOf, feesOf, stopPxOf]
   )
 
+  const rowIds = rows.map((position) => position.id).join(" ")
+  React.useEffect(() => {
+    onRows?.(rowIds ? rowIds.split(" ") : [])
+  }, [rowIds, onRows])
+
+  // The grid or DCA ladder you placed on each coin, for the row's badge.
+  const smartKindOf = React.useMemo(() => {
+    const byCoin = new Map<string, "grid" | "dca">()
+    for (const order of smartOrders) {
+      if (order.status !== "active" || order.flowRunId !== null) continue
+      if (order.kind === "grid" || order.kind === "dca") {
+        byCoin.set(`${order.walletId}:${order.marketKey}`, order.kind)
+      }
+    }
+    return (position: TradePosition) =>
+      byCoin.get(`${position.walletId}:${position.marketKey}`) ?? null
+  }, [smartOrders])
+
   return (
     <>
       <TradeTable
         columns={POSITION_COLUMNS}
         rows={rows}
+        leadingHeader={
+          ticks ? (
+            <Checkbox
+              checked={ticks.state(rows.map((position) => position.id))}
+              onCheckedChange={() => ticks.toggleVisible(rows.map((position) => position.id))}
+              aria-label="Select every position"
+            />
+          ) : undefined
+        }
         footer={settled && !failed && rows.length > 0 ? (
           <TotalsFooter columns={POSITION_COLUMNS}
+            lead={Boolean(ticks)}
             practiceIncluded={includesPractice(rows, realWallets)}
             signed={["unrealized", "ifStopped", "slippage"]}
             customCells={{
@@ -1004,7 +1089,7 @@ export function PositionsTable({
         failed={failed}
         loadingLabel="Reading what you are holding"
         failedWords="The positions could not be read, so it is not known whether you are holding anything."
-        emptyWords="No open positions here. A coin a ladder or grid is running shows in the Smart orders panel instead."
+        emptyWords="No open positions here."
         onRetry={onRetry}
         sort={sort}
         direction={direction}
@@ -1035,6 +1120,17 @@ export function PositionsTable({
             fees={feesOf(position)}
             busy={busy}
             stopPx={stopPxOf(position)}
+            open={position.id === openId}
+            smartKind={smartKindOf(position)}
+            tick={
+              ticks
+                ? { ticked: ticks.ticked.has(position.id), onToggle: () => ticks.toggle(position.id) }
+                : null
+            }
+            onOpen={() => onOpen?.(position)}
+            onRightClick={
+              onRightClick ? (x, y) => onRightClick(position, x, y) : undefined
+            }
             onSelectMarket={onSelectMarket}
             onAdd={onAdd}
             onMargin={onMargin}
@@ -1292,21 +1388,30 @@ function endingTone(trade: LiveTrade): TradeBadgeTone {
  * question — "how did that go" — and two lists would mean reading the same
  * columns twice to answer it.
  *
- * Pressing a row draws it on the chart rather than opening anything. The
+ * Pressing a row opens it in the right panel (Tyler, 10 Nov 2026). The
  * market's name still goes to its chart on its own, the way it does in the
- * three tables above.
+ * three tables above. A right-click offers Mass select and Delete; the tick
+ * boxes show only once Mass select is on ("Add right click ability for
+ * journal to delete and mass select").
  */
+export type JournalOpenRow =
+  | { kind: "finished"; trade: LiveTrade }
+  | { kind: "unmatched"; history: UnmatchedTradeHistory }
+
 export function TradesTable({
   trades,
   unmatchedHistory = [],
   markets,
   walletName,
-  selectedId,
+  openId,
   busy,
   settled,
   failed,
   onRetry,
-  onSelectTrade,
+  onOpenRow,
+  onRows,
+  onRightClick,
+  selectShown = false,
   onSelectMarket,
   onRemove,
   onLoadOlder,
@@ -1327,8 +1432,13 @@ export function TradesTable({
   onRemoveCopyNote?: (note: CopyNote) => void
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
-  /** The trade drawn on the chart right now, or null. */
-  selectedId: string | null
+  /** The row open in the right panel now, or null. */
+  openId: string | null
+  /** The rows' ids in the order drawn, for opening the first on arrival. */
+  onRows?: (ids: string[]) => void
+  onRightClick?: (row: JournalOpenRow, x: number, y: number) => void
+  /** Mass select is on: the tick boxes show and a press ticks the row. */
+  selectShown?: boolean
   busy: boolean
   /**
    * Both halves of the read have landed — see `settled` on `Trading`.
@@ -1341,7 +1451,7 @@ export function TradesTable({
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
-  onSelectTrade?: (trade: LiveTrade) => void
+  onOpenRow?: (row: JournalOpenRow) => void
   onSelectMarket?: (marketKey: string) => void
   onRemove?: (trade: RemovableTradeHistory) => void
   onLoadOlder?: () => void
@@ -1457,6 +1567,20 @@ export function TradesTable({
       ? [row.id]
       : []
   )
+  const openableIds = rows
+    .flatMap((row) => (row.kind === "copyNote" ? [] : [row.id]))
+    .join(" ")
+  React.useEffect(() => {
+    onRows?.(openableIds ? openableIds.split(" ") : [])
+  }, [openableIds, onRows])
+  const contextMenu =
+    (row: JournalOpenRow) => (event: React.MouseEvent) => {
+      if (!onRightClick) return
+      const selected = window.getSelection()
+      if (selected && !selected.isCollapsed) return
+      event.preventDefault()
+      onRightClick(row, event.clientX, event.clientY)
+    }
 
   return (
     <TradeTable
@@ -1474,38 +1598,49 @@ export function TradesTable({
       headerInfo={(key) => (key === "slippage" ? <SlippageInfo /> : undefined)}
       actions
       leadingHeader={
-        <Checkbox
-          checked={tickAllState?.(listedIds) ?? false}
-          onCheckedChange={() => onTickVisible?.(listedIds)}
-          aria-label="Select every removable Journal row"
-        />
+        selectShown ? (
+          <Checkbox
+            checked={tickAllState?.(listedIds) ?? false}
+            onCheckedChange={() => onTickVisible?.(listedIds)}
+            aria-label="Select every removable Journal row"
+          />
+        ) : undefined
       }
       renderRow={(row) =>
         row.kind === "finished" ? (
           <TableRow
             key={row.id}
             rowAction={
-              onSelectTrade ? () => onSelectTrade(row.trade) : undefined
+              selectShown
+                ? () => onTickTrade?.(row.id)
+                : onOpenRow
+                  ? () => onOpenRow({ kind: "finished", trade: row.trade })
+                  : undefined
             }
-            data-state={row.id === selectedId ? "selected" : undefined}
+            onContextMenu={contextMenu({ kind: "finished", trade: row.trade })}
+            data-state={row.id === openId ? "selected" : undefined}
             className="border-t"
           >
             {/* Marked as the select column so ticking a row never also fires
-                the row action and draws the trade on the chart. */}
-            <td data-column="select" className="w-8 px-3 py-2">
-              <Checkbox
-                checked={ticked?.has(row.id) ?? false}
-                onCheckedChange={() => onTickTrade?.(row.id)}
-                aria-label={`Select the ${marketSymbol(row.trade.marketKey)} trade`}
-              />
-            </td>
+                the row action and opens the trade. */}
+            {selectShown ? (
+              <td data-column="select" className="w-8 px-3 py-2">
+                <Checkbox
+                  checked={ticked?.has(row.id) ?? false}
+                  onCheckedChange={() => onTickTrade?.(row.id)}
+                  aria-label={`Select the ${marketSymbol(row.trade.marketKey)} trade`}
+                />
+              </td>
+            ) : null}
             <MarketCell
               marketKey={row.trade.marketKey}
               market={markets.get(row.trade.marketKey) ?? null}
               onSelect={
-                onSelectMarket
-                  ? () => onSelectMarket(row.trade.marketKey)
-                  : undefined
+                selectShown
+                  ? () => onTickTrade?.(row.id)
+                  : onSelectMarket
+                    ? () => onSelectMarket(row.trade.marketKey)
+                    : undefined
               }
               badge={
                 row.trade.live ? (
@@ -1594,30 +1729,51 @@ export function TradesTable({
             market={markets.get(row.note.marketKey) ?? null}
             wallet={walletName(row.note.walletId)}
             busy={busy}
+            selectShown={selectShown}
             onSelectMarket={onSelectMarket}
             onRemove={onRemoveCopyNote}
           />
         ) : (
-          <TableRow key={row.id} className="border-t">
-            <td data-column="select" className="w-8 px-3 py-2">
-              <Checkbox
-                checked={row.history.open ? false : (ticked?.has(row.id) ?? false)}
-                disabled={row.history.open}
-                onCheckedChange={() => onTickTrade?.(row.id)}
-                aria-label={
-                  row.history.open
-                    ? `${marketSymbol(row.history.marketKey)} is still open and cannot be removed`
-                    : `Select the incomplete ${marketSymbol(row.history.marketKey)} history`
-                }
-              />
-            </td>
+          <TableRow
+            key={row.id}
+            rowAction={
+              selectShown
+                ? row.history.open
+                  ? undefined
+                  : () => onTickTrade?.(row.id)
+                : onOpenRow
+                  ? () => onOpenRow({ kind: "unmatched", history: row.history })
+                  : undefined
+            }
+            onContextMenu={contextMenu({ kind: "unmatched", history: row.history })}
+            data-state={row.id === openId ? "selected" : undefined}
+            className="border-t"
+          >
+            {selectShown ? (
+              <td data-column="select" className="w-8 px-3 py-2">
+                <Checkbox
+                  checked={row.history.open ? false : (ticked?.has(row.id) ?? false)}
+                  disabled={row.history.open}
+                  onCheckedChange={() => onTickTrade?.(row.id)}
+                  aria-label={
+                    row.history.open
+                      ? `${marketSymbol(row.history.marketKey)} is still open and cannot be removed`
+                      : `Select the incomplete ${marketSymbol(row.history.marketKey)} history`
+                  }
+                />
+              </td>
+            ) : null}
             <MarketCell
               marketKey={row.history.marketKey}
               market={markets.get(row.history.marketKey) ?? null}
               onSelect={
-                onSelectMarket
-                  ? () => onSelectMarket(row.history.marketKey)
-                  : undefined
+                selectShown
+                  ? row.history.open
+                    ? undefined
+                    : () => onTickTrade?.(row.id)
+                  : onSelectMarket
+                    ? () => onSelectMarket(row.history.marketKey)
+                    : undefined
               }
               badge={
                 row.history.live ? (
@@ -1716,7 +1872,7 @@ export function TradesTable({
           <tfoot>
             <tr className={panelSectionBarClassName}>
               <td
-                colSpan={TRADE_COLUMNS.length + 2}
+                colSpan={TRADE_COLUMNS.length + (selectShown ? 2 : 1)}
                 className="px-5 py-3 text-center"
               >
                 {olderDone ? (

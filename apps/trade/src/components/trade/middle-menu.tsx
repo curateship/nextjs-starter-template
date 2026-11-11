@@ -89,6 +89,9 @@ export function MiddleMenu({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="icon"
               aria-label="More for this dashboard"
+// The panel header nudges a ⋮ into the gaps beside it, so it
+              // sits 24px from the icons before it (`DashboardCardHeader`).
+              data-more-button=""
               className={cn("shrink-0 rounded-lg", open && "bg-muted")}
             >
               <EllipsisVerticalIcon className="size-4" />

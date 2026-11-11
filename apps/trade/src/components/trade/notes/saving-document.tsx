@@ -36,6 +36,11 @@ const BLOCK_STYLES = `
   .page-rte .tiptap .note-folded-away { display: none; }
   .page-rte .tiptap [data-note-block] { margin-top: 15px; margin-bottom: 15px; }
   .page-rte .tiptap > .react-renderer:first-child [data-note-block] { margin-top: 0; }
+  /* Two blocks in a row sit flush, with the 15px kept only beside written
+     text, as in the shell's copy (Tyler, 11 Nov 2026: "the same for left
+     panels too"). */
+  .page-rte .tiptap > .react-renderer:has(+ .react-renderer) [data-note-block] { margin-bottom: 0; }
+  .page-rte .tiptap > .react-renderer + .react-renderer [data-note-block] { margin-top: 0; }
   .page-rte .tiptap [data-note-block]:has(.trade-block-fills) { margin-bottom: 0; }
   .page-rte .tiptap:has(.trade-block-fills) > p:last-child:has(> br.ProseMirror-trailingBreak:only-child) { height: 0; margin: 0; overflow: hidden; }
 `

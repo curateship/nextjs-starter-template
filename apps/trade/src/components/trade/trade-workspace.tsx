@@ -99,6 +99,8 @@ import { chartSourceInterval } from "@/lib/trade/chart-interval"
 import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { tradeWorkspacePanelKey } from "@/lib/trade/panel-keys"
@@ -132,7 +134,7 @@ import {
   type TradePage,
 } from "@/components/trade/notes/trade-page-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { PageCover } from "@/components/shared/notes/page-cover"
+import { PageCover, RightCoverProvider } from "@/components/shared/notes/page-cover"
 import {
   Tooltip,
   TooltipContent,
@@ -146,8 +148,12 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { ShowLeftPanelProvider } from "@/components/shared/three-panels"
-import { DEFAULT_LEFT_PANEL_WIDTH, clampSidePanelWidth } from "@/lib/layout/styling-values"
+import { ShowLeftPanelProvider, SideTogglesProvider } from "@/components/shared/three-panels"
+import {
+  DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  clampSidePanelWidth,
+} from "@/lib/layout/styling-values"
 import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { STILL_PANEL } from "@/lib/trade/panel-fit"
 import {
@@ -164,8 +170,15 @@ import {
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
-/** The Trade dashboard's two panels, in `tradeWorkspacePanelKey`'s layouts. */
-const WORKSPACE_PANEL_IDS: readonly string[] = ["blocks", "chart"]
+
+/**
+ * The Trade dashboard's panels, in `tradeWorkspacePanelKey`'s layouts: the
+ * left page and the middle on Overview, and the trade details on the right
+ * once an exchange is picked (Tyler, 10 Nov 2026: "Any chart should have a
+ * right panel to show its previous trade history").
+ */
+const OVERVIEW_PANEL_IDS: readonly string[] = ["blocks", "chart"]
+const WORKSPACE_PANEL_IDS: readonly string[] = ["blocks", "chart", "details"]
 const NO_SLOTS: readonly HTMLElement[] = []
 const NO_HIDDEN_BLOCKS: ReadonlySet<string> = new Set()
 
@@ -341,7 +354,7 @@ export function TradeWorkspace({
   const phone = useIsMobile()
   // Under 1280px the two panels show one at a time behind a pill row: Page,
   // and the picked row's name (Tyler, 8 Nov 2026: "Page and the middle").
-  const [narrowView, setNarrowView] = React.useState<"blocks" | "chart">(
+  const [narrowView, setNarrowView] = React.useState<"blocks" | "chart" | "details">(
     "chart"
   )
   const showingOverview = overview !== null
@@ -604,20 +617,37 @@ export function TradeWorkspace({
     useOptionalShellRuntime()?.config.styling?.leftPanelWidth,
     DEFAULT_LEFT_PANEL_WIDTH
   )
+  // The right panel's opening width and its narrowest, the Side panels
+  // setting's right width, as the shell's `ThreePanels` uses.
+  const detailsWidth = clampSidePanelWidth(
+    useOptionalShellRuntime()?.config.styling?.rightPanelWidth,
+    DEFAULT_RIGHT_PANEL_WIDTH
+  )
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  // The left page | middle widths live in this browser, keyed by the Side
-  // panels width, so Reset panels and a changed setting both reach them.
+  const panelIds = showingOverview ? OVERVIEW_PANEL_IDS : WORKSPACE_PANEL_IDS
+  // The widths live in this browser, keyed by the Side panels widths, so
+  // Reset panels and a changed setting both reach them. Overview has no
+  // right panel and keeps a key of its own.
   const horizontalStored = useBrowserPanelLayout(
-    sidePanelWidthsKey(tradeWorkspacePanelKey, blocksWidth, 0),
-    WORKSPACE_PANEL_IDS
+    sidePanelWidthsKey(
+      tradeWorkspacePanelKey,
+      blocksWidth,
+      showingOverview ? 0 : detailsWidth
+    ),
+    panelIds
   )
   const horizontalLayout = useRememberedPanelLayoutInPlace(
-    WORKSPACE_PANEL_IDS,
+    panelIds,
     horizontalStored.layout,
     horizontalStored.save
   )
+  const detailsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const detailsState = usePanelCollapsed(detailsPanelRef)
+  const toggleDetailsPanel = usePanelToggle(detailsPanelRef)
+  // Where the middle panel draws the open trade, through a portal.
+  const [detailsSlot, setDetailsSlot] = React.useState<HTMLElement | null>(null)
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayout = React.useRef<ReturnType<
     typeof horizontalLayout.getLayout
@@ -631,7 +661,7 @@ export function TradeWorkspace({
     fullscreenLayout.current = horizontalLayout.getLayout()
     // Full screen is the chart: the middle panel's chart tab, the page away.
     setActivityTab("chart")
-    horizontalLayout.setLayout({ blocks: 0, chart: 100 })
+    horizontalLayout.setLayout({ blocks: 0, chart: 100, details: 0 })
     setChartFullscreen(true)
   }, [horizontalLayout, selection.kind, setActivityTab, showingOverview])
 
@@ -704,11 +734,22 @@ export function TradeWorkspace({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [chartFullscreen, exitChartFullscreen, toggleChartFullscreen])
 
+  // Folding or opening a side panel slides there, as on every shell
+  // dashboard (`usePanelFold`, Tyler, 11 Nov 2026: "make it smooth").
+  const { fold: foldPanel, className: foldingClassName } = usePanelFold()
+  const fold = React.useCallback(
+    (toggle: () => void) =>
+      foldPanel(() => {
+        toggle()
+        horizontalLayout.rememberLayout()
+      }),
+    [foldPanel, horizontalLayout]
+  )
   const toggleBlocksPanel = usePanelToggle(blocksPanelRef)
-  const toggleBlocks = React.useCallback(() => {
-    toggleBlocksPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleBlocksPanel])
+  const toggleBlocks = React.useCallback(
+    () => fold(toggleBlocksPanel),
+    [fold, toggleBlocksPanel]
+  )
   // Brings the left page into view for a widget's Manage widgets, which then
   // opens its ⋮ at Widgets: opened when shut, or switched to when narrow.
   const showBlocks = React.useCallback(() => {
@@ -722,6 +763,28 @@ export function TradeWorkspace({
   // Double-clicking the empty part of the left panel shuts it, and
   // double-clicking what is left of it opens it again.
   const blocksDoubleClick = useBlankSpaceDoubleClick(toggleBlocks)
+  const toggleDetails = React.useCallback(
+    () => fold(toggleDetailsPanel),
+    [fold, toggleDetailsPanel]
+  )
+  const detailsDoubleClick = useBlankSpaceDoubleClick(toggleDetails)
+  // The panel headers' collapse and reopen buttons, as on the shell's
+  // dashboards: the right panel's own edge button, and the middle header's
+  // button that brings it back.
+  const sideToggles = React.useMemo(
+    () => ({
+      left: toggleBlocks,
+      right: toggleDetails,
+      leftCollapsed: blocksCollapsed,
+      rightCollapsed: detailsState.collapsed,
+    }),
+    [toggleBlocks, toggleDetails, blocksCollapsed, detailsState.collapsed]
+  )
+  // A row opened on a phone brings its record to the front, as opening a
+  // record does on every three-panel dashboard.
+  const showDetails = React.useCallback(() => {
+    if (!desktop) setNarrowView("details")
+  }, [desktop])
 
   // The finished trade drawn on the chart, picked in the Journal. It lives up
   // here because two panels share it: the table below decides which one, and
@@ -1276,10 +1339,16 @@ export function TradeWorkspace({
           canAdjustMargin={allowed(abilities?.adjustMargin)}
           marginRefusal={refusalOf(abilities?.adjustMargin)}
           shownTrade={shownTrade}
-          onShowTrade={(trade) => {
+          onShowTrade={showTrade}
+          onShowOnChart={(trade) => {
             showTrade(trade)
-            if (trade) setActivityTab("chart")
+            setActivityTab("chart")
           }}
+          detailsSlot={showingOverview ? null : detailsSlot}
+          chartMarketKey={selection.kind === "market" ? selection.row.key : null}
+          onDetailsOpened={showDetails}
+          journalView={panelLayouts.layouts.journalView}
+          onJournalViewChange={panelLayouts.rememberJournalView}
           fit={STILL_PANEL}
           chart={{
             label:
@@ -1366,8 +1435,19 @@ export function TradeWorkspace({
     </div>
   )
 
+  // The right panel: the middle panel draws the open trade into it.
+  const detailsColumn = (
+    <WorkspacePanel
+      collapsed={desktop ? detailsState.collapsed : false}
+      onDoubleClick={desktop ? detailsDoubleClick : undefined}
+      className="flex min-w-0 flex-1 flex-col"
+    >
+      <div ref={setDetailsSlot} className="flex h-full min-h-0 flex-col" />
+    </WorkspacePanel>
+  )
+
   // Under 1280px: one panel at a time behind a pill row, opening on the
-  // middle: Page, and the picked row's name.
+  // middle: Page, the picked row's name, and the open trade.
   const narrow = (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <Tabs
@@ -1383,12 +1463,14 @@ export function TradeWorkspace({
                 ? selection.row.symbol
                 : "Chart"}
           </TabsTrigger>
+          {showingOverview ? null : <TabsTrigger value="details">Trade</TabsTrigger>}
         </TabsList>
       </Tabs>
       {(
         [
           ["blocks", blocksColumn],
           ["chart", middleOrOverview],
+          ["details", showingOverview ? null : detailsColumn],
         ] as const
       ).map(([side, content]) => (
         <div
@@ -1411,7 +1493,7 @@ export function TradeWorkspace({
       elementRef={horizontalGroupElementRef}
       groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
-      className="min-h-0 flex-1"
+      className={cn("min-h-0 flex-1", foldingClassName)}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -1435,6 +1517,26 @@ export function TradeWorkspace({
       <ResizablePanel id="chart" minSize="32%">
         {middleOrOverview}
       </ResizablePanel>
+      {showingOverview ? null : (
+        <>
+          <ResizableHandle gap collapsed={detailsState.collapsed} className={NO_RING} />
+          <ResizablePanel
+            id="details"
+            panelRef={detailsPanelRef}
+            collapsible
+            collapsedSize="0%"
+            // Opens at its narrowest, the Side panels right width, as every
+            // side panel does (UI standard, "Three-column dashboards").
+            defaultSize={`${detailsWidth}%`}
+            minSize={`${detailsWidth}%`}
+            maxSize="36%"
+            groupResizeBehavior="preserve-pixel-size"
+            onResize={detailsState.onResize}
+          >
+            {detailsColumn}
+          </ResizablePanel>
+        </>
+      )}
     </ResizablePanelGroup>
   ) : (
     narrow
@@ -1445,6 +1547,11 @@ export function TradeWorkspace({
     // here — the ladder window and a live ladder's exits both draw the same
     // cards, and folding one in one place should mean it is folded in both.
     <ShowLeftPanelProvider value={showBlocks}>
+    {/* The right panel carries the left page's cover on, as every dashboard
+        in the Admin 3 panel design does (Tyler, 11 Nov 2026: "the right panel
+        is also not wired to the background theme"). */}
+    <RightCoverProvider value={page.cover.url}>
+    <SideTogglesProvider value={desktop && !showingOverview ? sideToggles : null}>
     <CardFolds initial={initialCardFolds}>
       <TradeBlocksProvider value={tradeBlocks}>
         <div
@@ -1518,6 +1625,8 @@ export function TradeWorkspace({
         </div>
       </TradeBlocksProvider>
     </CardFolds>
+    </SideTogglesProvider>
+    </RightCoverProvider>
     </ShowLeftPanelProvider>
   )
 }

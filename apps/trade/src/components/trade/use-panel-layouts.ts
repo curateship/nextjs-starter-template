@@ -3,6 +3,7 @@ import * as React from "react"
 import {
   getPanelLayoutErrorMessage,
   saveHiddenTradeColumns,
+  saveJournalView,
   saveChartToolbarPosition,
   saveOpenMarketRow,
 } from "@/lib/api/trade/panel-layouts"
@@ -10,6 +11,7 @@ import {
   marketPanelScopeKey,
   type MarketPanelScope,
   type ChartToolbarPosition,
+  type JournalView,
   type TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
 import type { TradesPopoverKind } from "@/lib/trade/trades-popover-columns"
@@ -84,10 +86,21 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     [enqueue]
   )
 
+  const rememberJournalView = React.useCallback(
+    (view: JournalView) => {
+      setLoaded((state) => ({ ...state, value: { ...state.value, journalView: view } }))
+      void enqueue(() => saveJournalView(view)).catch(
+        (error: unknown) => showErrorToast(getPanelLayoutErrorMessage(error))
+      )
+    },
+    [enqueue]
+  )
+
   return {
     layouts,
     rememberOpenMarketRow,
     rememberHiddenTradeColumns,
     rememberChartToolbarPosition,
+    rememberJournalView,
   }
 }

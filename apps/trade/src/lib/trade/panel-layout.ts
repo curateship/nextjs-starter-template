@@ -12,6 +12,7 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { ALL_ROW } from "@/lib/trade/market-folders"
+import { TRADE_MAKERS, type TradeMaker } from "@/lib/trade/trade-maker"
 import {
   readHiddenTradeColumns,
   type HiddenTradeColumns,
@@ -44,6 +45,27 @@ export type TradePanelLayouts = {
   chartToolbarPosition: ChartToolbarPosition | null
   /** The columns hidden in the Bots dashboard's trades popover, per table. */
   hiddenTradeColumns: HiddenTradeColumns
+  /** The Trade dashboard Journal's filter and its hide-practice switch. */
+  journalView: JournalView
+}
+
+/**
+ * Which Journal rows show: only real money when `hidePractice`, and only the
+ * makers listed, every maker when the list is empty (Tyler, 10 Nov 2026,
+ * picks "Filter the Journal by who placed it" and "Hide practice trades").
+ */
+export type JournalView = { hidePractice: boolean; makers: TradeMaker[] }
+
+export const EMPTY_JOURNAL_VIEW: JournalView = { hidePractice: false, makers: [] }
+
+/** A stored view, with anything unknown dropped. */
+export function readJournalView(value: unknown): JournalView {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return EMPTY_JOURNAL_VIEW
+  const record = value as Record<string, unknown>
+  const makers = Array.isArray(record.makers)
+    ? TRADE_MAKERS.filter((maker) => (record.makers as unknown[]).includes(maker))
+    : []
+  return { hidePractice: record.hidePractice === true, makers }
 }
 
 export function emptyTradePanelLayouts(): TradePanelLayouts {
@@ -52,6 +74,7 @@ export function emptyTradePanelLayouts(): TradePanelLayouts {
     headerProfitVisible: true,
     chartToolbarPosition: null,
     hiddenTradeColumns: {},
+    journalView: EMPTY_JOURNAL_VIEW,
   }
 }
 
@@ -275,6 +298,7 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
     chartToolbarPosition:
       readChartToolbarPosition(record.chartToolbarPosition) ?? null,
     hiddenTradeColumns: readHiddenTradeColumns(record.hiddenTradeColumns),
+    journalView: readJournalView(record.journalView),
   }
 }
 

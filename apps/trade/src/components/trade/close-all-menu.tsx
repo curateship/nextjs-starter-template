@@ -54,7 +54,6 @@ function countedWords(ladders: number, grids: number): string {
  */
 export function CloseAllMenu({
   positions,
-  managed,
   watched,
   smart,
   restingOrders,
@@ -66,12 +65,6 @@ export function CloseAllMenu({
   /** Its row in the middle panel's ⋮, which opens it. */
   trigger: React.ReactElement
   positions: readonly TradePosition[]
-  /**
-   * How many of those positions a listed ladder or grid is running. Closed
-   * with the rest, but the Positions tab does not list them — the Smart
-   * orders panel does — so the count on the row would otherwise look wrong.
-   */
-  managed: number
   /** Watched prices wearing an order's clothes — see `watchOrders`. */
   watched: readonly TradeOrder[]
   /** Ladders and grids you placed — see `laddersAndGridsYouPlaced`. */
@@ -109,7 +102,6 @@ export function CloseAllMenu({
       <PopoverContent align="end" className="w-80 gap-0 p-2">
         <CloseAllChoices
           positions={positions}
-          managed={managed}
           watched={watched}
           smart={smart}
           restingOrders={restingOrders}
@@ -133,7 +125,6 @@ export function CloseAllMenu({
  */
 export function CloseAllChoices({
   positions,
-  managed,
   watched,
   smart,
   restingOrders,
@@ -144,7 +135,6 @@ export function CloseAllChoices({
   onConfirm,
 }: {
   positions: readonly TradePosition[]
-  managed: number
   watched: readonly TradeOrder[]
   smart: readonly (SmartLadder | SmartGrid)[]
   restingOrders: number
@@ -227,15 +217,6 @@ export function CloseAllChoices({
         "A ladder's waiting rungs were its plan, and calling them off ends that ladder for good — another one means setting it up from scratch."
       )
     }
-  }
-  // Why the row can say 5 while the Positions tab says 4. The tab leaves out
-  // a coin a ladder or grid is running, and this closes it anyway.
-  if (doing.positions && managed > 0) {
-    said.push(
-      managed === 1
-        ? "1 of them is a coin a ladder or grid is running. It is listed in the Smart orders panel rather than the Positions tab, and it closes with the rest."
-        : `${managed} of them are coins a ladder or grid is running. They are listed in the Smart orders panel rather than the Positions tab, and they close with the rest.`
-    )
   }
   // The gap that makes a sold-out account hold coins again a minute later.
   // "Waiting", not "resting on the exchange": a practice wallet's orders wait
