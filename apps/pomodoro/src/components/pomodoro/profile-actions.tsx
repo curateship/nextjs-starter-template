@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { FlagIcon, Loader2Icon, ShieldOffIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -33,7 +32,6 @@ import { followErrorMessage } from "@/lib/pomodoro/following"
 import {
   PROFILE_REPORT_REASONS,
   PROFILE_REPORT_RATE_LIMITED,
-  PROFILE_REPORT_THANKS,
   type ProfileReportReasonId,
 } from "@/lib/pomodoro/profile-reports"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
@@ -104,9 +102,6 @@ export function ProfileActions({
       setFollowing(next.following)
       if (next.following !== wasFollowing) {
         onFollowChange?.(next.following ? 1 : -1)
-        toast.success(
-          next.following ? `You follow ${name}.` : `You unfollowed ${name}.`
-        )
       }
     } catch (cause) {
       showErrorToast(followErrorMessage(cause))
@@ -120,7 +115,6 @@ export function ProfileActions({
     setCheering(true)
     try {
       await sendCheer(handle, cheerId)
-      toast.success(`Sent to ${name}.`)
     } catch (cause) {
       showErrorToast(cheerErrorMessage(cause))
     } finally {
@@ -253,7 +247,6 @@ function ReportDialog({
       await reportProfile(handle, reason)
       // The same thanks whatever happened on the server, so nothing here can
       // tell a reader that a handle exists or that they have reported before.
-      toast.success(PROFILE_REPORT_THANKS)
       onOpenChange(false)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
@@ -332,7 +325,6 @@ function BlockDialog({
     try {
       await blockProfile(handle)
       onBlocked()
-      toast.success(`${name} is blocked.`)
       onOpenChange(false)
     } catch {
       showErrorToast("That block could not be saved. Try again.")

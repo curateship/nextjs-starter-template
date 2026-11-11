@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { EyeIcon, EyeOffIcon, IdCardIcon, Loader2Icon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -342,17 +341,12 @@ function AdminProfileDialog({
     }
     setSaving(true)
     try {
-      const { changed } = await savePomodoroAdminProfile({
+      await savePomodoroAdminProfile({
         userId: loaded.userId,
         handle,
         publicDisplayName: draft.publicDisplayName.trim() || null,
         bio: draft.bio.trim() || null,
       })
-      toast.success(
-        changed.length
-          ? `Saved. ${loaded.name} is told their ${changed.join(", ")} changed.`
-          : "Nothing had changed."
-      )
       await onSaved()
       onClose()
     } catch (error) {
@@ -372,7 +366,6 @@ function AdminProfileDialog({
       if (hidden) await hidePomodoroProfiles([loaded.userId])
       else await liftPomodoroSafety("hidden", [loaded.userId])
       setLoaded({ ...loaded, hiddenAt: hidden ? new Date() : null })
-      toast.success(hidden ? `${loaded.name}'s profile is hidden. They are told.` : `${loaded.name}'s profile shows again. They are told.`)
       await onSaved()
     } catch (error) {
       showErrorToast(getAdminProfileErrorMessage(error))

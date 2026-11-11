@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, FlagIcon, Loader2Icon, RotateCcwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
 import { useAutoSave, type ProgramPageData } from "@/components/fitness/program/program-data"
@@ -11,7 +10,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Meter } from "@/components/ui/meter"
 import { NumberField } from "@/components/ui/number-field"
 import { changeProgram } from "@/lib/api/fitness/programs"
-import { formatDay, weekStart } from "@/lib/fitness/dates"
+import { formatDay } from "@/lib/fitness/dates"
 import { reportFitnessError } from "@/lib/fitness/report-error"
 import { programEndDay, programWeekOf } from "@/lib/fitness/schedule"
 
@@ -48,8 +47,6 @@ export function ProgramLengthLine({ data }: { data: ProgramPageData }) {
           ? { action: "runAgain", programId: data.program.id }
           : { action: "archive", programId: data.program.id, archived: true }
       )
-      const startsWhen = weekStart(data.today) === data.today ? "today" : "on Monday"
-      toast.success(kind === "again" ? `Week 1 starts again ${startsWhen}.` : "Program ended and archived.")
       setEnding(false)
       calendarChanged()
       await router.invalidate()

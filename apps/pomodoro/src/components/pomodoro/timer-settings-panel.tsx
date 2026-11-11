@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { CompletionChimeFields } from "@/components/pomodoro/completion-chime-fields"
 import { FocusRhythmPresets } from "@/components/pomodoro/focus-rhythm-presets"
@@ -154,7 +153,6 @@ export default function TimerSettingsPanel() {
       })
       if (applied) {
         setEdited(new Set())
-        toast.success("Saved in this browser.")
       } else showErrorToast("Reset or finish the timer first.")
       return
     }
@@ -173,7 +171,6 @@ export default function TimerSettingsPanel() {
       // until some other screen mounted and reloaded it.
       void reloadPomodoroData()
       setEdited(new Set())
-      toast.success("Focus rhythm saved.")
     } catch {
       showErrorToast("The focus rhythm could not be saved.")
     } finally {

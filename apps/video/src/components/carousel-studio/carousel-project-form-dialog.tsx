@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SettingsFoldCard } from "@/components/video-assets/settings-fold-card"
 import { Button } from "@/components/ui/button"
@@ -191,7 +190,6 @@ export function CarouselProjectFormDialog({
       })
       onSaved(saved)
       dismissErrorToast()
-      toast.success("Project settings saved.")
       onClose()
     } catch (error) {
       showErrorToast(getCarouselProjectErrorMessage(error))

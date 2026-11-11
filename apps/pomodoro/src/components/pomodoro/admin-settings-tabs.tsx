@@ -983,15 +983,6 @@ function SafetyGroup({ initial }: { initial: AppSettingValue<"safety.pause"> }) 
       setPauses(before)
       return
     }
-    toast.success(
-      "newRooms" in change
-        ? change.newRooms
-          ? "New rooms are paused."
-          : "New rooms can be opened again."
-        : change.chat
-          ? "Chat is paused in every room."
-          : "Chat is back on in every room."
-    )
   }
   return (
     <>
@@ -1241,7 +1232,6 @@ function PixabayCard() {
     try {
       setStatus(await savePixabayKey(null))
       setRemoving(false)
-      toast.success("Pixabay key removed.")
     } catch (error) {
       showErrorToast(getPixabayKeyErrorMessage(error))
     } finally {
@@ -1363,9 +1353,6 @@ function MadeUpSharesCard() {
       const result = await giveMadeUpMembersSharedFiles(links)
       setRefused(result.refused)
       if (result.added) {
-        toast.success(
-          `${result.added} ${result.added === 1 ? "file is" : "files are"} on the way. Each joins a made-up member's shared files once Pixabay sends it.`
-        )
         setText("")
       } else showErrorToast("None of those links could be used.")
     } catch (cause) {
@@ -1546,9 +1533,7 @@ function MadeUpMembersCard({
       }
       const result = await makeSimulatedMembersNow()
       setStatus(result)
-      if (result.queued)
-        toast.success(`Making ${result.target - result.made} made-up members. It takes about a minute.`)
-      else toast.success(`All ${result.target} are made already. Raise How many to make more.`)
+      if (!result.queued) toast(`All ${result.target} are made already. Raise How many to make more.`)
     } catch (error) {
       showErrorToast(getSimulatedErrorMessage(error))
     } finally {
@@ -1559,15 +1544,9 @@ function MadeUpMembersCard({
   const removeAll = async () => {
     setRemoveBusy(true)
     try {
-      const { removed, leaving } = await removeAllSimulatedMembers()
+      await removeAllSimulatedMembers()
       forgetMadeUpIds()
       setRemoving(false)
-      toast.success(
-        `Removed ${removed} made-up member${removed === 1 ? "" : "s"}.` +
-          (leaving
-            ? ` ${leaving} host${leaving === 1 ? " stays" : "s stay"} until the real people in ${leaving === 1 ? "its room" : "their rooms"} leave.`
-            : "")
-      )
       setReloads((count) => count + 1)
     } catch (error) {
       showErrorToast(getSimulatedErrorMessage(error))
@@ -1709,7 +1688,7 @@ function MadeUpMembersCard({
           variant="outline"
           disabled={removeBusy}
           onClick={() => {
-            if (status && status.made === 0) toast.success("There are no made-up members to remove.")
+            if (status && status.made === 0) toast("There are no made-up members to remove.")
             else setRemoving(true)
           }}
         >

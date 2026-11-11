@@ -1,6 +1,5 @@
 import * as React from "react"
 import { FlagIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
@@ -227,7 +226,6 @@ function ReportProblemDialog({
           reporterEmail: email,
         })
       }
-      toast.success("Thank you for the report")
       onSent()
     } catch (error) {
       // The server's own words — "Tell us in a line or two what is wrong" —

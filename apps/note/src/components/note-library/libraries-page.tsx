@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { LibraryIcon, Loader2Icon, PinIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { LibraryDot } from "@/components/note-library/library-dot"
 import { LibrarySettingsDialog } from "@/components/note-library/library-settings-dialog"
@@ -203,11 +202,10 @@ export function LibrariesPage({ libraries }: { libraries: LibraryRow[] }) {
         loading={busy}
         onConfirm={() => {
           if (!deleteTarget) return
-          const { id, name } = deleteTarget
+          const { id } = deleteTarget
           void run(async () => {
-            const { notes } = await deleteLibraryRow(id)
+            await deleteLibraryRow(id)
             setDeleteTarget(null)
-            toast.success(`Deleted ${quoteOneLine(name)} and its ${notes.toLocaleString()} ${plural(notes, "note")}.`)
             await router.invalidate()
           })
         }}
@@ -261,7 +259,6 @@ function NewLibraryDropdown({ onMade }: { onMade: (row: LibraryRow) => void }) {
       setOpen(false)
       setName("")
       setDescription("")
-      toast.success(`Made ${quoteOneLine(made.name)}.`)
       onMade(made)
     } catch (error) {
       setInvalid(true)

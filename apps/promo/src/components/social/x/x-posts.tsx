@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, FileTextIcon, Loader2Icon, PlusIcon, QuoteIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
@@ -107,8 +106,7 @@ export function XPostsList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkXNow({ postIds: posted.slice(0, 50) })
-                  toast.success(queued ? "Reading the numbers again." : "Every post is being read already.")
+                  await checkXNow({ postIds: posted.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getXErrorMessage(failure))
@@ -433,8 +431,7 @@ function PostedPost({
               disabled={busy !== null}
               onClick={() =>
                 void run("check", async () => {
-                  const { queued } = await checkXNow({ postIds: [post.id] })
-                  toast.success(queued ? "Checking it now." : "It is being checked already.")
+                  await checkXNow({ postIds: [post.id] })
                 })
               }
             >
@@ -550,7 +547,6 @@ function PostedPost({
           void run("delete", async () => {
             await changeOnX({ postRowId: post.id, action: "delete" })
             setConfirmDelete(false)
-            toast.success("On its way to being deleted on X.")
           })
         }
       />

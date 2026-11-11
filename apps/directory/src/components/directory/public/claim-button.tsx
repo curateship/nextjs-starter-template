@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Building2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { Button } from "@/components/ui/button"
@@ -214,7 +213,6 @@ function ClaimDialog({
         message,
         proofUrl,
       })
-      toast.success("Check your email for the confirmation link.")
       onSent()
     } catch (error) {
       // The server's own words: they are sentences somebody can act on —

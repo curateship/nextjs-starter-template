@@ -174,9 +174,7 @@ export function DraftPlanDialog({
     const left = result.repeated
       ? ` ${activities(result.repeated)} already on the trip ${result.repeated === 1 ? "was" : "were"} left out.`
       : ""
-    if (day === null && !gaps) {
-      toast.success(`Added ${activities(result.created.length)} to the trip.${found}${left}`)
-    } else {
+    if (day !== null || gaps) {
       // Filling free time can be undone, the way every other change to the board can.
       const created = result.created
       toast.success(`Added ${activities(created.length)} to ${day !== null ? `Day ${day}` : "the trip"}.${found}${left}`, {

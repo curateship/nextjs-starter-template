@@ -1,6 +1,5 @@
 import * as React from "react"
 import { HistoryIcon, Loader2Icon, Pause, Play } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -107,9 +106,6 @@ export function HistoryPanel() {
       clock.pause()
       dispatch({ type: "RESTORE_TIMELINE", timeline })
       dismissErrorToast()
-      toast.success(
-        `Restored the version saved ${formatDateTime(item.saved_at)}. What you had is kept in History.`
-      )
       setOpen(null)
       reload()
     } catch (error) {

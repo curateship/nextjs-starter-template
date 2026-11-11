@@ -27,7 +27,6 @@ import {
   confirmPomodoroPurchase,
   getPurchaseErrorMessage,
 } from "@/lib/api/pomodoro/purchases"
-import { purchasedMessage } from "@/lib/pomodoro/purchases"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -137,8 +136,7 @@ function usePurchaseReturn(kind: UploadView, sessionId: string) {
     asked.current = sessionId
     void confirmPomodoroPurchase(sessionId)
       .then((result) => {
-        if (result.status === "paid") toast.success(purchasedMessage(result.product))
-        else if (result.status === "pending")
+        if (result.status === "pending")
           toast("Stripe is still confirming your payment. It appears here within a minute.")
         setToken((current) => current + 1)
       })

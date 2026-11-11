@@ -7,7 +7,6 @@ import {
   Loader2Icon,
   MicIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -435,9 +434,6 @@ export function TranslateDialog({
     }
     dispatch({ type: "INSERT_CAPTIONS", captions })
     dismissErrorToast()
-    toast.success(
-      `${captions.length} ${plural(captions.length, "caption", "captions")} in ${actOn} added. Undo takes them all back off.`
-    )
     close()
   }
 
@@ -498,9 +494,6 @@ export function TranslateDialog({
         },
       })
       dismissErrorToast()
-      toast.success(
-        `Read aloud in ${actOn}, with the original turned down to ${Math.round(TRANSLATE_ORIGINAL_VOLUME * 100)}%. Undo puts it back.`
-      )
       close()
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
@@ -580,9 +573,6 @@ export function TranslateDialog({
       )
     } else {
       dismissErrorToast()
-      toast.success(
-        `${finished.length} ${plural(finished.length, "copy", "copies")} made, each with its export queued.`
-      )
     }
   }
 

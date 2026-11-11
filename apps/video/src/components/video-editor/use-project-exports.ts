@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import {
   loadVideoExports,
@@ -86,13 +85,6 @@ export function useProjectExports(videoId: string) {
     for (const job of jobs) {
       const before = previous.get(job.id)
       if (!before || before === job.status) continue
-      if (job.status === "ready") {
-        toast.success(
-          several
-            ? `Your ${job.aspect} export is ready.`
-            : "Your export is ready."
-        )
-      }
       if (job.status === "error") {
         const message = job.error_message ?? "The export could not be made."
         showErrorToast(

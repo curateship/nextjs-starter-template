@@ -1,5 +1,4 @@
 import { CopyIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,7 +23,6 @@ export function ExportChaptersCard({ item }: { item: RenderJobSummary }) {
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(chapterText(lines))
-      toast.success("Copied. Paste it into the YouTube description.")
     } catch {
       showErrorToast("The chapters could not be copied. Select the lines and copy them yourself.")
     }

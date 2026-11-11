@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { CopyIcon, FilmIcon, PlayIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
@@ -41,7 +40,6 @@ export function LibraryHookPanel({
   async function copy() {
     try {
       await navigator.clipboard.writeText(hook.hook.text)
-      toast.success("Hook copied.")
     } catch {
       showErrorToast("The hook could not be copied. Select the words and copy them instead.")
     }

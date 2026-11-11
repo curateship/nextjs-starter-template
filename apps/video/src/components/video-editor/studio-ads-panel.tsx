@@ -231,8 +231,7 @@ export function AdsPanel() {
   }
 
   function apply(
-    result: ReturnType<typeof placeAds> | ReturnType<typeof layAd>,
-    done?: string
+    result: ReturnType<typeof placeAds> | ReturnType<typeof layAd>
   ) {
     if ("refusal" in result) {
       showErrorToast(result.refusal)
@@ -244,7 +243,6 @@ export function AdsPanel() {
       tracks: laid.tracks,
       selectClipId: "clipId" in laid ? laid.clipId : undefined,
     })
-    if (done) toast.success(`${done} Undo takes it back.`)
     return true
   }
 
@@ -286,8 +284,7 @@ export function AdsPanel() {
       // Where viewers stay can find fewer good spots than asked for.
       const laid = spots?.length ?? wanted
       apply(
-        placeAds(current, template, laid, editorId, spots),
-        `Placed ${laid} ${laid === 1 ? "ad" : "ads"}.`
+        placeAds(current, template, laid, editorId, spots)
       )
     })
   }
@@ -305,21 +302,18 @@ export function AdsPanel() {
     void run("swap", async () => {
       const template = await templateFor(picked)
       apply(
-        swapAds(store.getSnapshot().state.tracks, from.id, template, editorId),
-        `Every ${from.name} is now ${picked.name}.`
+        swapAds(store.getSnapshot().state.tracks, from.id, template, editorId)
       )
     })
   }
 
   function removeAll() {
     dispatch({ type: "EDIT_ADS", tracks: removeAllAds(store.getSnapshot().state.tracks) })
-    toast.success("Every ad is off the video. Undo puts them back.")
   }
 
   function copyBreakTimes() {
     void navigator.clipboard
       ?.writeText(breaks.times)
-      .then(() => toast.success(`Copied ${breaks.times}`))
       .catch(() => showErrorToast("The times could not be copied. Select them and copy instead."))
   }
 
@@ -403,7 +397,6 @@ export function AdsPanel() {
       const shelfId = await addTextToShelf(words.trim(), look)
       await reloadShelf()
       setPickedId(shelfId)
-      toast.success("Saved to your ads shelf.")
     })
   }
 

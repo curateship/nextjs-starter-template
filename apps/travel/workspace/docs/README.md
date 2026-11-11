@@ -15,3 +15,4 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Going live](launch.md): travel.barelycompany.com on server1, what was decided at launch, every live value, the copy of Tyler's local trips, how to deploy, and the release record.
 - [Working without signal](working-without-signal.md): the Trips table and every trip opened, kept to open read only with no signal, the "No signal" line and what is turned off.
 - [Shell merges](shell-integration.md): each shell merge into Travel, what arrived and what stays Travel's own.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, and the Undo toasts kept until Tyler decides.

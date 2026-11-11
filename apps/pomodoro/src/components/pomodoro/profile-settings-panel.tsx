@@ -1,6 +1,5 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -42,7 +41,6 @@ function AccountPhotoField() {
     try {
       await updateProfile(user.name, avatarUrl)
       await router.invalidate()
-      toast.success(avatarUrl ? "Photo saved." : "Photo removed.")
     } catch (cause) {
       showErrorToast(getAuthErrorMessage(cause))
     } finally {
@@ -122,7 +120,6 @@ export default function ProfileSettingsPanel() {
         leaderboardOptIn: leaderboard,
         shareTaskInRooms: shareTask,
       })
-      toast.success("Profile saved.")
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
       showErrorToast(

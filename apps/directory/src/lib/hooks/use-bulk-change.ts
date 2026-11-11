@@ -1,14 +1,10 @@
 import * as React from "react"
-import { toast } from "sonner"
 
-import type { Category } from "@/lib/api/directory/categories"
 import {
-  bulkChangeVerb,
   describeBulkRefusals,
   type BulkChange,
   type BulkRecordChange,
 } from "@/lib/bulk-change"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -23,9 +19,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  */
 export function useBulkChange({
   one,
-  many,
   rows,
-  categories,
   send,
   describeError,
   onChanged,
@@ -33,12 +27,8 @@ export function useBulkChange({
 }: {
   /** The record's name, singular — "listing". */
   one: string
-  /** The record's name, plural — "listings". */
-  many: string
   /** The rows on screen, for naming a record that was refused. */
   rows: { id: string; title: string }[]
-  /** The site's categories, for naming the one that was chosen. */
-  categories: Category[] | null
   /** This kind's door: one request for the whole selection. */
   send: (ids: string[], change: BulkRecordChange) => Promise<BulkChange>
   /** The feature's own `getXErrorMessage`. */
@@ -79,29 +69,13 @@ export function useBulkChange({
           )
         }
 
-        const categoryName =
-          change.kind === "category"
-            ? (categories?.find((row) => row.id === change.categoryId)?.name ??
-              "that category")
-            : ""
-        toast.success(
-          describeBulkResult({
-            done: result.done.length,
-            same: result.same.length,
-            kept: result.kept.length,
-            one,
-            many,
-            verb: bulkChangeVerb(change, categoryName),
-          })
-        )
-        // Alongside the count, not instead of it: the line above says how many,
-        // and this says which ones and why. Shown rather than thrown, because
-        // part of the batch did go through and throwing would report the whole
-        // run as failed.
+        // Nothing pops up when every record changed. The refused ones are named,
+        // with why. Shown rather than thrown, because part of the batch did go
+        // through and throwing would report the whole run as failed.
         if (refusals) showErrorToast(refusals)
       })
     },
-    [act, categories, many, onChanged, one, send, setSelected, titleById]
+    [act, onChanged, one, send, setSelected, titleById]
   )
 
   return { run, busy }

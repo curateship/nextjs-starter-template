@@ -1,7 +1,6 @@
 import * as React from "react"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { Loader2Icon, RefreshCwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -59,11 +58,10 @@ export function LinkedinAccountCard({ account, onChanged }: { account: RedditAcc
     }
   }, [account.id])
 
-  async function act(which: "code" | "look", done: string, input: Parameters<typeof actOnLinkedinAccount>[0]) {
+  async function act(which: "code" | "look", input: Parameters<typeof actOnLinkedinAccount>[0]) {
     setBusy(which)
     try {
       await actOnLinkedinAccount(input)
-      toast.success(done)
       if (which === "code") setCode("")
       await onChanged()
     } catch (failure) {
@@ -124,7 +122,7 @@ export function LinkedinAccountCard({ account, onChanged }: { account: RedditAcc
                 showErrorToast("Paste the code from LinkedIn's email first.")
                 return
               }
-              void act("code", "Typing the code in the account's browser.", { accountId: account.id, action: "code", code: code.trim() })
+              void act("code", { accountId: account.id, action: "code", code: code.trim() })
             }}
           >
             <Label htmlFor={`linkedin-code-${account.id}`}>The code LinkedIn emailed</Label>
@@ -161,7 +159,7 @@ export function LinkedinAccountCard({ account, onChanged }: { account: RedditAcc
               size="sm"
               variant="outline"
               disabled={busy !== null}
-              onClick={() => void act("look", "Looking for its latest comments now.", { accountId: account.id, action: "look" })}
+              onClick={() => void act("look", { accountId: account.id, action: "look" })}
             >
               {busy === "look" ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
               Check now

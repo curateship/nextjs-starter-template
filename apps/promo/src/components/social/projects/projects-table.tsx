@@ -2,7 +2,6 @@ import * as React from "react"
 import { ProjectBansLink } from "./project-bans-link"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { FolderOpenIcon, PinIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -24,7 +23,6 @@ import {
   removeProjects,
   type ProjectRow,
 } from "@/lib/api/social/projects"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { postedDateText } from "@/lib/social/wording"
@@ -122,12 +120,7 @@ export function ProjectsTable({ initial }: { initial: ProjectRow[] }) {
   async function remove(targets: ProjectRow[]) {
     setDeleting(true)
     try {
-      const { deleted, kept } = await removeProjects(targets.map((project) => project.id))
-      if (deleted.length) {
-        toast.success(
-          describeBulkResult({ done: deleted.length, kept: 0, one: "project", many: "projects", verb: "deleted" })
-        )
-      }
+      const { kept } = await removeProjects(targets.map((project) => project.id))
       // Each refusal already names the project and what it still holds.
       if (kept.length) showErrorToast(kept.map((one) => one.reason).join(" "))
       selection.setSelected(new Set(kept.map((one) => one.id)))

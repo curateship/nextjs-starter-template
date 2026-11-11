@@ -26,7 +26,7 @@ import {
   type XRulesVerdict,
 } from "@/lib/api/social/x"
 import { MAX_THREAD_PIECES, POLL_CHOICE_CHARS, POLL_CHOICES, X_POST_STATUS_WORDS, xLength, xPostLimit } from "@/lib/social/x/options"
-import { xPostingRefusal, xWaitingText } from "@/lib/social/x/wording"
+import { xPostingRefusal } from "@/lib/social/x/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -275,8 +275,6 @@ export function XPostComposer({
       if (queued?.undoUntil) {
         setUndoUntil(new Date(queued.undoUntil).getTime())
         setClock(Date.now())
-      } else if (queued?.runAfter) {
-        toast.success(xWaitingText(new Date(queued.runAfter), account.handle || null))
       }
       if (queued?.similarTo) toast.warning(`It still goes. ${queued.similarTo}`)
       await onChanged()
@@ -438,7 +436,6 @@ export function XPostComposer({
                         },
                         true
                       )
-                      toast.success("Written. Read it through and change what you like.")
                     })
                   }
                 >
@@ -636,7 +633,6 @@ export function XPostComposer({
                 void run("cancel", async () => {
                   await actOnXPost(post.id, "cancel")
                   setUndoUntil(null)
-                  toast.success("Taken back. It is a draft again.")
                   await onChanged()
                 })
               }

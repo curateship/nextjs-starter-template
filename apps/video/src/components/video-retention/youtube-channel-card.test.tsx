@@ -132,7 +132,7 @@ describe("the YouTube channel card", () => {
     )
     expect(host!.textContent).toContain("Connected to Barely Cooking")
     expect(button("Disconnect")).toBeDefined()
-    expect(toasts.success).toHaveBeenCalledWith("YouTube channel connected.")
+    expect(toasts.success).not.toHaveBeenCalled()
     // Taken out of the address, so a reload does not say it twice.
     expect(window.location.search).toBe("")
   })

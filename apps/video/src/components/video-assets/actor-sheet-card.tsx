@@ -6,7 +6,6 @@ import {
   StarIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -56,11 +55,10 @@ export function ActorSheetCard({
   // One picture's menu at a time: opening another cog closes the first.
   const [menuFor, setMenuFor] = React.useState<string | null>(null)
 
-  async function run(key: string, action: () => Promise<ActorItem>, done?: string) {
+  async function run(key: string, action: () => Promise<ActorItem>) {
     setBusy(key)
     try {
       onChange(await action())
-      if (done) toast.success(done)
     } catch (error) {
       showErrorToast(getActorErrorMessage(error))
     } finally {
@@ -74,7 +72,7 @@ export function ActorSheetCard({
       showErrorToast(SHEET_FULL_MESSAGE)
       return
     }
-    void run("add", () => addSheetPicture(actor.id, url), "Picture added to the sheet.")
+    void run("add", () => addSheetPicture(actor.id, url))
   }
 
   function saveLabel(picture: ActorSheetPicture) {
@@ -98,8 +96,7 @@ export function ActorSheetCard({
     }
     void run(
       `remove:${picture.id}`,
-      () => removeSheetPicture(picture.id),
-      "Picture taken off the sheet. Its file stays in Media."
+      () => removeSheetPicture(picture.id)
     )
   }
 
@@ -194,8 +191,7 @@ export function ActorSheetCard({
                         onSelect={() =>
                           void run(
                             `main:${picture.id}`,
-                            () => makeMainSheetPicture(picture.id),
-                            "Main picture changed."
+                            () => makeMainSheetPicture(picture.id)
                           )
                         }
                       >

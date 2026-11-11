@@ -1,6 +1,5 @@
 import * as React from "react"
 import { HeartPulseIcon, ImagesIcon, Loader2Icon, SmartphoneIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -188,7 +187,6 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
     setClearing(true)
     try {
       await clearActionPictures(action.id)
-      toast.success("Pictures cleared.")
       setOpen(false)
       setPictures(null)
       onCleared()

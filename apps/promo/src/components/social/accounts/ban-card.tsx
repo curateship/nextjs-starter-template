@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { BrushCleaningIcon, Loader2Icon, PlayIcon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -93,11 +92,10 @@ export function BanCard({
     }
   }, [ban.id, needsDetail])
 
-  async function run(step: NonNullable<typeof busy>, work: () => Promise<unknown>, success: string) {
+  async function run(step: NonNullable<typeof busy>, work: () => Promise<unknown>) {
     setBusy(step)
     try {
       await work()
-      toast.success(success)
       await onChanged()
     } catch (failure) {
       showErrorToast(getBansErrorMessage(failure))
@@ -147,7 +145,7 @@ export function BanCard({
                 </Label>
                 <Input id={`appeal-note-${ban.id}`} value={note} maxLength={1000} placeholder="Sent from the app's help screen" onChange={(event) => setNote(event.target.value)} />
               </div>
-              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("appeal", () => recordAppeal(ban.id, note), "Appeal recorded. The bell reminds you after 7 days with no answer.")}>
+              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("appeal", () => recordAppeal(ban.id, note))}>
                 {busy === "appeal" ? <Loader2Icon className="animate-spin" /> : <SendIcon />}
                 I appealed
               </Button>
@@ -161,10 +159,10 @@ export function BanCard({
               </p>
               {!ban.appealAnswer ? (
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "won"), "Appeal won.")}>
+                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "won"))}>
                     Answer came: won
                   </Button>
-                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "lost"), "Appeal lost.")}>
+                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "lost"))}>
                     Answer came: lost
                   </Button>
                 </div>
@@ -197,10 +195,9 @@ export function BanCard({
                     if (!accountId) return
                     setBusy("clean")
                     try {
-                      const answer = await cleanUpBannedAccount(accountId)
+                      await cleanUpBannedAccount(accountId)
                       setConfirming(false)
                       // Says whether the wipe was queued or why it waits.
-                      toast.success(answer.words)
                       await (onCleanedUp ?? onChanged)()
                     } catch (failure) {
                       showErrorToast(getBansErrorMessage(failure))

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, ScanFaceIcon, TargetIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { Button } from "@/components/ui/button"
@@ -117,7 +116,6 @@ function FollowCard({ clip, which }: { clip: EditorClip; which: "blur" | "item" 
                 }
               : { followTrack: found },
         })
-        toast.success(`${name} now follows it.`)
       } catch (error) {
         showErrorToast(getBlurFollowErrorMessage(error))
       } finally {

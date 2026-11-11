@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { Button } from "@/components/ui/button"
@@ -42,8 +41,7 @@ export function LoosePhonesDialog({
     setBusy(phone.id)
     try {
       const { done } = await changePhones({ action: "rack", ids: [phone.id], rackId: rack.id })
-      if (done.length) toast.success(`${phone.name} is on ${rack.name}.`)
-      else showErrorToast(`${phone.name} is not there any more. Refresh the list.`)
+      if (!done.length) showErrorToast(`${phone.name} is not there any more. Refresh the list.`)
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneErrorMessage(error))

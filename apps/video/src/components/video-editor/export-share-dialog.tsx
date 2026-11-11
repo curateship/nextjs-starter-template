@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -85,15 +84,12 @@ export function ExportShareDialog({
     }
   }, [item.id, attempt])
 
-  // A carousel's page shows its slides, so a viewer looks rather than watches.
-  const watch = item.kind === "carousel" ? "see it" : "watch"
-
   async function handleCreate() {
     await run(async () => {
       const share = await createExportShare(item.id, expiry)
       setLoaded({ state: "ready", share })
       onChanged()
-    }, `Link made. Copy it and send it to whoever should ${watch}.`)
+    })
   }
 
   async function handleRevoke() {
@@ -102,7 +98,7 @@ export function ExportShareDialog({
       setLoaded({ state: "ready", share: null })
       setConfirmingOff(false)
       onChanged()
-    }, "Link turned off. It stops working straight away.")
+    })
   }
 
   const share = loaded.state === "ready" ? loaded.share : null
@@ -112,7 +108,6 @@ export function ExportShareDialog({
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(url)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("The link could not be copied. Select it and copy it yourself.")
     }

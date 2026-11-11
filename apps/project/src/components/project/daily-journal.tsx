@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CheckIcon, Loader2Icon, StarIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { burstConfetti } from "@/components/project/confetti"
 import { DailySection } from "@/components/project/daily-section"
@@ -220,7 +219,6 @@ function RateDay({ onRated }: { onRated: () => void }) {
   async function press() {
     if (!(await run(() => markMySleep("bed")))) return
     onRated()
-    toast.success("Day rated. Good night.")
     await reloadDashboard(router)
   }
   return (

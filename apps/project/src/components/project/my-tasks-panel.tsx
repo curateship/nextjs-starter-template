@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { AlarmClockIcon, CheckCheckIcon, EllipsisVerticalIcon, ListChecksIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { useAttentionActions } from "@/components/project/attention-actions"
 import { CatchUpDialog } from "@/components/project/catch-up-dialog"
@@ -304,8 +303,6 @@ export function MyTasksPanel({
       showErrorToast(
         `${accepted}, ${result.refused.length} refused. ${first.title ? `"${first.title}": ` : ""}${first.reason}`
       )
-    } else {
-      toast.success(`${accepted}.`)
     }
     await router.invalidate()
   }
@@ -315,7 +312,7 @@ export function MyTasksPanel({
     if (task.status === status) return true
     const before = tasks
     setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, status, stuckReason } : t)))
-    const ok = await run(() => setStatus({ taskId: task.id, status, stuckReason }), status === "stuck" ? "Marked Stuck." : undefined)
+    const ok = await run(() => setStatus({ taskId: task.id, status, stuckReason }))
     if (!ok) setTasks(before)
     await router.invalidate()
     return ok
@@ -403,7 +400,7 @@ export function MyTasksPanel({
     let copyId = ""
     const ok = await run(async () => {
       copyId = (await duplicateProjectTask(task.id)).id
-    }, "Task copied. This is the copy.")
+    })
     if (!ok) return
     await router.invalidate()
     onOpenTask(copyId)

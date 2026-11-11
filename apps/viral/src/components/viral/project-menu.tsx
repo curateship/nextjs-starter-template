@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { ArchiveIcon, CopyIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -255,7 +254,6 @@ export function ProjectMenu() {
             void run(async () => {
               setOpen(false)
               const copy = await duplicateViralProjectFn(project.id)
-              toast.success(`Made "${copy.name}".`)
               await navigate({ to: "/admin/projects/$projectId", params: { projectId: copy.id } })
             })
           }
@@ -270,7 +268,6 @@ export function ProjectMenu() {
               setOpen(false)
               await archiveViralProjectsFn([project.id], !project.archived)
               await refresh()
-              toast.success(project.archived ? `${project.name} is back.` : `${project.name} is archived.`)
             })
           }
         >
@@ -295,7 +292,6 @@ export function ProjectMenu() {
           void run(async () => {
             await deleteViralProjectsFn([project.id])
             setDeleting(false)
-            toast.success(`${project.name} is deleted.`)
             await navigate({ to: "/admin/projects" })
           })
         }

@@ -35,8 +35,7 @@ adjust the default width of the left and right panel".
   three-panel dashboard of any app and in the editors, so each opens at the
   widths the sliders say again. The sliders stay where they are. Where a
   dashboard was and how its widget columns are split are kept
-  (`forgetPanelWidths` in `src/lib/layout/panel-layout.ts`). A toast says
-  the widths it went back to. It only clears the browser it is pressed in.
+  (`forgetPanelWidths` in `src/lib/layout/panel-layout.ts`). It only clears the browser it is pressed in.
 - **Stored** as `leftPanelWidth` and `rightPanelWidth` on the site's styling
   (`src/lib/layout/styling-values.ts`), for the whole site, not per person.
 - **Below 1280px** one panel shows at a time, so the setting changes nothing

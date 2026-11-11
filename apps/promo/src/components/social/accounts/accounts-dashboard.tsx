@@ -19,7 +19,6 @@ import {
   ShieldCheckIcon,
   UsersIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -58,7 +57,6 @@ import {
   type RedditAccountsPage,
 } from "@/lib/api/social/reddit-accounts"
 import { actOnXAccount, getXErrorMessage } from "@/lib/api/social/x"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -270,20 +268,10 @@ export function RedditAccountsDashboard({
   const columnCount = COLUMNS.length + 2
 
   /** Runs one action over the ticked rows and says what it did, in one line. */
-  async function bulk(run: () => Promise<BulkAnswer>, verb: string, keptReason?: string): Promise<boolean> {
+  async function bulk(run: () => Promise<BulkAnswer>): Promise<boolean> {
     setBusy(true)
     try {
-      const answer = await run()
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "account",
-          many: "accounts",
-          verb,
-          keptReason,
-        })
-      )
+      await run()
       selection.clear()
       await refresh(showRetired)
       return true
@@ -295,11 +283,10 @@ export function RedditAccountsDashboard({
     }
   }
 
-  async function oneRow(id: string, run: () => Promise<unknown>, success: string): Promise<boolean> {
+  async function oneRow(id: string, run: () => Promise<unknown>): Promise<boolean> {
     setRowBusy(id)
     try {
       await run()
-      toast.success(success)
       await refresh(showRetired)
       return true
     } catch (failure) {
@@ -332,7 +319,6 @@ export function RedditAccountsDashboard({
     setRowBusy(id)
     try {
       await actOnXAccount(id, "code")
-      toast.success("Typing X's sign-in code in the account's browser.")
     } catch (failure) {
       showErrorToast(getXErrorMessage(failure))
     } finally {
@@ -368,8 +354,7 @@ export function RedditAccountsDashboard({
                   onValueChange={(value) => {
                     const status = value === APP_DECIDES ? null : (value as AccountStatus)
                     void bulk(
-                      () => setRedditAccountsStatus(selectedIds, status),
-                      status ? `set to ${ACCOUNT_STATUS_LABELS[status]}` : "left for the app to decide"
+                      () => setRedditAccountsStatus(selectedIds, status)
                     )
                   }}
                 >
@@ -392,9 +377,7 @@ export function RedditAccountsDashboard({
                   disabled={busy}
                   onClick={() =>
                     void bulk(
-                      () => checkRedditAccounts(selectedIds),
-                      "queued to be checked",
-                      "already being checked, or retired"
+                      () => checkRedditAccounts(selectedIds)
                     )
                   }
                 >
@@ -406,7 +389,7 @@ export function RedditAccountsDashboard({
                   variant="outline"
                   disabled={busy}
                   onClick={() =>
-                    void bulk(() => pauseRedditAccounts(selectedIds, true), "paused", "retired")
+                    void bulk(() => pauseRedditAccounts(selectedIds, true))
                   }
                 >
                   <PauseIcon className="size-4" />
@@ -417,7 +400,7 @@ export function RedditAccountsDashboard({
                   variant="outline"
                   disabled={busy}
                   onClick={() =>
-                    void bulk(() => pauseRedditAccounts(selectedIds, false), "resumed", "retired")
+                    void bulk(() => pauseRedditAccounts(selectedIds, false))
                   }
                 >
                   <PlayIcon className="size-4" />
@@ -429,7 +412,7 @@ export function RedditAccountsDashboard({
                     variant="outline"
                     disabled={busy}
                     onClick={() =>
-                      void bulk(() => retireRedditAccounts(selectedIds, false), "brought back", "not retired")
+                      void bulk(() => retireRedditAccounts(selectedIds, false))
                     }
                   >
                     <ArchiveRestoreIcon className="size-4" />
@@ -594,15 +577,13 @@ export function RedditAccountsDashboard({
                   onVoice={(voiceId) =>
                     void oneRow(
                       row.id,
-                      () => setRedditAccountVoice(row.id, voiceId),
-                      voiceId ? "Voice changed." : "No voice now. Drafts are plain."
+                      () => setRedditAccountVoice(row.id, voiceId)
                     )
                   }
                   onCheck={() =>
                     void oneRow(
                       row.id,
-                      () => checkRedditAccounts([row.id]),
-                      "Queued to be checked."
+                      () => checkRedditAccounts([row.id])
                     )
                   }
                   onHelp={() => setHelpFor(row.id)}
@@ -611,16 +592,13 @@ export function RedditAccountsDashboard({
                   onPause={(paused) =>
                     void oneRow(
                       row.id,
-                      () => pauseRedditAccounts([row.id], paused),
-                      paused
-                        ? "Paused. It does not post, warm up or take readings until you resume it."
-                        : "Resumed."
+                      () => pauseRedditAccounts([row.id], paused)
                     )
                   }
                   onRetire={(retire) =>
                     retire
                       ? setRetiring([row])
-                      : void oneRow(row.id, () => retireRedditAccounts([row.id], false), "Brought back.")
+                      : void oneRow(row.id, () => retireRedditAccounts([row.id], false))
                   }
                 />
               ))}
@@ -639,8 +617,8 @@ export function RedditAccountsDashboard({
           // One row from its own button leaves the other ticks alone.
           const done =
             rows.length === 1
-              ? await oneRow(rows[0].id, () => retireRedditAccounts([rows[0].id], true, why), "Retired. Its comments stay.")
-              : await bulk(() => retireRedditAccounts(rows.map((row) => row.id), true, why), "retired", "already retired")
+              ? await oneRow(rows[0].id, () => retireRedditAccounts([rows[0].id], true, why))
+              : await bulk(() => retireRedditAccounts(rows.map((row) => row.id), true, why))
           if (done) setRetiring(null)
           return done
         }}

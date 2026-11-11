@@ -35,7 +35,6 @@ import {
   SettingsIcon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -278,8 +277,7 @@ export function AdminCatalogDashboard({
         keptReason:
           action === "live" ? "missing a picture or a file" : "already gone",
       })
-      if (result.changed.length || result.same.length) toast.success(line)
-      else showErrorToast(line)
+      if (!result.changed.length && !result.same.length) showErrorToast(line)
       selection.clear()
       await list.refresh()
     } catch (error) {
@@ -327,8 +325,7 @@ export function AdminCatalogDashboard({
         )
       if (failed)
         parts.push(`${failed} could not be sent.`)
-      if (stored.length) toast.success(parts.join(" "))
-      else showErrorToast(parts.join(" "))
+      if (!stored.length || failed) showErrorToast(parts.join(" "))
       await list.refresh()
     } catch (error) {
       showErrorToast(getCatalogAdminErrorMessage(error))

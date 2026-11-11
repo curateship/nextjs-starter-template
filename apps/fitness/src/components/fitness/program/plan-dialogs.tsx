@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,11 +40,10 @@ export function TemplateDialog({
 }) {
   const [busy, setBusy] = React.useState<string | null>(null)
 
-  async function use(templateId: string, label: string) {
+  async function use(templateId: string) {
     setBusy(templateId)
     try {
       await changeProgram({ action: "template", programId, templateId })
-      toast.success(`${label} is now your week.`)
       await onDone()
       onClose()
     } catch (error) {
@@ -78,7 +76,7 @@ export function TemplateDialog({
                   type="button"
                   variant="outline"
                   disabled={busy !== null}
-                  onClick={() => void use(template.id, template.label)}
+                  onClick={() => void use(template.id)}
                 >
                   {busy === template.id ? <Loader2Icon className="animate-spin" /> : null}
                   {hasPlan ? `Replace my week with ${template.label}` : `Use ${template.label}`}
@@ -147,7 +145,6 @@ export function AiPlanDialog({
     setBusy("use")
     try {
       await saveAiPlan(programId, draft)
-      toast.success("The AI's week is now your week.")
       await onDone()
       onClose()
     } catch (error) {

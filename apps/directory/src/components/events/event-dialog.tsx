@@ -409,7 +409,6 @@ export function EventDialog({
         })
       }
       onSaved()
-      toast.success(eventId ? "Event saved." : "Event created.")
       if (saved.keptDates.length) {
         const days = listOfDays(saved.keptDates)
         toast.warning(

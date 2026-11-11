@@ -208,14 +208,14 @@ reports was read-only on purpose. That rule is gone.
 
 Tyler's Polish 3 task 09, 10 Oct 2026: a button tells the truth while it works.
 
-- **Green only when something changed.** Every multi-row action ends with one
-  line from `describeBulkResult`. It is a green toast when at least one row
-  changed, and the red error toast when none did, with the same words. That
+- **Red only when nothing changed.** Every multi-row action works out one
+  line from `describeBulkResult`. It shows in the red error toast when no row
+  changed, and nothing pops up when at least one did. That
   holds for Delete, Close, Feature and Unfeature on Focus rooms and Weekly
   rooms, Resolve, Dismiss, Reopen, Hide and Unhide on Room reports, Let through
   on Chat, Approve on Member uploads, and Free, Pro, Draft and Live on
   Backgrounds and Sounds. On those four the line also counts rows already in
-  that state, so a run that only finds them is still green.
+  that state, so a run that only finds them says nothing.
 - **Only the pressed button spins.** Hide and Unhide have their own spinner,
   so pressing Hide no longer spins Resolve. Feature, Unfeature and each Let
   through spin on their own too.

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ArrowLeftIcon, ExternalLinkIcon, HandIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Hint } from "@/components/social/hint"
@@ -80,8 +79,7 @@ export function MediumResponsesList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkMediumNow({ responseIds: checkable.slice(0, 50) })
-                  toast.success(queued ? `Checking ${queued} ${queued === 1 ? "response" : "responses"}.` : "Every one is being checked already.")
+                  await checkMediumNow({ responseIds: checkable.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getMediumErrorMessage(failure))
@@ -252,7 +250,6 @@ export function MediumResponsePanel({
                       void run("edit", async () => {
                         await changeOnMedium({ responseId: row.id, action: "edit", text: words.trim() })
                         setEditing(false)
-                        toast.success("The new words are on their way to Medium.")
                       })
                     }
                   >
@@ -288,7 +285,6 @@ export function MediumResponsePanel({
                     onClick={() =>
                       void run("retry", async () => {
                         await dealWithFailedResponse(row.id, "retry")
-                        toast.success("Sent again. It goes through every check a first press does.")
                         onClose()
                       })
                     }
@@ -338,7 +334,6 @@ export function MediumResponsePanel({
             ? void run("delete", async () => {
                 await changeOnMedium({ responseId: row.id, action: "delete" })
                 setConfirmDelete(false)
-                toast.success("On its way to being deleted on Medium.")
               })
             : undefined
         }
@@ -426,7 +421,6 @@ export function IncomingAnswer({
                 try {
                   await sendMediumAnswer({ under, incomingId: item.id, text: text.trim() })
                   setSent(true)
-                  toast.success("Sent. It goes out in ten seconds, or in the account's morning.")
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getMediumErrorMessage(failure))

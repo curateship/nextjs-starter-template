@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { AlertTriangleIcon, MailIcon, MoonIcon, PauseIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
@@ -431,10 +430,9 @@ export function LinkedinModule({
         onSkip={skip}
         onHide={async (findId) => {
           try {
-            const hidden = await changeLinkedinHidden({ change: "hide", findId })
+            await changeLinkedinHidden({ change: "hide", findId })
             if (findId === open) openRecord(null)
             await refreshAll()
-            if (hidden) toast.success(`${hidden.name} hidden. ${hidden.hiddenPosts} ${hidden.hiddenPosts === 1 ? "post" : "posts"} left every list.`)
           } catch (failure) {
             showErrorToast(getLinkedinErrorMessage(failure))
           }

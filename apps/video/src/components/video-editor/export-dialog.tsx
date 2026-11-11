@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, DownloadIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -224,9 +223,6 @@ export function ExportDialog({
     setBusy(true)
     try {
       onJobsChange(await cancelExports(videoId))
-      toast.success(
-        activeCount > 1 ? "The exports were stopped." : "The export was stopped."
-      )
     } catch (error) {
       showErrorToast(getExportErrorMessage(error))
     } finally {

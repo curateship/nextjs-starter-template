@@ -199,7 +199,6 @@ export function AnalyseSection({
       })
       setVaultItem(item)
       await onVaultChanged()
-      toast.success(video.vaultItemId ? "The idea in the vault is updated." : "Saved to the vault.")
       return true
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, InfoIcon, Loader2Icon, ScanEyeIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,7 +49,6 @@ function IdentityCard({ profile, onChanged }: { profile: ProfileRow; onChanged: 
     setBusy(true)
     try {
       await askForNewIdentity(profile.id)
-      toast.success(`${profile.name} gets a new identity the next time its browser opens.`)
       setConfirming(false)
       await onChanged()
     } catch (error) {

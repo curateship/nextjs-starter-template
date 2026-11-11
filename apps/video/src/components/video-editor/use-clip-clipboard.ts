@@ -65,7 +65,6 @@ export function useClipClipboard() {
       return
     }
     dismissErrorToast()
-    toast.success(`Copied ${clipCount(clips.length)}.`)
   }, [store, personKey])
 
   const paste = React.useCallback(async () => {
@@ -123,8 +122,6 @@ export function useClipClipboard() {
           } pasted as an empty space. Use Replace media on it to put footage back.`,
           { duration: Infinity }
         )
-      } else {
-        toast.success(`Pasted ${clipCount(clips.length)}.`)
       }
     } catch (error) {
       showErrorToast(getVideoMediaErrorMessage(error))

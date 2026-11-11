@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -56,11 +55,10 @@ export function BlockedSubredditsCard() {
     }
     setAdding(true)
     try {
-      const answer = await blockRedditSubreddit(name)
+      await blockRedditSubreddit(name)
       setName("")
       setInvalid(false)
       await refresh()
-      toast.success(`r/${answer.subreddit} blocked. ${postsWord(answer.hidden)} hidden.`)
     } catch (failure) {
       showErrorToast(getBlockedErrorMessage(failure))
     } finally {
@@ -71,9 +69,8 @@ export function BlockedSubredditsCard() {
   async function remove(subreddit: string) {
     setRemoving(subreddit)
     try {
-      const answer = await unblockRedditSubreddit(subreddit)
+      await unblockRedditSubreddit(subreddit)
       await refresh()
-      toast.success(`r/${answer.subreddit} unblocked. ${postsWord(answer.restored)} back.`)
     } catch (failure) {
       showErrorToast(getBlockedErrorMessage(failure))
     } finally {

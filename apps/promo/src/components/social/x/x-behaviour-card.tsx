@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -155,14 +154,13 @@ export function XBehaviourCard({
     timer.current = setTimeout(() => void save(next.settings), SAVE_DELAY_MS)
   }
 
-  async function searcherChange(change: Parameters<typeof changeXSearcher>[0], done: string) {
+  async function searcherChange(change: Parameters<typeof changeXSearcher>[0]) {
     setBusy(true)
     setSaveStatus("saving")
     try {
       await changeXSearcher(change)
       await read()
       setSaveStatus("saved")
-      toast.success(done)
       return true
     } catch (failure) {
       setSaveStatus("idle")
@@ -226,8 +224,7 @@ export function XBehaviourCard({
               value=""
               disabled={busy}
               onValueChange={(profileId) => {
-                const profile = free.find((item) => item.id === profileId)
-                void searcherChange({ change: "add", profileId }, `${profile?.name ?? "The profile"} searches X now. Sign it in to a throwaway X account that never posts.`)
+                void searcherChange({ change: "add", profileId })
               }}
             >
               <SelectTrigger id="promo-x-add-searcher" className="w-full sm:w-fit sm:min-w-64">
@@ -284,7 +281,7 @@ export function XBehaviourCard({
         loading={busy}
         onConfirm={() =>
           removing
-            ? void searcherChange({ change: "remove", searcherId: removing.id }, `${removing.profileName} no longer searches X.`).then((done) => {
+            ? void searcherChange({ change: "remove", searcherId: removing.id }).then((done) => {
                 if (done) setRemoving(null)
               })
             : undefined

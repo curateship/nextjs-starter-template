@@ -420,9 +420,10 @@ room"".
   and the booked-room buttons are all the shared `Button` at the standard
   32px height, in the theme's own orange (`bg-primary`, `border-primary/40`,
   `bg-primary/10`), not a pasted colour.
-- **What the page tells you after an action is a toast**, not a line at the
-  top of the page. A room you left, a room you closed, a booking made and a
-  booking cancelled are success toasts that clear themselves. Failures use
+- **Nothing pops up when an action works**, and no line is left at the top
+  of the page: the room or booking shows the change. A room that ended under
+  you gets a plain notice saying so, because that is often the host's doing,
+  not yours. Failures use
   the persistent error toast, which stays until dismissed or until the next
   attempt starts. Nothing is left over from an earlier action.
 - **A room ending is announced once.** Your own "You closed the room." and the

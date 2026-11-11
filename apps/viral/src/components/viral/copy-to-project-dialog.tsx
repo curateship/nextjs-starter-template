@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -71,19 +70,9 @@ export function CopyToProjectDialog({
     setBusy(true)
     try {
       if (target.kind === "idea") {
-        const result = await copyVaultItemFn(target.itemId, picked)
-        toast.success(
-          result.state === "copied"
-            ? `Copied to ${result.item.projectName}'s vault. Both projects keep it.`
-            : `${result.projectName}'s vault already has this video, so nothing changed.`
-        )
+        await copyVaultItemFn(target.itemId, picked)
       } else {
-        const result = await copyVideoToProjectFn(target.url, picked)
-        toast.success(
-          result.state === "copied"
-            ? `Copied to ${result.projectName}. Both projects keep it.`
-            : `${result.projectName} already has this video, so nothing changed.`
-        )
+        await copyVideoToProjectFn(target.url, picked)
       }
       onClose()
     } catch (error) {

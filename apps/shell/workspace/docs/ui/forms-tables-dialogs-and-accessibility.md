@@ -28,8 +28,9 @@ Forms keep one visible home for each error:
 
 - A field error sits with the field.
 - A request error sits in the form or dialog that made the request.
-- A toast can confirm completed work, but it does not replace an error needed
-  to correct the form.
+- Nothing pops up when something works (Tyler, 10 Nov 2026: "Remove all
+  success toast"): the changed screen is the answer. Toasts are for failures
+  and for work only partly done, which says the part that was not done.
 
 Required fields open without an invalid state. Leaving a required field empty
 or attempting the action marks it with `aria-invalid`; entering a value clears

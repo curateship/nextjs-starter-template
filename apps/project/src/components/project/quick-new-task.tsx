@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { NOBODY, type NewTaskStart } from "@/components/project/new-task-dialog"
@@ -192,7 +191,6 @@ export function QuickNewTask({
       return
     }
     const assigneeUserId = person === NOBODY ? null : person
-    const name = project.members.find((m) => m.userId === assigneeUserId)?.name
     let madeId = ""
     const ok = await run(async () => {
       madeId = (
@@ -210,7 +208,6 @@ export function QuickNewTask({
     })
     if (!ok) return
     await moveNewTasks([madeId], chosenStatus, stuckReason.trim())
-    toast.success(assigneeUserId && assigneeUserId !== me.id && name ? `Task handed to ${name}.` : "Task created.")
     onCreated?.(project.id, madeId)
     reset()
     onOpenChange(false)

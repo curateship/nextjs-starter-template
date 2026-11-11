@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, RotateCwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ProfileBackupsPanel } from "@/components/browser/profile-backups-panel"
 import { ProfileIdentityPanel } from "@/components/browser/profile-identity-panel"
@@ -128,7 +127,6 @@ export function ProfileDialog({
         labelId: orNull(form.labelId),
         tags: form.tags.split(","),
       })
-      toast.success(profile ? "Profile saved." : "Profile created.")
       await onSaved(id)
     } catch (error) {
       showErrorToast(getProfileErrorMessage(error))

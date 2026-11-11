@@ -125,9 +125,10 @@ function freezePersonalTimer() {
 function announceRoomEnd(slug: string, message: string, deliberate: boolean) {
   if (!deliberate && endExplained === slug) return
   if (deliberate) endExplained = slug
-  // One toast per room: a broadcast that beat the person's own answer is
-  // replaced by it rather than stacked under it.
-  toast.success(message, { id: `room-ended:${slug}` })
+  // A plain notice, not a success: it says what happened to the room, which
+  // is often the host's doing. One per room: a broadcast that beat the
+  // person's own answer is replaced by it rather than stacked under it.
+  toast(message, { id: `room-ended:${slug}` })
 }
 
 /**

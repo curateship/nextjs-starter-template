@@ -11,7 +11,6 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
@@ -164,10 +163,9 @@ export const ArchiveItemsPanel = React.forwardRef<
     setBusy(true)
     dismissErrorToast()
     try {
-      const { binned } = await binArchiveItems(ids)
+      await binArchiveItems(ids)
       setSelected(new Set())
       setReloads((count) => count + 1)
-      toast.success(`${binned} ${plural(binned, "item", "items")} moved to the Bin. They wait there ${BIN_DAYS} days.`)
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     } finally {
@@ -178,9 +176,8 @@ export const ArchiveItemsPanel = React.forwardRef<
   async function addUpload(mediaUrl: string) {
     dismissErrorToast()
     try {
-      const { added } = await addUploadsToArchive(projectId, [mediaUrl])
+      await addUploadsToArchive(projectId, [mediaUrl])
       setReloads((count) => count + 1)
-      toast.success(`${added} ${plural(added, "file", "files")} added to ${projectName}'s archive.`)
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     }
@@ -190,7 +187,6 @@ export const ArchiveItemsPanel = React.forwardRef<
     try {
       await restoreArchiveItem(itemId)
       setReloads((count) => count + 1)
-      toast.success("Put back in the archive.")
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     }

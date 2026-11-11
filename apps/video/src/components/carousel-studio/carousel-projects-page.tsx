@@ -12,7 +12,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CarouselProjectFormDialog } from "@/components/carousel-studio/carousel-project-form-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -43,7 +42,6 @@ import {
   type CarouselProjectItem,
   type CarouselProjectListResponse,
 } from "@/lib/api/video/carousel-projects"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -185,29 +183,19 @@ export function CarouselProjectsPage({
 
   async function handleArchive(targets: CarouselProjectItem[], archived: boolean, key = "bulk") {
     await run(key, async () => {
-      const { done_ids: done } = await archiveCarouselProjects(
+      await archiveCarouselProjects(
         targets.map((project) => project.id),
         archived
       )
       selection.clear()
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: targets.length - done.length,
-          one: "project",
-          many: "projects",
-          verb: archived ? "archived" : "brought back",
-        })
-      )
     })
   }
 
   async function handleDuplicate(project: CarouselProjectItem) {
     await run(`duplicate:${project.id}`, async () => {
-      const copy = await duplicateCarouselProject(project.id)
+      await duplicateCarouselProject(project.id)
       await router.invalidate()
-      toast.success(`"${copy.name}" created.`)
     })
   }
 
@@ -224,15 +212,6 @@ export function CarouselProjectsPage({
       selection.clear()
       setDeleteTargets([])
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: deleteTargets.length - deleted.length,
-          one: "project",
-          many: "projects",
-          verb: "deleted",
-        })
-      )
     })
   }
 

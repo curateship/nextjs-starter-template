@@ -9,7 +9,6 @@ import {
   StarOffIcon,
   UsersRoundIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -212,8 +211,7 @@ export function AdminRoomsDashboard({
         many: "rooms",
         verb: featured ? "featured" : "unfeatured",
       })
-      if (changed.length) toast.success(line)
-      else showErrorToast(line)
+      if (!changed.length) showErrorToast(line)
       selection.clear()
       await list.refresh()
     } catch (error) {

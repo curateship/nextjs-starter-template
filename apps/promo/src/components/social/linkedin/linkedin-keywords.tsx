@@ -17,7 +17,6 @@ import {
   XIcon,
 } from "lucide-react"
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
-import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -159,11 +158,10 @@ export function LinkedinKeywords({
   // Nothing waiting starts without the browser program or a search account.
   const stalled = !view?.jobs.programRunning || !view.searchers.length
 
-  async function act(action: () => Promise<unknown>, done?: string) {
+  async function act(action: () => Promise<unknown>) {
     try {
       await action()
       await onChanged()
-      if (done) toast.success(done)
     } catch (error) {
       showErrorToast(getLinkedinErrorMessage(error))
     }
@@ -247,8 +245,7 @@ export function LinkedinKeywords({
                       onClick={() => {
                         close()
                         void act(
-                          () => changeLinkedinKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify }),
-                          keyword.notify ? `The bell stays quiet for ${item.label}'s new posts.` : `The bell rings for each new post from ${item.label}.`
+                          () => changeLinkedinKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify })
                         )
                       }}
                     >
@@ -266,7 +263,7 @@ export function LinkedinKeywords({
                       await changeLinkedinKeyword({ change: "delete", keywordId: item.id })
                       // Its posts are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
-                    }, `${item.label} removed. Comments already sent keep their record.`)
+                    })
                   }}
                 >
                   Remove {item.label} and the posts only it found
@@ -282,7 +279,6 @@ export function LinkedinKeywords({
                   close()
                   await onChanged()
                   if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)
-                  else toast.success("Saved. Its posts show here once a search account has read them.")
                 } catch (error) {
                   showErrorToast(getLinkedinErrorMessage(error))
                 }
@@ -316,7 +312,7 @@ export function LinkedinKeywords({
                   if (!keywords.length) throw new Error("Add a keyword first, then it can be searched.")
                   const { queued } = await searchAllLinkedin(projectId)
                   if (!queued) throw new Error("Every switched-on keyword is already being searched.")
-                }, "Searching every switched-on keyword.")
+                })
               }
             >
               <RotateCwIcon />
@@ -368,7 +364,7 @@ export function LinkedinKeywords({
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">People and pages you never see</DropdownMenuLabel>
             {view?.hidden.length ? (
               view.hidden.map((hidden) => (
-                <DropdownMenuItem key={hidden.id} onSelect={() => void act(() => changeLinkedinHidden({ change: "show", hiddenId: hidden.id }), `${hidden.name || hidden.slug} shows again.`)}>
+                <DropdownMenuItem key={hidden.id} onSelect={() => void act(() => changeLinkedinHidden({ change: "show", hiddenId: hidden.id }))}>
                   <EyeIcon />
                   <span className="truncate">Show {hidden.name || hidden.slug} again</span>
                 </DropdownMenuItem>
@@ -559,7 +555,6 @@ function BuyerTitlesWindow({
       const pending = typed.trim()
       await saveLinkedinBuyerTitles(projectId, pending ? [...list, pending] : list)
       await onChanged()
-      toast.success("Saved. Posts are lifted by these titles from their next search.")
       onClose()
     } catch (error) {
       showErrorToast(getLinkedinErrorMessage(error))
@@ -698,7 +693,6 @@ function GroupsWindow({
                     const added = await changeLinkedinGroup({ change: "add", projectId, address: address.trim() })
                     setAddress("")
                     if (added.readRefused) showErrorToast(`Added, but its rules are not read yet. ${added.readRefused}`)
-                    else toast.success("Added. A search account reads its name and rules next.")
                   })
                 }}
               >
@@ -723,13 +717,11 @@ function GroupsWindow({
                 onRules={(rules) =>
                   run(`rules:${group.id}`, async () => {
                     await changeLinkedinGroup({ change: "rules", groupRowId: group.id, rules })
-                    toast.success("Rules saved.")
                   })
                 }
                 onRemove={() =>
                   run(`remove:${group.id}`, async () => {
                     await changeLinkedinGroup({ change: "remove", groupRowId: group.id })
-                    toast.success(`${group.name || "The group"} taken off this project.`)
                   })
                 }
               />

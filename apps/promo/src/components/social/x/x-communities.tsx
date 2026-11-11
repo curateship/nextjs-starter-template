@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, Loader2Icon, PlusIcon, RefreshCwIcon, Trash2Icon, UsersRoundIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
@@ -73,7 +72,6 @@ export function XCommunitiesList({
       setTried(false)
       await onChanged()
       if (added?.readRefused) showErrorToast(`Added, but its rules are not read yet. ${added.readRefused}`)
-      else toast.success("Added. A search account reads its name and rules.")
     } catch (failure) {
       showErrorToast(getXErrorMessage(failure))
     } finally {
@@ -203,7 +201,6 @@ export function XCommunityPanel({
           onClick={() =>
             void run("read", async () => {
               await changeXCommunity({ change: "read", communityRowId: community.id })
-              toast.success("Reading it again through a search account.")
             })
           }
         >
@@ -251,11 +248,9 @@ export function XCommunityPanel({
                   onClick={() =>
                     void run("rules", async () => {
                       if (rules === community.rules) {
-                        toast.success("Nothing changed, so there was nothing to save.")
                         return
                       }
                       await changeXCommunity({ change: "rules", communityRowId: community.id, rules })
-                      toast.success("Saved. The AI is given these before it writes for this community.")
                     })
                   }
                 >

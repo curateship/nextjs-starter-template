@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -68,7 +67,6 @@ export function TwoFactorCard({
     setBusy(true)
     try {
       await setRedditAccountTwoFactor(accountId, secret)
-      toast.success("Secret saved. Only the codes are shown from now on.")
       setSecret("")
       await onChanged()
     } catch (error) {
@@ -87,7 +85,6 @@ export function TwoFactorCard({
     setBusy(true)
     try {
       await setRedditAccountTwoFactor(accountId, null)
-      toast.success("Secret removed.")
       setCode(null)
       setConfirming(false)
       await onChanged()
@@ -102,7 +99,6 @@ export function TwoFactorCard({
     if (!code) return
     try {
       await navigator.clipboard.writeText(code.code)
-      toast.success("Code copied.")
     } catch {
       showErrorToast("This browser would not copy. Select the code and copy it by hand.")
     }

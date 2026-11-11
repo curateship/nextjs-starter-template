@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, RefreshCwIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { AnswerPanel, PostsAs, type DraftView, type FindDetail } from "@/components/social/reddit/answer-panel"
 import { Button } from "@/components/ui/button"
@@ -36,7 +35,7 @@ import {
   readThread,
   setFindsStatus,
 } from "@/lib/api/social/reddit/keywords"
-import { postButtonWords, postedDateText, postingBlockedReason, waitingCommentText } from "@/lib/social/wording"
+import { postButtonWords, postedDateText, postingBlockedReason } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { Hint } from "../hint"
@@ -227,8 +226,7 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
             }}
             onPost={async (input) => {
               try {
-                const { runAfter, undoUntil } = await sendComment({ ...input, accountId })
-                if (runAfter) toast.success(waitingCommentText(new Date(runAfter), account?.handle || null))
+                const { undoUntil } = await sendComment({ ...input, accountId })
                 await refresh()
                 return { undoUntil }
               } catch (failure) {
@@ -240,7 +238,6 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
             onUndo={async (findId) => {
               try {
                 await cancelComment(findId)
-                toast.success("Taken back. Nothing was sent.")
                 await refresh()
                 return true
               } catch (failure) {
@@ -251,7 +248,6 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
             onCancelWaiting={async (findId) => {
               try {
                 await cancelComment(findId)
-                toast.success("Cancelled. Nothing was sent.")
               } catch (failure) {
                 showErrorToast(getPostErrorMessage(failure))
               }
@@ -304,7 +300,6 @@ function HelpWindow({ accountId, onClose }: { accountId: string; onClose: () => 
                   setAsking(true)
                   try {
                     await readHelpPostsFor(accountId)
-                    toast.success("Reading the newest posts. They show here as they land.")
                     await refresh()
                   } catch (failure) {
                     showErrorToast(getHelpErrorMessage(failure))

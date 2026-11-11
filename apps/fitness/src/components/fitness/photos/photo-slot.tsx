@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ImageIcon, ImageUpIcon, Loader2Icon, PlusIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SLOT_LABELS } from "@/components/fitness/photos/measurements"
 import { PrivatePhoto } from "@/components/fitness/photos/private-photo"
@@ -48,7 +47,6 @@ export function PhotoSlot({
     setBusy(true)
     try {
       onChange(await uploadPhoto(session.id, slot, file))
-      toast.success(`${SLOT_LABELS[slot]} photo saved.`)
     } catch (error) {
       reportFitnessError(error)
     } finally {

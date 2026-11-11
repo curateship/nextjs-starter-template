@@ -10,7 +10,6 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -123,7 +122,6 @@ export function ExportsPanel() {
     setBusyId(item.id)
     try {
       await stopExport(item.id)
-      toast.success("Export stopped. No file was made.")
     } catch (error) {
       showErrorToast(getExportErrorMessage(error))
     } finally {
@@ -137,8 +135,7 @@ export function ExportsPanel() {
     setBusyId(deleting.id)
     try {
       const { deleted_ids: deleted } = await deleteExports([deleting.id])
-      if (deleted.length) toast.success("Export deleted.")
-      else {
+      if (!deleted.length) {
         showErrorToast(
           "The export was kept because its file could not be removed from storage. Try again in a minute."
         )

@@ -1,6 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router"
 import { CalendarPlusIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { EventSubmissionDialog } from "@/components/events/event-submission-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -23,6 +22,7 @@ import { submissionWhen } from "@/lib/events/event-submission-fields"
 import { eventRowText } from "@/lib/events/event-time"
 import { formatDate } from "@/lib/format/format-time"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
+import { toast } from "sonner"
 
 const TAB_LABELS: Record<EventSubmissionStatus, string> = {
   pending: "Pending",
@@ -215,8 +215,8 @@ export function EventSubmissionsDashboard({
             emailed,
             open?.fromOwner
           )
-          if (emailed) toast.success(message)
-          else toast.warning(message)
+          // Amber, not red: the decision held, but the sender was not reached.
+          if (!emailed) toast.warning(message)
           // The list is read again before the window closes, so the row does
           // not flash back as still pending.
           void router

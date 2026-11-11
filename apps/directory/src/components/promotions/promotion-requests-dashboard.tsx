@@ -1,6 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router"
 import { InboxIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { PromotionRequestDialog } from "@/components/promotions/promotion-request-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -22,6 +21,7 @@ import { dealRequestDecisionMessage } from "@/lib/directory/submission-decision-
 import { formatDate } from "@/lib/format/format-time"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { dealAdminDaysText } from "@/lib/promotions/deal-days"
+import { toast } from "sonner"
 
 const TAB_LABELS: Record<PromotionRequestStatus, string> = {
   pending: "Pending",
@@ -209,8 +209,8 @@ export function PromotionRequestsDashboard({
             emailed,
             open?.kind ?? "new"
           )
-          if (emailed) toast.success(message)
-          else toast.warning(message)
+          // Amber, not red: the decision held, but the sender was not reached.
+          if (!emailed) toast.warning(message)
           // The list is read again before the window closes, so the row does
           // not flash back as still pending.
           void router

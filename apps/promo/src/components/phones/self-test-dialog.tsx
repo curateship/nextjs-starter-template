@@ -1,6 +1,5 @@
 import * as React from "react"
 import { DownloadIcon, FlaskConicalIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -108,7 +107,7 @@ export function SelfTestDialog({
   async function act(key: string, work: () => Promise<string>) {
     setBusy(key)
     try {
-      toast.success(await work())
+      await work()
       setAttempt((count) => count + 1)
       await onChanged()
     } catch (actError) {

@@ -313,7 +313,6 @@ function RemakePictureDialog({
           origin: frame.origin,
         },
       })
-      toast.success("Made again. Undo brings the old picture back.")
       onClose()
     } catch (error) {
       reportError(getFirstFrameErrorMessage(error))
@@ -546,11 +545,6 @@ function RemakeVoiceDialog({
         line,
         look: captionSettings.look,
       })
-      toast.success(
-        landed.newLane
-          ? "Read again. It ran longer than the room after it, so it is on a lane of its own. Undo brings the old line back."
-          : "Read again. Undo brings the old line back."
-      )
       if (line.notice) toast(line.notice)
       onClose()
     } catch (error) {
@@ -745,9 +739,6 @@ export function ClipContextMenu({
     const { selectedClipIds } = store.getSnapshot().state
     const clipIds = selectedClipIds.includes(clip.id) ? selectedClipIds : [clip.id]
     dispatch({ type: "PASTE_LOOK", clipIds })
-    toast.success(
-      clipIds.length === 1 ? "Pasted the look." : `Pasted the look onto ${clipIds.length} clips.`
-    )
   }
 
   // The same blur the Elements panel's Blur button lays down, at the playhead

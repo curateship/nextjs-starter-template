@@ -28,7 +28,6 @@ import {
   Undo2Icon,
   UserRoundIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { AiCards, SourceCard } from "@/components/note-library/import-cards"
 import type { DashboardActions, SeekRequest } from "@/components/note-library/library-dashboard"
@@ -363,13 +362,12 @@ function OpenNote({
     autosave.change(changes, now)
   }
 
-  async function run(name: string, work: () => Promise<unknown>, success?: string) {
+  async function run(name: string, work: () => Promise<unknown>) {
     if (busy) return false
     setBusy(name)
     dismissErrorToast()
     try {
       await work()
-      if (success) toast.success(success)
       return true
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))
@@ -384,13 +382,13 @@ function OpenNote({
   }
 
   /** A field outside the text: the server's answer is the row in the middle, and here. */
-  async function changeOne(what: Parameters<typeof changeNotes>[1], success: string) {
+  async function changeOne(what: Parameters<typeof changeNotes>[1]) {
     await run("change", async () => {
       await changeNotes([detail.id], what)
       const fresh = await loadNoteDetail(detail.id, false)
       show(fresh)
       await actions.refreshPage()
-    }, success)
+    })
   }
 
   // Tags save one change at a time, each with the list as it stands.
@@ -499,7 +497,6 @@ function OpenNote({
 
   function addToNote(text: string, startMs: number | null) {
     editorRef.current?.insertQuote(text, startMs)
-    toast.success("Added to your note.")
   }
 
   function downloadVideo() {
@@ -515,10 +512,8 @@ function OpenNote({
       await autosave.flush()
       const copy = await duplicateLibraryNote(detail.id, library?.id)
       if (library) {
-        toast.success(`Copied ${quoteOneLine(shownTitle)} to ${quoteOneLine(library.name)}.`)
         return
       }
-      toast.success(`Made ${quoteOneLine(noteTitle(copy.title))}.`)
       await actions.refreshAll()
       actions.openNote(copy.id)
     })
@@ -561,7 +556,7 @@ function OpenNote({
                   await restoreNoteFromTrash(opened.id)
                   actions.gone(opened.id)
                   await reloadFromServer()
-                }, `Restored ${quoteOneLine(shownTitle)}.`)
+                })
               }
             >
               <Undo2Icon />
@@ -595,26 +590,20 @@ function OpenNote({
               detail={detail}
               headings={headings}
               knownTags={page.tags.map((each) => each.tag)}
-              onPriority={(priority) => void changeOne({ change: "priority", priority }, `Set to ${PRIORITY_LABEL[priority]}.`)}
+              onPriority={(priority) => void changeOne({ change: "priority", priority })}
               onFolder={(folderId) =>
-                void changeOne(
-                  { change: "folder", folderId },
-                  folderId
-                    ? `Moved to ${quoteOneLine(page.folders.find((each) => each.id === folderId)?.name ?? "the folder")}.`
-                    : "Moved out of its folder."
-                )
+                void changeOne({ change: "folder", folderId })
               }
               onAddTag={(tag) => saveTags([...detail.tags, tag.trim().toLowerCase()])}
               onRemoveTag={(tag) => void saveTags(detail.tags.filter((each) => each !== tag))}
               onOutline={(index) => editorRef.current?.scrollToHeading(index)}
               onHistory={() => setHistoryOpen(true)}
               onPin={() =>
-                void changeOne({ change: "pin", on: !detail.pinned }, detail.pinned ? "Unpinned." : "Pinned to the top.")
+                void changeOne({ change: "pin", on: !detail.pinned })
               }
               onArchive={() =>
                 void changeOne(
-                  { change: "archive", on: !detail.archived },
-                  detail.archived ? "Back in its folder." : "Archived. Search still finds it."
+                  { change: "archive", on: !detail.archived }
                 )
               }
               onAuthor={() => setAuthorOpen(true)}
@@ -626,7 +615,6 @@ function OpenNote({
                     showErrorToast(`${quoteOneLine(library.name)} already has this link, so the note stayed here.`)
                     return
                   }
-                  toast.success(`Moved ${quoteOneLine(shownTitle)} to ${quoteOneLine(library.name)}.`)
                   actions.gone(detail.id)
                   onClose()
                 })
@@ -641,7 +629,7 @@ function OpenNote({
                   await changeNotes([opened.id], { change: "trash" })
                   actions.gone(opened.id)
                   onClose()
-                }, `Moved ${quoteOneLine(shownTitle)} to Trash. It stays there ${TRASH_DAYS} days.`)
+                })
               }
             />
           </>
@@ -782,7 +770,7 @@ function OpenNote({
         onClose={() => setTemplateOpen(false)}
         onSave={async (name) => {
           await autosave.flush()
-          const ok = await run("template", () => saveAsTemplate(opened.id, name), `Saved ${quoteOneLine(name.trim())} as a template.`)
+          const ok = await run("template", () => saveAsTemplate(opened.id, name))
           if (ok) {
             setTemplateOpen(false)
             await actions.refreshPage()
@@ -800,7 +788,7 @@ function OpenNote({
             await saveNoteAuthor(detail.id, name, handle || null)
             show(await loadNoteDetail(detail.id, false))
             await actions.refreshPage()
-          }, name.trim() ? "Author saved." : "Author taken off.")
+          })
           if (ok) setAuthorOpen(false)
           return ok
         }}
@@ -818,7 +806,7 @@ function OpenNote({
             setRemoving(false)
             show(fresh)
             await actions.refreshAll()
-          }, "Removed. The note stays.")
+          })
         }
       />
       <ConfirmDialog
@@ -834,7 +822,7 @@ function OpenNote({
             setDeletingForGood(false)
             actions.gone(opened.id)
             onClose()
-          }, `Deleted ${quoteOneLine(shownTitle)} for good.`)
+          })
         }
       />
       <Dialog open={status === "conflict"} onOpenChange={() => undefined}>

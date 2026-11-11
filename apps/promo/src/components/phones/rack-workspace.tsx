@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { PauseCircleIcon, ServerIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { PhonePanel } from "@/components/phones/phone-panel"
 import { RackPanel } from "@/components/phones/rack-panel"
@@ -139,7 +138,6 @@ function RackPageFrame({
     setBusy(true)
     try {
       await disconnectPhoneRack(rack.id)
-      toast.success(`${rack.name} is disconnected.`)
       setDisconnecting(false)
       await refresh()
     } catch (error) {
@@ -152,12 +150,11 @@ function RackPageFrame({
   async function remove() {
     setBusy(true)
     try {
-      const { deleted, kept } = await removeRacks([rack.id])
+      const { kept } = await removeRacks([rack.id])
       if (kept.length) {
         showErrorToast(kept[0].reason)
         return
       }
-      if (deleted.length) toast.success(`${rack.name} is deleted. Its phones are under Not on a rack.`)
       setDeleting(false)
       void navigate({ to: "/admin/racks" })
     } catch (error) {

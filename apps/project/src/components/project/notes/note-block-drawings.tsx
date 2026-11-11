@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import {
   ChevronRightIcon,
   CircleCheckIcon,
@@ -674,7 +673,6 @@ function DeleteFileDialog({
       await deleteFileFromTask(file.id)
       setAsking(false)
       if (editing.editable) editing.remove()
-      toast.success("File deleted.")
       await task?.refresh()
     } catch (error) {
       showErrorToast(getProjectErrorMessage(error))

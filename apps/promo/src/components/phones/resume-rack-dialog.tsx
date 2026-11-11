@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PlayIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -75,12 +74,7 @@ export function ResumeRackDialog({
   async function resume() {
     setBusy(true)
     try {
-      const { dropped } = await resumeRack([...drop])
-      toast.success(
-        dropped
-          ? `The rack is running again. ${dropped} waiting ${dropped === 1 ? "job was" : "jobs were"} dropped.`
-          : "The rack is running again."
-      )
+      await resumeRack([...drop])
       setJobs(null)
       setDrop(new Set())
       await onResumed()

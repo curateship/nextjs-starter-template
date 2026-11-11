@@ -672,26 +672,11 @@ export function CarouselBuilderPage({
       if (kind === "video") {
         await makeVideoFromCarousel(document.id, video)
         setExportOpen(false)
-        toast.success(
-          `"${document.name} video" is queued. It shows in Exports when it is ready, and opens as a project.`,
-          {
-            action: {
-              label: "Open Exports",
-              onClick: () => void navigate({ to: "/admin/video-exports" }),
-            },
-          }
-        )
         return
       }
       const kept = await exportCarousel(document.id)
       downloadKeptExport(kept.id, kept.title ?? document.name, kind === "pdf")
       setExportOpen(false)
-      toast.success("Carousel exported. A copy is kept in Carousel exports.", {
-        action: {
-          label: "Open Carousel exports",
-          onClick: () => void navigate({ to: "/admin/video-carousel-exports" }),
-        },
-      })
     } catch (error) {
       setExportError(getCarouselErrorMessage(error))
     } finally {
@@ -719,7 +704,6 @@ export function CarouselBuilderPage({
     try {
       await flushSave()
       const copy = await duplicateCarousel(document.id, format)
-      toast.success(`"${copy.name}" created.`)
       await navigate({
         to: "/admin/video-carousels/$projectId",
         params: { projectId: copy.carousel_project_id },
@@ -764,7 +748,6 @@ export function CarouselBuilderPage({
     const done = `${changed.length} ${changed.length === 1 ? "slide" : "slides"} aligned to this one.`
     const overflow = findTextOverflow(changed, state.format)
     if (!overflow.size) {
-      toast.success(done)
       return
     }
     const names = pushed.flatMap((slide, index) =>
@@ -2593,8 +2576,7 @@ function ImagePanel({
         open={creatingCollection}
         onOpenChange={setCreatingCollection}
         collection={null}
-        onSaved={(created) => {
-          toast.success(`Created “${created.name}”.`)
+        onSaved={() => {
           reloadCollections()
         }}
       />

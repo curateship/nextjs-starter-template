@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { ErrorRow } from "@/components/ui/error-row"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -109,11 +108,6 @@ export function ExportClearOutDialog({
         )
       } else if (!result.deleted) {
         showErrorToast("Nothing was deleted - those may already be gone.")
-      }
-      if (result.deleted) {
-        toast.success(
-          `Deleted ${result.deleted} ${plural(result.deleted, "export")} and freed ${formatFileSize(result.bytes_freed)}.`
-        )
       }
       await onCleared()
       onClose()

@@ -122,7 +122,6 @@ export function LipSyncDialog({ clip, onClose }: { clip: EditorClip; onClose: ()
         },
       })
       store.refreshMediaShelf()
-      toast.success("The lips now match the voice.")
     },
     [store, dispatch, clip.id]
   )

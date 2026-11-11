@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import { ClockIcon, ExternalLinkIcon, Loader2Icon, MapIcon, PhoneIcon, TriangleAlertIcon } from "lucide-react"
 
 import { useBoardActions } from "@/components/travel/board-actions"
@@ -353,7 +352,6 @@ function MapsLinkField({ activityId }: { activityId: string }) {
     })
     if (!ok || !result) return
     setLink("")
-    toast.success(filledLine(result))
   }
 
   return (

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon, UploadIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -254,11 +253,6 @@ export function AdminCatalogDialog({
           ? { path: draft.source.path, kind: draft.source.kind }
           : null,
       })
-      toast.success(
-        creating
-          ? `${kind === "sound" ? "Sound" : "Background"} created.`
-          : "Changes saved."
-      )
       // The list is read again before the window goes, so the row behind it
       // already shows the change.
       await onSaved()

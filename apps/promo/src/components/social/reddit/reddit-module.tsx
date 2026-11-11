@@ -49,7 +49,6 @@ import {
   postButtonWords,
   postingBlockedReason,
   postsWord,
-  waitingCommentText,
 } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
@@ -526,9 +525,8 @@ export function RedditModule({
 
   async function unblockSubreddit(subreddit: string) {
     try {
-      const answer = await unblockRedditSubreddit(subreddit)
+      await unblockRedditSubreddit(subreddit)
       await afterBlockChange()
-      toast.success(`r/${answer.subreddit} unblocked. ${postsWord(answer.restored)} back.`)
     } catch (error) {
       showErrorToast(getBlockedErrorMessage(error))
     }
@@ -724,9 +722,8 @@ export function RedditModule({
       }}
       onPost={async (input) => {
         try {
-          const { runAfter, undoUntil } = await sendComment({ ...input, accountId: account?.id ?? null })
+          const { undoUntil } = await sendComment({ ...input, accountId: account?.id ?? null })
           await afterQueueing()
-          if (runAfter) toast.success(waitingCommentText(runAfter, handle))
           // The queue does not count a job that is not due yet, so nothing
           // would ask again once the ten seconds are up. This asks once
           // then, and the asking carries on while the comment is sent.
@@ -744,7 +741,6 @@ export function RedditModule({
       onUndo={async (findId) => {
         try {
           await cancelComment(findId)
-          toast.success("Taken back. Nothing was sent.")
           await afterQueueing()
           return true
         } catch (error) {
@@ -756,7 +752,6 @@ export function RedditModule({
       onCancelWaiting={async (findId: string) => {
         try {
           await cancelComment(findId)
-          toast.success("Cancelled. Nothing was sent.")
         } catch (error) {
           showErrorToast(getPostErrorMessage(error))
         }

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ArrowLeftIcon, BookOpenIcon, ExternalLinkIcon, Loader2Icon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -67,7 +66,6 @@ export function MediumPublicationsList({
       setSlug("")
       await onChanged()
       if (added.checkRefused) showErrorToast(`Added, but not checked yet. ${added.checkRefused}`)
-      else toast.success("Added. Each Medium account of the project asks Medium whether it writes there.")
     } catch (failure) {
       showErrorToast(getMediumErrorMessage(failure))
     } finally {
@@ -203,7 +201,6 @@ export function MediumPublicationPanel({
                 disabled={busy !== null || publication.checking}
                 onClick={() => void run("check", async () => {
                   await changeMediumPublication({ change: "check", publicationId: publication.id })
-                  toast.success("Checking. Each account's own browser asks Medium.")
                 })}
               >
                 {busy === "check" || publication.checking ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
@@ -247,11 +244,9 @@ export function MediumPublicationPanel({
                   disabled={busy !== null}
                   onClick={() => void run("rules", async () => {
                     if (rules === publication.rules) {
-                      toast.success("Nothing changed, so there was nothing to save.")
                       return
                     }
                     await changeMediumPublication({ change: "rules", publicationId: publication.id, rules })
-                    toast.success("Saved. The AI is given these before it writes for this publication.")
                   })}
                 >
                   {busy === "rules" ? <Loader2Icon className="animate-spin" /> : null}

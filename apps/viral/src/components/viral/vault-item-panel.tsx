@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ArchiveIcon, CopyPlusIcon, ExternalLinkIcon, LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -80,7 +79,6 @@ export function VaultItemPanel({
         return
       }
       setDeleting(false)
-      toast.success("The idea is out of the vault, with its kept copy.")
       await onDeleted(item)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
@@ -92,7 +90,6 @@ export function VaultItemPanel({
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(item.sourceUrl)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("The link could not be copied.")
     }

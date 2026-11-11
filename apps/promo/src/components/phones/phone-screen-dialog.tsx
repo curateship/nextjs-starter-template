@@ -9,7 +9,6 @@ import {
   SendIcon,
   SquareStackIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelCard } from "@/components/shared/panel-card"
 import { Hint } from "@/components/social/hint"
@@ -232,7 +231,6 @@ export function PhoneScreen({
   async function copy(code: string) {
     try {
       await navigator.clipboard.writeText(code)
-      toast.success("Code copied.")
     } catch {
       showErrorToast("This browser would not copy. Select the code and copy it by hand.")
     }

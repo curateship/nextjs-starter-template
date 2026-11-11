@@ -248,7 +248,6 @@ export function MediaUploadsSection({
                   verb: "brought back",
                 })
                 if (restored.skipped.length) showErrorToast(back)
-                else toast.success(back)
               })
               .catch((restoreError: unknown) =>
                 showErrorToast(getPomodoroUploadErrorMessage(restoreError))

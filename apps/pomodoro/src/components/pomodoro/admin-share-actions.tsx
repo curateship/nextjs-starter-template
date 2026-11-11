@@ -11,7 +11,6 @@ import {
   StarOffIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -104,8 +103,7 @@ export function useShareActions({ onDone }: { onDone: () => Promise<void> }) {
         verb: "approved",
         keptReason: "not waiting for a check",
       })
-      if (done.length) toast.success(line)
-      else showErrorToast(line)
+      if (!done.length) showErrorToast(line)
       await onDone()
     } catch (cause) {
       showErrorToast(getMemberFilesErrorMessage(cause))
@@ -177,11 +175,6 @@ export function ShareRowMenu({
     setWorking(true)
     try {
       await featurePomodoroUpload(on ? row.mediaId : null)
-      toast.success(
-        on
-          ? `${row.name} is on the front page.`
-          : "Nothing is featured on the front page now."
-      )
       await actions.onDone()
     } catch (cause) {
       showErrorToast(getMemberFilesErrorMessage(cause))
@@ -194,7 +187,6 @@ export function ShareRowMenu({
     setWorking(true)
     try {
       const { id, kind } = await copyPomodoroUploadToCatalogue(row.mediaId)
-      toast.success(`${row.name} is a Draft in the catalogue.`)
       await navigate({
         to: kind === "sound" ? "/admin/pomodoro-sounds" : "/admin/pomodoro-themes",
         search: { open: id },
@@ -304,8 +296,7 @@ export function UnshareDialog({ actions }: { actions: ShareActions }) {
         verb: "taken off sharing",
         keptReason: "not shared",
       })
-      if (done.length) toast.success(line)
-      else showErrorToast(line)
+      if (!done.length) showErrorToast(line)
       close()
       await actions.onDone()
     } catch (cause) {

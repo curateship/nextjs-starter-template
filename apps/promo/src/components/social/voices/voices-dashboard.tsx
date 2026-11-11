@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { MessageSquareQuoteIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { VoiceDialog } from "@/components/social/voices/voice-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -20,7 +19,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { getVoiceErrorMessage, removeVoices, type VoiceView } from "@/lib/api/social/voices"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -116,16 +114,7 @@ export function VoicesDashboard({ initial, openId }: { initial: VoiceView[]; ope
   async function remove(targets: VoiceView[]) {
     setDeleting(true)
     try {
-      const { deleted } = await removeVoices(targets.map((voice) => voice.id))
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: targets.length - deleted.length,
-          one: "voice",
-          many: "voices",
-          verb: "deleted",
-        })
-      )
+      await removeVoices(targets.map((voice) => voice.id))
       selection.clear()
       setDeleteTargets([])
       await refresh()

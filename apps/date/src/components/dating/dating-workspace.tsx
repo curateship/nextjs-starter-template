@@ -1,6 +1,5 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { ThreePanels } from "@/components/shared/three-panels"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -194,12 +193,11 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     if (matchValue.messages.length) void markDatingMatchSeen(matchValue.id).catch(() => {})
   }, [matchValue])
 
-  async function act(key: string, work: () => Promise<unknown>, success?: string): Promise<boolean> {
+  async function act(key: string, work: () => Promise<unknown>): Promise<boolean> {
     setBusy(key)
     dismissErrorToast()
     try {
       await work()
-      if (success) toast.success(success)
       await reload().catch(() => {})
       return true
     } catch (error) {
@@ -257,7 +255,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     googleSaid.current = search.google
     const back = GOOGLE_RETURN_WORDS[search.google]
     // A tick later: on a fresh page load the toaster starts listening after this effect.
-    setTimeout(() => (back.ok ? toast.success(back.words) : showErrorToast(back.words)))
+    if (!back.ok) setTimeout(() => showErrorToast(back.words))
     void navigate({ search: (previous: DatingSearch) => ({ ...previous, google: undefined }), replace: true })
   }, [search.google, navigate])
 
@@ -276,7 +274,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
 
   const swipe = (decision: "like" | "pass") => {
     if (!profileValue) return
-    void act("swipe", () => swipeCard(profileValue.id, decision), decision === "like" ? "Like sent to the phone." : "Pass sent to the phone.")
+    void act("swipe", () => swipeCard(profileValue.id, decision))
   }
   const canSwipe = Boolean(profileValue && profileValue.swipe === "none" && !profileValue.pendingSwipe && profileValue.source !== "weekly" && busy !== "swipe")
 
@@ -310,20 +308,20 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
   const appName = DATING_APP_WORDS[data.profile.app].name
   const actions: LeadActions = {
     swipe,
-    readCardAgain: () => void act("read-again", () => readCardAgain(profileValue?.id ?? ""), "The AI read the card again."),
-    refresh: () => void act("refresh", () => refreshConversation(matchValue?.id ?? ""), "The phone will read this chat again."),
-    unmatch: () => act("unmatch", () => unmatchOnPhone(matchValue?.id ?? ""), `Unmatching ${matchValue?.theirName ?? ""} on the phone.`),
+    readCardAgain: () => void act("read-again", () => readCardAgain(profileValue?.id ?? "")),
+    refresh: () => void act("refresh", () => refreshConversation(matchValue?.id ?? "")),
+    unmatch: () => act("unmatch", () => unmatchOnPhone(matchValue?.id ?? "")),
     movedToText: (moved) =>
-      void act("moved", () => markMovedToText(matchValue?.id ?? "", moved), moved ? "Moved to text. The AI writes nothing more here." : `Back on ${appName}. The AI drafts here again.`),
-    notOver: () => void act("not-over", () => markNotOver(matchValue?.id ?? ""), "Not over. The AI drafts here again on its next pass."),
-    send: (text) => act("send", () => sendFromPhone(matchValue?.id ?? "", text), "Sent to the phone. It types and sends it now."),
-    showThree: () => void act("three", () => showThreeDrafts(matchValue?.id ?? ""), "Three drafts. Step through them with Next, then Use this."),
-    dismissDraft: () => void act("dismiss", () => dismissAiDraft(matchValue?.id ?? ""), "Draft dismissed. The AI writes another once they send something new."),
+      void act("moved", () => markMovedToText(matchValue?.id ?? "", moved)),
+    notOver: () => void act("not-over", () => markNotOver(matchValue?.id ?? "")),
+    send: (text) => act("send", () => sendFromPhone(matchValue?.id ?? "", text)),
+    showThree: () => void act("three", () => showThreeDrafts(matchValue?.id ?? "")),
+    dismissDraft: () => void act("dismiss", () => dismissAiDraft(matchValue?.id ?? "")),
     tidy: async (text) => (await fetchIt("tidy", () => tidyMyReply(matchValue?.id ?? "", text)))?.text ?? null,
     saveFact: (factId, text) => act("fact", () => saveMatchFact(matchValue?.id ?? "", factId, text)),
     deleteFact: (factId) => act("fact", () => deleteMatchFact(matchValue?.id ?? "", factId)),
     setAiDrafts: (on) =>
-      void act("ai-drafts", () => setAiDraftsHere(matchValue?.id ?? "", on), on ? "The AI drafts here again." : "You have this chat. The AI writes nothing here."),
+      void act("ai-drafts", () => setAiDraftsHere(matchValue?.id ?? "", on)),
     saveNote: async (note) => {
       try {
         await saveMatchNote(matchValue?.id ?? "", note)
@@ -336,10 +334,10 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
     planDate: () =>
       matchValue &&
       setPlanning({ matchId: matchValue.id, theirName: matchValue.theirName, dateAt: matchValue.dateAt, datePlace: matchValue.datePlace, sample: matchValue.sample }),
-    answer: (answer) => act("answer", () => answerAiQuestion(matchValue?.id ?? "", answer), "Added to About me. The AI drafted again."),
-    letDraft: () => void act("let-draft", () => letAiDraftAgain(matchValue?.id ?? ""), "The AI drafts here again on its next pass."),
+    answer: (answer) => act("answer", () => answerAiQuestion(matchValue?.id ?? "", answer)),
+    letDraft: () => void act("let-draft", () => letAiDraftAgain(matchValue?.id ?? "")),
     openPicture: setPicture,
-    report: () => act("report", () => reportScam(matchValue?.id ?? ""), `Reporting ${matchValue?.theirName ?? ""} and unmatching on the phone.`),
+    report: () => act("report", () => reportScam(matchValue?.id ?? "")),
   }
 
   return (
@@ -358,16 +356,16 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             group={view.group}
             busy={busy}
             onGroup={(group) => setView({ group: group === view.group ? undefined : group })}
-            onStartOrStop={(run) => void act("loop", run ? startSwiping : stopSwiping, run ? "Swiping started." : "Swiping stopped.")}
-            onReadCard={() => void act("read-card", readCardInFront, "The phone will read the profile on screen.")}
-            onReadChats={() => void act("read-matches", readMatchesNow, "The phone will read the chats.")}
+            onStartOrStop={(run) => void act("loop", run ? startSwiping : stopSwiping)}
+            onReadCard={() => void act("read-card", readCardInFront)}
+            onReadChats={() => void act("read-matches", readMatchesNow)}
             openId={search.open}
             onOpen={(id) => openLead(id)}
             onOpenSettings={() => setSettingsOpen(true)}
             onPickProfile={switchProfile}
             onNewProfile={() => setNewOpen(true)}
-            onResumeProfile={() => void act("pause", () => setProfilePaused(false), "Resumed. The profile runs again; Start or its schedule starts swiping.")}
-            onSecondLookLike={(id, name) => void act(`second-look:${id}`, () => likeFromSecondLook(id), `The phone opens Second Look and likes ${name}.`)}
+            onResumeProfile={() => void act("pause", () => setProfilePaused(false))}
+            onSecondLookLike={(id) => void act(`second-look:${id}`, () => likeFromSecondLook(id))}
             onChangeHours={() => setSettingsOpen(true)}
           />
         ),
@@ -384,12 +382,11 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
             busy={busy}
             onView={setView}
             onOpen={(id) => openLead(id)}
-            onResume={() => void act("resume", () => resume(), `Resumed. The phone looks at ${appName} again now.`)}
+            onResume={() => void act("resume", () => resume())}
             onOpenPicture={setPicture}
             onMovedToText={async (ids) => {
               const result = await fetchIt("mass", () => markManyMovedToText(ids))
               if (!result) return false
-              toast.success(result.words)
               await reload().catch(() => {})
               return true
             }}
@@ -406,12 +403,12 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
           <MyProfilePanel
             own={data.own}
             busy={busy}
-            onReadAgain={() => void act("read-own", readMyProfile, "The phone will read your profile.")}
-            onReviewAgain={() => void act("review", reviewMyProfile, "The AI reviewed your profile again.")}
-            onApply={(what) => void act(`apply:${changeKey(what)}`, () => applyProfileSuggestion(what), "The phone will make this change, then read your profile back to check it.")}
-            onUndo={() => void act("undo", undoProfileApply, "The phone will put back what was there before.")}
-            onStartTest={() => void act("photo-test", startFirstPhotoTest, "The test has started. The phone puts photo 1 first to begin week 1.")}
-            onStopTest={() => act("photo-test", stopFirstPhotoTest, "The test is stopped. The phone puts your old order back.")}
+            onReadAgain={() => void act("read-own", readMyProfile)}
+            onReviewAgain={() => void act("review", reviewMyProfile)}
+            onApply={(what) => void act(`apply:${changeKey(what)}`, () => applyProfileSuggestion(what))}
+            onUndo={() => void act("undo", undoProfileApply)}
+            onStartTest={() => void act("photo-test", startFirstPhotoTest)}
+            onStopTest={() => act("photo-test", stopFirstPhotoTest)}
           />
         ) : (
           <LeadPanel
@@ -439,8 +436,7 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
         onPause={(paused) =>
           void act(
             "pause",
-            () => setProfilePaused(paused),
-            paused ? "Paused. No swiping, replies or AI on this profile until Resume." : "Resumed. The profile runs again; Start or its schedule starts swiping."
+            () => setProfilePaused(paused)
           )
         }
         onDelete={() =>
@@ -472,13 +468,11 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
         onSave={async (plan) => {
           if (!planning) return false
           if (planning.sample) {
-            toast.success("This is a sample, so nothing was saved.")
             return true
           }
           const saved = await fetchIt("plan", () => saveDatePlan(planning.matchId, plan.dateAt, plan.place))
           if (!saved) return false
           if (saved.googleWords.startsWith("Saved in Date, but")) showErrorToast(saved.googleWords)
-          else toast.success([plan.dateAt ? "Date saved." : "Time cleared.", saved.googleWords].filter(Boolean).join(" "))
           await reload().catch(() => {})
           return true
         }}
@@ -495,7 +489,6 @@ export function DatingWorkspace({ initial, views, search }: { initial: DatingDas
           void fetchIt("clear-dead", () => clearDeadMatchesNow(ids)).then(async (result) => {
             if (!result) return
             setClearing(null)
-            toast.success(result.words)
             await reload().catch(() => {})
           })
         }}

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, MailIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -32,7 +31,6 @@ import {
   skipInboxItems,
   type InboxRow,
 } from "@/lib/api/social/phone-apps"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { handleWords, isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
@@ -140,17 +138,7 @@ export function MessagesDashboard({
   async function skip(ids: string[]) {
     setBusy(true)
     try {
-      const answer = await skipInboxItems(ids)
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "conversation",
-          many: "conversations",
-          verb: "skipped and deleted",
-          keptReason: "an answer is on its way",
-        })
-      )
+      await skipInboxItems(ids)
       selection.clear()
       await refresh()
     } catch (failure) {

@@ -10,7 +10,6 @@ import {
   SmartphoneIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PhoneActionsPanel } from "@/components/phones/phone-actions-panel"
 import { PhoneHealthPanel } from "@/components/phones/phone-health-panel"
@@ -98,7 +97,6 @@ function OpenPhone({
     setBusy(true)
     try {
       await changePhones({ action: "hold", ids: [phone.id], held: !phone.held })
-      toast.success(phone.held ? `${phone.name} is back in use.` : `${phone.name} is held. Its jobs wait until you release it.`)
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneErrorMessage(error))
@@ -110,8 +108,7 @@ function OpenPhone({
   async function remove() {
     setBusy(true)
     try {
-      const { done } = await changePhones({ action: "delete", ids: [phone.id] })
-      if (done.length) toast.success(`${phone.name} is deleted.`)
+      await changePhones({ action: "delete", ids: [phone.id] })
       setDeleting(false)
       onDeleted(phone.id)
       await onChanged()
@@ -228,7 +225,6 @@ function PhoneMenu({
     const link = `${window.location.origin}/admin/phones?open=${encodeURIComponent(phone.id)}`
     try {
       await navigator.clipboard.writeText(link)
-      toast.success("Link copied. It opens this phone on its rack.")
     } catch {
       showErrorToast(`This browser would not copy. The link is ${link}`)
     }
@@ -238,7 +234,6 @@ function PhoneMenu({
     setBusy(true)
     try {
       await saveTestPhone(phone.id, phone.kind)
-      toast.success(`${phone.name} is the ${PHONE_KIND_WORDS[phone.kind]} self-test phone.`)
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneErrorMessage(error))

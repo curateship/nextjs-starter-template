@@ -183,8 +183,8 @@ this browser.
   gather in the "N selected" button. Its first row is Mark done (Tyler, 4 Nov
   2026: "Mark done / not done"), which reads Mark not done when every ticked
   card is already done, then Move to day and Delete. Mark done is one request
-  with no Undo, the same as the single tick, and the toast says how many
-  changed and how many were no longer on the trip.
+  with no Undo, the same as the single tick. The cards change on the board and
+  nothing pops up.
 - **Today.** While a dated trip is on, the board opens on today's column and
   marks it Today. Today is worked out in the trip's time zone, from Trip
   settings, or the reader's own when none is set.

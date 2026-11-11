@@ -807,8 +807,7 @@ function MediaPanel() {
         open={creatingCollection}
         onOpenChange={setCreatingCollection}
         collection={null}
-        onSaved={(created) => {
-          toast.success(`Created “${created.name}”.`)
+        onSaved={() => {
           reloadCollections()
         }}
       />

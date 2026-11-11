@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -89,7 +88,6 @@ export function SwapDialog({
         exerciseId: exercise.id,
         changePlan,
       })
-      toast.success(`Swapped ${target.name} for ${exercise.name}.`)
       await onSwapped()
       onClose()
     } catch (error) {
@@ -185,7 +183,6 @@ export function HurtsDialog({
     setBusy(true)
     try {
       await changeExercise({ action: "avoid", exerciseId: target.exerciseId, note })
-      toast.success(`${target.name} is on your pain list. Swaps won't offer it.`)
       onSaved(target)
     } catch (error) {
       reportFitnessError(error)

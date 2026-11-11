@@ -1,6 +1,5 @@
 import * as React from "react"
 import { PauseIcon, PlayIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -59,7 +58,6 @@ export function OwnVoices({
       setVoices((current) =>
         (current ?? []).filter((voice) => voice.id !== deleting.id)
       )
-      toast.success(`"${deleting.name}" is deleted, here and at ElevenLabs.`)
       setDeleting(null)
     } catch (error) {
       showErrorToast(getVoiceCloneErrorMessage(error))

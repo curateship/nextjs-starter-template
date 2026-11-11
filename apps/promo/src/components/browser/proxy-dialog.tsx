@@ -1,7 +1,6 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
 import { Button } from "@/components/ui/button"
@@ -119,7 +118,6 @@ export function ProxyDialog({
         monthlyCost: cost,
         renewsOn: form.renewsOn || null,
       })
-      toast.success(proxy ? "Proxy saved." : "Proxy added.")
       await onSaved(id)
     } catch (error) {
       showErrorToast(getProxyErrorMessage(error))

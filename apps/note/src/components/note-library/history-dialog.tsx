@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { NoteEditor } from "@/components/note-library/note-editor"
 import { Button } from "@/components/ui/button"
@@ -112,7 +111,6 @@ export function HistoryDialog({
     dismissErrorToast()
     try {
       const detail = await restoreNoteVersion(noteId, picked.id)
-      toast.success(`Restored the copy from ${formatDateTime(picked.createdAt)}.`)
       onRestored(detail)
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))

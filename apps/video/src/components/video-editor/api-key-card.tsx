@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -152,7 +151,6 @@ export function ApiKeyCard({
       setStatus(await removeKey())
       setVerdict("")
       setRemoving(false)
-      toast.success(`${company} key removed.`)
     } catch (error) {
       showErrorToast(errorMessage(error))
     } finally {

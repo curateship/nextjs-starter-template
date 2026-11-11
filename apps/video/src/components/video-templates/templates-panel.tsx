@@ -1,5 +1,4 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import {
   GalleryHorizontalIcon,
   LayoutTemplateIcon,
@@ -9,7 +8,6 @@ import {
   SettingsIcon,
   SparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { InspectorCard } from "@/components/shared/inspector-card"
@@ -341,7 +339,6 @@ export function VideoTemplateFields({
 /** The same script as a carousel (part 37), in a carousel project picked here. */
 function CarouselFromScript({ script, writer }: { script: string; writer: WriterId | null }) {
   const { videoId } = useEditorRuntime()
-  const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [projects, setProjects] = React.useState<{ id: string; name: string }[] | null>(null)
   const [into, setInto] = React.useState("")
@@ -372,7 +369,7 @@ function CarouselFromScript({ script, writer }: { script: string; writer: Writer
     }
     setBusy(true)
     try {
-      const made = await carouselFromScript({
+      await carouselFromScript({
         videoId,
         carouselProjectId: into,
         script: spokenScript(script),
@@ -380,17 +377,6 @@ function CarouselFromScript({ script, writer }: { script: string; writer: Writer
         format,
       })
       setOpen(false)
-      toast.success(`"${made.name}" is in the carousel project.`, {
-        action: {
-          label: "Open",
-          onClick: () =>
-            void navigate({
-              to: "/admin/video-carousels/$projectId",
-              params: { projectId: made.carousel_project_id },
-              search: { carousel: made.id },
-            }),
-        },
-      })
     } catch (error) {
       showErrorToast(getTemplateErrorMessage(error))
     } finally {
@@ -655,7 +641,6 @@ function NewTemplateForm({
               ? await createTemplate({ start, name, videoId })
               : await createTemplate({ start, name, savedVideoId })
       onMade(made)
-      toast.success(`${made.name} is made. Press its cog to change anything.`)
     } catch (error) {
       showErrorToast(getTemplateErrorMessage(error))
       setBusy(false)

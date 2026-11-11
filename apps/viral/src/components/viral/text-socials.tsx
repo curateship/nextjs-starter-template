@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { CircleAlertIcon, CopyIcon, ExternalLinkIcon, Loader2Icon, MessagesSquareIcon, PlusIcon, RefreshCwIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
@@ -94,8 +93,6 @@ export function SocialWatchesCard({
       onChanged()
       const label = watchLabel(answer.watch.kind, answer.watch.value)
       if (answer.readError) showErrorToast(`${label} is on ${name} here, but Promo couldn't read it: ${answer.readError}`)
-      else if (answer.watch.status === "never") toast.success(`${label} is on ${name} here. It is read once Promo is connected.`)
-      else toast.success(`${label} is on ${name} here. Promo is reading it; its posts arrive in the middle.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -108,7 +105,6 @@ export function SocialWatchesCard({
     try {
       await readSocialWatchFn(watch.id)
       onChanged()
-      toast.success(`Promo is reading ${watchLabel(watch.kind, watch.value)} again.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
       onChanged()
@@ -122,7 +118,6 @@ export function SocialWatchesCard({
     try {
       await removeSocialWatchFn(watch.id)
       onChanged()
-      toast.success(`${watchLabel(watch.kind, watch.value)} is off ${name} here.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -475,10 +470,9 @@ export function PostThreadPanel({
   const current = shown
   const name = SOCIAL_NAMES[current.network]
 
-  async function copy(text: string, said: string) {
+  async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success(said)
     } catch {
       showErrorToast("It could not be copied. Select it and copy it instead.")
     }
@@ -516,7 +510,7 @@ export function PostThreadPanel({
               icon={<CopyIcon className="size-4" />}
               onClick={() => {
                 setMenuOpen(false)
-                void copy(current.url, "Link copied.")
+                void copy(current.url)
               }}
             >
               Copy link
@@ -525,7 +519,7 @@ export function PostThreadPanel({
               icon={<CopyIcon className="size-4" />}
               onClick={() => {
                 setMenuOpen(false)
-                void copy([current.title, current.text].filter(Boolean).join("\n\n"), "Post text copied.")
+                void copy([current.title, current.text].filter(Boolean).join("\n\n"))
               }}
             >
               Copy the text

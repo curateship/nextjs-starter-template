@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CopyIcon, Link2Icon, Loader2Icon, RefreshCwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,7 +35,7 @@ export function JoinLinkCard({ state, bare = false }: { state: JoinLinkState; ba
   useEscapeCancels(question, () => setAsking(null))
 
   async function turnOff() {
-    if (!(await run(() => stopJoinLink(teamId), "The join link is off."))) return
+    if (!(await run(() => stopJoinLink(teamId)))) return
     setAsking(null)
     setLink(null)
     await router.invalidate()
@@ -46,7 +45,7 @@ export function JoinLinkCard({ state, bare = false }: { state: JoinLinkState; ba
     let made = ""
     const ok = await run(async () => {
       made = (await newJoinLink(teamId)).link
-    }, state.on ? "A new link is ready. The old one no longer works." : "The join link is on.")
+    })
     if (!ok) return
     setAsking(null)
     setLink(made)
@@ -57,7 +56,6 @@ export function JoinLinkCard({ state, bare = false }: { state: JoinLinkState; ba
     if (!link) return
     try {
       await navigator.clipboard.writeText(link)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("This browser wouldn't copy it. Select the link and copy it by hand.")
     }

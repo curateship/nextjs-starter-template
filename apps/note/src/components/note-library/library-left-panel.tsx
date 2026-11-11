@@ -16,7 +16,6 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import type { DashboardActions } from "@/components/note-library/library-dashboard"
 import { LibraryDot } from "@/components/note-library/library-dot"
@@ -153,12 +152,11 @@ export function LibraryLeftPanel({
   const showing = (folder: string) => !search.author && scope === folder
   const show = (folder: string) => actions.setSearch({ folder: folder === "all" ? undefined : folder, author: undefined })
 
-  async function act(work: () => Promise<unknown>, success?: string) {
+  async function act(work: () => Promise<unknown>) {
     setBusy(true)
     dismissErrorToast()
     try {
       await work()
-      if (success) toast.success(success)
       return true
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))
@@ -182,15 +180,14 @@ export function LibraryLeftPanel({
     void act(async () => {
       await pinLibraryFolder(folder.id, on)
       await actions.refreshPage()
-    }, on ? `Pinned ${quoteOneLine(folder.name)}.` : `Unpinned ${quoteOneLine(folder.name)}.`)
+    })
   }
 
   function pinRow(row: PinnableRow, on: boolean) {
-    const label = PINNABLE_ROW_LABEL[row]
     void act(async () => {
       await pinLibraryScope(library.id, row, on)
       await actions.refreshPage()
-    }, on ? `Pinned ${quoteOneLine(label)}.` : `Unpinned ${quoteOneLine(label)}.`)
+    })
   }
 
   /** Pinned folders and LIBRARY rows together, the first pinned at the top. */
@@ -251,9 +248,6 @@ export function LibraryLeftPanel({
       }
     })
     if (made) {
-      toast.success(`Imported ${made} ${plural(made, "note")}.`, {
-        description: problems.length ? problems.slice(0, 5).join(" · ") : undefined,
-      })
       await actions.refreshAll()
     }
   }
@@ -286,7 +280,7 @@ export function LibraryLeftPanel({
           <div className="flex items-center gap-1">
             <NewFolderButton
               onMake={async (name) => {
-                const ok = await act(() => makeFolder(library.id, name), `Made the folder ${quoteOneLine(name.trim())}.`)
+                const ok = await act(() => makeFolder(library.id, name))
                 if (ok) await actions.refreshPage()
                 return ok
               }}
@@ -561,14 +555,11 @@ export function LibraryLeftPanel({
           const ok = await act(async () => {
             if (target.kind === "folder") {
               await renameLibraryFolder(target.folder.id, name)
-              toast.success("Renamed.")
               return
             }
-            const { notes } =
-              target.kind === "tag"
-                ? await renameLibraryTag(library.id, target.name, name)
-                : await renameLibraryAuthor(library.id, target.name, name)
-            toast.success(`Renamed on ${notes.toLocaleString()} ${plural(notes, "note")}.`)
+            await (target.kind === "tag"
+              ? renameLibraryTag(library.id, target.name, name)
+              : renameLibraryAuthor(library.id, target.name, name))
             // The list was showing the old name; it follows the new one.
             if (target.kind === "tag" && search.tag === target.name) actions.setSearch({ tag: name.trim().toLowerCase() })
             if (target.kind === "author" && search.author && authorKey(search.author) === authorKey(target.name)) {
@@ -599,11 +590,10 @@ export function LibraryLeftPanel({
           if (!deletingTag) return
           const tag = deletingTag
           void act(async () => {
-            const { notes } = await deleteLibraryTag(library.id, tag.tag)
+            await deleteLibraryTag(library.id, tag.tag)
             setDeletingTag(null)
             if (search.tag === tag.tag) actions.setSearch({ tag: undefined })
             await actions.refreshAll()
-            toast.success(`Took ${quoteOneLine(tag.tag)} off ${notes.toLocaleString()} ${plural(notes, "note")}.`)
           })
         }}
       />
@@ -624,15 +614,10 @@ export function LibraryLeftPanel({
           if (!deleting) return
           const folder = deleting
           void act(async () => {
-            const { notes } = await deleteLibraryFolder(folder.id)
+            await deleteLibraryFolder(folder.id)
             setDeleting(null)
             if (scope === folder.id) show("all")
             await actions.refreshAll()
-            toast.success(
-              notes
-                ? `Deleted ${quoteOneLine(folder.name)}. Its ${notes} ${plural(notes, "note")} went to Trash.`
-                : `Deleted ${quoteOneLine(folder.name)}.`
-            )
           })
         }}
       />

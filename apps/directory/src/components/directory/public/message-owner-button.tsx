@@ -1,6 +1,5 @@
 import * as React from "react"
 import { MailIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
@@ -141,7 +140,6 @@ function MessageOwnerDialog({
         message,
         humanCheckToken: humanCheckToken ?? undefined,
       })
-      toast.success("Your message was sent")
       setName("")
       setEmail("")
       setMessage("")

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import { CalendarSyncIcon, Loader2Icon, StarIcon, StarOffIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import {
@@ -152,8 +151,7 @@ export function AdminRoomRepeatsDashboard({
         many: "weekly rooms",
         verb: featured ? "featured" : "unfeatured",
       })
-      if (changed.length) toast.success(line)
-      else showErrorToast(line)
+      if (!changed.length) showErrorToast(line)
       selection.clear()
       await list.refresh()
     } catch (error) {

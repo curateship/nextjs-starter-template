@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -67,8 +66,7 @@ export function useAdminDelete({
         verb,
         keptReason,
       })
-      if (deleted.length) toast.success(line)
-      else showErrorToast(line)
+      if (!deleted.length) showErrorToast(line)
       // Only the rows that went lose their tick. A row deleted on its own
       // leaves the rest of a selection as it was.
       const gone = new Set(deleted)

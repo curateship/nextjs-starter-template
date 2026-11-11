@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
@@ -69,7 +68,6 @@ export function NewNoteDropdown({
       })
       setOpen(false)
       setTitle("")
-      toast.success("Note made.")
       await onMade(made)
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SourceFields, type SourceValue } from "@/components/social/accounts/account-source"
 import { RunsOnSelect } from "@/components/social/accounts/runs-on-select"
@@ -101,17 +100,6 @@ export function AddAccountDialog({
         platform,
         source: source.source ? { kind: source.source, seller: source.seller, priceCents: cents ?? null } : null,
       })
-      if (picked.phoneId) {
-        const name = platformPhones.find((phone) => phone.id === picked.phoneId)?.name ?? "that phone"
-        toast.success(`Account added. Sign in to the ${NETWORK_NAMES[platform]} app on ${name}, then press Check now.`)
-      } else {
-        const name = platformProfiles.find((profile) => profile.id === picked.profileId)?.name ?? "that profile"
-        toast.success(
-          platform === "medium"
-            ? `Account added. Medium signs in with an emailed link: paste it with the key button on its row, and it opens in ${name}'s browser.`
-            : `Account added. Sign in to ${NETWORK_NAMES[platform]} in ${name}'s browser on the Browser profiles dashboard.`
-        )
-      }
       reset()
       await onAdded()
     } catch (error) {

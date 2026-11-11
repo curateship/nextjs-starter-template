@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -298,12 +297,7 @@ export function RoomsPage() {
     dismissErrorToast()
     setCancellingKey(room.slug)
     try {
-      const { cancelledInvites } = await cancelBookedRoom(room.slug)
-      toast.success(
-        cancelledInvites
-          ? `${room.name} is cancelled. ${cancelledInvites} ${cancelledInvites === 1 ? "invitation that had not gone out was" : "invitations that had not gone out were"} stopped.`
-          : `${room.name} is cancelled.`
-      )
+      await cancelBookedRoom(room.slug)
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ""
       showErrorToast(
@@ -333,14 +327,8 @@ export function RoomsPage() {
     dismissErrorToast()
     setCancellingKey(target.repeatId)
     try {
-      const { skippedStartsAt, cancelledInvites } = await skipNextRepeat(
+      await skipNextRepeat(
         target.repeatId
-      )
-      const when = formatRoomStart(new Date(skippedStartsAt), readerTimezone)
-      toast.success(
-        cancelledInvites
-          ? `${target.name} on ${when} is cancelled, and ${cancelledInvites} ${cancelledInvites === 1 ? "invitation that had not gone out was" : "invitations that had not gone out were"} stopped. The series carries on.`
-          : `${target.name} on ${when} is cancelled. The series carries on.`
       )
     } catch (cause) {
       showErrorToast(seriesRefusal(cause, "That week could not be cancelled."))
@@ -354,12 +342,7 @@ export function RoomsPage() {
     dismissErrorToast()
     setCancellingKey(target.repeatId)
     try {
-      const { cancelledRooms } = await cancelRepeat(target.repeatId)
-      toast.success(
-        cancelledRooms
-          ? `The ${target.name} series is cancelled, along with the room already booked for it.`
-          : `The ${target.name} series is cancelled. No more rooms will be booked.`
-      )
+      await cancelRepeat(target.repeatId)
     } catch (cause) {
       showErrorToast(seriesRefusal(cause, "The series could not be cancelled."))
     } finally {
@@ -509,10 +492,9 @@ export function RoomsPage() {
           refreshRooms()
           goToRoom(snapshot)
         }}
-        onBooked={(message) => {
+        onBooked={() => {
           setShowHostForm(false)
           setHostForGroup(null)
-          toast.success(message)
           refreshRooms()
         }}
       />

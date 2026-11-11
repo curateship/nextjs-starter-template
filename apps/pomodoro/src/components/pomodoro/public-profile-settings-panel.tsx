@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi, Link, useRouter } from "@tanstack/react-router"
 import { CheckIcon, CopyIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import { SocialMark } from "@/components/pomodoro/social-marks"
@@ -281,7 +280,6 @@ export default function PublicProfileSettingsPanel() {
       // The header's account menu offers "Your profile" only while this page
       // opens, so a handle or the on switch changing has to reach it.
       await router.invalidate()
-      toast.success("Public page saved.")
     } catch (cause) {
       showErrorToast(saveMessage(cause))
     } finally {

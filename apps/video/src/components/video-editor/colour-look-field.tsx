@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FieldLabel } from "@/components/broadcasts/inspector-fields"
 import { Button } from "@/components/ui/button"
@@ -136,7 +135,6 @@ function SaveLook({
           a.name.localeCompare(b.name)
         )
       )
-      toast.success(`Saved "${kept.name}".`)
       setName("")
       setOpen(false)
     } catch (error) {

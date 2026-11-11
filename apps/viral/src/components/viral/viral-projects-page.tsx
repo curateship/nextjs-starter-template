@@ -12,7 +12,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -46,7 +45,6 @@ import {
   type ViralDeleteSummary,
   type ViralFolderSummary,
 } from "@/lib/api/viral/viral-projects"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -214,29 +212,19 @@ export function ViralProjectsPage({
 
   async function handleArchive(targets: ViralProjectItem[], archived: boolean) {
     await run(async () => {
-      const { done_ids: done } = await archiveViralProjectsFn(
+      await archiveViralProjectsFn(
         targets.map((project) => project.id),
         archived
       )
       selection.clear()
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: targets.length - done.length,
-          one: "project",
-          many: "projects",
-          verb: archived ? "archived" : "brought back",
-        })
-      )
     })
   }
 
   async function handleDuplicate(project: ViralProjectItem) {
     await run(async () => {
-      const copy = await duplicateViralProjectFn(project.id)
+      await duplicateViralProjectFn(project.id)
       await router.invalidate()
-      toast.success(`"${copy.name}" created. It searches nothing until you press Search.`)
     })
   }
 
@@ -254,15 +242,6 @@ export function ViralProjectsPage({
       setDeleteTargets([])
       setDeleteSummary(null)
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: deleteTargets.length - deleted.length,
-          one: "project",
-          many: "projects",
-          verb: "deleted",
-        })
-      )
     })
   }
 

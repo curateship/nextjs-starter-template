@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ArchiveIcon, FlameIcon, MegaphoneIcon, PauseIcon, PlayIcon, PlusIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -163,16 +162,6 @@ function SocialsCard({
       await changeViralSocial(project.id, social, how)
       if (how === "remove" && activeSocial === social) onPickSocial(null)
       await refresh()
-      const name = SOCIAL_NAMES[social]
-      toast.success(
-        how === "add"
-          ? `${name} is on this project.`
-          : how === "remove"
-            ? `${name} is off this project.`
-            : how === "pause"
-              ? `${name} is paused here. Its daily check skips this project.`
-              : `${name} is checked daily again.`
-      )
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {

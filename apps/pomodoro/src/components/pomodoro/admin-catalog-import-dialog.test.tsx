@@ -122,7 +122,9 @@ describe("Import from Pixabay", () => {
       { line: 1, url: PHOTO },
       { line: 5, url: FILM },
     ])
-    expect(api.success).toHaveBeenCalledWith(
+    // Some lines were refused, so the part that did not go is an error.
+    expect(api.success).not.toHaveBeenCalled()
+    expect(api.error).toHaveBeenCalledWith(
       "1 background added as a draft. 3 were refused: line 2 is a music link, paste it on Sounds; line 4 is a number, not the page link; line 5 is already in the catalogue as Rain window."
     )
     expect(onImported).toHaveBeenCalled()
@@ -163,6 +165,8 @@ describe("Import from Pixabay", () => {
     await type(MUSIC)
     api.importCatalogFromPixabay.mockResolvedValue({ added: 1, refused: [] })
     await pressImport()
-    expect(api.success).toHaveBeenCalledWith("1 sound added as a draft. It needs its file from Pixabay.")
+    // Everything went in, so nothing pops up.
+    expect(api.success).not.toHaveBeenCalled()
+    expect(api.error).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
 import { ExerciseList } from "@/components/fitness/exercise-picker"
@@ -101,7 +100,6 @@ export function NewExercise({
         ...(calisthenics ? { repsMin: reps, repsMax: Math.max(reps, repsMax) } : {}),
       })
       await router.invalidate()
-      toast.success(`${exercise.name} added to ${day.name}.`)
       setOpen(false)
       setExercise(null)
       setSets(3)

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, MicIcon, SquareIcon, UploadIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -217,13 +216,8 @@ export function VoiceCloneDialog({
     }
     setCreating(true)
     try {
-      const { voice, needsVerifying } = await makeOwnVoice(name, sample.file)
+      const { voice } = await makeOwnVoice(name, sample.file)
       dismissErrorToast()
-      toast.success(
-        needsVerifying
-          ? `"${voice.name}" is made, but ElevenLabs wants to check it first. Finish that on elevenlabs.io before reading with it.`
-          : `"${voice.name}" is ready. Pick it in Read a script with AI, where it is marked (yours).`
-      )
       onCreated(voice)
       onOpenChange(false)
       reset()

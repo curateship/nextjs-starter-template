@@ -9,7 +9,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { AiClipExtras } from "@/components/video-editor/ai-clip-extras"
 import { AiClipNewActor } from "@/components/video-editor/ai-clip-new-actor"
@@ -384,11 +383,6 @@ export function AiClipPanel() {
       setFrames((current) => [...result.firstFrames, ...(current ?? [])])
       setPickedFrameId(result.firstFrames[0]?.id ?? null)
       if (result.warning) reportError(result.warning)
-      else {
-        toast.success(
-          `${result.firstFrames.length} ${plural(result.firstFrames.length, "first frame")} made. Pick one and make the shot.`
-        )
-      }
     } catch (error) {
       reportError(getFirstFrameErrorMessage(error))
     } finally {
@@ -428,11 +422,6 @@ export function AiClipPanel() {
         voiceMediaId: sentVoiceId,
       })
       setShots((current) => [shot, ...(current ?? [])])
-      toast.success(
-        makingCount + 1 < SHOTS_AT_ONCE_PER_PROJECT
-          ? "The shot is being made. It takes a few minutes. Change the direction and make another to compare them."
-          : "The shot is being made. It takes a few minutes, and you can close this panel meanwhile."
-      )
     } catch (error) {
       reportError(getGenerationErrorMessage(error))
     } finally {
@@ -465,9 +454,6 @@ export function AiClipPanel() {
         lengthSeconds,
       })
       setShots((current) => [...made, ...(current ?? [])])
-      toast.success(
-        `${made.length} shots are being made, one on each model. They show side by side below when they arrive.`
-      )
     } catch (error) {
       reportError(getGenerationErrorMessage(error))
     } finally {
@@ -632,7 +618,6 @@ export function AiClipPanel() {
                     setActors((current) => [made, ...(current ?? [])])
                     setPickedActorId(made.id)
                     refreshSpend()
-                    toast.success(`${made.name} is ready. Now make a first frame.`)
                   }}
                 />
               </AiClipExtras>

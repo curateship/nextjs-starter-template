@@ -2,7 +2,6 @@ import * as React from "react"
 import { closestCenter, DndContext, type DragEndEvent } from "@dnd-kit/core"
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CopyIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DRAG_HANDLE_CLASS, useNavSensors, useSortableRow } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
@@ -104,7 +103,6 @@ export function PlanCard({
   async function copy(kind: "text" | "markdown") {
     try {
       await navigator.clipboard.writeText(kind === "text" ? planAsText(copyable) : planAsMarkdown(copyable))
-      toast.success(kind === "text" ? "Copied the plan as text." : "Copied the plan as Markdown.")
     } catch {
       showErrorToast("The browser would not let the plan be copied. Try again.")
     }

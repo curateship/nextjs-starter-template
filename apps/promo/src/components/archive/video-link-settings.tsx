@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -49,7 +48,6 @@ function VideoLinkSettings() {
       held = next
       setView(next)
       setAsking(false)
-      toast.success("New key made. Paste it into Video's Settings → Promo.")
     } catch (error) {
       showErrorToast(getVideoKeyErrorMessage(error))
     } finally {
@@ -61,7 +59,6 @@ function VideoLinkSettings() {
     if (!view?.key) return
     try {
       await navigator.clipboard.writeText(view.key)
-      toast.success("Key copied.")
     } catch {
       showErrorToast("The browser wouldn't copy it. Select the key and copy it by hand.")
     }

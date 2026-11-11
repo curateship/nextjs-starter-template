@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ImageIcon, LockIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { CompareView } from "@/components/fitness/photos/compare-view"
@@ -206,7 +205,6 @@ export function PhotosTools({ page, search, go }: ProgramViewProps) {
             onSaved={(saved) => {
               setCreating(false)
               go({ open: saved.id, compare: undefined, new: undefined })
-              toast.success("Photo day made. Add its photos on the right.")
             }}
           />
         </>
@@ -274,7 +272,6 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
       setDeleting(false)
       go({ open: undefined, compare: undefined })
       await router.invalidate()
-      toast.success(`Deleted ${formatDay(session.day)} and its photos.`)
     } catch (error) {
       reportFitnessError(error)
     } finally {
@@ -389,7 +386,6 @@ export function PhotosRight({ page, search, go }: ProgramViewProps) {
           onClose={() => setEditing(false)}
           onSaved={() => {
             setEditing(false)
-            toast.success("Photo day saved.")
           }}
         />
       ) : null}

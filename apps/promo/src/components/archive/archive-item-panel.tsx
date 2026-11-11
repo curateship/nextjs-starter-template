@@ -299,7 +299,6 @@ function CaptionsCard({ item, onSaved }: { item: Item; onSaved: (captions: Item[
       const written = await writeArchiveCaptions(item.id)
       setCaptions(written.captions)
       onSaved(written.captions)
-      toast.success(`Wrote ${written.written.map((network) => NETWORK_NAMES[network]).join(" and ")} captions.`)
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     } finally {
@@ -482,10 +481,8 @@ function ItemMenu({
                           showErrorToast("Pick a project first.")
                           return
                         }
-                        const name = others.find((project) => project.id === target)?.name ?? "the project"
                         await placeArchiveItem(item.id, target, keep)
                         setOpen(false)
-                        toast.success(keep === "copy" ? `Copied to ${name}.` : `Moved to ${name}.`)
                         // A moved item leaves this project's list; a copy leaves this one open.
                         onLeft(keep === "move" ? undefined : item.id)
                       })
@@ -508,7 +505,6 @@ function ItemMenu({
                 void act(async () => {
                   await restoreArchiveItem(item.id)
                   setOpen(false)
-                  toast.success("Put back in the archive.")
                   onChanged()
                 })
               }

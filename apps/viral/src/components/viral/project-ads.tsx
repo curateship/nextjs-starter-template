@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, SearchIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
@@ -137,7 +136,6 @@ export function AdPanel({ ad }: { ad: WinningAd | null }) {
   async function copy(current: WinningAd) {
     try {
       await navigator.clipboard.writeText([current.title, current.body].filter(Boolean).join("\n\n"))
-      toast.success("Ad text copied.")
     } catch {
       showErrorToast("The text could not be copied. Select it and copy it instead.")
     }

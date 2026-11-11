@@ -1,6 +1,5 @@
 import * as React from "react"
 import { LayoutTemplateIcon, Loader2Icon, PenLineIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
@@ -110,7 +109,6 @@ export function LibraryFormatPanel({
       const script = await writeFromFormatFn({ formatId: format.id, projectId: pickedProject.id, idea })
       setScripts((was) => (was.state === "ready" ? { state: "ready", scripts: [script, ...was.scripts] } : was))
       setIdea("")
-      toast.success("The script is written.")
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -123,7 +121,6 @@ export function LibraryFormatPanel({
     try {
       await deleteFormatFn(format.id)
       setDeleting(false)
-      toast.success("The format is deleted, with the scripts written from it.")
       onDeleted(format)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
@@ -259,7 +256,6 @@ function ScriptRow({ script }: { script: FormatScript }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(scriptText(script.script, segmentRoleLabels))
-      toast.success("Script copied.")
     } catch {
       showErrorToast("The script could not be copied. Select the words and copy them instead.")
     }

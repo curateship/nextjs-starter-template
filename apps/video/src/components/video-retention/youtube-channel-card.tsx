@@ -113,8 +113,6 @@ export function YoutubeChannelCard() {
     if (!failure && !connected) return
     if (failure) {
       showErrorToast(CONNECT_FAILURES[failure] ?? CONNECT_FAILURES.failed)
-    } else {
-      toast.success("YouTube channel connected.")
     }
     url.searchParams.delete("youtube_error")
     url.searchParams.delete("youtube")
@@ -182,7 +180,6 @@ export function YoutubeChannelCard() {
     if (!status) return
     try {
       await navigator.clipboard.writeText(status.redirectUri)
-      toast.success("Copied. Paste it in Google Cloud.")
     } catch {
       showErrorToast("The address could not be copied. Select it and copy it yourself.")
     }
@@ -193,16 +190,10 @@ export function YoutubeChannelCard() {
     dismissErrorToast()
     try {
       if (confirm === "disconnect") {
-        const { status: next, revoked } = await disconnectYoutubeChannel()
+        const { status: next } = await disconnectYoutubeChannel()
         setStatus(next)
-        toast.success(
-          revoked
-            ? "Channel disconnected."
-            : "Channel disconnected here. Google could not be reached, so remove the app from the Google account's connected apps yourself."
-        )
       } else {
         setStatus(await removeYoutubeClient())
-        toast.success("Google client removed.")
       }
       setConfirm(null)
     } catch (error) {

@@ -14,7 +14,6 @@ import {
   Undo2Icon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CopyTripDialog } from "@/components/travel/copy-trip-dialog"
 import { GoogleMap } from "@/components/travel/google-map"
@@ -179,7 +178,6 @@ export function TripsDashboard({
     })
     if (!ok) return
     selection.clear()
-    toast.success(describeBulkResult({ done: trips.length, kept: 0, one: "trip", many: "trips", verb: "put back" }))
   }
 
   /** Delete for good, from the Bin, after the confirm. */
@@ -201,7 +199,6 @@ export function TripsDashboard({
     selection.clear()
     const line = describeBulkResult({ done, kept: failed, one: "trip", many: "trips", verb: "deleted for good" })
     if (failed) showErrorToast(line)
-    else toast.success(line)
     await router.invalidate()
   }
 
@@ -212,15 +209,6 @@ export function TripsDashboard({
     })
     if (!ok) return
     selection.clear()
-    toast.success(
-      describeBulkResult({
-        done: trips.length,
-        kept: 0,
-        one: "trip",
-        many: "trips",
-        verb: archived ? "archived" : "brought back",
-      })
-    )
   }
 
   const tagLabel = tags.size === 0 ? "All tags" : tags.size === 1 ? [...tags][0] : `${tags.size} tags`

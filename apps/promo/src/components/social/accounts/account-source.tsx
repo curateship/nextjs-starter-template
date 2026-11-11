@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -116,7 +115,6 @@ export function AccountSourceCard({
     try {
       await saveAccountSource(accountId, { source: next.source, seller: next.seller, priceCents: cents ?? null })
       setSaved(next)
-      toast.success("Saved where it came from.")
       await onSaved()
     } catch (error) {
       showErrorToast(getBansErrorMessage(error))

@@ -8,7 +8,6 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Button } from "@/components/ui/button"
@@ -332,8 +331,6 @@ export function QuizBlock({
     try {
       const results = await checkQuizAnswers(answers.chapterId, mine)
       answers.onQuiz({ ...answers.quiz, ...results })
-      const score = Object.values(results).filter((result) => result.correct).length
-      toast.success(`${score} of ${Object.keys(results).length} right.`)
     } catch (error) {
       showErrorToast(getCourseErrorMessage(error))
     } finally {

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ColourSelect } from "@/components/note-library/libraries-page"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -12,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { deleteLibraryTemplate, getLibraryErrorMessage, saveLibrary } from "@/lib/api/note/library"
-import { quoteOneLine } from "@/lib/format/quote-text"
 import {
   LIBRARY_DESCRIPTION_MAX,
   LIBRARY_NAME_MAX,
@@ -74,7 +72,6 @@ export function LibrarySettingsDialog({
         bannerUrl: bannerUrl || null,
       })
       await onSaved()
-      toast.success("Saved.")
       setSaving(false)
       // Saved, so nothing is left to ask about: the window shuts straight away.
       onClose()
@@ -91,7 +88,6 @@ export function LibrarySettingsDialog({
     try {
       await deleteLibraryTemplate(template.id)
       await onSaved()
-      toast.success(`Deleted the template ${quoteOneLine(template.name)}.`)
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))
     } finally {

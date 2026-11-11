@@ -1,6 +1,5 @@
 import * as React from "react"
 import { BookmarkPlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { NewPhoneDropdown } from "@/components/phones/new-phone-dropdown"
 import { PhoneJobsPanel } from "@/components/phones/phone-jobs-panel"
@@ -25,7 +24,6 @@ import type { SavedView } from "@/lib/api/saved-views"
 import { bannedOnWords } from "@/lib/bans/options"
 import { LABEL_DOT } from "@/lib/browser/sorting"
 import { signedInWords } from "@/lib/browser/wording"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { PHONE_KIND_WORDS, PHONE_KINDS, PHONE_STATUS_WORDS, systemWords } from "@/lib/phones/options"
 import {
@@ -108,12 +106,11 @@ export function RackPhonesPanel({
     return [...seen].sort((a, b) => a.localeCompare(b))
   }, [page.phones, search.tag])
 
-  async function bulk(action: BulkPhoneAction, verb: string) {
+  async function bulk(action: BulkPhoneAction) {
     setBusy(true)
     dismissErrorToast()
     try {
-      const { done, skipped } = await changePhones(action)
-      toast.success(describeBulkResult({ done: done.length, kept: skipped.length, one: "phone", many: "phones", verb }))
+      await changePhones(action)
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneErrorMessage(error))
@@ -146,7 +143,7 @@ export function RackPhonesPanel({
                   <SelectedMenuRow
                     onClick={() => {
                       menu.close()
-                      void bulk({ action: "hold", ids, held: true }, "held")
+                      void bulk({ action: "hold", ids, held: true })
                     }}
                   >
                     Hold
@@ -154,7 +151,7 @@ export function RackPhonesPanel({
                   <SelectedMenuRow
                     onClick={() => {
                       menu.close()
-                      void bulk({ action: "hold", ids, held: false }, "released")
+                      void bulk({ action: "hold", ids, held: false })
                     }}
                   >
                     Release
@@ -180,7 +177,7 @@ export function RackPhonesPanel({
                           key={folder.id ?? "none"}
                           onClick={() => {
                             menu.close()
-                            void bulk({ action: "folder", ids, folderId: folder.id }, "moved")
+                            void bulk({ action: "folder", ids, folderId: folder.id })
                           }}
                         >
                           {folder.name}
@@ -198,7 +195,7 @@ export function RackPhonesPanel({
                           key={label.id ?? "none"}
                           onClick={() => {
                             menu.close()
-                            void bulk({ action: "label", ids, labelId: label.id }, "labelled")
+                            void bulk({ action: "label", ids, labelId: label.id })
                           }}
                         >
                           {label.id ? <span aria-hidden className={`size-1.5 rounded-full ${LABEL_DOT[label.color] ?? LABEL_DOT.slate}`} /> : null}
@@ -220,7 +217,7 @@ export function RackPhonesPanel({
                           return
                         }
                         menu.close()
-                        void bulk({ action: "tag", ids, tag }, "tagged").then(() => setTag(""))
+                        void bulk({ action: "tag", ids, tag }).then(() => setTag(""))
                       }}
                     >
                       <Label htmlFor="rack-bulk-tag" className="sr-only">

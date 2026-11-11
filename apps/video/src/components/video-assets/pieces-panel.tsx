@@ -14,7 +14,6 @@ import {
   Trash2Icon,
   type LucideIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { LoadMoreButton } from "@/components/shared/load-more-button"
@@ -55,7 +54,6 @@ import {
 } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ChoiceRow, SectionLabel } from "@/components/video-assets/filter-menu-rows"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -308,17 +306,7 @@ export function PiecesPanel<T extends PieceItem>({ adapter }: { adapter: PiecesA
 
   async function archive(ids: string[], archived: boolean) {
     try {
-      const result = await adapter.archive(ids, archived)
-      toast.success(
-        describeBulkResult({
-          done: result.done_ids.length,
-          kept: result.skipped_ids.length,
-          one,
-          many,
-          verb: archived ? "archived" : "brought back",
-          keptReason: archived ? "already archived" : "not archived",
-        })
-      )
+      await adapter.archive(ids, archived)
       selection.clear()
       reload()
     } catch (error) {
@@ -839,16 +827,6 @@ function MoveDialog<T extends PieceItem>({
     setBusy(true)
     try {
       const result = await adapter.move(ids, target)
-      toast.success(
-        describeBulkResult({
-          done: result.done_ids.length,
-          kept: result.skipped_ids.length,
-          one: adapter.one,
-          many: adapter.many,
-          verb: "moved",
-          keptReason: "already there or not yours",
-        })
-      )
       setTarget("")
       onMoved(result.done_ids, target)
     } catch (error) {
@@ -958,10 +936,6 @@ function DeleteDialog<T extends PieceItem>({
       if (failed) {
         showErrorToast(
           `${failed} ${plural(failed, adapter.one, adapter.many)} could not be deleted, because a file would not come out of storage. Try again.`
-        )
-      } else {
-        toast.success(
-          `${result.deleted_ids.length} ${plural(result.deleted_ids.length, adapter.one, adapter.many)} deleted.`
         )
       }
       onDeleted(result.deleted_ids)

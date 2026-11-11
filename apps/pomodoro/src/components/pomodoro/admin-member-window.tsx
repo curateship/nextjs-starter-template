@@ -12,7 +12,6 @@ import {
   UserMinusIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -132,10 +131,8 @@ function MemberDialog({ userId, onClose }: { userId: string | null; onClose: () 
     try {
       if (confirm === "hide") {
         await hidePomodoroProfiles([person.id])
-        toast.success(`${person.name}'s public profile is hidden. They were told in the bell.`)
       } else {
-        const { removed } = await removePomodoroFollowsBy(person.id)
-        toast.success(`${removed} ${plural(removed, "follow", "follows")} removed.`)
+        await removePomodoroFollowsBy(person.id)
       }
       setConfirm(null)
       await reload()
@@ -575,7 +572,6 @@ function VoiceCard({ userId }: { userId: string }) {
                 .then((personality) => {
                   setSaved(personality)
                   setDraft(personality)
-                  toast.success("Voice saved.")
                 })
                 .catch((failure) => showErrorToast(getSimulatedErrorMessage(failure)))
                 .finally(() => setBusy(false))
@@ -705,7 +701,6 @@ function FixStreakDialog({
     setSaving(true)
     try {
       await fixPomodoroStreakDay(data.person.id, localDate, reason.trim())
-      toast.success(`${formatShortDay(localDate)} is back in ${data.person.name}'s streak. They were told in the bell.`)
       await onDone()
       onClose()
     } catch (error) {
@@ -819,11 +814,10 @@ function NotesCard({
   const draftId = React.useId()
   const editId = React.useId()
 
-  const run = async (work: () => Promise<unknown>, done: string, after: () => void) => {
+  const run = async (work: () => Promise<unknown>, after: () => void) => {
     setBusy(true)
     try {
       await work()
-      toast.success(done)
       after()
       await onChanged()
     } catch (error) {
@@ -849,7 +843,7 @@ function NotesCard({
               showErrorToast("Write the note first.")
               return
             }
-            void run(() => addPomodoroMemberNote(userId, draft.trim()), "Note added.", () => setDraft(""))
+            void run(() => addPomodoroMemberNote(userId, draft.trim()), () => setDraft(""))
           }}
         >
           <FieldLabel htmlFor={draftId}>New note</FieldLabel>
@@ -874,7 +868,7 @@ function NotesCard({
                         showErrorToast("A note cannot be empty. Delete it instead.")
                         return
                       }
-                      void run(() => editPomodoroMemberNote(note.id, editing.body.trim()), "Note saved.", () => setEditing(null))
+                      void run(() => editPomodoroMemberNote(note.id, editing.body.trim()), () => setEditing(null))
                     }}
                   >
                     <FieldLabel htmlFor={editId} className="sr-only">
@@ -945,7 +939,7 @@ function NotesCard({
         loading={busy}
         onConfirm={() => {
           const id = deleting
-          if (id) void run(() => deletePomodoroMemberNote(id), "Note deleted.", () => setDeleting(null))
+          if (id) void run(() => deletePomodoroMemberNote(id), () => setDeleting(null))
         }}
       />
     </Card>

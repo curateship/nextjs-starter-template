@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, MessageCircleReplyIcon, RefreshCwIcon, SunIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -18,7 +17,6 @@ import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { checkComments, getCommentsErrorMessage } from "@/lib/api/social/comments"
 import { getRedditErrorMessage, setFindsStatus } from "@/lib/api/social/reddit/keywords"
 import { getTodayErrorMessage, loadToday, type TodayView } from "@/lib/api/social/today"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { postedDateText } from "@/lib/social/wording"
@@ -200,17 +198,7 @@ function PostsTable({
   async function skip(ids: string[]) {
     setSkipping(true)
     try {
-      const answer = await setFindsStatus(ids, "skipped")
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "post",
-          many: "posts",
-          verb: "skipped",
-          keptReason: "already commented on",
-        })
-      )
+      await setFindsStatus(ids, "skipped")
       selection.clear()
       await onRefresh()
     } catch (failure) {
@@ -350,17 +338,7 @@ function RepliesTable({
   async function check(ids: string[]) {
     setChecking(true)
     try {
-      const answer = await checkComments(ids)
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "comment",
-          many: "comments",
-          verb: "queued to be read again",
-          keptReason: "already being read",
-        })
-      )
+      await checkComments(ids)
       selection.clear()
     } catch (failure) {
       showErrorToast(getCommentsErrorMessage(failure))

@@ -567,7 +567,6 @@ export function ViralProjectScreenView({
         const view = await findSameIdeaFn({ projectId: project.id, platform: video.platform, platformVideoId: video.platformVideoId })
         setSameIdeas((was) => ({ ...was, [video.key]: { state: "ready", view } }))
         await refresh()
-        toast.success(`Found ${countVideos(view.videos.length)} from other creators, using ${view.units} units of today's YouTube allowance.`)
       } catch (error) {
         setSameIdeas((was) => ({ ...was, [video.key]: { state: "failed", error: getViralErrorMessage(error) } }))
         throw error
@@ -606,19 +605,15 @@ export function ViralProjectScreenView({
 
   async function searchAll() {
     await run("search-all", async () => {
-      const { queued, units } = await searchViralProject(project.id)
+      await searchViralProject(project.id)
       await refresh()
-      toast.success(
-        `Searching ${queued} ${plural(queued, "keyword")} using ${units.toLocaleString()} units of your daily YouTube allowance. Keep browsing; the videos arrive as each one finishes.`
-      )
     })
   }
 
   async function refreshKeyword(keyword: ViralKeyword) {
     await run(`keyword:${keyword.id}`, async () => {
-      const { units } = await refreshViralKeyword(keyword.id)
+      await refreshViralKeyword(keyword.id)
       await refresh()
-      toast.success(`Searching "${keyword.keyword}" again, using ${units} units of your daily YouTube allowance.`)
     })
   }
 
@@ -629,7 +624,6 @@ export function ViralProjectScreenView({
       added = true
       await refresh()
       if (searchError) toast.message(`Added "${value.trim()}". ${searchError}`)
-      else if (!project.sample) toast.success(`Added "${value.trim()}" and searching it.`)
     })
     return added
   }
@@ -637,10 +631,9 @@ export function ViralProjectScreenView({
   async function followLink(link: string) {
     let added = false
     await run("follow-link", async () => {
-      const followed = await followCreatorByLink(project.id, link)
+      await followCreatorByLink(project.id, link)
       added = true
       await refresh()
-      toast.success(`Following them on ${creatorPlatformLabels[followed.platform as keyof typeof creatorPlatformLabels] ?? "that social"}. Their newest posts arrive in this project.`)
     })
     return added
   }
@@ -653,7 +646,6 @@ export function ViralProjectScreenView({
       setRemoving(null)
       await refresh()
       if (keywordFilter === keyword.keyword) setSearch({ keyword: undefined })
-      toast.success(`Removed "${keyword.keyword}".`)
     })
   }
 
@@ -672,11 +664,6 @@ export function ViralProjectScreenView({
       // started first would land with the videos as they were.
       await refresh()
       setSearch({ open: undefined, creator: undefined })
-      toast.success(
-        unique.length === 1
-          ? `${unique[0].channelName || "That channel"} is hidden from this project. The ⋮ beside the tabs shows it again.`
-          : `${unique.length} channels are hidden from this project. The ⋮ beside the tabs shows them again.`
-      )
     })
   }
 
@@ -684,7 +671,6 @@ export function ViralProjectScreenView({
     await run(`unhide:${channel.platform}:${channel.channelId}`, async () => {
       await unhideViralChannelFn(project.id, channel)
       await refresh()
-      toast.success(`${channel.channelName || "That channel"} shows again.`)
     })
   }
 
@@ -700,12 +686,6 @@ export function ViralProjectScreenView({
       saved.forEach((detail, index) => progress.report(saving[index].key, { id: detail.id, status: detail.status }))
       setTicked(new Set())
       await refresh()
-      const count = `${saved.length} ${plural(saved.length, "video")}`
-      toast.success(
-        analyse
-          ? `Breaking down ${count}. Each shows its progress on its row; open one and press Analyse with AI once it's ready.`
-          : `Downloading ${count}. No AI runs. ${saved.length === 1 ? "It shows" : "They show"} on the Downloaded tab once ${saved.length === 1 ? "it is" : "they are"} in.`
-      )
     })
   }
 
@@ -725,11 +705,6 @@ export function ViralProjectScreenView({
         throw error
       }
       await refresh()
-      toast.success(
-        watch
-          ? `Checking ${creator.name} for new posts again, in every project they are in.`
-          : `${creator.name} is paused in every project they are in. Their saved posts stay.`
-      )
     })
   }
 
@@ -745,7 +720,6 @@ export function ViralProjectScreenView({
     await run(`creator:${creator.key}`, async () => {
       await followViralChannel(project.id, creator.channelId as string)
       await refresh()
-      toast.success(`Following ${creator.name} in this project.`)
     })
   }
 
@@ -754,7 +728,6 @@ export function ViralProjectScreenView({
     await run(`creator:${creator.key}`, async () => {
       await unfollowViralCreator(project.id, creator.followedId as string)
       await refresh()
-      toast.success(`Unfollowed ${creator.name} in this project.`)
     })
   }
 
@@ -1642,13 +1615,6 @@ export function ViralProjectScreenView({
               .map((video) => video.key)
             setDeletingVideos([])
             await afterDelete(keys)
-            toast.success(
-              `${keys.length} saved ${plural(keys.length, "video")} deleted.${
-                result.filesKept
-                  ? ` ${result.filesKept} ${plural(result.filesKept, "file")} stayed, because the vault keeps ${result.filesKept === 1 ? "it" : "them"}.`
-                  : ""
-              }`
-            )
           }}
         />
 

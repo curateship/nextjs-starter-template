@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { BanIcon, Loader2Icon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FilterSelect } from "@/components/browser/sorting-filters"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -300,7 +299,6 @@ function BanDialog({ row, onClose, onChanged }: { row: BanRow | null; onClose: (
     if (!row?.account) return
     try {
       await letRedditAccountRunAgain(row.account.id)
-      toast.success(`${name} takes jobs again, at half pace for 7 days.`)
       await onChanged()
     } catch (failure) {
       showErrorToast(getRedditAccountsErrorMessage(failure))
@@ -387,7 +385,6 @@ function BrakeCard({ brakes, onChanged }: { brakes: BansPage["brakes"]; onChange
                 setBusy(brake.app)
                 try {
                   await releaseAppBrake(brake.app)
-                  toast.success(`${appName(brake.app)} runs again.`)
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getBansErrorMessage(failure))
@@ -427,7 +424,6 @@ function UnknownScreenCard({ screen, onChanged }: { screen: BansPage["unknown"][
     setBusy(verdict)
     try {
       await answerUnknownScreen(screen.id, verdict)
-      toast.success(verdict === "ban" ? "Recorded as a ban. The next copy of that screen is a normal ban." : "Not a ban. The account runs again, and that screen never stops it twice.")
       await onChanged()
     } catch (failure) {
       showErrorToast(getBansErrorMessage(failure))

@@ -2,7 +2,6 @@ import * as React from "react"
 import { Loader2Icon, PlusIcon, TargetIcon, Trash2Icon } from "lucide-react"
 import { useRouter } from "@tanstack/react-router"
 import { CartesianGrid, ComposedChart, Line, ReferenceLine, Scatter, XAxis, YAxis } from "recharts"
-import { toast } from "sonner"
 
 import { ChartLegend } from "@/components/fitness/progress/chart-legend"
 import { WeightInput } from "@/components/fitness/weight-input"
@@ -71,7 +70,6 @@ function TargetButton({ targetKg, unit }: { targetKg: number | null; unit: Weigh
     try {
       await saveTarget(next)
       await router.invalidate()
-      toast.success(next === null ? "Target removed." : `Target set at ${formatWeight(next, unit)}.`)
       setOpen(false)
     } catch (error) {
       reportFitnessError(error)
@@ -166,7 +164,6 @@ export function NewWeighIn({ unit, timeZone }: { unit: WeightUnit; timeZone: str
     try {
       await changeWeighIn({ action: "save", day, weightKg })
       await router.invalidate()
-      toast.success(`Saved ${formatWeight(weightKg, unit)} for ${formatDay(day)}.`)
       setWeightKg(null)
       setDay(today)
       setOpen(false)
@@ -240,7 +237,6 @@ export function BodyweightCard({
       await changeWeighIn({ action: "delete", day: target })
       await router.invalidate()
       setConfirming(null)
-      toast.success(`Deleted the weigh-in for ${formatDay(target)}.`)
     } catch (error) {
       reportFitnessError(error)
     } finally {

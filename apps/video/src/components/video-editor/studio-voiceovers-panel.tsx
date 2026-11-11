@@ -10,7 +10,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   loadAiToolsAvailability,
@@ -22,7 +21,6 @@ import {
   removeFromVoiceovers,
   type SavedVoiceover,
 } from "@/lib/api/video/voiceovers"
-import { plural } from "@/lib/format/plural"
 import {
   VOICEOVER_SEARCH_MAX,
   VOICEOVER_SHELF_LIMIT,
@@ -141,12 +139,6 @@ export function VoiceoversPanel() {
       // The saved look, the same as a fresh voiceover's captions.
       ...voiceoverClips(voiceover, atMs, captions),
     })
-    const count = voiceover.captions.length
-    toast.success(
-      count
-        ? `Added at ${formatClock(atMs)}, with ${count} ${plural(count, "caption", "captions")}. Undo removes it.`
-        : `Added at ${formatClock(atMs)}. Undo removes it.`
-    )
   }
 
   async function takeOff(voiceover: SavedVoiceover) {

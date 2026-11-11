@@ -87,8 +87,7 @@ export function XRepliesList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkXNow({ replyIds: checkable.slice(0, 50) })
-                  toast.success(queued ? `Checking ${queued} ${queued === 1 ? "reply" : "replies"}.` : "Every one is being checked already.")
+                  await checkXNow({ replyIds: checkable.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getXErrorMessage(failure))
@@ -287,8 +286,7 @@ export function XReplyPanel({
               disabled={busy !== null}
               onClick={() =>
                 void run("check", async () => {
-                  const { queued } = await checkXNow({ replyIds: [row.id] })
-                  toast.success(queued ? "Checking it now." : "It is being checked already.")
+                  await checkXNow({ replyIds: [row.id] })
                 })
               }
             >
@@ -355,7 +353,6 @@ export function XReplyPanel({
                         if (!words.trim()) throw new Error("Write the new words first, or delete it instead.")
                         const changed = await changeOnX({ replyId: row.id, action: "edit", text: words.trim() })
                         setEditing(false)
-                        toast.success("The new words are on their way to X.")
                         if (changed.similarTo) toast.warning(`It still goes. ${changed.similarTo}`)
                       })
                     }
@@ -418,11 +415,6 @@ export function XReplyPanel({
                     onClick={() =>
                       void run("retry", async () => {
                         const queued = await dealWithFailedXReply(row.id, "retry")
-                        toast.success(
-                          queued?.runAfter && !queued.undoUntil
-                            ? xWaitingText(new Date(queued.runAfter), row.account?.handle ?? null)
-                            : "Sent again. It goes through every check a first press does."
-                        )
                         if (queued?.similarTo) toast.warning(`It still goes. ${queued.similarTo}`)
                         onClose()
                       })
@@ -476,7 +468,6 @@ export function XReplyPanel({
             ? void run("delete", async () => {
                 await changeOnX({ replyId: row.id, action: "delete" })
                 setConfirmDelete(false)
-                toast.success("On its way to being deleted on X.")
               })
             : undefined
         }
@@ -588,13 +579,12 @@ export function XIncomingAnswer({
   }, [sent])
 
   /** Takes a waiting answer back before it goes, and puts its words back in the box. */
-  async function takeBack(waiting: { replyId: string; text: string }, said: string) {
+  async function takeBack(waiting: { replyId: string; text: string }) {
     setBusy("undo")
     try {
       await takeBackXReply(waiting.replyId)
       setText(waiting.text)
       setSent(null)
-      toast.success(said)
       await onChanged()
     } catch (failure) {
       showErrorToast(getXErrorMessage(failure))
@@ -621,7 +611,7 @@ export function XIncomingAnswer({
             <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             Sending in {undoSeconds} {undoSeconds === 1 ? "second" : "seconds"}.
           </span>
-          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent, "Taken back. Nothing was sent.")}>
+          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent)}>
             {busy === "undo" ? <Loader2Icon className="animate-spin" /> : <Undo2Icon />}
             Take it back
           </Button>
@@ -632,7 +622,7 @@ export function XIncomingAnswer({
             <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {xWaitingText(sent.runAfter, handle)}
           </span>
-          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent, "Cancelled. Nothing was sent.")}>
+          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent)}>
             {busy === "undo" ? <Loader2Icon className="animate-spin" /> : null}
             Cancel it
           </Button>

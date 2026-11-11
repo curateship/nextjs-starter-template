@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { BookOpenIcon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { GuideDialog } from "@/components/directory/guide-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -36,7 +35,6 @@ import {
   type GuideSortColumn,
   type GuideStatus,
 } from "@/lib/directory/guides"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -139,15 +137,6 @@ export function GuidesDashboard({
           "No guides were deleted. They may already be gone. The list has been refreshed."
         )
       }
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: kept.length,
-          one: "guide",
-          many: "guides",
-          verb: "deleted",
-        })
-      )
       setConfirm(null)
     })
   }

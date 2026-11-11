@@ -372,3 +372,4 @@ built before this folder existed, and none of them is written up.
 
 One file per subject, named after the subject, plus its line above in the same
 turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

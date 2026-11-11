@@ -1,6 +1,5 @@
 import { useRouter } from "@tanstack/react-router"
 import { FlagIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ListingReportDialog } from "@/components/directory/listing-report-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -249,7 +248,7 @@ export function ReportsDashboard({
         open={Boolean(openReport)}
         report={openReport}
         onClose={() => setListSearch({ open: undefined })}
-        onClosed={async (decision, kind) => {
+        onClosed={async () => {
           // **Refetched before the window is closed, and awaited.** Closing the
           // window is a navigation — it drops `?open=` from the address — and a
           // refetch fired alongside that navigation is superseded by it. The
@@ -257,11 +256,6 @@ export function ReportsDashboard({
           // exactly what this screen must not do.
           await router.invalidate()
           setListSearch({ open: undefined })
-          toast.success(
-            decision === "fixed"
-              ? "Marked fixed. The count drops by one."
-              : `Dismissed. Nothing on the ${REPORT_KIND_LABELS[kind].toLowerCase()} changed.`
-          )
         }}
       />
     </>

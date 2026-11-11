@@ -1,6 +1,5 @@
 import * as React from "react"
 import { KeyRoundIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -47,7 +46,6 @@ export function MediumSignInButton({
     setBusy(true)
     try {
       await pasteMediumSignInLink(accountId, link.trim())
-      toast.success("Opening the link in the account's own browser. Who is signed in shows once it has.")
       setOpen(false)
       setLink("")
       setTried(false)

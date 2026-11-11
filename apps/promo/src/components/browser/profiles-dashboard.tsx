@@ -11,7 +11,6 @@ import {
   TagIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { BrowserWindowDialog } from "@/components/browser/browser-window-dialog"
 import { ProfileDialog } from "@/components/browser/profile-dialog"
@@ -56,7 +55,6 @@ import {
   type ProfilesPage,
 } from "@/lib/api/browser/profiles"
 import { deleteSignOutWords, signedInWords } from "@/lib/browser/wording"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -230,11 +228,10 @@ export function ProfilesDashboard({
     }
   }
 
-  async function bulk(action: BulkProfileAction, verb: string) {
+  async function bulk(action: BulkProfileAction) {
     setBusy(true)
     try {
-      const { done, skipped } = await changeProfiles(action)
-      toast.success(describeBulkResult({ done: done.length, kept: skipped.length, one: "profile", many: "profiles", verb }))
+      await changeProfiles(action)
       await refresh()
       return true
     } catch (bulkError) {
@@ -248,10 +245,7 @@ export function ProfilesDashboard({
   async function remove(targets: ProfileRow[]) {
     setBusy(true)
     try {
-      const { deleted, kept } = await removeProfiles(targets.map((profile) => profile.id))
-      if (deleted.length) {
-        toast.success(describeBulkResult({ done: deleted.length, kept: 0, one: "profile", many: "profiles", verb: "deleted" }))
-      }
+      const { kept } = await removeProfiles(targets.map((profile) => profile.id))
       if (kept.length) {
         showErrorToast(
           kept.map((one) => `${one.name} was kept: ${one.reason.replace(/\.$/, "")}.`).join(" ") +
@@ -271,7 +265,6 @@ export function ProfilesDashboard({
   async function duplicate(profile: ProfileRow) {
     try {
       const { id } = await copyProfile(profile.id)
-      toast.success(`${profile.name} copied, with its own cookies and identity.`)
       await refresh()
       setOpen(id)
     } catch (copyError) {
@@ -297,7 +290,7 @@ export function ProfilesDashboard({
                 <Select
                   value=""
                   onValueChange={(value) =>
-                    void bulk({ action: "folder", ids: selectedIds, folderId: value === NONE ? null : value }, "moved")
+                    void bulk({ action: "folder", ids: selectedIds, folderId: value === NONE ? null : value })
                   }
                   disabled={busy}
                 >
@@ -316,7 +309,7 @@ export function ProfilesDashboard({
                 <Select
                   value=""
                   onValueChange={(value) =>
-                    void bulk({ action: "label", ids: selectedIds, labelId: value === NONE ? null : value }, "labelled")
+                    void bulk({ action: "label", ids: selectedIds, labelId: value === NONE ? null : value })
                   }
                   disabled={busy}
                 >
@@ -602,7 +595,6 @@ export function ProfilesDashboard({
         onRestart={async (profile) => {
           try {
             await profileJob(profile.id, "restart")
-            toast.success(`${profile.name} is restarting on its new proxy.`)
             await refresh()
           } catch (jobError) {
             showErrorToast(getProfileErrorMessage(jobError))
@@ -654,7 +646,7 @@ export function ProfilesDashboard({
         loading={busy}
         disabled={!tagText.trim()}
         onConfirm={async () => {
-          if (await bulk({ action: "tag", ids: selectedIds, tag: tagText }, "tagged")) {
+          if (await bulk({ action: "tag", ids: selectedIds, tag: tagText })) {
             setTagging(false)
             setTagText("")
           }

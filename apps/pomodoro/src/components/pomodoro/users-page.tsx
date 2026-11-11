@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router"
 import { ArrowRightIcon, SearchIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ProfilePhoto } from "@/components/pomodoro/profile-photo"
 import { Button } from "@/components/ui/button"
@@ -308,9 +307,6 @@ function FollowButton({
         ? await unfollowProfile(handle)
         : await followProfile(handle)
       setFollowing(next.following)
-      // One press undoes a follow, so the toast is the confirmation it was
-      // meant.
-      if (following && !next.following) toast.success(`You unfollowed ${name}.`)
     } catch (cause) {
       showErrorToast(followErrorMessage(cause))
     } finally {

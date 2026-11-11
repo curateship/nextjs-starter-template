@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { SettingsFoldCard } from "@/components/video-assets/settings-fold-card"
@@ -196,7 +195,6 @@ export function ProjectFormDialog({
         onVideoSaved?.(await saveSpendLimit(video.id, spendLimitCents))
       }
       dismissErrorToast()
-      toast.success("Project settings saved.")
       onClose()
     } catch (error) {
       showErrorToast(getProjectErrorMessage(error))

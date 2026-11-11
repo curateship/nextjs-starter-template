@@ -6,7 +6,6 @@ import {
   TypeIcon,
   WandSparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -178,9 +177,6 @@ export function TranscriptPanel() {
       setTranscript(answer)
       setAnchor(null)
       setHead(null)
-      if (!answer.words.length) {
-        toast.success("Nothing was said in that clip.")
-      }
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
     } finally {
@@ -253,9 +249,6 @@ export function TranscriptPanel() {
     // but the run just cut is gone from the film.
     setAnchor(null)
     setHead(null)
-    toast.success(
-      `${picked} ${plural(picked, "word", "words")} cut. Undo puts them back.`
-    )
   }
 
   return (

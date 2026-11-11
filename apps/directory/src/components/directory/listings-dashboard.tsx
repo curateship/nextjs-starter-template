@@ -7,7 +7,6 @@ import {
   StoreIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { ListingDialog } from "@/components/directory/listing-dialog"
 import { BulkChangeMenu } from "@/components/shared/bulk-change-menu"
@@ -60,7 +59,6 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
@@ -200,9 +198,7 @@ export function ListingsDashboard({
 
   const bulk = useBulkChange({
     one: "listing",
-    many: "listings",
     rows: data.listings,
-    categories,
     send: changeListings,
     describeError: getListingErrorMessage,
     onChanged: refreshList,
@@ -214,9 +210,8 @@ export function ListingsDashboard({
   const duplicate = React.useCallback(
     (listing: ListingSummary) => {
       void copy(async () => {
-        const made = await copyListing(listing.id)
+        await copyListing(listing.id)
         await router.invalidate()
-        toast.success(`${made.title} was created.`)
       })
     },
     [copy, router]
@@ -261,15 +256,6 @@ export function ListingsDashboard({
           "No listings were deleted. They may already be gone — the list has been refreshed."
         )
       }
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: kept.length,
-          one: "listing",
-          many: "listings",
-          verb: "deleted",
-        })
-      )
       setConfirm(null)
     })
   }, [confirm, refreshList, run, selection])

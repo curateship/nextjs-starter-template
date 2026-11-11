@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, SparklesIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -158,8 +157,6 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
     try {
       const sent = await sendPromoPostFn({ sendId: written.id, promoProjectId: projectId, title, pieces })
       setWritten(sent)
-      const name = projects.state === "ready" ? projects.projects.find((one) => one.id === projectId)?.name : null
-      toast.success(`It's a draft in ${name ?? "Promo"}. Press Post there when it's ready.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -171,7 +168,6 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
     const words = [network === "reddit" ? title : "", ...pieces].filter(Boolean).join("\n\n")
     try {
       await navigator.clipboard.writeText(words)
-      toast.success("Post copied.")
     } catch {
       showErrorToast("The browser wouldn't copy it. Select the words and copy them by hand.")
     }

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, CloudIcon, InfoIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { PanelCard } from "@/components/shared/panel-card"
@@ -68,7 +67,6 @@ export function PhoneSetupPanel({
     setBusy("check")
     try {
       await runSetupCheck(phone.id)
-      toast.success("Asked the rack for a setup check. It takes a minute or two.")
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneErrorMessage(error))
@@ -81,7 +79,6 @@ export function PhoneSetupPanel({
     setBusy("icloud")
     try {
       await checkIcloud(phone.id)
-      toast.success("Asked the rack to read whether an Apple ID is signed in. The answer shows here in a minute.")
       await onChanged()
     } catch (error) {
       showErrorToast(getPhoneHealthErrorMessage(error))
@@ -94,7 +91,6 @@ export function PhoneSetupPanel({
     setBusy("wipe")
     try {
       await wipePhone(phone.id)
-      toast.success(`Asked the rack to wipe ${phone.name}. It is held once the wipe starts.`)
       setConfirming(false)
       await onChanged()
     } catch (error) {

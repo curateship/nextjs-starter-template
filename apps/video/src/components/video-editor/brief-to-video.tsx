@@ -6,7 +6,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -201,12 +200,6 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
           )
           store.refreshMediaShelf()
           refreshSpend()
-          const numbers = brief.scenes.flatMap((scene, index) => (placed.has(scene.id) ? [index + 1] : []))
-          toast.success(
-            numbers.length === 1
-              ? `Scene ${numbers[0]} is on the timeline. Undo takes it off.`
-              : `Scenes ${numbers[0]} to ${numbers.at(-1)} are on the timeline. Undo takes them off.`
-          )
         })
         .catch(() => {
           // Asked again on the next answer.
@@ -354,9 +347,6 @@ export function BriefStoryboard({
       await saveNow()
       const started = await startBrief({ briefId: brief.id, scenes, playheadMs: clock.getTime() })
       context?.replace(started)
-      toast.success(
-        `Making ${started.scenes.length} ${plural(started.scenes.length, "scene", "scenes")}. Each one lands on the timeline when it is ready, and it carries on if you close the tab.`
-      )
       onClose()
     } catch (error) {
       reportError(error)
@@ -405,9 +395,6 @@ export function BriefStoryboard({
       store.refreshMediaShelf()
       refreshSpend()
       setRewords({})
-      toast.success(
-        `${answer.changed.length} ${plural(answer.changed.length, "scene was", "scenes were")} read again and swapped in. Undo puts the old ${plural(answer.changed.length, "one", "ones")} back.`
-      )
     } catch (error) {
       reportError(error)
     } finally {

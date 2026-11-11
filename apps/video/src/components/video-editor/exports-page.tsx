@@ -13,7 +13,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -41,7 +40,6 @@ import {
   type ExportListWithShares,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
@@ -259,15 +257,6 @@ export function ExportsPage({
       selection.clear()
       setDeleteTargets([])
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: deleteTargets.length - deleted.length,
-          one: "export",
-          many: "exports",
-          verb: "deleted",
-        })
-      )
     })
   }
 
@@ -275,7 +264,7 @@ export function ExportsPage({
     await run(async () => {
       await retryExport(item.id)
       await router.invalidate()
-    }, `Trying ${item.title ?? "this export"} again.`)
+    })
   }
 
   async function handleStop(item: RenderJobSummary) {
@@ -285,7 +274,7 @@ export function ExportsPage({
       } finally {
         await router.invalidate()
       }
-    }, "Export stopped. No file was made.")
+    })
   }
 
   const selectedItems = items.filter((item) => selection.selected.has(item.id))

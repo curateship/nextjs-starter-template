@@ -163,3 +163,4 @@ cover this one.
 - [Launching Pomodoro](launch.md) — the two Coolify resources, every value and
   who supplies it, the HTTPS requirement, making the first admin, the live
   walk-through, and what the 8 Oct 2026 laptop dry run proved.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, and the Undo toasts kept until Tyler decides.

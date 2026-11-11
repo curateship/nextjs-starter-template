@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ArrowLeftIcon, ClapperboardIcon, ExternalLinkIcon, Loader2Icon, RefreshCwIcon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { Button } from "@/components/ui/button"
@@ -121,13 +120,6 @@ export function SendToVideoButton({
       const next = await sendToVideoFn({ itemId: item.id, videoProjectId: project.id, mode })
       setOpen(false)
       changed.current(next)
-      toast.success(
-        next.send?.status === "failed"
-          ? `Video refused it: ${next.send.error ?? "no reason given"}`
-          : next.send?.status === "ready"
-            ? `Sent to ${project.name}.`
-            : `Sending to ${project.name}. Video is copying the original; this says when it's in.`
-      )
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {

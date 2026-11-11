@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { AlertTriangleIcon, ArrowRightLeftIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -48,11 +47,10 @@ export function ImportanceCard({
     return () => clearInterval(timer)
   }, [asking, onChanged])
 
-  async function run(step: NonNullable<typeof busy>, work: () => Promise<void>, success: string) {
+  async function run(step: NonNullable<typeof busy>, work: () => Promise<void>) {
     setBusy(step)
     try {
       await work()
-      toast.success(success)
       await onChanged()
     } catch (error) {
       showErrorToast(getRedditAccountsErrorMessage(error))
@@ -126,8 +124,7 @@ export function ImportanceCard({
                 onClick={() =>
                   void run(
                     "check",
-                    () => moveRedditAccountToPhone({ step: "check", accountId: account.id }),
-                    "Asked the phone who is signed in."
+                    () => moveRedditAccountToPhone({ step: "check", accountId: account.id })
                   )
                 }
               >
@@ -141,8 +138,7 @@ export function ImportanceCard({
                 onClick={() =>
                   void run(
                     "cancel",
-                    () => moveRedditAccountToPhone({ step: "cancel", accountId: account.id }),
-                    "Move cancelled. It stays on its browser profile."
+                    () => moveRedditAccountToPhone({ step: "cancel", accountId: account.id })
                   )
                 }
               >
@@ -188,8 +184,7 @@ export function ImportanceCard({
                     }
                     void run(
                       "start",
-                      () => moveRedditAccountToPhone({ step: "start", accountId: account.id, phoneId }),
-                      "Move started. Sign in on the phone, then press Check sign-in."
+                      () => moveRedditAccountToPhone({ step: "start", accountId: account.id, phoneId })
                     )
                   }}
                 >
@@ -216,8 +211,7 @@ export function ImportanceCard({
         onConfirm={() =>
           void run(
             "mark",
-            () => markRedditAccountImportant(account.id),
-            `${name} is important now.`
+            () => markRedditAccountImportant(account.id)
           ).then(() => setConfirming(false))
         }
       />

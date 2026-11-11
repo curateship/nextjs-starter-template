@@ -1,7 +1,6 @@
 import * as React from "react"
 import { EllipsisVerticalIcon, EyeIcon, ListChecksIcon, Loader2Icon, PlusIcon, RotateCwIcon, SparklesIcon, TagIcon, XIcon } from "lucide-react"
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
-import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -113,11 +112,10 @@ export function MediumKeywords({
   // Nothing waiting starts without the browser program or a reader browser.
   const stalled = !view?.jobs.programRunning || !view.readerPicked
 
-  async function act(action: () => Promise<unknown>, done?: string) {
+  async function act(action: () => Promise<unknown>) {
     try {
       await action()
       await onChanged()
-      if (done) toast.success(done)
     } catch (error) {
       showErrorToast(getMediumErrorMessage(error))
     }
@@ -199,7 +197,7 @@ export function MediumKeywords({
                       await changeMediumKeyword({ change: "delete", keywordId: item.id })
                       // Its stories are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
-                    }, `${item.label} removed. Responses already sent keep their record.`)
+                    })
                   }}
                 >
                   Remove {item.label} and the stories only it found
@@ -215,7 +213,6 @@ export function MediumKeywords({
                   close()
                   await onChanged()
                   if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)
-                  else toast.success("Saved. Its stories show here once the reader has read them.")
                 } catch (error) {
                   showErrorToast(getMediumErrorMessage(error))
                 }
@@ -248,7 +245,7 @@ export function MediumKeywords({
                 if (!keywords.length) throw new Error("Add a keyword first, then it can be searched.")
                 const { queued } = await searchAllMedium(projectId)
                 if (!queued) throw new Error("Every switched-on keyword is already being searched.")
-              }, "Searching every switched-on keyword.")}
+              })}
             >
               <RotateCwIcon />
               Search every keyword now
@@ -279,7 +276,7 @@ export function MediumKeywords({
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Writers and publications you never see</DropdownMenuLabel>
             {view?.hidden.length ? (
               view.hidden.map((hidden) => (
-                <DropdownMenuItem key={hidden.id} onSelect={() => void act(() => changeMediumHidden({ change: "show", hiddenId: hidden.id }), `${hidden.name || hidden.value} shows again.`)}>
+                <DropdownMenuItem key={hidden.id} onSelect={() => void act(() => changeMediumHidden({ change: "show", hiddenId: hidden.id }))}>
                   <EyeIcon />
                   <span className="truncate">Show {hidden.kind === "writer" ? `@${hidden.value}` : hidden.name || hidden.value} again</span>
                 </DropdownMenuItem>
@@ -303,7 +300,6 @@ export function MediumKeywords({
                     if (idea.kind === "publication") {
                       const added = await changeMediumPublication({ change: "add", projectId, slug: idea.value })
                       if (added.checkRefused) showErrorToast(`Added to Publications, but not checked yet. ${added.checkRefused}`)
-                      else toast.success("Added to the Publications tab.")
                     } else {
                       const saved = await saveMediumKeyword({ projectId, kind: idea.kind, value: idea.value })
                       if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)

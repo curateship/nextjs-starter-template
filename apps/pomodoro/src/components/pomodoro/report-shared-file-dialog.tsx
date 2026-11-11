@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +22,6 @@ import { reportSharedFile } from "@/lib/api/pomodoro/shared-media"
 import { PROFILE_REPORT_RATE_LIMITED } from "@/lib/pomodoro/profile-reports"
 import {
   SHARED_FILE_REPORT_REASONS,
-  SHARED_FILE_REPORT_THANKS,
   type SharedFileReportReasonId,
 } from "@/lib/pomodoro/shared-media-reports"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -71,7 +69,6 @@ export function ReportSharedFileDialog({
     setSending(true)
     try {
       await reportSharedFile(mediaId, reason)
-      toast.success(SHARED_FILE_REPORT_THANKS)
       onOpenChange(false)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""

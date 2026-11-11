@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -159,7 +158,6 @@ function QuestionCard({
     dismissErrorToast()
     try {
       onSaved(await saveAnswer(courseId, question.id, answer))
-      toast.success(answer.trim() ? "Answer saved. Readers can see it now." : "Answer taken back.")
     } catch (error) {
       showErrorToast(getCourseErrorMessage(error))
     } finally {

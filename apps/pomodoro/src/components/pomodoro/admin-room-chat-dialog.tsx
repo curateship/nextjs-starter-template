@@ -6,7 +6,6 @@ import {
   ShieldAlertIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -125,7 +124,6 @@ export function AdminRoomChatDialog({
     setReleasing(true)
     try {
       await releasePomodoroMessages([id])
-      toast.success("Let through. The room shows it now.")
       await afterChange()
     } catch (cause) {
       showErrorToast(getSafetyErrorMessage(cause))

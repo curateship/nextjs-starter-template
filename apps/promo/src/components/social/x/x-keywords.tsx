@@ -14,7 +14,6 @@ import {
   XIcon,
 } from "lucide-react"
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
-import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -135,11 +134,10 @@ export function XKeywords({
   // Nothing waiting starts without the browser program or a search account.
   const stalled = !view?.jobs.programRunning || !view.searchers.length
 
-  async function act(action: () => Promise<unknown>, done?: string) {
+  async function act(action: () => Promise<unknown>) {
     try {
       await action()
       await onChanged()
-      if (done) toast.success(done)
     } catch (error) {
       showErrorToast(getXErrorMessage(error))
     }
@@ -223,8 +221,7 @@ export function XKeywords({
                       onClick={() => {
                         close()
                         void act(
-                          () => changeXKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify }),
-                          keyword.notify ? `The bell stays quiet for ${item.label}'s new posts.` : `The bell rings for each new post from ${item.label}.`
+                          () => changeXKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify })
                         )
                       }}
                     >
@@ -242,7 +239,7 @@ export function XKeywords({
                       await changeXKeyword({ change: "delete", keywordId: item.id })
                       // Its posts are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
-                    }, `${item.label} removed. Replies already sent keep their record.`)
+                    })
                   }}
                 >
                   Remove {item.label} and the posts only it found
@@ -258,7 +255,6 @@ export function XKeywords({
                   close()
                   await onChanged()
                   if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)
-                  else toast.success("Saved. Its posts show here once a search account has read them.")
                 } catch (error) {
                   showErrorToast(getXErrorMessage(error))
                 }
@@ -292,7 +288,7 @@ export function XKeywords({
                   if (!keywords.length) throw new Error("Add a keyword first, then it can be searched.")
                   const { queued } = await searchAllX(projectId)
                   if (!queued) throw new Error("Every switched-on keyword is already being searched.")
-                }, "Searching every switched-on keyword.")
+                })
               }
             >
               <RotateCwIcon />
@@ -336,7 +332,7 @@ export function XKeywords({
               view.hidden.map((hidden) => (
                 <DropdownMenuItem
                   key={hidden.id}
-                  onSelect={() => void act(() => changeXHidden({ change: "show", hiddenId: hidden.id }), `@${hidden.handle} shows again.`)}
+                  onSelect={() => void act(() => changeXHidden({ change: "show", hiddenId: hidden.id }))}
                 >
                   <EyeIcon />
                   <span className="truncate">Show @{hidden.handle} again</span>

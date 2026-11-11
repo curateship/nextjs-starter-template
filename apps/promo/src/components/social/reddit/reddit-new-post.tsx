@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ArrowLeftIcon, Loader2Icon, SparklesIcon, SquarePenIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
@@ -22,7 +21,7 @@ import {
   writeOwnPost,
 } from "@/lib/api/social/reddit/own-posts"
 import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS } from "@/lib/social/options"
-import { postingBlockedReason, whenText } from "@/lib/social/wording"
+import { postingBlockedReason } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { RulesView } from "@/server/social/reddit/rules"
 
@@ -135,18 +134,13 @@ export function RedditNewPostPanel({
     }
     setPosting(true)
     try {
-      const { runAfter } = await sendOwnPost({
+      await sendOwnPost({
         projectId,
         accountId: account.id,
         subreddit: cleaned,
         title: title.trim(),
         body: body.trim(),
       })
-      toast.success(
-        runAfter
-          ? `It is night where ${account.handle ? `u/${account.handle}` : "the account"} lives, so your post waits for its morning and goes ${whenText(new Date(runAfter))}.`
-          : "Your post is on its way to Reddit. It shows in the Posts list once it lands."
-      )
       onSent()
     } catch (error) {
       showErrorToast(getOwnPostErrorMessage(error))

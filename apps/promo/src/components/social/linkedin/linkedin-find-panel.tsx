@@ -186,8 +186,6 @@ export function LinkedinFindPanel({
       if (sent.undoUntil) {
         setUndo({ commentRowId: sent.commentRowId, text: words, until: new Date(sent.undoUntil).getTime() })
         setClock(Date.now())
-      } else if (sent.runAfter) {
-        toast.success(linkedinWaitingText(new Date(sent.runAfter), linkedinAccountName(account.handle)))
       }
       setSimilar(sent.similarTo)
       if (sent.similarTo) toast.warning(`It still goes. ${sent.similarTo}`)
@@ -218,7 +216,6 @@ export function LinkedinFindPanel({
         source: "",
         scheduledFor: null,
       })
-      toast.success("A repost draft is open on the Posts tab. Write your line on top, then post it.")
       onRepost(saved.postRowId)
     })
   }
@@ -440,7 +437,6 @@ export function LinkedinFindPanel({
                   setText(undo.text)
                   setUndo(null)
                   setSimilar("")
-                  toast.success("Taken back. Nothing was sent.")
                   await onChanged()
                 })
               }
@@ -471,7 +467,6 @@ export function LinkedinFindPanel({
               onClick={() =>
                 void run("post", async () => {
                   await takeBackLinkedinComment(held.commentRowId)
-                  toast.success("Cancelled. Nothing was sent.")
                   await onChanged()
                 })
               }

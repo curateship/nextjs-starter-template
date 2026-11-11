@@ -12,7 +12,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -49,7 +48,6 @@ import {
   type ProjectItem,
   type ProjectListResponse,
 } from "@/lib/api/video/projects"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -299,29 +297,19 @@ export function ProjectsPage({
     key = "bulk"
   ) {
     await run(key, async () => {
-      const { done_ids: done } = await archiveProjects(
+      await archiveProjects(
         targets.map((project) => project.id),
         archived
       )
       selection.clear()
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: targets.length - done.length,
-          one: "project",
-          many: "projects",
-          verb: archived ? "archived" : "brought back",
-        })
-      )
     })
   }
 
   async function handleDuplicate(project: ProjectItem) {
     await run(`duplicate:${project.id}`, async () => {
-      const copy = await duplicateProject(project.id)
+      await duplicateProject(project.id)
       await router.invalidate()
-      toast.success(`"${copy.name}" created.`)
     })
   }
 
@@ -365,15 +353,6 @@ export function ProjectsPage({
       setDeleteSummaryError(null)
       setCarouselChoice(null)
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: deleteTargets.length - deleted.length,
-          one: "project",
-          many: "projects",
-          verb: "deleted",
-        })
-      )
     })
   }
 

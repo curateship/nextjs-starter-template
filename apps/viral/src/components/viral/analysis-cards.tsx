@@ -1,6 +1,5 @@
 import * as React from "react"
 import { BookmarkPlusIcon, CheckIcon, CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { Button } from "@/components/ui/button"
@@ -117,8 +116,7 @@ function SaveFormatButton({ pieces, sourceTitle }: { pieces: AnalysisPieces; sou
     setBusy(true)
     try {
       const parts = formatFromAnalysis(pieces)
-      const format = await saveFormatFn({ name: partsName(parts), parts, sourceTitle })
-      toast.success(`Saved as the format "${format.name}". Find it on Library → Formats.`)
+      await saveFormatFn({ name: partsName(parts), parts, sourceTitle })
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -139,7 +137,6 @@ function CopyButton({ label, name, text }: { label: string; name: string; text: 
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      toast.success("Copied.")
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
       showErrorToast("It couldn't be copied. Select the words and copy them instead.")

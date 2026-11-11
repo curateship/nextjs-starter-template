@@ -66,7 +66,7 @@ import {
   type LinkedinPostKind,
   type LinkedinTag,
 } from "@/lib/social/linkedin/options"
-import { linkedinPostingRefusal, linkedinWaitingText } from "@/lib/social/linkedin/wording"
+import { linkedinPostingRefusal } from "@/lib/social/linkedin/wording"
 import { WORKDAY_WORDS, isWorkday } from "@/lib/social/linkedin/workday"
 import { postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -188,8 +188,7 @@ export function LinkedinPostsList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkLinkedinNow({ postRowIds: posted.slice(0, 50) })
-                  toast.success(queued ? "Reading the numbers again." : "Every post is being read already.")
+                  await checkLinkedinNow({ postRowIds: posted.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getLinkedinErrorMessage(failure))
@@ -871,8 +870,6 @@ function PostComposer({
       if (queued?.undoUntil) {
         setUndoUntil(new Date(queued.undoUntil).getTime())
         setClock(Date.now())
-      } else if (queued?.runAfter) {
-        toast.success(linkedinWaitingText(new Date(queued.runAfter), linkedinAccountName(account.handle)))
       }
       if (queued?.similarTo) toast.warning(`It still goes. ${queued.similarTo}`)
       await onChanged()
@@ -887,12 +884,10 @@ function PostComposer({
         const written = await writeLinkedinNewsletterWords({ projectId, accountId: fields.accountId, about: about.trim(), source: from?.text ?? "", outline: "", step: "outline" })
         setOutline(written.body)
         if (written.title && !latest.current.title.trim()) change({ title: written.title.slice(0, NEWSLETTER_TITLE_CHARS) }, true)
-        toast.success("The outline is written. Change it as you like, then press Write the issue.")
         return
       }
       const written = await writeLinkedinNewsletterWords({ projectId, accountId: fields.accountId, about: about.trim(), source: from?.text ?? "", outline, step: "issue" })
       change({ text: written.body, ...(written.title ? { title: written.title.slice(0, NEWSLETTER_TITLE_CHARS) } : {}) }, true)
-      toast.success("The issue is written. Read it through and change what you like.")
       return
     }
     if (kind === "post" && !about.trim() && !from) throw new Error("Say what it is about, or pick something to start from.")
@@ -915,7 +910,6 @@ function PostComposer({
       },
       true
     )
-    toast.success("Written. Read it through and change what you like.")
   }
 
   const header = (
@@ -1392,7 +1386,6 @@ function PostComposer({
                 void run("cancel", async () => {
                   await actOnLinkedinPost(post.id, "cancel")
                   setUndoUntil(null)
-                  toast.success("Taken back. It is a draft again.")
                   await onChanged()
                 })
               }
@@ -1482,8 +1475,7 @@ function PostedPost({ projectId, post, onBack, onChanged }: { projectId: string;
               disabled={busy !== null}
               onClick={() =>
                 void run("check", async () => {
-                  const { queued } = await checkLinkedinNow({ postRowIds: [post.id] })
-                  toast.success(queued ? "Checking it now." : "It is being checked already.")
+                  await checkLinkedinNow({ postRowIds: [post.id] })
                 })
               }
             >
@@ -1546,7 +1538,6 @@ function PostedPost({ projectId, post, onBack, onChanged }: { projectId: string;
                       if (!words.trim()) throw new Error("Write the new words first, or delete it instead.")
                       const changed = await changeOnLinkedin({ postRowId: post.id, action: "edit", text: words.trim() })
                       setEditing(false)
-                      toast.success("The new words are on their way to LinkedIn.")
                       if (changed.similarTo) toast.warning(`It still goes. ${changed.similarTo}`)
                     })
                   }
@@ -1637,7 +1628,6 @@ function PostedPost({ projectId, post, onBack, onChanged }: { projectId: string;
           void run("delete", async () => {
             await changeOnLinkedin({ postRowId: post.id, action: "delete" })
             setConfirmDelete(false)
-            toast.success("On its way to being deleted on LinkedIn.")
           })
         }
       />

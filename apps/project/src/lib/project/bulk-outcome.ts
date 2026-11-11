@@ -1,4 +1,3 @@
-import { toast } from "sonner"
 
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -25,7 +24,5 @@ export function reportBulkOutcome(
     showErrorToast(
       `${changed} ${plural(changed, "task")} ${verb}, ${refused} refused. ${named.join(" ")}${more ? ` And ${more} more.` : ""}`
     )
-  } else {
-    toast.success(`${changed} ${plural(changed, "task")} ${verb}.`)
   }
 }

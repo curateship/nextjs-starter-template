@@ -6,7 +6,6 @@ import {
   Loader2Icon,
   SendIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -145,7 +144,6 @@ function CopySettingsCard({
         realMoney: form.realMoney,
       })
       await onSaved()
-      toast.success("Copy trading settings saved.")
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {

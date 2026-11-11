@@ -1,7 +1,6 @@
 import * as React from "react"
 import { brakeWords } from "@/lib/bans/options"
 import { Loader2Icon, SendIcon, SparklesIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -153,11 +152,6 @@ export function PostComposer({
         showErrorToast(result.refused[0] ? getPhoneAppErrorMessage(new Error(result.refused[0].reason)) : "Nothing was sent.")
         return
       }
-      toast.success(
-        result.sent === 1
-          ? `Sent to ${phone?.name ?? "the phone"}. It posts in the ${NETWORK_NAMES[network]} app, once, and shows under Posts.`
-          : `Sent to ${result.sent} phones. Each posts it in the ${NETWORK_NAMES[network]} app, once, and shows under Posts.`
-      )
       for (const refusal of result.refused) {
         const name = appAccountName(network, accounts.find((row) => row.id === refusal.accountId)?.handle ?? "")
         showErrorToast(`${name} didn't post: ${getPhoneAppErrorMessage(new Error(refusal.reason))}`)

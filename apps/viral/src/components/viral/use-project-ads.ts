@@ -1,11 +1,8 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { loadProjectAdsFn, searchProjectAdsFn, type ProjectAds } from "@/lib/api/viral/viral-ads"
-import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { WINNING_AD_DAYS } from "@/lib/viral/ads"
 
 export type AdsState = { state: "loading" } | ({ state: "ready" } & ProjectAds) | { state: "failed"; error: string }
 
@@ -41,11 +38,6 @@ export function useProjectAds(projectId: string, open: boolean) {
     try {
       const answer = await searchProjectAdsFn(projectId)
       setAds({ state: "ready", ...answer })
-      toast.success(
-        answer.ads.length
-          ? `${answer.ads.length} ${plural(answer.ads.length, "ad")} running ${WINNING_AD_DAYS} days or more.`
-          : `Meta found no ad running ${WINNING_AD_DAYS} days or more for these keywords.`
-      )
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
       setReloads((count) => count + 1)

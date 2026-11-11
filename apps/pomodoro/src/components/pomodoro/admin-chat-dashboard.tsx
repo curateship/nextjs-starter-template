@@ -8,7 +8,6 @@ import {
   MessagesSquareIcon,
   SearchIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -385,8 +384,7 @@ function ChatMessagesTable({
         many: "messages",
         verb: "let through",
       })
-      if (changed.length) toast.success(line)
-      else showErrorToast(line)
+      if (!changed.length) showErrorToast(line)
       selection.clear()
       await refreshAll()
     } catch (error) {

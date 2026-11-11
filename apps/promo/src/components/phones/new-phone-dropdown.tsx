@@ -1,6 +1,5 @@
 import * as React from "react"
 import { PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
@@ -82,7 +81,6 @@ export function NewPhoneDropdown({
         folderId: null,
         labelId: null,
       })
-      toast.success(`${name.trim()} is on this rack. Its other fields are on its Settings tab.`)
       setName("")
       setSerial("")
       setShelfSlot("")

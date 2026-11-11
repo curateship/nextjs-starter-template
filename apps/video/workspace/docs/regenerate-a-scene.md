@@ -113,7 +113,7 @@ The new sound starts where the old one started.
 - **Shorter:** the clip is the new length.
 - **Longer:** the clip grows. If that runs it into the next clip on its lane,
   the line goes on a lane of its own just below, at the same start, so
-  nothing else moves (Tyler, 20 Oct 2026). The toast says so.
+  nothing else moves (Tyler, 20 Oct 2026).
 - **At another speed:** a line set to play at 1.5x keeps that speed, so the
   clip is the new reading's length divided by 1.5.
 

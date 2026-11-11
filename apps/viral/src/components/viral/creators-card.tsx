@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ListFilterIcon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Button } from "@/components/ui/button"
@@ -90,16 +89,9 @@ export function CreatorsCard({
     }
     setBusy(true)
     try {
-      const { platform } = await followCreatorByLink(projectId, link.trim())
+      await followCreatorByLink(projectId, link.trim())
       await onAdded()
       dismissErrorToast()
-      toast.success(
-        platform === "instagram"
-          ? "Following them. Instagram does not let the app read anyone's videos, so none will show."
-          : platform === "tiktok"
-            ? "Following them. Their videos arrive when the watch timer next checks."
-            : "Following them. Their newest videos are in the grid."
-      )
       setLink("")
       setAdding(false)
     } catch (error) {

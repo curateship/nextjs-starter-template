@@ -9,7 +9,6 @@ import {
   RotateCcwIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -113,12 +112,6 @@ const STATUS_LOOK: Record<
   pending: { label: "Waiting", variant: "default" },
   resolved: { label: "Resolved", variant: "secondary" },
   dismissed: { label: "Dismissed", variant: "outline" },
-}
-
-const DONE_TEXT: Record<Decision, string> = {
-  pending: "Report reopened.",
-  resolved: "Report resolved.",
-  dismissed: "Report dismissed.",
 }
 
 /** The same three decisions in past tense, for the bulk line. */
@@ -229,12 +222,9 @@ export function AdminReportsDashboard({
             many: "reports",
             verb: DONE_VERB[decision],
           })
-          if (reviewed.length) toast.success(line)
-          else showErrorToast(line)
+          if (!reviewed.length) showErrorToast(line)
           clearSelection()
-        } else if (reviewed.length) {
-          toast.success(DONE_TEXT[decision])
-        } else {
+        } else if (!reviewed.length) {
           // The row did not move: another operator decided it first, or the
           // report is gone. Said as a failure, but the refresh still runs, so
           // the row on screen becomes whatever is now true.
@@ -296,8 +286,7 @@ export function AdminReportsDashboard({
           verb: hidden ? "hidden" : "restored",
           keptReason: hidden ? "already hidden" : "already showing",
         })
-        if (changed.length) toast.success(line)
-        else showErrorToast(line)
+        if (!changed.length) showErrorToast(line)
         clearSelection()
         await refresh()
       } catch (error) {

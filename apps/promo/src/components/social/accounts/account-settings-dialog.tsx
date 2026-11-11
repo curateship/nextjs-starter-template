@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -105,7 +104,6 @@ export function AccountSettingsDialog({
     if (!account) return
     try {
       await letRedditAccountRunAgain(account.id)
-      toast.success(`${name} takes jobs again, at half pace for 7 days.`)
       await onChanged()
     } catch (error) {
       showErrorToast(getRedditAccountsErrorMessage(error))
@@ -131,7 +129,6 @@ export function AccountSettingsDialog({
     setSaving(true)
     try {
       await setRedditAccountRunsOn(account.id, readRunsOn(value))
-      toast.success(`${name} moved. Sign in to ${networkName} there before it posts.`)
       await onSaved()
     } catch (error) {
       showErrorToast(getRedditAccountsErrorMessage(error))

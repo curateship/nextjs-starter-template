@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, GalleryHorizontalIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -20,7 +19,6 @@ import {
   type AppPostRow,
   type InboxRow,
 } from "@/lib/api/social/phone-apps"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { handleWords, NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
@@ -101,20 +99,9 @@ export function AppPostsTable({
   async function callOff(ids: string[]) {
     setBusy(true)
     try {
-      const { completed, skipped } = await callOffAppPosts(ids)
+      const { skipped } = await callOffAppPosts(ids)
       if (ids.length === 1 && skipped.length) {
         showErrorToast("The phone has already started on that post, so it cannot be called off now.")
-      } else {
-        toast.success(
-          describeBulkResult({
-            done: completed.length,
-            kept: skipped.length,
-            one: "post",
-            many: "posts",
-            verb: "called off",
-            keptReason: "already started on the phone",
-          })
-        )
       }
       selection.clear()
       await onRefresh()
@@ -312,17 +299,7 @@ export function AppCommentsTable({
   async function skip(ids: string[]) {
     setBusy(true)
     try {
-      const answer = await skipInboxItems(ids)
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "comment",
-          many: "comments",
-          verb: "skipped",
-          keptReason: "an answer is on its way",
-        })
-      )
+      await skipInboxItems(ids)
       selection.clear()
       await onRefresh()
     } catch (failure) {

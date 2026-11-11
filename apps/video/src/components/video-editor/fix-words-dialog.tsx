@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PauseIcon, PlayIcon, RotateCwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -101,7 +100,6 @@ export function FixWordsDialog({
       return
     }
     dispatch({ type: "FIX_SPOKEN_WORDS", ...action })
-    toast.success("Swapped in. Undo puts the old words back.")
     onOpenChange(false)
   }
 

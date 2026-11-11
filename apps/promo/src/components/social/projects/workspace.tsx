@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { LayersIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { KeywordListSlotContext } from "@/components/social/keyword-list-slot"
 import { MediumModule } from "@/components/social/medium/medium-module"
@@ -157,10 +156,8 @@ export function ProjectsWorkspace({
       if (use) {
         // The network just added is the one wanted next.
         setSearch({ ...LEAVE_SIDE, network: changed })
-        toast.success(`${NETWORK_NAMES[changed]} added.`)
       } else {
         if (changed === network) setSearch({ ...LEAVE_SIDE, network: undefined })
-        toast.success(`${NETWORK_NAMES[changed]} taken off ${view.project.name}.`)
       }
     } catch (error) {
       showErrorToast(getNetworkErrorMessage(error))
@@ -188,11 +185,6 @@ export function ProjectsWorkspace({
         try {
           await pauseProjectNetwork(projectId, changed, paused)
           await refreshView()
-          toast.success(
-            paused
-              ? `${NETWORK_NAMES[changed]} paused on ${view.project.name}. Its accounts do not post or warm up; the rest of the project runs.`
-              : `${NETWORK_NAMES[changed]} resumed on ${view.project.name}.`
-          )
         } catch (error) {
           showErrorToast(getNetworkErrorMessage(error))
         }
@@ -201,11 +193,6 @@ export function ProjectsWorkspace({
         try {
           await pauseProjectCommenting(projectId, changed, paused)
           await refreshView()
-          toast.success(
-            paused
-              ? `Commenting on ${NETWORK_NAMES[changed]} paused for ${view.project.name}. Comments wait; your own posts still go out.`
-              : `Commenting on ${NETWORK_NAMES[changed]} resumed for ${view.project.name}.`
-          )
         } catch (error) {
           showErrorToast(getNetworkErrorMessage(error))
         }
@@ -217,11 +204,6 @@ export function ProjectsWorkspace({
         try {
           await pauseProject(projectId, pausing)
           await refreshView()
-          toast.success(
-            pausing
-              ? `${view.project.name} paused. None of its accounts posts, warms up or takes readings.`
-              : `${view.project.name} resumed.`
-          )
         } catch (error) {
           showErrorToast(getProjectErrorMessage(error))
         }

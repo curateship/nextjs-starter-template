@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckCircle2Icon, CopyIcon, KeyRoundIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -82,7 +81,6 @@ export function RackPairing({
         (rack) => {
           if (!live || rack.state === "unpaired" || rack.state === "disconnected") return
           setPaired(true)
-          toast.success(`${rack.name} is paired.`)
           onPairedRef.current()
         },
         () => {}
@@ -97,7 +95,6 @@ export function RackPairing({
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success("Command copied.")
     } catch {
       showErrorToast("This browser would not copy. Select the command and copy it by hand.")
     }

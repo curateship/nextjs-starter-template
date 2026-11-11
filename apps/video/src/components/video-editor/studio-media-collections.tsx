@@ -5,7 +5,6 @@ import {
   PlusIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,7 +35,6 @@ import {
   renameMediaCollection,
   type MediaCollectionSummary,
 } from "@/lib/api/video/media"
-import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -50,9 +48,6 @@ import {
  * never touches the files in it.
  */
 
-function filesWord(count: number) {
-  return `${count} ${plural(count, "file")}`
-}
 
 // ------------------------------------------------------ Name window -------
 
@@ -254,15 +249,7 @@ export function MediaSelectionBar({
   }
 
   async function add(collection: { id: string; name: string }) {
-    const added = await addMediaToCollection(collection.id, selectedIds)
-    const already = count - added.added_count
-    toast.success(
-      added.added_count
-        ? `Added ${filesWord(added.added_count)} to “${collection.name}”.${
-            already ? ` ${already} ${plural(already, "was", "were")} already in it.` : ""
-          }`
-        : `${count === 1 ? "That file was" : `All ${count} were`} already in “${collection.name}”.`
-    )
+    await addMediaToCollection(collection.id, selectedIds)
     onDone()
   }
 
@@ -280,14 +267,7 @@ export function MediaSelectionBar({
   }
 
   async function remove(collection: MediaCollectionSummary) {
-    const removed = await removeMediaFromCollection(collection.id, selectedIds)
-    toast.success(
-      `Took ${filesWord(removed.removed_count)} out of “${collection.name}”. ${plural(
-        removed.removed_count,
-        "It is",
-        "They are"
-      )} still in your library.`
-    )
+    await removeMediaFromCollection(collection.id, selectedIds)
     onDone()
   }
 

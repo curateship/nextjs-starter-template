@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +24,6 @@ function PhoneSettings() {
   async function copy() {
     try {
       await navigator.clipboard.writeText(address)
-      toast.success("Address copied.")
     } catch {
       showErrorToast("The address could not be copied. Select it and copy it instead.")
     }

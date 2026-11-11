@@ -277,3 +277,4 @@ the repo's `docs/`, and is never copied here.
 
 - [What promo changes about the shell](shell-integration.md) — the options it
   sets, the tables it owns, and the fact that it forks no shell file.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, and the Undo toasts kept until Tyler decides.

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { ExternalLinkIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,8 +78,7 @@ export function ExportYoutubeCard({ item }: { item: RenderJobSummary }) {
 
   async function run(
     kind: "post" | "refresh" | "remove",
-    action: () => Promise<ExportRetention>,
-    done: string
+    action: () => Promise<ExportRetention>
   ) {
     setRunning(kind)
     dismissErrorToast()
@@ -88,7 +86,6 @@ export function ExportYoutubeCard({ item }: { item: RenderJobSummary }) {
       const next = await action()
       setState({ retention: next, loaded: true, error: null })
       if (kind === "post") setLink("")
-      toast.success(done)
     } catch (failure) {
       showErrorToast(getRetentionErrorMessage(failure))
       // Pasting keeps the link even when the figures could not be read, so
@@ -110,8 +107,7 @@ export function ExportYoutubeCard({ item }: { item: RenderJobSummary }) {
     setLinkInvalid(false)
     void run(
       "post",
-      () => postExportYoutubeLink(item.id, link),
-      "Link saved and YouTube's figures read."
+      () => postExportYoutubeLink(item.id, link)
     )
   }
 
@@ -191,15 +187,13 @@ export function ExportYoutubeCard({ item }: { item: RenderJobSummary }) {
             onRefresh={() =>
               void run(
                 "refresh",
-                () => refreshExportYoutube(item.id),
-                "YouTube's figures read again."
+                () => refreshExportYoutube(item.id)
               )
             }
             onRemove={() =>
               void run(
                 "remove",
-                () => removeExportYoutubeLink(item.id),
-                "Link removed. Nothing on YouTube changed."
+                () => removeExportYoutubeLink(item.id)
               )
             }
           />

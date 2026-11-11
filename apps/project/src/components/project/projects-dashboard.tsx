@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, CopyIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
@@ -261,7 +260,6 @@ function ProjectsTable({
       verb: archived ? "archived" : "brought back",
     })
     if (result.kept.length) showErrorToast(line)
-    else toast.success(line)
     selection.clear()
     await router.invalidate()
   }

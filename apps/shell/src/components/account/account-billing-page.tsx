@@ -137,12 +137,7 @@ export function AccountBillingPage({
 
   const handlePause = React.useCallback(
     async (paused: boolean) => {
-      const worked = await runPause(
-        () => setOwnPlanPaused(paused),
-        paused
-          ? "Your plan is paused. Nothing more will be billed until you start it again."
-          : "Your plan is running again. Billing starts from today."
-      )
+      const worked = await runPause(() => setOwnPlanPaused(paused))
       if (worked) {
         setConfirmingPause(false)
         onChanged()

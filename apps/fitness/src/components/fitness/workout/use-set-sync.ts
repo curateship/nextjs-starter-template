@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import {
   addToQueue,
@@ -47,13 +46,12 @@ export function useSetSync(workoutId: string) {
     }
     running.current = true
     try {
-      const { left, sent } = await replayQueue(queue, sendChange, { online: isOnline, onRefused: reportFitnessError })
+      const { left } = await replayQueue(queue, sendChange, { online: isOnline, onRefused: reportFitnessError })
       // Changes made while the replay ran were added behind the ones it read.
       const added = readQueue(storage, workoutId).slice(queue.length)
       const next = [...left, ...added]
       writeQueue(storage, workoutId, next)
       setWaiting(next.length)
-      if (sent > 0 && next.length === 0) toast.success("Back online. Every set is saved.")
     } finally {
       running.current = false
     }

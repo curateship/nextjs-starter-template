@@ -50,7 +50,7 @@ until a load works, because an empty name box would read as having no name.
 
 The same way every other Settings card does, and
 [Timer settings](timer-settings.md) has the rule in full: a save that worked
-raises a success toast that clears itself, a save that failed raises the
+shows nothing but the saved value, a save that failed raises the
 shared error toast that stays until dismissed, and no inline line sits beside
 the Save button.
 

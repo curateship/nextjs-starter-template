@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
 import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, Loader2Icon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -486,12 +485,11 @@ function AdminProjectDialog({
     }
     setSaving(true)
     try {
-      const { changed } = await updatePomodoroAdminProject(
+      await updatePomodoroAdminProject(
         project.id,
         name,
         hours.value === null ? null : { hours: hours.value, period: draft.period }
       )
-      toast.success(changed ? `Saved.${toldLine(project, me)}` : "Nothing had changed.")
       await onChanged()
       onClose()
     } catch (error) {
@@ -518,7 +516,6 @@ function AdminProjectDialog({
       setLoaded((current) =>
         current ? { ...current, project: { ...current.project, archivedAt: archived ? new Date() : null } } : current
       )
-      toast.success(`${project.name} ${archived ? "is archived" : "is back"}.${toldLine(project, me)}`)
       await onChanged()
     } catch (error) {
       showErrorToast(getAdminProjectErrorMessage(error))

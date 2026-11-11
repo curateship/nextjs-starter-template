@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,7 +23,6 @@ import {
 } from "@/lib/api/pomodoro/group-reports"
 import {
   GROUP_REPORT_REASONS,
-  GROUP_REPORT_THANKS,
   type GroupReportReasonId,
 } from "@/lib/pomodoro/group-reports"
 import { PROFILE_REPORT_RATE_LIMITED } from "@/lib/pomodoro/profile-reports"
@@ -73,7 +71,6 @@ export function GroupReportDialog({
       if ("token" in target) await reportGroupByInvite(target.token, reason)
       else await reportTeamPage(target.handle, reason)
       // The same thanks whatever happened on the server.
-      toast.success(GROUP_REPORT_THANKS)
       onOpenChange(false)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""

@@ -9,7 +9,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -39,7 +38,6 @@ import {
   type CommentRow,
   type FailureRow,
 } from "@/lib/api/social/comments"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -350,20 +348,7 @@ function SentTable({
     const left = picked.length - ids.length
     setQueueing(new Set(ids))
     try {
-      const answer = await checkComments(ids)
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "comment",
-          many: "comments",
-          verb: "queued to be read",
-          keptReason: "already being read, or deleted",
-        }) +
-          (left
-            ? ` ${left} more ${left === 1 ? "is" : "are"} still ticked, because one press reads ${MAX_CHECKS_PER_PRESS}. Press Check again for ${left === 1 ? "it" : "them"}.`
-            : "")
-      )
+      await checkComments(ids)
       if (left) {
         selection.setSelected((current) => new Set([...current].filter((id) => !ids.includes(id))))
       } else {
@@ -410,7 +395,6 @@ function SentTable({
           onSave={async (id, text) => {
             try {
               await editComment(id, text)
-              toast.success("The edit is on its way to Reddit. The row says when it lands.")
               await onRefresh()
             } catch (failure) {
               showErrorToast(getReplyErrorMessage(failure))
@@ -436,7 +420,6 @@ function SentTable({
             setDeleteBusy(true)
             try {
               await deleteComment(deleting.id)
-              toast.success("The delete is on its way to Reddit. The row says when it is gone.")
               setDeleting(null)
               await onRefresh()
             } catch (failure) {

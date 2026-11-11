@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import { FileIcon, Loader2Icon, Trash2Icon, UploadIcon } from "lucide-react"
 
 import type { Change } from "@/components/project/task-body"
@@ -113,7 +112,6 @@ function TaskFileDrop({
     }
     inFlight.current = false
     if (added) {
-      toast.success(`${added} ${plural(added, "file")} added.`)
       await refresh()
     }
   }

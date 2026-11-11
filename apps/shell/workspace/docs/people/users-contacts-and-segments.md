@@ -34,8 +34,8 @@ Three separate lists, which never copy into each other (Tyler, 9 Nov 2026):
   A subscriber's right-click has **Add to leads** (Tyler, 9 Nov 2026: "in
   subscribers, I should be able to right click and add subscriber to lead as
   well"): they become a lead at New, source "Subscribers", and stay a
-  subscriber. An address already a lead is left as it is and the toast says
-  so; either way its Open shows the lead (`addContactToLeads`).
+  subscriber. An address already a lead is left as it is
+  (`addContactToLeads`). The new lead shows in the Leads list.
   The Leads list has the Subscribers list's right-click and mass select
   (Tyler, 9 Nov 2026: "leads table is missing right click function", "Its
   also missing mass select"). Right-click: Mass select, Add to subscribers
@@ -183,8 +183,9 @@ Import > Upload a CSV file opens a window. Tyler asked for it on 20 Oct 2026
   is put back. They gain the file's tags, and a name in the file replaces
   theirs.
 - **The rows go 500 at a time.** A batch that fails stops the import and says
-  how many went in; those people stay. The toast at the end says how many
-  were added, updated, already up to date and left out.
+  how many went in; those people stay. Rows with no real email address are
+  counted in the dialog before Import is pressed. A finished import shows no
+  toast: the people appear in the list.
 
 There is no sample file to download any more (Tyler, 9 Nov 2026: "Remove the
 download sample file feature"). The reading is

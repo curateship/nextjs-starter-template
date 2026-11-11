@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -320,7 +319,6 @@ function KeyCard({
       onStatus(await removeVideoKey(company))
       setVerdict("")
       setRemoving(false)
-      toast.success(`${name} key removed.`)
     } catch (error) {
       showErrorToast(getAiVideoSettingsErrorMessage(error))
     } finally {

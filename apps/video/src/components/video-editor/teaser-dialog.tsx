@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,7 +38,6 @@ import {
   videoLengthMs,
 } from "@/lib/video/teaser"
 import { MAX_TIMELINE_TRACKS } from "@/lib/video/timeline-schema"
-import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -137,11 +135,6 @@ export function TeaserDialog({
         return
       }
       dispatch({ type: "TEASER_AT_START", moments, musicClipId: nowMusic?.id ?? null })
-      toast.success(
-        moments.length < lengths.length
-          ? `Only ${moments.length} good ${plural(moments.length, "moment was", "moments were")} found, so the teaser at the start is shorter. Undo takes it out.`
-          : `A teaser of ${moments.length} ${plural(moments.length, "moment", "moments")} is at the start. Undo takes it out.`
-      )
       onOpenChange(false)
     } catch (error) {
       if (!controller.signal.aborted) showErrorToast(getTeaserErrorMessage(error))

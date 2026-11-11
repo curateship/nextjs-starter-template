@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { Button } from "@/components/ui/button"
@@ -62,7 +61,6 @@ export function AdInspectorCard({ clip }: { clip: EditorClip }) {
     try {
       await saveTextAdLook(name, lookOfTextAd(clip))
       setLookName("")
-      toast.success(`Saved ${name}. Pick it under Look in the Ads panel.`)
     } catch (error) {
       showErrorToast(getAdsErrorMessage(error, "The look could not be saved."))
     } finally {

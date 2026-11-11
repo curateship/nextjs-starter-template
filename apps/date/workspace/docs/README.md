@@ -19,3 +19,4 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [chats/chats-and-replies.md](chats/chats-and-replies.md): openers, the one follow-up, what they told you, chats that are over or scams, they unmatched, Show 3, tone, Tidy, the member's voice, warming or cooling, Ask Date, dead matches and the Openers card.
 - [chats/dates-and-calendar.md](chats/dates-and-calendar.md): a yes to a date, the Dates tab, Before your date, the Dates tab's month and Google Calendar.
 - [Shell integration](shell-integration.md) — each shell merge into Date: what arrived, what stayed Date's own.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

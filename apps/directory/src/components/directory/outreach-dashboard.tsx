@@ -1,6 +1,5 @@
 import { useRouter } from "@tanstack/react-router"
 import { MailIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -16,7 +15,6 @@ import {
   loadOutreach,
   sendOutreach,
 } from "@/lib/api/directory/outreach"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -90,18 +88,9 @@ export function OutreachDashboard({
                 type="button"
                 disabled={busy || overLimit}
                 onClick={() => void run(async () => {
-                  const result = await sendOutreach(selectedIds)
+                  await sendOutreach(selectedIds)
                   selection.clear()
                   await router.invalidate()
-                  toast.success(
-                    describeBulkResult({
-                      done: result.sent.length,
-                      kept: result.skipped.length + result.failed.length,
-                      one: "invitation",
-                      many: "invitations",
-                      verb: "sent",
-                    })
-                  )
                 })}
               >
                 <MailIcon /> Send invitations ({selectedIds.length})

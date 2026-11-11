@@ -1,7 +1,6 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import { CalendarClockIcon, MessageSquareTextIcon, PauseIcon, PlayIcon, SettingsIcon, UsersIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
@@ -24,7 +23,6 @@ import {
   type SimulatedSummary,
   type SimulatedWatchRow,
 } from "@/lib/api/pomodoro/admin-simulated"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatClockTime, formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -250,18 +248,7 @@ function AccountsTable({
   const setPaused = async (ids: string[], paused: boolean) => {
     setBusy(true)
     try {
-      const { changed, skipped } = await setSimulatedMembersPaused(ids, paused)
-      toast.success(
-        describeBulkResult({
-          done: changed.length,
-          kept: 0,
-          same: skipped.length,
-          one: "made-up member",
-          many: "made-up members",
-          verb: paused ? "paused" : "unpaused",
-          keptReason: paused ? "already paused" : "already running",
-        })
-      )
+      await setSimulatedMembersPaused(ids, paused)
       selection.clear()
       await list.refresh()
       onChanged()

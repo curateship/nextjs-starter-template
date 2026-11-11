@@ -1,6 +1,5 @@
 import * as React from "react"
 import { RotateCcwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSliderRow as SliderRow } from "@/components/settings/settings-slider-row"
@@ -437,7 +436,6 @@ export function StylingSettings({
           variant="outline"
           onClick={() => {
             forgetPanelWidths()
-            toast.success(`Every panel opens at ${leftPanelWidth}% left and ${rightPanelWidth}% right again.`)
           }}
         >
           <RotateCcwIcon />

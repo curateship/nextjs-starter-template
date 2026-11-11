@@ -190,8 +190,6 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       if (shot.status !== "ready" || !shot.clip || landing.current.has(shot.id)) continue
       const { id: clipId, media_id: clipMediaId } = shot.clip
       const pieces = readyPieces(shot)
-      const wasPicture =
-        findClip(store.getSnapshot().state.tracks, clipId)?.clip.kind === "image"
       const still = landMovingShot(store.getSnapshot().state.tracks, {
         clipId,
         clipMediaId,
@@ -210,11 +208,6 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
             return
           }
           dispatch({ type: "LAND_MOVING_SHOT", clipId, clipMediaId, pieces })
-          toast.success(
-            wasPicture
-              ? "The picture moves now. Undo brings the still back."
-              : "The clip is made again. Undo brings the old one back."
-          )
         })
         .catch(() => {
           // Asked again on the next answer.
@@ -299,9 +292,6 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       shot,
     ])
     setEditing(null)
-    toast.success(
-      `${editing.again ? "Making it again" : "Making it move"}. It takes a few minutes and carries on if you close the tab.`
-    )
   }
 
   return (

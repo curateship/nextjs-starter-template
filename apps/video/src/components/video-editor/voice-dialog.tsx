@@ -320,9 +320,6 @@ export function VoiceDialog({
         ...voiceoverClips(result, 0, { ...captions, look }),
       })
       dismissErrorToast()
-      toast.success(
-        `Read aloud, with ${result.captions.length} ${plural(result.captions.length, "caption", "captions")}. Undo removes it.`
-      )
       if (result.notice) toast(result.notice)
       onOpenChange(false)
       setScript("")
@@ -347,7 +344,6 @@ export function VoiceDialog({
         stability,
         styleExaggeration: style,
       })
-      toast.success("This is the voice this app speaks in now.")
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
     }

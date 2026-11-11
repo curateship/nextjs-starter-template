@@ -61,11 +61,7 @@ export function ImportDropdown({
       setLink("")
       setOpen(false)
       setSource(null)
-      if (result.restored) toast.success("That link was in Trash, so it is back and open now.")
-      else if (result.alreadyThere) toast.info("That link is already in this library, so it is open now.")
-      else if (result.filedAs !== picked) {
-        toast.success(`That is a ${SOURCE_LABEL[result.filedAs]} link, so it went in ${SOURCE_LABEL[result.filedAs]}.`)
-      } else toast.success(`Importing into ${SOURCE_LABEL[result.filedAs]}.`)
+      if (result.alreadyThere) toast.info("That link is already in this library, so it is open now.")
       await onImported(result.note)
     } catch (error) {
       setInvalid(true)

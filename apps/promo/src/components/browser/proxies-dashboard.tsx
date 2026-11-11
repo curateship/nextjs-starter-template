@@ -10,7 +10,6 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { ProxyDialog } from "@/components/browser/proxy-dialog"
 import { ProxyImportDialog } from "@/components/browser/proxy-import-dialog"
@@ -44,7 +43,6 @@ import {
   proxyCostTotalText,
   renewalText,
 } from "@/lib/browser/wording"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -167,8 +165,7 @@ export function ProxiesDashboard({
     setTestingIds((current) => new Set(current).add(proxy.id))
     try {
       const result = await runProxyTest(proxy.id)
-      if (result.ok) toast.success(`${proxy.label || proxy.host} works.`)
-      else showErrorToast(`${proxy.label || proxy.host} failed: ${result.error ?? "no answer"}.`)
+      if (!result.ok) showErrorToast(`${proxy.label || proxy.host} failed: ${result.error ?? "no answer"}.`)
       await refresh()
     } catch (testError) {
       showErrorToast(getProxyErrorMessage(testError))
@@ -185,15 +182,6 @@ export function ProxiesDashboard({
     setDeleting(true)
     try {
       const { deleted } = await removeProxies(targets.map((proxy) => proxy.id))
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: targets.length - deleted.length,
-          one: "proxy",
-          many: "proxies",
-          verb: "deleted",
-        })
-      )
       selection.clear()
       setDeleteTargets([])
       if (editing && deleted.includes(editing.id)) setOpen(undefined)

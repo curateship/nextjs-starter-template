@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { DumbbellIcon, PlusIcon, SettingsIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ExerciseDialog } from "@/components/fitness/exercises/exercise-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -159,8 +158,7 @@ export function ExercisesDashboard({
         verb: "deleted",
         keptReason: "kept because they have logged sets",
       })
-      if (kept && !done) reportFitnessError(line)
-      else toast.success(line)
+      if (kept) reportFitnessError(line)
       selection.clear()
       setDeleting(null)
       await router.invalidate()

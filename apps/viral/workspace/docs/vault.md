@@ -60,9 +60,10 @@ when its saved video was deleted in between and the new one has no file yet.
   tag already used, or type a new one), then Delete, then Clear selection.
   Delete asks first, because each idea takes its kept copy of the video with
   it. Each change is one request (`changeVaultItems`). The answer lists the
-  ids changed, the ones already that way and the ones skipped with a reason,
-  and the toast says it in one line: "2 ideas set to Posted, 1 was already
-  set to Posted. 1 was no longer in the vault." (`src/lib/viral/vault-bulk.ts`).
+  ids changed, the ones already that way and the ones skipped with a reason.
+  Nothing pops up when every idea changed. When some were skipped, the error
+  toast says it in one line: "2 ideas set to Posted, 1 was already set to
+  Posted. 1 was no longer in the vault." (`src/lib/viral/vault-bulk.ts`).
   The menu is `src/components/viral/vault-selected-menu.tsx`, the same on the
   Vault page and on a project's vault.
 

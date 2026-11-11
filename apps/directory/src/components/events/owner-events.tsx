@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CalendarIcon, MapPinIcon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FeaturedPlansPopover } from "@/components/directory/featured-plans-popover"
 import { CharacterCount } from "@/components/shared/character-count"
@@ -300,9 +299,6 @@ function OwnerEventDialog({
       // Read again before the window closes, so the new row is there when
       // it does.
       await router.invalidate()
-      toast.success(
-        "Sent. The admin reads it before it goes on the Events page."
-      )
       onClose()
     } catch (error) {
       showErrorToast(getEventSubmissionErrorMessage(error))

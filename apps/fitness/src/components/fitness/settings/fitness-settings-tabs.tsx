@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { WeightInput } from "@/components/fitness/weight-input"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -528,13 +527,6 @@ function CalendarFeedCard() {
       const result = await changeCalendarFeed(action)
       heldFeed = result.url
       setUrl(result.url)
-      toast.success(
-        action === "off"
-          ? "Calendar feed turned off."
-          : url
-            ? "New address made. The old one has stopped working."
-            : "Calendar feed turned on."
-      )
     } catch (failure) {
       reportFitnessError(failure)
     } finally {
@@ -546,7 +538,6 @@ function CalendarFeedCard() {
     if (!url) return
     try {
       await navigator.clipboard.writeText(url)
-      toast.success("Address copied.")
     } catch {
       showErrorToast("The address couldn't be copied. Select it and copy it by hand.")
     }

@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { burstConfetti } from "@/components/project/confetti"
 import { DailyHabits } from "@/components/project/daily-habits"
@@ -247,8 +246,6 @@ function useMilestone(milestone: string | null, cardRef: React.RefObject<HTMLEle
     if (!milestone || shown.current === milestone || !cardRef.current) return
     shown.current = milestone
     burstConfetti(cardRef.current)
-    const days = milestone.split(":").pop()
-    toast.success(`${days} days in a row.`)
     void milestoneShown(milestone).catch(() => undefined)
   }, [milestone, cardRef])
 }

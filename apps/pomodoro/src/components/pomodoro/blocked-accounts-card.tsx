@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -75,7 +74,6 @@ export default function BlockedAccountsCard() {
       setRows((current) =>
         (current ?? []).filter((entry) => entry.handle !== row.handle)
       )
-      toast.success("Unblocked.")
     } catch {
       showErrorToast("That could not be undone. Try again.")
     } finally {

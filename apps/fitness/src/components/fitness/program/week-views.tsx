@@ -14,7 +14,6 @@ import {
   SparklesIcon,
   Undo2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelBody, RightEmpty } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
@@ -210,11 +209,10 @@ export function DayMenu({ page, search, go }: ProgramViewProps) {
     await router.invalidate()
   }
 
-  async function act(action: () => Promise<unknown>, success?: string) {
+  async function act(action: () => Promise<unknown>) {
     setBusy(true)
     try {
       await action()
-      if (success) toast.success(success)
       await refresh()
       return true
     } catch (error) {
@@ -327,8 +325,7 @@ export function DayMenu({ page, search, go }: ProgramViewProps) {
             onClose={() => setCopying(false)}
             onCopy={async (toWeekday) => {
               const done = await act(
-                () => changeWeek({ action: "copyDay", dayId: day.id, toWeekday }),
-                `${day.name} copied to ${WEEKDAY_NAMES[toWeekday]}.`
+                () => changeWeek({ action: "copyDay", dayId: day.id, toWeekday })
               )
               if (done) {
                 setCopying(false)
@@ -346,8 +343,7 @@ export function DayMenu({ page, search, go }: ProgramViewProps) {
             loading={busy}
             onConfirm={() =>
               void act(
-                () => changeWeek({ action: "restDay", dayId: day.id }),
-                `${WEEKDAY_NAMES[weekday]} is now a rest day.`
+                () => changeWeek({ action: "restDay", dayId: day.id })
               ).then((done) => {
                 if (done) {
                   setResting(false)
@@ -428,7 +424,6 @@ function NewWorkoutDay({ page, search }: ProgramViewProps) {
     setBusy(true)
     try {
       await changeWeek({ action: "setDay", programId: page.program.id, weekday, name: name.trim() })
-      toast.success(`${WEEKDAY_NAMES[weekday]} is now a workout day.`)
       calendarChanged()
       await router.invalidate()
       setOpen(false)

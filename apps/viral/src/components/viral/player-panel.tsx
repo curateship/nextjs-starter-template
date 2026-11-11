@@ -11,7 +11,6 @@ import {
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -220,7 +219,6 @@ function PlayerBody({
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(video.url)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("The link could not be copied. Select it from the address bar of the video instead.")
     }
@@ -461,11 +459,6 @@ function PlayerBody({
             setSavedHere(null)
             lastStatus.current = null
             await onDeleted(video)
-            toast.success(
-              result.filesKept
-                ? "The saved video is deleted. Its file stays, because the vault keeps a copy."
-                : "The saved video is deleted, with its file."
-            )
           }}
         />
       ) : null}

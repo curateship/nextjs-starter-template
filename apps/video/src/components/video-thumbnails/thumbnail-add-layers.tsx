@@ -9,7 +9,6 @@ import {
   TypeIcon,
   UserRoundIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { Button } from "@/components/ui/button"
@@ -164,7 +163,6 @@ export function AddLayers() {
           void run(`Drawing your actor, ${tries} ${tries === 1 ? "version" : "versions"}…`, async () => {
             const rows = await addActorToThumbnail({ thumbnailId: open.id, actorId, expression, model, tries })
             for (const row of rows.reverse()) addVersion(row)
-            toast.success(`${rows.length} new ${rows.length === 1 ? "version" : "versions"} on the left.`)
           })
         }
       />

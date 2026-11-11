@@ -32,8 +32,8 @@ A Follow button on a profile, and a Following tab on the leaderboard.
 - **Not following:** Follow. A screen reader hears "Follow Sam".
 - **Following:** the button reads Following, and turns into Unfollow on hover
   and on keyboard focus. A screen reader hears "Unfollow Sam".
-- **Unfollowing is still one press**, and a toast confirms it: "You unfollowed
-  Sam." Following says "You follow Sam." the same way.
+- **Unfollowing is still one press.** The button going back to Follow is the
+  only sign; no toast pops up either way.
 - **The follower count on the page moves with the press.** Once the server
   agrees, "12 followers" turns into 13, or back to 11 on Unfollow, without a
   reload. A refused press leaves it where it was. The next load of the page

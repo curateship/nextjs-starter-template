@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -53,10 +52,7 @@ export function AskForVideoDialog({ projectId, projectName, onClose }: { project
     setBusy(true)
     dismissErrorToast()
     try {
-      const { editUrl } = await askForVideo({ projectId, videoProjectId, brief })
-      toast.success("Asked. Video made a draft with the brief and rang its bell.", {
-        action: editUrl ? { label: "Open in Video", onClick: () => window.open(editUrl, "_blank", "noreferrer") } : undefined,
-      })
+      await askForVideo({ projectId, videoProjectId, brief })
       onClose()
     } catch (failure) {
       showErrorToast(getRequestErrorMessage(failure))

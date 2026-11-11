@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { RhythmMinutesFields } from "@/components/pomodoro/rhythm-minutes-fields"
 import { Button } from "@/components/ui/button"
@@ -126,8 +125,7 @@ export function FocusRhythmPresets({
     clearMessages()
     if (!authenticated) {
       const applied = onApplyLocally(preset)
-      if (applied) toast.success(`${preset.name} applied and saved in this browser.`)
-      else
+      if (!applied)
         showErrorToast(
           "Presets can't change a running timer - pause or finish it first."
         )
@@ -144,7 +142,6 @@ export function FocusRhythmPresets({
         dailyGoalSessions,
       })
       onApplied(preset, preset.name)
-      toast.success(`${preset.name} applied.`)
     } catch (cause) {
       showErrorToast(failureMessage(cause, "The preset could not be applied."))
     } finally {
@@ -184,7 +181,6 @@ export function FocusRhythmPresets({
         { id: crypto.randomUUID(), name, ...current },
       ])
       setNewName("")
-      toast.success(`${name} saved in this browser.`)
       return
     }
     setBusy("create")
@@ -192,7 +188,6 @@ export function FocusRhythmPresets({
       const created = await createTimerPreset({ name, ...current })
       setPresets((rows) => [...rows, created])
       setNewName("")
-      toast.success(`${name} saved.`)
     } catch (cause) {
       showErrorToast(failureMessage(cause, "The preset could not be saved."))
     } finally {
@@ -214,7 +209,6 @@ export function FocusRhythmPresets({
         presets.map((row) => (row.id === presetId ? { ...row, ...values } : row))
       )
       setEditingId(null)
-      toast.success(`${values.name} updated in this browser.`)
       return
     }
     setBusy(`save:${presetId}`)
@@ -224,7 +218,6 @@ export function FocusRhythmPresets({
         rows.map((row) => (row.id === presetId ? updated : row))
       )
       setEditingId(null)
-      toast.success(`${values.name} updated.`)
     } catch (cause) {
       showErrorToast(failureMessage(cause, "The preset could not be updated."))
     } finally {
@@ -236,7 +229,6 @@ export function FocusRhythmPresets({
     clearMessages()
     if (!authenticated) {
       replaceGuestPresets(presets.filter((row) => row.id !== preset.id))
-      toast.success(`${preset.name} deleted.`)
       setDeleting(null)
       return
     }
@@ -244,7 +236,6 @@ export function FocusRhythmPresets({
     try {
       await deleteTimerPreset(preset.id)
       setPresets((rows) => rows.filter((row) => row.id !== preset.id))
-      toast.success(`${preset.name} deleted.`)
       setDeleting(null)
     } catch {
       showErrorToast("The preset could not be deleted.")

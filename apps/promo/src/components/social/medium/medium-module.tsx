@@ -1,6 +1,5 @@
 import * as React from "react"
 import { AlertTriangleIcon, PauseIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
@@ -365,10 +364,9 @@ export function MediumModule({
         onSkip={skip}
         onHide={async (findId, kind) => {
           try {
-            const hidden = await changeMediumHidden({ change: "hide", findId, kind })
+            await changeMediumHidden({ change: "hide", findId, kind })
             if (findId === open) openRecord(null)
             await refreshAll()
-            if (hidden) toast.success(`${hidden.name} hidden. ${hidden.hiddenStories} ${hidden.hiddenStories === 1 ? "story" : "stories"} left every list.`)
           } catch (failure) {
             showErrorToast(getMediumErrorMessage(failure))
           }

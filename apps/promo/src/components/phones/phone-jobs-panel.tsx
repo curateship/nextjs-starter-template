@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, RotateCcwIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -15,7 +14,6 @@ import {
   type JobList,
   type JobRow,
 } from "@/lib/api/social/jobs"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { jobStatusText } from "@/lib/social/job-words"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -72,19 +70,7 @@ export function PhoneJobsPanel({
     const retrying = job.status === "failed"
     setBusy(true)
     try {
-      const answer = retrying ? await retryFailedJobs([job.id]) : await cancelWaitingJobs([job.id])
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "job",
-          many: "jobs",
-          verb: retrying ? "put back on the queue" : "cancelled",
-          keptReason: retrying
-            ? "left alone because they write to Reddit. Try those again from the Comments screen"
-            : "already running",
-        })
-      )
+      await (retrying ? retryFailedJobs([job.id]) : cancelWaitingJobs([job.id]))
       await read()
     } catch (failure) {
       showErrorToast(getJobsErrorMessage(failure))

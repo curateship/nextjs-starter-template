@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { FlaskConicalIcon, PlusIcon, ServerIcon, SettingsIcon, SmartphoneIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { LoosePhonesDialog } from "@/components/phones/loose-phones-dialog"
 import { NewRackDialog } from "@/components/phones/new-rack-dialog"
@@ -28,7 +27,6 @@ import {
   type RackView,
 } from "@/lib/api/phones/phones"
 import { signedInWords } from "@/lib/browser/wording"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -176,8 +174,7 @@ export function RacksDashboard({ initial, search }: { initial: RacksPage; search
   async function remove(targets: RackView[]) {
     setBusy(true)
     try {
-      const { deleted, kept } = await removeRacks(targets.map((rack) => rack.id))
-      if (deleted.length) toast.success(describeBulkResult({ done: deleted.length, kept: 0, one: "rack", many: "racks", verb: "deleted" }))
+      const { kept } = await removeRacks(targets.map((rack) => rack.id))
       if (kept.length) {
         showErrorToast(kept.map((one) => `${rackNames.get(one.id) ?? "A rack"}: ${one.reason}`).join(" "))
       }
@@ -195,7 +192,6 @@ export function RacksDashboard({ initial, search }: { initial: RacksPage; search
     setBusy(true)
     try {
       await pauseRack()
-      toast.success("Every rack is paused. No phone job starts until you resume; running ones finish.")
       await refresh()
     } catch (pauseError) {
       showErrorToast(getPhoneErrorMessage(pauseError))

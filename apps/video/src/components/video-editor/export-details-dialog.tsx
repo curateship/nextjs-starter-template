@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ImageIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -100,7 +99,6 @@ export function ExportDetailsDialog({
       const saved = await updateExport(item.id, title, description)
       dismissErrorToast()
       onSaved(saved)
-      toast.success("Saved.")
       onClose()
     } catch (error) {
       showErrorToast(getExportErrorMessage(error))
@@ -117,7 +115,6 @@ export function ExportDetailsDialog({
       dismissErrorToast()
       onSaved(saved)
       setCoverVersion((version) => version + 1)
-      toast.success("Cover picture changed.")
     } catch (error) {
       showErrorToast(getExportErrorMessage(error))
     } finally {
@@ -131,9 +128,8 @@ export function ExportDetailsDialog({
     if (!item) return
     setFrameBusy(true)
     try {
-      const saved = await saveExportFrame(item.id, coverMs)
+      await saveExportFrame(item.id, coverMs)
       dismissErrorToast()
-      toast.success(`Saved "${saved.name}" to the media library.`)
     } catch (error) {
       showErrorToast(getSavedFrameErrorMessage(error))
     } finally {
