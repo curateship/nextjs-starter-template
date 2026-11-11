@@ -64,23 +64,33 @@ for a DCA ladder its steps, Rules you skipped on a finished trade, and Buys and
 sells last (Tyler, 11 Nov 2026: "Move sales card under summary. Move earlier
 trades under sales card").
 
-- **Summary.** For a position: made or lost now, its value, today's price,
-  side and leverage, size, entry, fees, slippage, wallet and who placed it.
-  For a finished trade: made or lost, return, how it ended, when it opened
-  and closed, how long it was held, entry, exit, size, what was put in, fees,
-  slippage, wallet and who placed it. A grid's settings are a Grid group at
-  the foot of the Summary: the range, how many levels, the spacing, the share
-  of the wallet, leverage, take profit, when it started and how many times the
-  whole grid sold (Tyler, 11 Nov 2026: "Combine grid settings into summary").
-  The Stop and target card and the Grid levels card were taken out the same
-  day ("Remove stop and target, grid levels").
+- **Summary.** For a position: made or lost now, its value, side and
+  leverage, fees, slippage, wallet and who placed it. For a finished trade:
+  made or lost, return, how it ended, when it opened and closed, how long it
+  was held, entry, exit, size, what was put in, fees, slippage, wallet and who
+  placed it. A grid's settings are a Grid group at the foot of the Summary:
+  which way it starts, how many levels, the spacing, the share of the wallet,
+  leverage and when it started (Tyler, 11 Nov 2026: "Combine grid settings
+  into summary"). An open position shows no Price now, Size or Entry, and the
+  Grid group no Range, Take profit or Times the whole grid sold (Tyler, 11 Nov
+  2026: "Remove all these datas ... theyre not useful"). The Stop and target
+  card and the Grid levels card were taken out the same day ("Remove stop and
+  target, grid levels").
 - **DCA steps.** Leverage, take profit and when it started, then each step's
   price, dollars, and whether it has bought.
 - **Sales.** Every sale the grid or ladder has made since it was placed, with
   the level that sold and what the sale made, and the total.
 - **Grid sales.** A finished trade a grid made lists the sales inside it.
 - **Rules you skipped.** The trading rules the entry went out against.
-- **Buys and sells.** Every fill: side, size, price, time, fee and slippage.
+- **Buys and sells.** Every fill as a table, newest first, with headings
+  that sort: Trade (a green dot for a buy, a red one for a sell, then how much
+  of the coin), Date ("11/10/26 9:27 PM"), Value (what the coins cost or
+  fetched) and Fee in grey, blank under a cent (Tyler, 11 Nov 2026: "revamp
+  the buy and sales card", then "remove the under 0.01 label. replace the buy
+  and sell chip with just a red or green dot. Use this format for the date
+  01/23/26 5:12 AM" and "Maybe try resize the font by 10%"). The text is
+  10.8px. In a panel under 18rem wide Fee drops out, and under 13rem the coin
+  amount too, so nothing is cut short. The table reaches the card's edges.
   The newest hundred show first, with Show all under them.
 - **Earlier trades on the coin.** What they made together, how many out of
   how many made money, a small line of the money added up trade by trade, and
