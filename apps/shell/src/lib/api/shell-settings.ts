@@ -287,6 +287,11 @@ const shellStylingSchema = z.object({
   panelCardBackground: shellBackgroundSchema.optional(),
   panelCardBorderWidth: z.number().int().min(0).max(3).optional(),
   panelCardBorderColor: shellBackgroundSchema.optional(),
+  panelCardRadius: z.number().int().min(0).max(32).optional(),
+  panelCardShadow: z.number().int().min(0).max(100).optional(),
+  panelCardInset: z.number().int().min(0).max(16).optional(),
+  panelCardBodyShade: z.number().int().min(0).max(100).optional(),
+  panelCardEdgeToEdge: z.boolean().optional(),
 })
 
 const publicNavigationLinkSchema = z.object({
