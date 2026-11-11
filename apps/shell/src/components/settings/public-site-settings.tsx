@@ -48,21 +48,18 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
-import { FormDialog } from "@/components/ui/form-dialog"
+import {
+  EditPopoverBody,
+  EditPopoverFooter,
+  EditPopoverHeader,
+  FormPopover,
+} from "@/components/ui/edit-popover"
 import {
   normalizePublicDevice,
   PUBLIC_DEVICE_HINTS,
@@ -157,7 +154,7 @@ type PublicSiteSettingsProps = {
 }
 
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
+  "w-fit max-w-full rounded-xl border border-zinc-200/40 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300/40 dark:border-zinc-700/40"
 
 export function PublicSiteSettings({
   navigation,
@@ -607,6 +604,8 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
     saveLinks(links.map((item, at) => (at === index ? (link as T) : item)))
 
   const addLink = () => setCreatingLink(true)
+  // The + the add popovers hang from.
+  const addRef = React.useRef<HTMLButtonElement>(null)
 
   const pendingDeleteItem =
     pendingDeleteIndex === null ? null : links[pendingDeleteIndex]
@@ -665,6 +664,7 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  ref={addRef}
                   type="button"
                   className={ADD_CHIP_CLASS}
                   aria-label="Add item to public menu"
@@ -688,6 +688,7 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
               reason={`A ${title.toLowerCase()} can have up to ${MAX_PUBLIC_FOOTER_LINKS} links.`}
             >
               <button
+                ref={addRef}
                 type="button"
                 disabled={footerAtLimit}
                 onClick={addLink}
@@ -737,6 +738,7 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
 
       {creatingGroup ? (
         <PublicGroupDialog
+          anchorRef={addRef}
           onClose={() => setCreatingGroup(false)}
           onSave={(group) => {
             onLinksChange([...links, group] as T[])
@@ -747,6 +749,7 @@ function PublicLinkEditor<T extends PublicNavigationItem>({
 
       {creatingLink ? (
         <PublicLinkDialog
+          anchorRef={addRef}
           linkNoun={linkNoun}
           perDevice={allowGroups}
           onClose={() => setCreatingLink(false)}
@@ -782,6 +785,7 @@ function PublicGroupChip({
 }) {
   const label = group.label.trim()
   const chip = useSortableChip(id, label || "dropdown group")
+  const nameRef = React.useRef<HTMLButtonElement>(null)
 
   return (
     <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
@@ -790,6 +794,7 @@ function PublicGroupChip({
           <GripVertical className="h-4 w-4" />
         </span>
         <Button
+          ref={nameRef}
           type="button"
           variant="ghost"
           className="max-w-56 justify-start gap-2 px-3 text-sm font-medium"
@@ -824,6 +829,7 @@ function PublicGroupChip({
       {dialogOpen ? (
         <PublicGroupDialog
           group={group}
+          anchorRef={nameRef}
           onClose={() => onDialogOpenChange(false)}
           onSave={(nextGroup) => {
             onChange(nextGroup)
@@ -841,11 +847,14 @@ function PublicGroupChip({
 
 function PublicGroupDialog({
   group,
+  anchorRef,
   onClose,
   onSave,
   onDelete,
 }: {
   group?: PublicNavigationGroup
+  /** The chip or + that opened it, which the popover hangs from. */
+  anchorRef: React.RefObject<HTMLElement | null>
   onClose: () => void
   onSave: (group: PublicNavigationGroup) => void
   onDelete?: () => void
@@ -911,26 +920,24 @@ function PublicGroupDialog({
   }
 
   return (
-    <FormDialog open dirty={dirty} onClose={onClose}>
+    <FormPopover
+      dirty={dirty}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      wide
+      aria-label={group ? group.label : "New dropdown group"}
+      onOpenAutoFocus={(event) => {
+        event.preventDefault()
+        nameRef.current?.focus()
+      }}
+    >
       {(requestClose) => (
-        <DialogContent
-          variant="admin"
-          className="sm:max-w-2xl"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            nameRef.current?.focus()
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {group ? group.label : "New dropdown group"}
-            </DialogTitle>
-            <DialogDescription>
-              Name the dropdown and put its links in the order visitors should
-              see them.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody className="grid gap-6">
+        <>
+          <EditPopoverHeader
+            title={group ? group.label : "New dropdown group"}
+            description="Name the dropdown and put its links in the order visitors should see them."
+          />
+          <EditPopoverBody>
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Group name</CardTitle>
@@ -1037,8 +1044,8 @@ function PublicGroupDialog({
                 </Button>
               </CardContent>
             </Card>
-          </DialogBody>
-          <DialogFooter>
+          </EditPopoverBody>
+          <EditPopoverFooter>
             {onDelete ? (
               <Button
                 type="button"
@@ -1055,10 +1062,10 @@ function PublicGroupDialog({
             <Button type="button" onClick={save}>
               {group ? "Save changes" : "Create group"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </EditPopoverFooter>
+        </>
       )}
-    </FormDialog>
+    </FormPopover>
   )
 }
 
@@ -1212,6 +1219,7 @@ function PublicLinkChip({
   const label = link.label.trim()
   const itemName = label || linkNoun
   const chip = useSortableChip(id, itemName)
+  const nameRef = React.useRef<HTMLButtonElement>(null)
 
   return (
     <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
@@ -1220,6 +1228,7 @@ function PublicLinkChip({
           <GripVertical className="h-4 w-4" />
         </span>
         <Button
+          ref={nameRef}
           type="button"
           variant="ghost"
           className="max-w-56 justify-start px-3 text-sm font-medium"
@@ -1250,6 +1259,7 @@ function PublicLinkChip({
       {dialogOpen ? (
         <PublicLinkDialog
           link={link}
+          anchorRef={nameRef}
           linkNoun={linkNoun}
           perDevice={perDevice}
           onClose={() => onDialogOpenChange(false)}
@@ -1277,6 +1287,7 @@ function PublicLinkChip({
  */
 function PublicLinkDialog({
   link,
+  anchorRef,
   linkNoun,
   perDevice,
   onClose,
@@ -1285,6 +1296,8 @@ function PublicLinkDialog({
 }: {
   /** The saved link being edited, or nothing for a link being added. */
   link?: PublicNavigationLink
+  /** The chip or + that opened it, which the popover hangs from. */
+  anchorRef: React.RefObject<HTMLElement | null>
   linkNoun: string
   perDevice: boolean
   onClose: () => void
@@ -1338,24 +1351,25 @@ function PublicLinkDialog({
   }
 
   return (
-    <FormDialog open dirty={dirty} busy={saving} onClose={onClose}>
+    <FormPopover
+      dirty={dirty}
+      busy={saving}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      aria-label={link?.label.trim() || linkNoun}
+      onOpenAutoFocus={(event) => {
+        if (named) return
+        event.preventDefault()
+        labelInputRef.current?.focus()
+      }}
+    >
       {(requestClose) => (
-        <DialogContent
-          variant="admin"
-          className="sm:max-w-lg"
-          onOpenAutoFocus={(event) => {
-            if (named) return
-            event.preventDefault()
-            labelInputRef.current?.focus()
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{link?.label.trim() || linkNoun}</DialogTitle>
-            <DialogDescription>
-              {link ? `Edit this public ${linkNoun}.` : `Add a ${linkNoun}.`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
+        <>
+          <EditPopoverHeader
+            title={link?.label.trim() || linkNoun}
+            description={link ? `Edit this public ${linkNoun}.` : `Add a ${linkNoun}.`}
+          />
+          <EditPopoverBody>
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Destination</CardTitle>
@@ -1419,8 +1433,8 @@ function PublicLinkDialog({
                 ) : null}
               </CardContent>
             </Card>
-          </DialogBody>
-          <DialogFooter>
+          </EditPopoverBody>
+          <EditPopoverFooter>
             {onDelete ? (
               <Button
                 type="button"
@@ -1444,10 +1458,10 @@ function PublicLinkDialog({
               {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
               Done
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </EditPopoverFooter>
+        </>
       )}
-    </FormDialog>
+    </FormPopover>
   )
 }
 

@@ -435,7 +435,7 @@ describe("the project page", () => {
         <ProjectDetailsPanel page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
       </TooltipProvider>
     )
-    expect(html).toMatch(/<h2[^>]*><button[^>]*><span[^>]*>Milestones</)
+    expect(html).toMatch(/<h2[^>]*><button[^>]*>(?:<span[^>]*>)+Milestones</)
     expect(html).toContain("data-block-tile")
     expect(html).toContain("Design signed off")
     expect(html).toContain("Overdue · ")

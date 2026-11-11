@@ -1,23 +1,21 @@
 import * as React from "react"
-import { LayoutDashboardIcon, PackageIcon, PlusIcon, type LucideIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon, LayoutDashboardIcon, PackageIcon, PlusIcon, type LucideIcon } from "lucide-react"
 
 import { AdditionBoundary } from "@/components/shared/widgets/addition-boundary"
 import { blockView, useBlockMenu } from "@/components/shared/notes/block-card"
 import { DashboardsRows } from "@/components/shared/notes/dashboards-rows"
 import { SideRows } from "@/components/shared/notes/side-rows"
 import { blockNode, keepOnPage, type AppBlock } from "@/components/shared/notes/note-block-nodes"
-import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { appBlockNodeName, type AdminAdditionProps } from "@/lib/admin-dashboard/admin-additions"
 import { ADMIN_SECTIONS_NODE, SHELL_ADMIN_BLOCK_KEYS } from "@/lib/admin-dashboard/admin-page"
 import { ADMIN_TAB_LABELS, ADMIN_TABS, type AdminTab } from "@/lib/admin-dashboard/admin-search"
+import { orderSections } from "@/lib/layout/styling-values"
 import type { AnalyticsRange } from "@/lib/analytics/range"
 import type { AdminSectionCounts } from "@/lib/api/admin-dashboard"
 import type { AdminPlan } from "@/lib/api/billing/admin-plans"
 import { appAdminBlocks } from "@/lib/app-options"
 import { formatPlanPrice } from "@/lib/format/money"
-import { focusRingInset } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
 
 /**
  * The Admin dashboard's own "/" blocks, on both its pages. They keep no
@@ -35,8 +33,18 @@ export type AdminBlocks = {
   /** The section the middle shows, and picking another. */
   tab: AdminTab
   onPickTab: (tab: AdminTab) => void
+  /** A press on the section already showing, which takes it back to its list. */
+  onRepickTab?: (tab: AdminTab) => void
+  /** Sections left out of the block, and changing them from its ⋮. */
+  hiddenSections: readonly AdminTab[]
+  onHiddenSectionsChange: (hidden: AdminTab[]) => void
+  /** The sections' saved order, dragged in the block's ⋮; unset is the shell's. */
+  sectionOrder?: readonly string[]
+  onSectionOrderChange?: (order: string[]) => void
   /** Null while they are read, or when the read failed. */
   counts: AdminSectionCounts | null
+  /** Counts worked out in the browser from the settings: Styling's groups, Navigations' links. */
+  localCounts?: Partial<Record<AdminTab, number>>
   /** How many widgets Overview shows; null while the layout is read. */
   widgetCount: number | null
   /** The range picked on Overview, handed to the app's blocks. */
@@ -63,32 +71,73 @@ function Reading() {
 
 const SECTION_COUNT: Record<AdminTab, keyof AdminSectionCounts | null> = {
   overview: null,
+  pages: "pages",
+  styling: null,
+  navigation: null,
   users: "users",
   feedback: "feedback",
+  announcements: "announcements",
   media: "media",
 }
 
+
 /**
- * Overview, Users, Feedback and Media library, the one showing picked. Also
+ * Overview, Users, Feedback, Announcements and Media library, the one
+ * showing picked. Also
  * drawn on its own while the left page is read or could not be, because it is
  * the only way between the sections.
+ *
+ * Its ⋮ lists every section but Overview, an open eye on one that shows and
+ * an eye with a slash on one that is hidden (Tyler, 9 Nov 2026: "the
+ * dashboard block is missing the 3 dot dropdown and need to add the
+ * hide/show dashboards", drawn on Trade's Protocols block). One press swaps
+ * it and the menu stays open for the next. The section showing keeps its row
+ * until another is picked, so the block never loses the row you are on.
  */
 export function SectionsBlock() {
   const blocks = React.useContext(AdminBlocksContext)
+  const hidden = blocks?.hiddenSections ?? []
+  const changeHidden = blocks?.onHiddenSectionsChange
+  // In the order saved, dragged in the ⋮ (Tyler, 9 Nov 2026: "I want to be
+  // able to drag and drop dashboard item positions"). Overview stays first,
+  // and is never hidden: it is where the dashboard starts.
+  const ordered = orderSections(ADMIN_TABS, blocks?.sectionOrder)
+  useBlockMenu(
+    changeHidden
+      ? ordered.filter((tab) => tab !== "overview").map((tab) => {
+          const isHidden = hidden.includes(tab)
+          return {
+            label: ADMIN_TAB_LABELS[tab],
+            ariaLabel: `${isHidden ? "Show" : "Hide"} ${ADMIN_TAB_LABELS[tab]}`,
+            muted: isHidden,
+            keepOpen: true,
+            end: isHidden ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />,
+            sortKey: tab,
+            onSelect: () =>
+              changeHidden(isHidden ? hidden.filter((other) => other !== tab) : [...hidden, tab]),
+          }
+        })
+      : undefined,
+    blocks?.onSectionOrderChange
+  )
   if (!blocks) return <Unplaced />
   return (
     <DashboardsRows
       current={blocks.tab}
       onPick={blocks.onPickTab}
-      sections={ADMIN_TABS.map((tab) => {
+      onRepick={blocks.onRepickTab}
+      sections={ordered.filter((tab) => tab === blocks.tab || !hidden.includes(tab)).map((tab) => {
         const counted = SECTION_COUNT[tab]
+        const local = blocks.localCounts?.[tab]
         return {
           key: tab,
           label: ADMIN_TAB_LABELS[tab],
           value:
             tab === "overview"
               ? blocks.widgetCount?.toLocaleString()
-              : counted && blocks.counts
+              : local !== undefined
+                ? local.toLocaleString()
+                : counted && blocks.counts
                 ? blocks.counts[counted].toLocaleString()
                 : undefined,
         }
@@ -97,52 +146,42 @@ export function SectionsBlock() {
   )
 }
 
-/** Where a plan shows, in a word or two, and its dot's colour. */
-function planWhere(plan: AdminPlan) {
-  if (!plan.active) return { line: "Archived", dot: "bg-muted-foreground/40" }
-  if (plan.isDefault) return { line: "Default plan", dot: "bg-blue-500" }
-  return plan.isPublic ? { line: "On pricing page", dot: "bg-emerald-500" } : { line: "Hidden", dot: "bg-amber-500" }
+/** A plan's dot: blue the default, green on the pricing page, amber hidden, grey archived. */
+function planDot(plan: AdminPlan) {
+  if (!plan.active) return "bg-muted-foreground/40"
+  if (plan.isDefault) return "bg-blue-500"
+  return plan.isPublic ? "bg-emerald-500" : "bg-amber-500"
 }
 
 /**
- * Every plan, a row each that opens its window, archived plans last. The
- * Admin ⋮'s Plans tab ends with New plan; the block has it in its own ⋮.
+ * Every plan, a row each that opens its window, archived plans last. New
+ * plan is the Admin ⋮'s Plans tab footer, and in the block's own ⋮.
  */
 export function PlanRows({
   plans,
   onOpen,
-  onNew,
 }: {
   plans: AdminPlan[]
   onOpen: (plan: AdminPlan) => void
-  /** Left out, the list ends with no New plan button. */
-  onNew?: () => void
 }) {
   const sorted = [...plans].sort((a, b) => Number(b.active) - Number(a.active) || a.sortOrder - b.sortOrder)
   return (
     <SideRows
       empty="No plans yet."
+      // The price after the dot, where the dot's words were, and how many
+      // accounts are on the plan in the pill, where the price was (Tyler,
+      // 9 Nov 2026: "replace all these text label with the priceing instead
+      // and where the pricing was put the amount of users in that plan").
+      // The dot keeps its colour: blue default, green on the pricing page,
+      // amber hidden, grey archived.
       rows={sorted.map((plan) => ({
         key: plan.id,
         name: plan.name,
-        ...planWhere(plan),
-        value: formatPlanPrice(plan.priceMonthlyCents, plan.priceYearlyCents, plan.currency),
+        dot: planDot(plan),
+        line: formatPlanPrice(plan.priceMonthlyCents, plan.priceYearlyCents, plan.currency),
+        value: plan.memberCount === undefined ? undefined : plan.memberCount.toLocaleString(),
         onPress: () => onOpen(plan),
       }))}
-      after={
-        onNew ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={cn("justify-self-start", focusRingInset)}
-            onClick={onNew}
-          >
-            <PlusIcon className="size-4" />
-            New plan
-          </Button>
-        ) : null
-      }
     />
   )
 }
@@ -162,7 +201,10 @@ function PlansBlock() {
       <Reading />
     )
   }
-  return <PlanRows plans={blocks.plans} onOpen={blocks.onOpenPlan} />
+  // Active plans only (Tyler, 9 Nov 2026: "only show active plans. dont show
+  // archived plans in the block"). The Admin ⋮'s Plans tab still lists the
+  // archived ones, where one is opened to bring it back.
+  return <PlanRows plans={blocks.plans.filter((plan) => plan.active)} onOpen={blocks.onOpenPlan} />
 }
 
 /**

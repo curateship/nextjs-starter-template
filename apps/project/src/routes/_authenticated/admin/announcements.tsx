@@ -1,12 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 /**
- * Announcements are in the Admin dashboard's ⋮ (Tyler, 8 Nov 2026: "The
- * announcement also doesnt need a table"). This address stays so old links and
- * bookmarks land.
+ * Announcements are a section of the Admin dashboard (Tyler, 9 Nov 2026:
+ * "Move the announcement from the top left settings into its own
+ * dashboard"). This address stays so old links and bookmarks land there.
  */
 export const Route = createFileRoute("/_authenticated/admin/announcements")({
   beforeLoad: () => {
-    throw redirect({ to: "/admin/dashboard", replace: true })
+    throw redirect({ to: "/admin/dashboard", search: { tab: "announcements" }, replace: true })
   },
 })

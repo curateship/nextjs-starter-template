@@ -267,6 +267,28 @@ reorders and hides like every other row there. A menu saved before the change
 kept a row called Theme; that row IS this control, so it keeps the place and
 the on-or-off state it was left in.
 
+The cog can also hold links. Pressing the Settings chip's name in a top right
+menu card opens a dropdown, "Links inside Settings" (Tyler, 10 Nov 2026:
+"clicking on the button should open a dropdown to add it instead"). The
+dropdown lists the links and ends in one line holding an icon, a short name
+box, a short address box and Add (Tyler, 10 Nov 2026: "make it one row").
+Add puts a new link at the bottom of the list. Pressing a listed
+link loads it into the form to change it, and the bin deletes it at once. The
+chip wears a "2 links" pill once it has any.
+
+- The links sit at the bottom of the cog's panel, under a line, one full-width
+  row each, in the order dragged. Pressing one goes to the page and closes the
+  panel. An address starting with http opens in a new tab.
+- Your top right menu and the member top right menu each have their own list,
+  so a link added for yourself is not shown to members.
+- A link with no name or no address stays in the editor but is not drawn. A
+  member is never shown a link to an admin page.
+- The links go where the cog goes. Switching Settings off hides them, and on a
+  phone they fold into the three-dot menu with the cog's rows.
+- They are saved on the Settings row itself (`links` on the `settings` item of
+  `topRightNavigation` and `memberTopRightNavigation`), so no migration was
+  needed. Reset on the card deletes them along with the row's links.
+
 Public pages keep their own separate colour-mode button, because a visitor who
 is not signed in has no settings to put in a menu.
 
@@ -432,6 +454,35 @@ drag. The pointer is an open hand over the chip and an arrow over the name, so
 the two things a chip does are both visible before either is tried. The
 keyboard still reorders: tab to a chip, space to lift it, the arrows to move
 it, space to drop it.
+
+**A link opens in a popover, not a window.** Every editor in Navigations
+that changes a link opens as a popover under the chip, row or + that was
+pressed (Tyler, 10 Nov 2026: "replace all of the other modals that changes
+links to a popover instead"). That covers a sidebar link with its child links,
+a top right menu link, a top left shortcut, a public menu link, a public
+dropdown group and a social account, and the + that adds each of them. The
+account corner's settings are not a link and still open in a window.
+
+- The frame is `EditPopover` in `src/components/ui/edit-popover.tsx`: a
+  title, a body that scrolls when the screen is short, and the same footer
+  order a window has.
+- The editors that hold a draft (the public link, group and social account)
+  use `FormPopover`. Once something is typed, a click outside or Escape asks
+  "Discard changes?" first, as their windows did.
+- The editors that save as you type (sidebar, top right, top left) close on a
+  click outside and save the last edit as they close.
+- The cards inside, and a sidebar link's child rows, take their colour and
+  line from Styling → Cards inside modals, as they did when these were
+  windows (Tyler: "wire the bg to the card settings"). The popover's own
+  background and outer line come from Styling → Modal and popover, as a
+  window's (Tyler: "the outer of the card should be wired too"). Both rules
+  are in `theme.css`, under `[data-edit-popover]`. That tile's preview draws two
+  cards, each with a heading and input boxes inside, so it is clear the
+  setting paints the card and not the boxes.
+- The icon picker still opens its own window over the popover, and closing it
+  leaves the popover open.
+
+In the next paragraph, and in older notes, "window" means this popover.
 
 **A chip's own window types normally.** The window that edits a chip is drawn in
 `document.body`, outside the chip, but React sends its keys and presses up the

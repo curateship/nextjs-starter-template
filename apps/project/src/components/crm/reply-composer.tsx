@@ -40,8 +40,8 @@ export function ReplyComposer({
   onDraft,
   status,
 }: {
-  /** The conversation's state in words, on the left of the last line: "Open". */
-  status: string
+  /** The conversation's status dropdown, on the left of the last line. */
+  status: React.ReactNode
   className?: string
   threadId: string
   /** What is in the box, held by the screen so it survives a switch. */
@@ -102,10 +102,10 @@ export function ReplyComposer({
       const { reopened } = await sendReply(threadId, body.trim(), files)
       setBody("")
       setFiles([])
-      // The conversation was closed or snoozed and answering it put it back in
-      // the inbox. Said out loud, because a status changing under somebody
+      // The conversation was closed by a block and answering it put it back
+      // in the inbox. Said out loud, because a conversation reappearing
       // without a word is its own surprise.
-      if (reopened) toast.success("Reopened, because you answered it.")
+      if (reopened) toast.success("Back in the inbox, because you answered it.")
       onSent()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))
@@ -191,7 +191,7 @@ export function ReplyComposer({
       {/* No line between the box and this row (Tyler, 7 Nov 2026: "remove the
           divider"); the whole footer is one light grey ground. */}
       <div className="flex items-center gap-1 px-3.75 pb-2.5">
-        <span className="hidden min-w-0 flex-1 truncate text-sm text-muted-foreground @xs:block">{status}</span>
+        <div className="flex min-w-0 flex-1">{status}</div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>

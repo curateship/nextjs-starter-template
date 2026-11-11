@@ -177,10 +177,34 @@ export type ShellStyling = {
    * options for this card ui ... I want to change border and bg"). Unset, a
    * card keeps its look: the theme's grey at 40% and a 1px line in the
    * theme's border colour.
+   *
+   * Since 10 Nov 2026 Settings sets them with the Blocks' sliders (Tyler:
+   * "I want all the same ui styling the same as the blocks styling"): Grey
+   * shade writes `panelCardBackground` as the muted grey at that strength,
+   * Border shade writes `panelCardBorderColor` the same way, and Border is
+   * `panelCardBorderWidth`. A colour saved before then keeps reading as it
+   * was.
    */
   panelCardBackground?: ShellBackground
   panelCardBorderWidth?: number
   panelCardBorderColor?: ShellBackground
+  /**
+   * A panel card's corners in px and the shadow under it, 0 none to 100 the
+   * strongest, as the Blocks' (10 Nov 2026). Unset is 10px, the corners the
+   * cards always had, and no shadow.
+   */
+  panelCardRadius?: number
+  panelCardShadow?: number
+  /**
+   * The rest of the Blocks' settings (Tyler, 10 Nov 2026: "i told you to
+   * copy all of the same settings from the blocks Ui"): how far in from the
+   * card's grey its tile sits in px, the tile's own grey 0 to 100, and
+   * whether the card reaches the panel's sides. Unset is no edge, a tile the
+   * card's own grey and off, the look the cards always had.
+   */
+  panelCardInset?: number
+  panelCardBodyShade?: number
+  panelCardEdgeToEdge?: boolean
 }
 
 /**
@@ -587,6 +611,13 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.panelCardBorderColor === undefined
       ? {}
       : { panelCardBorderColor: normalizeBackground(styling.panelCardBorderColor, DEFAULT_PANEL_CARD_COLOR) }),
+    ...(styling.panelCardRadius === undefined ? {} : { panelCardRadius: clampBlockRadius(styling.panelCardRadius) }),
+    ...(styling.panelCardShadow === undefined ? {} : { panelCardShadow: clampBlockShadow(styling.panelCardShadow) }),
+    ...(styling.panelCardInset === undefined ? {} : { panelCardInset: clampBlockInset(styling.panelCardInset) }),
+    ...(styling.panelCardBodyShade === undefined
+      ? {}
+      : { panelCardBodyShade: clampBlockBodyShade(styling.panelCardBodyShade) }),
+    ...(typeof styling.panelCardEdgeToEdge === "boolean" ? { panelCardEdgeToEdge: styling.panelCardEdgeToEdge } : {}),
   }
 }
 
@@ -841,9 +872,38 @@ export const WIDGET_STYLE_VAR_NAMES = [
 export const DEFAULT_PANEL_CARD_COLOR: ShellBackground = { mode: "default", strength: 40, color: "#ffffff" }
 /** A panel card's line, 1px as it always was. */
 export const DEFAULT_PANEL_CARD_BORDER_WIDTH = 1
+/** A panel card's corners, 10px, the theme's `rounded-lg` they always had. */
+export const DEFAULT_PANEL_CARD_RADIUS = 10
+/** The grey a panel card left to the theme shows: its muted grey at 40%. */
+export const DEFAULT_PANEL_CARD_SHADE = 40
+/**
+ * Where Border shade's thumb sits while the line is left to the theme. The
+ * theme's border colour is about the theme's grey text colour at 18% on a
+ * light page; moving the thumb saves that grey at the strength picked.
+ */
+export const DEFAULT_PANEL_CARD_BORDER_SHADE = 18
 
 /**
- * The panel cards' background and line (Settings → Styling → Panel cards),
+ * Grey shade and Border shade as the Settings sliders show them: the saved
+ * strength when the colour is the theme's grey, the default otherwise.
+ * `custom` is true for a fixed colour saved before the sliders, which shows
+ * until a slider is moved.
+ */
+export function panelCardShade(styling: ShellStyling) {
+  return sliderShade(styling.panelCardBackground, DEFAULT_PANEL_CARD_SHADE)
+}
+
+export function panelCardBorderShade(styling: ShellStyling) {
+  return sliderShade(styling.panelCardBorderColor, DEFAULT_PANEL_CARD_BORDER_SHADE)
+}
+
+function sliderShade(bg: ShellBackground | undefined, fallback: number) {
+  if (bg?.mode === "muted") return { value: clampStrength(bg.strength), isDefault: false, custom: false }
+  return { value: fallback, isDefault: bg?.mode !== "custom", custom: bg?.mode === "custom" }
+}
+
+/**
+ * The panel cards' look, every setting the Blocks have (Settings → Styling → Panel cards),
  * on the root so every `PanelCard` reads them through its rule in
  * theme.css. A colour left to the theme sets no variable, and the rule's
  * own fallback shows.
@@ -853,6 +913,19 @@ export function getPanelCardStyleVars(styling: ShellStyling): Record<string, str
     "--shell-panel-card-border-width": String(
       clampCardBorderWidth(styling.panelCardBorderWidth ?? DEFAULT_PANEL_CARD_BORDER_WIDTH)
     ),
+    "--shell-panel-card-radius": `${clampBlockRadius(styling.panelCardRadius ?? DEFAULT_PANEL_CARD_RADIUS)}px`,
+    "--shell-panel-card-shadow": blockShadowCss(clampBlockShadow(styling.panelCardShadow ?? 0)),
+    "--shell-panel-card-inset": `${clampBlockInset(styling.panelCardInset ?? 0)}px`,
+    // Unset, the tile is see-through, so the card's own grey shows and the
+    // rows sit straight on it as they always did. Given a shade, the tile is
+    // drawn and its rows start 12px below its top edge.
+    "--shell-panel-card-body":
+      styling.panelCardBodyShade === undefined
+        ? "transparent"
+        : `color-mix(in oklab, var(--muted) ${clampBlockBodyShade(styling.panelCardBodyShade)}%, var(--card))`,
+    "--shell-panel-card-tile-top": styling.panelCardBodyShade === undefined ? "0px" : "12px",
+    // 1 reaches past the panel's space, 0 keeps it; the card multiplies.
+    "--shell-panel-card-bleed": styling.panelCardEdgeToEdge === true ? "1" : "0",
   }
   const background = resolveBackground(styling.panelCardBackground ?? DEFAULT_PANEL_CARD_COLOR, {
     base: "--muted",
@@ -871,4 +944,10 @@ export const PANEL_CARD_STYLE_VAR_NAMES = [
   "--shell-panel-card-bg",
   "--shell-panel-card-border-width",
   "--shell-panel-card-border-color",
+  "--shell-panel-card-radius",
+  "--shell-panel-card-shadow",
+  "--shell-panel-card-inset",
+  "--shell-panel-card-body",
+  "--shell-panel-card-tile-top",
+  "--shell-panel-card-bleed",
 ] as const

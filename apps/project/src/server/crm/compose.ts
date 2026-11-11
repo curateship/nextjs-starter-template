@@ -9,7 +9,6 @@ import { getCrmOutgoingReply } from "@/server/crm/sender"
 import { getEmailProvider } from "@/server/email/provider"
 import { getAppEmailApiKey } from "@/server/email/settings"
 import {
-  customShellContacts,
   customShellCrmLeads,
   customShellCrmMessages,
   customShellCrmThreads,
@@ -105,18 +104,6 @@ export async function startCrmConversation(
 
   let leadId = existing?.id
   if (!leadId) {
-    // Linked to a contact only when one already exists on this address, as
-    // inbound mail does. Never one made.
-    const [contact] = await database
-      .select({ id: customShellContacts.id })
-      .from(customShellContacts)
-      .where(
-        and(
-          eq(customShellContacts.workspaceId, workspaceId),
-          sql`lower(${customShellContacts.email}) = ${to}`
-        )
-      )
-      .limit(1)
     leadId = uuid()
     await database.insert(customShellCrmLeads).values({
       id: leadId,
@@ -126,7 +113,6 @@ export async function startCrmConversation(
       // Written to, so already contacted.
       stage: "contacted",
       source: HAND_ADDED_SOURCE,
-      contactId: contact?.id ?? null,
       createdAt: at,
       updatedAt: at,
     })

@@ -14,13 +14,73 @@ import { cn } from "@/lib/utils"
  * for the Admin 3 panel design: Travel's trip ⋮ and activity ⋮ are this
  * menu (Tyler, 6 Nov 2026).
  */
-export type MySettingsTab = { value: string; label: string; content: React.ReactNode }
+export type MySettingsTab = {
+  value: string
+  label: string
+  content: React.ReactNode
+  /**
+   * The tab's one action under its rows, such as Lock blocks or New plan,
+   * drawn by the menu under a line across it, the same on every tab (Tyler,
+   * 9 Nov 2026: "make both footer the same ui"). It stays in view when the
+   * rows scroll. Use `MenuFooterButton`.
+   */
+  footer?: React.ReactNode
+}
+
+/** A tab's footer action: a full-width row with its icon, as every ⋮ footer is. */
+export function MenuFooterButton({
+  icon,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  icon: React.ReactNode
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={disabled}
+      className="w-full justify-start gap-2 px-2 font-normal [&_svg]:size-4"
+      onClick={onClick}
+    >
+      {icon}
+      {children}
+    </Button>
+  )
+}
+
+/**
+ * A tabbed ⋮'s open state and tab, held by the page so something outside the
+ * menu can open it at one tab: a widget's Manage widgets opens the left
+ * panel's ⋮ at Widgets (Tyler, 10 Nov 2026). Hand `open`, `tab` and their two
+ * setters to `TabbedMenu`; `openAt` opens it showing that tab.
+ */
+export function useTabbedMenuState() {
+  const [state, setState] = React.useState<{ open: boolean; tab: string | undefined }>({
+    open: false,
+    tab: undefined,
+  })
+  return {
+    open: state.open,
+    tab: state.tab,
+    onOpenChange: React.useCallback((open: boolean) => setState((was) => ({ ...was, open })), []),
+    onTabChange: React.useCallback((tab: string) => setState((was) => ({ ...was, tab })), []),
+    openAt: React.useCallback((tab: string) => setState({ open: true, tab }), []),
+  }
+}
+
+export type TabbedMenuState = ReturnType<typeof useTabbedMenuState>
 
 /**
  * The ⋮ with tabbed settings that My settings is, shared by the task panel's
  * ⋮ (Tyler, 6 Nov 2026: "It needs to copy the Ui of the left panel tabs").
- * `open` and `onOpenChange` let the page close it from outside, and
- * `onCloseAutoFocus` send the keyboard somewhere other than the ⋮.
+ * `open` and `onOpenChange` let the page close it from outside, `tab` and
+ * `onTabChange` pick the tab from outside (`useTabbedMenuState`), and
+ * `onCloseAutoFocus` sends the keyboard somewhere other than the ⋮.
  */
 export function TabbedMenu({
   label,
@@ -29,6 +89,8 @@ export function TabbedMenu({
   width = "22.7rem",
   open: openFromOutside,
   onOpenChange,
+  tab: tabFromOutside,
+  onTabChange,
   onCloseAutoFocus,
 }: {
   label: string
@@ -38,11 +100,20 @@ export function TabbedMenu({
   width?: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** The tab showing, when the page holds it; undefined shows the first. */
+  tab?: string
+  onTabChange?: (tab: string) => void
   onCloseAutoFocus?: (event: Event) => void
 }) {
   const [ownOpen, setOwnOpen] = React.useState(false)
   const open = openFromOutside ?? ownOpen
-  const [tab, setTab] = React.useState(tabs[0]?.value ?? "")
+  const [ownTab, setOwnTab] = React.useState(tabs[0]?.value ?? "")
+  const tab = onTabChange ? (tabFromOutside ?? tabs[0]?.value ?? "") : ownTab
+  const setTab = (next: string) => {
+    if (onTabChange) onTabChange(next)
+    else setOwnTab(next)
+  }
+  // Opened from its own ⋮, it starts on the first tab.
   function change(next: boolean) {
     if (!next && document.activeElement instanceof HTMLElement) document.activeElement.blur()
     if (next) setTab(tabs[0]?.value ?? "")
@@ -94,6 +165,7 @@ export function TabbedMenu({
           {/* Plain rows, no lines between them (Tyler, 6 Nov 2026: "Remove email and dividers"). */}
           <div className="grid grid-cols-[minmax(0,1fr)] py-1">{shown?.content}</div>
         </ScrollArea>
+        {shown?.footer ? <div className="border-t p-1.5">{shown.footer}</div> : null}
       </PopoverContent>
     </Popover>
   )

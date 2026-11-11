@@ -10,15 +10,16 @@ import {
   loadBroadcastTemplates,
 } from "@/lib/api/email/broadcasts"
 import { loadDevOutbox } from "@/lib/api/email/dev-outbox"
+import { loadSystemEmailsPage } from "@/lib/api/email/system-emails"
 import { loadSegmentChoices } from "@/lib/api/people/contact-segments"
-import { loadContactsPage } from "@/lib/api/people/contacts"
+import { loadContactsPage, loadLeadsPage } from "@/lib/api/people/contacts"
 import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 import type { CrmInboxSort } from "@/lib/crm/crm"
 import {
-  CRM_DEFAULT_STATUS,
   crmTabOf,
   readCrmSearch,
   type CrmSearch,
+  type CrmLeadSort,
 } from "@/lib/crm/crm-search"
 
 /**
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/admin/crm")({
   validateSearch: readCrmSearch,
   // Everything except which record is open. Opening one must not refetch the
   // list underneath it: the right panel fetches its own.
-  loaderDeps: ({ search }) => ({ ...search, open: undefined, system: undefined }),
+  loaderDeps: ({ search }) => ({ ...search, open: undefined }),
   loader: ({ deps }) => loadCrm(deps),
   component: AdminCrmRoute,
   errorComponent: routeErrorComponent(getCrmErrorMessage),
@@ -44,7 +45,20 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
     return { tab, widgets: await loadOverviewWidgets("crm") }
   }
 
-  if (tab === "people") {
+  if (tab === "leads") {
+    return {
+      tab,
+      leads: await loadLeadsPage({
+        search: search.q,
+        stage: search.stage === "all" ? undefined : search.stage,
+        sort: search.sort as CrmLeadSort | undefined,
+        direction: search.direction,
+        page: search.page,
+      }),
+    }
+  }
+
+  if (tab === "subscribers") {
     return {
       tab,
       people: await loadContactsPage({
@@ -55,9 +69,18 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
         page: search.page,
         limit: search.size,
         segmentId: search.segment,
-        people: search.view === "leads" ? "leads" : undefined,
       }),
     }
+  }
+
+  if (tab === "system") {
+    // Every email the app sends for itself, and how new blocks start out for
+    // the editor on the right; a failure there falls back to the built-in ones.
+    const [emails, defaults] = await Promise.all([
+      loadSystemEmailsPage(),
+      loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
+    ])
+    return { tab, systemEmails: emails.emails, blockDefaults: defaults.defaults }
   }
 
   if (tab === "broadcasts") {
@@ -87,8 +110,6 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
   const [inbox, outbox] = await Promise.all([
     loadInbox({
       search: search.q,
-      // The same default the filter control shows.
-      status: search.status ?? CRM_DEFAULT_STATUS,
       stage: search.stage,
       unreadOnly: view === "unread" || undefined,
       savedOnly: view === "saved" || undefined,

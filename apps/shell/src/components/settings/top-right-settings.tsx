@@ -26,18 +26,16 @@ import {
   useSortableChip,
 } from "@/components/settings/nav-editor-shared"
 import { NavLinkDestinationCard } from "@/components/settings/nav-link-destination-card"
+import { SettingsCogLinksDropdown } from "@/components/settings/settings-cog-links-dropdown"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  EditPopover,
+  EditPopoverBody,
+  EditPopoverFooter,
+  EditPopoverHeader,
+} from "@/components/ui/edit-popover"
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +47,7 @@ import {
   isShellEntryNamed,
   isShellTopRightLink,
   renderShellIcon,
+  settingsCogLinks,
   topRightBuiltInMeta,
   type ShellTopRightBuiltIn,
   type ShellTopRightAppAction,
@@ -75,7 +74,7 @@ type TopRightSettingsProps = {
  * as the same control.
  */
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
+  "w-fit max-w-full rounded-xl border border-zinc-200/40 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300/40 dark:border-zinc-700/40"
 
 /**
  * The dashed chip at the end of a row that adds a link (Tyler, 9 Nov 2026,
@@ -124,15 +123,42 @@ function SortableFixedChip({
   meta,
   onVisibleChange,
   phone,
+  cogLinks,
 }: {
   item: ShellTopRightBuiltIn | ShellTopRightAppAction
   meta: { label: string; icon: AppHeaderAction["icon"] }
   onVisibleChange: (visible: boolean) => void
   /** Where it goes on a phone, for an app control that lets you choose. */
   phone?: { folds: boolean; onChange: (folds: boolean) => void }
+  /**
+   * The Settings chip only: its name opens the dropdown of links that sit
+   * inside the header's cog.
+   */
+  cogLinks?: {
+    links: readonly ShellTopRightLink[]
+    onLinksChange: (links: ShellTopRightLink[]) => void
+  }
 }) {
   const Icon = meta.icon
   const chip = useSortableChip(item.id, meta.label)
+  const name = (
+    <>
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="truncate">{meta.label}</span>
+      {/* A switched-off built-in stays right here wearing this pill — that
+          is how it comes back. Deleting is a links-only thing. */}
+      {!item.visible ? (
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          Hidden
+        </span>
+      ) : null}
+      {cogLinks?.links.length ? (
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {cogLinks.links.length} {cogLinks.links.length === 1 ? "link" : "links"}
+        </span>
+      ) : null}
+    </>
+  )
 
   return (
     <div {...chip} className={cn(CHIP_CLASS, chip.className)}>
@@ -140,17 +166,26 @@ function SortableFixedChip({
         <span className={DRAG_GRIP_CLASS} aria-hidden="true">
           <GripVertical className="h-4 w-4" />
         </span>
-        <span className="flex h-8 max-w-56 items-center gap-2 px-1.5 text-sm font-medium">
-          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{meta.label}</span>
-          {/* A switched-off built-in stays right here wearing this pill — that
-              is how it comes back. Deleting is a links-only thing. */}
-          {!item.visible ? (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              Hidden
-            </span>
-          ) : null}
-        </span>
+        {cogLinks ? (
+          <SettingsCogLinksDropdown
+            links={cogLinks.links}
+            onLinksChange={cogLinks.onLinksChange}
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 max-w-64 justify-start gap-2 px-1.5 text-sm font-medium"
+                aria-label="Links inside Settings"
+              >
+                {name}
+              </Button>
+            }
+          />
+        ) : (
+          <span className="flex h-8 max-w-56 items-center gap-2 px-1.5 text-sm font-medium">
+            {name}
+          </span>
+        )}
         <Switch
           className="mx-1.5 shrink-0"
           checked={item.visible}
@@ -212,6 +247,7 @@ export function SortableLinkChip({
   visibility?: { visible: boolean; onVisibleChange: (visible: boolean) => void }
 }) {
   const labelInputRef = React.useRef<HTMLInputElement>(null)
+  const nameRef = React.useRef<HTMLButtonElement>(null)
   const isNamed = isShellEntryNamed(item)
   const itemName = isNamed ? item.label : linkNoun.toLowerCase()
   const addressCheck = useCheckedAddress(item.href, isNamed)
@@ -224,6 +260,7 @@ export function SortableLinkChip({
           <GripVertical className="h-4 w-4" />
         </span>
         <Button
+          ref={nameRef}
           type="button"
           variant="ghost"
           onClick={() => onDialogOpenChange(true)}
@@ -267,63 +304,66 @@ export function SortableLinkChip({
         </Button>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={onDialogOpenChange}>
-        <DialogContent
-          variant="admin"
-          className="sm:max-w-lg"
-          // Opening a link that has no name yet drops the cursor straight in
-          // the Label box so you can type. A named link keeps the dialog's
-          // normal focus, since landing in a filled field invites a stray edit.
-          onOpenAutoFocus={(event) => {
-            if (isNamed) return
-            event.preventDefault()
-            labelInputRef.current?.focus()
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{isNamed ? item.label : linkNoun}</DialogTitle>
-            <DialogDescription>{dialogDescription}</DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <NavLinkDestinationCard
-              linkNoun={linkNoun}
-              icon={item.icon}
-              label={item.label}
-              href={item.href}
-              onChange={onChange}
-              labelInputRef={labelInputRef}
-              addressCheck={addressCheck}
-            />
-          </DialogBody>
-          {/* Edits here save themselves as you type, so there is nothing for a
-              Cancel to undo — this window ends with a single Done, and the
-              button that throws the link away sits hard left where it cannot
-              be mistaken for it. */}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              className="mr-auto"
-              onClick={() => {
-                onDialogOpenChange(false)
-                onDelete()
-              }}
-            >
-              Delete link
-            </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                // Flush any pending debounce, then close.
-                await onSaveConfig()
-                onDialogOpenChange(false)
-              }}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditPopover
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          // Edits save as they are typed; closing flushes the last of them.
+          if (!open) void onSaveConfig()
+          onDialogOpenChange(open)
+        }}
+        anchorRef={nameRef}
+        aria-label={isNamed ? item.label : linkNoun}
+        // Opening a link that has no name yet drops the cursor straight in
+        // the Label box so you can type. A named link keeps the normal focus,
+        // since landing in a filled field invites a stray edit.
+        onOpenAutoFocus={(event) => {
+          if (isNamed) return
+          event.preventDefault()
+          labelInputRef.current?.focus()
+        }}
+      >
+        <EditPopoverHeader
+          title={isNamed ? item.label : linkNoun}
+          description={dialogDescription}
+        />
+        <EditPopoverBody>
+          <NavLinkDestinationCard
+            linkNoun={linkNoun}
+            icon={item.icon}
+            label={item.label}
+            href={item.href}
+            onChange={onChange}
+            labelInputRef={labelInputRef}
+            addressCheck={addressCheck}
+          />
+        </EditPopoverBody>
+        {/* Edits here save themselves as you type, so there is nothing for a
+            Cancel to undo. It ends with a single Done, and the button that
+            throws the link away sits hard left. */}
+        <EditPopoverFooter>
+          <Button
+            type="button"
+            variant="outline"
+            className="mr-auto"
+            onClick={() => {
+              onDialogOpenChange(false)
+              onDelete()
+            }}
+          >
+            Delete link
+          </Button>
+          <Button
+            type="button"
+            onClick={async () => {
+              // Flush any pending debounce, then close.
+              await onSaveConfig()
+              onDialogOpenChange(false)
+            }}
+          >
+            Done
+          </Button>
+        </EditPopoverFooter>
+      </EditPopover>
     </div>
   )
 }
@@ -401,6 +441,19 @@ export function TopRightSettings({
       items.map((item) =>
         item.type === "app" && item.id === actionId
           ? { ...item, foldsOnPhone }
+          : item
+      )
+    )
+  }
+
+  // The links inside the Settings cog live on the cog's own item, so every
+  // change to them rewrites that one item's list.
+  const cogLinks = settingsCogLinks(items)
+  const setCogLinks = (links: ShellTopRightLink[]) => {
+    onItemsChange(
+      items.map((item) =>
+        item.type === "builtIn" && item.id === "settings"
+          ? { ...item, links }
           : item
       )
     )
@@ -485,6 +538,11 @@ export function TopRightSettings({
                     meta={topRightBuiltInMeta[item.id]}
                     onVisibleChange={(visible) =>
                       handleVisibleChange(item.id, visible)
+                    }
+                    cogLinks={
+                      item.id === "settings"
+                        ? { links: cogLinks, onLinksChange: setCogLinks }
+                        : undefined
                     }
                   />
                 )

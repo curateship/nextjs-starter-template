@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   createDefaultStyling,
+  getPanelCardStyleVars,
   getPageShadeVars,
+  panelCardBorderShade,
+  panelCardShade,
   getSidebarShadeVars,
   normalizeStyling,
 } from "@/lib/layout/styling-values"
@@ -46,6 +49,71 @@ describe("pageShade", () => {
     expect(normalizeStyling({ ...base, pageShade: -5 }).pageShade).toBe(0)
     expect(getPageShadeVars({ ...base, pageShade: 0 })).toEqual({
       "--shell-page-depth": "0%",
+    })
+  })
+})
+
+describe("panel cards", () => {
+  const grey = (strength: number) => ({ mode: "muted" as const, strength, color: "#ffffff" })
+
+  it("keeps the look they always had when nothing is saved", () => {
+    const styling = normalizeStyling(createDefaultStyling())
+    expect(getPanelCardStyleVars(styling)).toEqual({
+      "--shell-panel-card-border-width": "1",
+      "--shell-panel-card-radius": "10px",
+      "--shell-panel-card-shadow": "none",
+      "--shell-panel-card-inset": "0px",
+      "--shell-panel-card-body": "transparent",
+      "--shell-panel-card-tile-top": "0px",
+      "--shell-panel-card-bleed": "0",
+    })
+    expect(panelCardShade(styling)).toEqual({ value: 40, isDefault: true, custom: false })
+    expect(panelCardBorderShade(styling)).toEqual({ value: 18, isDefault: true, custom: false })
+  })
+
+  it("shows a grey saved before the sliders at its own strength", () => {
+    const styling = normalizeStyling({
+      ...createDefaultStyling(),
+      panelCardBackground: grey(50),
+      panelCardBorderColor: grey(4),
+    })
+    expect(panelCardShade(styling)).toEqual({ value: 50, isDefault: false, custom: false })
+    expect(panelCardBorderShade(styling)).toEqual({ value: 4, isDefault: false, custom: false })
+    expect(getPanelCardStyleVars(styling)["--shell-panel-card-bg"]).toBe(
+      "color-mix(in oklab, var(--muted) 50%, var(--background))"
+    )
+  })
+
+  it("names a fixed colour saved before the sliders as custom", () => {
+    const styling = normalizeStyling({
+      ...createDefaultStyling(),
+      panelCardBackground: { mode: "custom", strength: 40, color: "#eeeeff" },
+    })
+    expect(panelCardShade(styling)).toEqual({ value: 40, isDefault: false, custom: true })
+  })
+
+  it("keeps corners and shadow, clamped to the blocks' ranges", () => {
+    const styling = normalizeStyling({ ...createDefaultStyling(), panelCardRadius: 99, panelCardShadow: 50 })
+    expect(styling.panelCardRadius).toBe(32)
+    expect(getPanelCardStyleVars(styling)).toMatchObject({
+      "--shell-panel-card-radius": "32px",
+      "--shell-panel-card-shadow": "0 2px 12px rgb(0 0 0 / 0.100)",
+    })
+  })
+
+  it("draws the tile, its edge and edge to edge once they are set", () => {
+    const styling = normalizeStyling({
+      ...createDefaultStyling(),
+      panelCardInset: 40,
+      panelCardBodyShade: 0,
+      panelCardEdgeToEdge: true,
+    })
+    expect(styling.panelCardInset).toBe(16)
+    expect(getPanelCardStyleVars(styling)).toMatchObject({
+      "--shell-panel-card-inset": "16px",
+      "--shell-panel-card-body": "color-mix(in oklab, var(--muted) 0%, var(--card))",
+      "--shell-panel-card-tile-top": "12px",
+      "--shell-panel-card-bleed": "1",
     })
   })
 })

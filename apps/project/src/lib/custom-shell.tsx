@@ -383,6 +383,13 @@ export type ShellTopRightBuiltIn = {
   type: "builtIn"
   id: ShellTopRightNavigationItemId
   visible: boolean
+  /**
+   * Links drawn inside the Settings cog's panel, under its settings rows.
+   * Only the `settings` item carries them, and they go wherever the cog goes:
+   * a hidden cog hides them, and on a phone they fold into the three dots with
+   * it. Each role's menu has its own list, the same way it has its own row.
+   */
+  links?: ShellTopRightLink[]
 }
 
 /** An app-owned control that shares the fixed controls' order and visibility. */
@@ -870,7 +877,7 @@ export function shellConfigSaveRefusal(config: ShellConfig): string | null {
     return "add a workspace name"
   }
   const colour = publicThemeColorProblem(config.publicTheme)
-  return colour ? `fix the ${colour} on Public \u2192 Styling` : null
+  return colour ? `fix the ${colour} in Admin \u2192 Styling \u2192 Public` : null
 }
 
 /**
@@ -1019,11 +1026,16 @@ export function normalizeTopRightNavigation(
 
     if (builtInIds.has(id)) {
       seenIds.add(id)
+      const links =
+        id === "settings"
+          ? normalizeTopRightLinks((raw as { links?: unknown }).links)
+          : []
       kept.push({
         type: "builtIn",
         id: id as ShellTopRightNavigationItemId,
         // Missing reads as shown: hiding is a deliberate saved `false`.
         visible: item.visible !== false,
+        ...(links.length ? { links } : {}),
       })
       continue
     }
@@ -1042,20 +1054,10 @@ export function normalizeTopRightNavigation(
       continue
     }
 
-    if (
-      item.type === "link" &&
-      typeof item.label === "string" &&
-      typeof item.href === "string" &&
-      typeof item.icon === "string"
-    ) {
+    const link = asTopRightLink(raw)
+    if (link) {
       seenIds.add(id)
-      kept.push({
-        type: "link",
-        id,
-        label: item.label,
-        href: item.href,
-        icon: item.icon,
-      })
+      kept.push(link)
     }
   }
 
@@ -1065,6 +1067,64 @@ export function normalizeTopRightNavigation(
     ...kept,
     ...missing.filter((item) => item.type !== "app"),
   ]
+}
+
+/** A saved link row, or null when it is missing a part a link needs. */
+function asTopRightLink(raw: unknown): ShellTopRightLink | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const item = raw as Partial<ShellTopRightLink>
+  if (
+    item.type !== "link" ||
+    typeof item.id !== "string" ||
+    !item.id ||
+    typeof item.label !== "string" ||
+    typeof item.href !== "string" ||
+    typeof item.icon !== "string"
+  ) {
+    return null
+  }
+  return {
+    type: "link",
+    id: item.id,
+    label: item.label,
+    href: item.href,
+    icon: item.icon,
+  }
+}
+
+/** The Settings cog's saved links, malformed and repeated ones dropped. */
+function normalizeTopRightLinks(raw: unknown): ShellTopRightLink[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  return raw.flatMap((one) => {
+    const link = asTopRightLink(one)
+    if (!link || seen.has(link.id)) return []
+    seen.add(link.id)
+    return [link]
+  })
+}
+
+/**
+ * The links a header draws for this person: named, with an address, and never
+ * an admin page for anybody but an admin. The same rules the sidebar renders
+ * by, for the row and the cog alike.
+ */
+export function isTopRightLinkShown(link: ShellTopRightLink, role: string) {
+  return (
+    isShellEntryNamed(link) &&
+    Boolean(link.href.trim()) &&
+    canSeeShellEntry(link, role)
+  )
+}
+
+/** The cog's links, read off the `settings` item of a top right menu. */
+export function settingsCogLinks(
+  items: readonly ShellTopRightNavigationItem[]
+): ShellTopRightLink[] {
+  const cog = items.find(
+    (item) => item.type === "builtIn" && item.id === "settings"
+  )
+  return cog?.type === "builtIn" ? (cog.links ?? []) : []
 }
 
 export function isShellItem(entry: ShellEntry): entry is ShellItem {

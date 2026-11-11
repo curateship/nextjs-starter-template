@@ -89,22 +89,48 @@ panel.
 
 ## Panel cards
 
-Admin → Styling → Panel cards sets the background and the line of the grey
-folding cards in a right panel, such as a person's Profile and Plan on the
-Admin dashboard (`PanelCard` and `PanelBox` in
-`src/components/shared/panel-card.tsx`). Tyler asked for it on 8 Nov 2026:
+Admin → Styling → Panel cards sets how the grey folding cards in a right
+panel look, such as a person's Profile and Plan on the Admin dashboard
+(`PanelCard` and `PanelBox` in `src/components/shared/panel-card.tsx`, and
+the automation step's `InspectorCard`). Tyler asked for it on 8 Nov 2026:
 "Add styling options for this card ui ... I want to change border and bg".
+On 10 Nov 2026 it took every Blocks setting, in the Blocks' order: "I want
+all the same ui styling the same as the blocks styling", then "i told you to
+copy all of the same settings from the blocks Ui". So a panel card is drawn
+as a block is: its heading on the card's grey, its rows in a tile under it.
 
-- **Background:** Theme default (the theme's light grey at 40%, the look the
-  cards always had), a strength of the theme's grey, or a colour of its own.
-- **Border:** 0 to 3px, 1px unless changed; 0 removes it.
-- **Border color:** Theme default (the Divider lines colour every plain line
-  uses), a strength of the theme's text grey, or a colour of its own.
-- **Stored** as `panelCardBackground`, `panelCardBorderWidth` and
-  `panelCardBorderColor`, and put on the page root as
-  `--shell-panel-card-bg`, `--shell-panel-card-border-width` and
-  `--shell-panel-card-border-color`. A colour left to the theme sets no
-  variable, so the rule's own fallback shows.
+- **Rounded corners**, 0 to 32px, 10px unless changed, the corners the cards
+  always had.
+- **Grey shade**, 0 to 100%, 40% unless changed: how much of the theme's
+  light grey the card is around its tile, in light and dark mode.
+- **Edge around the tile**, 0 to 16px, 0 unless changed: how much grey shows
+  between the card's edge and its tile, at the sides and the bottom.
+- **Body shade**, 0 to 100%: the tile's own grey. Unless changed the tile is
+  see-through, so the rows sit straight on the card's grey as they always
+  did, and the thumb sits at the card's Grey shade. Once set, the tile is
+  drawn, and its rows start 12px below its top edge.
+- **Border**, 0 to 3px, 1px unless changed; 0 removes it.
+- **Border shade**, 0 to 100% of the theme's grey text colour. Unless changed
+  the line is the theme's own border colour, and the thumb sits at 18%, about
+  where that colour falls.
+- **Shadow**, 0 to 100%, none unless changed, the same shadow as a block's.
+- **Panel cards reach the panel's edges**, off unless changed: the cards fill
+  the side panel's full width, past the 15px at its sides, as edge-to-edge
+  blocks do. A card learns how far to reach from `--panel-gutter` on the
+  panel body around it, so a panel body with its own padding sets that
+  variable to the same amount: the automation step panel's 16px does.
+- **Which cards.** `PanelCard` (heading, then the tile), `PanelBox` (one tile
+  all round) and the automation step's `InspectorCard`, which draws a `PanelCard`
+  with the same heading and spacing. The tile is `[data-panel-card-tile]` in theme.css, and a
+  card's footer of buttons reaches across the tile.
+- **Stored** as `panelCardRadius`, `panelCardBackground`, `panelCardInset`,
+  `panelCardBodyShade`, `panelCardBorderWidth`, `panelCardBorderColor`,
+  `panelCardShadow` and `panelCardEdgeToEdge`. The
+  two shade sliders save the theme's grey at the strength picked into the
+  colour fields the old colour pickers used, so a grey saved before 10 Nov
+  shows at its own strength. A fixed colour saved before then keeps showing,
+  with "Custom colour" beside the slider, until the slider is moved. They are
+  put on the page root as `--shell-panel-card-*` by `getPanelCardStyleVars`.
 - **The rule** is `[data-slot="panel-card"]` in theme.css, in the components
   layer, so a class a screen puts on one card still wins.
 - **The preview** is a real panel card, so it reads the values the way every

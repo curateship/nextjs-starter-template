@@ -38,28 +38,35 @@ const STARS = [
 /**
  * The sky for now, read again every minute: by the real sun in Settings →
  * General → Sky city, or fixed hours on the viewer's clock with no city.
- * Nothing on the server's first draw: its clock is not the viewer's, so the
- * sky appears once the page is in the browser rather than drawing one time of
- * day and swapping it.
+ * Nothing on the server's first draw, or while the browser takes over that
+ * draw: the server's clock is not the viewer's, so the sky appears once the
+ * page is in the browser rather than drawing one time of day and swapping
+ * it. A cover drawn after that, such as the left page's when moving between
+ * Admin and the CRM, has its sky in the same frame as the rest of the page.
  */
 function useSkyPhase(): SkyPhase | null {
   const city = useOptionalShellRuntime()?.config.skyCity ?? null
   // Its place, not the object, which may be rebuilt on every draw.
   const latitude = city?.latitude ?? null
   const longitude = city?.longitude ?? null
-  const [phase, setPhase] = React.useState<SkyPhase | null>(null)
-  React.useEffect(() => {
-    const place =
-      latitude === null || longitude === null ? null : { label: "", latitude, longitude }
-    const read = () => setPhase(skyPhaseFor(new Date(), place))
-    const first = window.setTimeout(read, 0)
-    const timer = window.setInterval(read, 60_000)
-    return () => {
-      window.clearTimeout(first)
-      window.clearInterval(timer)
-    }
-  }, [latitude, longitude])
-  return phase
+  const read = React.useCallback(
+    () =>
+      skyPhaseFor(
+        new Date(),
+        latitude === null || longitude === null ? null : { label: "", latitude, longitude }
+      ),
+    [latitude, longitude]
+  )
+  return React.useSyncExternalStore(everyMinute, read, noSkyOnServer)
+}
+
+function everyMinute(onChange: () => void) {
+  const timer = window.setInterval(onChange, 60_000)
+  return () => window.clearInterval(timer)
+}
+
+function noSkyOnServer() {
+  return null
 }
 
 /**

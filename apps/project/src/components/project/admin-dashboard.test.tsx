@@ -328,7 +328,7 @@ describe("the site admin's My dashboard", () => {
     // In the block card every block has: the greeting is the heading's title and folds the
     // card (Tyler, 9 Nov 2026: "this should have the same heading as any block and the header
     // needs to be collapsible too"), with Delete block in its ⋮.
-    expect(morning).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*><span[^>]*>Good morning Tyler/)
+    expect(morning).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*>(?:<span[^>]*>)+Good morning Tyler/)
     expect(morning).toContain('aria-label="More for Good morning Tyler')
     expect(morning).toContain("data-block-tile")
     // The date is inside the card, so it folds away with it, leaving the greeting.

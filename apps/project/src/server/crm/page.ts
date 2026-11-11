@@ -10,7 +10,7 @@ import { waitingConditions, waitingCutoff } from "@/server/crm/inbox"
 import { listWorkspaceSegments } from "@/server/people/contact-segments"
 import { getEmailSettings } from "@/server/email/settings"
 import { db, type CustomShellDb } from "@/server/db"
-import { countPeople } from "@/server/crm/people"
+import { countSubscribersAndLeads } from "@/server/crm/people"
 import {
   customShellBroadcasts,
   customShellCrmLeads,
@@ -127,8 +127,10 @@ export type CrmBlockFigures = {
   stages: Record<CrmStage, number>
   /** Every open conversation: the panel's muted line, and Inbox's count in the Dashboards block. */
   openCount: number
-  /** Everybody once, contacts and leads, as People's All pill: People's count. */
-  peopleCount: number
+  /** Every subscriber: Subscribers' count in the Dashboards block. */
+  subscriberCount: number
+  /** Every lead: Leads' count in the Dashboards block. */
+  leadCount: number
   /** Every newsletter, sent or not, templates aside: Broadcasts' count. */
   broadcastCount: number
   /** After how many days the bell chases unanswered mail; 0 is off. */
@@ -224,7 +226,7 @@ export async function getCrmBlockFigures(
           .limit(FOLLOW_UPS_SHOWN)
       : Promise.resolve([]),
     listWorkspaceSegments(workspaceId, database),
-    countPeople(workspaceId, database),
+    countSubscribersAndLeads(workspaceId, database),
     database
       .select({ total: count() })
       .from(customShellBroadcasts)
@@ -300,7 +302,8 @@ export async function getCrmBlockFigures(
     ),
     stages,
     openCount: Number(openRow?.open ?? 0),
-    peopleCount: people.all,
+    subscriberCount: people.subscribers,
+    leadCount: people.leads,
     broadcastCount: Number(broadcasts?.total ?? 0),
     unansweredDays,
     waiting: waiting.map((row) => ({ ...row, lastMessageAt: row.lastMessageAt.toISOString() })),

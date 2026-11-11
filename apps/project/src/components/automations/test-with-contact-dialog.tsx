@@ -113,7 +113,7 @@ export function TestWithContactDialog({
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>Test with one contact</DialogTitle>
+          <DialogTitle>Test with one person</DialogTitle>
           <DialogDescription>
             Walk this flow using one contact&apos;s real details. Emails go to
             you with a TEST subject, and outside changes are skipped.
@@ -138,7 +138,7 @@ export function TestWithContactDialog({
         <DialogBody>
           <Card size="sm">
             <CardHeader>
-              <CardTitle>Choose a contact</CardTitle>
+              <CardTitle>Choose a subscriber or an account</CardTitle>
               <CardDescription>
                 The selected contact never receives an email and nothing about
                 them is changed.
@@ -154,7 +154,7 @@ export function TestWithContactDialog({
                     : "There are no contacts you could email to test with."}
                 </p>
               ) : (
-                <div className="grid gap-1" role="group" aria-label="Contacts">
+                <div className="grid gap-1" role="group" aria-label="People to test with">
                   {contacts.map((contact) => {
                     const chosen = selected?.id === contact.id
                     return (
@@ -175,7 +175,10 @@ export function TestWithContactDialog({
                           {contact.name || contact.email}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {contact.email}
+                          {/* Which list they are on: a subscriber flow is
+                              tested on a subscriber, an account flow on an
+                              account (9 Nov 2026). */}
+                          {contact.kind === "account" ? "Account" : "Subscriber"} · {contact.email}
                         </span>
                         {chosen ? (
                           <CheckIcon className="col-start-2 row-span-2 row-start-1 size-4 self-center" />

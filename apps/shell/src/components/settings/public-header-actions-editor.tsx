@@ -29,7 +29,7 @@ import {
 } from "@/lib/pages/public-header-actions"
 
 const CHIP_CLASS =
-  "w-fit max-w-full rounded-xl border border-zinc-200 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300 dark:border-zinc-700"
+  "w-fit max-w-full rounded-xl border border-zinc-200/40 bg-background py-1.5 pr-1.5 pl-1 transition-colors hover:border-zinc-300/40 dark:border-zinc-700/40"
 
 const ACTION_ICONS: Record<PublicHeaderActionId, LucideIcon> = {
   search: SearchIcon,

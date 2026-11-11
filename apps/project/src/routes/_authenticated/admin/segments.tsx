@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/admin/segments")({
   beforeLoad: ({ search }) => {
     throw redirect({
       to: "/admin/crm",
-      search: search.open ? { tab: "people", segment: search.open } : { tab: "people" },
+      search: search.open ? { tab: "subscribers", segment: search.open } : { tab: "subscribers" },
       replace: true,
     })
   },

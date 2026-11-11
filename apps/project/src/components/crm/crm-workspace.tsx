@@ -1,7 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
-import { ConversationPanel } from "@/components/crm/conversation-panel"
+import { blockAndCloseThread, ConversationRecord } from "@/components/crm/conversation-record"
 import type { CrmFrame } from "@/components/crm/crm-frame"
 import { OutboxEmailPanel } from "@/components/crm/outbox-panels"
 import {
@@ -11,30 +11,17 @@ import {
 } from "@/components/crm/inbox-list-panel"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  blockAddress,
-  getBlockedSenderErrorMessage,
-} from "@/lib/api/crm/blocked"
-import {
-  draftReply,
-  fetchMessageBody,
   getCrmErrorMessage,
-  loadConversation,
   loadInbox,
-  markConversationRead,
   markConversationsRead,
   markConversationUnread,
   setConversationSaved,
-  setConversationStatus,
-  setConversationsStatus,
-  summariseConversation,
-  type Conversation,
   type InboxPage,
   type InboxThread,
   type ManyThreadsResult,
 } from "@/lib/api/crm/inbox"
-import { loadLead, type LeadBundle } from "@/lib/api/crm/leads"
 import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
-import { CRM_MAX_THREADS_PER_PRESS, type CrmThreadStatus } from "@/lib/crm/crm"
+import { CRM_MAX_THREADS_PER_PRESS } from "@/lib/crm/crm"
 import {
   applyReplyDraft,
   noReplyDrafts,
@@ -67,6 +54,7 @@ export function CrmWorkspace({
   onFiltersChange,
   onOpenThread,
   onReloadInbox,
+  onOpenContact,
 }: {
   page: InboxPage
   /** The local development outbox, read only while its pill is picked. */
@@ -83,6 +71,8 @@ export function CrmWorkspace({
   onOpenThread: (threadId: string | null) => void
   /** Sends the route's loader round again, which is what redraws the list. */
   onReloadInbox: () => void
+  /** Opens a lead's contact on the People tab, from the conversation's ⋮. */
+  onOpenContact: (contactId: string) => void
 }) {
   // Under the Outbox pill `?open=` names an outbox email, never a
   // conversation, so nothing below reads it as one.
@@ -112,7 +102,6 @@ export function CrmWorkspace({
     ticks.setSelected,
     [
       filters.search,
-      filters.status,
       filters.stage,
       filters.view,
       filters.toAddress,
@@ -158,87 +147,14 @@ export function CrmWorkspace({
   const changeReplyDraft = (threadId: string, update: ReplyDraftUpdate) =>
     setReplyDrafts((current) => applyReplyDraft(current, threadId, update))
 
-  const [loaded, setLoaded] = React.useState<{
-    conversation: Conversation
-    lead: LeadBundle | null
-  } | null>(null)
-  // Bumped to pull the conversation and the lead down again after a change.
-  const [reloads, setReloads] = React.useState(0)
-  // Which request has finished, which is what "still loading" is worked out
-  // from. Stamped when the fetch settles rather than flipped on at the start:
-  // turning a flag on inside an effect body is a second render for nothing,
-  // and `react-hooks/set-state-in-effect` refuses it. The same shape as
-  // `SystemEmailSendsPanel`.
-  const requestKey = openThreadId ? `${openThreadId}:${reloads}` : null
-  const [settledRequest, setSettledRequest] = React.useState<string | null>(
-    null
-  )
-  const loadingThread = requestKey !== null && settledRequest !== requestKey
-
-  // Which conversation is shown is worked out from the address, not stored.
-  // Keeping it in state meant clearing that state whenever the address said
-  // "none", which is a write inside an effect and one paint of the wrong
-  // conversation.
-  const conversation =
-    loaded && loaded.conversation.id === openThreadId
-      ? loaded.conversation
-      : null
-  const lead = conversation ? loaded?.lead ?? null : null
+  // Bumped to read the open conversation again from here: a new message
+  // in it from the live inbox, a press on ticked rows that included it, or a
+  // row's own Save or Close on it.
+  const [reloadToken, setReloadToken] = React.useState(0)
+  const reloadThread = () => setReloadToken((count) => count + 1)
   // The row in the list already knows who the conversation is with, so the
-  // header has a name to draw before the lead panel's own fetch lands, and
-  // blocking has an address to send before it too.
+  // header has a name to draw before the lead panel's own fetch lands.
   const openRow = threads.find((thread) => thread.id === openThreadId) ?? null
-
-  // Held in a ref so the fetch below is keyed on which conversation is open,
-  // not on a callback the owner rebuilds every render. In the deps it would
-  // re-run the whole fetch on any parent redraw.
-  const reloadInboxRef = React.useRef(onReloadInbox)
-  React.useEffect(() => {
-    reloadInboxRef.current = onReloadInbox
-  })
-
-  React.useEffect(() => {
-    if (!openThreadId) return
-
-    let cancelled = false
-    loadConversation(openThreadId)
-      .then(async (opened) => {
-        if (cancelled) return
-        // The conversation lands first so it can be read while the lead is
-        // still coming. The same conversation read again keeps the lead it
-        // had meanwhile: dropping it would empty the ⋮ under a box somebody
-        // is typing in, every time a field saves.
-        setLoaded((previous) => ({
-          conversation: opened,
-          lead: previous?.conversation.id === opened.id ? previous.lead : null,
-        }))
-
-        // Opening it is reading it, and that is a write, so it goes out as its
-        // own checked request once the thread is actually on screen. The list
-        // is asked again afterwards, which is what takes the bold off the row.
-        if (opened.unread) {
-          await markConversationRead(opened.id).catch(() => undefined)
-          if (!cancelled) reloadInboxRef.current()
-        }
-
-        const bundle = await loadLead(opened.leadId)
-        if (!cancelled) setLoaded({ conversation: opened, lead: bundle })
-      })
-      .catch((error) => {
-        if (cancelled) return
-        showErrorToast(getCrmErrorMessage(error))
-        setLoaded(null)
-      })
-      .finally(() => {
-        if (!cancelled) setSettledRequest(requestKey)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [openThreadId, requestKey])
-
-  const reloadThread = () => setReloads((count) => count + 1)
 
   // The live inbox (CRM task 33). The bell's stream nudges when mail lands;
   // this reads the first page again, quietly. **The rows never move under the
@@ -260,7 +176,6 @@ export function CrmWorkspace({
       const { threads: shown, filters: current, openThreadId: open } = liveRef.current
       void loadInbox({
         search: current.search || undefined,
-        status: current.status,
         stage: current.stage,
         unreadOnly: current.view === "unread" || undefined,
         savedOnly: current.view === "saved" || undefined,
@@ -313,7 +228,6 @@ export function CrmWorkspace({
     try {
       const next = await loadInbox({
         search: filters.search || undefined,
-        status: filters.status,
         stage: filters.stage,
         unreadOnly: filters.view === "unread" || undefined,
         savedOnly: filters.view === "saved" || undefined,
@@ -339,19 +253,6 @@ export function CrmWorkspace({
       showErrorToast(getCrmErrorMessage(error))
     } finally {
       setLoadingMore(false)
-    }
-  }
-
-  const changeStatus = async (
-    status: CrmThreadStatus,
-    snoozedUntil?: string | null
-  ) => {
-    if (!conversation) return
-    try {
-      await setConversationStatus(conversation.id, status, snoozedUntil)
-      reloadBoth()
-    } catch (error) {
-      showErrorToast(getCrmErrorMessage(error))
     }
   }
 
@@ -402,43 +303,7 @@ export function CrmWorkspace({
     }
   }
 
-  /**
-   * Blocks an address, and closes its conversation.
-   *
-   * Two writes, reported separately. The block goes first because it is the
-   * half that matters, and a close that then fails is said out loud rather
-   * than folded into one message: "nothing worked" when the address is in fact
-   * blocked would send somebody to Settings looking for a row that is there.
-   */
-  const blockThread = async (threadId: string, address: string) => {
-    try {
-      await blockAddress(address, "Blocked from the conversation")
-    } catch (error) {
-      showErrorToast(getBlockedSenderErrorMessage(error))
-      return
-    }
-
-    try {
-      await setConversationStatus(threadId, "closed")
-    } catch {
-      showErrorToast(
-        `Mail from ${address} is blocked, but this conversation did not close. Press Close to shut it.`
-      )
-      reloadBoth()
-      return
-    }
-
-    toast.success(
-      `Mail from ${address} will not reach the inbox. Settings → Email unblocks it.`
-    )
-    reloadBoth()
-  }
-
-  const blockSender = async () => {
-    const address = lead?.lead.email ?? openRow?.leadEmail ?? null
-    if (!conversation || !address) return
-    await blockThread(conversation.id, address)
-  }
+  const blockThread = (threadId: string, address: string) => blockAndCloseThread(threadId, address, reloadBoth)
 
   const markUnread = async (threadId: string) => {
     try {
@@ -462,20 +327,6 @@ export function CrmWorkspace({
     }
   }
 
-  const changeThreadStatus = async (
-    threadId: string,
-    status: CrmThreadStatus,
-    snoozedUntil?: string | null
-  ) => {
-    try {
-      await setConversationStatus(threadId, status, snoozedUntil)
-      if (threadId === openThreadId) reloadThread()
-      onReloadInbox()
-    } catch (error) {
-      showErrorToast(getCrmErrorMessage(error))
-    }
-  }
-
   // A row's right-click asks before blocking, as the ⋮ does: a misclick that
   // quietly stopped a real customer's mail is the failure this is shaped around.
   const [blockAsk, setBlockAsk] = React.useState<InboxThread | null>(null)
@@ -484,20 +335,7 @@ export function CrmWorkspace({
   const rowActions: InboxRowActions = {
     onSave: (thread, saved) => void changeSaved(thread.id, saved),
     onMarkUnread: (thread) => void markUnread(thread.id),
-    onSnooze: (thread, until) =>
-      void changeThreadStatus(thread.id, "snoozed", until.toISOString()),
-    onClose: (thread) => void changeThreadStatus(thread.id, "closed"),
     onBlock: (thread) => setBlockAsk(thread),
-  }
-
-  const refetchBody = async (messageId: string) => {
-    if (!conversation) return
-    try {
-      await fetchMessageBody(conversation.id, messageId)
-      reloadThread()
-    } catch (error) {
-      showErrorToast(getCrmErrorMessage(error))
-    }
   }
 
   const addressLabels = new Map(
@@ -552,31 +390,15 @@ export function CrmWorkspace({
           keptReason: "already read",
         })
       }
-      onCloseTicked={() =>
-        void runOnTicked(
-          (threadIds) => setConversationsStatus(threadIds, "closed"),
-          { verb: "closed", keptReason: "already closed" }
-        )
-      }
-      onSnoozeTicked={(until) =>
-        void runOnTicked(
-          (threadIds) =>
-            setConversationsStatus(threadIds, "snoozed", until.toISOString()),
-          { verb: "snoozed", keptReason: "already snoozed until then" }
-        )
-      }
       onLoadMore={loadMore}
     />
   )
 
   const right = (
-    <ConversationPanel
-      conversation={conversation}
-      lead={lead?.lead ?? null}
-      siteTags={lead?.siteTags ?? []}
-      leadName={lead?.lead.name ?? openRow?.leadName ?? null}
-      leadEmail={lead?.lead.email ?? openRow?.leadEmail ?? null}
-      loading={loadingThread}
+    <ConversationRecord
+      threadId={openThreadId}
+      fallbackName={openRow?.leadName ?? null}
+      fallbackEmail={openRow?.leadEmail ?? null}
       emptyLine={
         threads.length > 0
           ? null
@@ -585,44 +407,20 @@ export function CrmWorkspace({
             : filters.view === "waiting"
               ? "Nobody is waiting on you."
               : filters.view === "unread" ||
-                filters.search ||
-                filters.stage !== "all" ||
-                filters.toAddress ||
-                filters.tag ||
-                filters.followUpDue ||
-                filters.status !== "open"
-              ? "No conversation matches."
-              : "No mail has arrived yet."
+                  filters.search ||
+                  filters.stage !== "all" ||
+                  filters.toAddress ||
+                  filters.tag ||
+                  filters.followUpDue
+                ? "No conversation matches."
+                : "No mail has arrived yet."
       }
-      canSend={conversation !== null}
-      replyFrom={conversation?.replyFrom ?? page.replyFrom}
+      replyFromFallback={page.replyFrom}
       replyDraft={replyDraftFor(replyDrafts, openThreadId)}
       onReplyDraftChange={changeReplyDraft}
-      onStatusChange={changeStatus}
-      onSavedChange={(saved) => {
-        if (conversation) void changeSaved(conversation.id, saved)
-      }}
-      onMarkUnread={() => {
-        if (conversation) void markUnread(conversation.id)
-      }}
-      onSummarise={async () => {
-        if (!conversation) return
-        try {
-          await summariseConversation(conversation.id)
-          reloadThread()
-        } catch (error) {
-          showErrorToast(getCrmErrorMessage(error))
-        }
-      }}
-      onBlockSender={blockSender}
-      onLeadChanged={reloadBoth}
-      onFetchBody={refetchBody}
-      onSent={reloadBoth}
-      onDraft={async () => {
-        if (!conversation) return ""
-        const { draft } = await draftReply(conversation.id)
-        return draft
-      }}
+      reloadToken={reloadToken}
+      onListChanged={onReloadInbox}
+      onOpenContact={onOpenContact}
     />
   )
 

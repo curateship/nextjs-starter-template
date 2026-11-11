@@ -44,7 +44,12 @@ Waiting on you Dashboards block   runs stopped at an approval step         the r
   room for the tabs text").
 - **A step's settings card is a panel card:** its grey, border and border
   colour come from Admin → Styling → Panel cards ("the right panel card
-  should be wired to the card settings").
+  should be wired to the card settings"). It is the side panels' own
+  `PanelCard`, so its 15px heading and 16px spacing match every other panel
+  card ("The automation right panel HAS to match the ui").
+- **The step's settings start straight under its name**, with no line
+  describing the step ("all these tooltips are not nesessary"). The canvas
+  card still carries that description.
 - **A press on the empty canvas keeps the step picked** ("when i tap on the
   canvas, it unslect the node. change that back so it doesnt"). A press on a
   connection, or Escape, still lets go of it.

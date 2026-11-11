@@ -32,6 +32,7 @@ import { notificationAction } from "@/lib/notification-action"
 import { relativeDayGroup } from "@/lib/format/format-time"
 import { useAppNotificationDetails } from "@/lib/hooks/use-app-notification-details"
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream"
+import { useAnnouncementRefresh } from "@/components/shell/announcement-refresh"
 import { cn } from "@/lib/utils"
 
 /**
@@ -342,9 +343,16 @@ export function NotificationCenter({
     }
   }, [loadNotificationRows, notifications.length, open])
 
+  // The banners first: asking for them writes any tray notice an
+  // announcement owes this person, so the count after it includes it.
+  const refreshAnnouncements = useAnnouncementRefresh()
   useNotificationStream({
     live,
-    onSync: () => void syncNotifications(),
+    onSync: () =>
+      void (async () => {
+        await refreshAnnouncements?.()
+        await syncNotifications()
+      })(),
   })
 
   // A notice that lands while the tray is open has been shown too — it is on
@@ -378,10 +386,13 @@ export function NotificationCenter({
       setOpen(false)
 
       if (action.kind === "automationRun") {
+        // An approval opens in Waiting on you; a failure opens on its flow's
+        // own Runs tab, the one place runs are listed.
         void navigate({
-          to: "/admin/automations/$automationId",
-          params: { automationId: action.automationId },
-          search: { run: action.runId, node: action.nodeId },
+          to: "/admin/automations",
+          search: action.waiting
+            ? { tab: "waiting", open: action.runId }
+            : { tab: "automations", open: action.automationId, full: true, pane: "runs", run: action.runId },
         })
       } else if (action.kind === "billing") {
         void navigate({

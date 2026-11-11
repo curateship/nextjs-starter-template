@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }))
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
-  useRouterState: () => "/admin/settings/navigation",
+  useRouterState: () => "/admin/settings",
 }))
 // General settings holds the Storage bucket card, and the AI row holds the AI
 // provider keys card. Both put their Saving…/Saved state in the sticky header
@@ -39,9 +39,7 @@ const props = {
   sessionPolicyBusy: false,
 }
 
-function markup(
-  activeTab: "navigation" | "member-navigation" | "general" | "ai"
-) {
+function markup(activeTab: "general" | "ai") {
   return renderToStaticMarkup(
     <TooltipProvider>
       <SettingsPage {...props} activeTab={activeTab} />
@@ -49,71 +47,49 @@ function markup(
   )
 }
 
-describe("Navigation settings", () => {
-  it("puts the limit and both admin editors on Navigation", () => {
-    const html = markup("navigation")
-    expect(html).toContain("Top left max items")
-    expect(html).toContain("Your sidebar")
-    expect(html).toContain("Your top right menu")
-    expect(markup("general")).not.toContain("Top left max items")
-    expect(getSettingsTabFromPath("/admin/settings/navigation")).toBe(
-      "navigation"
-    )
+describe("Settings rail", () => {
+  it("has no Navigation or Styling rows: they moved to the Admin dashboard", () => {
+    const html = markup("general")
+    expect(html).toContain("General settings")
+    expect(html).not.toContain(">Navigation<")
+    expect(html).not.toContain(">Styling<")
+    // The old addresses are not Settings rows any more, so Settings itself
+    // falls back to General for them; the route forwards them first.
+    expect(getSettingsTabFromPath("/admin/settings/navigation")).toBe("general")
+    expect(getSettingsTabFromPath("/admin/settings/public-styling")).toBe("general")
+    expect(getSettingsTabFromPath("/admin/settings/public-seo")).toBe("public-seo")
   })
 
-  it("puts Members and Public in the Platform card, above the app's own", () => {
+  it("lists SEO and Social with the admin's own rows, under no heading", () => {
     const html = markup("general")
     expect(html).toContain("Platform settings")
     expect(html).toContain("App settings")
-    // Members and Public are blocks of the Platform settings card. The rows
-    // under them keep short names; the heading says whose Navigation it is.
-    expect(html).toContain(">Members<")
-    expect(html).toContain(">Public<")
-    // Both headings sit between the two card titles, which is what puts them
-    // in the first card rather than the second.
-    const platform = html.indexOf("Platform settings")
-    const appCard = html.indexOf("App settings")
-    expect(platform).toBeLessThan(html.indexOf(">Members<"))
-    expect(html.indexOf(">Public<")).toBeLessThan(appCard)
-    // The App settings card holds what this app added and nothing else, so what
-    // belongs in it depends on the app the test is running inside. An app that
-    // added nothing gets the sentence rather than an empty box; one that added
-    // rows gets the rows. Asserting the sentence outright passed in the shell
-    // and failed in every app that has tabs of its own.
-    const ownRows = appSettingsTabs()
+    // Tyler, 9 Nov 2026: "move the 2 settings in public into platform
+    // settings and remove that subsection".
+    expect(html).not.toContain(">Public<")
+    expect(html).not.toContain(">Members<")
+    const order = [">General settings<", ">Email<", ">Payments<", ">AI<", ">SEO<", ">Social<"].map((label) => html.indexOf(label))
+    expect(order.every((at) => at >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+    expect(html.indexOf(">Social<")).toBeLessThan(html.indexOf("App settings"))
+    // The App settings card holds what this app added and nothing else, so
+    // what belongs in it depends on the app the test is running inside.
+    const ownRows = appSettingsTabs().filter(
+      (tab) => !["member-navigation", "public-navigation", "public-styling", "public-seo", "public-social"].includes(tab.id)
+    )
     if (ownRows.length === 0) {
       expect(html).toContain("This app has no settings of its own.")
     } else {
       expect(html).not.toContain("This app has no settings of its own.")
       for (const tab of ownRows) expect(html).toContain(`>${tab.label}<`)
     }
-    // Three of the four that became cards on General settings are still
-    // there. AI provider keys has its own AI row since 8 Oct 2026.
+    // AI provider keys has its own AI row since 8 Oct 2026.
     expect(html).toContain(">AI<")
     expect(html).not.toContain("AI provider keys")
     expect(markup("ai")).toContain("AI provider keys")
     expect(html).toContain("Cloudflare R2")
     expect(html).toContain("Sessions")
     expect(html).toContain("Notifications")
-  })
-
-  it("keeps the member editors together and separate from admin navigation", () => {
-    const html = markup("member-navigation")
-    expect(html).toContain("Member sidebar")
-    expect(html).toContain("Member top right menu")
-    expect(html).not.toContain("Your sidebar")
-    expect(html).not.toContain("Top left max items")
-    expect(html).not.toContain("Top left shortcuts")
-    // Members get their own Top left shows, separate from the admin's.
-    expect(html).toContain('id="member-top-left-mode"')
-  })
-
-  it("puts the admin's Top left shows beside max items, and the shortcuts editor", () => {
-    const html = markup("navigation")
-    expect(html).toContain('id="admin-top-left-mode"')
-    expect(html).toContain("Top left max items")
-    expect(html).toContain("Top left shortcuts")
-    expect(html).not.toContain('id="member-top-left-mode"')
   })
 
   it("changes the overflow boundary through the actual setting", async () => {

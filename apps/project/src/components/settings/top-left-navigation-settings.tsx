@@ -39,8 +39,8 @@ export function TopLeftNavigationSettings({
           htmlFor={modeId}
           hint={
             audience === "admin"
-              ? "Sidebar links follow the current sidebar section. Breadcrumb shows where you are. Shortcuts shows the list in Top left shortcuts below on every page. What members see is on the Members → Navigation page."
-              : "What every member sees in the top left of their header. Shortcuts uses the list on the Platform → Navigation page, without its admin pages."
+              ? "Sidebar links follow the current sidebar section. Breadcrumb shows where you are. Shortcuts shows the list in Top left shortcuts below on every page. What members see is on the Members tab."
+              : "What every member sees in the top left of their header. Shortcuts uses the list on the Platform tab, without its admin pages."
           }
         >
           Top left shows

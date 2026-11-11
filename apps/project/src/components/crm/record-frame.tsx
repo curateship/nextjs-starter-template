@@ -31,6 +31,7 @@ export function RecordFrame({
   bare = false,
   footer,
   hideLabel,
+  collapse = true,
 }: {
   /** Initials as text, drawn in a circle, or an icon, drawn bare. */
   avatar: React.ReactNode
@@ -45,6 +46,11 @@ export function RecordFrame({
   footer?: React.ReactNode
   /** "Hide the person". */
   hideLabel: string
+  /**
+   * The collapse button at the edge. Off when the frame is drawn in the
+   * middle rather than the right, as an automation's email page is.
+   */
+  collapse?: boolean
 }) {
   const cover = useRightCover()
   return (
@@ -69,7 +75,7 @@ export function RecordFrame({
             {line ? <span className="truncate text-xs text-muted-foreground">{line}</span> : null}
           </span>
           {actions}
-          <SidePanelCollapseButton side="right" label={hideLabel} />
+          {collapse ? <SidePanelCollapseButton side="right" label={hideLabel} /> : null}
         </DashboardCardHeader>
       </div>
       {bare ? (

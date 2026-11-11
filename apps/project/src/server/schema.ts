@@ -59,6 +59,13 @@ export const customShellUsers = pgTable(
     avatarUrl: text("avatar_url"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     /**
+     * When the account turned automated mail off, from the unsubscribe link
+     * in an account automation's email. Accounts are emailed directly, not as
+     * subscribers, so this is their opt-out; system emails (verify, reset)
+     * still go (Tyler, 9 Nov 2026; migration 0111).
+     */
+    automatedMailOffAt: timestamp("automated_mail_off_at", { withTimezone: true }),
+    /**
      * The one automatic follow-up for a password sign-up that never confirmed
      * its address. Claimed before delivery so two app processes cannot send it
      * twice; a failed attempt stays visible in the system-email send history.
@@ -1719,7 +1726,10 @@ export const customShellTrafficDaySalts = pgTable("traffic_day_salts", {
 })
 
 /**
- * Everyone a newsletter can go to. Scoped to a workspace, and unique on the
+ * The subscribers: everyone a newsletter can go to. Only an import, a hand
+ * add or (later) an email form puts somebody here; an account is never one
+ * by signing up (Tyler, 9 Nov 2026: "users and subscribers are also
+ * seperate"). Scoped to a workspace, and unique on the
  * email address case-insensitively — two contacts with the same address is how
  * a list starts sending people the same thing twice.
  */
@@ -1730,26 +1740,14 @@ export const customShellContacts = pgTable(
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
       .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-    /**
-     * The account this contact is, when it is one.
-     *
-     * Almost every contact is a member of the app, and those rows are kept in
-     * step with the account by `syncContactsFromUsers` — the account is the
-     * truth about the address and the name. Null is somebody who has no
-     * account: an address added by hand, which still has to be mailable.
-     *
-     * Not a join at send time on purpose. Deliveries point at a contact id,
-     * and that id is what makes sending exactly once work, so the contact row
-     * has to keep existing in its own right.
-     */
-    userId: varchar("user_id", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "cascade" }
-    ),
     email: varchar("email", { length: 255 }).notNull(),
     firstName: varchar("first_name", { length: 255 }),
     lastName: varchar("last_name", { length: 255 }),
-    /** Where they came from — an account, an import, added by hand. */
+    /**
+     * Where they came from: an import, added by hand, or a lead added from
+     * the CRM. Never an account: accounts are a list of their own and are not
+     * copied here (Tyler, 9 Nov 2026; migration 0111).
+     */
     source: varchar("source", { length: 255 }),
     /** The segments they belong to. A broadcast can go to one or more tags. */
     tags: text("tags")
@@ -1776,11 +1774,6 @@ export const customShellContacts = pgTable(
       table.workspaceId,
       sql`lower(${table.email})`
     ),
-    // One contact per account, so the sync cannot end up adding a second row
-    // for somebody every time it runs.
-    uniqueIndex("ux_contacts_workspace_user")
-      .on(table.workspaceId, table.userId)
-      .where(sql`${table.userId} is not null`),
     index("ix_contacts_workspace_created").on(
       table.workspaceId,
       table.createdAt
@@ -2482,15 +2475,6 @@ export const customShellCrmLeads = pgTable(
     followUpNotifiedAt: timestamp("follow_up_notified_at", {
       withTimezone: true,
     }),
-    /**
-     * The newsletter contact this lead turned out to be. SET NULL rather than
-     * cascade: removing somebody from the newsletter must not delete the record
-     * of the job they paid for.
-     */
-    contactId: varchar("contact_id", { length: 36 }).references(
-      () => customShellContacts.id,
-      { onDelete: "set null" }
-    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -2606,6 +2590,23 @@ export const customShellCrmPages = pgTable("crm_pages", {
   body: text("body").notNull().default(""),
   coverUrl: text("cover_url"),
   // The page's own cover pictures, kept as tiles (migration 0109).
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  locked: boolean("locked").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+/**
+ * The Automations dashboard's left page, one per site (Tyler, 9 Nov 2026),
+ * in the shape of `crm_pages`: the editor document as JSON text, its cover
+ * photo and cover pictures, and its lock. "" is a page nobody has written on,
+ * which shows the starting blocks.
+ */
+export const customShellAutomationPages = pgTable("automation_pages", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
   coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   locked: boolean("locked").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

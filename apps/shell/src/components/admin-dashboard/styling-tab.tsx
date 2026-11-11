@@ -36,7 +36,7 @@ const PLATFORM_GROUPS: StyleGroup[] = [
   { id: "styling-widgets", label: "Widgets", line: "Overview's cards" },
   { id: "styling-panel-cards", label: "Panel cards", line: "The folding cards in a right panel" },
   { id: "styling-sidebar-shade", label: "Left menu shade", line: "The left menu and the top bar" },
-  { id: "styling-modal", label: "Modal", line: "Windows such as Send feedback" },
+  { id: "styling-modal", label: "Modal and popover", line: "Windows, and the popovers that edit links" },
   { id: "styling-modal-cards", label: "Cards inside modals", line: "The bordered parts of a window" },
 ]
 

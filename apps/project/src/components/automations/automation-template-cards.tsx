@@ -261,8 +261,8 @@ function TemplateCard({
   return (
     <div className="relative">
       <Link
-        to="/admin/automations/templates/$templateKey"
-        params={{ templateKey: template.key }}
+        to="/admin/automations"
+        search={{ tab: "automations", template: template.key }}
         aria-current={open ? "page" : undefined}
         className={cn(
           "flex w-full items-start gap-2 overflow-hidden rounded-lg border bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30",

@@ -22,7 +22,6 @@ import type {
   AutomationValidationError,
 } from "@/lib/automations/graph"
 import {
-  automationNodeDescription,
   automationNodeFields,
   automationNodeIcon,
   automationNodeName,
@@ -122,13 +121,17 @@ export function AutomationInspector({
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
           {/* One column the panel's own width, so a narrow right panel wraps
-              the settings rather than running them past its edge. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
-            <p className="text-xs text-muted-foreground">
-              {selectedNode
-                ? automationNodeDescription(selectedNode)
-                : "Select a node to view and edit its settings."}
-            </p>
+              the settings rather than running them past its edge. Its 16px is
+              the panel gutter, so a card set to edge to edge reaches the side. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [--panel-gutter:1rem] [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
+            {/* No line describing the step under its name: its settings say
+                it (Tyler, 10 Nov 2026: "all these tooltips are not
+                nesessary"). With no step picked, the panel says what to do. */}
+            {selectedNode ? null : (
+              <p className="text-xs text-muted-foreground">
+                Select a node to view and edit its settings.
+              </p>
+            )}
 
             {nodeErrors.length > 0 ? (
               <InlineError className="grid gap-1">
