@@ -198,7 +198,7 @@ would point at an address the live release does not have.
 
 An open backtest and an open bot share one middle header: the page's reopen
 button while the page is shut, the **Chart** and **Graph** tabs, then the
-Graph's line switches and window (1W to All, From, To, Reset) or the Chart's
+Graph's 1W to All and its ⋮ (line switches, From, To, Reset) or the Chart's
 coin at the right.
 No back arrow, name or Canvas button (Tyler, 10 Nov 2026: "remove canvas from
 the tab", "the chart and graph tab needs to be applied to the bots dashboard

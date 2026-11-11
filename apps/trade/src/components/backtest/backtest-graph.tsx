@@ -1,7 +1,5 @@
 import * as React from "react"
 
-import { Button } from "@/components/ui/button"
-import { DatePicker } from "@/components/ui/date-picker"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate } from "@/lib/format/format-time"
 import { formatCompactUsd } from "@/lib/trade/format"
@@ -66,17 +64,10 @@ const PRESET_LABELS: Record<GraphPreset, string> = {
 }
 
 /**
- * The edge the toolbar's Search, Select and Filter have, so From, To and Reset
- * match them (Tyler, 10 Nov 2026: "the buttons border should match with the
- * other buttons"); an outline button alone takes the much fainter divider shade.
+ * The Graph's 1W to All, in the header of the panel that holds the graph.
+ * From, To and Reset are in that header's ⋮ (`graph-menu.tsx`).
  */
-const CONTROL_BORDER = "border-zinc-200/60 dark:border-zinc-700/60"
-
-/**
- * The Graph's window: 1W to All, From and To, and Reset. In the header
- * of the panel that holds the graph.
- */
-export function GraphWindowControls({
+export function GraphPresetTabs({
   window,
   onWindow,
 }: {
@@ -84,17 +75,10 @@ export function GraphWindowControls({
   onWindow: (next: GraphWindow) => void
 }) {
   return (
-    <>
     <Tabs
       value={window.preset}
       onValueChange={(value) =>
-        onWindow({
-          ...window,
-          preset: value as GraphPreset,
-          from: null,
-          to: null,
-          sel: null,
-        })
+        onWindow({ ...window, preset: value as GraphPreset, from: null, to: null, sel: null })
       }
     >
       <TabsList className="h-8">
@@ -105,74 +89,6 @@ export function GraphWindowControls({
         ))}
       </TabsList>
     </Tabs>
-    <DatePicker
-      value={window.from === null ? undefined : new Date(window.from)}
-      placeholder="From"
-      className={cn("h-8 w-auto text-xs", CONTROL_BORDER)}
-      onChange={(date) =>
-        onWindow({
-          ...window,
-          from: date ? date.getTime() : null,
-          sel: null,
-        })
-      }
-    />
-    <DatePicker
-      value={window.to === null ? undefined : new Date(window.to)}
-      placeholder="To"
-      className={cn("h-8 w-auto text-xs", CONTROL_BORDER)}
-      onChange={(date) =>
-        onWindow({ ...window, to: date ? date.getTime() : null, sel: null })
-      }
-    />
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className={cn("h-8", CONTROL_BORDER)}
-      // Never disabled: a button that is the way out of a state should
-      // still be pressable when you are not sure you are in it.
-      onClick={() => onWindow({ preset: "all", from: null, to: null, sel: null })}
-    >
-      Reset
-    </Button>
-    </>
-  )
-}
-
-/**
- * The Graph's Off peak, Liquidations and In markets switches. In the
- * header of the panel that holds the graph, beside its window
- * (Tyler, 10 Nov 2026: "move this beside the timeframe in the middle header").
- */
-export function GraphOverlayToggles({
-  overlays,
-  onOverlays,
-}: {
-  overlays: GraphOverlays
-  onOverlays: (change: (old: GraphOverlays) => GraphOverlays) => void
-}) {
-  return (
-    <>
-      <OverlayToggle
-        label="Off peak"
-        on={overlays.offPeak}
-        swatch="bg-red-600 dark:bg-red-400"
-        onClick={() => onOverlays((old) => ({ ...old, offPeak: !old.offPeak }))}
-      />
-      <OverlayToggle
-        label="Liquidations"
-        on={overlays.liquidations}
-        swatch="bg-red-600 dark:bg-red-400"
-        onClick={() => onOverlays((old) => ({ ...old, liquidations: !old.liquidations }))}
-      />
-      <OverlayToggle
-        label="In markets"
-        on={overlays.inCoins}
-        swatch="bg-teal-600 dark:bg-teal-400"
-        onClick={() => onOverlays((old) => ({ ...old, inCoins: !old.inCoins }))}
-      />
-    </>
   )
 }
 
@@ -643,35 +559,6 @@ function ReadingRow({
         {value}
       </span>
     </div>
-  )
-}
-
-function OverlayToggle({
-  label,
-  on,
-  swatch,
-  onClick,
-}: {
-  label: string
-  on: boolean
-  swatch: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={cn(
-        "flex items-center gap-1.5 text-xs",
-        on ? "text-foreground" : "text-muted-foreground"
-      )}
-    >
-      <span
-        className={cn("inline-block size-2 rounded-full", on ? swatch : "bg-muted-foreground/40")}
-      />
-      {label}
-    </button>
   )
 }
 

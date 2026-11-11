@@ -20,13 +20,15 @@ should be 3 tabs", then "remove canvas from the tab", "remoev the arrow back",
   back to the table.
 - **Chart:** the picked coin's candles. Its coin, candle size and orders sit
   at the header's right on a wide screen.
-- **Graph:** the pot over the whole run, with its line switches (Off peak,
-  Liquidations, In markets) and its window (1W to All, From, To, Reset) at the
-  header's right (Tyler, 10 Nov 2026: "move this beside the timeframe in the
-  middle header"). From, To and Reset have the toolbar buttons' edge. No wallet
-  figure sits over the graph ("remove these numbers"); the Result card has the
-  outcome and the crosshair's box reads the wallet at any point. Left out on a
-  run with no line to draw.
+- **Graph:** the pot over the whole run, with 1W to All at the header's right
+  and a ⋮ after them holding its three lines (Off peak, Liquidations, In
+  markets) as on and off switches, then From, To and Reset (Tyler, 10 Nov
+  2026: "add a 3 vertical dot dropdown here and move the [lines] but make it a
+  swicher to check on and off. Move the from, to and reset as well"). The ⋮
+  stays open while a date is picked. No wallet figure sits over the graph
+  ("remove these numbers"); the Result card has the outcome and the
+  crosshair's box reads the wallet at any point. Left out on a run with no
+  line to draw.
 
 ## The right panel: Result and Trades cards
 

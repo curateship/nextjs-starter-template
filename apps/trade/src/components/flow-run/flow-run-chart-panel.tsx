@@ -1,5 +1,6 @@
 import * as React from "react"
-import { BacktestGraph, GraphOverlayToggles, GraphWindowControls } from "@/components/backtest/backtest-graph"
+import { BacktestGraph, GraphPresetTabs } from "@/components/backtest/backtest-graph"
+import { GraphMenu } from "@/components/backtest/graph-menu"
 import {
   BacktestMarksLayer,
   type ChartFillMark,
@@ -148,13 +149,11 @@ export function FlowRunChartPanel({
         />
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
           {showGraph ? (
+            // 1W to All in the header; the lines, From, To and Reset in the
+            // ⋮ after them (Tyler, 10 Nov 2026).
             <>
-              {/* The graph's line switches, beside its window (Tyler, 10 Nov
-                  2026: "move this beside the timeframe in the middle header"). */}
-              <div className="flex items-center gap-3">
-                <GraphOverlayToggles overlays={overlays} onOverlays={setOverlays} />
-              </div>
-              <GraphWindowControls window={window} onWindow={onWindow} />
+              <GraphPresetTabs window={window} onWindow={onWindow} />
+              <GraphMenu overlays={overlays} onOverlays={setOverlays} window={window} onWindow={onWindow} />
             </>
           ) : (
             <span className="hidden truncate text-xs text-muted-foreground xl:inline">
