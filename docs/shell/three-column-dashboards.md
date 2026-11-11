@@ -101,6 +101,11 @@ All of them are in `src/components/shared/`.
   and has no gap between cards, the automation step panel likewise, and two
   "/" blocks in a row on a left page lose the 15px between them
   (`saving-document.tsx`); a block next to written text keeps it.
+- **The first card or block sits straight under the panel's header**, left
+  and right (Tyler, 11 Nov 2026: "remove this spacing here", "for both left
+  and right panels"). `PANEL_GUTTER` has no top padding, nor does the
+  automation step panel, and a left page that opens with a block drops the
+  writing area's 15px top edge; a page that opens with written text keeps it.
 - **Every card in a right panel has an icon** before its title (Tyler, 11 Nov
   2026, after Trade's details panel): `PanelCard`, the automation step
   `InspectorCard` and the shared `InspectorCard` (used by the email and page

@@ -129,6 +129,7 @@ export function StylingSettings({
   const panelCardBorderWidth = styling.panelCardBorderWidth ?? DEFAULT_PANEL_CARD_BORDER_WIDTH
   const panelCardBorderShadeShown = panelCardBorderShade(styling)
   const panelCardShadow = styling.panelCardShadow ?? 0
+  const panelCardOpacity = styling.panelCardOpacity ?? 100
   const panelCardInset = styling.panelCardInset ?? 0
   // Unset, the tile is the card's own grey, so the thumb sits at that grey.
   const panelCardBodyShade = styling.panelCardBodyShade ?? panelCardShadeShown.value
@@ -763,6 +764,18 @@ export function StylingSettings({
           valueLabel={panelCardShadow === 0 ? "0% · Default" : `${panelCardShadow}%`}
           onChange={(value) => update({ panelCardShadow: value })}
           help="A soft shade under the card, so it lifts off the panel. 0% is none."
+        />
+        {/* Tyler, 11 Nov 2026: "adjust the whole card so that the image in
+            the background can see through", of the Dashboards block at the
+            top of the Admin page under its cover. */}
+        <SliderRow
+          label="Opacity"
+          value={panelCardOpacity}
+          min={0}
+          max={100}
+          valueLabel={panelCardOpacity === 100 ? "100% · Default" : `${panelCardOpacity}%`}
+          onChange={(value) => update({ panelCardOpacity: value })}
+          help="The first card in each side panel, heading and rows, over the panel's cover photo. 0% is wholly clear with no blur; the blur grows as it rises. 100% is solid."
         />
         <SettingsSwitchRow
           id="panel-card-edge-to-edge"

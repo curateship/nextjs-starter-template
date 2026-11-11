@@ -121,8 +121,8 @@ pick one quietly.
   shut. A middle with no header of its own, such as an Overview of widgets,
   keeps the knob.
 - **Every panel starts with `DashboardCardHeader`** (57px). Side panel bodies
-  use the panel gutter `PANEL_GUTTER` (`gap-3.75 p-3.75`, in
-  `src/lib/project/panel-gutter.ts`), and footers use `PANEL_FOOTER_PADDING`
+  use the panel gutter `PANEL_GUTTER` (15px at the sides and bottom, none
+  above or between cards, in `src/lib/layout/panel-gutter.ts`), and footers use `PANEL_FOOTER_PADDING`
   (`p-3.75`).
 - **Lines:** every dividing line is a plain `border`, `border-t` or
   `divide-y` with no colour class, so it follows Settings → Styling → Divider

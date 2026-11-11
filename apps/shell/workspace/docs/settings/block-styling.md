@@ -21,7 +21,8 @@ adjust to rounded corner, the gray shade bg and this padding."
   was the grey alone at the shade set). What shows through is blurred 12px,
   like frosted glass ("how about we make it gassuan blur like a glass
   effect"); over the drawn sky, a smooth gradient, the blur barely shows, and
-  over a picture it does. The white tile stays solid. On a plain panel the
+  over a picture it does. The white tile stays solid, unless Panel cards →
+  Opacity is lowered and the block opens a side panel. On a plain panel the
   grey reads a shade lighter than the setting alone gives.
 - **Edge around the tile**, 0 to 16px, 3px unless changed: how much grey shows
   between the block's edge and its white tile, at the sides and the bottom.
@@ -119,13 +120,25 @@ as a block is: its heading on the card's grey, its rows in a tile under it.
   blocks do. A card learns how far to reach from `--panel-gutter` on the
   panel body around it, so a panel body with its own padding sets that
   variable to the same amount: the automation step panel's 16px does.
+- **Opacity**, 0 to 100%, 100% unless changed: how solid the first card in
+  each side panel is, the block at the top of a left page (such as the Admin
+  page's Dashboards block) and the first panel card on the right (such as a
+  person's Profile), heading and rows alike, so the panel's cover photo
+  shows through it. Tyler asked for it on 11 Nov 2026: "adjust the whole
+  card so that the image in the background can see through". 0% is wholly
+  clear with no blur at all ("when its 0, its completely see through in that
+  theres no blur at all"); the blur grows with it, to 12px at 100%. 100% is
+  the look they had. A panel body marks itself `data-side-panel-body`, and
+  the rules in theme.css read `--shell-panel-first-opacity` and
+  `--shell-panel-first-blur`; only the first card reaches up into the cover,
+  so only it changes.
 - **Which cards.** `PanelCard` (heading, then the tile), `PanelBox` (one tile
   all round) and the automation step's `InspectorCard`, which draws a `PanelCard`
   with the same heading and spacing. The tile is `[data-panel-card-tile]` in theme.css, and a
   card's footer of buttons reaches across the tile.
 - **Stored** as `panelCardRadius`, `panelCardBackground`, `panelCardInset`,
   `panelCardBodyShade`, `panelCardBorderWidth`, `panelCardBorderColor`,
-  `panelCardShadow` and `panelCardEdgeToEdge`. The
+  `panelCardShadow`, `panelCardEdgeToEdge` and `panelCardOpacity`. The
   two shade sliders save the theme's grey at the strength picked into the
   colour fields the old colour pickers used, so a grey saved before 10 Nov
   shows at its own strength. A fixed colour saved before then keeps showing,
