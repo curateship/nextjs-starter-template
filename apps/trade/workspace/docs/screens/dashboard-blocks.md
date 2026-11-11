@@ -180,6 +180,11 @@ at most.
 - **The totals row has no lines** above or below it (Tyler, 10 Nov 2026:
   "Remove footer borders"). Its shade alone sets it apart. The Positions
   table's total keeps its lines.
+- **The totals row stays at the block's bottom** while the rows scroll under
+  it, however tall the block is (`smart-orders-panel.tsx`). Before 11 Nov
+  2026 a Grid block with another block under it let its list run past the
+  block's bottom, and the totals row was cut off with it (Tyler: "the grid
+  trades block is missing the footer totals").
 - **Hiding columns:** Manual trades, Grid trades and DCA trades each list
   Avatar, Type, Value and PnL in their ⋮, an open eye on a column that shows
   and an eye with a slash on one that is hidden (Tyler, 10 Nov 2026: "I want
@@ -221,8 +226,22 @@ at most.
   the chart instead, unless Settings, Trading rules switched it off.
 - **Manage folders** opens from the Folders block's ⋮ as a popover beside the
   block, over the middle; the page stays where it is underneath.
+- **A block shows at most 448px, unless the panel has room.** One long list
+  cannot push the blocks under it out of view, so its rows scroll inside
+  448px. When the left panel has spare room, a block whose list is cut off
+  grows into it, top block first, only as far as its own rows need (Tyler,
+  11 Nov 2026: "why is the height capped if theres space in the left
+  panel?", then "go"). While the page already runs past the panel's bottom,
+  nothing grows. `block-heights.ts` works out every block's height in one
+  pass, so two blocks never claim the same room.
+- **A grown block keeps its height when a block under it gets taller**, such
+  as Folders opening a folder. The panel scrolls instead, so the blocks under
+  it stay where they are (Tyler, 11 Nov 2026: "if i click on the folder for
+  the bottom panel ... it folder card goes up a bit instead of staying in
+  place"). The block gives the room back only when the panel itself changes
+  height, such as the window being resized.
 - **The last block fills the panel** (Tyler, 8 Nov 2026: "always make it fill
-  all available space"). The last block on the page that shows, while it is
+  all available space"), with whatever room the blocks above it left. The last block on the page that shows, while it is
   open, reaches the panel's bottom with the 15px gutter under it, and its
   list scrolls inside it. The page then fits the panel exactly, so there is
   one scrollbar, the list's (Tyler, 8 Nov 2026: "theres 2 areascroll here"):

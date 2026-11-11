@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { BlockColumnsMenuRows, BlockHiddenColumns } from "@/components/trade/block-columns"
+import { useBlockHeight } from "@/components/trade/notes/block-heights"
 import { FoldHeading } from "@/components/trade/notes/fold-heading"
 import { Button } from "@/components/ui/button"
 import {
@@ -184,76 +185,6 @@ function Frame({
   )
 }
 
-/** Less room than this left under the last block, and it keeps its own height. */
-const MIN_FILL_PX = 240
-
-/**
- * Whether this block is the last thing on its page that shows: no block that
- * is not hidden, and no words, come after it.
- */
-function lastOnPage(frame: Element, page: Element) {
-  let top: Element = frame
-  while (top.parentElement && top.parentElement !== page) top = top.parentElement
-  for (let next = top.nextElementSibling; next; next = next.nextElementSibling) {
-    const block = next.matches("[data-note-block]") ? next : next.querySelector("[data-note-block]")
-    if (block) {
-      if (!(block as HTMLElement).hidden) return false
-    } else if (next.textContent?.trim()) {
-      return false
-    }
-  }
-  return true
-}
-
-/**
- * The height that takes the last block on the page down to the panel's
- * bottom, the panel's gutter under it (Tyler, 8 Nov 2026: "always make it
- * fill all available space"), or null to keep its own. The tile grows or
- * shrinks by however much the page falls short of, or runs past, the
- * panel's height, so the page fits the panel exactly and only the block's
- * own list scrolls ("theres 2 areascroll here"). What sits under the block
- * takes no room meanwhile (`saving-document.tsx`). With less than
- * `MIN_FILL_PX` left, the block keeps its own height and the page scrolls as
- * before.
- */
-function useFillHeight(tile: HTMLElement | null, open: boolean): number | null {
-  const [height, setHeight] = React.useState<number | null>(null)
-  React.useEffect(() => {
-    if (!tile || !open) return
-    const page = tile.closest(".tiptap")
-    const frame = tile.closest("[data-note-block]")
-    const viewport = tile.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
-    const content = viewport?.firstElementChild
-    if (!page || !frame || !viewport || !content) return
-    let frameId = 0
-    const measure = () => {
-      cancelAnimationFrame(frameId)
-      frameId = requestAnimationFrame(() => {
-        if (!lastOnPage(frame, page)) {
-          setHeight(null)
-          return
-        }
-        const shortfall = viewport.clientHeight - content.getBoundingClientRect().height
-        const next = Math.floor(tile.getBoundingClientRect().height + shortfall)
-        setHeight(next >= MIN_FILL_PX ? next : null)
-      })
-    }
-    const sizes = new ResizeObserver(measure)
-    sizes.observe(viewport)
-    sizes.observe(content)
-    // A block added, moved, hidden or written after this one.
-    const changes = new MutationObserver(measure)
-    changes.observe(page, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] })
-    measure()
-    return () => {
-      cancelAnimationFrame(frameId)
-      sizes.disconnect()
-      changes.disconnect()
-    }
-  }, [open, tile])
-  return open ? height : null
-}
-
 /**
  * Every Trade block is one card, as Project's team blocks are: a solid light
  * grey box whose heading row holds the title, the panel's own buttons and
@@ -291,8 +222,8 @@ function BlockCard({
   const [actions, setActions] = React.useState<HTMLSpanElement | null>(null)
   const [count, setCount] = React.useState<number | undefined>(undefined)
   const [tile, setTile] = React.useState<HTMLDivElement | null>(null)
-  const fillHeight = useFillHeight(tile, open)
-  const fills = fillHeight !== null
+  const share = useBlockHeight(tile, open)
+  const fills = share.fills
   const heading = React.useMemo(
     () => ({ actions, setCount, open, fills }),
     [actions, open, fills]
@@ -361,8 +292,13 @@ function BlockCard({
           <div
             ref={setTile}
             data-block-tile=""
-            // The last block on the page reaches the panel's bottom.
-            style={fills ? { height: fillHeight, maxHeight: "none" } : undefined}
+            // A cut-off list grows into spare room, and the last block on
+            // the page reaches the panel's bottom (`block-heights.ts`).
+            style={
+              share.height !== null
+                ? { height: share.height, maxHeight: "none" }
+                : undefined
+            }
             className={cn(
               "flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]",
               // While this block fills, the page's writing area takes away

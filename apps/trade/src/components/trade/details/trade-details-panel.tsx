@@ -29,8 +29,10 @@ import { TradeBadge } from "@/components/trade/trade-badge"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSortButton } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { botsRecordHref } from "@/lib/bots/bots-search"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatFeeUsd, formatPrice, formatSignedUsd, formatSize, formatUsd } from "@/lib/trade/format"
@@ -48,7 +50,7 @@ import {
 import { moneyTone } from "@/lib/trade/money-tone"
 import { positionProfit, positionValue, type TradePosition } from "@/lib/trade/paper"
 import { positionFees } from "@/lib/trade/position-fees"
-import { fillSlippage, fillsSlippage } from "@/lib/trade/slippage"
+import { fillsSlippage } from "@/lib/trade/slippage"
 import { smartOrderSales } from "@/lib/trade/smart-order-sales"
 import type { SmartGrid, SmartLadder, SmartOrder } from "@/lib/trade/smart-plan"
 import { TRADE_MAKER_LABELS, tradeFlowRunId, tradeMaker, type TradeMaker } from "@/lib/trade/trade-maker"
@@ -280,15 +282,12 @@ function PositionDetails({
             valueClassName={hiddenPnl}
           />
           <FigureLine label="Value" value={formatUsd(positionValue(position, mark))} />
-          <FigureLine label="Price now" value={formatPrice(mark)} />
         </FigureGroup>
         <FigureGroup title="The trade" small>
           <div className="flex items-baseline gap-3">
             <dt className="min-w-0 flex-1 text-foreground/75">Side</dt>
             <dd><PositionSideBadge position={position} /></dd>
           </div>
-          <FigureLine label="Size" value={`${formatSize(Math.abs(position.szi))} ${symbol}`} />
-          <FigureLine label="Entry" value={position.owned?.entryKnown === false ? "—" : formatPrice(position.entryPx)} />
           <FigureLine
             label="Fees"
             value={position.live ? (fees ? formatFeeUsd(fees.paid) : "—") : formatFeeUsd(position.feesPaid)}
@@ -511,20 +510,21 @@ function MakerLine({
   )
 }
 
-/** A grid's settings, as a group inside the Summary card. */
+/**
+ * A grid's settings, as a group inside the Summary card. No Range, Take profit
+ * or Times the whole grid sold (Tyler, 11 Nov 2026: "Remove all these datas
+ * ... theyre not useful").
+ */
 function GridSetup({ grid }: { grid: SmartGrid }) {
   const plan = grid.plan
   return (
     <FigureGroup title="Grid" small>
       <FigureLine label="Direction" value={plan.direction === "short" ? "Sells first" : "Buys first"} />
-      <FigureLine label="Range" value={`${formatPrice(plan.bottomPx)} to ${formatPrice(plan.topPx)}`} />
       <FigureLine label="Levels" value={String(plan.levels.length)} />
       <FigureLine label="Spacing" value={GRID_SPACING_LABELS[plan.spacing]} />
       <FigureLine label="Share of the wallet" value={`${plan.potPct}%`} />
       <FigureLine label="Leverage" value={`${plan.leverage}x`} />
-      <FigureLine label="Take profit" value={plan.takeProfitPx === null ? "None" : formatPrice(plan.takeProfitPx)} />
       <FigureLine label="Started" value={formatDateTime(new Date(grid.createdAt))} />
-      <FigureLine label="Times the whole grid sold" value={String(plan.cycles)} />
     </FigureGroup>
   )
 }
@@ -668,36 +668,101 @@ function FinishedGridSales({ trade }: { trade: LiveTrade }) {
   )
 }
 
-/** Every buy and sell, newest first, the first hundred until asked for all. */
+type FillColumn = "trade" | "date" | "value" | "fee"
+
+const NARROW_HIDDEN = "@max-[18rem]:hidden"
+/** "11/10/26" and "9:27 PM" (Tyler, 11 Nov 2026: "Use this format for the date 01/23/26 5:12 AM"). */
+const FILL_DAY = new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
+const FILL_TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" })
+
+/**
+ * Every buy and sell as a table, newest first, the first hundred until asked
+ * for all (Tyler, 11 Nov 2026: "revamp the buy and sales card", with a
+ * picture). Trade is a green dot for a buy or a red one for a sell and how
+ * much of the coin, Date reads "11/10/26 9:27 PM", Value is what the coins
+ * cost or fetched, and Fee is grey, blank under a cent. Its text is 10% under
+ * the usual 12px (Tyler: "Maybe try resize the font by 10%"). Each heading
+ * sorts. The table fills the card's white tile edge to edge, as the
+ * backtest's Trades card does.
+ */
 function FillsCard({ fills }: { fills: readonly LiveFill[] }) {
   const [all, setAll] = React.useState(false)
-  const newestFirst = React.useMemo(() => [...fills].reverse(), [fills])
-  const shown = all ? newestFirst : newestFirst.slice(0, FIRST_FILLS)
+  const { sort, direction, toggleSort } = useTableSort<FillColumn>("date", "desc", () => "desc")
+  const sorted = React.useMemo(() => {
+    const way = direction === "asc" ? 1 : -1
+    const key = (fill: LiveFill) =>
+      sort === "trade" ? fill.sz : sort === "value" ? Math.abs(fill.px * fill.sz) : sort === "fee" ? fill.fee : fill.at
+    return [...fills].sort((left, right) =>
+      sort === "trade" && left.side !== right.side
+        ? way * (left.side === "buy" ? -1 : 1)
+        : way * (key(left) - key(right))
+    )
+  }, [fills, sort, direction])
+  const shown = all ? sorted : sorted.slice(0, FIRST_FILLS)
+  const head = (label: string, column: FillColumn, width: string, right = false) => (
+    <TableHead className={cn(width, "px-1", right && "text-right", column === "fee" && NARROW_HIDDEN)}>
+      <TableSortButton
+        active={sort === column}
+        direction={direction}
+        onClick={() => toggleSort(column)}
+        className={cn("gap-0.5 whitespace-nowrap text-[0.675rem] sm:text-[0.675rem]", right && "ml-auto")}
+      >
+        {label}
+      </TableSortButton>
+    </TableHead>
+  )
   return (
     <PanelCard storageId="trade-details-fills" icon={<ArrowLeftRightIcon />} title="Buys and sells" meta={fills.length.toLocaleString()}>
       {fills.length === 0 ? (
         <p className="text-sm text-muted-foreground">No fills on hand for this trade.</p>
       ) : (
-        <ul className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 text-[13px]">
-          {shown.map((fill) => {
-            const slip = fillSlippage(fill, fill.sz)
-            return (
-              <li key={fill.fillId} className="grid gap-0.5">
-                <span className="flex items-baseline gap-2">
-                  <TradeBadge tone={fill.side === "buy" ? "made" : "lost"}>{fill.side === "buy" ? "Buy" : "Sell"}</TradeBadge>
-                  <span className="min-w-0 flex-1 truncate tabular-nums">
-                    {formatSize(fill.sz)} at {formatPrice(fill.px)}
-                  </span>
-                </span>
-                <span className="flex gap-2 text-xs text-muted-foreground">
-                  <span className="min-w-0 flex-1 truncate">{formatDateTime(new Date(fill.at))}</span>
-                  <span className="shrink-0">Fee {formatFeeUsd(fill.fee)}</span>
-                  {slip === null ? null : <span className="shrink-0">Slip {formatSignedUsd(slip)}</span>}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
+        // In a panel under 18rem wide Fee drops out, or every cell was cut short.
+        <div className="@container -mx-4 -mb-4 mt-[calc(var(--shell-panel-card-tile-top,0px)*-1)] [&_thead_tr]:bg-transparent">
+          <Table className="table-fixed text-[0.675rem] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th]:overflow-hidden [&_th:first-child]:pl-4 [&_th:last-child]:pr-4 [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2">
+            <TableHeader>
+              <TableRow>
+                {/* Widths per panel width: all four from 18rem, Fee gone
+                    under it, and under 13rem the size too, so the dot, the
+                    day and the money still fit a 12% panel uncut. */}
+                {head("Trade", "trade", "w-[26%] @max-[18rem]:w-[30%] @max-[13rem]:w-[18%]")}
+                {head("Date", "date", "w-[34%] @max-[18rem]:w-[38%] @max-[13rem]:w-[44%]")}
+                {head("Value", "value", "w-[20%] @max-[18rem]:w-[32%] @max-[13rem]:w-[38%]", true)}
+                {head("Fee", "fee", "w-[20%]", true)}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shown.map((fill) => {
+                const at = new Date(fill.at)
+                return (
+                  <TableRow key={fill.fillId} className="border-0 hover:bg-transparent">
+                    <TableCell className="py-1.5 pr-1">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          role="img"
+                          aria-label={fill.side === "buy" ? "Buy" : "Sell"}
+                          className={cn("size-2 shrink-0 rounded-full", fill.side === "buy" ? "bg-emerald-500" : "bg-red-500")}
+                        />
+                        <span className="min-w-0 truncate font-mono text-[0.675rem] tabular-nums @max-[13rem]:hidden">{formatSize(fill.sz)}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-1 py-1.5 text-[0.675rem] whitespace-normal">
+                      {/* One line where it fits; the time wraps under the day where it does not. */}
+                      <span className="whitespace-nowrap">{FILL_DAY.format(at)}</span>{" "}
+                      <span className="whitespace-nowrap">{FILL_TIME.format(at)}</span>
+                    </TableCell>
+                    <TableCell className="px-1 py-1.5 text-right font-mono text-[0.675rem] tabular-nums">
+                      {formatUsd(Math.abs(fill.px * fill.sz))}
+                    </TableCell>
+                    <TableCell className={cn("py-1.5 pl-1 text-right font-mono text-[0.675rem] text-muted-foreground tabular-nums", NARROW_HIDDEN)}>
+                      {/* Nothing under a cent (Tyler, 11 Nov 2026: "remove the under 0.01 label"). */}
+                      {Math.abs(fill.fee) < 0.005 ? null : formatFeeUsd(fill.fee)}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
       )}
       {!all && fills.length > FIRST_FILLS ? (
         <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => setAll(true)}>

@@ -392,7 +392,16 @@ function SmartOrdersView({
           own dashboard.
         </p>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        // A flex column whose viewport is flex-1, not the viewport's own
+        // height:100%. In a dashboard block that is not the page's last, the
+        // tile has only a height cap, so 100% never resolved: the list ran on
+        // past the tile's bottom and the pinned totals row was cut off with it
+        // (Tyler, 11 Nov 2026: "the grid trades block is missing the footer
+        // totals").
+        <ScrollArea
+          className="flex min-h-0 flex-1 flex-col"
+          viewportClassName="min-h-0 flex-1"
+        >
           <Table
             className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4"
             containerClassName={cn(
