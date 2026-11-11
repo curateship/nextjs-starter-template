@@ -55,6 +55,7 @@ async function upsertEmailSettings(
     inboundAddress: string | null
     crmReplyName: string | null
     crmReplySignature: string | null
+    crmUnansweredDays: number
     crmQuoteReplies: boolean
     quietAfterEmails: number
   }>,
@@ -143,6 +144,22 @@ export async function saveInboundAddress(
   return upsertEmailSettings(
     workspaceId,
     { inboundAddress: inboundAddress.trim().toLowerCase() || null },
+    database
+  )
+}
+
+/**
+ * After how many days without an answer the bell says somebody is waiting
+ * (CRM task 11). 0 turns it off. Kept between 0 and 60, the column's check.
+ */
+export async function saveCrmUnansweredDays(
+  workspaceId: string,
+  days: number,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { crmUnansweredDays: Math.min(60, Math.max(0, Math.round(days))) },
     database
   )
 }

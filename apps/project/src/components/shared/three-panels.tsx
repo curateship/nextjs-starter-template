@@ -24,6 +24,7 @@ import { useDashboardPlace } from "@/lib/layout/dashboard-place"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { sidePanelWidthsKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
@@ -125,10 +126,16 @@ export function MiddleHeading({ icon: Icon, label }: { icon: LucideIcon; label: 
  * padding on left and right side for middle panel"): its header (20px, its
  * first icon or tab 4px in) and a table's first and last columns, so they
  * line up. Set on the box round the middle's content.
+ *
+ * A price chart is left out. The chart library lays its drawing out as a
+ * table, so the padding pushed its candles 24px right of everything drawn
+ * over them, and a trade's arrows sat beside their candle instead of on it
+ * (Tyler, 11 Nov 2026: "the arrow is floating outside of its trade candle").
  */
 export const middleGutterClassName = [
   "[&_[data-slot=dashboard-card-header]]:px-5",
-  "[&_td:first-child]:!pl-6 [&_th:first-child]:!pl-6 [&_td:last-child]:!pr-5 [&_th:last-child]:!pr-5",
+  "[&_td:first-child:not(.tv-lightweight-charts_td)]:!pl-6 [&_th:first-child]:!pl-6",
+  "[&_td:last-child:not(.tv-lightweight-charts_td)]:!pr-5 [&_th:last-child]:!pr-5",
 ].join(" ")
 
 /**
@@ -169,9 +176,10 @@ function BareMiddle({ className, ...props }: React.ComponentProps<"div">) {
 
 /**
  * The three-column dashboard every app shares (UI standard, "Three-column
- * dashboards"): the left opens at 10% and the right at 16%, the middle
- * taking the other 74% (Tyler, 9 Nov 2026: "default 14% on left and 16% on
- * right", then "Set left side panel narrowest default to 10%"), unless Settings → Styling → Side panels sets wider ones. Neither
+ * dashboards"): the left opens at 10% and the right at 12%, the middle
+ * taking the other 78% (Tyler, 9 Nov 2026: "default 14% on left and 16% on
+ * right", then "Set left side panel narrowest default to 10%"; 10 Nov 2026:
+ * "the right panel width 16px is default. Make default 12px"), unless Settings → Styling → Side panels sets wider ones. Neither
  * side drags narrower than its default ("cannot go lower than that"), nor
  * wider than 36%. It started as Project's
  * project page and moved here for Contacts on 19 Oct 2026. The side panels
@@ -274,7 +282,7 @@ export function ThreePanels({
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
   // The side panels' opening widths from Settings → Styling → Side panels
-  // (Tyler, 9 Nov 2026): 10% left and 16% right unless changed, and
+  // (Tyler, 9 Nov 2026): 10% left and 12% right unless changed, and
   // neither drags narrower than that.
   const styling = useOptionalShellRuntime()?.config.styling
   const leftWidth = clampSidePanelWidth(styling?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH)
@@ -292,8 +300,12 @@ export function ThreePanels({
   const layout = useRememberedPanelLayout(widthsKey, defaultLayout)
   const leftState = usePanelCollapsed(leftRef)
   const rightState = usePanelCollapsed(rightRef)
-  const toggleLeft = usePanelToggle(leftRef)
-  const toggleRight = usePanelToggle(rightRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapLeft = usePanelToggle(leftRef)
+  const snapRight = usePanelToggle(rightRef)
+  const toggleLeft = React.useCallback(() => fold(snapLeft), [fold, snapLeft])
+  const toggleRight = React.useCallback(() => fold(snapRight), [fold, snapRight])
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
   const hasRight = Boolean(right)
@@ -313,8 +325,8 @@ export function ThreePanels({
       return
     }
     const panel = leftRef.current
-    if (panel?.isCollapsed()) panel.expand()
-  }, [wide])
+    if (panel?.isCollapsed()) fold(() => panel.expand())
+  }, [wide, fold])
 
   if (!wide) {
     return (
@@ -353,7 +365,7 @@ export function ThreePanels({
       <ResizablePanelGroup
         groupRef={layout.groupRef}
         orientation="horizontal"
-        className="min-h-0 flex-1"
+        className={cn("min-h-0 flex-1", foldingClassName)}
         onLayoutChanged={layout.onLayoutChanged}
       >
         <ResizablePanel

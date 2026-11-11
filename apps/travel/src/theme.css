@@ -169,7 +169,7 @@
     );
     /* The rail and the sticky bar, halfway between the page and a card, so
        they read as off white here and off black in the dark block without
-       either being set by hand twice. Settings -> Styling -> Left menu shade
+       either being set by hand twice. Settings -> Styling -> Sidebar & Top navigation
        moves them along that line through --shell-rail-card-share. */
     --shell-rail: color-mix(
       in oklab,
@@ -692,24 +692,6 @@ html[data-public-button-casing="uppercase"] [data-slot="button"] {
 }
 
 /*
- * A panel shut down to its own header draws one line along the bottom, not two.
- *
- * The header's line parts it from what is below; the panel's bottom edge closes
- * the box. Open, they are far apart and both belong. Shut, the panel is exactly
- * its header, so the two land one pixel apart and read as a single line of
- * double thickness. The header's is the one that has nothing left to do.
- *
- * Written here rather than as a class on the header because the rule above sets
- * these borders from the user's settings and would put the line straight back.
- * Not scoped to `[data-content-styling]`: the doubling is the panel's own
- * geometry and happens whether or not the styling wrapper is above it.
- */
-[data-slot="workspace-panel"][data-header-only="true"]
-  [data-slot="dashboard-card-header"] {
-  border-bottom-width: 0;
-}
-
-/*
  * A dashboard card that fills a resizable panel needs the same treatment, and
  * for the same reason: its border is drawn OUTSIDE the box — a ring normally,
  * the box-shadow above once the Styling settings are in play — and the panel
@@ -907,6 +889,19 @@ body:has(
     );
 }
 
+/* A link editor's popover (EditPopover) used to be a window, so its own
+   background and outer line come from Settings → Styling → Modal, as a
+   window's do (Tyler, 10 Nov 2026: "the outer of the card should be wired
+   too"). Only the ring is swapped, so the popover keeps its drop shadow. */
+[data-edit-popover] {
+  background-color: var(--shell-modal-bg, var(--popover));
+  --tw-ring-shadow: 0 0 0 calc(var(--shell-modal-border-width, 1) * 1px)
+    var(
+      --shell-modal-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
 [data-slot="dialog-content"][data-variant="default"] {
   padding: var(--shell-modal-padding, 1rem);
   gap: var(--shell-modal-padding, 1rem);
@@ -966,8 +961,58 @@ body:has(
   padding-top: max(0px, calc(var(--shell-modal-padding, 1.5rem) - 0.5rem));
 }
 
-/* Cards inside the modal. */
-[data-slot="dialog-content"] [data-slot="card"] {
+/*
+ * The grey folding cards in a right panel, such as a person's Profile on the
+ * Admin dashboard (`PanelCard`), from Settings -> Styling -> Panel cards.
+ * Unset, the theme's grey at 40%, a 1px line in the theme's border colour,
+ * 10px corners and no shadow, the look they always had. In the components layer, so a class a screen sets
+ * on one card still wins.
+ */
+@layer components {
+  [data-slot="panel-card"] {
+    background-color: var(
+      --shell-panel-card-bg,
+      color-mix(in oklab, var(--muted) 40%, transparent)
+    );
+    border-style: solid;
+    border-width: calc(var(--shell-panel-card-border-width, 1) * 1px);
+    border-color: var(--shell-panel-card-border-color, var(--border));
+    border-radius: var(--shell-panel-card-radius, 10px);
+    box-shadow: var(--shell-panel-card-shadow, none);
+    /* Edge to edge: past the panel's side space to its edges. Outside a
+       panel that sets --panel-gutter it moves nothing. */
+    margin-inline: calc(var(--panel-gutter, 0px) * var(--shell-panel-card-bleed, 0) * -1);
+  }
+
+  /* The tile under a card's heading, where its rows sit, as a block's white
+     tile: Edge around the tile and Body shade. Unset it is see-through with
+     no edge, so the rows sit on the card's grey as they always did. A card
+     with no heading is one tile all round. */
+  [data-panel-card-tile] {
+    margin: 0 var(--shell-panel-card-inset, 0px) var(--shell-panel-card-inset, 0px);
+    padding: var(--shell-panel-card-tile-top, 0px) 1rem 1rem;
+    background: var(--shell-panel-card-body, transparent);
+    border-radius: max(
+      0px,
+      calc(
+        var(--shell-panel-card-radius, 10px) - var(--shell-panel-card-inset, 0px) -
+          var(--shell-panel-card-border-width, 1) * 1px
+      )
+    );
+  }
+  [data-panel-card-tile="whole"] {
+    margin: var(--shell-panel-card-inset, 0px);
+    padding: 1rem;
+  }
+}
+
+/* Cards inside the modal, and inside a link editor's popover (EditPopover),
+   which used to be a modal and keeps its cards' look (Tyler, 10 Nov 2026:
+   "wire the bg to the card settings"). A child link row in there is drawn
+   the same way. */
+[data-slot="dialog-content"] [data-slot="card"],
+[data-edit-popover] [data-slot="card"],
+[data-edit-popover] [data-slot="card-row"] {
   background-color: var(--shell-modal-card-bg, var(--card));
   --tw-ring-shadow: 0 0 #0000;
   box-shadow: 0 0 0 calc(var(--shell-modal-card-border-width, 1) * 1px)

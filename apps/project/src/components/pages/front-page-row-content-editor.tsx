@@ -1,5 +1,9 @@
 import type { ReactNode } from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  PanelTopIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
@@ -266,7 +270,7 @@ function EditorCard({
   children: ReactNode
 }) {
   return (
-    <InspectorCard
+    <InspectorCard icon={<PanelTopIcon />}
       storageId={storageId}
       title={title}
       description={description}

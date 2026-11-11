@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import {
   InspectorCard,
   InspectorNote,
@@ -28,7 +29,7 @@ export default function WaitFields({ node, onChange }: AutomationNodeFieldsProps
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-2">
         <FieldLabel
           htmlFor={`wait-${node.id}-amount`}

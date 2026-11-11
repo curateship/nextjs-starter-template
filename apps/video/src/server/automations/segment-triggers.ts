@@ -15,7 +15,6 @@ import {
   getSegmentDefinition,
   segmentConditions,
 } from "@/server/people/contact-segments"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -31,7 +30,7 @@ export const SEGMENT_ARRIVAL_LIMIT = 100
 
 type SegmentContact = Pick<
   typeof customShellContacts.$inferSelect,
-  "id" | "userId" | "email" | "firstName" | "lastName"
+  "id" | "email" | "firstName" | "lastName"
 >
 
 function contactLabel(contact: SegmentContact) {
@@ -216,7 +215,6 @@ async function scanFlow(
     const arrivals = await tx
       .select({
         id: customShellContacts.id,
-        userId: customShellContacts.userId,
         email: customShellContacts.email,
         firstName: customShellContacts.firstName,
         lastName: customShellContacts.lastName,
@@ -299,7 +297,8 @@ async function scanFlow(
           configSnapshot: trigger.config,
           wakeAt: timestamp,
           attempts: 0,
-          subjectUserId: contact.userId,
+          // A segment is subscribers only; accounts are not on the list.
+          subjectUserId: null,
           subjectContactId: contact.id,
           subjectLabel: contactLabel(contact),
           triggerKind: joinedSegmentNode.kind,
@@ -336,10 +335,6 @@ export async function runJoinedSegmentTriggers(
     .where(eq(customShellAutomations.enabled, true))
 
   const watched = rows.filter((row) => triggerDetails(row.compiledConfig))
-  const workspaces = [...new Set(watched.map((row) => row.workspaceId))]
-  for (const workspaceId of workspaces) {
-    await syncContactsFromUsers(workspaceId, database)
-  }
 
   let started = 0
   for (const row of watched) {

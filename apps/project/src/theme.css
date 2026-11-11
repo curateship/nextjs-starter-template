@@ -169,7 +169,7 @@
     );
     /* The rail and the sticky bar, halfway between the page and a card, so
        they read as off white here and off black in the dark block without
-       either being set by hand twice. Settings -> Styling -> Left menu shade
+       either being set by hand twice. Settings -> Styling -> Sidebar & Top navigation
        moves them along that line through --shell-rail-card-share. */
     --shell-rail: color-mix(
       in oklab,
@@ -964,8 +964,8 @@ body:has(
 /*
  * The grey folding cards in a right panel, such as a person's Profile on the
  * Admin dashboard (`PanelCard`), from Settings -> Styling -> Panel cards.
- * Unset, the theme's grey at 40% and a 1px line in the theme's border colour,
- * the look they always had. In the components layer, so a class a screen sets
+ * Unset, the theme's grey at 40%, a 1px line in the theme's border colour,
+ * 10px corners and no shadow, the look they always had. In the components layer, so a class a screen sets
  * on one card still wins.
  */
 @layer components {
@@ -977,6 +977,32 @@ body:has(
     border-style: solid;
     border-width: calc(var(--shell-panel-card-border-width, 1) * 1px);
     border-color: var(--shell-panel-card-border-color, var(--border));
+    border-radius: var(--shell-panel-card-radius, 10px);
+    box-shadow: var(--shell-panel-card-shadow, none);
+    /* Edge to edge: past the panel's side space to its edges. Outside a
+       panel that sets --panel-gutter it moves nothing. */
+    margin-inline: calc(var(--panel-gutter, 0px) * var(--shell-panel-card-bleed, 0) * -1);
+  }
+
+  /* The tile under a card's heading, where its rows sit, as a block's white
+     tile: Edge around the tile and Body shade. Unset it is see-through with
+     no edge, so the rows sit on the card's grey as they always did. A card
+     with no heading is one tile all round. */
+  [data-panel-card-tile] {
+    margin: 0 var(--shell-panel-card-inset, 0px) var(--shell-panel-card-inset, 0px);
+    padding: var(--shell-panel-card-tile-top, 0px) 1rem 1rem;
+    background: var(--shell-panel-card-body, transparent);
+    border-radius: max(
+      0px,
+      calc(
+        var(--shell-panel-card-radius, 10px) - var(--shell-panel-card-inset, 0px) -
+          var(--shell-panel-card-border-width, 1) * 1px
+      )
+    );
+  }
+  [data-panel-card-tile="whole"] {
+    margin: var(--shell-panel-card-inset, 0px);
+    padding: 1rem;
   }
 }
 

@@ -1,6 +1,13 @@
 import * as React from "react"
 import { format } from "date-fns"
-import { ArchiveIcon, Loader2Icon, MegaphoneIcon, Trash2Icon } from "lucide-react"
+import {
+  ArchiveIcon,
+  CalendarClockIcon,
+  Loader2Icon,
+  MapPinIcon,
+  MegaphoneIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { MenuActionRow } from "@/components/admin-dashboard/list-parts"
@@ -278,7 +285,7 @@ function AnnouncementForm({
                 void save()
               }}
             >
-              <PanelCard storageId="admin-announcement-say" title="What you want to say">
+              <PanelCard icon={<MegaphoneIcon />} storageId="admin-announcement-say" title="What you want to say">
                 <div className="grid gap-4">
                   <div className="grid gap-2">
                     <FieldLabel
@@ -339,7 +346,7 @@ function AnnouncementForm({
                 </div>
               </PanelCard>
 
-              <PanelCard storageId="admin-announcement-where" title="Where it shows">
+              <PanelCard icon={<MapPinIcon />} storageId="admin-announcement-where" title="Where it shows">
                 <div className="grid gap-4">
                   <p className="text-xs text-muted-foreground">
                     Pick at least one. Each person can close the banner; the tray notice keeps the message readable
@@ -389,7 +396,7 @@ function AnnouncementForm({
                 </div>
               </PanelCard>
 
-              <PanelCard storageId="admin-announcement-when" title="When it shows">
+              <PanelCard icon={<CalendarClockIcon />} storageId="admin-announcement-when" title="When it shows">
                 <div className="grid gap-4">
                   <p className="text-xs text-muted-foreground">Whole days, read the same way everywhere in the world.</p>
                   <div className="grid gap-2">

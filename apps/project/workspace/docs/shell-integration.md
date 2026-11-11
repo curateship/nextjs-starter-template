@@ -82,3 +82,17 @@ Every shell change up to 33c87ec4b (10 Nov) is in Project, from the 9 Nov merge 
 **Migrations.** The shell's 0111 to 0114 are Project's 0175 to 0178, the same files renumbered. Applied to the local database only. **Warning for the next deploy:** 0175 (the shell's 0111) deletes every mailing-list contact marked "Account" on the live database, and 0168 from the last merge drops the referrals and changelog tables.
 
 **Kept as Project's own.** `src/app/`, `workspace/`, and `routeTree.gen.ts`, rebuilt without the two removed automation routes.
+
+## Shell merge, 11 November 2026
+
+Every shell change since the 10 Nov merge (`33c87ec4b`) is in Project, up to the shell at `5131991aa`: 47 files replaced, nothing added or deleted. Each was an unedited older shell copy.
+
+**What arrived.**
+
+- **Settings → Styling → Panel cards has every Blocks setting**: Rounded corners, Grey shade, Edge around the tile, Body shade, Border, Border shade, Shadow and "Panel cards reach the panel's edges". With nothing changed the cards look as before, and a card's heading no longer grows when pointed at.
+- **The automation step panel's cards are the side panels' `PanelCard`**, and the line describing the step under its name is gone.
+- **The panel cards fold together** with a side panel header's collapse-all button, where a screen has one.
+
+**No migration was new**, and no route changed.
+
+**Checked.** Typecheck is clean, and the 256 tests in the admin, automations, broadcasts, CRM, pages, settings, shared, shell, project, API and layout folders pass. Not checked in a browser.

@@ -1146,10 +1146,9 @@ export function CarouselBuilderPage({
 
   const workspace = (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel

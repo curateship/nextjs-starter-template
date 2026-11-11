@@ -97,7 +97,7 @@ describe("Send Email node", () => {
   it("names the closest Audience step feeding the email", () => {
     expect(upstreamAudienceNode(graph, "email")?.id).toBe("audience")
     expect(sendEmailAudienceWording(graph, "email")).toBe(
-      'Members paying for the "pro" plan.'
+      'Accounts paying for the "pro" plan.'
     )
   })
 

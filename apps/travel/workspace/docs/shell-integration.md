@@ -17,3 +17,23 @@ Every shell change up to 5 Nov is in Travel: 83 files replaced and 22 added, wit
 **No migration was new.** The shell has added none since 0097, and Travel already had every one.
 
 **Kept as Travel's own.** `src/app/` stays Travel's own.
+
+## Shell merge, 11 November 2026
+
+Every shell change since the 7 Nov merge (`e69b7243e`) is in Travel, up to the shell at `5131991aa`: 244 files replaced, 179 added and 75 deleted. Each was an unedited older shell copy.
+
+**What arrived.**
+
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists and Leads as its own section, lead tags, unanswered and forwarded mail, and files on messages.
+- **Automations is one three-panel dashboard**: Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Pages, Styling and Navigations sit inside the Admin dashboard.** Navigations' link editors open as popovers, and the header's Settings cog can hold links.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with every Blocks setting on panel cards, edge to edge, Reset panels, and each widget's ⋮ holding its own options.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0109 to 0125. 0117 drops the referral and changelog tables, and 0122 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy.
+
+**One Travel file follows the shell.** `src/lib/layout/scaffold-styling.ts` keeps its values and takes the shell's renamed `ScaffoldStyling` type.
+
+**Kept as Travel's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator. The shell's migrations follow Travel's own 0108, so they are numbered from 0109.
+
+**Checked.** Typecheck is clean, and 2,669 of 2,685 tests pass. These failed before the merge too: delivery and public-branding, which fail in the shell as well, and the styling test expecting no Sidebar shade, which Travel's own saved styling sets to 100. features-4 (10 tests) and unsubscribe timed out in the full run and pass when run alone. Not checked in a browser.

@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import {
   InspectorCard,
   InspectorNote,
@@ -38,7 +39,7 @@ export default function TimeActivateFields({
     onChange({ ...node, settings: { schedule: next } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`time-${node.id}-frequency`}

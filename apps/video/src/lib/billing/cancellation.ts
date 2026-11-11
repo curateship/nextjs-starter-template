@@ -19,9 +19,3 @@ export const CANCELLATION_REASON_LABELS: Record<CancellationReason, string> = {
 }
 
 export const CANCELLATION_FEEDBACK_MAX_LENGTH = 500
-
-export function cancellationReasonLabel(reason: string | null) {
-  return reason && CANCELLATION_REASONS.includes(reason as CancellationReason)
-    ? CANCELLATION_REASON_LABELS[reason as CancellationReason]
-    : "Not provided"
-}

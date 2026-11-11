@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
 import { readSendEmailSettings } from "@/lib/automations/nodes/send-email"
@@ -7,12 +7,12 @@ import {
   renderBroadcastEmailHtml,
 } from "@/lib/broadcasts/render"
 import {
-  contactMatchesAutomationAudience,
-  listAutomationAudienceContacts,
+  listAutomationAudience,
+  personMatchesAutomationAudience,
   readAutomationAudience,
-  type AutomationAudienceContact,
+  splitAccountName,
+  type AutomationRecipient,
 } from "@/server/automations/audience"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import { markQuietContacts } from "@/server/people/quiet-contacts"
 import { workspaceForRun } from "@/server/automations/runs"
 import type { CustomShellDb } from "@/server/db"
@@ -21,6 +21,7 @@ import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
 import { composeFromAddress } from "@/server/email/send"
 import { getSendableEmailConfig } from "@/server/email/settings"
 import {
+  buildAccountUnsubscribeUrl,
   buildUnsubscribeUrl,
   canBuildUnsubscribeLinks,
 } from "@/server/email/unsubscribe"
@@ -47,10 +48,7 @@ type SendEmailContext = {
   testRun?: boolean
 }
 
-type Recipient = Pick<
-  AutomationAudienceContact,
-  "id" | "userId" | "email" | "firstName" | "lastName" | "emailVerifiedAt"
->
+type Recipient = AutomationRecipient
 
 /** The closest upstream Audience step this run actually completed, if any. */
 async function audienceForRun(
@@ -105,47 +103,83 @@ async function audienceForRun(
   )
 }
 
-/** The run's one subject contact, used only when no Audience step came first. */
+/**
+ * The run's one subject, used only when no Audience step came first: the
+ * subscriber it was about (`subjectContactId`), or the account
+ * (`subjectUserId`), emailed at its own address. Accounts are not on the
+ * mailing list (Tyler, 9 Nov 2026), so an account run never looks for a
+ * contact.
+ */
 async function subjectRecipient(
   run: CustomShellAutomationRun,
   workspaceId: string,
   database: CustomShellDb
 ): Promise<Recipient | null> {
-  if (!run.subjectContactId && !run.subjectUserId) return null
+  if (run.subjectContactId) {
+    const [contact] = await database
+      .select({
+        id: customShellContacts.id,
+        email: customShellContacts.email,
+        firstName: customShellContacts.firstName,
+        lastName: customShellContacts.lastName,
+        createdAt: customShellContacts.createdAt,
+      })
+      .from(customShellContacts)
+      .where(
+        and(
+          eq(customShellContacts.workspaceId, workspaceId),
+          eq(customShellContacts.id, run.subjectContactId),
+          // Cold counts as reachable here for the same reason it does in
+          // `audience.ts`: they never opted out, and a message is how they
+          // stop being cold.
+          inArray(customShellContacts.status, ["subscribed", "cold"])
+        )
+      )
+      .limit(1)
+    return contact
+      ? {
+          contactId: contact.id,
+          userId: null,
+          email: contact.email,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          emailVerifiedAt: null,
+          createdAt: contact.createdAt,
+          cursorId: contact.id,
+        }
+      : null
+  }
 
-  const [recipient] = await database
+  if (!run.subjectUserId) return null
+  const [account] = await database
     .select({
-      id: customShellContacts.id,
-      userId: customShellContacts.userId,
-      email: customShellContacts.email,
-      firstName: customShellContacts.firstName,
-      lastName: customShellContacts.lastName,
+      id: customShellUsers.id,
+      email: customShellUsers.email,
+      name: customShellUsers.name,
       emailVerifiedAt: customShellUsers.emailVerifiedAt,
+      createdAt: customShellUsers.createdAt,
     })
-    .from(customShellContacts)
-    .leftJoin(
-      customShellUsers,
-      eq(customShellUsers.id, customShellContacts.userId)
-    )
+    .from(customShellUsers)
     .where(
       and(
-        eq(customShellContacts.workspaceId, workspaceId),
-        run.subjectContactId
-          ? eq(customShellContacts.id, run.subjectContactId)
-          : eq(customShellContacts.userId, run.subjectUserId!),
-        // Cold counts as reachable here for the same reason it does in
-        // `audience.ts`: they never opted out, and a message is how they stop
-        // being cold.
-        inArray(customShellContacts.status, ["subscribed", "cold"]),
-        or(
-          isNull(customShellContacts.userId),
-          eq(customShellUsers.status, "active")
-        )
+        eq(customShellUsers.id, run.subjectUserId),
+        eq(customShellUsers.status, "active"),
+        // The account's own way out of automated mail.
+        isNull(customShellUsers.automatedMailOffAt)
       )
     )
     .limit(1)
-
-  return recipient ?? null
+  return account
+    ? {
+        contactId: null,
+        userId: account.id,
+        email: account.email,
+        ...splitAccountName(account.name),
+        emailVerifiedAt: account.emailVerifiedAt,
+        createdAt: account.createdAt,
+        cursorId: account.id,
+      }
+    : null
 }
 
 function isProduction() {
@@ -232,9 +266,15 @@ async function sendRecipient({
   timestamp: Date
 }) {
   const id = uuid()
-  const unsubscribeUrl = includeUnsubscribe
-    ? buildUnsubscribeUrl(recipient.id)
-    : undefined
+  // A subscriber's link takes them off the mailing list; an account's turns
+  // its automated mail off.
+  const unsubscribeUrl = !includeUnsubscribe
+    ? undefined
+    : recipient.contactId
+      ? buildUnsubscribeUrl(recipient.contactId)
+      : recipient.userId
+        ? buildAccountUnsubscribeUrl(recipient.userId)
+        : undefined
   const subject = personalizeEmail(subjectTemplate, recipient, {
     html: false,
   }).replace(/[\r\n]+/g, " ")
@@ -248,7 +288,7 @@ async function sendRecipient({
       id,
       runId: run.id,
       nodeId,
-      contactId: recipient.id,
+      contactId: recipient.contactId,
       userId: recipient.userId,
       toEmail: recipient.email,
       subject,
@@ -305,7 +345,6 @@ export async function executeSendEmailNode({
   const settings = readSendEmailSettings(rawSettings)
   // The run's own workspace, fixed when it started. See executors.ts.
   const workspaceId = await workspaceForRun(run, database)
-  if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
   const audience = await audienceForRun(run, nodeId, database)
   if (testRun) {
@@ -378,13 +417,14 @@ export async function executeSendEmailNode({
       database,
       timestamp: now(),
     })
-    sentTo.push(recipient.id)
+    // Going quiet is a mailing-list idea; accounts have no list status.
+    if (recipient.contactId) sentTo.push(recipient.contactId)
   }
 
   if (audience) {
     let after: { createdAt: Date; id: string } | undefined
     while (true) {
-      const page = await listAutomationAudienceContacts(
+      const page = await listAutomationAudience(
         audience,
         workspaceId,
         { limit: SEND_BATCH_SIZE, after, timestamp: fixedAt },
@@ -394,7 +434,7 @@ export async function executeSendEmailNode({
       await reconsiderQuiet()
       const last = page.at(-1)
       if (!last || page.length < SEND_BATCH_SIZE) break
-      after = { createdAt: last.createdAt, id: last.id }
+      after = { createdAt: last.createdAt, id: last.cursorId }
     }
   } else {
     const recipient = await subjectRecipient(run, workspaceId, database)
@@ -457,10 +497,9 @@ async function executeTestEmail({
   now: () => Date
 }) {
   const destination = run.testRecipientEmail?.trim()
-  const contactId = run.subjectContactId
-  if (!destination || !contactId) {
+  if (!destination || (!run.subjectContactId && !run.subjectUserId)) {
     throw new Error(
-      "This test has no safe destination or chosen contact, so no email was sent. Start a new test."
+      "This test has no safe destination or chosen person, so no email was sent. Start a new test."
     )
   }
 
@@ -475,10 +514,10 @@ async function executeTestEmail({
     }
   }
   if (audience) {
-    const matches = await contactMatchesAutomationAudience(
+    const matches = await personMatchesAutomationAudience(
       audience,
       workspaceId,
-      contactId,
+      { contactId: run.subjectContactId, userId: run.subjectUserId },
       database,
       now()
     )

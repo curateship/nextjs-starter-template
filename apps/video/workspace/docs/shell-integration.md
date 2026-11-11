@@ -396,3 +396,23 @@ Every shell change up to 5 Nov is in Video: 72 files replaced and 16 added, with
 **No migration was new.** The shell has added none since 0097, and Video already had every one.
 
 **Kept as Video's own.** `src/app/` stays Video's own, and so does `src/app/open-endpoints.ts`, which lists Video's own open endpoints. `public/fonts/README.md` and `src/theme.css` stay Video's own. The shell has not changed either file since Video's copy was taken, so there was nothing to bring in. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Video keeps its own `scripts/setup-database.mjs`, which never loads them.
+
+## Shell merge, 11 November 2026
+
+Every shell change since the 7 Nov merge (`e69b7243e`) is in Video, up to the shell at `5131991aa`: 242 files replaced, 179 added and 75 deleted. Each was an unedited older shell copy except `src/theme.css`, which Video adds its own text fonts to; it was merged three ways and is now the shell's file plus those fonts.
+
+**What arrived.**
+
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists and Leads as its own section, lead tags, unanswered and forwarded mail, and files on messages.
+- **Automations is one three-panel dashboard**: Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Pages, Styling and Navigations sit inside the Admin dashboard.** Navigations' link editors open as popovers, and the header's Settings cog can hold links.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with every Blocks setting on panel cards, edge to edge, Reset panels, and each widget's ⋮ holding its own options.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0156 to 0172. 0164 drops the referral and changelog tables, and 0169 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy.
+
+**Video files changed to follow the shell.** The video studio and the carousel studio put their remembered panel widths on with the shell layout hook's `groupRef`, and the video studio keeps its own `BOTTOM_COLLAPSED_HEIGHT` (the card header's 57px plus 2px), since the shell's resizable panels no longer export it. The new `@tiptap/extension-list` package was added as the shell has it.
+
+**Kept as Video's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator. The shell's `scripts/crm-samples.mjs` stays out, as Video never carried it.
+
+**Checked.** Typecheck is clean, and 4,328 of 4,335 tests pass. These failed before the merge too: delivery and public-branding, which fail in the shell as well, and the guard test, which finds three Video server functions from 5 Nov that it does not list (`sayAgainFn`, `requestSteadyCopyFn`, `scoreFn`). The unsubscribe test timed out in the full run and passes when run alone. Not checked in a browser.

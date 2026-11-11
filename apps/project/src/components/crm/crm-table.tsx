@@ -270,14 +270,19 @@ export function CrmTableRow({
   onDelete,
   onRightClick,
   cog,
+  buttons,
   children,
 }: {
   /**
    * What the cog does in place of opening the row, and what it is called:
    * a Pages row's cog opens its page in the builder (Tyler, 9 Nov 2026: "in
-   * pages table clicking on the cog should go to the editor").
+   * pages table clicking on the cog should go to the editor"). `icon` draws
+   * something other than the cog, as Trade's Backtests rows draw a chart
+   * (11 Nov 2026).
    */
-  cog?: { label: string; onPress: () => void }
+  cog?: { label: string; onPress: () => void; icon?: React.ReactNode }
+  /** More icon buttons after the cog and before the bin, each with its name. */
+  buttons?: readonly { label: string; icon: React.ReactNode; onPress: () => void }[]
   /** A bin after the open button, as Project's rows have; the caller asks first. */
   onDelete?: () => void
   open: boolean
@@ -371,8 +376,20 @@ export function CrmTableRow({
           aria-label={cog?.label ?? `Open ${label}`}
           onClick={cog ? cog.onPress : press}
         >
-          <SettingsIcon className="size-4" />
+          {cog?.icon ?? <SettingsIcon className="size-4" />}
         </Button>
+        {buttons?.map((button) => (
+          <Button
+            key={button.label}
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={button.label}
+            onClick={button.onPress}
+          >
+            {button.icon}
+          </Button>
+        ))}
         {onDelete ? (
           <Button
             type="button"
@@ -413,6 +430,14 @@ export function MainCell({
 }) {
   return (
     <TableCell column="main" className="min-w-40">
+      {/* The name is clamped to one line rather than kept on one line
+          (`line-clamp-1`, breaking anywhere): the table then sizes the column
+          by the whole name when there is room, and cuts it short with "…"
+          only when there is not. A long name never widens the table past a
+          row's last buttons (Trade's Backtests, 11 Nov 2026), and a short
+          table never squeezes names to the 160px floor while other columns
+          are cut as well (the Users table read "Bet...", Tyler, 11 Nov
+          2026). */}
       <span className="flex min-w-0 items-center gap-2">
         <OpenBar />
         {lead}
@@ -421,7 +446,7 @@ export function MainCell({
             <AvatarFallback className="text-[0.5625rem] font-medium">{initialsFor(avatar.name, avatar.email)}</AvatarFallback>
           </Avatar>
         ) : null}
-        <span data-row-name="" className={cn("truncate", strong ? "font-semibold" : "font-medium")}>
+        <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
           {name}
         </span>
         {children}

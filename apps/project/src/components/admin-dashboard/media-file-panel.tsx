@@ -1,5 +1,12 @@
 import * as React from "react"
-import { FileQuestionIcon, ImageIcon, SquareMousePointerIcon, Trash2Icon, VideoIcon } from "lucide-react"
+import {
+  FileQuestionIcon,
+  ImageIcon,
+  InfoIcon,
+  SquareMousePointerIcon,
+  Trash2Icon,
+  VideoIcon,
+} from "lucide-react"
 
 import { MenuActionRow } from "@/components/admin-dashboard/list-parts"
 import { EmptyRecord, RecordFrame } from "@/components/crm/record-frame"
@@ -85,7 +92,7 @@ export function MediaFilePanel({
               className="max-h-80 w-full rounded-lg bg-muted object-contain"
             />
           )}
-          <PanelCard storageId="admin-media-file" title="Details">
+          <PanelCard icon={<InfoIcon />} storageId="admin-media-file" title="Details">
             <div className="grid gap-2">
               <DetailRow label="Owner" value={item.owner_name} />
               <DetailRow label="Owner's email" value={item.owner_email} />
@@ -258,7 +265,7 @@ export function OrphanPanel({
               ? "This file sits in storage but nothing in the database points at it, so it is costing money for nothing."
               : "The database still lists this file, but it is no longer in storage."}
           </p>
-          <PanelCard storageId="admin-media-orphan" title="Details">
+          <PanelCard icon={<InfoIcon />} storageId="admin-media-orphan" title="Details">
             <div className="grid gap-2">
               <DetailRow label="Problem" value={problemLabel(orphan.kind)} />
               <DetailRow label="Size" value={formatFileSize(orphan.bytes)} />

@@ -105,6 +105,7 @@ import {
   DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
   DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
   MAX_STEP_LIST_WIDTH,
   MIN_STEP_LIST_WIDTH,
   MAX_SIDE_PANEL_WIDTH,
@@ -260,6 +261,7 @@ const shellStylingSchema = z.object({
   modal: shellModalStylingSchema,
   dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
   sidebarShade: z.number().int().min(0).max(100).optional(),
+  sidebarBorderShade: z.number().int().min(0).max(100).optional(),
   pageShade: z.number().int().min(0).max(100).optional(),
   blockRadius: z.number().int().min(0).max(32).optional(),
   blockShade: z.number().int().min(0).max(100).optional(),
@@ -270,7 +272,10 @@ const shellStylingSchema = z.object({
   blockBorderShade: z.number().int().min(0).max(100).optional(),
   blockEdgeToEdge: z.boolean().optional(),
   leftPanelWidth: z.number().int().min(DEFAULT_LEFT_PANEL_WIDTH).max(MAX_SIDE_PANEL_WIDTH).optional(),
-  rightPanelWidth: z.number().int().min(16).max(36).optional(),
+  // The same floor the Side panels slider and every dashboard use (12%). It
+  // said 16 after the default moved, so saving any styling setting with the
+  // right width under 16 was refused with a raw "too_small" message.
+  rightPanelWidth: z.number().int().min(DEFAULT_RIGHT_PANEL_WIDTH).max(MAX_SIDE_PANEL_WIDTH).optional(),
   stepListWidth: z.number().int().min(MIN_STEP_LIST_WIDTH).max(MAX_STEP_LIST_WIDTH).optional(),
   hiddenAdminSections: z.array(z.string().min(1).max(40)).max(20).optional(),
   hiddenCrmSections: z.array(z.string().min(1).max(40)).max(20).optional(),
@@ -287,6 +292,11 @@ const shellStylingSchema = z.object({
   panelCardBackground: shellBackgroundSchema.optional(),
   panelCardBorderWidth: z.number().int().min(0).max(3).optional(),
   panelCardBorderColor: shellBackgroundSchema.optional(),
+  panelCardRadius: z.number().int().min(0).max(32).optional(),
+  panelCardShadow: z.number().int().min(0).max(100).optional(),
+  panelCardInset: z.number().int().min(0).max(16).optional(),
+  panelCardBodyShade: z.number().int().min(0).max(100).optional(),
+  panelCardEdgeToEdge: z.boolean().optional(),
 })
 
 const publicNavigationLinkSchema = z.object({

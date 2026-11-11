@@ -13,14 +13,16 @@ vi.mock("@/components/shell/auth-shell", () => ({
     description,
     footer,
     children,
+    bare,
   }: {
+    bare?: boolean
     title: string
     description?: string
     footer?: ReactNode
     children: ReactNode
     onSubmit?: (event: FormEvent<HTMLFormElement>) => void
   }) => (
-    <main>
+    <main data-bare={bare ? "true" : "false"}>
       <h1>{title}</h1>
       <p>{description}</p>
       {children}
@@ -32,12 +34,14 @@ vi.mock("@/components/shell/auth-shell", () => ({
 import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 
 describe("visitorRouteErrorComponent", () => {
-  it("keeps a failed page in the signed-out frame with retry and sign-in paths", () => {
+  it("shows a failed page's card alone, with retry and sign-in paths", () => {
     const RouteError = visitorRouteErrorComponent()
     const markup = renderToStaticMarkup(
       <RouteError error={new Error("private detail")} reset={vi.fn()} />
     )
 
+    // Alone in the middle: no public menu and no footer around it.
+    expect(markup).toContain('data-bare="true"')
     expect(markup).toContain("This page could not be loaded")
     expect(markup).toContain("The page did not finish loading.")
     expect(markup).toContain("Try again")

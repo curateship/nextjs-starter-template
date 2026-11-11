@@ -1,8 +1,9 @@
 import * as React from "react"
-import { ChevronDown, SettingsIcon } from "lucide-react"
+import { SettingsIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useCollapseAllCommand } from "@/components/shared/inspector-card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
@@ -10,12 +11,15 @@ import { cn } from "@/lib/utils"
 
 /**
  * The grey box itself, shared by the folding card and the plain one. Its
- * background and line come from Settings → Styling → Panel cards, through the
- * `[data-slot="panel-card"]` rule in theme.css; unset, the theme's grey at
- * 40% and a 1px line.
+ * look comes from Settings → Styling → Panel cards, every setting the Blocks
+ * have, through the `[data-slot="panel-card"]` and `[data-panel-card-tile]`
+ * rules in theme.css; unset, the theme's grey at 40%, a 1px line and 10px
+ * corners, with the rows straight on the grey. No `rounded-*` or padding
+ * here, or it would beat the setting: the heading brings its own 16px and
+ * the tile under it the rest.
  */
 const panelBoxClassName = cn(
-  "min-w-0 rounded-lg p-4",
+  "min-w-0",
   // Fields sit on the page background, so a box to type in never looks
   // like part of the grey card.
   "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
@@ -43,6 +47,9 @@ const FooterOpen = React.createContext<boolean | null>(null)
  * take no room, so the title has the card's whole width in a narrow side
  * panel and is cut short only while the card is pointed at (Tyler, 5 Nov
  * 2026, of Promo's network cards reading "Reddi...").
+ *
+ * Inside an `InspectorCollapseAllProvider` it also folds or opens with the
+ * panel header's `InspectorCollapseAllButton`, as `InspectorCard` does.
  *
  * `icon` is drawn before the title, such as a network's mark on Promo's
  * network cards. `openWhen` opens a folded card each time it turns true,
@@ -87,6 +94,7 @@ export function PanelCard({
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
   const [footerOpen, setFooterOpen] = React.useState(false)
+  useCollapseAllCommand(setOpen)
   // After the remembered state is read, so on arrival the card opens over it.
   React.useEffect(() => {
     if (openWhen) setOpen(true)
@@ -101,6 +109,9 @@ export function PanelCard({
       className={cn("group/card", panelBoxClassName, className)}
     >
       {/* The buttons' height whether they show or not, so pointing at the card never makes it taller. */}
+      {/* The 16px sits on this wrapper, not on the row: a padded row counts
+          the padding in its 28px floor and grows when the buttons show. */}
+      <div className="p-4">
       <div className="flex min-h-7 items-center gap-2">
         <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
           <CollapsibleTrigger asChild>
@@ -148,22 +159,13 @@ export function PanelCard({
             <TooltipContent>{open && footerOpen ? "Hide the buttons" : "Show the buttons"}</TooltipContent>
           </Tooltip>
         ) : null}
-        {/* The heading is the button that folds the card; the arrow is the
-            same press for the pointer, and left out of the keyboard's way. */}
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            className={cn("flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md", quietClass)}
-          >
-            <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
+      </div>
       </div>
       <CollapsibleContent data-collapse-key={noFlashKey}>
         <FooterOpen.Provider value={settings ? footerOpen : null}>
-          <div className="mt-4 grid gap-4">{children}</div>
+          <div data-panel-card-tile="" className="grid gap-4">
+            {children}
+          </div>
         </FooterOpen.Provider>
       </CollapsibleContent>
     </Collapsible>
@@ -177,7 +179,7 @@ export function PanelCard({
 export function PanelBox({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <div data-slot="panel-card" className={cn(panelBoxClassName, className)}>
-      {children}
+      <div data-panel-card-tile="whole">{children}</div>
     </div>
   )
 }

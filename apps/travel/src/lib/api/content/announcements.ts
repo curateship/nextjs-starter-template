@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement, loadVisitorAnnouncements as loadVisitorAnnouncementsQuery } from "@/server/content/announcements"
-import { adminGet, adminPost, userPost } from "@/server/guards"
-import { visitorWorkspaceId, workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { listAnnouncements, serializeAnnouncement, createAnnouncement, updateAnnouncement, retireAnnouncements, deleteAnnouncements, dismissAnnouncement, loadUserAnnouncements, loadVisitorAnnouncements as loadVisitorAnnouncementsQuery } from "@/server/content/announcements"
+import { adminGet, adminPost, userGet, userPost } from "@/server/guards"
+import { publishToEveryone } from "@/server/notifications/events"
+import { findWorkspaceIdForRequest, visitorWorkspaceId, workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
 
@@ -13,6 +14,7 @@ import {
   MAX_ANNOUNCEMENT_TITLE_LENGTH,
   type AnnouncementLevel,
   type AnnouncementAudience,
+  type UserAnnouncement,
   type VisitorAnnouncement,
 } from "@/lib/announcement"
 
@@ -94,9 +96,12 @@ const createFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(announcementInputSchema)
   .handler(async ({ data, context }): Promise<Announcement> => {
-    return serializeAnnouncement(
+    const created = serializeAnnouncement(
       await createAnnouncement(await workspaceIdForRequest(context.user.id), data)
     )
+    // Every open tab shows it now, rather than on its next page load.
+    await publishToEveryone()
+    return created
   })
 
 const updateFn = createServerFn({ method: "POST" })
@@ -108,33 +113,39 @@ const updateFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }): Promise<Announcement> => {
-    return serializeAnnouncement(
+    const updated = serializeAnnouncement(
       await updateAnnouncement(
         await workspaceIdForRequest(context.user.id),
         data.announcementId,
         data.announcement
       )
     )
+    await publishToEveryone()
+    return updated
   })
 
 const retireFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(idListSchema)
   .handler(async ({ data, context }): Promise<{ count: number }> => {
-    return retireAnnouncements(
+    const result = await retireAnnouncements(
       await workspaceIdForRequest(context.user.id),
       data.announcementIds
     )
+    await publishToEveryone()
+    return result
   })
 
 const deleteFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(idListSchema)
   .handler(async ({ data, context }): Promise<{ count: number }> => {
-    return deleteAnnouncements(
+    const result = await deleteAnnouncements(
       await workspaceIdForRequest(context.user.id),
       data.announcementIds
     )
+    await publishToEveryone()
+    return result
   })
 
 /** Anyone signed in can hide a banner — for themselves and nobody else. */
@@ -148,6 +159,23 @@ const dismissFn = createServerFn({ method: "POST" })
       data.announcementId
     )
   })
+
+/**
+ * The banners this person should see now, asked again by an open tab when the
+ * bell's live connection nudges it, so a new announcement shows without a
+ * page load. As on page load, it also writes any tray notice they are owed.
+ */
+const readMyAnnouncementsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<UserAnnouncement[]> => {
+    const workspaceId = await findWorkspaceIdForRequest(context.user.id)
+    if (!workspaceId) return []
+    return (await loadUserAnnouncements(workspaceId, context.user.id)).banners
+  })
+
+export function loadMyAnnouncements() {
+  return readMyAnnouncementsFn()
+}
 
 export function loadAdminAnnouncements() {
   return listAdminFn()

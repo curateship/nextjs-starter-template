@@ -1,4 +1,6 @@
 import * as React from "react"
+
+import { readSkyCity } from "@/lib/notes/sky-city"
 import {
   Outlet,
   useNavigate,
@@ -10,6 +12,7 @@ import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
 import { AnnouncementBanners } from "@/components/shell/announcement-banner"
+import { AnnouncementRefreshContext } from "@/components/shell/announcement-refresh"
 import { UploadLine } from "@/components/media/upload-line"
 import { DashboardContent } from "@/components/shell/dashboard-content"
 import { FeedbackModal } from "@/components/feedback/feedback-modal"
@@ -56,7 +59,14 @@ import {
   getDarkShadeVars,
   getModalStyleVars,
   getPageShadeVars,
+  getBlockStyleVars,
+  BLOCK_STYLE_VAR_NAMES,
+  getWidgetStyleVars,
+  WIDGET_STYLE_VAR_NAMES,
+  getPanelCardStyleVars,
+  PANEL_CARD_STYLE_VAR_NAMES,
   getSidebarShadeVars,
+  sidebarBorderColor,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
   resolveBackground,
@@ -96,6 +106,7 @@ import {
   type FaviconLink,
 } from "@/lib/favicon"
 import type { UserAnnouncement } from "@/lib/announcement"
+import { loadMyAnnouncements } from "@/lib/api/content/announcements"
 import type { AuthUser } from "@/lib/api/auth/auth"
 import { logout } from "@/lib/api/auth/auth"
 import type { PlanSummary } from "@/lib/api/billing/billing"
@@ -119,7 +130,6 @@ import {
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import { buildHeaderBreadcrumb } from "@/lib/nav/header-breadcrumb"
 import { knownRoutePageTitle, routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
@@ -275,6 +285,9 @@ export function ShellLayout({
   useDarkShadeVars(config.styling)
   useSidebarShadeVars(config.styling)
   usePageShadeVars(config.styling)
+  useBlockStyleVars(config.styling)
+  useWidgetStyleVars(config.styling)
+  usePanelCardStyleVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -308,7 +321,7 @@ export function ShellLayout({
   // header, and name the field, instead of dropping the edit in silence. The
   // header is the only warning that reaches you when the edit that broke the
   // save happened on another settings tab (e.g. the sidebar's Reset, or a hex
-  // code left half-typed on Public → Styling).
+  // code left half-typed in Admin → Styling → Public).
   // Returns whether it saved.
   const saveConfigNow = React.useCallback(async () => {
     if (configSaveTimerRef.current) {
@@ -571,6 +584,26 @@ export function ShellLayout({
     window.location.href = "/login"
   }, [])
 
+  // The banners: the page load's, then whatever a live check finds. A new
+  // page load replaces them.
+  const [banners, setBanners] = React.useState(announcements)
+  const [bannersFrom, setBannersFrom] = React.useState(announcements)
+  if (bannersFrom !== announcements) {
+    setBannersFrom(announcements)
+    setBanners(announcements)
+  }
+  const refreshAnnouncements = React.useCallback(async () => {
+    try {
+      const next = await loadMyAnnouncements()
+      setBanners((current) =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next
+      )
+    } catch {
+      // A failed check says nothing: the banners on screen are the last ones
+      // that were true, and the next check is at most a minute away.
+    }
+  }, [])
+
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
       config,
@@ -614,10 +647,12 @@ export function ShellLayout({
   const dividerColor = resolveBackground(config.styling.dividerColor, {
     base: "--muted-foreground",
   })
+  // The left menu's edge and the top bar's line follow their own Border
+  // shade when one is set (Settings -> Styling -> Sidebar & Top navigation).
+  const edgeColor = sidebarBorderColor(config.styling, dividerColor)
   const rootStyle = {
-    ...(dividerColor
-      ? { "--border": dividerColor, "--sidebar-border": dividerColor }
-      : {}),
+    ...(dividerColor ? { "--border": dividerColor } : {}),
+    ...(edgeColor ? { "--sidebar-border": edgeColor } : {}),
   } as React.CSSProperties
   const pageTitle = getCurrentPageTitle(
     config,
@@ -637,6 +672,7 @@ export function ShellLayout({
 
   return (
     <ShellRuntimeContext.Provider value={runtime}>
+    <AnnouncementRefreshContext.Provider value={refreshAnnouncements}>
       <div className="shell-canvas min-h-screen" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
@@ -738,8 +774,8 @@ export function ShellLayout({
                   of ids so a fresh load after one is retired starts from the
                   server's list, not a stale local one. */}
               <AnnouncementBanners
-                key={announcements.map((item) => item.id).join("|")}
-                announcements={announcements}
+                key={banners.map((item) => item.id).join("|")}
+                announcements={banners}
               />
               <Outlet />
             </DashboardContent>
@@ -774,6 +810,7 @@ export function ShellLayout({
           onProfileSaved={() => router.invalidate()}
         />
       </div>
+    </AnnouncementRefreshContext.Provider>
     </ShellRuntimeContext.Provider>
   )
 }
@@ -816,6 +853,7 @@ function normalizeConfig(
     ),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     memberHomeRoute: settings.memberHomeRoute ?? fallback.memberHomeRoute,
+    skyCity: readSkyCity(settings.skyCity),
     workspaceLogo: settings.workspaceLogo ?? fallback.workspaceLogo,
     workspaceShareImage:
       settings.workspaceShareImage ?? fallback.workspaceShareImage,
@@ -884,7 +922,6 @@ function normalizeConfig(
     sessionPolicy: normalizeSessionPolicy(settings.sessionPolicy),
     pages: normalizePageOverrides(settings.pages),
     styling: normalizeStyling(settings.styling),
-    dashboardWidgets: normalizeDashboardWidgets(settings.dashboardWidgets),
   }
 }
 
@@ -978,6 +1015,33 @@ function useSidebarShadeVars(styling: ShellStyling) {
 function usePageShadeVars(styling: ShellStyling) {
   React.useEffect(
     () => applyRootStyleVars(PAGE_SHADE_VAR_NAMES, getPageShadeVars(styling)),
+    [styling]
+  )
+}
+
+// The page blocks' corners, grey and edge (Settings → Styling → Blocks), on the
+// root for the same reason: blocks sit in panels, popovers and pages alike.
+function useBlockStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(BLOCK_STYLE_VAR_NAMES, getBlockStyleVars(styling)),
+    [styling]
+  )
+}
+
+// The panel cards' background and line (Settings → Styling → Panel cards),
+// on the root because a card can sit in a popover as well as a panel.
+function usePanelCardStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(PANEL_CARD_STYLE_VAR_NAMES, getPanelCardStyleVars(styling)),
+    [styling]
+  )
+}
+
+// Overview's widgets' own corners, grey and edge (Settings → Styling →
+// Widgets), on the root beside the blocks'.
+function useWidgetStyleVars(styling: ShellStyling) {
+  React.useEffect(
+    () => applyRootStyleVars(WIDGET_STYLE_VAR_NAMES, getWidgetStyleVars(styling)),
     [styling]
   )
 }

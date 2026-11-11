@@ -48,11 +48,15 @@ import {
   blockShadowCss,
   DEFAULT_PANEL_CARD_BORDER_WIDTH,
   DEFAULT_PANEL_CARD_COLOR,
+  DEFAULT_PANEL_CARD_RADIUS,
+  panelCardBorderShade,
+  panelCardShade,
   DEFAULT_BLOCK_RADIUS,
   DEFAULT_BLOCK_SHADE,
   DEFAULT_DASHBOARD_TABS,
   DEFAULT_PAGE_SHADE,
   DEFAULT_SIDEBAR_SHADE,
+  DEFAULT_SIDEBAR_BORDER_SHADE,
   isDarkShadeId,
   isDashboardTabStyle,
   MAX_BLOCK_INSET,
@@ -82,6 +86,12 @@ export function StylingSettings({
   const [previewTab, setPreviewTab] = React.useState("list")
   const shade = darkShade(styling.darkShade)
   const sidebarShade = styling.sidebarShade ?? DEFAULT_SIDEBAR_SHADE
+  // Unset follows Divider lines; the slider starts at its own default then.
+  const sidebarBorderShade = styling.sidebarBorderShade ?? DEFAULT_SIDEBAR_BORDER_SHADE
+  const sidebarEdge =
+    styling.sidebarBorderShade === undefined
+      ? undefined
+      : `color-mix(in oklab, var(--foreground) ${sidebarBorderShade}%, transparent)`
   const pageShade = styling.pageShade ?? DEFAULT_PAGE_SHADE
   const blockRadius = styling.blockRadius ?? DEFAULT_BLOCK_RADIUS
   const blockShade = styling.blockShade ?? DEFAULT_BLOCK_SHADE
@@ -114,13 +124,19 @@ export function StylingSettings({
   const updateDividerColor = (patch: Partial<ShellBackground>) =>
     update({ dividerColor: { ...styling.dividerColor, ...patch } })
   // The panel cards' own settings; unset, the look they always had.
-  const panelCardBackground = styling.panelCardBackground ?? DEFAULT_PANEL_CARD_COLOR
+  const panelCardRadius = styling.panelCardRadius ?? DEFAULT_PANEL_CARD_RADIUS
+  const panelCardShadeShown = panelCardShade(styling)
   const panelCardBorderWidth = styling.panelCardBorderWidth ?? DEFAULT_PANEL_CARD_BORDER_WIDTH
-  const panelCardBorderColor = styling.panelCardBorderColor ?? DEFAULT_PANEL_CARD_COLOR
-  const updatePanelCardBackground = (patch: Partial<ShellBackground>) =>
-    update({ panelCardBackground: { ...panelCardBackground, ...patch } })
-  const updatePanelCardBorderColor = (patch: Partial<ShellBackground>) =>
-    update({ panelCardBorderColor: { ...panelCardBorderColor, ...patch } })
+  const panelCardBorderShadeShown = panelCardBorderShade(styling)
+  const panelCardShadow = styling.panelCardShadow ?? 0
+  const panelCardInset = styling.panelCardInset ?? 0
+  // Unset, the tile is the card's own grey, so the thumb sits at that grey.
+  const panelCardBodyShade = styling.panelCardBodyShade ?? panelCardShadeShown.value
+  // A shade slider saves the theme's grey at the strength picked, the same
+  // field a colour was saved in before the sliders.
+  const greyAt = (strength: number): ShellBackground => ({ ...DEFAULT_PANEL_CARD_COLOR, mode: "muted", strength })
+  const shadeLabel = (shown: { value: number; isDefault: boolean; custom: boolean }) =>
+    shown.custom ? "Custom colour" : shown.isDefault ? `${shown.value}% · Default` : `${shown.value}%`
 
   const modal = styling.modal
   const updateModal = (patch: Partial<ShellModalStyling>) =>
@@ -384,7 +400,7 @@ export function StylingSettings({
           max={MAX_SIDE_PANEL_WIDTH}
           valueLabel={rightPanelWidth === DEFAULT_RIGHT_PANEL_WIDTH ? `${rightPanelWidth}% · Default` : `${rightPanelWidth}%`}
           onChange={(value) => update({ rightPanelWidth: value })}
-          help="The same for the right panel, 16% at the narrowest. A dashboard with no right panel gives the middle its room."
+          help={`The same for the right panel, ${DEFAULT_RIGHT_PANEL_WIDTH}% at the narrowest. A dashboard with no right panel gives the middle its room.`}
         />
         {/* Tyler, 9 Nov 2026: "this panel save is inconsistent ... add a
             panel size setting in settings", of an open automation's step
@@ -676,57 +692,104 @@ export function StylingSettings({
         description="The grey folding cards in a right panel, such as a person's Profile and Plan on the Admin dashboard. Every one changes live as you adjust these."
         contentClassName="space-y-6"
       >
-        <FieldGroup label="Background">
-          <BackgroundField
-            idPrefix="panel-card-bg"
-            value={panelCardBackground}
-            defaultHint="Uses the theme's light grey, as the cards always have."
-            onChange={updatePanelCardBackground}
-          />
-        </FieldGroup>
-
+        {/* Tyler, 10 Nov 2026: "I want all the same ui styling the same as
+            the blocks styling", then "i told you to copy all of the same
+            settings from the blocks Ui". Every Blocks setting, in its order;
+            the card's rows sit in a tile under its heading, as a block's do. */}
+        <SliderRow
+          label="Rounded corners"
+          value={panelCardRadius}
+          min={0}
+          max={MAX_BLOCK_RADIUS}
+          valueLabel={panelCardRadius === DEFAULT_PANEL_CARD_RADIUS ? `${panelCardRadius}px · Default` : `${panelCardRadius}px`}
+          onChange={(value) => update({ panelCardRadius: value })}
+          help="0px is square."
+        />
+        <SliderRow
+          label="Grey shade"
+          value={panelCardShadeShown.value}
+          min={0}
+          max={100}
+          valueLabel={shadeLabel(panelCardShadeShown)}
+          onChange={(value) => update({ panelCardBackground: greyAt(value) })}
+          help="The grey around the tile. 0% is white, 100% the theme's light grey, in light and dark mode."
+        />
+        <SliderRow
+          label="Edge around the tile"
+          value={panelCardInset}
+          min={0}
+          max={MAX_BLOCK_INSET}
+          valueLabel={panelCardInset === 0 ? "0px · Default" : `${panelCardInset}px`}
+          onChange={(value) => update({ panelCardInset: value })}
+          help="How much grey shows between the card's edge and its tile, at the sides and the bottom."
+        />
+        <SliderRow
+          label="Body shade"
+          value={panelCardBodyShade}
+          min={0}
+          max={100}
+          valueLabel={styling.panelCardBodyShade === undefined ? `${panelCardBodyShade}% · Default` : `${panelCardBodyShade}%`}
+          onChange={(value) => update({ panelCardBodyShade: value })}
+          help="The tile under the card's heading, where its rows sit. 0% is white, 100% the theme's light grey. Unless changed it is the card's own grey."
+        />
         <SliderRow
           label="Border"
           value={panelCardBorderWidth}
           min={0}
           max={MAX_CARD_BORDER_WIDTH}
           valueLabel={
-            panelCardBorderWidth === 0
-              ? "Off"
-              : panelCardBorderWidth === DEFAULT_PANEL_CARD_BORDER_WIDTH
-                ? `${panelCardBorderWidth}px · Default`
-                : `${panelCardBorderWidth}px`
+            panelCardBorderWidth === DEFAULT_PANEL_CARD_BORDER_WIDTH
+              ? `${panelCardBorderWidth}px · Default`
+              : `${panelCardBorderWidth}px`
           }
           onChange={(value) => update({ panelCardBorderWidth: value })}
-          help="Border thickness of the cards. 0 removes it."
+          help="A line round the whole card. 0px is no line."
         />
-
-        <FieldGroup label="Border color">
-          <BackgroundField
-            idPrefix="panel-card-border"
-            value={panelCardBorderColor}
-            disabled={panelCardBorderWidth === 0}
-            defaultHint="The theme's border colour."
-            onChange={updatePanelCardBorderColor}
-          />
-        </FieldGroup>
+        <SliderRow
+          label="Border shade"
+          value={panelCardBorderShadeShown.value}
+          min={0}
+          max={100}
+          disabled={panelCardBorderWidth === 0}
+          valueLabel={shadeLabel(panelCardBorderShadeShown)}
+          onChange={(value) => update({ panelCardBorderColor: greyAt(value) })}
+          help="How dark the line is. 0% is see-through, 100% the theme's grey text colour."
+        />
+        <SliderRow
+          label="Shadow"
+          value={panelCardShadow}
+          min={0}
+          max={100}
+          valueLabel={panelCardShadow === 0 ? "0% · Default" : `${panelCardShadow}%`}
+          onChange={(value) => update({ panelCardShadow: value })}
+          help="A soft shade under the card, so it lifts off the panel. 0% is none."
+        />
+        <SettingsSwitchRow
+          id="panel-card-edge-to-edge"
+          checked={styling.panelCardEdgeToEdge === true}
+          onCheckedChange={(on) => update({ panelCardEdgeToEdge: on })}
+          label="Panel cards reach the panel's edges"
+          hint="The cards fill the side panel's full width instead of sitting inside the space at its sides."
+        />
 
         <FieldGroup label="Preview" className="gap-2">
           {/* Drawn as a real panel card, so it reads the saved values the
               way every card does. */}
           <div className="max-w-xs rounded-lg border bg-card p-3">
-            <div data-slot="panel-card" className="grid gap-2 rounded-lg p-4 text-sm">
-              <p className="text-[15px] font-semibold">Profile</p>
-              {[
-                ["Role", "Member"],
-                ["Status", "Active"],
-                ["Joined", "Aug 4, 2026"],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">{label}</span>
-                  <span className="font-medium">{value}</span>
-                </div>
-              ))}
+            <div data-slot="panel-card" className="mx-0! text-sm">
+              <p className="p-4 text-[15px] font-semibold">Profile</p>
+              <div data-panel-card-tile="" className="grid gap-2">
+                {[
+                  ["Role", "Member"],
+                  ["Status", "Active"],
+                  ["Joined", "Aug 4, 2026"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-medium">{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </FieldGroup>
@@ -734,8 +797,8 @@ export function StylingSettings({
 
       <CollapsibleSettingsCard
         storageId="styling-sidebar-shade"
-        title="Left menu shade"
-        description="The background of the left menu and the bar along the top. The whole admin area recolors live as you adjust this."
+        title="Sidebar & Top navigation"
+        description="The left menu and the bar along the top: their background, and the line along their edge. The whole admin area recolors live as you adjust this."
         contentClassName="space-y-6"
       >
         <SliderRow
@@ -747,6 +810,18 @@ export function StylingSettings({
           onChange={(value) => update({ sidebarShade: value })}
           help="0% matches the page behind the cards and 100% matches a card. It stays between the two in light and dark mode."
         />
+        {/* The edge on its own, apart from the lines inside cards (Tyler, 11
+            Nov 2026: "isolate just the sidebar and top navigation border
+            shade"). Unset, it is the Divider lines colour. */}
+        <SliderRow
+          label="Border shade"
+          value={sidebarBorderShade}
+          min={0}
+          max={100}
+          valueLabel={styling.sidebarBorderShade === undefined ? "Divider lines" : `${sidebarBorderShade}%`}
+          onChange={(value) => update({ sidebarBorderShade: value })}
+          help="How dark the line down the left menu's edge and under the top bar is. Until it is moved, it is the Divider lines colour."
+        />
 
         <FieldGroup label="Preview" className="gap-2">
           <div
@@ -755,13 +830,13 @@ export function StylingSettings({
           >
             <div
               className="w-1/4 border-r"
-              style={{ background: railPreview }}
+              style={{ background: railPreview, borderColor: sidebarEdge }}
               aria-hidden="true"
             />
             <div className="flex flex-1 flex-col">
               <div
                 className="h-8 border-b"
-                style={{ background: railPreview }}
+                style={{ background: railPreview, borderColor: sidebarEdge }}
                 aria-hidden="true"
               />
               <div className="flex-1 p-3">

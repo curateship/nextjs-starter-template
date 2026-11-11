@@ -5,9 +5,9 @@ import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BareAuthPage } from "@/components/shell/auth-shell"
 import { publicContentAlignmentRowClassName } from "@/components/shell/public-content-alignment"
 import { PublicMenuLink } from "@/components/shell/public-navigation"
-import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { loadPublicNotFoundDiscovery } from "@/lib/api/content/pages"
 import { useAppName, usePublicSystemCopy } from "@/lib/branding"
 import type { PublicNotFoundDiscovery as PublicNotFoundDiscoveryData } from "@/lib/pages/not-found-discovery"
@@ -68,9 +68,10 @@ export function PublicNotFound() {
   const inAdminArea = pathname === "/admin" || pathname.startsWith("/admin/")
 
   return (
-    <PublicPageFrame
-      publicSearchEnabled={discovery?.publicSearchEnabled ?? false}
-    >
+    // The card alone in the middle, with no menu and no footer (Tyler, 9 Nov
+    // 2026: "The 404 page should only show the card in the middle and not
+    // the navigation and footer"). Its own search and main pages stay.
+    <BareAuthPage>
       <NotFoundCard
         showPublicDiscovery
         discovery={discovery}
@@ -96,7 +97,7 @@ export function PublicNotFound() {
             : { to: "/login", label: "Sign in" }
         }
       />
-    </PublicPageFrame>
+    </BareAuthPage>
   )
 }
 

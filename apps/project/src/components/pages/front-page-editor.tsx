@@ -35,8 +35,10 @@ import type { ShellConfig } from "@/lib/custom-shell"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import {
   useBlankSpaceDoubleClick,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
+import { cn } from "@/lib/utils"
 import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
@@ -212,8 +214,12 @@ export function FrontPageEditor({
   const kindsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const panelRef = React.useRef<PanelImperativeHandle | null>(null)
   const layout = useRememberedPanelLayout(panelLayoutKey.frontPageEditor)
-  const toggleKinds = usePanelToggle(kindsPanelRef)
-  const togglePanel = usePanelToggle(panelRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapKinds = usePanelToggle(kindsPanelRef)
+  const toggleKinds = React.useCallback(() => fold(snapKinds), [fold, snapKinds])
+  const snapPanel = usePanelToggle(panelRef)
+  const togglePanel = React.useCallback(() => fold(snapPanel), [fold, snapPanel])
   const kindsDoubleClick = useBlankSpaceDoubleClick(toggleKinds)
   const panelDoubleClick = useBlankSpaceDoubleClick(togglePanel)
 
@@ -575,7 +581,7 @@ export function FrontPageEditor({
         <ResizablePanelGroup
           groupRef={layout.groupRef}
           orientation="horizontal"
-          className="min-h-0 flex-1"
+          className={cn("min-h-0 flex-1", foldingClassName)}
           onLayoutChanged={layout.onLayoutChanged}
         >
           <ResizablePanel

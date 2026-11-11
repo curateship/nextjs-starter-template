@@ -69,12 +69,15 @@ export function useInspectorCollapseAll() {
 export function InspectorCollapseAllButton({
   nextOpen,
   onPress,
+  noun = "setting",
 }: {
   /** What the next press does, from `useInspectorCollapseAll`. */
   nextOpen: boolean
   onPress: () => void
+  /** What the cards are, in its label: "Open every card" on a run's panel. */
+  noun?: string
 }) {
-  const label = nextOpen ? "Open every setting" : "Shut every setting"
+  const label = nextOpen ? `Open every ${noun}` : `Shut every ${noun}`
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -114,6 +117,25 @@ export function InspectorCollapseAllProvider({
 }
 
 /**
+ * A card's half of the header's shut-everything button: each new press sets
+ * the card open or shut. Acting on it writes the card's own remembered state,
+ * so a panel shut from the header is still shut after a reload, exactly as if
+ * each card had been clicked. The ref starts at whatever press the panel is
+ * already on, so a card that appears later opens on its own remembered state
+ * rather than on a press that happened before it existed. `PanelCard` hears
+ * it too.
+ */
+export function useCollapseAllCommand(setOpen: (open: boolean) => void) {
+  const collapseAll = React.useContext(CollapseAllContext)
+  const actedOn = React.useRef(collapseAll?.at ?? 0)
+  React.useEffect(() => {
+    if (!collapseAll || collapseAll.at === actedOn.current) return
+    actedOn.current = collapseAll.at
+    setOpen(collapseAll.open)
+  }, [collapseAll, setOpen])
+}
+
+/**
  * One card in a workspace screen's right-hand options panel.
  *
  * It is a grey box with a border, a heading and an arrow, rather than the white
@@ -133,9 +155,15 @@ export function InspectorCollapseAllProvider({
 export function InspectorCard({
   storageId,
   title,
+  icon,
   description,
   children,
 }: {
+  /**
+   * Before the title, 16px and muted, as a panel card draws one (Tyler, 11
+   * Nov 2026: every right panel card has an icon).
+   */
+  icon?: React.ReactNode
   /**
    * Names this card in the remembered open/shut state. Plain characters only:
    * the script that keeps a shut card shut before the first paint skips any
@@ -150,21 +178,7 @@ export function InspectorCard({
     collapseStorageKey.settingsCard(storageId)
   )
 
-  // The header's shut-everything button. Acting on it writes this card's own
-  // remembered state, so a panel shut from the header is still shut after a
-  // reload, exactly as if each card had been clicked.
-  //
-  // The ref starts at whatever press the panel is already on, so a card that
-  // appears later — the inspector swaps its middle cards when the block's kind
-  // changes — opens on its own remembered state rather than on a press that
-  // happened before it existed.
-  const collapseAll = React.useContext(CollapseAllContext)
-  const actedOn = React.useRef(collapseAll?.at ?? 0)
-  React.useEffect(() => {
-    if (!collapseAll || collapseAll.at === actedOn.current) return
-    actedOn.current = collapseAll.at
-    setOpen(collapseAll.open)
-  }, [collapseAll, setOpen])
+  useCollapseAllCommand(setOpen)
 
   return (
     <Collapsible
@@ -189,7 +203,12 @@ export function InspectorCard({
               focusRingInset
             )}
           >
-            <span>{title}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              {icon ? (
+                <span className="flex shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span>
+              ) : null}
+              <span>{title}</span>
+            </span>
             <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
           </button>
         </CollapsibleTrigger>
