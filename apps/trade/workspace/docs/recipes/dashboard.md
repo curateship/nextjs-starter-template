@@ -29,11 +29,31 @@ linked to the field for screen readers, and the buy-size column stays beside it.
 Adding or removing rungs resets their unsaved text so a draft cannot move onto
 a different rung.
 
-An opened recipe fills the middle of the Bots dashboard. The right panel shows
-only while a step is picked, holding its settings, and closes again when the
-empty canvas is clicked. The middle's one header reads: the back arrow to the
-Recipes table, the recipe's name, then the trading status, **Backtest** and the
-recipe's ⋮. It has no tabs (Tyler, 10 Nov 2026: "Better to just remove the
+An opened recipe fills the middle of the Bots dashboard. The right panel holds
+the picked step's settings. With no step picked it is the **Recipe** panel, its
+heading after the recipe icon, holding two folding cards (Tyler, 11 Nov 2026:
+"when theres no node selected. Show the panel with the last run result then
+show a summary of the currant parameter"):
+
+- **Last result** is the Result card of the recipe's newest backtest, archived
+  ones left out, with its name, when it ran and Open chart. While that
+  backtest is still running it is read again every 5 seconds.
+- **Parameters** lists each step on the canvas, left to right, with the same
+  one-line summary its canvas card shows. Pressing one picks that step.
+
+Before 11 Nov the right panel was shut until a step was picked. The middle's
+one header reads: the back arrow to the Recipes table, the recipe's name, then
+**Run recipe** (or the trading status), **Backtest** and the recipe's ⋮.
+
+**Run recipe** was called Switch on until 11 Nov 2026 (Tyler: "Rename the
+"Switched on" button to "Run recipe" and turn the button into ember color if
+its paused, green when its running and red if its not ready to run"). It shows
+only on a recipe whose Wallet step names a saved wallet. It is red while the
+recipe is not ready to run, and pointing at it says why. Once running, the
+same spot is the status button, green while trading and amber while paused,
+with its words saying which. Stopping stays plain.
+
+The Backtest window's own button reads **Run backtest** (Tyler, 11 Nov 2026). It has no tabs (Tyler, 10 Nov 2026: "Better to just remove the
 tabs so that theres no confusing"); the name and Result tabs are gone. A
 recipe's backtests are on the Backtests row, where Filter → Recipe shows one
 recipe's alone.
@@ -85,7 +105,7 @@ have schedules, member tests, templates or the shell's run history.
 
 ## What the buttons run
 
-Backtest and Switch on save pending canvas edits before doing anything else.
+Backtest and Run recipe save pending canvas edits before doing anything else.
 The server then reads the saved recipe again. Browser settings are never
 trusted as the copy that spends money.
 
@@ -118,6 +138,16 @@ recipe's ⋮, saved when the field is left.
 
 Duplicating shows its spinner on the Duplicate row and allows one copy at a
 time.
+
+## Saved results
+
+The recipe's ⋮ has a second tab, **Saved results**, after General (Tyler,
+11 Nov 2026: "Add another tab here called "Saved results" this tab shows all
+the backtest results saved from this recipe"). It lists every backtest the
+recipe has, newest first, each with its name, what it made or lost and when
+it ran. Archived runs are left out, as in the Backtests table. Pressing one
+opens that backtest's chart. The list is read when the tab is opened, so the
+⋮ itself opens at once.
 
 ## Status in the list
 

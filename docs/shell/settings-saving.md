@@ -1,8 +1,9 @@
 # How the Settings screen saves
 
 There is no Save button. Every Settings screen writes the whole settings record
-at once, and the header says where the save stands: **Saving…**, **Saved**, or
-**Not saved** with the reason.
+at once. The header says nothing while a save is on its way or once it lands;
+it shows only **Not saved** with the reason (Tyler, 11 Nov 2026: "remove this
+saving indicator from the top navigation", of "Saved").
 
 ## The loop
 
@@ -39,8 +40,8 @@ with it, and an edit that said Saved was gone after a reload.
   ref instead. `src/components/settings/settings-page.tsx` holds this, and
   `settings-page-writes.test.tsx` is the test that fails without it.
 
-**The check before calling a settings change done.** Make one change, and while
-the header still says Saving…, make a second change on another card. Reload.
+**The check before calling a settings change done.** Make one change, and
+within the 700ms before it saves, make a second change on another card. Reload.
 Both have to be there.
 
 ## What the load is allowed to drop

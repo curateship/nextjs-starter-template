@@ -3,6 +3,7 @@ import { CopyIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import type { BotsSectionProps } from "@/components/bots/bots-dashboard"
 import { RecordMenu } from "@/components/bots/bots-record"
+import { RecipeSavedResults } from "@/components/bots/recipe-saved-results"
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { RecipeEditor } from "@/components/recipes/recipe-editor"
@@ -73,6 +74,7 @@ export function RecipesSection({
   headingEnd,
   frame,
   go,
+  openElsewhere,
   onChanged,
 }: BotsSectionProps & { loaded: RecipesLoaded }) {
   const [read, setRead] = React.useState({ from: loaded.recipes, recipes: loaded.recipes })
@@ -206,6 +208,21 @@ export function RecipesSection({
         },
         { label: "Delete", icon: <Trash2Icon className="size-4" />, destructive: true, onClick: () => setDeleting([recipe]) },
       ]}
+      tabs={[
+        {
+          value: "saved-results",
+          label: "Saved results",
+          content: (close) => (
+            <RecipeSavedResults
+              recipeId={recipe.id}
+              onOpen={(runId) => {
+                close()
+                openElsewhere("backtests", runId)
+              }}
+            />
+          ),
+        },
+      ]}
     />
   )
 
@@ -266,6 +283,7 @@ export function RecipesSection({
         heading={headingEnd}
         menu={listed ? menuFor(listed) : null}
         onBack={() => go({ view: "recipes", open: opened.id, q: search.q }, { push: true })}
+        onOpenBacktest={(runId) => openElsewhere("backtests", runId)}
         frame={(panels) => frame({ ...panels, ids, openId, windows })}
       />
     )

@@ -1,12 +1,20 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { Loader2Icon } from "lucide-react"
+import {
+  ArrowLeftRightIcon,
+  ChartLineIcon,
+  CircleSlashIcon,
+  FlaskConicalIcon,
+  Loader2Icon,
+} from "lucide-react"
 
 import { BacktestChartPanel } from "@/components/backtest/backtest-chart-panel"
 import { BacktestMarketsPanel } from "@/components/backtest/backtest-markets-panel"
+import { listSkipped } from "@/components/backtest/skipped-coins"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
 import { BacktestTradesPanel } from "@/components/backtest/backtest-trades-panel"
-import { backtestSkippedCount, useBacktestFigures } from "@/components/backtest/use-backtest-figures"
+import { useBacktestFigures } from "@/components/backtest/use-backtest-figures"
+import { useMarketIcons } from "@/components/backtest/use-market-icons"
 import { OpenRunPanel } from "@/components/bots/bots-record"
 import { TradeColumnsMenu } from "@/components/bots/trade-columns-menu"
 import { TRADES_POPOVER_LIST_MAX, TradesPopover } from "@/components/bots/trades-popover"
@@ -18,8 +26,10 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   getBacktestErrorMessage,
   loadBacktestCoin,
+  loadBacktestCoinTrades,
   stopBacktest,
 } from "@/lib/api/trade/backtests"
+import { plural } from "@/lib/format/plural"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import { backtestMeter } from "@/lib/trade/backtest/progress"
@@ -114,19 +124,13 @@ export function BacktestRunPage({
 
   // The Trades card's popover of one coin's trades.
   const [tradesOpen, setTradesOpen] = React.useState(false)
-  // The Result card's "N coins skipped" opens the Skipped card and brings it
-  // into view.
-  const skippedCardRef = React.useRef<HTMLDivElement | null>(null)
-  const [showSkipped, setShowSkipped] = React.useState(false)
-  const jumpToSkipped = () => {
-    setShowSkipped(true)
-    requestAnimationFrame(() => {
-      skippedCardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" })
-      setShowSkipped(false)
-    })
-  }
 
   const fallbackCoin = React.useMemo(() => firstBacktestMarket(coins), [coins])
+  // The Trades card's coin logos, read from each exchange's market list.
+  const coinKeys = React.useMemo(() => coins.map((coin) => coin.marketKey), [coins])
+  const icons = useMarketIcons(coinKeys)
+  // The Skipped card's coins, counted in its heading from the same list it shows.
+  const skippedList = React.useMemo(() => listSkipped(coins, run.result?.skipped ?? []), [coins, run.result])
   const [activeCoin, setActiveCoin] = React.useState(
     () => openCoin ?? fallbackCoin
   )
@@ -287,12 +291,22 @@ export function BacktestRunPage({
     { key: string; trades: BacktestTrade[] } | { key: string; error: string } | null
   >(null)
   const [popAttempt, setPopAttempt] = React.useState(0)
+  // A finished run's trades never change, so a coin opened once opens again
+  // at once instead of asking the server a second time.
+  const popCache = React.useRef(new Map<string, BacktestTrade[]>())
+  const runDone = run.finishedAt !== null
   React.useEffect(() => {
     // The coin on the chart already has its trades read.
     if (!popCoin || popCoin === activeCoin) return
+    const cached = runDone ? popCache.current.get(popCoin) : undefined
+    if (cached) {
+      setPopRead({ key: popCoin, trades: cached })
+      return
+    }
     let live = true
-    loadBacktestCoin(run.id, popCoin)
+    loadBacktestCoinTrades(run.id, popCoin)
       .then((answer) => {
+        if (runDone) popCache.current.set(popCoin, answer.trades)
         if (live) setPopRead({ key: popCoin, trades: answer.trades })
       })
       .catch((error: unknown) => {
@@ -301,7 +315,7 @@ export function BacktestRunPage({
     return () => {
       live = false
     }
-  }, [run.id, popCoin, activeCoin, popAttempt])
+  }, [run.id, popCoin, activeCoin, popAttempt, runDone])
   const popIsChart = popCoin !== null && popCoin === activeCoin
   const popAnswer = popRead?.key === popCoin ? popRead : null
   const popTrades = popIsChart ? (shown?.trades ?? []) : popAnswer && "trades" in popAnswer ? popAnswer.trades : []
@@ -345,14 +359,6 @@ export function BacktestRunPage({
 
   const statsPanel = (
     <BacktestStatsPanel
-      skippedCount={backtestSkippedCount(run, coins)}
-      failedCount={coins.filter((coin) => coin.status === "error").length}
-      onShowSkipped={jumpToSkipped}
-      timing={{
-        createdAt: run.createdAt,
-        finishedAt: run.finishedAt,
-        failed: coins.some((coin) => coin.status === "error"),
-      }}
       // Nothing tested is not a result. A run stopped before it started still
       // writes a summary — same ending code either way — and drawn as figures
       // it reads as a finished backtest that found nothing rather than one that
@@ -360,10 +366,8 @@ export function BacktestRunPage({
       summary={resultSummary(run.summary)}
       result={run.result}
       spec={run.spec}
-      series={graphSeries}
       stats={graphStats}
       window={window}
-      onWindow={setWindow}
       coinsTotal={coins.length}
       progress={meter.value}
       progressText={meter.text}
@@ -374,6 +378,7 @@ export function BacktestRunPage({
     <BacktestMarketsPanel
       tab="traded"
       coins={coins}
+      icons={icons}
       skipped={run.result?.skipped ?? []}
       openCoin={tradesOpen && popCoin ? popCoin : activeCoin}
       onOpenCoin={pressCoin}
@@ -415,7 +420,7 @@ export function BacktestRunPage({
   const middle = <div className="relative flex min-h-0 flex-1 flex-col">{chartPanel}</div>
 
   const tradesCard = (
-    <PanelCard storageId="backtest-trades" title="Trades">
+    <PanelCard storageId="backtest-trades" icon={<ArrowLeftRightIcon />} title="Trades">
       {marketsPanel}
     </PanelCard>
   )
@@ -423,22 +428,30 @@ export function BacktestRunPage({
   // (Tyler, 10 Nov 2026: "Put the skipped markets into its own card and out
   // of the tab").
   const skippedCard = (
-    <div ref={skippedCardRef} className="scroll-mt-3">
-      <PanelCard storageId="backtest-skipped" title="Skipped" openWhen={showSkipped}>
-        <BacktestMarketsPanel
-          tab="skipped"
-          coins={coins}
-          skipped={run.result?.skipped ?? []}
-          openCoin={null}
-          onOpenCoin={() => {}}
-        />
-      </PanelCard>
-    </div>
+    <PanelCard
+      storageId="backtest-skipped"
+      icon={<CircleSlashIcon />}
+      title="Skipped"
+      badge={
+        <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+          {skippedList.length} {plural(skippedList.length, "coin", "coins")}
+        </span>
+      }
+    >
+      <BacktestMarketsPanel
+        tab="skipped"
+        coins={coins}
+        skipped={run.result?.skipped ?? []}
+        openCoin={null}
+        onOpenCoin={() => {}}
+      />
+    </PanelCard>
   )
 
   const right = (
     <OpenRunPanel
       title="Backtest"
+      icon={FlaskConicalIcon}
       menu={menu}
       hideLabel="Hide the backtest"
       footer={
@@ -464,7 +477,7 @@ export function BacktestRunPage({
         </>
       }
     >
-      <PanelCard storageId="backtest-result" title="Result">
+      <PanelCard storageId="backtest-result" icon={<ChartLineIcon />} title="Result">
         {statsPanel}
       </PanelCard>
       <TradesPopover

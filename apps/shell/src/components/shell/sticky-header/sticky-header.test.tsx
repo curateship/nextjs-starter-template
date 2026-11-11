@@ -12,18 +12,12 @@ vi.mock("@/components/shell/sticky-header/sticky-header-right-nav", () => ({
 import { StickyHeader } from "@/components/shell/sticky-header/sticky-header"
 
 describe("StickyHeader save status", () => {
-  it("announces a completed save", () => {
-    const markup = renderToStaticMarkup(<StickyHeader saveStatus="saved" />)
-
-    expect(markup).toContain('role="status"')
-    expect(markup).toContain("Saved")
-  })
-
-  it("does not announce the saving step", () => {
-    const markup = renderToStaticMarkup(<StickyHeader saveStatus="saving" />)
-
-    expect(markup).not.toContain('role="status"')
-    expect(markup).toContain("Saving…")
+  it("shows nothing while saving or once saved", () => {
+    for (const status of ["saving", "saved"] as const) {
+      const markup = renderToStaticMarkup(<StickyHeader saveStatus={status} />)
+      expect(markup).not.toContain("Saving…")
+      expect(markup).not.toContain("Saved")
+    }
   })
 
   it("keeps announcing a refused save and names the fix", () => {

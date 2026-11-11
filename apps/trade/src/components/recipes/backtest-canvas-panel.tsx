@@ -710,7 +710,7 @@ export default function BacktestCanvasPanel({
                   ) : (
                     <FlaskConicalIcon className="size-4" />
                   )}
-                  Backtest
+                  Run backtest
                 </Button>
               </DisabledReason>
             )}

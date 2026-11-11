@@ -672,18 +672,27 @@ describe("open profit in a coin result", () => {
       0
     )
 
-    expect(openPnlOf({ madeOrLost: 2_904, openAtEndUsd: 3_026, stats })).toBe(
+    expect(openPnlOf({ madeOrLost: 2_904, openAtEndUsd: 3_026, stats, fundingPaid: 0 })).toBe(
       2_896
     )
   })
 
+  it("leaves funding out of the open figure", () => {
+    // DEXE on 11 Nov 2026: $1,036.67 total, $792.53 from closed trades and
+    // $242.71 of funding received. The open position made about $1.43.
+    const stats = { grossProfit: 963.17, grossLoss: 170.64 } as Parameters<typeof openPnlOf>[0]["stats"]
+    expect(
+      openPnlOf({ madeOrLost: 1_036.67, openAtEndUsd: 47.69, stats, fundingPaid: -242.71 })
+    ).toBeCloseTo(1.43, 2)
+  })
+
   it("shows zero when nothing remains open", () => {
-    expect(openPnlOf({ madeOrLost: 8, openAtEndUsd: 0, stats: null })).toBe(0)
+    expect(openPnlOf({ madeOrLost: 8, openAtEndUsd: 0, stats: null, fundingPaid: 0 })).toBe(0)
   })
 
   it("does not invent the split for an old run without trade stats", () => {
     expect(
-      openPnlOf({ madeOrLost: 100, openAtEndUsd: 200, stats: null })
+      openPnlOf({ madeOrLost: 100, openAtEndUsd: 200, stats: null, fundingPaid: 0 })
     ).toBeNull()
   })
 
@@ -718,6 +727,7 @@ describe("open profit in a coin result", () => {
       madeOrLost: 72,
       openAtEndUsd: 330,
       stats: sideStatsFromTrades([], 0),
+      fundingPaid: 0,
     })
 
     expect(split).not.toBeNull()
@@ -746,6 +756,7 @@ describe("open profit in a coin result", () => {
       madeOrLost: 10,
       openAtEndUsd: 90,
       stats: sideStatsFromTrades([], 0),
+      fundingPaid: 0,
     })
 
     expect(split?.get(1)).toBeCloseTo(10, 10)

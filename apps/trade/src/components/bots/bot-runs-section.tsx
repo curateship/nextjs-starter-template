@@ -330,7 +330,7 @@ export function BotRunsSection({
             </Button>
           </span>
         ) : (
-          "No bot has been switched on yet. Give a recipe a saved wallet, then press Switch on above its canvas."
+          "No bot has been switched on yet. Give a recipe a saved wallet, then press Run recipe above its canvas."
         )
       }
     >

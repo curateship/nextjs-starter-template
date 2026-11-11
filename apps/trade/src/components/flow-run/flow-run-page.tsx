@@ -1,3 +1,9 @@
+import {
+  ArrowLeftRightIcon,
+  BotIcon,
+  ChartLineIcon,
+} from "lucide-react"
+
 import { FlowRunControls } from "@/components/flow-run/flow-run-controls"
 import * as React from "react"
 
@@ -336,7 +342,7 @@ export function FlowRunPage({
 
   const tradesCard = (
     <div>
-      <PanelCard storageId="bot-trades" title="Trades">
+      <PanelCard storageId="bot-trades" icon={<ArrowLeftRightIcon />} title="Trades">
         <DashboardTabs
           value={tradesTab}
           onValueChange={(value) => setTradesTab(value as CoinsTab)}
@@ -351,8 +357,8 @@ export function FlowRunPage({
   )
 
   const right = (
-    <OpenRunPanel title="Bot" menu={menu} hideLabel="Hide the bot" footer={runControls}>
-      <PanelCard storageId="bot-result" title="Result">
+    <OpenRunPanel title="Bot" icon={BotIcon} menu={menu} hideLabel="Hide the bot" footer={runControls}>
+      <PanelCard storageId="bot-result" icon={<ChartLineIcon />} title="Result">
         {statsPanel}
       </PanelCard>
       <TradesPopover

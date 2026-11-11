@@ -24,9 +24,12 @@ import { cn } from "@/lib/utils"
  */
 export function InspectorCard({
   title,
+  icon,
   children,
 }: {
   title?: string
+  /** Before the title, 16px, as the card's other headings draw one. */
+  icon?: React.ReactNode
   children: React.ReactNode
 }) {
   // The side panels' own card, heading and all (Tyler, 10 Nov 2026: "The
@@ -44,6 +47,7 @@ export function InspectorCard({
     // Plain characters only, as before, so a card shut before still opens shut.
     <PanelCard
       storageId={`automation-node-${title.toLowerCase().replace(/[^\w-]+/g, "-")}`}
+      icon={icon}
       title={title}
     >
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4">{children}</div>

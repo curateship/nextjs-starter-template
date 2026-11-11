@@ -1,4 +1,9 @@
 import * as React from "react"
+import {
+  PiggyBankIcon,
+  ReceiptIcon,
+  WalletIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -277,7 +282,7 @@ export default function TradeWalletFields({
 
   return (
     <>
-      <InspectorCard title="Which wallet">
+      <InspectorCard title="Which wallet" icon={<WalletIcon />}>
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`wallet-${node.id}-which`}
@@ -369,7 +374,7 @@ export default function TradeWalletFields({
 
       {named ? null : (
         <>
-          <InspectorCard title="The pot">
+          <InspectorCard title="The pot" icon={<PiggyBankIcon />}>
             <TradeNumberField
               id={`wallet-${node.id}-start`}
               label="Starting money"
@@ -382,7 +387,7 @@ export default function TradeWalletFields({
             />
           </InspectorCard>
 
-          <InspectorCard title="What trading costs">
+          <InspectorCard title="What trading costs" icon={<ReceiptIcon />}>
             <TradeNumberField
               id={`wallet-${node.id}-taker`}
               label="Taker fee"

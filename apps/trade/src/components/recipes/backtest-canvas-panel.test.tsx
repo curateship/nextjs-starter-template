@@ -146,7 +146,7 @@ describe("the backtest canvas panel", () => {
     expect(host.textContent).toContain("3 backtests, one per size")
     expect(host.textContent).toContain("candles")
     const button = [...host.querySelectorAll("button")].find(
-      (one) => one.textContent?.trim() === "Backtest"
+      (one) => one.textContent?.trim() === "Run backtest"
     )!
     await act(async () => {
       button.click()
@@ -181,7 +181,7 @@ describe("the backtest canvas panel", () => {
 
     expect(
       [...host.querySelectorAll("button")].some(
-        (button) => button.textContent?.trim() === "Backtest"
+        (button) => button.textContent?.trim() === "Run backtest"
       )
     ).toBe(true)
 
@@ -220,7 +220,7 @@ describe("the backtest canvas panel", () => {
       await Promise.resolve()
     })
     const backtest = [...host.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Backtest"
+      (button) => button.textContent?.trim() === "Run backtest"
     )
     await act(async () => backtest?.click())
 
@@ -268,7 +268,7 @@ it("keeps the Backtest window visible while loading and for a saved wallet", asy
       "Choose pretend money in the Wallet step"
     )
     const button = [...host.querySelectorAll("button")].find(
-      (one) => one.textContent?.trim() === "Backtest"
+      (one) => one.textContent?.trim() === "Run backtest"
     )!
     expect(button.disabled).toBe(true)
   } finally {

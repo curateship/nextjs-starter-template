@@ -1,5 +1,16 @@
 import * as React from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  AnchorIcon,
+  CandlestickChartIcon,
+  LayersIcon,
+  LogOutIcon,
+  PlusIcon,
+  ScaleIcon,
+  Settings2Icon,
+  ShieldIcon,
+  Trash2Icon,
+  TrendingDownIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -163,7 +174,7 @@ export default function TradeDcaFields({
 
   return (
     <>
-      <InspectorCard title="Ladder">
+      <InspectorCard title="Ladder" icon={<LayersIcon />}>
         <div className="rounded-md border bg-background px-2.5 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Most one coin may buy</span>
@@ -265,7 +276,7 @@ export default function TradeDcaFields({
         </Button>
       </InspectorCard>
 
-      <InspectorCard title="Position">
+      <InspectorCard title="Position" icon={<ScaleIcon />}>
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`dca-${node.id}-compound`}
@@ -336,7 +347,7 @@ export default function TradeDcaFields({
           numbers, unreachable from here and unreachable from the chart, so
           every run tested one definition of a base and no other could be
           tried. */}
-      <InspectorCard title="What counts as a base">
+      <InspectorCard title="What counts as a base" icon={<AnchorIcon />}>
         <TradeNumberField
           id={`dca-${node.id}-search`}
           label="Candles to search back"
@@ -428,7 +439,7 @@ export default function TradeDcaFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="Candles">
+      <InspectorCard title="Candles" icon={<CandlestickChartIcon />}>
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`dca-${node.id}-interval`}
@@ -463,7 +474,7 @@ export default function TradeDcaFields({
         </div>
       </InspectorCard>
 
-      <InspectorCard title="Exit">
+      <InspectorCard title="Exit" icon={<LogOutIcon />}>
         {/* The rule sits on the checkbox's own row, so switching Exit on and
             picking how it sells read as one choice. The row and the picker
             may shrink, so a long rule ends in "…" instead of pushing the
@@ -566,7 +577,7 @@ export default function TradeDcaFields({
 
       {/* Directly under Exit because that is the only thing it changes:
           it pauses the "sell at previous rung" exits and nothing else. */}
-      <InspectorCard title="Market crash">
+      <InspectorCard title="Market crash" icon={<TrendingDownIcon />}>
         <div className="flex items-center gap-2">
           <Checkbox
             id={`dca-${node.id}-cascade-on`}
@@ -705,7 +716,7 @@ export default function TradeDcaFields({
         ) : null}
       </InspectorCard>
 
-      <InspectorCard title="Stop loss">
+      <InspectorCard title="Stop loss" icon={<ShieldIcon />}>
         <div className="flex items-center gap-2">
           <Checkbox
             id={`dca-${node.id}-sl-on`}
@@ -796,7 +807,7 @@ export default function TradeDcaFields({
         ) : null}
       </InspectorCard>
 
-      <InspectorCard title="Advanced settings">
+      <InspectorCard title="Advanced settings" icon={<Settings2Icon />}>
         {/* No "rungs measured from" choice here on purpose.
 
             The app this is a port of has no such setting: its first rung is

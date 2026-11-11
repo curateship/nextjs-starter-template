@@ -1,4 +1,10 @@
 import * as React from "react"
+import {
+  ClockIcon,
+  CoinsIcon,
+  HistoryIcon,
+  LandmarkIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -571,7 +577,7 @@ export default function TradeMarketsFields({
         // read as "it starts buying the moment it is switched on", and it does
         // not: the ladder is measured from a confirmed base, and confirming one
         // takes past candles.
-        <InspectorCard title="When it trades">
+        <InspectorCard title="When it trades" icon={<ClockIcon />}>
           <p className="text-xs text-muted-foreground">
             From the moment it is switched on, forwards. There is no stretch of
             history to choose. It still reads enough past candles to find each
@@ -580,7 +586,7 @@ export default function TradeMarketsFields({
           </p>
         </InspectorCard>
       ) : (
-        <InspectorCard title="How far back">
+        <InspectorCard title="How far back" icon={<HistoryIcon />}>
           <div className="grid gap-1.5">
             <FieldLabel
               htmlFor={`markets-${node.id}-window`}
@@ -687,7 +693,7 @@ export default function TradeMarketsFields({
       )}
 
       {wallet ? (
-        <InspectorCard title="Exchange">
+        <InspectorCard title="Exchange" icon={<LandmarkIcon />}>
           <p
             className={
               wrongProtocol || walletNotReadYet
@@ -704,7 +710,7 @@ export default function TradeMarketsFields({
         </InspectorCard>
       ) : null}
 
-      <InspectorCard title="Coins">
+      <InspectorCard title="Coins" icon={<CoinsIcon />}>
         <div className="grid gap-1.5">
           <span
             id={`markets-${node.id}-source-label`}

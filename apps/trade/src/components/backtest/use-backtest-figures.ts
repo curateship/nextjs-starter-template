@@ -9,7 +9,7 @@ import {
   type BacktestRunTrade,
   type GraphWindow,
 } from "@/lib/trade/backtest/graph"
-import type { BacktestCoinRow, BacktestRunView } from "@/components/backtest/backtest-run-page"
+import type { BacktestRunView } from "@/components/backtest/backtest-run-page"
 
 /**
  * What a backtest's Result card counts from: the run's every trade, its pot as
@@ -69,12 +69,4 @@ export function useBacktestFigures(run: BacktestRunView) {
   }, [graphSeries, trades, window, run.spec.startingUsd, leverage])
 
   return { leverage, window, setWindow, trades, graphSeries, graphStats }
-}
-
-/** How many coins the run skipped, each once, from either record of them. */
-export function backtestSkippedCount(run: BacktestRunView, coins: readonly BacktestCoinRow[]): number {
-  return new Set([
-    ...coins.filter((coin) => coin.status === "skipped").map((coin) => coin.marketKey),
-    ...(run.result?.skipped ?? []).map((coin) => coin.marketKey),
-  ]).size
 }

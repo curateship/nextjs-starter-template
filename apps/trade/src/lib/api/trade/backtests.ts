@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import {
@@ -207,6 +207,32 @@ const listBacktestsFn = createServerFn({ method: "GET" })
     }
   })
 
+/**
+ * The id of a recipe's newest backtest, archived ones left out, or null.
+ *
+ * For an open recipe's Last result card. `listBacktestsFn` answers the same
+ * question but works out every run's progress first, which took seconds on a
+ * recipe with many runs, to keep one row.
+ */
+const readLastBacktestIdFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ automationId: z.string().max(36) }))
+  .handler(async ({ data, context }) => {
+    const [row] = await db
+      .select({ id: tradeBacktestGroups.id })
+      .from(tradeBacktestGroups)
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, context.user.id),
+          eq(tradeBacktestGroups.automationId, data.automationId),
+          eq(tradeBacktestGroups.archived, false)
+        )
+      )
+      .orderBy(desc(tradeBacktestGroups.createdAt))
+      .limit(1)
+    return { id: row?.id ?? null }
+  })
+
 const readBacktestFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(groupIdSchema)
@@ -252,6 +278,21 @@ const coinSchema = z.object({
 })
 
 /**
+ * A run's settings, or null when it is not this user's.
+ *
+ * Reading one coin used to go through `readBacktestGroup`, which also reads
+ * every coin's saved result: 346 of them on a big run, to use none. That was
+ * most of the wait before a coin's trades showed.
+ */
+async function readRunSpec(userId: string, groupId: string) {
+  const [group] = await db
+    .select({ spec: tradeBacktestGroups.spec })
+    .from(tradeBacktestGroups)
+    .where(and(eq(tradeBacktestGroups.userId, userId), eq(tradeBacktestGroups.id, groupId)))
+  return group?.spec ?? null
+}
+
+/**
  * One coin's trades and the candles behind them — what the chart draws.
  *
  * The candles come from the store rather than the exchange, so what is drawn
@@ -262,8 +303,8 @@ const readBacktestCoinFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(coinSchema)
   .handler(async ({ data, context }) => {
-    const found = await readBacktestGroup(context.user.id, data.groupId)
-    if (!found) throw new Error("BACKTEST_NOT_FOUND")
+    const spec = await readRunSpec(context.user.id, data.groupId)
+    if (!spec) throw new Error("BACKTEST_NOT_FOUND")
 
     const [row] = await db
       .select({ trades: tradeBacktests.trades, fills: tradeBacktests.fills })
@@ -276,7 +317,6 @@ const readBacktestCoinFn = createServerFn({ method: "GET" })
         )
       )
 
-    const { spec } = found.group
     const matching = spec.strategy.kind === "emaGrid" ? "grid" : "fifo"
     const storedFills = row?.fills ?? []
     return {
@@ -299,6 +339,52 @@ const readBacktestCoinFn = createServerFn({ method: "GET" })
         spec.interval,
         spec.from,
         spec.to
+      ),
+    }
+  })
+
+/**
+ * One coin's trades alone, for its trades popover.
+ *
+ * The popover lists trades and draws no chart, so it skips the candles
+ * `readBacktestCoinFn` reads for the whole window (Tyler, 11 Nov 2026: "some
+ * only have 2-3 trades but they still take long").
+ */
+const readBacktestCoinTradesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(coinSchema)
+  .handler(async ({ data, context }) => {
+    // One read for the run's settings and the coin together. The database is
+    // a round trip away, about 120ms from a laptop, so two reads were felt.
+    const [row] = await db
+      .select({
+        spec: tradeBacktestGroups.spec,
+        trades: tradeBacktests.trades,
+        fills: tradeBacktests.fills,
+      })
+      .from(tradeBacktestGroups)
+      .leftJoin(
+        tradeBacktests,
+        and(
+          eq(tradeBacktests.userId, tradeBacktestGroups.userId),
+          eq(tradeBacktests.groupId, tradeBacktestGroups.id),
+          eq(tradeBacktests.marketKey, data.marketKey)
+        )
+      )
+      .where(
+        and(
+          eq(tradeBacktestGroups.userId, context.user.id),
+          eq(tradeBacktestGroups.id, data.groupId)
+        )
+      )
+    if (!row) throw new Error("BACKTEST_NOT_FOUND")
+
+    const matching = row.spec.strategy.kind === "emaGrid" ? "grid" : "fifo"
+    return {
+      trades: pairTradesFromStored(
+        row.fills ?? [],
+        (row.trades ?? []) as BacktestTrade[],
+        matching
       ),
     }
   })
@@ -453,12 +539,20 @@ export function loadBacktests(input: z.infer<typeof listSchema> = {}) {
   return listBacktestsFn({ data: input })
 }
 
+export function loadLastBacktestId(automationId: string) {
+  return readLastBacktestIdFn({ data: { automationId } })
+}
+
 export function loadBacktest(groupId: string) {
   return readBacktestFn({ data: { groupId } })
 }
 
 export function loadBacktestCoin(groupId: string, marketKey: string) {
   return readBacktestCoinFn({ data: { groupId, marketKey } })
+}
+
+export function loadBacktestCoinTrades(groupId: string, marketKey: string) {
+  return readBacktestCoinTradesFn({ data: { groupId, marketKey } })
 }
 
 export function loadBacktestRunTrades(groupId: string) {

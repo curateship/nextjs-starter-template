@@ -12,7 +12,9 @@ import {
 
 import { InspectorNote } from "@/components/automations/inspector-card"
 import { RecipeNodeIcon } from "@/components/recipes/recipe-node-icon"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelHeading } from "@/components/bots/bots-record"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 import { Button } from "@/components/ui/button"
 import { InlineError } from "@/components/ui/inline-error"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -58,28 +60,26 @@ export function RecipeInspector({
   const previewing = Boolean(onAddNode)
   const { scrollRef, fades } = useScrollFades()
 
+  const cover = useRightCover()
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
+        "relative isolate flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
         className
       )}
     >
-      <DashboardCardTitleHeader
-        icon={
-          selectedNode ? (
-            <RecipeNodeIcon
-              icon={recipeNodeIcon(selectedNode)}
-              className="size-4"
-            />
-          ) : (
-            <WorkflowIcon className="size-4" />
-          )
-        }
-        title={selectedNode ? recipeNodeName(selectedNode) : "Recipe"}
-        meta={previewing ? "Not added yet" : undefined}
-        action={headerEnd}
-      />
+      {/* The right panel's cover, as the Recipe, Backtest and Bot panels draw
+          it (Tyler, 11 Nov 2026: "all the nodes header still need to inherate
+          the background too"). */}
+      <RightPanelCover />
+      <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
+        <RightPanelHeading
+          icon={selectedNode ? <RecipeNodeIcon icon={recipeNodeIcon(selectedNode)} className="size-4" /> : <WorkflowIcon />}
+          title={selectedNode ? recipeNodeName(selectedNode) : "Recipe"}
+          note={previewing ? "Not added yet" : undefined}
+        />
+        {headerEnd}
+      </DashboardCardHeader>
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
           {/* As the shell's automation step panel: 16px that is also the

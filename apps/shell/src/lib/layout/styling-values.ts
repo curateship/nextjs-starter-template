@@ -115,10 +115,12 @@ export type ShellStyling = {
   blockEdgeToEdge?: boolean
   /**
    * How wide a three-panel dashboard's left and right panels open, as a share
-   * of the dashboard's width, 14 (left) or 16 (right) to 36 (Tyler, 9 Nov 2026: "Add another
+   * of the dashboard's width, 10 (left) or 12 (right) to 36 (Tyler, 9 Nov 2026: "Add another
    * option for me to adjust the default width of the left and right panel").
-   * Unset is 14 on the left and 16 on the right (Tyler, 9 Nov 2026:
-   * "default 14% on left and 16% on right"), and neither goes narrower. A
+   * Unset is 10 on the left and 12 on the right (Tyler, 9 Nov 2026:
+   * "default 14% on left and 16% on right", then 10 Nov 2026: "the right
+   * panel width 16px is default. Make default 12px"), and neither goes
+   * narrower. A
    * width dragged in a browser still outranks it there.
    */
   leftPanelWidth?: number
@@ -340,14 +342,15 @@ export const MAX_BLOCK_BORDER = 3
 export const DEFAULT_BLOCK_SHADOW = 0
 export const DEFAULT_BLOCK_BORDER_SHADE = 10
 /**
- * A side panel opens at 10% on the left and 16% on the right unless changed,
+ * A side panel opens at 10% on the left and 12% on the right unless changed,
  * and neither drags or is set narrower than that (Tyler, 9 Nov 2026:
  * "default 14% on left and 16% on right", "make the 14 and 16 default and
  * cannot go lower than that", then "Set left side panel narrowest default to
- * 10%"). Both go up to 36%.
+ * 10%", and 10 Nov 2026: "the right panel width 16px is default. Make
+ * default 12px", meaning the 16% setting). Both go up to 36%.
  */
 export const DEFAULT_LEFT_PANEL_WIDTH = 10
-export const DEFAULT_RIGHT_PANEL_WIDTH = 16
+export const DEFAULT_RIGHT_PANEL_WIDTH = 12
 export const MAX_SIDE_PANEL_WIDTH = 36
 /** An open automation's step list: 280px unless changed, from 200 to 480. */
 export const DEFAULT_STEP_LIST_WIDTH = 280

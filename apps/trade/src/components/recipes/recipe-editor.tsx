@@ -18,6 +18,7 @@ import BacktestCanvasPanel from "@/components/recipes/backtest-canvas-panel"
 import FlowStatusHeader from "@/components/recipes/flow-status-header"
 import { RecipeFlowCanvas } from "@/components/recipes/recipe-flow-canvas"
 import { RecipeInspector } from "@/components/recipes/recipe-inspector"
+import { RecipeOverviewPanel } from "@/components/recipes/recipe-overview-panel"
 import { RecipePalette } from "@/components/recipes/recipe-palette"
 import { PanelReopenButton, SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
@@ -53,6 +54,7 @@ export function RecipeEditor({
   heading,
   menu,
   onBack,
+  onOpenBacktest,
   frame,
 }: {
   initial: Pick<RecipeDetail, "id" | "name" | "graph">
@@ -70,6 +72,8 @@ export function RecipeEditor({
   menu: React.ReactNode
   /** Back to the Recipes table. */
   onBack: () => void
+  /** Opens a backtest's chart, from the Last result card. */
+  onOpenBacktest: (runId: string) => void
   /** The Bots dashboard's frame: the middle, and the right panel while a step is picked. */
   frame: (panels: { header: React.ReactNode; middle: React.ReactNode; right?: { label: string; content: React.ReactNode } }) => React.ReactNode
 }) {
@@ -503,10 +507,24 @@ export function RecipeEditor({
     canvasCard
   )
 
-  // No right panel until a step is picked (Tyler, 9 Nov 2026: "For the canvas
-  // page, just dont show the right panel until a node is clicked on").
-  // Result has none either: a line opens its backtest.
-  return frame({ header: null, middle, right: selectedNode ? { label: "Step", content: inspector } : undefined })
+  // The picked step's settings, or with no step picked the recipe's last
+  // backtest and its parameters (Tyler, 11 Nov 2026: "When there is no node
+  // selected. The right panel disapeared. Change it so that when theres no
+  // node selected. Show the panel with the last run result then show a
+  // summary of the currant parameter"). Before, no step meant no panel.
+  const overview = (
+    <RecipeOverviewPanel
+      recipeId={initial.id}
+      graph={graph}
+      onPickStep={(nodeId) => onNode(nodeId)}
+      onOpenBacktest={onOpenBacktest}
+    />
+  )
+  return frame({
+    header: null,
+    middle,
+    right: selectedNode ? { label: "Step", content: inspector } : { label: "Recipe", content: overview },
+  })
 
 }
 

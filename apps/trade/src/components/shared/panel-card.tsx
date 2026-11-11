@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronDown, SettingsIcon } from "lucide-react"
+import { SettingsIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -159,18 +159,6 @@ export function PanelCard({
             <TooltipContent>{open && footerOpen ? "Hide the buttons" : "Show the buttons"}</TooltipContent>
           </Tooltip>
         ) : null}
-        {/* The heading is the button that folds the card; the arrow is the
-            same press for the pointer, and left out of the keyboard's way. */}
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            className={cn("flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md", quietClass)}
-          >
-            <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
       </div>
       </div>
       <CollapsibleContent data-collapse-key={noFlashKey}>

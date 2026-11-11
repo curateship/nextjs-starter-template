@@ -8,9 +8,11 @@ screen built this way, and every app gets them with its next shell merge.
 
 All of them are in `src/components/shared/`.
 
-- **`three-panels.tsx`, `ThreePanels`.** The layout: left 10%, middle 74%,
-  right 16% (Tyler, 9 Nov 2026: "default 14% on left and 16% on right", then
-  "Set left side panel narrowest default to 10%"; both sides 16% before). Each side's default is also the narrowest it drags to,
+- **`three-panels.tsx`, `ThreePanels`.** The layout: left 10%, middle 78%,
+  right 12% (Tyler, 9 Nov 2026: "default 14% on left and 16% on right", then
+  "Set left side panel narrowest default to 10%"; 10 Nov 2026: "the right
+  panel width 16px is default. Make default 12px", meaning the 16%; both
+  sides 16% before 9 Nov). Each side's default is also the narrowest it drags to,
   as Tyler has wanted since 31 Oct 2026 ("The default width needs to be the
   narrowest width the panel have"; 9 Nov: "cannot go lower than that").
   Admin → Styling → Side panels can open them wider, up to 36%
@@ -32,6 +34,10 @@ All of them are in `src/components/shared/`.
   slot holds the right one. `MiddleHeading` draws the left one, then a
   section's icon and name, and `middleGutterClassName` sets the middle's
   24px left and right on its header and table, both in `three-panels.tsx`.
+  A price chart's cells are left out: the chart library draws inside a
+  table of its own, and padding it moved the candles 24px right of the
+  arrows drawn over them (Tyler, 11 Nov 2026: "the arrow is floating outside
+  of its trade candle").
 - **One frame for a dashboard of sections.** The Admin dashboard and the CRM
   each keep one `ThreePanels` while their section changes; a section draws
   its middle in place, its record into a spot in the right panel through a
@@ -69,15 +75,25 @@ All of them are in `src/components/shared/`.
   belong to the address before the last change. The first row waits for it,
   so a remembered folder never opens a row from the folder it replaced.
   Note's library dashboard is the one that does.
+- **`crm-table.tsx`, `CrmTableRow`'s buttons.** A row ends in a cog, which
+  opens the row, and a bin when the app passes `onDelete`. `cog` gives the
+  cog another job and name (Pages opens the builder) and, with `icon`,
+  another picture. `buttons` adds icon buttons between the cog and the bin.
+  Trade's Backtests rows use both: a chart that opens the run's chart and a
+  recipe icon that opens its recipe (Tyler, 11 Nov 2026).
+  A long name in `MainCell` is cut short rather than widening the table, so
+  the buttons at the row's end stay in view.
 - **`panel-card.tsx`, `PanelCard` and `PanelHeading`.** The grey folding card
   of a side panel, which remembers being open or shut, with a muted note after
-  its title, a badge, a button of its own and a footer of buttons. Its cog, its own buttons and its fold arrow show only while the card is
+  its title, a badge, a button of its own and a footer of buttons. Its cog and its own buttons show only while the card is
   pointed at or focused (Tyler, 20 Oct 2026: "all these should be hover to
   show only"); always on a phone. Hidden, they take no room, so a title has
   the card's whole width in a narrow side panel and is cut short only while
   the card is pointed at (Tyler, 5 Nov 2026, of Promo's network cards
   reading "Reddi..."); before that they were see-through and still held
   their place.
+  It has no fold arrow: pressing the heading folds and opens the card
+  (Tyler, 11 Nov 2026: "remove the arrow toggle").
   Inside an `InspectorCollapseAllProvider` it also folds or opens with the
   panel header's `InspectorCollapseAllButton`, as `InspectorCard` does
   (`useCollapseAllCommand`, 10 Nov 2026, first for Trade's open backtest and

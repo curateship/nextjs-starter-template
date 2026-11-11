@@ -1,8 +1,12 @@
-import { CandlestickChartIcon } from "lucide-react"
+import {
+  CandlestickChartIcon,
+  ChartLineIcon,
+  FlaskConicalIcon,
+} from "lucide-react"
 
 import type { BacktestCoinRow, BacktestRunView } from "@/components/backtest/backtest-run-page"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
-import { backtestSkippedCount, useBacktestFigures } from "@/components/backtest/use-backtest-figures"
+import { useBacktestFigures } from "@/components/backtest/use-backtest-figures"
 import { OpenRunPanel } from "@/components/bots/bots-record"
 import { FooterState } from "@/components/crm/record-frame"
 import { PanelCard } from "@/components/shared/panel-card"
@@ -30,12 +34,13 @@ export function BacktestPreviewPanel({
   /** Opens the chart and graph in the middle. */
   onOpen: () => void
 }) {
-  const { window, setWindow, graphSeries, graphStats } = useBacktestFigures(run)
+  const { window, graphStats } = useBacktestFigures(run)
   const done = run.finishedAt !== null
   const meter = backtestMeter(coins)
   return (
     <OpenRunPanel
       title="Backtest"
+      icon={FlaskConicalIcon}
       menu={menu}
       hideLabel="Hide the backtest"
       footer={
@@ -48,24 +53,13 @@ export function BacktestPreviewPanel({
         </>
       }
     >
-      <PanelCard storageId="backtest-result" title="Result">
+      <PanelCard storageId="backtest-result" icon={<ChartLineIcon />} title="Result">
         <BacktestStatsPanel
-          skippedCount={backtestSkippedCount(run, coins)}
-          failedCount={coins.filter((coin) => coin.status === "error").length}
-          // The skipped coins are listed once the chart is open.
-          onShowSkipped={onOpen}
-          timing={{
-            createdAt: run.createdAt,
-            finishedAt: run.finishedAt,
-            failed: coins.some((coin) => coin.status === "error"),
-          }}
           summary={resultSummary(run.summary)}
           result={run.result}
           spec={run.spec}
-          series={graphSeries}
           stats={graphStats}
           window={window}
-          onWindow={setWindow}
           coinsTotal={coins.length}
           progress={meter.value}
           progressText={meter.text}

@@ -393,7 +393,7 @@ export function StylingSettings({
           max={MAX_SIDE_PANEL_WIDTH}
           valueLabel={rightPanelWidth === DEFAULT_RIGHT_PANEL_WIDTH ? `${rightPanelWidth}% · Default` : `${rightPanelWidth}%`}
           onChange={(value) => update({ rightPanelWidth: value })}
-          help="The same for the right panel, 16% at the narrowest. A dashboard with no right panel gives the middle its room."
+          help={`The same for the right panel, ${DEFAULT_RIGHT_PANEL_WIDTH}% at the narrowest. A dashboard with no right panel gives the middle its room.`}
         />
         {/* Tyler, 9 Nov 2026: "this panel save is inconsistent ... add a
             panel size setting in settings", of an open automation's step

@@ -17,8 +17,8 @@ Overview     Dashboards block        widget cards (no right panel)         none
 Recipes      Dashboards block        recipes table (a line opens it)       none
 Backtests    Dashboards block        backtests table (a line picks it)     the line's Result card, Open chart
 Bots         Dashboards block        bots table (a line opens it)          none
-Open recipe  Dashboards block        step list | ← name, status,           the step picked; none until
-                                     Backtest, ⋮; canvas                   a step is pressed
+Open recipe  Dashboards block        step list | ← name, status,           the step picked; with none,
+                                     Backtest, ⋮; canvas                   Last result and Parameters
 Open backtest Dashboards block       [Chart|Graph], chart                  Result, Trades and Skipped
                                                                            cards, Stop
 Open bot     Dashboards block        [Chart|Graph], chart                  Result card, Trades card
@@ -47,10 +47,10 @@ Open bot     Dashboards block        [Chart|Graph], chart                  Resul
   ("Both dashboards"). A row opens that bot here.
 - A recipe's line opens its canvas at once ("clicking on the recipe should
   just go to the canvas. it doesnt need to load the right sidebar"), so the
-  Recipes table has two panels, page and table. An open recipe has no right
-  panel either until a step is clicked ("just dont show the right panel until
-  a node is clicked on"); showing the recipe's bot and backtests there was
-  tried and taken out the same day ("makes the flow clunky").
+  Recipes table has two panels, page and table. An open recipe's right panel
+  is the picked step, or with none picked its Last result and Parameters
+  cards (Tyler, 11 Nov 2026, replacing his 9 Nov "just dont show the right
+  panel until a node is clicked on").
 - Backtests and Bots open the same way ("we dont need the right panel for
   backtest dashboard. it should go straight to the result chart. same with
   bots dashboard"): a line opens its chart, and the tables have no right
@@ -127,12 +127,26 @@ Open bot     Dashboards block        [Chart|Graph], chart                  Resul
 
 ## The right panel
 
+- **Every right panel's header starts the same way:** the Recipe, Backtest
+  and Bot panels and a recipe's step have their icon at the header's own
+  padding, 10px to the title, in the dashboard heading's type, over the
+  panel's blue cover, with no grey line under the title (Tyler, 11 Nov 2026:
+  "all the nodes header still need to inherate the background too", "the
+  overview right panel header and the nodes header alignment is not the
+  same", "Copy the node header left padding"). `RightPanelHeading` in
+  `bots-record.tsx` draws it for all four.
 - **The Backtests table has one:** a line picked shows its Result card on
   the right, with **Open chart** in the footer, which opens its chart and
   graph in the middle (Tyler, 10 Nov 2026: "clicking on the table item should
   open up the right panel to show the results and in the footer have a button
   to click on to show the chart and graph"). Back from the chart returns to
   the table with that line still picked.
+- **Each Backtests line ends in three buttons:** a chart, which opens that
+  run's chart straight away, the recipe's icon, which opens the recipe it
+  ran on its canvas, and the bin (Tyler, 11 Nov 2026: "replace this icon to
+  a chart icon and clicking on it goes to the chart page. Beside it add
+  another icon that links to the canvas recipe"). The chart took the cog's
+  place.
 - **The Recipes and Bots tables have none** (Tyler, 9 Nov 2026: "we dont need
   the right panel for backtest dashboard. it should go straight to the result
   chart. same with bots dashboard"). A line opens its record in the middle in

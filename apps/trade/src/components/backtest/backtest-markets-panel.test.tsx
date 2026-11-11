@@ -48,7 +48,7 @@ it("shows each saved skip and failure reason, without duplicate coins", async ()
   try {
     await act(async () => root.render(panel))
     for (const reason of reasons) expect(host.textContent).toContain(reason)
-    expect(host.querySelectorAll("tbody tr")).toHaveLength(3)
+    expect(host.querySelectorAll("[data-skipped-coin]")).toHaveLength(3)
   } finally {
     await act(async () => root.unmount())
     host.remove()

@@ -2,8 +2,10 @@ import * as React from "react"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  ChartCandlestickIcon,
   PinIcon,
   Trash2Icon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import { BacktestPreviewPanel } from "@/components/backtest/backtest-preview-panel"
@@ -447,6 +449,23 @@ export function BacktestsSection({
           // A line is picked, its Result on the right; Open chart there opens
           // its chart and graph in the middle.
           onOpen={() => go({ ...search, open: run.id, full: undefined, coin: undefined })}
+          // A chart in place of the cog opens the run's chart, and beside it
+          // the recipe's own icon opens the recipe on its canvas (Tyler, 11
+          // Nov 2026: "replace this icon to a chart icon and clicking on it
+          // goes to the chart page. Beside it add another icon that links to
+          // the canvas recipe").
+          cog={{
+            label: `Open the chart of ${backtestName(run)}`,
+            icon: <ChartCandlestickIcon className="size-4" />,
+            onPress: () => go({ ...search, open: run.id, full: true, coin: undefined }, { push: true }),
+          }}
+          buttons={[
+            {
+              label: "Open the recipe",
+              icon: <WorkflowIcon className="size-4" />,
+              onPress: () => go({ view: "recipes", open: run.automationId, full: true }, { push: true }),
+            },
+          ]}
           onDelete={() => setDeleting([run.id])}
           onRightClick={(x, y) => setRowMenu({ id: run.id, x, y })}
         >
