@@ -18,8 +18,6 @@ export const CONTACT_IMPORT_BATCH = 500
 /** The most rows one file may hold, so a wrong file is refused before it is sent. */
 export const CONTACT_IMPORT_MAX_ROWS = 50_000
 
-/** The longest note the open contact's Notes box keeps. */
-export const CONTACT_NOTES_MAX = 10_000
 
 /** What a column of the file is read as. */
 export type ImportField = "email" | "firstName" | "lastName" | "name" | "tags" | "skip"
@@ -153,11 +151,3 @@ export function readImportRows(
   }
   return { rows: read, invalid }
 }
-
-/** The sample file the Import menu offers, in the headings `guessImportField` knows. */
-export const SAMPLE_CONTACTS_CSV = [
-  "email,first_name,last_name,tags",
-  'maya@example.com,Maya,Chen,"creator, podcast"',
-  "jordan@example.com,Jordan,Reyes,course",
-  "sam@example.com,Sam,,",
-].join("\n")

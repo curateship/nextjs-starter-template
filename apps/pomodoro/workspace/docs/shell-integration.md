@@ -248,3 +248,23 @@ Every shell change up to 5 Nov is in Pomodoro: 85 files replaced and 25 added, w
 **No migration was new.** The shell has added none since 0097, and Pomodoro already had every one.
 
 **Kept as Pomodoro's own.** `src/app/` stays Pomodoro's own, and so does `src/app/open-endpoints.ts`, which lists Pomodoro's own open endpoints.
+
+## Shell merge, 11 November 2026
+
+Every shell change since the 7 Nov merge (`e69b7243e`) is in Pomodoro, up to the shell at `32a7c20fe`: 243 files replaced, 179 added and 75 deleted. Each replaced or deleted file was an unedited older shell copy, so nothing Pomodoro changed was lost.
+
+**What arrived.**
+
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists and Leads as its own section, lead tags, unanswered and forwarded mail, and files on messages.
+- **Automations is one three-panel dashboard**: Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Pages, Styling and Navigations sit inside the Admin dashboard.** Navigations' link editors open as popovers, and the header's Settings cog can hold links.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with every Blocks setting on panel cards, edge to edge, Reset panels, and each widget's ⋮ holding its own options.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0166 to 0182. 0174 drops the referral and changelog tables, and 0179 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy.
+
+**Kept as Pomodoro's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes. The route list was rebuilt with the router generator, and the new `@tiptap/extension-list` package was added as the shell has it.
+
+**Styling copied.** The shell's saved styling, all 37 values, was copied onto Pomoder in the local database on 11 Nov 2026 (Tyler: "Also transfer the styling settings too").
+**Tests.** `delivery.test.ts` (expects the shell's port 3002) and `public-branding.test.ts` fail in the shell too.
+`room-clock-store.test.tsx` fails on files this merge did not touch (its snapshot has no member list), and two Pomodoro test files do not typecheck for the same reason: they are behind Pomodoro's own code.

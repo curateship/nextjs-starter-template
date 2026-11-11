@@ -9,12 +9,12 @@ import {
   threadMatchCutoff,
 } from "@/lib/crm/thread-match"
 import { now, uuid } from "@/server/auth/security"
+import { notifyMailArrived } from "@/server/crm/mail-notice"
 import { isSenderBlocked } from "@/server/crm/blocked"
 import { db, type CustomShellDb } from "@/server/db"
 import { getAppEmailApiKey } from "@/server/email/settings"
 import { getEmailProvider } from "@/server/email/provider"
 import {
-  customShellContacts,
   customShellCrmLeads,
   customShellCrmMessages,
   customShellCrmThreads,
@@ -200,17 +200,6 @@ async function leadForAddress(
     return existing.id
   }
 
-  const [contact] = await database
-    .select({ id: customShellContacts.id })
-    .from(customShellContacts)
-    .where(
-      and(
-        eq(customShellContacts.workspaceId, workspaceId),
-        sql`lower(${customShellContacts.email}) = ${email}`
-      )
-    )
-    .limit(1)
-
   const id = uuid()
   await database.insert(customShellCrmLeads).values({
     id,
@@ -219,7 +208,6 @@ async function leadForAddress(
     name,
     stage: "new",
     source: "Email",
-    contactId: contact?.id ?? null,
     createdAt: at,
     updatedAt: at,
   })
@@ -274,6 +262,10 @@ async function threadForMessage(
     // keeps it out of the default inbox. Nothing is deleted: change the status
     // filter to All and it is there.
     status: blocked ? "closed" : "open",
+    // Which address the mail came to, so the reply goes back out from it
+    // (CRM task 18). Kept even when the address is not on the list, so the
+    // mail is filed rather than dropped; the reply then uses the first one.
+    toAddress: mail.toEmail.trim().toLowerCase().slice(0, 255) || null,
     lastMessageAt: mail.occurredAt,
     lastDirection: "in",
     messageCount: 0,
@@ -387,9 +379,24 @@ export async function recordInboundEmail(
       ...(blocked
         ? { readAt: at, status: "closed" as const, snoozedUntil: null }
         : { readAt: null }),
+      // They wrote again, so the wait starts over and can be chased again.
+      unansweredNotifiedAt: null,
       updatedAt: at,
     })
     .where(eq(customShellCrmThreads.id, thread.id))
+
+  // The bell, after the mail is safely written, and never for a blocked
+  // sender. A notice that fails must not undo or refuse the mail, so its
+  // error stops here.
+  if (!blocked) {
+    await notifyMailArrived(
+      workspaceId,
+      thread.id,
+      mail.fromName?.trim() || mail.fromEmail,
+      mail.subject,
+      database
+    ).catch((error) => console.error("CRM mail notice failed", error))
+  }
 
   return { changed: 1, messageId }
 }
@@ -470,6 +477,8 @@ async function mergeByHeaders(
       ...(blocked
         ? { readAt: at, status: "closed" as const, snoozedUntil: null }
         : { readAt: null }),
+      // They wrote again, so the wait starts over and can be chased again.
+      unansweredNotifiedAt: null,
       updatedAt: at,
     })
     .where(eq(customShellCrmThreads.id, parent.threadId))

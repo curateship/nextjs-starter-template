@@ -8,7 +8,7 @@ import { answerForRequest, workspaceBaseDomain } from "@/server/workspaces/host"
 /**
  * Which site the content on this request belongs to.
  *
- * Announcements, media, feedback and the changelog all have to answer this
+ * Announcements, media and feedback all have to answer this
  * before they read or write a single row, and they must all answer it the same
  * way — the moment two of them disagree, an admin writes a banner in one place
  * and cannot find it in another.

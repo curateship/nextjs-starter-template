@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm"
 
+import { analyticsRangeStart, type AnalyticsRange } from "@/lib/analytics/range"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellRateLimits,
@@ -289,8 +290,6 @@ export async function recordVisit(
 // ---------------------------------------------------------------------------
 // The read path.
 
-export type TrafficRangeDays = 1 | 7 | 30 | 90 | 365
-
 export type TrafficDayPoint = {
   day: string
   memberViews: number
@@ -300,7 +299,7 @@ export type TrafficDayPoint = {
 export type TrafficKeyCount = { key: string; views: number }
 
 export type TrafficSummary = {
-  days: TrafficRangeDays
+  days: AnalyticsRange
   /**
    * Whose figures these are. Carried so the screen can say it out loud —
    * numbers on a deployment serving several sites are meaningless without it,
@@ -323,20 +322,49 @@ export type TrafficSummary = {
 
 const TOP_ROWS = 15
 
+type TrafficTotals = Pick<TrafficSummary, "totals" | "viewsToday">
+
+/** The range's per-day counter rows, oldest first. */
+function trafficTotalRows(
+  workspaceId: string,
+  firstDay: string,
+  database: CustomShellDb
+) {
+  const totals = customShellTrafficDailyTotals
+  return database
+    .select()
+    .from(totals)
+    .where(and(eq(totals.workspaceId, workspaceId), gte(totals.day, firstDay)))
+    .orderBy(asc(totals.day))
+}
+
+/** The sums the Traffic tab's figures show, from the range's per-day rows. */
+function sumTrafficRows(
+  rows: Awaited<ReturnType<typeof trafficTotalRows>>,
+  today: string
+): TrafficTotals {
+  return {
+    totals: {
+      views: rows.reduce((sum, row) => sum + row.views, 0),
+      memberViews: rows.reduce((sum, row) => sum + row.memberViews, 0),
+      visitorViews: rows.reduce((sum, row) => sum + row.visitorViews, 0),
+      uniqueVisitors: rows.reduce((sum, row) => sum + row.uniqueVisitors, 0),
+    },
+    viewsToday: rows.find((row) => row.day === today)?.views ?? 0,
+  }
+}
+
 export async function loadTrafficSummary(
   workspaceId: string,
-  days: TrafficRangeDays,
+  days: AnalyticsRange,
   database: CustomShellDb = db,
   at: Date = now()
 ): Promise<TrafficSummary> {
   await pruneTrafficData(database, at)
 
   const today = trafficDay(at)
-  const firstDay = trafficDay(
-    new Date(at.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
-  )
+  const firstDay = trafficDay(analyticsRangeStart(days, at))
 
-  const totals = customShellTrafficDailyTotals
   const facts = customShellTrafficDailyFacts
 
   const [site] = await database
@@ -345,11 +373,7 @@ export async function loadTrafficSummary(
     .where(eq(customShellWorkspaces.id, workspaceId))
     .limit(1)
 
-  const totalRows = await database
-    .select()
-    .from(totals)
-    .where(and(eq(totals.workspaceId, workspaceId), gte(totals.day, firstDay)))
-    .orderBy(asc(totals.day))
+  const totalRows = await trafficTotalRows(workspaceId, firstDay, database)
 
   const factRows = await database
     .select({
@@ -393,16 +417,7 @@ export async function loadTrafficSummary(
   return {
     days,
     siteName: site?.name ?? "",
-    totals: {
-      views: totalRows.reduce((sum, row) => sum + row.views, 0),
-      memberViews: totalRows.reduce((sum, row) => sum + row.memberViews, 0),
-      visitorViews: totalRows.reduce((sum, row) => sum + row.visitorViews, 0),
-      uniqueVisitors: totalRows.reduce(
-        (sum, row) => sum + row.uniqueVisitors,
-        0
-      ),
-    },
-    viewsToday: byDay.get(today)?.views ?? 0,
+    ...sumTrafficRows(totalRows, today),
     daily,
     topPages: topOf("path"),
     topReferrers: topOf("referrer"),

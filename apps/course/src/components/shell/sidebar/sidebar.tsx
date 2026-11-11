@@ -250,16 +250,16 @@ function EmptySidebar({ isAdmin }: { isAdmin: boolean }) {
         </p>
         <p className="text-xs text-sidebar-foreground/70">
           {isAdmin
-            ? "Your sidebar links are set up in Settings."
+            ? "Your sidebar links are set up in Admin, under Navigations."
             : "An admin decides which links appear here."}
         </p>
         {isAdmin ? (
           <Link
-            to="/admin/settings/$tab"
-            params={{ tab: "sidebar" }}
+            to="/admin/dashboard"
+            search={{ tab: "navigation" }}
             className="rounded-md px-2 py-1 text-xs font-medium text-sidebar-foreground underline underline-offset-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:no-underline"
           >
-            Sidebar settings
+            Navigations
           </Link>
         ) : null}
       </div>
