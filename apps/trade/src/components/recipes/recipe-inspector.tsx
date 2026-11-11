@@ -22,7 +22,6 @@ import type {
   AutomationValidationError,
 } from "@/lib/automations/graph"
 import {
-  recipeNodeDescription,
   recipeNodeFields,
   recipeNodeIcon,
   recipeNodeName,
@@ -83,12 +82,16 @@ export function RecipeInspector({
       />
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
-          <div className="grid gap-4 p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground">
-              {selectedNode
-                ? recipeNodeDescription(selectedNode)
-                : "Select a node to view and edit its settings."}
-            </p>
+          {/* As the shell's automation step panel: 16px that is also the
+              panel gutter, so a card set to edge to edge reaches the side,
+              and no line describing the step under its name (Tyler, 10 Nov
+              2026: "all these tooltips are not nesessary"). */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [--panel-gutter:1rem]">
+            {selectedNode ? null : (
+              <p className="text-xs text-muted-foreground">
+                Select a node to view and edit its settings.
+              </p>
+            )}
 
             {nodeErrors.length > 0 ? (
               <InlineError className="grid gap-1">

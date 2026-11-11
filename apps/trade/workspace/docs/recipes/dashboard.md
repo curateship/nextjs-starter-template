@@ -66,6 +66,9 @@ step button that sat beside the zoom bar is gone, as it went on Automations.
 
 The canvas keeps the existing connection, zoom, keyboard and inspector
 behaviour.
+The picked step's settings start straight under its name, with no line
+describing the step, as on Automations (Tyler, 10 Nov 2026: "all these
+tooltips are not nesessary"). The step list's cards keep their description.
 One Wallet connects to one Markets step, which connects to one DCA, Signals or
 Grid strategy. Duplicate or disconnected Trade steps keep the recipe as a
 draft and cannot run.

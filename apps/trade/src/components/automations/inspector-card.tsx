@@ -1,16 +1,6 @@
 import * as React from "react"
-import { ChevronDown } from "lucide-react"
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { focusRingInset } from "@/lib/layout/focus-ring"
-import {
-  collapseStorageKey,
-  useRememberedCollapse,
-} from "@/lib/remembered-choice"
+import { PanelBox, PanelCard } from "@/components/shared/panel-card"
 import { cn } from "@/lib/utils"
 
 /*
@@ -29,8 +19,8 @@ import { cn } from "@/lib/utils"
  *
  * A titled card folds away: hovering it reveals an arrow in the heading,
  * clicking the heading opens and shuts the fields, and the choice is remembered
- * per card in this browser. Same behaviour, and the same arrow, as the cards in
- * Styling settings (`collapsible-settings-card.tsx`).
+ * per card in this browser. It is a `PanelCard`, so it looks and behaves as
+ * every other side panel card does.
  */
 export function InspectorCard({
   title,
@@ -39,59 +29,25 @@ export function InspectorCard({
   title?: string
   children: React.ReactNode
 }) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(
-    // Plain characters only — the script that keeps a shut card shut before the
-    // first paint skips any key it does not recognise on sight.
-    collapseStorageKey.settingsCard(
-      `automation-node-${(title ?? "").toLowerCase().replace(/[^\w-]+/g, "-")}`
-    )
-  )
-
-  // The card is grey so the fields sitting on it can be white and read as the
-  // parts you type into. Setting that here, once, means a node task writing new
-  // fields gets it for free and cannot forget.
-  // One column the card's own width: a long field or note wraps inside it
-  // rather than stretching the card past a narrow right panel. Its grey, its
-  // border and the border's colour come from Settings → Styling → Panel
-  // cards, as every grey card in a right panel does (`data-slot="panel-card"`
-  // in theme.css; Tyler, 9 Nov 2026: "the right panel card should be wired
-  // to the card settings"), so it names no colour of its own.
-  const shell = cn(
-    "grid grid-cols-[minmax(0,1fr)] gap-3 rounded-lg p-3",
-    "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
-  )
+  // The side panels' own card, heading and all (Tyler, 10 Nov 2026: "The
+  // automation right panel HAS to match the ui"), so its 15px heading, 16px
+  // spacing and Settings → Styling → Panel cards look are the same as every
+  // other panel card's. The grey, the white fields on it and the fold come
+  // with it.
   if (!title)
     return (
-      <section data-slot="panel-card" className={shell}>
-        {children}
-      </section>
+      <PanelBox>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4">{children}</div>
+      </PanelBox>
     )
-
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      data-slot="panel-card"
-      className={cn("group/card", shell)}
+    // Plain characters only, as before, so a card shut before still opens shut.
+    <PanelCard
+      storageId={`automation-node-${title.toLowerCase().replace(/[^\w-]+/g, "-")}`}
+      title={title}
     >
-      <h2 className="text-sm font-semibold">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "group/trigger flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
-              focusRingInset
-            )}
-          >
-            <span>{title}</span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover/card:opacity-100 group-focus-visible/trigger:opacity-100 group-data-[state=closed]/trigger:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
-      </h2>
-      <CollapsibleContent data-collapse-key={noFlashKey} className="grid grid-cols-[minmax(0,1fr)] gap-3">
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">{children}</div>
+    </PanelCard>
   )
 }
 

@@ -50,14 +50,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Switch } from "@/components/ui/switch"
 import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  EditPopover,
+  EditPopoverBody,
+  EditPopoverFooter,
+  EditPopoverHeader,
+} from "@/components/ui/edit-popover"
 import { Input } from "@/components/ui/input"
 import {
   collapseStorageKey,
@@ -224,7 +221,9 @@ function SortableChild({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
+      // Background and line from Styling → Cards inside modals (theme.css).
+      data-slot="card-row"
+      className="grid items-center gap-2 rounded-md p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
     >
       <button
         type="button"
@@ -304,6 +303,7 @@ function SortableSidebarItem({
   onSaveConfig,
 }: SortableItemProps) {
   const labelInputRef = React.useRef<HTMLInputElement>(null)
+  const nameRef = React.useRef<HTMLButtonElement>(null)
   // Whether this row's editor is open is the parent's business, not the row's:
   // it is the only way "Add link" can open the editor of the link it has just
   // made. It also means a row remounting mid-drag cannot lose or reopen it.
@@ -336,6 +336,7 @@ function SortableSidebarItem({
         </button>
 
         <button
+          ref={nameRef}
           type="button"
           className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
           onClick={() => onOpenItemChange(item.id)}
@@ -391,112 +392,113 @@ function SortableSidebarItem({
         </Button>
       </div>
 
-      <Dialog
+      <EditPopover
         open={dialogOpen}
-        onOpenChange={(open) => onOpenItemChange(open ? item.id : null)}
+        onOpenChange={(open) => {
+          // Edits save as they are typed; closing flushes the last of them.
+          if (!open) void onSaveConfig()
+          onOpenItemChange(open ? item.id : null)
+        }}
+        anchorRef={nameRef}
+        wide
+        aria-label={isNamed ? item.label : "Sidebar link"}
+        // Opening a link that has no name yet drops the cursor straight in
+        // the Label box so you can type. A named link keeps the normal focus,
+        // since landing in a filled field invites a stray edit.
+        onOpenAutoFocus={(event) => {
+          if (isNamed) return
+          event.preventDefault()
+          labelInputRef.current?.focus()
+        }}
       >
-        <DialogContent
-          variant="admin"
-          // Opening a link that has no name yet drops the cursor straight in
-          // the Label box so you can type. A named link keeps the dialog's
-          // normal focus, since landing in a filled field invites a stray edit.
-          onOpenAutoFocus={(event) => {
-            if (isNamed) return
-            event.preventDefault()
-            labelInputRef.current?.focus()
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{isNamed ? item.label : "Sidebar link"}</DialogTitle>
-            <DialogDescription>
-              Edit this sidebar destination and its child links.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <NavLinkDestinationCard
-              linkNoun="Sidebar link"
-              icon={item.icon}
-              label={item.label}
-              href={item.href}
-              onChange={(patch) => onItemChange(sectionId, item.id, patch)}
-              labelInputRef={labelInputRef}
-              addressCheck={addressCheck}
-            />
+        <EditPopoverHeader
+          title={isNamed ? item.label : "Sidebar link"}
+          description="Edit this sidebar destination and its child links."
+        />
+        <EditPopoverBody>
+          <NavLinkDestinationCard
+            linkNoun="Sidebar link"
+            icon={item.icon}
+            label={item.label}
+            href={item.href}
+            onChange={(patch) => onItemChange(sectionId, item.id, patch)}
+            labelInputRef={labelInputRef}
+            addressCheck={addressCheck}
+          />
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Child links</CardTitle>
-                <CardDescription>
-                  These become the nested links and sticky header shortcuts.
-                </CardDescription>
-                <CardAction>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onChildAdd(sectionId, item.id)}
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Child links</CardTitle>
+              <CardDescription>
+                These become the nested links and sticky header shortcuts.
+              </CardDescription>
+              <CardAction>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onChildAdd(sectionId, item.id)}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add child
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              {children.length ? (
+                <DndContext
+                  id={`custom-shell-sidebar-children-${item.id}`}
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event) =>
+                    onChildDragEnd(sectionId, item.id, event)
+                  }
+                >
+                  <SortableContext
+                    items={children.map((child) => child.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <PlusIcon className="h-4 w-4" />
-                    Add child
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent>
-                {children.length ? (
-                  <DndContext
-                    id={`custom-shell-sidebar-children-${item.id}`}
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(event) =>
-                      onChildDragEnd(sectionId, item.id, event)
-                    }
-                  >
-                    <SortableContext
-                      items={children.map((child) => child.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="space-y-2">
-                        {children.map((child, childIndex) => (
-                          <SortableChild
-                            key={child.id}
-                            child={child}
-                            position={childIndex + 1}
-                            isNew={child.id === newChildId}
-                            onChange={(childId, patch) =>
-                              onChildChange(sectionId, item.id, childId, patch)
-                            }
-                            onDelete={(childId) =>
-                              onChildDelete(sectionId, item.id, childId)
-                            }
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                ) : (
-                  <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    No child links.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </DialogBody>
-          {/* Edits here save themselves as you type, so there is nothing for a
-              Cancel to undo — this window ends with a single Done. */}
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={async () => {
-                // Flush any pending debounce, then close.
-                await onSaveConfig()
-                onOpenItemChange(null)
-              }}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                    <div className="space-y-2">
+                      {children.map((child, childIndex) => (
+                        <SortableChild
+                          key={child.id}
+                          child={child}
+                          position={childIndex + 1}
+                          isNew={child.id === newChildId}
+                          onChange={(childId, patch) =>
+                            onChildChange(sectionId, item.id, childId, patch)
+                          }
+                          onDelete={(childId) =>
+                            onChildDelete(sectionId, item.id, childId)
+                          }
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  No child links.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </EditPopoverBody>
+        {/* Edits here save themselves as you type, so there is nothing for a
+            Cancel to undo. This popover ends with a single Done. */}
+        <EditPopoverFooter>
+          <Button
+            type="button"
+            onClick={async () => {
+              // Flush any pending debounce, then close.
+              await onSaveConfig()
+              onOpenItemChange(null)
+            }}
+          >
+            Done
+          </Button>
+        </EditPopoverFooter>
+      </EditPopover>
     </div>
   )
 }
@@ -546,8 +548,8 @@ function SortableSectionCard({
   // 2026, the Navigations redesign). Its lines are a light grey of their own,
   // as the drawing has them, not the Divider lines setting.
   return (
-    <div ref={setNodeRef} style={style} className="overflow-hidden rounded-xl border bg-background border-zinc-200 dark:border-zinc-700">
-      <div className="flex items-center gap-2 border-b bg-muted/40 py-1.5 pr-2 pl-1.5 border-zinc-200 dark:border-zinc-700">
+    <div ref={setNodeRef} style={style} className="overflow-hidden rounded-xl border bg-background border-zinc-200/40 dark:border-zinc-700/40">
+      <div className="flex items-center gap-2 border-b bg-muted/40 py-1.5 pr-2 pl-1.5 border-zinc-200/40 dark:border-zinc-700/40">
         <button
           type="button"
           {...attributes}
@@ -600,7 +602,7 @@ function SortableSectionCard({
         <div
           ref={setDropNodeRef}
           className={cn(
-            "min-h-11 divide-y divide-zinc-200 transition-colors dark:divide-zinc-700",
+            "min-h-11 divide-y divide-zinc-200/40 transition-colors dark:divide-zinc-700/40",
             isOver && "bg-primary/5"
           )}
         >

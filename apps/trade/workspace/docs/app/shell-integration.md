@@ -311,3 +311,17 @@ Every shell change up to 5 Nov is in Trade: 84 files replaced and 25 added, with
 **No migration was new.** The shell has added none since 0097, and Trade already had every one.
 
 **Kept as Trade's own.** `src/app/` stays Trade's own, and so does `src/app/open-endpoints.ts`, which lists Trade's own open endpoints. `.prettierrc`, `.prettierignore`, `scripts/build-worker.mjs` and `scripts/worker-drop-css.mjs` stay Trade's own, because the shell has not changed them since Trade's copy. `vite.config.ts` was the one file changed on both sides. It was merged three ways: Trade keeps its build stamp, and gains the shell's `optimizeDeps` line that keeps `playwright-core` out of the dev server's start-up scan. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Trade keeps its own `scripts/setup-database.mjs`, which never loads them.
+
+## Shell merge, 10 November 2026
+
+Every shell change since the 9 Nov merge (shell `6c188c318`) is in Trade, up to the shell at `4bf2671f8`: 21 files replaced and 3 added, with nothing deleted. Each replaced file matched an older shell copy, so nothing Trade changed was lost. 13 more were already the shell's, copied in by Trade's own work. `panel-card.tsx` was Trade's copy of the shell's collapse-all change, which the shell now holds too.
+
+**What arrived.**
+
+- **Settings → Styling → Panel cards has every Blocks setting**: Rounded corners, Grey shade, Edge around the tile, Body shade, Border, Border shade, Shadow and "Panel cards reach the panel's edges". With nothing changed the cards look as before. A card's heading no longer grows when pointed at. See the shell's `workspace/docs/settings/block-styling.md`.
+- **The automation step panel's cards are the side panels' `PanelCard`**, with its 15px heading and 16px spacing, and the line describing the step under its name is gone.
+- **The header's Settings cog can hold links**, set in Navigations, whose link editors now open as popovers (`edit-popover.tsx`). Settings → Styling → Modal is now "Modal and popover".
+
+**Trade's own change to follow the shell.** The recipe step panel (`recipes/recipe-inspector.tsx`) is Trade's copy of the automation step panel, so it took the same two changes: its 16px is the panel gutter, so edge-to-edge cards reach its sides, and the step's description line under its name is gone.
+
+**No migration was new.** The panel card settings are stored in the workspace's styling settings.

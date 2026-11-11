@@ -153,7 +153,7 @@ function NavigationEditors({ audience }: { audience: NavigationAudience }) {
           reset={{
             label: "Reset member menu",
             description:
-              "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
+              "Every built-in button goes back to its starting place and is shown for members, and every link you added for them, in the row or under Settings, is deleted. Your own menu is not touched. This cannot be undone.",
             onReset: () =>
               patch({ memberTopRightNavigation: createDefaultTopRightNavigation(actions.map((action) => action.id)) }),
           }}
@@ -214,7 +214,7 @@ function NavigationEditors({ audience }: { audience: NavigationAudience }) {
         reset={{
           label: "Reset top right menu",
           description:
-            "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
+            "Every built-in button goes back to its starting place and is shown, and every link you added here, in the row or under Settings, is deleted. The members' menu is not touched. This cannot be undone.",
           onReset: () => patch({ topRightNavigation: createDefaultTopRightNavigation(actions.map((action) => action.id)) }),
         }}
       />

@@ -11,12 +11,15 @@ import { cn } from "@/lib/utils"
 
 /**
  * The grey box itself, shared by the folding card and the plain one. Its
- * background and line come from Settings → Styling → Panel cards, through the
- * `[data-slot="panel-card"]` rule in theme.css; unset, the theme's grey at
- * 40% and a 1px line.
+ * look comes from Settings → Styling → Panel cards, every setting the Blocks
+ * have, through the `[data-slot="panel-card"]` and `[data-panel-card-tile]`
+ * rules in theme.css; unset, the theme's grey at 40%, a 1px line and 10px
+ * corners, with the rows straight on the grey. No `rounded-*` or padding
+ * here, or it would beat the setting: the heading brings its own 16px and
+ * the tile under it the rest.
  */
 const panelBoxClassName = cn(
-  "min-w-0 rounded-lg p-4",
+  "min-w-0",
   // Fields sit on the page background, so a box to type in never looks
   // like part of the grey card.
   "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
@@ -106,6 +109,9 @@ export function PanelCard({
       className={cn("group/card", panelBoxClassName, className)}
     >
       {/* The buttons' height whether they show or not, so pointing at the card never makes it taller. */}
+      {/* The 16px sits on this wrapper, not on the row: a padded row counts
+          the padding in its 28px floor and grows when the buttons show. */}
+      <div className="p-4">
       <div className="flex min-h-7 items-center gap-2">
         <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
           <CollapsibleTrigger asChild>
@@ -166,9 +172,12 @@ export function PanelCard({
           </button>
         </CollapsibleTrigger>
       </div>
+      </div>
       <CollapsibleContent data-collapse-key={noFlashKey}>
         <FooterOpen.Provider value={settings ? footerOpen : null}>
-          <div className="mt-4 grid gap-4">{children}</div>
+          <div data-panel-card-tile="" className="grid gap-4">
+            {children}
+          </div>
         </FooterOpen.Provider>
       </CollapsibleContent>
     </Collapsible>
@@ -182,7 +191,7 @@ export function PanelCard({
 export function PanelBox({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
     <div data-slot="panel-card" className={cn(panelBoxClassName, className)}>
-      {children}
+      <div data-panel-card-tile="whole">{children}</div>
     </div>
   )
 }
