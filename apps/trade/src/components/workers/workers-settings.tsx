@@ -1,6 +1,5 @@
 import * as React from "react"
 
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -179,9 +178,6 @@ export default function WorkersSettings() {
     try {
       setData(await restartWorker(restartAsking.kind))
       setRestartAsking(null)
-      toast.success(
-        "Restart requested. The engine finishes its pass, stops, and is started again in a few seconds."
-      )
     } catch (thrown) {
       showErrorToast(getWorkersErrorMessage(thrown))
     } finally {

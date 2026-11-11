@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { useTradePageTitle } from "@/app/page-title"
 import { Button } from "@/components/ui/button"
@@ -135,19 +134,10 @@ function ClearDrawingsCard() {
     setBusy(true)
     try {
       const answer = await clearChosenDrawings(ticked)
-      const gone = chosen
-        .filter((kind) => answer[kind] > 0)
-        .map((kind) => amount(kind, answer[kind]))
-      toast.success(
-        [
-          gone.length ? `Deleted ${joined(gone)}.` : "Nothing needed clearing.",
-          answer.kept > 0
-            ? `Kept ${amount("trendlines", answer.kept)} that running grids use as their stop.`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ")
-      )
+      // Only what was kept back is said; what went is gone from the chart.
+      if (answer.kept > 0) {
+        showErrorToast(`Kept ${amount("trendlines", answer.kept)} that running grids use as their stop.`)
+      }
       if (mounted.current) setConfirming(false)
       load()
     } catch (error) {

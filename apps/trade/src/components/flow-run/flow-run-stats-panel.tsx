@@ -8,7 +8,6 @@ import {
   usd,
 } from "@/components/backtest/backtest-kpi"
 import { formatSignedUsd } from "@/lib/trade/format"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 import { formatDate, formatDuration } from "@/lib/format/format-time"
@@ -65,10 +64,10 @@ export function FlowRunStatsPanel({
   const problems = report.coins.filter((coin) => coin.problem).length
   const liquidated = stats?.liquidatedCount ?? 0
 
+  // The body of the right panel's Result card: the card is its frame and the
+  // panel scrolls, so nothing here scrolls or pads itself.
   return (
-    <>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 px-5 py-4">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
           {/* Made or lost, and what of. The banked figure leads because it is
               the money that is actually in the wallet; what open positions are
               worth is on the tile below, where it can be read as the guess it
@@ -99,7 +98,7 @@ export function FlowRunStatsPanel({
             </p>
           </div>
 
-          <div className="-mx-5 grid grid-cols-2 border-t">
+          <div className="-mx-4 grid grid-cols-2 border-t [&>div]:px-4">
             <BacktestKpi
               label="Running for"
               value={
@@ -112,7 +111,7 @@ export function FlowRunStatsPanel({
                   ? head.status === "stopping"
                     ? `${head.working} ${head.working === 1 ? "ladder" : "ladders"} left to call off`
                     : head.paused
-                      ? "paused — looking at nothing"
+                      ? "paused, looking at nothing"
                       : `since ${formatDate(new Date(head.startedAt))}`
                   : (head.stoppedReason ??
                     `stopped ${formatDate(new Date(head.stoppedAt ?? head.startedAt))}`)
@@ -315,8 +314,6 @@ export function FlowRunStatsPanel({
             )}
           </dl>
         </div>
-      </ScrollArea>
-    </>
   )
 }
 

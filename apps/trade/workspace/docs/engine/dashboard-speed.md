@@ -136,23 +136,22 @@ twice: once for the server render, once a beat later. The chart library and
 the candle request both ran twice.
 
 Trade's own `useRememberedPanelLayoutInPlace` (`src/lib/trade/panel-layout.ts`)
-now receives the account's positions from the preference-row query that already
-opens the page. It hands them to the group already on screen through its
+hands the remembered positions to the group already on screen through its
 `setLayout` handle when that group reports its starting layout. Nothing is
-rebuilt. A first old-browser import, a named layout switch and the temporary
-full-screen shape use that same handle. None changes a React key. The hook does
-this every time a group appears, not once per page, so narrowing the window and
-widening it again brings the saved dividers back and never writes the defaults
-over them. Backtest and live-run screens use the same in-place path now.
+rebuilt and no React key changes. The hook does this every time a group
+appears, not once per page, so narrowing the window and widening it again
+brings the saved dividers back and never writes the defaults over them.
 
-The account column is `trade_prefs.panel_layouts`, added by migration `0152`.
-Adding the column to the existing preference read adds no browser server call
-to the dashboard opening path.
-
-A divider writes once when the pointer is released, not on every pixel of the
-drag. Layout writes from one open page wait their turn in interaction order,
-and the database merges different panel groups inside the JSON column. A slow
-earlier request therefore cannot replace the last arrangement somebody chose.
+The Trade dashboard's widths are kept in this browser since 10 Nov 2026
+(`../screens/dashboard-blocks.md`). The account column,
+`trade_prefs.panel_layouts` (migration `0152`), keeps the folder row open on
+each exchange, the header's profit eye, the chart's drawing rail and the
+columns hidden in the Bots dashboard's trades popover. It also
+kept the backtest's and bot's chart-over-trades split until those pages lost
+their bottom trades panel on 10 Nov 2026; a stored row may still hold that old
+`current` and `legacyImported`, which nothing reads, and the column's database
+default still carries both. Writes from one open page wait their turn in
+interaction order, so a slow earlier request cannot replace a newer choice.
 
 ## The poll, every four seconds
 

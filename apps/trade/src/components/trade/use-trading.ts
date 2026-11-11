@@ -76,7 +76,6 @@ import {
 import type { DcaLadderSettings, DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import type { OrderStyle } from "@/lib/trade/order-style"
-import { formatPrice, formatSize, formatUsd } from "@/lib/trade/format"
 import {
   gridHeldSz,
   type GridRangeMove,
@@ -1073,13 +1072,11 @@ export function useTrading(
   const runWith = React.useCallback(
     async (
       describeError: (error: unknown) => string,
-      action: () => Promise<unknown>,
-      done?: string
+      action: () => Promise<unknown>
     ): Promise<boolean> => {
       setPending((count) => count + 1)
       try {
         await action()
-        if (done) toast.success(done)
         return true
       } catch (error) {
         showErrorToast(describeError(error))
@@ -1093,8 +1090,8 @@ export function useTrading(
   )
 
   const run = React.useCallback(
-    (action: () => Promise<unknown>, done?: string): Promise<boolean> =>
-      runWith(getPaperErrorMessage, action, done),
+    (action: () => Promise<unknown>): Promise<boolean> =>
+      runWith(getPaperErrorMessage, action),
     [runWith]
   )
 
@@ -1121,8 +1118,7 @@ export function useTrading(
     async (
       key: string | readonly string[],
       action: () => Promise<unknown>,
-      describeError: (error: unknown) => string,
-      done?: string
+      describeError: (error: unknown) => string
     ): Promise<boolean> => {
       const keys = typeof key === "string" ? [key] : key
       const pressedAt = Date.now()
@@ -1147,7 +1143,6 @@ export function useTrading(
         void refresh()
         return false
       }
-      if (done) toast.success(done)
       // Not released here. The row is held hidden until a read comes back
       // WITHOUT it — see the reconciling effects below — because a read
       // already on its way knows nothing about this and would flash it back.
@@ -2179,13 +2174,11 @@ export function useTrading(
       if (position.live !== undefined) {
         return await runWith(
           getLiveErrorMessage,
-          () => setLiveBrackets({ walletId, marketKey, ...brackets }),
-          "Saved on the exchange."
+          () => setLiveBrackets({ walletId, marketKey, ...brackets })
         )
       }
       return await run(
-        () => setPaperBrackets({ walletId, marketKey, ...brackets }),
-        "Saved."
+        () => setPaperBrackets({ walletId, marketKey, ...brackets })
       )
     },
     [run, runWith]
@@ -2245,9 +2238,6 @@ export function useTrading(
       // that did not happen.
       const { walletId, marketKey } = position
       const live = position.live !== undefined
-      // The market key names its network, and the words follow it — a testnet
-      // close must never announce itself as real money.
-      const testnet = parseMarketKey(marketKey)?.network === "testnet"
       // The grids this position was carrying go with it — see
       // `gridsEndedByClosing`. A refusal puts them back along with the row.
       await callOff(
@@ -2259,19 +2249,15 @@ export function useTrading(
           live
             ? closeLivePosition(walletId, marketKey)
             : closePaperPosition(walletId, marketKey),
-        live ? getLiveErrorMessage : getPaperErrorMessage,
-        live
-          ? `${testnet ? "Testnet" : "Real"} position closed in ${nameOf(walletId)}.`
-          : `Position closed in ${nameOf(walletId)}.`
+        live ? getLiveErrorMessage : getPaperErrorMessage
       )
     },
-    [callOff, nameOf, gridsEndedByClosing]
+    [callOff, gridsEndedByClosing]
   )
 
   const closePart: Trading["closePart"] = React.useCallback(
     async (position, ask) => {
       const { walletId, marketKey } = position
-      const symbol = marketSymbol(marketKey)
       // Not `callOff`: the row does NOT go away. Part of the position stays,
       // and the piece being sold has not been sold yet — the engine has to
       // rest an order and wait for it to fill. Hiding the row here would say
@@ -2307,20 +2293,8 @@ export function useTrading(
         answer = outcome
       })
       if (!went || answer === null) return
-      const where = nameOf(walletId)
-      toast.success(
-        answer.kind === "whole"
-          ? `All of ${symbol} sold in ${where}. That amount covered the position.`
-          : answer.kind === "sold"
-            ? answer.px === null
-              ? `Market sell for ${formatSize(answer.sz)} ${symbol} sent in ${where}. The exchange has not reported the fill yet.`
-              : `Sold ${formatSize(answer.sz)} ${symbol} in ${where} at ${formatPrice(answer.px)}.`
-            : ask.size.unit === "all"
-              ? `Selling all of ${symbol} in ${where}. The order follows the price until it fills.`
-              : `Selling part of ${symbol} in ${where}. The order follows the price until it fills.`
-      )
     },
-    [runWith, nameOf]
+    [runWith]
   )
 
   const flip: Trading["flip"] = React.useCallback(
@@ -2345,16 +2319,14 @@ export function useTrading(
             )
             return
           }
-          toast.success(`Position flipped in ${nameOf(walletId)}.`)
         })
         return
       }
       await run(
-        () => flipPaperPosition(walletId, marketKey),
-        `Position turned around in ${nameOf(walletId)}.`
+        () => flipPaperPosition(walletId, marketKey)
       )
     },
-    [run, runWith, nameOf, findPosition]
+    [run, runWith, findPosition]
   )
 
   const placeLadder: Trading["placeLadder"] = React.useCallback(
@@ -2362,7 +2334,7 @@ export function useTrading(
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
-        const { placed, passed, marketFirst, ladder } = await placeDcaLadder({
+        const { passed, marketFirst, ladder } = await placeDcaLadder({
           walletId,
           ...input,
           overrode: wallet.kind === "live" ? overrode : undefined,
@@ -2371,26 +2343,15 @@ export function useTrading(
         holdSmart(ladder)
         // Counted honestly: rungs above the price never get a chance to wait,
         // and a ladder quietly placing four buys instead of seven is worse
-        // than one that says so.
-        const deeperWaiting = input.params.marketBuyFirst
-          ? Math.max(0, placed - (marketFirst === "bought" ? 0 : 1))
-          : placed
-        const result = [
-          marketFirst === "bought" ? "rung 1 bought at market" : null,
-          marketFirst === "queued" ? "rung 1 queued to buy at market" : null,
-          marketFirst === "waiting"
-            ? "rung 1 could not buy yet and remains waiting"
-            : null,
-          deeperWaiting > 0
-            ? `${deeperWaiting} ${input.params.marketBuyFirst ? "deeper " : ""}${deeperWaiting === 1 ? "buy" : "buys"} waiting`
-            : null,
+        // than one that says so. A ladder placed in full says nothing (Tyler,
+        // 10 Nov 2026: "Remove all success toast").
+        const short = [
+          marketFirst === "waiting" ? "rung 1 could not buy yet and is waiting" : null,
           passed > 0
-            ? `${passed} skipped because price is already below ${passed === 1 ? "it" : "them"}`
+            ? `${passed} ${passed === 1 ? "rung was" : "rungs were"} skipped because the price is already below ${passed === 1 ? "it" : "them"}`
             : null,
         ].filter((part): part is string => part !== null)
-        toast.success(
-          `Ladder placed in ${nameOf(walletId)}: ${result.join(", ")}.`
-        )
+        if (short.length > 0) showErrorToast(`Ladder placed, but ${short.join(", and ")}.`)
         return true
       } catch (error) {
         showErrorToast(getTradingSmartOrderError(error))
@@ -2400,7 +2361,7 @@ export function useTrading(
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh, holdSmart]
+    [walletId, wallet, refresh, holdSmart]
   )
 
   const cancelRung: Trading["cancelRung"] = React.useCallback(
@@ -2408,11 +2369,10 @@ export function useTrading(
       await callOff(
         `${ladderId}#${rungIndex}`,
         () => cancelLadderRung({ walletId, ladderId, rungIndex }),
-        getTradingSmartOrderError,
-        `Rung ${rungIndex + 1} called off in ${nameOf(walletId)}.`
+        getTradingSmartOrderError
       )
     },
-    [callOff, nameOf]
+    [callOff]
   )
 
   const cancelLadder: Trading["cancelLadder"] = React.useCallback(
@@ -2420,17 +2380,12 @@ export function useTrading(
       await callOff(
         ladderId,
         async () => {
-          const result = await cancelLadderRest({ walletId, ladderId })
-          if (result.hasPosition) {
-            toast.success(
-              `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
-            )
-          }
+          await cancelLadderRest({ walletId, ladderId })
         },
         getTradingSmartOrderError
       )
     },
-    [callOff, nameOf]
+    [callOff]
   )
 
   const reshapeLadder: Trading["reshapeLadder"] = React.useCallback(
@@ -2459,8 +2414,7 @@ export function useTrading(
           resumeSmartOrderApi({
             walletId: order.walletId,
             ladderId: order.id,
-          }),
-        `${marketSymbol(order.marketKey)} smart order resumed.`
+          })
       ),
     [runWith]
   )
@@ -2469,8 +2423,7 @@ export function useTrading(
     async (walletId, ladderId, exits) => {
       return await runWith(
         getTradingSmartOrderError,
-        () => updateLadderExits({ walletId, ladderId, ...exits }),
-        "Exits changed."
+        () => updateLadderExits({ walletId, ladderId, ...exits })
       )
     },
     [runWith]
@@ -2481,7 +2434,7 @@ export function useTrading(
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
-        const { levels, totalCost, grid } = await placeGridOrder({
+        const { grid } = await placeGridOrder({
           walletId,
           ...input,
           params: { ...input.params, sizing: "even" },
@@ -2489,9 +2442,6 @@ export function useTrading(
         })
         // On screen now, not after the next read.
         holdSmart(grid)
-        toast.success(
-          `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} of coin at ${grid.plan.leverage}×.`
-        )
         return true
       } catch (error) {
         const cancellingGrid =
@@ -2515,7 +2465,7 @@ export function useTrading(
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh, holdSmart, withJustPlaced, cancelling]
+    [walletId, wallet, refresh, holdSmart, withJustPlaced, cancelling]
   )
 
   const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
@@ -2523,11 +2473,10 @@ export function useTrading(
       await callOff(
         `${gridId}#${levelIndex}`,
         () => cancelGridLevelApi({ walletId, gridId, levelIndex }),
-        getTradingSmartOrderError,
-        `Level ${levelIndex + 1} called off in ${nameOf(walletId)}.`
+        getTradingSmartOrderError
       )
     },
-    [callOff, nameOf]
+    [callOff]
   )
 
   const cancelGrid: Trading["cancelGrid"] = React.useCallback(
@@ -2583,8 +2532,7 @@ export function useTrading(
           const { grid } = await reshapeGridApi({ walletId, gridId, ...shape })
           // The redrawn levels are on the chart before the re-read lands.
           holdSmart(grid)
-        },
-        "Grid changed."
+        }
       )
     },
     [runWith, holdSmart]
@@ -2601,8 +2549,7 @@ export function useTrading(
             abovePct,
           })
           holdSmart(grid)
-        },
-        "End Grid changed."
+        }
       )
     },
     [runWith, holdSmart]
@@ -2625,15 +2572,6 @@ export function useTrading(
 
   const setGridStop: Trading["setGridStop"] = React.useCallback(
     async (walletId, gridId, stopLoss, reverseWhenStopped, lineStop) => {
-      // Taking the stop off and moving it are the same call, and they used to
-      // say the same thing. "Stop changed" after the × on the stop line read
-      // as though a stop was still there (Tyler, 22 Sep 2026).
-      //
-      // Both stops have to be gone. `lineStop` is left out entirely by a
-      // caller that did not touch it, which is why undefined counts as absent
-      // here; only the chart's × sends a null stop, and it sends both.
-      const removing =
-        stopLoss === null && (lineStop === null || lineStop === undefined)
       return await runWith(
         getTradingSmartOrderError,
         () =>
@@ -2643,8 +2581,7 @@ export function useTrading(
             stopLoss,
             reverseWhenStopped,
             lineStop,
-          }),
-        removing ? "Stop removed." : "Stop changed."
+          })
       )
     },
     [runWith]
@@ -2654,11 +2591,10 @@ export function useTrading(
     async (walletId, gridId) => {
       return await runWith(
         getTradingSmartOrderError,
-        () => reverseGridOrder({ walletId, gridId }),
-        `Grid reversed in ${nameOf(walletId)} — it now trades the other way over the same range.`
+        () => reverseGridOrder({ walletId, gridId })
       )
     },
-    [runWith, nameOf]
+    [runWith]
   )
 
   const setGridFollow: Trading["setGridFollow"] = React.useCallback(
@@ -2672,18 +2608,7 @@ export function useTrading(
             follow: following.up,
             followDown: following.down,
             pairOut: following.pairOut,
-          }),
-        // Both halves, every time. The window saves following and Pair Out in
-        // one press, so a message naming only one of them leaves you to guess
-        // whether the switch you just flipped landed.
-        [
-          following.up || following.down
-            ? "Grid following changed."
-            : "Grid stays where it is.",
-          following.pairOut
-            ? "It sells an old buy with every sale."
-            : "It sells only the level that closed.",
-        ].join(" ")
+          })
       )
     },
     [runWith]
@@ -2777,11 +2702,6 @@ export function useTrading(
       }
       if (firstRefusal) showErrorToast(firstRefusal)
       if (removed.size > 0) {
-        toast.success(
-          removed.size === 1
-            ? "Removed from the Journal."
-            : `Removed ${removed.size} trades from the Journal.`
-        )
         setOlderTrades((current) =>
           current.filter((one) => !removed.has(one.id))
         )
@@ -2873,15 +2793,6 @@ export function useTrading(
             : `${live.value.refused.length} real positions were not closed. The first said: ${why}`
         )
       }
-
-      // Counted honestly: a market the exchange would not price is left open,
-      // and saying "all closed" when one is still there would be a lie.
-      const done =
-        (sweep.status === "fulfilled" ? sweep.value.closed : 0) +
-        (live.status === "fulfilled" ? live.value.closed : 0)
-      toast.success(
-        done === 1 ? "1 position closed." : `${done} positions closed.`
-      )
     } finally {
       setPending((count) => count - 1)
       void refresh()
@@ -2919,7 +2830,6 @@ export function useTrading(
           walletIds.map((walletId) => cancelAllSmartOrdersApi({ walletId }))
         )
 
-        let stood = 0
         // **Carried by id, never by market.** Two wallets can hold a ladder on
         // the same coin, and matching a refusal back to a row by its coin alone
         // would put the OTHER wallet's row back on screen after that one really
@@ -2949,7 +2859,6 @@ export function useTrading(
             }
             return
           }
-          stood += answer.value.stood.length
           for (const one of answer.value.refused) {
             refused.push({
               id: one.id,
@@ -2978,13 +2887,6 @@ export function useTrading(
               : `${refused.length} are still running — ${refused
                   .map(named)
                   .join(", ")}. The first said: ${refused[0].reason}`
-          )
-        }
-        if (stood > 0) {
-          toast.success(
-            stood === 1
-              ? "1 smart order stopped — what it bought stays."
-              : `${stood} smart orders stopped — what they bought stays.`
           )
         }
       } finally {
@@ -3066,13 +2968,6 @@ export function useTrading(
                   .join(", ")}. The first said: ${refused[0].reason}`
           )
         }
-        if (gone.length > 0) {
-          toast.success(
-            gone.length === 1
-              ? "1 watched price called off."
-              : `${gone.length} watched prices called off.`
-          )
-        }
       } finally {
         setPending((count) => count - 1)
         void refresh()
@@ -3096,11 +2991,10 @@ export function useTrading(
             marketKey,
             leverage,
             positionSide: position.szi > 0 ? "long" : "short",
-          }),
-        `${marketSymbol(marketKey)} asked to change to ${leverage}× in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+          })
       )
     },
-    [runWith, nameOf]
+    [runWith]
   )
 
   const adjustPositionMargin: Trading["adjustPositionMargin"] =
@@ -3121,13 +3015,10 @@ export function useTrading(
               marketKey,
               dollars,
               positionSide: position.szi > 0 ? "long" : "short",
-            }),
-          dollars > 0
-            ? `${formatUsd(dollars)} asked to go behind ${marketSymbol(marketKey)} in ${nameOf(walletId)}. The row shows what the exchange settled on.`
-            : `${formatUsd(-dollars)} asked back out of ${marketSymbol(marketKey)} in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+            })
         )
       },
-      [runWith, nameOf]
+      [runWith]
     )
 
   const flattenWallet: Trading["flattenWallet"] = React.useCallback(
@@ -3156,19 +3047,10 @@ export function useTrading(
             `${answer.selling.length} of ${answer.selling.length + answer.sellRefused.length} started selling in ${where}. ${marketSymbol(first.marketKey)} did not: ${first.reason}`
           )
         }
-        if (answer.selling.length > 0) {
-          toast.success(
-            `${where} is emptying — ${
-              answer.selling.length === 1
-                ? "1 position is"
-                : `${answer.selling.length} positions are`
-            } being sold with limits that follow the price.` +
-              (answer.stood.length > 0
-                ? ` ${answer.stood.length} smart ${answer.stood.length === 1 ? "order was" : "orders were"} called off first.`
-                : "")
-          )
-        } else if (answer.sellRefused.length === 0) {
-          toast.success(
+        // Nothing to sell is said; selling started is not (Tyler, 10 Nov 2026:
+        // "Remove all success toast").
+        if (answer.selling.length === 0 && answer.sellRefused.length === 0) {
+          showErrorToast(
             answer.stood.length > 0
               ? `${where} held nothing to sell. ${answer.stood.length} smart ${answer.stood.length === 1 ? "order was" : "orders were"} called off.`
               : `${where} was already empty.`

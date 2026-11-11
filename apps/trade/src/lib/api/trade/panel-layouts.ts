@@ -3,26 +3,20 @@ import { z } from "zod"
 
 import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
 import { ALL_ROW } from "@/lib/trade/market-folders"
-import { TRADE_PANEL_LAYOUT_KEYS } from "@/lib/trade/panel-keys"
 import type {
   ChartToolbarPosition,
   MarketPanelScope,
-  TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
+import type { TradesPopoverKind } from "@/lib/trade/trades-popover-columns"
 import { userPost } from "@/server/guards"
 import {
-  importLegacyTradePanelLayouts,
+  saveHiddenTradeColumns as saveHiddenTradeColumnsForUser,
   saveChartToolbarPosition as saveChartToolbarPositionForUser,
   saveOpenMarketRow as saveOpenMarketRowForUser,
-  saveTradePanelLayout,
 } from "@/server/trade/prefs"
 
 import { createErrorMessage } from "../error-message"
 
-const layoutKeySchema = z.enum(TRADE_PANEL_LAYOUT_KEYS)
-const layoutSchema = z
-  .record(z.string().min(1).max(40), z.number().finite().min(0).max(100))
-  .refine((layout) => Object.keys(layout).length <= 3)
 const openMarketRowIdSchema = z
   .union([z.literal(ALL_ROW), z.string().uuid()])
   .nullable()
@@ -36,23 +30,6 @@ const chartToolbarPositionSchema = z
     y: z.number().finite().min(0).max(1),
   })
   .nullable()
-
-const savePanelLayoutFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ key: layoutKeySchema, layout: layoutSchema }))
-  .handler(async ({ data, context }): Promise<{ saved: true }> => {
-    await saveTradePanelLayout(context.user.id, data.key, data.layout)
-    return { saved: true }
-  })
-
-const importLegacyPanelLayoutsFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    z.object({ current: z.partialRecord(layoutKeySchema, layoutSchema) })
-  )
-  .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
-    return importLegacyTradePanelLayouts(context.user.id, data.current)
-  })
 
 const saveOpenMarketRowFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -72,24 +49,28 @@ const saveChartToolbarPositionFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
-export function savePanelLayout(
-  key: (typeof TRADE_PANEL_LAYOUT_KEYS)[number],
-  layout: Record<string, number>
-) {
-  return savePanelLayoutFn({ data: { key, layout } })
-}
-
-export function importLegacyPanelLayouts(
-  current: TradePanelLayouts["current"]
-) {
-  return importLegacyPanelLayoutsFn({ data: { current } })
-}
-
 export function saveOpenMarketRow(
   scope: MarketPanelScope,
   openMarketRowId: string | null
 ) {
   return saveOpenMarketRowFn({ data: { ...scope, openMarketRowId } })
+}
+
+const saveHiddenTradeColumnsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      kind: z.enum(["backtest", "bot"]),
+      columns: z.array(z.string().min(1).max(20)).max(10),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveHiddenTradeColumnsForUser(context.user.id, data.kind, data.columns)
+    return { saved: true }
+  })
+
+export function saveHiddenTradeColumns(kind: TradesPopoverKind, columns: readonly string[]) {
+  return saveHiddenTradeColumnsFn({ data: { kind, columns: [...columns] } })
 }
 
 export function saveChartToolbarPosition(

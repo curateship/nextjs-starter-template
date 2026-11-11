@@ -14,6 +14,8 @@ import { readOneOf, readSearchText } from "@/lib/nav/list-search"
  * - `?coin=` is the coin on an opened run's chart, a full market key.
  * - `?node=` is the step picked on an opened recipe's canvas.
  * - `?q=` is the table's search, and `?archived=1` shows archived backtests.
+ * - `?recipe=` shows only the backtests one recipe ran, by the recipe's id
+ *   (the Backtests table's Filter → Recipe).
  *
  * Every other key belongs to one section, so picking a row of the
  * Dashboards block starts the address again with that row alone.
@@ -37,6 +39,7 @@ export type BotsSearch = {
   node?: string
   q?: string
   archived?: true
+  recipe?: string
 }
 
 /** A market key or a step id: short text, or nothing. */
@@ -64,6 +67,7 @@ export function readBotsSearch(search: Record<string, unknown>): BotsSearch {
     node: full && view === "recipes" ? readShortText(search.node, 60) : undefined,
     q: readSearchText(search.q),
     archived: view === "backtests" ? readFlag(search.archived) : undefined,
+    recipe: view === "backtests" ? readShortText(search.recipe, 80) : undefined,
   }
 }
 

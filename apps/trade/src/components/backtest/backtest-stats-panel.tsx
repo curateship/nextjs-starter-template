@@ -22,7 +22,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Meter } from "@/components/ui/meter"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { emaGridCleanHours } from "@/lib/recipes/trade-grid"
 import type {
@@ -130,14 +130,20 @@ export function BacktestStatsPanel({
   const liquidatedCount = stats?.liquidatedCount ?? 0
   const showLiquidated = liquidatedCount > 0
 
+  // The body of the right panel's Result card: the card is its frame and the
+  // panel scrolls, so nothing here scrolls or pads itself.
+  // One column the card's own width: an "auto" one grew to the widest line and
+  // ran past the card's edge in a narrow panel.
   return (
-    <>
-      {/* How long it took, and what it skipped, over the figures. The right
-          panel's tabs are its header; Stop is in its footer. */}
-      <div className="grid gap-0.5 border-b px-5 py-3 text-xs text-muted-foreground">
-        <span className="truncate tabular-nums" title={duration}>
-          {duration}
-        </span>
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      {/* How long it took, and what it skipped, over the figures. */}
+      <div className="grid gap-0.5 text-xs text-muted-foreground">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="truncate tabular-nums">{duration}</span>
+          </TooltipTrigger>
+          <TooltipContent>{duration}</TooltipContent>
+        </Tooltip>
         {skippedCount + failedCount > 0 ? (
           <button
             type="button"
@@ -154,7 +160,7 @@ export function BacktestStatsPanel({
         ) : null}
       </div>
       {running ? (
-        <div className="grid gap-2 border-b px-5 py-3">
+        <div className="grid gap-2">
           <span className="text-xs tabular-nums">{progressText}</span>
           <Meter
             value={Math.round(progress * 100)}
@@ -163,13 +169,12 @@ export function BacktestStatsPanel({
           />
         </div>
       ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 px-5 py-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
           {!summary ? (
             <p className="p-2 text-xs text-muted-foreground">
               {running
-                ? "Still loading its candles — nothing is worked out yet."
-                : "This run ended without testing a market — it was stopped, or every market was skipped."}
+                ? "Still loading its candles. Nothing is worked out yet."
+                : "This run ended without testing a market. It was stopped, or every market was skipped."}
             </p>
           ) : (
             <>
@@ -187,7 +192,9 @@ export function BacktestStatsPanel({
                     pot they came out of. Both at the same size and weight —
                     in a pill at 11px the comparable figure was the smallest
                     thing on the panel. */}
-                <div className="mt-0.5 flex items-baseline gap-2">
+                {/* Wraps in a narrow panel, as the bot's does, rather than
+                    running past the card's edge. */}
+                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span
                     className={cn(
                       "rounded-full px-2.5 py-0.5 text-xl font-semibold tracking-tight tabular-nums",
@@ -213,7 +220,7 @@ export function BacktestStatsPanel({
                   line up in two columns and read as a table of results. The
                   grid is pulled out to the panel's edges, the way the design
                   runs its rules the full width. */}
-              <div className="-mx-5 grid grid-cols-2 border-t">
+              <div className="-mx-4 grid grid-cols-2 border-t [&>div]:px-4">
                 <BacktestKpi
                   label="Win rate"
                   value={
@@ -554,9 +561,8 @@ export function BacktestStatsPanel({
               ) : null}
             </>
           )}
-        </div>
-      </ScrollArea>
-    </>
+      </div>
+    </div>
   )
 }
 

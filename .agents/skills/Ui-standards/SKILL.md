@@ -674,9 +674,11 @@ card in the rail on `/admin/settings`.
   read-only window ends with one “Done” button.
 - Use `src/components/ui/form-dialog.tsx` when a window holds typed work. Pass
   `dirty` and `busy`, and wire Cancel through its `requestClose` callback.
-- Report failures through the persistent error toast. Successes from dashboard
-  changes use a success toast; account-window actions may confirm inline beside
-  the action.
+- Report failures through the persistent error toast. **Nothing pops up when
+  something works** (Tyler, 10 Nov 2026: "Remove all success toast", "All of
+  trade and shell too"): the changed screen is the answer. Something only
+  partly done says the part that was not done, in the error toast. Trade's
+  `workspace/docs/screens/no-success-toasts.md` has the cases.
 - A record with several tabs opens from its list and keeps the open record in
   `?open=<id>`. `src/lib/hooks/use-open-from-link.ts` owns that address behavior.
 - Preserve Escape, focus trapping, focus restoration, and accessible titles.

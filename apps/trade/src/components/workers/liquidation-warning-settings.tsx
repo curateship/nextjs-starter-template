@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -85,7 +84,6 @@ export function LiquidationWarningSettings({
       })
       setUsd(warning.usd === null ? "" : String(warning.usd))
       setPct(warning.pct === null ? "" : String(warning.pct))
-      toast.success("Liquidation warning saved.")
     } catch (error) {
       showErrorToast(getLiquidationWarningSaveErrorMessage(error))
     } finally {

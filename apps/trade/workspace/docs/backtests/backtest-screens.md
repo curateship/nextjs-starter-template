@@ -1,12 +1,102 @@
 # Backtest screens
 
 Backtests are the Backtests row of the Bots dashboard at `/bots?view=backtests`
-(`../screens/bots-dashboard.md`) since 9 Nov 2026. The table lists every run
-and has no right panel: a line opens its chart (or the Graph) in the middle
-over its trades, and the right panel holds Figures, Results and Skipped as
-tabs, with Stop in its footer while it runs. Pin, Archive, Delete and the name
-are in the opened backtest's ⋮; Delete is on a line's right-click too; Show
-archived is in Filter.
+(`../screens/bots-dashboard.md`) since 9 Nov 2026. The table lists every run.
+A line picked shows its Result card on the right with **Open chart** in the
+footer (Tyler, 10 Nov 2026), and Open chart opens its chart (or the Graph) in
+the middle, where the right panel holds two folding cards, **Result** and **Trades**, with
+Stop in its footer while it runs. Pin, Archive, Delete and the name are in the
+opened backtest's ⋮; Delete is on a line's right-click too; Show archived is
+in Filter, beside Recipe, which shows one recipe's backtests alone.
+
+## The middle's header: Chart and Graph
+
+Two tabs, then what the picture needs at the right (Tyler, 10 Nov 2026: "this
+should be 3 tabs", then "remove canvas from the tab", "remoev the arrow back",
+"move this to header right"):
+
+- **No back arrow and no run name.** While the page panel is shut, its reopen
+  button takes the arrow's spot. The Dashboards block's Backtests row goes
+  back to the table.
+- **Chart:** the picked coin's candles. Its coin, candle size and orders sit
+  at the header's right on a wide screen.
+- **Graph:** the pot over the whole run, with its line switches (Off peak,
+  Liquidations, In markets) and its window (1W to All, From, To, Reset) at the
+  header's right (Tyler, 10 Nov 2026: "move this beside the timeframe in the
+  middle header"). From, To and Reset have the toolbar buttons' edge. No wallet
+  figure sits over the graph ("remove these numbers"); the Result card has the
+  outcome and the crosshair's box reads the wallet at any point. Left out on a
+  run with no line to draw.
+
+## The right panel: Result and Trades cards
+
+Tyler, 10 Nov 2026: "remove the tabs and put them into collapsible cards
+instead, first card is the figures card (rename to Result) second card is
+"Trades" that shows all the tickers and a tab in that second card is
+"Skipped" showing all the skipped markets".
+
+- **Result** is what the Figures tab was: how long it took, what it skipped,
+  the progress meter while it runs, then the figures.
+- **Trades** lists the coins that traded, with their totals.
+- **Skipped**, a card of its own under Trades, lists every coin that produced
+  nothing, with the reason (Tyler, 10 Nov 2026: "Put the skipped markets into
+  its own card and out of the tab"). As the card narrows, Dip drops out under 18rem and
+  Win under 14rem, so the coin and its Total always fit.
+- Each card folds and stays folded in this browser. The header's double-arrow
+  button folds or opens both at once.
+- "3 coins skipped" in Result opens the Skipped card and scrolls to it.
+- The panel scrolls as one column; nothing inside a card scrolls on its own.
+
+## A coin's trades: the popover
+
+Tyler, 10 Nov 2026: "Clicking the market in the card open up a popup showing
+trades within that market and with the ability to pin the popover and able to
+drag it around and remove the bottom panel".
+
+- There is no trades panel under the chart any more; the chart fills the
+  middle.
+- Pressing a coin in Trades opens a popover of that coin's trades beside the
+  card, over the chart, and leaves the chart as it is (Tyler, 10 Nov 2026:
+  "Dont make clicking on market open the market first trade", then "if its not
+  first trade then just dont load the chart at all. Just open the popover").
+  Pressing a trade in the popover moves the chart to its coin and frames it.
+  The same holds on an open bot.
+- The popover is as big as its trades and no bigger (Tyler, 10 Nov 2026: "The
+  popover height and width should have a max size but it should grow and
+  shrink with the amount of content thats in it"). It stops at 34rem tall
+  ("Increase popover height by 30%", from 26rem) and 52rem wide, or the
+  window's edge, and scrolls past that.
+- The trades table has no # column (Tyler, 10 Nov 2026: "remove this"); the
+  rows still come in trade order. Its columns sit close: 6px each side of a
+  cell and 2px before a heading's arrow ("reduce the spacing between col").
+- Its ⋮, before Pin, hides columns (Tyler, 10 Nov 2026: "add a 3 dot dropdown
+  here with options to hide certain col"): Side, Entry, Exit, Amount, P&L,
+  Return and Cum. P&L, each with an eye that swaps on a press while the menu
+  stays open. The last column showing stays, and says "Keep at least one
+  column showing." The choice is kept on the account
+  (`trade_prefs.panel_layouts.hiddenTradeColumns.backtest`), apart from a
+  bot's, whose table has other columns.
+- **Pin** keeps it open while anything else is pressed; unpinned, a press
+  outside closes it. × closes it either way.
+- Its header drags it, and it follows the mouse exactly and stops 8px from
+  the window's edge ("if I drag the popover to the edge, it kept getting
+  bounced around"). It no longer eases behind the mouse or gets nudged by the
+  popover's own placing.
+- It stays where it opened while the list beside it scrolls ("when i scroll
+  the trades list, the popover also scrolls with it").
+- Amount reads from the left. Every column is as narrow as its figures and
+  heading. When the popover's header is wider than the columns, the spare
+  width is shared out between them, so there is never an empty strip at the
+  right (Tyler, 10 Nov 2026: "there's a gap here", "why is there so much
+  space here?", "still a gap here"). The popover is as wide as its showing columns, or as the
+  coin's name and the buttons if those are wider; the count after the name
+  shortens or drops out to make room, the name never does. With columns hidden it shrinks with them (Tyler, 10 Nov
+  2026: "now theres a huge gap here"). 24px come before Amount and after the last figures (Tyler, 10 Nov 2026: "increasing the padding of left and right slightly", then "more padding on the left"). Where it was left is kept in this browser
+  (`bots-trades-popover-offset`) for every run, and pulled back inside the
+  window if the window has since got smaller.
+- The same popover opens from an open bot (`../screens/bots-dashboard.md`).
+- Stop asks first ("Stop this backtest?"), as a bot's Stop does: the coins it
+  has not reached are left untested, and what it has worked out stays.
 
 ## Refreshing the list
 
@@ -19,7 +109,7 @@ The existing error message and retry action remain available after a failure.
 ## How long a run took
 
 The Backtests table has a sortable Took column, shown once the middle is wide
-enough. A finished run says "Took 4m". An opened run's Figures tab repeats the
+enough. A finished run says "Took 4m". An opened run's Result card repeats the
 same duration at its top.
 Both screens use the shared duration formatter for seconds, minutes, hours
 and days. Sorting compares the full elapsed time, not the rounded text.
@@ -44,17 +134,17 @@ migration or backtest rerun is needed to show durations on saved runs.
 
 ## Backtest results
 
-- The Results table calls each coin's main figure Total because the figure
+- The Traded list calls each coin's main figure Total because the figure
   includes closed trades and any position still open at the final price.
 - A coin with an open position shows its open profit directly under Total. The
   table total shows the same split across every coin, so a large paper profit
   cannot look like money from the closed trade count.
 - The Trades table puts the open profit in each open row's P&L column. Several
   open rungs share fees and funding by position size, and their figures add up
-  to the open total in Results.
+  to the open total in Traded.
 - Runs saved without the trade figures needed for the split say that open P&L
   is unavailable. The app never treats an unknown amount as zero.
-- If the selected market's candle read fails, the Trades panel shows the same
+- If the selected market's candle read fails, the trades popover shows the same
   error and Try again action as the chart. A failed read never leaves the panel
   saying that trades are still loading.
 - Grid results can contain Long and Short rows. A selling grid starts with a
@@ -88,9 +178,14 @@ migration or backtest rerun is needed to show durations on saved runs.
 
 ## Backtest candle history
 
-- A backtest result opens on the first market in Results and the first trade in
-  Trades, so its chart is useful immediately. Each run remembers the last
-  market and trade chosen in this browser and restores them when reopened.
+- A backtest result opens on the first market in Traded with no trade picked,
+  at the Trade chart's saved view: the same zoom and position the Trade
+  dashboard's chart was last left at (`trade_prefs.chart_view`, read by the
+  route and only read here, so panning a backtest leaves the Trade chart
+  alone). Tyler, 10 Nov 2026: "Check my currant chart view setting and make
+  default chart loading to it"; before, the whole history was squeezed in and
+  the price axis ran below zero. Each run remembers the last market, and a
+  trade picked on it, in this browser and restores them when reopened.
 - Backtests read the shared candle store described in
   `charts/candle-store.md`, by history source and candle size. Coins read
   Binance's rows and stocks, indices, metals and currency pairs read
@@ -196,7 +291,7 @@ and creates no rows. Clear all checkboxes to check the empty-selection error.
 
 ## Progress on a running backtest
 
-An opened run's Figures tab shows the shared meter under its duration, and the
+An opened run's Result card shows the shared meter under its duration, and the
 canvas card and the Backtests table show the same words from `backtestMeter`
 (`src/lib/trade/backtest/progress.ts`). A run with no coin rows starts at zero.
 Finished runs hide the meter.
@@ -211,7 +306,7 @@ Finished runs hide the meter.
 - Once every coin is loaded or skipped, the bar goes back to percent through,
   the average of every coin's progress.
 
-An unfinished coin shows its latest progress note in Results, such as reading
+An unfinished coin shows its latest progress note in Traded, such as reading
 candles or running the strategy. A coin without a note keeps its status wording.
 
 ## A run that stops moving

@@ -47,30 +47,6 @@ vi.mock("@/lib/api/trade/recipes", () => ({
 }))
 
 describe("the backtest canvas panel", () => {
-  it("reports that a new recipe has no result for the header tab", async () => {
-    const latest = vi.fn()
-    const host = document.createElement("div")
-    document.body.append(host)
-    const root = createRoot(host)
-
-    await act(async () => {
-      root.render(
-        <BacktestCanvasPanel
-          automationId="new-recipe"
-          runId={null}
-          onClose={() => {}}
-          onLatestRunIdChange={latest}
-        />
-      )
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(latest).toHaveBeenCalledWith(null)
-    await act(async () => root.unmount())
-    host.remove()
-  })
-
   it("ticks the sizes the newest press ran, so they match the title", async () => {
     // Tyler, 16 Sep 2026: the card read "Large cap DCA, 1d" with 4h ticked.
     const row = (id: string, interval: string, createdAt: number) => ({

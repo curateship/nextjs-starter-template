@@ -1,16 +1,12 @@
 import * as React from "react"
-import {
-  CandlestickChartIcon,
-  SlidersHorizontalIcon,
-  TrendingUpIcon,
-} from "lucide-react"
-
-import { BacktestGraph } from "@/components/backtest/backtest-graph"
+import { BacktestGraph, GraphOverlayToggles, GraphWindowControls } from "@/components/backtest/backtest-graph"
 import {
   BacktestMarksLayer,
   type ChartFillMark,
 } from "@/components/backtest/backtest-marks-layer"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
@@ -18,15 +14,16 @@ import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
 import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
-import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type {
+  GraphOverlays,
   BacktestRunTrade,
   GraphSeries,
   GraphWindow,
 } from "@/lib/trade/backtest/graph"
+import { ALL_GRAPH_OVERLAYS } from "@/lib/trade/backtest/graph"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
@@ -63,15 +60,12 @@ export function FlowRunChartPanel({
   window,
   onWindow,
   view,
-  onSwapView,
+  onView,
   readView,
   onViewChange,
   loading,
   error,
   walletLabel,
-  title,
-  onBack,
-  onOpenRecipe,
   headerEnd,
   chartToolbarPosition,
   onChartToolbarPositionChange,
@@ -97,7 +91,8 @@ export function FlowRunChartPanel({
   window: GraphWindow
   onWindow: (next: GraphWindow) => void
   view: "graph" | "chart"
-  onSwapView: () => void
+  /** Shows the other one, from the header's Chart and Graph tabs. */
+  onView: (view: "graph" | "chart") => void
   /** The zoom this chart opens at — the one the trading chart remembers. */
   readView: () => ChartView | null
   onViewChange: (next: ChartView) => void
@@ -105,12 +100,6 @@ export function FlowRunChartPanel({
   error: string | null
   /** The wallet's name, for the ladder tag's tooltip. */
   walletLabel: string
-  /** The bot's name, first in the header. */
-  title: string
-  /** Back to the Bots table. */
-  onBack: () => void
-  /** Opens the recipe this bot was switched on from, on its canvas. */
-  onOpenRecipe: () => void
   /** The end of the header: the button that reopens a shut right panel. */
   headerEnd: React.ReactNode
   chartToolbarPosition?: ChartToolbarPosition | null
@@ -133,49 +122,48 @@ export function FlowRunChartPanel({
   )
 
   useErrorToast(!showGraph || !graphSeries ? error : null, onRetry)
+  const [overlays, setOverlays] = React.useState<GraphOverlays>(ALL_GRAPH_OVERLAYS)
 
   return (
     <>
-      <DashboardCardTitleHeader
-        // The middle's one header on the Bots dashboard: back to the table,
-        // the bot's name and which picture shows, then the swap between the
-        // Graph and the Chart, the way to its recipe, and the reopen button.
-        // Pause and Stop are in the right panel's footer.
-        back={{ onClick: onBack, label: "Back to bots" }}
-        title={`${title} · ${showGraph ? "Graph" : (coinLabel ?? "No market picked")}`}
-        meta={
-          showGraph
-            ? undefined
-            : `${spec.strategy.interval} candles · ${marks.length} ${marks.length === 1 ? "order" : "orders"}`
-        }
-        action={
-          <div className="flex items-center gap-2">
-            {hasGraph ? (
-              <Button type="button" variant="outline" onClick={onSwapView}>
-                {showGraph ? (
-                  <>
-                    <CandlestickChartIcon className="size-4" />
-                    Chart
-                  </>
-                ) : (
-                  <>
-                    <TrendingUpIcon className="size-4" />
-                    Graph
-                  </>
-                )}
-              </Button>
-            ) : null}
-            {/* Straight to the recipe this bot was switched on from. What is
-                running is the copy frozen at the switch, so editing there
-                changes nothing here until it is switched off and on again. */}
-            <Button type="button" variant="ghost" onClick={onOpenRecipe}>
-              <SlidersHorizontalIcon className="size-4" />
-              Canvas
-            </Button>
-            {headerEnd}
-          </div>
-        }
-      />
+      {/* The middle's one header on the Bots dashboard, the same as an open
+          backtest's: the button that reopens a shut page panel, then the
+          Chart and Graph tabs (Tyler, 10 Nov 2026: "the chart and graph tab
+          needs to be applied to the bots dashboard too"), then the Graph's
+          window or the Chart's coin at the right. The Dashboards block's Bots
+          row goes back to the table; Pause and Stop are in the right panel's
+          footer. Graph is left out on a run with no line to draw. */}
+      <DashboardCardHeader className="gap-2">
+        <PanelReopenButton side="left" label="Show the page" />
+        <DashboardTabs
+          className="flex-none"
+          value={showGraph ? "graph" : "chart"}
+          onValueChange={(value) => {
+            if (value === "graph" || value === "chart") onView(value)
+          }}
+          tabs={[
+            { value: "chart", label: "Chart" },
+            ...(hasGraph ? [{ value: "graph", label: "Graph" }] : []),
+          ]}
+        />
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+          {showGraph ? (
+            <>
+              {/* The graph's line switches, beside its window (Tyler, 10 Nov
+                  2026: "move this beside the timeframe in the middle header"). */}
+              <div className="flex items-center gap-3">
+                <GraphOverlayToggles overlays={overlays} onOverlays={setOverlays} />
+              </div>
+              <GraphWindowControls window={window} onWindow={onWindow} />
+            </>
+          ) : (
+            <span className="hidden truncate text-xs text-muted-foreground xl:inline">
+              {`${coinLabel ?? "No market picked"} · ${spec.strategy.interval} candles · ${marks.length} ${marks.length === 1 ? "order" : "orders"}`}
+            </span>
+          )}
+          {headerEnd}
+        </div>
+      </DashboardCardHeader>
 
       <div className="flex min-h-0 flex-1 flex-col">
         {showGraph && graphSeries ? (
@@ -188,6 +176,7 @@ export function FlowRunChartPanel({
             leverage={1}
             window={window}
             onWindow={onWindow}
+            overlays={overlays}
           />
         ) : error ? (
           <ErrorRow message={error} onRetry={onRetry} />

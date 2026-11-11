@@ -5,6 +5,7 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
+  PlusIcon,
   Trash2Icon,
   WorkflowIcon,
 } from "lucide-react"
@@ -37,6 +38,7 @@ export function RecipeInspector({
   onNodeChange,
   onOpenNodeEditor,
   headerEnd,
+  onAddNode,
   onDeleteNode,
 }: {
   className?: string
@@ -47,11 +49,14 @@ export function RecipeInspector({
   onOpenNodeEditor?: (nodeId: string) => void
   /** The end of the header: the collapse button at the panel's edge. */
   headerEnd?: React.ReactNode
+  /** Given while the step shown was pressed in the step list and is not on the canvas yet. */
+  onAddNode?: (node: AutomationNode) => void
   onDeleteNode: (nodeId: string) => void
 }) {
   const nodeErrors = selectedNode
     ? errors.filter((error) => error.nodeId === selectedNode.id)
     : errors
+  const previewing = Boolean(onAddNode)
   const { scrollRef, fades } = useScrollFades()
 
   return (
@@ -73,6 +78,7 @@ export function RecipeInspector({
           )
         }
         title={selectedNode ? recipeNodeName(selectedNode) : "Recipe"}
+        meta={previewing ? "Not added yet" : undefined}
         action={headerEnd}
       />
       <div ref={scrollRef} className="relative min-h-0 flex-1">
@@ -115,7 +121,19 @@ export function RecipeInspector({
               />
             ) : null}
 
-            {selectedNode ? (
+            {selectedNode && onAddNode ? (
+              // Not on the canvas yet, so backing out only lets go of it:
+              // Cancel, never a red Delete beside Add step.
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" size="sm" onClick={() => onAddNode(selectedNode)}>
+                  <PlusIcon className="size-4" />
+                  Add step
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => onDeleteNode(selectedNode.id)}>
+                  Cancel
+                </Button>
+              </div>
+            ) : selectedNode ? (
               <Button
                 type="button"
                 variant="destructive"

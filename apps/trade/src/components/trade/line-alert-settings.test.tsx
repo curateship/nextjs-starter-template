@@ -54,9 +54,8 @@ describe("the master switch for line alerts", () => {
     await act(async () => toggle()!.click())
     expect(api.save).toHaveBeenCalledWith(true)
     expect(toggle()?.getAttribute("aria-checked")).toBe("false")
-    expect(toasts.success).toHaveBeenCalledWith(
-      "Line alerts are paused. Every line keeps its alert, and none fires until this is back on."
-    )
+    // The switch is the answer; nothing pops up (Tyler, 10 Nov 2026).
+    expect(toasts.success).not.toHaveBeenCalled()
   })
 
   it("reads off for a paused account and switches the alerts back on", async () => {
@@ -68,7 +67,7 @@ describe("the master switch for line alerts", () => {
     await act(async () => toggle()!.click())
     expect(api.save).toHaveBeenCalledWith(false)
     expect(toggle()?.getAttribute("aria-checked")).toBe("true")
-    expect(toasts.success).toHaveBeenCalledWith("Line alerts are on.")
+    expect(toasts.success).not.toHaveBeenCalled()
   })
 
   it("puts the switch back and says why when the save is refused", async () => {

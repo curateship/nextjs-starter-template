@@ -573,7 +573,7 @@ export default function TradeMarketsFields({
         // takes past candles.
         <InspectorCard title="When it trades">
           <p className="text-xs text-muted-foreground">
-            From the moment it is switched on, forwards — there is no stretch of
+            From the moment it is switched on, forwards. There is no stretch of
             history to choose. It still reads enough past candles to find each
             coin&apos;s base before it may buy, so a coin without one waits
             rather than guessing.
@@ -585,7 +585,7 @@ export default function TradeMarketsFields({
             <FieldLabel
               htmlFor={`markets-${node.id}-window`}
               className="text-xs"
-              hint="Either the run ends today and you say how long it is, or you name the two days it runs between. Naming the days is how you go back to one particular stretch — a crash, a quiet summer — and get the same run every time."
+              hint="Either the run ends today and you say how long it is, or you name the two days it runs between. Naming the days is how you go back to one particular stretch, such as a crash or a quiet summer, and get the same run every time."
             >
               Window
             </FieldLabel>
@@ -668,7 +668,7 @@ export default function TradeMarketsFields({
                 }
               >
                 {dateProblem ??
-                  `Both days included — ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} in all. A day past today is cut back to now.`}
+                  `Both days included, ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} in all. A day past today is cut back to now.`}
               </p>
             </>
           ) : (
@@ -696,10 +696,10 @@ export default function TradeMarketsFields({
             }
           >
             {wrongProtocol
-              ? `${wallet.label} trades on ${nameOfProtocol(wallet.protocol ?? "")}, and these coins were picked on ${nameOfProtocol(savedProtocol)}. This flow will not run as it stands — pick the coins again from the list below.`
+              ? `${wallet.label} trades on ${nameOfProtocol(wallet.protocol ?? "")}, and these coins were picked on ${nameOfProtocol(savedProtocol)}. This flow will not run as it stands. Pick the coins again from the list below.`
               : walletNotReadYet
-                ? `Open the Wallet step once so this can follow ${wallet.label}'s exchange. Nothing is lost — it just has not been read yet.`
-                : `Follows ${wallet.label}${network === "testnet" ? " — the practice network, where the money is pretend" : ""}.`}
+                ? `Open the Wallet step once so this can follow ${wallet.label}'s exchange. Nothing is lost. It just has not been read yet.`
+                : `Follows ${wallet.label}${network === "testnet" ? ", the practice network, where the money is pretend" : ""}.`}
           </p>
         </InspectorCard>
       ) : null}
@@ -964,11 +964,11 @@ export default function TradeMarketsFields({
               {/* Said whenever the ceiling is in play, so nobody hunts for the
                   coins that would not go in. */}
               {!wallet && full && !over
-                ? ` That is as many as fit at ${interval} over ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} — shorten the window to hold more.`
+                ? ` That is as many as fit at ${interval} over ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} . Shorten the window to hold more.`
                 : ""}
               {tradeable || !wallet
                 ? ""
-                : " These cannot be traded — this exchange gives prices, not orders."}
+                : " These cannot be traded. This exchange gives prices, not orders."}
             </p>
 
             {over ? (
@@ -1001,7 +1001,7 @@ export default function TradeMarketsFields({
           ? "A flow reads the folder when it starts. A backtest saves the exact coins it read so the result can be repeated."
           : wallet
             ? `Every chosen coin shares the wallet above. Its watched buys compete for the same money, and any buy the wallet cannot afford when its price arrives is refused.`
-            : "Every chosen coin shares the one pretend pot from the wallet step above, so twenty coins are competing for the same money — which is what running this for real would be like."}
+            : "Every chosen coin shares the one pretend pot from the wallet step above, so twenty coins are competing for the same money, which is what running this for real would be like."}
       </InspectorNote>
     </>
   )

@@ -25,12 +25,17 @@ import type { AutomationNode } from "@/lib/automations/graph"
  * lands. The last test mounts the real component and exercises that list.
  */
 
-const { loadWalletAccounts, successToast } = vi.hoisted(() => ({
+const { loadWalletAccounts, errorToast } = vi.hoisted(() => ({
   loadWalletAccounts: vi.fn(() => new Promise(() => {})),
-  successToast: vi.fn(),
+  errorToast: vi.fn(),
 }))
 
-vi.mock("sonner", () => ({ toast: { success: successToast } }))
+// Moving the Markets step says so only when it clears coins, which leaves
+// something to do; a move that changes nothing else says nothing.
+vi.mock("@/lib/toast/error-toast", () => ({
+  showErrorToast: errorToast,
+  useErrorToast: () => {},
+}))
 
 vi.mock("@/lib/api/trade/wallets", () => ({
   loadWalletAccounts,
@@ -259,8 +264,8 @@ describe("picking an Aster wallet", () => {
         walletNetwork: "mainnet",
       },
     })
-    expect(successToast).toHaveBeenCalledWith(
-      "Markets moved to Aster to match Aster main. Its 1 coin was cleared — pick them again."
+    expect(errorToast).toHaveBeenCalledWith(
+      "Markets moved to Aster to match Aster main. Its 1 coin was cleared. Pick them again."
     )
 
     await act(async () => root.unmount())

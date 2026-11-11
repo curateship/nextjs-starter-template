@@ -31,27 +31,41 @@ a different rung.
 
 An opened recipe fills the middle of the Bots dashboard. The right panel shows
 only while a step is picked, holding its settings, and closes again when the
-empty canvas is clicked. The middle's one header reads: the back arrow to the Recipes table,
-then two tabs, the recipe's name (the canvas) and **Results** (Tyler, 9 Nov
-2026: "Turn recipe name into tabs ... [Recipe name canvas][result]"), then the
-trading status, **Backtest** and the recipe's ⋮. Results opens
-the newest finished backtest in the Backtests row. With none yet it is greyed
-out, a press does nothing, and its tooltip says "No result yet. Press Backtest
-to run one." (Tyler, 9 Nov 2026: "Just remove the toast altogether and gray out
-the result tab if no result is ready with a tooltip"). An opened run's Canvas button comes back.
+empty canvas is clicked. The middle's one header reads: the back arrow to the
+Recipes table, the recipe's name, then the trading status, **Backtest** and the
+recipe's ⋮. It has no tabs (Tyler, 10 Nov 2026: "Better to just remove the
+tabs so that theres no confusing"); the name and Result tabs are gone. A
+recipe's backtests are on the Backtests row, where Filter → Recipe shows one
+recipe's alone.
 
 **Backtest** ("put the backtest button here") opens and shuts the Backtest
-window over the canvas. The window starts shut. It stays loaded while shut,
-because it is what finds the newest result for the Results tab.
+window over the canvas. The window starts shut and stays loaded while shut.
 
-There are five steps: Wallet, Markets, DCA, Signals and Grid. They come from the
-**+ Add step** button at the canvas's bottom left, its own button beside the
-zoom bar (Tyler, 9 Nov 2026: "actually move the add step here", "it should be
-its own button and not stuck with the others"), not a panel, because the left panel is always the
-dashboard's page (Tyler, 9 Nov 2026: "if we combine all the sidebars, there's
-like 3 sidebar on the left"). Picking one puts it on the canvas and shows its
-settings on the right. The canvas keeps the existing connection, zoom, keyboard
-and inspector behaviour.
+There are five steps: Wallet, Markets, DCA, Signals and Grid. They are in a
+step list left of the canvas, drawn as the shell's Automations dashboard draws
+an open flow (Tyler, 10 Nov 2026: "In recipes, I want to put that back into
+the left panel, look at how automation dashboard does it and copy its design
+pattern"). So an open recipe is four panels: the dashboard's page, the step
+list, the canvas, and the picked step on the right. The page stays first,
+which keeps the 9 Nov rule that the left panel is always the page. The + Add
+step button that sat beside the zoom bar is gone, as it went on Automations.
+
+- Each step is a card: its icon, its name and one line of description. There
+  are no Fav or Templates tabs, because a recipe has five steps and no
+  templates.
+- Pressing a card shows the step on the right, "Not added yet", with Add step
+  and Cancel. The card's + and a drag onto the canvas add it at once.
+- A recipe takes one Wallet, one Markets and one strategy, so a step already on
+  the canvas says "On the canvas" instead of its description, and pressing it
+  picks that step rather than offering a copy the recipe would mark red.
+- The list opens at Settings → Styling → Side panels → Automation step list
+  width, in pixels, and holds that width while the right panel comes and goes.
+  "Hide the steps" at its top left shuts it; "Show the steps" then sits first
+  in the canvas header. A double-click on its blank space does the same.
+- Under 1280px the canvas is drawn alone, as on Automations.
+
+The canvas keeps the existing connection, zoom, keyboard and inspector
+behaviour.
 One Wallet connects to one Markets step, which connects to one DCA, Signals or
 Grid strategy. Duplicate or disconnected Trade steps keep the recipe as a
 draft and cannot run.
@@ -119,7 +133,7 @@ Reload the list to read changes made from another screen.
 ## Controls on an opened bot
 
 An opened bot's Pause, Stop and Run again sit in the right panel's footer,
-under its Figures, Coins and Results tabs.
+under its Result and Trades cards.
 
 Pause and Resume use the shared `FlowPauseButton` and the `pauseFlow` server
 action. Pause

@@ -78,6 +78,10 @@ All of them are in `src/components/shared/`.
   the card is pointed at (Tyler, 5 Nov 2026, of Promo's network cards
   reading "Reddi..."); before that they were see-through and still held
   their place.
+  Inside an `InspectorCollapseAllProvider` it also folds or opens with the
+  panel header's `InspectorCollapseAllButton`, as `InspectorCard` does
+  (`useCollapseAllCommand`, 10 Nov 2026, first for Trade's open backtest and
+  bot, whose header button reads "Shut every card" through its `noun`).
   `icon` draws a 16px mark before the title, such as a network's on Promo's
   network cards. `openWhen` opens a folded card each time it turns true,
   whatever was remembered, so a row picked from elsewhere (a notice's link)

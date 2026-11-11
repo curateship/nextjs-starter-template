@@ -393,6 +393,12 @@ export const GRAPH_PRESETS = ["1w", "1m", "3m", "6m", "all"] as const
 export type GraphPreset = (typeof GRAPH_PRESETS)[number]
 
 /** How the page is currently scoped: a preset or dates, plus a dragged box. */
+/** Which extra lines the Graph draws: its Off peak, Liquidations and In markets switches. */
+export type GraphOverlays = { offPeak: boolean; liquidations: boolean; inCoins: boolean }
+
+/** All three on, as a Graph opens. */
+export const ALL_GRAPH_OVERLAYS: GraphOverlays = { offPeak: true, liquidations: true, inCoins: true }
+
 export type GraphWindow = {
   preset: GraphPreset
   /** Typed dates, which beat the preset when they are set. */

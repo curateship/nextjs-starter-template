@@ -104,16 +104,6 @@ function TradeSoundSettingsCard() {
         toast.warning(
           "Trade sounds are on, but the test sound could not play. Allow sound for this site, then switch sounds off and on again."
         )
-      } else {
-        toast.success(
-          next
-            ? kind === "alerts"
-              ? "Price alert sounds are on. That was the alert sound."
-              : "Fill and stop sounds are on. That was the fill sound."
-            : kind === "alerts"
-              ? "Price alert sounds are off."
-              : "Fill and stop sounds are off."
-        )
       }
     } catch (error) {
       rememberTradeSoundSetting(previous)

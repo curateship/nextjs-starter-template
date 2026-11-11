@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, RotateCcwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -71,13 +70,6 @@ export function CopiersCard() {
       setData({ ...data, ...next })
       setInvalid(false)
       dismissErrorToast()
-      toast.success(
-        patch.allowCopying === undefined
-          ? "Payout address saved."
-          : next.allowCopying
-            ? "Copying is on. People can copy your trades."
-            : "Copying is off. Every running copy paused, and nothing was closed."
-      )
     } catch (error) {
       if (patch.allowCopying === undefined) setInvalid(true)
       showErrorToast(getCopyErrorMessage(error))

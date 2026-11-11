@@ -63,11 +63,10 @@ vi.mock("@/components/trade/use-chart-view", () => ({
 vi.mock("@/components/trade/use-panel-layouts", () => ({
   useTradePanelLayouts: () => ({
     layouts: {
-      legacyImported: true,
-      current: {},
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
+      hiddenTradeColumns: {},
       activeNamedId: null,
       named: [],
     },
@@ -192,17 +191,14 @@ describe("a live run coin's chart", () => {
           openCoin={MARKET}
           chartView={null}
           initialPanelLayouts={{
-            legacyImported: true,
-            current: {},
             openMarketRows: {},
             headerProfitVisible: true,
             chartToolbarPosition: null,
+            hiddenTradeColumns: {},
           }}
           heading={null}
           menu={null}
-          onBack={vi.fn()}
           onCoin={vi.fn()}
-          onOpenRecipe={vi.fn()}
           onRunAgain={vi.fn()}
           // The Bots dashboard draws both panels; here they sit side by side.
           frame={(panels) => (

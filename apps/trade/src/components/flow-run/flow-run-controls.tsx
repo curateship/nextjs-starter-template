@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FlowPauseButton } from "@/components/flow-run/flow-pause-button"
@@ -50,8 +49,7 @@ export function FlowRunControls({
     void act(async () => {
       onPaused(!head.paused)
       try {
-        const result = await pauseFlow(head.automationId, !head.paused)
-        toast.success(result.summary)
+        await pauseFlow(head.automationId, !head.paused)
       } catch (error) {
         onPaused(head.paused)
         throw error
@@ -135,8 +133,7 @@ export function FlowRunControls({
               setConfirm(null)
               onRunAgain(result.runId)
             } else {
-              const result = await stopFlow(head.automationId)
-              toast.success(result.summary)
+              await stopFlow(head.automationId)
               setConfirm(null)
               await onRefresh()
             }

@@ -1,12 +1,11 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/recipes/trade-number-field"
-import { useErrorToast } from "@/lib/toast/error-toast"
+import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
 import { FieldLabel } from "@/components/ui/field-label"
 import {
   Select,
@@ -266,11 +265,12 @@ export default function TradeWalletFields({
     // raw id is what is stored; "hyperliquid" in a sentence beside a dropdown
     // reading "Hyperliquid" reads as two different things.
     const name = venueLabel(protocol, network)
-    toast.success(
-      moved.cleared > 0
-        ? `Markets moved to ${name} ${because}. Its ${moved.cleared} ${plural(moved.cleared, "coin was", "coins were")} cleared — pick them again.`
-        : `Markets moved to ${name} ${because}.`
-    )
+    // Said only when it leaves something to do: picking the coins again.
+    if (moved.cleared > 0) {
+      showErrorToast(
+        `Markets moved to ${name} ${because}. Its ${moved.cleared} ${plural(moved.cleared, "coin was", "coins were")} cleared. Pick them again.`
+      )
+    }
   }
 
   useErrorToast(loadError, () => setAttemptKey((n) => n + 1))
@@ -282,7 +282,7 @@ export default function TradeWalletFields({
           <FieldLabel
             htmlFor={`wallet-${node.id}-which`}
             className="text-xs"
-            hint="Pretend money means this flow is a backtest — it invents a wallet for the run and throws it away. Naming one of your wallets means the flow trades it forward, and nothing about the rest of the flow changes."
+            hint="Pretend money means this flow is a backtest. It invents a wallet for the run and throws it away. Naming one of your wallets means the flow trades it forward, and nothing about the rest of the flow changes."
           >
             Money
           </FieldLabel>
@@ -302,7 +302,7 @@ export default function TradeWalletFields({
                 followWithMarkets(
                   DEFAULT_BACKTEST_PROTOCOL,
                   "mainnet",
-                  "— a backtest reads its price history"
+                  "for a backtest, which reads its price history there"
                 )
                 set({
                   walletId: null,
@@ -337,11 +337,11 @@ export default function TradeWalletFields({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={PRETEND}>
-                Pretend money — for backtests
+                Pretend money, for backtests
               </SelectItem>
               {offered.map((one) => (
                 <SelectItem key={one.id} value={one.id}>
-                  {one.label} — {walletMoneyWords(one.kind)} on{" "}
+                  {one.label}, {walletMoneyWords(one.kind)} on{" "}
                   {venueLabel(one.protocol, one.network)}
                 </SelectItem>
               ))}
@@ -353,7 +353,7 @@ export default function TradeWalletFields({
               {named && !offered.some((one) => one.id === named.id) ? (
                 <SelectItem value={named.id}>
                   {named.label}
-                  {wallets === null ? "" : " — not available"}
+                  {wallets === null ? "" : ", not available"}
                 </SelectItem>
               ) : null}
             </SelectContent>
@@ -373,7 +373,7 @@ export default function TradeWalletFields({
             <TradeNumberField
               id={`wallet-${node.id}-start`}
               label="Starting money"
-              hint="What the whole test starts with. Every coin shares it, so this is the money the strategy has to work with in total — not per coin."
+              hint="What the whole test starts with. Every coin shares it, so this is the money the strategy has to work with in total, not per coin."
               value={settings.startingUsd}
               min={1}
               max={MAX_POT_USD}
@@ -386,7 +386,7 @@ export default function TradeWalletFields({
             <TradeNumberField
               id={`wallet-${node.id}-taker`}
               label="Taker fee"
-              hint="Charged when a buy or sell takes a price that is already on the book — market buys and stops. Prefilled with what the exchange really charges."
+              hint="Charged when a buy or sell takes a price that is already on the book, such as market buys and stops. Prefilled with what the exchange really charges."
               value={settings.takerFeePct}
               min={0}
               max={5}
@@ -396,7 +396,7 @@ export default function TradeWalletFields({
             <TradeNumberField
               id={`wallet-${node.id}-maker`}
               label="Maker fee"
-              hint="Charged when an order sat and waited to be filled — the ladder's rungs and its take-profit sells."
+              hint="Charged when an order sat and waited to be filled, such as the ladder's rungs and its take-profit sells."
               value={settings.makerFeePct}
               min={0}
               max={5}
@@ -419,7 +419,7 @@ export default function TradeWalletFields({
 
       <InspectorNote>
         {named
-          ? `This flow spends ${named.label} — ${walletMoneyWords(named.kind)}. Nothing is set aside while its orders wait. A buy the wallet cannot afford when its price arrives is refused.`
+          ? `This flow spends ${named.label}, ${walletMoneyWords(named.kind)}. Nothing is set aside while its orders wait. A buy the wallet cannot afford when its price arrives is refused.`
           : "Pretend money only. A backtest never touches a real or a practice wallet, and nothing here can move a cent. Funding uses the exchange's historical rates at each funding time and is listed on the results page."}
       </InspectorNote>
     </>

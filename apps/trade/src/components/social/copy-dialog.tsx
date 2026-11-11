@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -201,9 +200,6 @@ export function CopyDialog({
         })
       }
       await onSaved()
-      toast.success(
-        copy ? "Copy settings saved." : `Copying @${handle} from now on.`
-      )
       onClose()
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))

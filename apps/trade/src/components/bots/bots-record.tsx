@@ -2,17 +2,22 @@ import * as React from "react"
 
 import { ActionRow, TextPickRow } from "@/components/crm/crm-record-menu"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import {
+  InspectorCollapseAllButton,
+  InspectorCollapseAllProvider,
+  useInspectorCollapseAll,
+} from "@/components/shared/inspector-card"
 import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 import { PickGroup } from "@/components/shared/notes/pick-rows"
 import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { PANEL_FOOTER_PADDING } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**
  * The parts every Bots record shares on the right panel (the Admin 3 panel
- * design, "Right panel"): the record ⋮, and the tabbed panel an opened
+ * design, "Right panel"): the record ⋮, and the column of cards an opened
  * backtest or bot shows.
  */
 
@@ -102,40 +107,53 @@ export function RecordMenu({
 }
 
 /**
- * An opened backtest or bot on the right: its tabs in the header (Figures
- * first, then the run's own lists), the record ⋮, the collapse button at the
- * edge, the picked tab's panel, and a footer with the state and main button.
- * The run's name is in the middle's header already, so it is not said twice.
+ * An opened backtest or bot on the right: a column of folding cards, Result
+ * then Trades, in place of the tabs it had (Tyler, 10 Nov 2026: "remove the
+ * tabs and put them into collapsible cards instead"). The header names the
+ * record, then the button that folds or opens every card, the record ⋮ and the
+ * collapse button at the edge; the footer holds the state and main button. The
+ * run's own name is in the middle's header already, so it is not said twice.
  */
 export function OpenRunPanel({
-  tabs,
-  value,
-  onValueChange,
+  title,
   menu,
   hideLabel,
   footer,
   children,
 }: {
-  tabs: { value: string; label: string; count?: number }[]
-  value: string
-  onValueChange: (value: string) => void
+  /** What the record is: Backtest or Bot. */
+  title: string
   menu: React.ReactNode
   hideLabel: string
   footer?: React.ReactNode
+  /** The cards, each a `PanelCard`. */
   children: React.ReactNode
 }) {
   const cover = useRightCover()
+  const collapseAll = useInspectorCollapseAll()
   return (
     <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <RightPanelCover />
       <div>
         <DashboardCardHeader className={cn("gap-1", cover && "border-b-transparent")}>
-          <DashboardTabs value={value} onValueChange={onValueChange} tabs={tabs} />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</span>
+          <InspectorCollapseAllButton
+            noun="card"
+            nextOpen={collapseAll.nextOpen}
+            onPress={() => collapseAll.setAll(collapseAll.nextOpen)}
+          />
           {menu}
           <SidePanelCollapseButton side="right" label={hideLabel} />
         </DashboardCardHeader>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      <InspectorCollapseAllProvider signal={collapseAll.signal}>
+        {/* The scroll box's own inner element is `display: table`, which sizes
+            itself to its contents, so a wide figure or table would push every
+            card past the panel's edge. A plain block ties it to the panel. */}
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+          <div className="grid min-w-0 gap-3 p-3">{children}</div>
+        </ScrollArea>
+      </InspectorCollapseAllProvider>
       {footer ? (
         <div className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t", PANEL_FOOTER_PADDING)}>{footer}</div>
       ) : null}

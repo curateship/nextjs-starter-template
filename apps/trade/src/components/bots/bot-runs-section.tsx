@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
 import type { BotsSectionProps } from "@/components/bots/bots-dashboard"
@@ -23,6 +22,7 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { ErrorRow } from "@/components/ui/error-row"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { formatSignedUsd } from "@/lib/trade/format"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
@@ -60,8 +60,8 @@ function stateOf(row: FlowRunListRow) {
  * Bots on the Bots dashboard: every recipe ever switched on with a real or
  * practice wallet, newest first, the ones still switched on above the rest.
  * The table has no right panel: a line opens its chart at once (Tyler, 9 Nov
- * 2026: "same with bots dashboard"), with its trades under it, its Figures,
- * Coins and Results as tabs on the right, and Pause and Stop in their footer. A run is a record of money that moved,
+ * 2026: "same with bots dashboard"), its Result and Trades cards on the right,
+ * and Pause and Stop in their footer. A run is a record of money that moved,
  * so it has no rename or pin, and one still switched on is stopped, never
  * deleted.
  */
@@ -84,6 +84,9 @@ export function BotRunsSection({
   const [deleteBusy, setDeleteBusy] = React.useState(false)
   const [rowMenu, setRowMenu] = React.useState<{ id: string; x: number; y: number } | null>(null)
   const { sort, direction, toggleSort } = useTableSort<Column>("started", "desc")
+  // A re-read that failed while bots run: said under the header with Try
+  // again, so old figures never sit there looking current.
+  const [refreshError, setRefreshError] = React.useState<string | null>(null)
 
   const refresh = React.useCallback(async () => {
     try {
@@ -99,9 +102,14 @@ export function BotRunsSection({
   React.useEffect(() => {
     if (!anyRunning) return
     const timer = setInterval(() => {
+      // Not while the browser tab is hidden: nobody is reading it.
+      if (document.visibilityState !== "visible") return
       loadFlowRuns()
-        .then((next) => setRead((was) => ({ from: was.from, runs: next })))
-        .catch(() => undefined)
+        .then((next) => {
+          setRead((was) => ({ from: was.from, runs: next }))
+          setRefreshError(null)
+        })
+        .catch((error: unknown) => setRefreshError(getFlowRunErrorMessage(error)))
     }, REFRESH_MS)
     return () => clearInterval(timer)
   }, [anyRunning])
@@ -143,7 +151,9 @@ export function BotRunsSection({
     setDeleteBusy(true)
     try {
       const { deleted } = await removeFlowRuns(gone)
-      toast.success(describeBulkResult({ done: deleted.length, kept: gone.length - deleted.length, one: "run", many: "runs", verb: "deleted" }))
+      if (deleted.length < gone.length) {
+        showErrorToast(describeBulkResult({ done: deleted.length, kept: gone.length - deleted.length, one: "run", many: "runs", verb: "deleted" }))
+      }
       setTicked(new Set())
       await refresh()
       onChanged()
@@ -156,6 +166,17 @@ export function BotRunsSection({
     }
   }
 
+  // A switched-on bot holds its wallet, so it is stopped, never deleted. Delete
+  // stays pressable and says so, rather than sitting greyed out with no word
+  // of why (Tyler's rule: no greyed-out buttons while idle).
+  const askDelete = (run: FlowRunListRow) => {
+    if (run.status !== "stopped") {
+      showErrorToast("Stop this bot first. A bot still switched on holds its wallet, so it is never deleted.")
+      return
+    }
+    setDeleting([run.id])
+  }
+
   const menuFor = (run: FlowRunListRow) => (
     <RecordMenu
       label="Bot menu"
@@ -164,9 +185,7 @@ export function BotRunsSection({
           label: "Delete",
           icon: <Trash2Icon className="size-4" />,
           destructive: true,
-          // A switched-on run holds its wallet: switch it off first.
-          disabled: run.status !== "stopped",
-          onClick: () => setDeleting([run.id]),
+          onClick: () => askDelete(run),
         },
       ]}
     />
@@ -197,11 +216,17 @@ export function BotRunsSection({
               setTicked(massOn || !deletable.includes(rowMenu.id) ? new Set() : new Set([rowMenu.id]))
             },
           }}
-          items={
-            deletable.includes(rowMenu.id)
-              ? [{ label: "Delete", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleting([rowMenu.id]) }]
-              : []
-          }
+          items={[
+            {
+              label: "Delete",
+              icon: <Trash2Icon className="size-4" />,
+              destructive: true,
+              onSelect: () => {
+                const run = runs.find((one) => one.id === rowMenu.id)
+                if (run) askDelete(run)
+              },
+            },
+          ]}
           onClose={() => setRowMenu(null)}
         />
       ) : null}
@@ -222,9 +247,7 @@ export function BotRunsSection({
         initialPanelLayouts={opened.panelLayouts}
         heading={headingEnd}
         menu={listed ? menuFor(listed) : null}
-        onBack={() => go({ view: "bots", open: opened.report.head.id, q: search.q }, { push: true })}
         onCoin={(coin) => go({ ...search, coin })}
-        onOpenRecipe={() => openElsewhere("recipes", opened.report.head.automationId)}
         onRunAgain={(runId) => {
           onChanged()
           openElsewhere("bots", runId)
@@ -287,9 +310,14 @@ export function BotRunsSection({
         massOn
           ? {
               noun: "finished runs",
-              disabled: deletable.length === 0,
               checked: allTicked ? true : deletable.some((id) => ticked.has(id)) ? "indeterminate" : false,
-              onToggle: () => setTicked(allTicked ? new Set() : new Set(deletable)),
+              onToggle: () => {
+                if (deletable.length === 0) {
+                  showErrorToast("No bot here is stopped yet. Only a stopped bot can be ticked.")
+                  return
+                }
+                setTicked(allTicked ? new Set() : new Set(deletable))
+              },
             }
           : null
       }
@@ -329,7 +357,7 @@ export function BotRunsSection({
               : null
           }
           onOpen={() => go({ ...search, open: run.id, full: true }, { push: true })}
-          onDelete={run.status === "stopped" ? () => setDeleting([run.id]) : undefined}
+          onDelete={() => askDelete(run)}
           onRightClick={(x, y) => setRowMenu({ id: run.id, x, y })}
         >
           <MainCell name={run.automationName}>
@@ -360,5 +388,20 @@ export function BotRunsSection({
 
   // No right panel: a line opens its chart at once (Tyler, 9 Nov 2026: "it
   // should go straight to the result chart").
-  return frame({ header, middle: table, ids, openId, windows })
+  const retryRefresh = () => {
+    loadFlowRuns()
+      .then((next) => {
+        setRead((was) => ({ from: was.from, runs: next }))
+        setRefreshError(null)
+      })
+      .catch((error: unknown) => setRefreshError(getFlowRunErrorMessage(error)))
+  }
+  const middle = (
+    <>
+      {refreshError ? <ErrorRow message={refreshError} onRetry={retryRefresh} className="shrink-0 border-b" /> : null}
+      {table}
+    </>
+  )
+
+  return frame({ header, middle, ids, openId, windows })
 }

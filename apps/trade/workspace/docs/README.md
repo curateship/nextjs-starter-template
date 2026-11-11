@@ -60,9 +60,11 @@ screen: anything not written there has not been agreed yet.
   serves every protocol, and what stays admin-only.
 - `bots-dashboard.md` — the Bots dashboard at `/bots` (9 Nov 2026): Recipes,
   Backtests and Bots in one 3 panel dashboard with an Overview, the left page
-  that never changes, a line opened in the middle (chart over trades, or the
-  canvas with + Add step), tabs on the right, admins only, and where the old
-  links went.
+  that never changes, a line opened in the middle (a chart, or the recipe's
+  step list and canvas), Result and Trades cards on the right with a coin's
+  trades in a pinnable popover, admins only, and where the old links went.
+- `no-success-toasts.md` — nothing pops up when something works (Tyler, 10
+  Nov 2026); errors and part-done results still do, and which ones those are.
 - [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
 - `dashboard-blocks.md` — the one Trade dashboard at `/trade` (8 Nov 2026):
   the left page with the fixed Protocols block (Overview and each exchange,

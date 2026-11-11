@@ -270,9 +270,12 @@ export const tradePrefs = pgTable("trade_prefs", {
   // is about the position in front of you and must not follow you around.
   quickOrder: jsonb("quick_order").$type<QuickOrderPrefs>(),
   /**
-   * Divider positions for the trade, backtest and live-run screens, plus up to
-   * five named trade-workspace arrangements. The import flag makes the old
-   * browser-only keys a one-time handoff rather than a permanent second store.
+   * The account's panel choices: the folder row open on each exchange, the
+   * header's profit, and where the chart's drawing rail sits. The column's
+   * database default still carries `legacyImported` and `current` from when
+   * it also kept the backtest's and bot's chart-over-trades split (gone 10 Nov
+   * 2026); `readTradePanelLayouts` ignores both, and the default is written
+   * here as the database has it so the two do not disagree.
    */
   panelLayouts: jsonb("panel_layouts")
     .$type<TradePanelLayouts>()
@@ -283,7 +286,9 @@ export const tradePrefs = pgTable("trade_prefs", {
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-    }),
+      // Read through `readTradePanelLayouts`, which fills in what this
+      // default lacks (hiddenTradeColumns) and drops what it no longer uses.
+    } as unknown as TradePanelLayouts),
   /**
    * What a plain order does while it waits: rest on the exchange, or be
    * watched here and sent when the price is reached. See `order-style.ts`;

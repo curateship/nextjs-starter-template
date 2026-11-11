@@ -116,22 +116,20 @@ const BOTS_WIDGET_STORE: WidgetStore = {
  *   is open ("if we combine all the sidebars, there's like 3 sidebar on the
  *   left").
  * - **Middle:** one header and the section's table. A line opened fills the
- *   middle: a recipe's canvas, or a backtest's or bot's chart over its trades.
- *   Overview has no middle panel: its widgets sit straight on the dashboard.
- * - **Right:** the line picked, and once opened, the step picked on the canvas
- *   or the run's Figures and lists as tabs.
+ *   middle: a recipe's step list and canvas, as an open automation is drawn,
+ *   or a backtest's or bot's chart. Overview has no middle panel: its widgets
+ *   sit straight on the dashboard.
+ * - **Right:** once opened, the step picked on the canvas, or the run's Result
+ *   and Trades cards.
  */
 export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: BotsSearch }) {
   const navigate = useNavigate({ from: "/bots" })
   const view = botsViewOf(search)
   const overview = loaded.view === "overview"
-  // Two panels, page and middle, with no record on the right: Overview; every
-  // table, whose line opens its record at once (Tyler, 9 Nov 2026: "clicking on
-  // the recipe should just go to the canvas", then "we dont need the right
-  // panel for backtest dashboard. it should go straight to the result chart.
-  // same with bots dashboard"); and a canvas with no step picked ("just dont
-  // show the right panel until a node is clicked on").
-  const twoPanels = overview || !search.full || (loaded.view === "recipes" && !search.node)
+  // An open recipe draws its own two panels in the middle, the step list then
+  // the canvas, so the middle has no card of its own. Fixed while the recipe
+  // stays open: switching it remounts the middle.
+  const bare = overview || (loaded.view === "recipes" && Boolean(search.full))
 
   const pageRead = useLoad(loadBotsPage, getBotsErrorMessage)
   const setPage = (page: StoredPage) => pageRead.setData(() => page)
@@ -160,7 +158,7 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
     // From an open record, its own row goes back to the table, that line still picked.
     onReturn:
       search.full && view !== "overview"
-        ? () => void navigate({ search: { view, open: search.open, q: search.q, archived: search.archived } })
+        ? () => void navigate({ search: { view, open: search.open, q: search.q, archived: search.archived, recipe: search.recipe } })
         : undefined,
   }
 
@@ -175,6 +173,21 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
   const place: SectionPlace =
     reported?.view === loaded.view ? reported : { view: loaded.view, ids: [], ready: loaded.view === "overview" }
   const recordLabel = place.rightLabel ?? "Record"
+  // Two panels, page and middle, with no record on the right: Overview; every
+  // table, whose line opens its record at once (Tyler, 9 Nov 2026: "clicking on
+  // the recipe should just go to the canvas", then "we dont need the right
+  // panel for backtest dashboard. it should go straight to the result chart.
+  // same with bots dashboard"); and a canvas with no step picked ("just dont
+  // show the right panel until a node is clicked on"). A step pressed in the
+  // step list and not added yet shows there too, with no ?node= of its own.
+  // A Backtests line picked shows its Result card on the right, with Open
+  // chart in the footer (Tyler, 10 Nov 2026: "clicking on the table item
+  // should open up the right panel to show the results").
+  const backtestPicked = loaded.view === "backtests" && Boolean(search.open)
+  const twoPanels =
+    overview ||
+    (!search.full && !backtestPicked) ||
+    (loaded.view === "recipes" && !search.node && !place.rightLabel)
 
   const frame: BotsFrame = (panels) => (
     <SectionPanels view={loaded.view} panels={panels} rightSpot={rightSpot} onReport={report} />
@@ -249,13 +262,14 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
         }}
         middle={{
           label: BOTS_VIEW_LABELS[view],
-          bare: overview,
+          bare,
           content: (
             // The container its tables measure, so their columns drop out as the middle narrows.
             <div
               className={cn(
                 "@container flex h-full min-h-0 flex-col overflow-hidden",
-                !overview && ["bg-card", middleGutterClassName]
+                !overview && middleGutterClassName,
+                !bare && "bg-card"
               )}
             >
               {middle}

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { toast } from "sonner"
 import {
   ActivityIcon,
   Loader2Icon,
@@ -149,12 +148,11 @@ export default function FlowStatusHeader({
   const trades = flow
   const live = trades.running || trades.stopping ? trades : null
 
-  /** Every action is the same shape: do it, say so, redraw at once. */
+  /** Every action is the same shape: do it, then redraw at once. */
   const act = (what: () => Promise<{ summary: string }>, then?: () => void) => {
     setBusy(true)
     void what()
-      .then((answer) => {
-        toast.success(answer.summary)
+      .then(() => {
         setOpen(false)
         setAsking(null)
         then?.()
@@ -180,8 +178,7 @@ export default function FlowStatusHeader({
       headline: `${trades.working} ${plural(trades.working, "ladder", "ladders")} left to call off.`,
     })
     void stopFlow(automationId)
-      .then((answer) => {
-        toast.success(answer.summary)
+      .then(() => {
         setRefreshKey((n) => n + 1)
       })
       .catch((error: unknown) => {
@@ -201,7 +198,6 @@ export default function FlowStatusHeader({
           showErrorToast(outcome.summary)
           return
         }
-        toast.success(outcome.summary)
         setOpen(false)
         setAsking(null)
         setRefreshKey((n) => n + 1)
@@ -328,7 +324,7 @@ export default function FlowStatusHeader({
             />
             {/* The wallet, then the exchange it is on. Real money is carried by
               the amber and by the dropdown, which says it in words. */}
-            {live.stopping ? "Stopping" : live.paused ? "Paused" : "Trading"} —{" "}
+            {live.stopping ? "Stopping" : live.paused ? "Paused" : "Trading"} on{" "}
             {live.walletLabel}
             <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               {live.venue}

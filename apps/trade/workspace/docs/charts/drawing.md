@@ -81,8 +81,10 @@ The grip has no hover message.
   - A trendline that a running grid uses as its stop stays. The database
     refuses to delete one of those, and clearing lines should not take a
     grid's stop away.
-  - The button asks first and names what goes. The success toast says how
-    many of each went and how many trendlines stayed.
+  - The button asks first and names what goes. Afterwards nothing pops up
+    for what went (see `../screens/no-success-toasts.md`); trendlines kept
+    back for a grid's stop are named in an error toast, because they did not
+    go.
   - With nothing ticked, or nothing to clear in what is ticked, the button
     shows an error toast instead of asking.
   - The code is `clearDrawingKinds` in `src/server/trade/drawings.ts`, and the

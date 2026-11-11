@@ -38,7 +38,6 @@ import type { TradeSoundSettings } from "@/lib/trade/trade-sounds"
 import {
   emptyTradePanelLayouts,
   marketPanelScopeKey,
-  matchingPanelLayout,
   readOpenMarketRows,
   readChartToolbarPosition,
   readTradePanelLayouts,
@@ -46,9 +45,10 @@ import {
   type TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
 import {
-  type TradePanelLayoutKey,
-  tradePanelIds,
-} from "@/lib/trade/panel-keys"
+  isTradesPopoverColumn,
+  readHiddenTradeColumns,
+  type TradesPopoverKind,
+} from "@/lib/trade/trades-popover-columns"
 import {
   minimumMarketVolumeSchema,
   readMinimumMarketVolume,
@@ -871,6 +871,25 @@ export async function saveChartToolbarPosition(
   }))
 }
 
+/**
+ * Remember the columns hidden in one of the trades popover's tables. A column
+ * this build does not know is refused rather than kept.
+ */
+export async function saveHiddenTradeColumns(
+  userId: string,
+  kind: TradesPopoverKind,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  if (!Array.isArray(value) || value.some((key) => typeof key !== "string" || !isTradesPopoverColumn(kind, key))) {
+    throw new Error("PANEL_LAYOUT_INVALID")
+  }
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    hiddenTradeColumns: readHiddenTradeColumns({ ...layouts.hiddenTradeColumns, [kind]: value }),
+  }))
+}
+
 /** The two account-owned answers the live-run route needs, in one row read. */
 export async function loadChartWorkspacePrefs(
   userId: string,
@@ -890,22 +909,6 @@ export async function loadChartWorkspacePrefs(
   }
 }
 
-/** Remember one panel group. */
-export async function saveTradePanelLayout(
-  userId: string,
-  key: TradePanelLayoutKey,
-  value: unknown,
-  database: CustomShellDb = db
-): Promise<void> {
-  const layout = matchingPanelLayout(value, tradePanelIds[key])
-  if (!layout) throw new Error("PANEL_LAYOUT_INVALID")
-  await updateTradePanelLayouts(userId, database, (layouts) => ({
-    ...layouts,
-    legacyImported: true,
-    current: { ...layouts.current, [key]: layout },
-  }))
-}
-
 /** Remember the open folder row. */
 export async function saveOpenMarketRow(
   userId: string,
@@ -916,49 +919,8 @@ export async function saveOpenMarketRow(
   const { key, rowId } = validOpenMarketRow(scope, value)
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
-    legacyImported: true,
     openMarketRows: { ...layouts.openMarketRows, [key]: rowId },
   }))
-}
-
-/**
- * Bring this browser's old layouts across only while the account has no newer
- * account-owned answer. The conflict update is one statement, so two browsers
- * cannot both win the first import.
- */
-export async function importLegacyTradePanelLayouts(
-  userId: string,
-  value: TradePanelLayouts["current"],
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  const imported = readTradePanelLayouts({
-    legacyImported: true,
-    current: value,
-    named: [],
-  })
-  if (Object.keys(imported.current).length === 0) {
-    return loadTradePanelLayouts(userId, database)
-  }
-
-  const base = validPanelLayoutsSql()
-  const [row] = await database
-    .insert(tradePrefs)
-    .values({ userId, panelLayouts: imported, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: tradePrefs.userId,
-      set: {
-        panelLayouts: sql`case
-          when ${base}->>'legacyImported' = 'true' then ${base}
-          else ${JSON.stringify(imported)}::jsonb || jsonb_build_object(
-            'headerProfitVisible',
-            coalesce(${base}->'headerProfitVisible', 'true'::jsonb)
-          )
-        end`,
-        updatedAt: new Date(),
-      },
-    })
-    .returning({ panelLayouts: tradePrefs.panelLayouts })
-  return readTradePanelLayouts(row?.panelLayouts)
 }
 
 async function updateTradePanelLayouts(
@@ -984,16 +946,6 @@ async function updateTradePanelLayouts(
       .where(eq(tradePrefs.userId, userId))
     return saved
   })
-}
-
-/** Treat a hand-edited non-object value as an empty current-format answer. */
-function validPanelLayoutsSql() {
-  const empty = JSON.stringify(emptyTradePanelLayouts())
-  return sql`case
-    when jsonb_typeof(${tradePrefs.panelLayouts}) = 'object'
-      then ${tradePrefs.panelLayouts}
-    else ${empty}::jsonb
-  end`
 }
 
 function validOpenMarketRow(scope: MarketPanelScope, value: unknown) {

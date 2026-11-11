@@ -3,10 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   marketPanelScopeKey,
   matchingPanelLayout,
-  readLegacyTradePanelLayouts,
   readTradePanelLayouts,
 } from "@/lib/trade/panel-layout"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 
 const panels = ["markets", "chart", "smart-orders"] as const
 
@@ -56,47 +54,23 @@ describe("remembered trade panel layouts", () => {
     ).toBeNull()
   })
 
-  it("drops one stale group without losing the other saved groups", () => {
+  it("reads a row that still holds the old chart-over-trades split without it", () => {
+    // The backtest's and bot's bottom trades panel went on 10 Nov 2026, and
+    // its saved split with it; a row still holding one reads as before.
     const saved = readTradePanelLayouts({
       legacyImported: true,
-      current: {
-        [tradePanelLayoutKey.backtestVertical]: {
-          markets: 20,
-          chart: 58,
-          account: 22,
-        },
-        // The Trade dashboard's widths moved to the browser on 10 Nov 2026;
-        // an account still holding them reads without them.
-        "trade-workspace-horizontal-4": { blocks: 20, chart: 80 },
-        [tradePanelLayoutKey.flowRunVertical]: {
-          workspace: 72,
-          trades: 28,
-        },
-        "trade-workspace-market-column": {
-          folders: 68,
-          alerts: 32,
-        },
-      },
-      named: [],
+      current: { "trade-backtest-vertical": { workspace: 72, trades: 28 } },
+      openMarketRows: {},
     })
 
-    expect(
-      saved.current[tradePanelLayoutKey.backtestVertical]
-    ).toBeUndefined()
-    expect(saved.current).not.toHaveProperty("trade-workspace-horizontal-4")
-    expect(saved.current[tradePanelLayoutKey.flowRunVertical]).toEqual({
-      workspace: 72,
-      trades: 28,
-    })
-    expect(saved.current).not.toHaveProperty("trade-workspace-market-column")
+    expect(saved).not.toHaveProperty("current")
+    expect(saved).not.toHaveProperty("legacyImported")
   })
 
   it("reads the open folder and drops the saved layouts that were removed", () => {
     // Saved layouts left the dashboard on 7 Nov 2026 (Tyler: "also remove the
     // saved layout feature"); a row still holding them reads without them.
     const saved = readTradePanelLayouts({
-      legacyImported: true,
-      current: {},
       openMarketRows: { [scope]: null, unknown: "watched" },
       headerProfitVisible: false,
       chartToolbarPosition: { x: 0.25, y: 0.75 },
@@ -116,22 +90,5 @@ describe("remembered trade panel layouts", () => {
       readTradePanelLayouts({ chartToolbarPosition: { x: 2, y: 0.5 } })
         .chartToolbarPosition
     ).toBeNull()
-  })
-
-  it("reads every valid old browser key and ignores malformed neighbours", () => {
-    const values = new Map<string, string>([
-      [tradePanelLayoutKey.backtestVertical, "not json"],
-      [
-        tradePanelLayoutKey.flowRunVertical,
-        JSON.stringify({ workspace: 65, trades: 35 }),
-      ],
-    ])
-    const imported = readLegacyTradePanelLayouts({
-      getItem: (key) => values.get(key) ?? null,
-    })
-
-    expect(imported).toEqual({
-      [tradePanelLayoutKey.flowRunVertical]: { workspace: 65, trades: 35 },
-    })
   })
 })

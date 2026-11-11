@@ -30,7 +30,8 @@ export const Route = createFileRoute("/_authenticated/bots")({
   loaderDeps: ({ search }) => ({
     view: botsViewOf(search),
     archived: search.archived === true,
-    opened: search.full ? search.open : undefined,
+    // A picked backtest is read too: its Result shows on the right.
+    opened: search.full || botsViewOf(search) === "backtests" ? search.open : undefined,
   }),
   // Kept for no time once the dashboard is left, so coming back reads fresh.
   gcTime: 0,
@@ -58,11 +59,13 @@ async function loadBots({
     return { view, recipes: page.recipes, opened: recipe }
   }
   if (view === "backtests") {
-    const [list, run] = await Promise.all([
+    const [list, run, prefs] = await Promise.all([
       loadBacktests({ includeArchived: archived }),
       opened ? loadBacktest(opened) : null,
+      // A coin's chart opens at the Trade chart's remembered view.
+      opened ? loadRememberedChartView().catch(() => null) : null,
     ])
-    return { view, runs: list.runs, opened: run }
+    return { view, runs: list.runs, opened: run ? { ...run, chartView: prefs?.chartView ?? null } : null }
   }
   if (view === "bots") {
     const [runs, report, prefs] = await Promise.all([

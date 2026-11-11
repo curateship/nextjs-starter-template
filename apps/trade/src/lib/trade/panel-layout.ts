@@ -13,10 +13,9 @@ import {
 } from "@/lib/protocols/contracts"
 import { ALL_ROW } from "@/lib/trade/market-folders"
 import {
-  TRADE_PANEL_LAYOUT_KEYS,
-  type TradePanelLayoutKey,
-  tradePanelIds,
-} from "@/lib/trade/panel-keys"
+  readHiddenTradeColumns,
+  type HiddenTradeColumns,
+} from "@/lib/trade/trades-popover-columns"
 
 export type MarketPanelScope = { protocol: ProtocolId; network: NetworkId }
 
@@ -30,30 +29,34 @@ export type OpenMarketRows = Record<string, string | null>
 /** The drawing rail's place inside the candle area, as shares of its travel. */
 export type ChartToolbarPosition = { x: number; y: number }
 
-/** Every panel arrangement kept in the account's one preference column. */
+/**
+ * The panel choices kept in the account's one preference column. It held the
+ * backtest's and bot's chart-over-trades split too, until those pages lost
+ * their bottom trades panel (10 Nov 2026); a stored row may still carry that
+ * old `current` and `legacyImported`, which nothing reads.
+ */
 export type TradePanelLayouts = {
-  legacyImported: boolean
-  current: Partial<Record<TradePanelLayoutKey, Layout>>
   /** The folder row currently open on each exchange, including closed rows. */
   openMarketRows: OpenMarketRows
   /** Whether the sticky header shows profit beside the active-trade value. */
   headerProfitVisible: boolean
   /** Null is the home position, equally inset from the top and right. */
   chartToolbarPosition: ChartToolbarPosition | null
+  /** The columns hidden in the Bots dashboard's trades popover, per table. */
+  hiddenTradeColumns: HiddenTradeColumns
 }
 
 export function emptyTradePanelLayouts(): TradePanelLayouts {
   return {
-    legacyImported: false,
-    current: {},
     openMarketRows: {},
     headerProfitVisible: true,
     chartToolbarPosition: null,
+    hiddenTradeColumns: {},
   }
 }
 
 /**
- * Applies an account-owned layout to the panel group already on screen.
+ * Applies a remembered layout to the panel group already on screen.
  *
  * The first layout callback fires when the group registers its panels. The
  * saved answer is handed to that group through `setLayout`; no React key is
@@ -263,21 +266,7 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
     return emptyTradePanelLayouts()
   }
   const record = value as Record<string, unknown>
-  const currentRecord =
-    record.current &&
-    typeof record.current === "object" &&
-    !Array.isArray(record.current)
-      ? (record.current as Record<string, unknown>)
-      : {}
-  const current: TradePanelLayouts["current"] = {}
-  for (const key of TRADE_PANEL_LAYOUT_KEYS) {
-    const layout = matchingPanelLayout(currentRecord[key], tradePanelIds[key])
-    if (layout) current[key] = layout
-  }
-
   return {
-    legacyImported: record.legacyImported === true,
-    current,
     openMarketRows: readOpenMarketRows(record.openMarketRows),
     headerProfitVisible:
       typeof record.headerProfitVisible === "boolean"
@@ -285,6 +274,7 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
         : true,
     chartToolbarPosition:
       readChartToolbarPosition(record.chartToolbarPosition) ?? null,
+    hiddenTradeColumns: readHiddenTradeColumns(record.hiddenTradeColumns),
   }
 }
 
@@ -335,36 +325,4 @@ export function readOpenMarketRows(value: unknown): OpenMarketRows {
     }
   }
   return rows
-}
-
-/** Read every old browser key for the one-time account import. */
-export function readLegacyTradePanelLayouts(
-  storage: Pick<Storage, "getItem">
-): TradePanelLayouts["current"] {
-  const current: TradePanelLayouts["current"] = {}
-  for (const key of TRADE_PANEL_LAYOUT_KEYS) {
-    try {
-      const raw = storage.getItem(key)
-      const layout = raw
-        ? matchingPanelLayout(JSON.parse(raw), tradePanelIds[key])
-        : null
-      if (layout) current[key] = layout
-    } catch {
-      // One blocked or malformed browser value does not hide the others.
-    }
-  }
-  return current
-}
-
-/** The server is authoritative after import, so the old copies can go. */
-export function clearLegacyTradePanelLayouts(
-  storage: Pick<Storage, "removeItem">
-) {
-  for (const key of TRADE_PANEL_LAYOUT_KEYS) {
-    try {
-      storage.removeItem(key)
-    } catch {
-      // A blocked browser store is already unusable and needs no cleanup.
-    }
-  }
 }

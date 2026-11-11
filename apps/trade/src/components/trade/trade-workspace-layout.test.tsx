@@ -454,11 +454,10 @@ function renderWorkspace(overview: React.ReactNode | null) {
         initialQuickOrder={{} as never}
         initialTradingRules={DEFAULT_TRADING_RULES}
         initialPanelLayouts={{
-          legacyImported: true,
-          current: {},
           openMarketRows: {},
           headerProfitVisible: true,
           chartToolbarPosition: null,
+          hiddenTradeColumns: {},
         }}
         initialWallets={{
           rows: [],

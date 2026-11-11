@@ -1083,7 +1083,7 @@ describe("removing a DCA ladder", () => {
     expect(api.toastSuccess).not.toHaveBeenCalled()
   })
 
-  it("says the bought coins remain when a position is open", async () => {
+  it("says nothing when a ladder with an open position is called off", async () => {
     api.cancelLadderRest.mockResolvedValue({
       cancelled: 1,
       hasPosition: true,
@@ -1094,16 +1094,15 @@ describe("removing a DCA ladder", () => {
       await latest?.cancelLadder(wallet.id, "ladder-1")
     })
 
-    expect(api.toastSuccess).toHaveBeenCalledWith(
-      "Ladder stopped in Main — what's bought stays."
-    )
+    // Success says nothing (Tyler, 10 Nov 2026: "Remove all success toast").
+    expect(api.toastSuccess).not.toHaveBeenCalled()
   })
 })
 
 describe("what the grid's stop says when it is saved", () => {
-  // Tyler, 22 Sep 2026: the × on the stop line used to say "Stop changed",
-  // which reads as though a stop is still there.
-  it("says the stop was removed when both stops go", async () => {
+  // Nothing, removed or moved: success says nothing (Tyler, 10 Nov 2026:
+  // "Remove all success toast"). Before that the × said "Stop removed".
+  it("says nothing when both stops go or the stop moves", async () => {
     api.loadLiveTrading.mockResolvedValue({
       ...emptyLiveAnswer,
       smartOrders: [gridOn("hyperliquid:mainnet:ENA", false)],
@@ -1114,13 +1113,12 @@ describe("what the grid's stop says when it is saved", () => {
     await act(async () => {
       await latest!.setGridStop(wallet.id, grid.id, null, false, null)
     })
-    expect(api.toastSuccess).toHaveBeenCalledWith("Stop removed.")
+    expect(api.toastSuccess).not.toHaveBeenCalled()
 
-    api.toastSuccess.mockClear()
     await act(async () => {
       await latest!.setGridStop(wallet.id, grid.id, { underPct: 4, base: null })
     })
-    expect(api.toastSuccess).toHaveBeenCalledWith("Stop changed.")
+    expect(api.toastSuccess).not.toHaveBeenCalled()
   })
 })
 
@@ -1790,7 +1788,7 @@ describe("flipping live positions", () => {
     },
   }
 
-  it("uses the live endpoint and reports success only after a complete flip", async () => {
+  it("uses the live endpoint and says nothing once the flip is done", async () => {
     api.loadLiveTrading.mockResolvedValue({
       ...emptyLiveAnswer,
       positions: [held],
@@ -1804,7 +1802,7 @@ describe("flipping live positions", () => {
       held.marketKey,
       2
     )
-    expect(api.toastSuccess).toHaveBeenCalledWith("Position flipped in Main.")
+    expect(api.toastSuccess).not.toHaveBeenCalled()
   })
 
   it("does not turn a stale long confirmation into a short-to-long flip", async () => {

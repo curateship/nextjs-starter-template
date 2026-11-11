@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useRouter } from "@tanstack/react-router"
 import { CopyIcon, Loader2Icon, UserCheckIcon, UserPlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CopyDialog } from "@/components/social/copy-dialog"
 import { Button } from "@/components/ui/button"
@@ -56,11 +55,6 @@ export function ProfileFollowCopy({
     try {
       await setFollowing(handle, !relation.following)
       await router.invalidate()
-      toast.success(
-        relation.following
-          ? `You stopped following @${handle}.`
-          : `Following @${handle}. You get a notice when they close a trade.`
-      )
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {

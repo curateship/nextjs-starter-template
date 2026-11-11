@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import type { BotsSectionProps } from "@/components/bots/bots-dashboard"
 import { RecordMenu } from "@/components/bots/bots-record"
@@ -74,7 +73,6 @@ export function RecipesSection({
   headingEnd,
   frame,
   go,
-  openElsewhere,
   onChanged,
 }: BotsSectionProps & { loaded: RecipesLoaded }) {
   const [read, setRead] = React.useState({ from: loaded.recipes, recipes: loaded.recipes })
@@ -129,7 +127,6 @@ export function RecipesSection({
       setNewName("")
       setNewOpen(false)
       onChanged()
-      toast.success(`Created "${created.name}".`)
       go({ view: "recipes", open: created.id, full: true }, { push: true })
     } catch (error) {
       showErrorToast(getRecipeErrorMessage(error))
@@ -148,7 +145,6 @@ export function RecipesSection({
       setRecipes((current) =>
         current.map((one) => (one.id === saved.id ? { ...toRecipeListItem(saved), run: one.run } : one))
       )
-      toast.success(`Renamed recipe to "${saved.name}".`)
     } catch (error) {
       showErrorToast(getRecipeErrorMessage(error))
     }
@@ -159,9 +155,16 @@ export function RecipesSection({
     setDuplicating(recipe.id)
     try {
       const copied = await duplicateRecipe(recipe.id)
-      setRecipes((current) => [toRecipeListItem(copied), ...current])
+      // Under the one it came from, and picked, so the copy is where you are
+      // looking rather than wherever the list happens to start.
+      setRecipes((current) => {
+        const at = current.findIndex((one) => one.id === recipe.id)
+        const next = [...current]
+        next.splice(at + 1, 0, toRecipeListItem(copied))
+        return next
+      })
       onChanged()
-      toast.success(`Created "${copied.name}".`)
+      go({ view: "recipes", open: copied.id, q: search.q })
     } catch (error) {
       showErrorToast(getRecipeErrorMessage(error))
     } finally {
@@ -177,7 +180,9 @@ export function RecipesSection({
       setRecipes((current) => current.filter((recipe) => !gone.has(recipe.id)))
       setTicked(new Set())
       onChanged()
-      toast.success(describeBulkResult({ done: count, kept: gone.size - count, one: "recipe", many: "recipes", verb: "deleted" }))
+      if (count < gone.size) {
+        showErrorToast(describeBulkResult({ done: count, kept: gone.size - count, one: "recipe", many: "recipes", verb: "deleted" }))
+      }
       if (search.full && openId && gone.has(openId)) go({ view: "recipes" })
     } catch (error) {
       // A recipe with a live run cannot be deleted; the server says which.
@@ -261,7 +266,6 @@ export function RecipesSection({
         heading={headingEnd}
         menu={listed ? menuFor(listed) : null}
         onBack={() => go({ view: "recipes", open: opened.id, q: search.q }, { push: true })}
-        onOpenBacktest={(groupId) => openElsewhere("backtests", groupId)}
         frame={(panels) => frame({ ...panels, ids, openId, windows })}
       />
     )

@@ -41,4 +41,10 @@ describe("the Bots dashboard's address", () => {
     const params = Object.fromEntries(new URL(href, "https://trade.example").searchParams)
     expect(readBotsSearch(params)).toMatchObject({ view: "bots", open: "a&b", full: true })
   })
+
+  it("keeps a recipe filter on Backtests only", () => {
+    expect(readBotsSearch({ view: "backtests", recipe: "r-1" }).recipe).toBe("r-1")
+    expect(readBotsSearch({ view: "recipes", recipe: "r-1" }).recipe).toBeUndefined()
+    expect(readBotsSearch({ view: "backtests", recipe: "x".repeat(81) }).recipe).toBeUndefined()
+  })
 })

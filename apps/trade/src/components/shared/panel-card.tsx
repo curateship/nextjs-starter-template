@@ -3,6 +3,7 @@ import { ChevronDown, SettingsIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useCollapseAllCommand } from "@/components/shared/inspector-card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
@@ -43,6 +44,9 @@ const FooterOpen = React.createContext<boolean | null>(null)
  * take no room, so the title has the card's whole width in a narrow side
  * panel and is cut short only while the card is pointed at (Tyler, 5 Nov
  * 2026, of Promo's network cards reading "Reddi...").
+ *
+ * Inside an `InspectorCollapseAllProvider` it also folds or opens with the
+ * panel header's `InspectorCollapseAllButton`, as `InspectorCard` does.
  *
  * `icon` is drawn before the title, such as a network's mark on Promo's
  * network cards. `openWhen` opens a folded card each time it turns true,
@@ -87,6 +91,7 @@ export function PanelCard({
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
   const [footerOpen, setFooterOpen] = React.useState(false)
+  useCollapseAllCommand(setOpen)
   // After the remembered state is read, so on arrival the card opens over it.
   React.useEffect(() => {
     if (openWhen) setOpen(true)

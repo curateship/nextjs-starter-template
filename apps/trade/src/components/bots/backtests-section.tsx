@@ -5,8 +5,8 @@ import {
   PinIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
+import { BacktestPreviewPanel } from "@/components/backtest/backtest-preview-panel"
 import { backtestDurationText, backtestElapsedMs, useBacktestClock } from "@/components/backtest/backtest-duration"
 import { signedUsd, usd } from "@/components/backtest/backtest-kpi"
 import { BacktestRunPage, type BacktestCoinRow, type BacktestRunView } from "@/components/backtest/backtest-run-page"
@@ -31,17 +31,25 @@ import {
 } from "@/lib/api/trade/backtests"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
-import { plural } from "@/lib/format/plural"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { ErrorRow } from "@/components/ui/error-row"
 import type { BacktestListRow } from "@/lib/trade/backtest/result"
+import { backtestName } from "@/lib/trade/backtest/backtest-name"
+import type { ChartView } from "@/lib/trade/chart-view"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 
 /** What the route read for Backtests: the list, and the run opened in the middle. */
 export type BacktestsLoaded = {
   view: "backtests"
   runs: BacktestListRow[]
-  opened: { run: BacktestRunView; coins: BacktestCoinRow[]; panelLayouts: TradePanelLayouts } | null
+  opened: {
+    run: BacktestRunView
+    coins: BacktestCoinRow[]
+    panelLayouts: TradePanelLayouts
+    /** The Trade chart's remembered view, which a coin's chart opens at. */
+    chartView: ChartView | null
+  } | null
 }
 
 type Column = "name" | "coins" | "madeOrLost" | "worstDip" | "ran" | "took"
@@ -58,21 +66,13 @@ const COLUMNS = [
 /** How often the list is read again while a run is still going. */
 const REFRESH_MS = 2_000
 
-/** An unnamed run says what it was, which is more use than "Untitled". */
-function backtestName(run: Pick<BacktestListRow, "name" | "coinsTotal" | "spec">): string {
-  return (
-    run.name ??
-    `${run.coinsTotal} ${plural(run.coinsTotal, "market", "markets")}, ${run.spec.days} ${plural(run.spec.days, "day", "days")}`
-  )
-}
-
 const NAME_NOTE = "A named run is kept. An unnamed one is replaced the next time the same recipe finishes a backtest."
 
 /**
  * Backtests on the Bots dashboard: every run, newest first, the pinned ones
  * on top. The table has no right panel: a line opens its chart at once
  * (Tyler, 9 Nov 2026: "it should go straight to the result chart"), with its
- * trades under it and its Figures, Results and Skipped as tabs on the right.
+ * Result and Trades cards on the right.
  */
 export function BacktestsSection({
   loaded,
@@ -81,7 +81,6 @@ export function BacktestsSection({
   headingEnd,
   frame,
   go,
-  openElsewhere,
   onChanged,
 }: BotsSectionProps & { loaded: BacktestsLoaded }) {
   const showArchived = search.archived === true
@@ -95,6 +94,9 @@ export function BacktestsSection({
   const [deleteBusy, setDeleteBusy] = React.useState(false)
   const [rowMenu, setRowMenu] = React.useState<{ id: string; x: number; y: number } | null>(null)
   const { sort, direction, toggleSort } = useTableSort<Column>("ran", "desc")
+  // A re-read that failed while backtests run: said under the header with Try
+  // again, so old progress never sits there looking current.
+  const [refreshError, setRefreshError] = React.useState<string | null>(null)
 
   const refresh = React.useCallback(async () => {
     try {
@@ -111,17 +113,33 @@ export function BacktestsSection({
   React.useEffect(() => {
     if (!anyRunning) return
     const timer = setInterval(() => {
+      // Not while the browser tab is hidden: nobody is reading it.
+      if (document.visibilityState !== "visible") return
       loadBacktests({ includeArchived: showArchived })
-        .then(({ runs: next }) => setRead((was) => ({ from: was.from, runs: next })))
-        .catch(() => undefined)
+        .then(({ runs: next }) => {
+          setRead((was) => ({ from: was.from, runs: next }))
+          setRefreshError(null)
+        })
+        .catch((error: unknown) => setRefreshError(getBacktestErrorMessage(error)))
     }, REFRESH_MS)
     return () => clearInterval(timer)
   }, [anyRunning, showArchived])
 
   const query = (search.q ?? "").trim().toLowerCase()
+  // One recipe's backtests, from Filter → Recipe.
+  const recipe = search.recipe
+  // Every recipe that has a run in the list, by name, for the filter.
+  const recipesRun = React.useMemo(() => {
+    const names = new Map<string, string>()
+    for (const run of runs) names.set(run.automationId, run.automationName)
+    // A recipe with no run listed still shows as picked.
+    if (recipe && !names.has(recipe)) names.set(recipe, "This recipe")
+    return [...names].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [runs, recipe])
   const sorted = React.useMemo(() => {
     const way = direction === "asc" ? 1 : -1
     return runs
+      .filter((run) => !recipe || run.automationId === recipe)
       .filter(
         (run) =>
           !query ||
@@ -146,7 +164,7 @@ export function BacktestsSection({
             return way * (left.createdAt - right.createdAt)
         }
       })
-  }, [runs, query, sort, direction, now])
+  }, [runs, query, sort, direction, now, recipe])
 
   const ids = sorted.map((run) => run.id)
   const openId = search.open
@@ -158,7 +176,10 @@ export function BacktestsSection({
       setTicked(new Set())
       await refresh()
       onChanged()
-      toast.success(describeBulkResult({ done: done.length, kept: total - done.length, one: "backtest", many: "backtests", verb: words.verb }))
+      // Only a refusal is said; what went through shows in the table.
+      if (done.length < total) {
+        showErrorToast(describeBulkResult({ done: done.length, kept: total - done.length, one: "backtest", many: "backtests", verb: words.verb }))
+      }
     } catch (error) {
       showErrorToast(getBacktestErrorMessage(error))
     }
@@ -177,7 +198,6 @@ export function BacktestsSection({
     try {
       await renameBacktest(run.id, name)
       await refresh()
-      toast.success(name ? `Renamed to "${name}".` : "Name cleared.")
     } catch (error) {
       showErrorToast(getBacktestErrorMessage(error))
     }
@@ -251,7 +271,7 @@ export function BacktestsSection({
     </>
   )
 
-  // Opened: the run's chart over its trades in the middle, its tabs on the right.
+  // Opened: the run's chart in the middle, its Result and Trades cards on the right.
   if (search.full && loaded.opened && loaded.opened.run.id === openId) {
     const opened = loaded.opened
     const listed = runs.find((run) => run.id === opened.run.id)
@@ -261,12 +281,11 @@ export function BacktestsSection({
         run={opened.run}
         coins={opened.coins}
         openCoin={search.coin && opened.coins.some((coin) => coin.marketKey === search.coin) ? search.coin : null}
+        chartView={opened.chartView}
         initialPanelLayouts={opened.panelLayouts}
         heading={headingEnd}
         menu={listed ? menuFor(listed) : null}
-        onBack={() => go({ view: "backtests", open: opened.run.id, q: search.q, archived: search.archived }, { push: true })}
         onCoin={(coin, push) => go({ ...search, coin }, { push })}
-        onOpenRecipe={() => openElsewhere("recipes", opened.run.automationId)}
         frame={(panels) => frame({ ...panels, ids, openId, windows })}
       />
     )
@@ -309,7 +328,30 @@ export function BacktestsSection({
         ) : null
       }
       filter={
-        <FilterPopover count={showArchived ? 1 : 0} onClear={() => go({ ...search, archived: undefined })} save={null}>
+        <FilterPopover
+          count={(showArchived ? 1 : 0) + (recipe ? 1 : 0)}
+          onClear={() => go({ ...search, archived: undefined, recipe: undefined })}
+          save={null}
+        >
+          <div className="grid gap-1.5">
+            <FieldLabel htmlFor="backtests-recipe">Recipe</FieldLabel>
+            <Select
+              value={recipe ?? "all"}
+              onValueChange={(value) => go({ ...search, recipe: value === "all" ? undefined : value })}
+            >
+              <SelectTrigger id="backtests-recipe" className="h-8 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Every recipe</SelectItem>
+                {recipesRun.map(([id, name]) => (
+                  <SelectItem key={id} value={id}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid gap-1.5">
             <FieldLabel htmlFor="backtests-which">Which runs</FieldLabel>
             <Select
@@ -356,22 +398,29 @@ export function BacktestsSection({
         massOn
           ? {
               noun: "backtests",
-              disabled: ids.length === 0,
               checked: allTicked ? true : ids.some((id) => ticked.has(id)) ? "indeterminate" : false,
-              onToggle: () => setTicked(allTicked ? new Set() : new Set(ids)),
+              onToggle: () => {
+                if (ids.length === 0) {
+                  showErrorToast("There are no backtests here to tick.")
+                  return
+                }
+                setTicked(allTicked ? new Set() : new Set(ids))
+              },
             }
           : null
       }
       empty={
-        sorted.length > 0 ? null : query ? (
+        sorted.length > 0 ? null : query || recipe ? (
           <span className="grid justify-items-center gap-2">
-            {`No backtests match "${search.q}".`}
+            {query
+              ? `No backtests match "${search.q}".`
+              : "This recipe has no backtests here yet. Open it and press Backtest above its canvas."}
             <Button type="button" variant="outline" size="sm" onClick={() => go({ view: "backtests" })}>
               Clear filters
             </Button>
           </span>
         ) : (
-          "No backtests yet. Give a recipe a pretend wallet, then press Run backtest on its canvas."
+          "No backtests yet. Give a recipe a pretend wallet, then press Backtest above its canvas."
         )
       }
     >
@@ -395,7 +444,9 @@ export function BacktestsSection({
                 }
               : null
           }
-          onOpen={() => go({ ...search, open: run.id, full: true }, { push: true })}
+          // A line is picked, its Result on the right; Open chart there opens
+          // its chart and graph in the middle.
+          onOpen={() => go({ ...search, open: run.id, full: undefined, coin: undefined })}
           onDelete={() => setDeleting([run.id])}
           onRightClick={(x, y) => setRowMenu({ id: run.id, x, y })}
         >
@@ -426,7 +477,41 @@ export function BacktestsSection({
     </CrmTable>
   )
 
-  // No right panel: a line opens its chart at once (Tyler, 9 Nov 2026: "it
-  // should go straight to the result chart").
-  return frame({ header, middle: table, ids, openId, windows })
+  const retryRefresh = () => {
+    loadBacktests({ includeArchived: showArchived })
+      .then(({ runs: next }) => {
+        setRead((was) => ({ from: was.from, runs: next }))
+        setRefreshError(null)
+      })
+      .catch((error: unknown) => setRefreshError(getBacktestErrorMessage(error)))
+  }
+  const middle = (
+    <>
+      {refreshError ? <ErrorRow message={refreshError} onRetry={retryRefresh} className="shrink-0 border-b" /> : null}
+      {table}
+    </>
+  )
+
+  // The line picked shows its Result card on the right, with Open chart in
+  // the footer (Tyler, 10 Nov 2026: "clicking on the table item should open
+  // up the right panel to show the results and in the footer have a button to
+  // click on to show the chart and graph").
+  const picked = loaded.opened && loaded.opened.run.id === openId ? loaded.opened : null
+  const pickedRow = picked ? runs.find((run) => run.id === picked.run.id) : undefined
+  const right = picked
+    ? {
+        label: "Backtest",
+        content: (
+          <BacktestPreviewPanel
+            key={picked.run.id}
+            run={picked.run}
+            coins={picked.coins}
+            menu={pickedRow ? menuFor(pickedRow) : null}
+            onOpen={() => go({ ...search, open: picked.run.id, full: true }, { push: true })}
+          />
+        ),
+      }
+    : undefined
+
+  return frame({ header, middle, right, ids, openId, windows })
 }

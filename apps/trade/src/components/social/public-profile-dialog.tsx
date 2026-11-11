@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, Loader2Icon, RotateCcwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CopiersCard } from "@/components/social/copiers-card"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -194,7 +193,7 @@ export function PublicProfileDialog({
   }
 
   async function save() {
-    if (await saveIfNeeded()) toast.success("Public profile saved.")
+    await saveIfNeeded()
   }
 
   async function switchOn() {
@@ -203,9 +202,6 @@ export function PublicProfileDialog({
       const checks = await switchPublicProfile(true)
       await load()
       setStep("edit")
-      toast.success(
-        `Your profile is public at /t/${normalizeHandle(form?.handle ?? "")}.`
-      )
       const failed = failedCount(checks)
       if (failed) {
         showErrorToast(
@@ -224,7 +220,6 @@ export function PublicProfileDialog({
     try {
       await switchPublicProfile(false)
       await load()
-      toast.success("Your profile is off. Nobody can open it now.")
     } catch (error) {
       showErrorToast(getPublicProfileErrorMessage(error))
     } finally {
@@ -247,8 +242,6 @@ export function PublicProfileDialog({
         showErrorToast(
           `${unchecked.length} ${unchecked.length === 1 ? "exchange" : "exchanges"} could not be asked just now, so the last answer stands. ${unchecked[0].note ?? ""}`
         )
-      } else {
-        toast.success("Every wallet passed the ownership check.")
       }
     } catch (error) {
       showErrorToast(getPublicProfileErrorMessage(error))

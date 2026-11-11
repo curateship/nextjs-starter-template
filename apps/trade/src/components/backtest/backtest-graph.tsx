@@ -15,6 +15,7 @@ import {
   potTicks,
   potValue,
   type BacktestRunTrade,
+  type GraphOverlays,
   type GraphPreset,
   type GraphSeries,
   type GraphWindow,
@@ -64,7 +65,116 @@ const PRESET_LABELS: Record<GraphPreset, string> = {
   all: "All",
 }
 
-type Overlays = { offPeak: boolean; liquidations: boolean; inCoins: boolean }
+/**
+ * The edge the toolbar's Search, Select and Filter have, so From, To and Reset
+ * match them (Tyler, 10 Nov 2026: "the buttons border should match with the
+ * other buttons"); an outline button alone takes the much fainter divider shade.
+ */
+const CONTROL_BORDER = "border-zinc-200/60 dark:border-zinc-700/60"
+
+/**
+ * The Graph's window: 1W to All, From and To, and Reset. In the header
+ * of the panel that holds the graph.
+ */
+export function GraphWindowControls({
+  window,
+  onWindow,
+}: {
+  window: GraphWindow
+  onWindow: (next: GraphWindow) => void
+}) {
+  return (
+    <>
+    <Tabs
+      value={window.preset}
+      onValueChange={(value) =>
+        onWindow({
+          ...window,
+          preset: value as GraphPreset,
+          from: null,
+          to: null,
+          sel: null,
+        })
+      }
+    >
+      <TabsList className="h-8">
+        {GRAPH_PRESETS.map((preset) => (
+          <TabsTrigger key={preset} value={preset} className="text-xs">
+            {PRESET_LABELS[preset]}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+    <DatePicker
+      value={window.from === null ? undefined : new Date(window.from)}
+      placeholder="From"
+      className={cn("h-8 w-auto text-xs", CONTROL_BORDER)}
+      onChange={(date) =>
+        onWindow({
+          ...window,
+          from: date ? date.getTime() : null,
+          sel: null,
+        })
+      }
+    />
+    <DatePicker
+      value={window.to === null ? undefined : new Date(window.to)}
+      placeholder="To"
+      className={cn("h-8 w-auto text-xs", CONTROL_BORDER)}
+      onChange={(date) =>
+        onWindow({ ...window, to: date ? date.getTime() : null, sel: null })
+      }
+    />
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={cn("h-8", CONTROL_BORDER)}
+      // Never disabled: a button that is the way out of a state should
+      // still be pressable when you are not sure you are in it.
+      onClick={() => onWindow({ preset: "all", from: null, to: null, sel: null })}
+    >
+      Reset
+    </Button>
+    </>
+  )
+}
+
+/**
+ * The Graph's Off peak, Liquidations and In markets switches. In the
+ * header of the panel that holds the graph, beside its window
+ * (Tyler, 10 Nov 2026: "move this beside the timeframe in the middle header").
+ */
+export function GraphOverlayToggles({
+  overlays,
+  onOverlays,
+}: {
+  overlays: GraphOverlays
+  onOverlays: (change: (old: GraphOverlays) => GraphOverlays) => void
+}) {
+  return (
+    <>
+      <OverlayToggle
+        label="Off peak"
+        on={overlays.offPeak}
+        swatch="bg-red-600 dark:bg-red-400"
+        onClick={() => onOverlays((old) => ({ ...old, offPeak: !old.offPeak }))}
+      />
+      <OverlayToggle
+        label="Liquidations"
+        on={overlays.liquidations}
+        swatch="bg-red-600 dark:bg-red-400"
+        onClick={() => onOverlays((old) => ({ ...old, liquidations: !old.liquidations }))}
+      />
+      <OverlayToggle
+        label="In markets"
+        on={overlays.inCoins}
+        swatch="bg-teal-600 dark:bg-teal-400"
+        onClick={() => onOverlays((old) => ({ ...old, inCoins: !old.inCoins }))}
+      />
+    </>
+  )
+}
 
 export function BacktestGraph({
   series,
@@ -73,6 +183,7 @@ export function BacktestGraph({
   leverage,
   window,
   onWindow,
+  overlays,
 }: {
   series: GraphSeries
   /** Null until the run's trades arrive, or on a run too old to have them. */
@@ -86,17 +197,14 @@ export function BacktestGraph({
   leverage: number
   window: GraphWindow
   onWindow: (next: GraphWindow) => void
+  /** Which extra lines are drawn: the switches in the holding panel's header. */
+  overlays: GraphOverlays
 }) {
   const [box, setBox] = React.useState({ width: 900, height: 420 })
   const [hover, setHover] = React.useState<number | null>(null)
   /** Where the pointer is down the plot, for the crosshair that goes with it. */
   const [hoverY, setHoverY] = React.useState<number | null>(null)
   const [drag, setDrag] = React.useState<[number, number] | null>(null)
-  const [overlays, setOverlays] = React.useState<Overlays>({
-    offPeak: true,
-    liquidations: true,
-    inCoins: true,
-  })
   const pressRef = React.useRef<{ x: number } | null>(null)
   const plotRef = React.useRef<HTMLDivElement | null>(null)
 
@@ -228,111 +336,11 @@ export function BacktestGraph({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 sm:p-4">
-      <div className="flex items-start gap-4">
-        <div className="min-w-0">
-          {/* What it is worth now, and what it began with, on one line — the
-              second number is only there to be read against the first, and a
-              row below put a line break between the two halves of one
-              comparison. Rounded, because a starting pot is a round number
-              somebody typed and "$10,000.00" spends two characters saying it
-              has no pence. */}
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-2xl font-semibold tracking-tight tabular-nums">
-              {reading ? usd(reading.usd) : "—"}
-            </span>
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              from {usd(startingUsd)}
-            </span>
-          </div>
-        </div>
-        {/* The window controls sit up beside the wallet figure, and what the
-            chart draws sits under them: picking a stretch of time comes before
-            deciding which lines to see across it. */}
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <Tabs
-            value={window.preset}
-            onValueChange={(value) =>
-              onWindow({
-                ...window,
-                preset: value as GraphPreset,
-                from: null,
-                to: null,
-                sel: null,
-              })
-            }
-          >
-            <TabsList className="h-8">
-              {GRAPH_PRESETS.map((preset) => (
-                <TabsTrigger key={preset} value={preset} className="text-xs">
-                  {PRESET_LABELS[preset]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <DatePicker
-            value={window.from === null ? undefined : new Date(window.from)}
-            placeholder="From"
-            className="h-8 w-auto text-xs"
-            onChange={(date) =>
-              onWindow({
-                ...window,
-                from: date ? date.getTime() : null,
-                sel: null,
-              })
-            }
-          />
-          <DatePicker
-            value={window.to === null ? undefined : new Date(window.to)}
-            placeholder="To"
-            className="h-8 w-auto text-xs"
-            onChange={(date) =>
-              onWindow({ ...window, to: date ? date.getTime() : null, sel: null })
-            }
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8"
-            // Never disabled: a button that is the way out of a state should
-            // still be pressable when you are not sure you are in it.
-            onClick={() => onWindow({ preset: "all", from: null, to: null, sel: null })}
-          >
-            Reset
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-        <OverlayToggle
-          label="Off peak"
-          on={overlays.offPeak}
-          swatch="bg-red-600 dark:bg-red-400"
-          onClick={() =>
-            setOverlays((old) => ({ ...old, offPeak: !old.offPeak }))
-          }
-        />
-        <OverlayToggle
-          label="Liquidations"
-          on={overlays.liquidations}
-          swatch="bg-red-600 dark:bg-red-400"
-          onClick={() =>
-            setOverlays((old) => ({
-              ...old,
-              liquidations: !old.liquidations,
-            }))
-          }
-        />
-        <OverlayToggle
-          label="In markets"
-          on={overlays.inCoins}
-          swatch="bg-teal-600 dark:bg-teal-400"
-          onClick={() =>
-            setOverlays((old) => ({ ...old, inCoins: !old.inCoins }))
-          }
-        />
-      </div>
-
+      {/* Nothing over the graph: no wallet figure (Tyler, 10 Nov 2026:
+          "remove these numbers", of "$9,814 from $10,000"), the Result card
+          has the outcome and the crosshair's box reads the wallet at any
+          point; the window and line switches are in the holding panel's
+          header ("move this beside the timeframe in the middle header"). */}
       <div
         ref={plotRef}
         data-slot="backtest-graph"
@@ -719,7 +727,7 @@ function buildShape({
 }: {
   series: GraphSeries
   trades: readonly BacktestRunTrade[] | null
-  overlays: Overlays
+  overlays: GraphOverlays
   v0: number
   v1: number
   startingUsd: number

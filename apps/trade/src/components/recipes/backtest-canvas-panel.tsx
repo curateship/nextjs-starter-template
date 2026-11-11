@@ -70,12 +70,9 @@ export default function BacktestCanvasPanel({
   onClose,
   beforeRun,
   compiledConfig,
-  onLatestRunIdChange,
 }: AutomationCanvasPanelProps & {
   beforeRun?: () => Promise<boolean>
   compiledConfig?: RecipeCompiledConfig | null
-  /** Keeps the canvas header linked to this recipe's newest finished result. */
-  onLatestRunIdChange?: (runId: string | null) => void
 }) {
   const sizes = compiledConfig
     ? backtestIntervalsFromFlow(compiledConfig)
@@ -201,7 +198,6 @@ export default function BacktestCanvasPanel({
                 .map((row) => row.spec.interval)
             : []
         )
-        onLatestRunIdChange?.(newest?.id ?? null)
         setNoneYet(list.runs.length === 0)
         // The click has landed, so stop believing it on faith. Either of two
         // things proves it:
@@ -253,7 +249,7 @@ export default function BacktestCanvasPanel({
     // "Reading the run…" forever the moment a flow was switched on, because
     // the two now sit on the panel together. A saved round trip is not worth a
     // card that never loads.
-  }, [automationId, onLatestRunIdChange, runId, readNow])
+  }, [automationId, runId, readNow])
 
   /**
    * What the flow is set up to do, kept up to date while the panel is open.
@@ -389,7 +385,7 @@ export default function BacktestCanvasPanel({
             )}
           >
             {run.name ?? "Backtest"}
-            <span className="sr-only"> — open the chart and every trade</span>
+            <span className="sr-only">. Open the chart and every trade</span>
           </Link>
         ) : run ? (
           // Plain text while it runs, for the same reason the card is not
@@ -561,7 +557,7 @@ export default function BacktestCanvasPanel({
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
-              That run ended without testing a coin — it was stopped, or every
+              That run ended without testing a coin. It was stopped, or every
               coin was skipped. Press Backtest to run it again.
             </p>
           )}

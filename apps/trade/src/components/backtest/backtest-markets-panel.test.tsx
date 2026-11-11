@@ -76,7 +76,7 @@ it("shows changing progress notes for unfinished coins", async () => {
       skipped={[]}
       openCoin={null}
       onOpenCoin={() => {}}
-      tab="results"
+      tab="traded"
     />
   )
   try {

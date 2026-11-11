@@ -283,15 +283,18 @@ function TradersTable({
       const result = await setAdminTradersCopyBlocked(userIds, blocked)
       await onChanged()
       selection.clear()
-      toast.success(
-        describeBulkResult({
-          done: result.done.length,
-          kept: result.kept.length,
-          one: "trader",
-          many: "traders",
-          verb: blocked ? "stopped" : "opened again",
-        })
-      )
+      // Only a refusal is said; a change that went through shows in the list.
+      if (result.kept.length > 0) {
+        showErrorToast(
+          describeBulkResult({
+            done: result.done.length,
+            kept: result.kept.length,
+            one: "trader",
+            many: "traders",
+            verb: blocked ? "stopped" : "opened again",
+          })
+        )
+      }
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {
@@ -499,7 +502,6 @@ function PayoutDialog({
         txLink: link.trim(),
       })
       await onPaid()
-      toast.success(`${formatUsd(amountUsd)} to @${row.handle} marked as sent.`)
       onClose()
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))

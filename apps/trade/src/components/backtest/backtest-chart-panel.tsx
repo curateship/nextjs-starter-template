@@ -1,24 +1,20 @@
 import * as React from "react"
-import {
-  CandlestickChartIcon,
-  TrendingUpIcon,
-  WorkflowIcon,
-} from "lucide-react"
 
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
 import {
   BacktestMarksLayer,
   type ChartFillMark,
 } from "@/components/backtest/backtest-marks-layer"
-import { BacktestGraph } from "@/components/backtest/backtest-graph"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { BacktestGraph, GraphOverlayToggles, GraphWindowControls } from "@/components/backtest/backtest-graph"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
-import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
@@ -28,6 +24,7 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import type {
+  GraphOverlays,
   BacktestRunTrade,
   GraphSeries,
   GraphWindow,
@@ -37,6 +34,7 @@ import {
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
+import { ALL_GRAPH_OVERLAYS } from "@/lib/trade/backtest/graph"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
 import { emaIndicator } from "@/lib/trade/indicators/ema"
@@ -76,15 +74,13 @@ export function BacktestChartPanel({
   window,
   onWindow,
   view,
-  onSwapView,
+  onView,
   interval,
   loading,
   error,
   live,
-  title,
-  onBack,
-  onOpenRecipe,
   headerEnd,
+  savedView = null,
   chartToolbarPosition,
   onChartToolbarPositionChange,
   onRetry,
@@ -109,21 +105,22 @@ export function BacktestChartPanel({
   onWindow: (next: GraphWindow) => void
   /** Which of the two this panel is showing. */
   view: "graph" | "chart"
-  /** Swap to the other one. */
-  onSwapView: () => void
+  /** Shows the other one, from the header's Chart and Graph tabs. */
+  onView: (view: "graph" | "chart") => void
   interval: string
   loading: boolean
   error: string | null
   /** The run has not finished, so more marks may still appear. */
   live: boolean
-  /** The run's name, first in the header. */
-  title: string
-  /** Back to the Backtests table. */
-  onBack: () => void
-  /** Opens the recipe this ran, on its canvas. */
-  onOpenRecipe: () => void
   /** The end of the header: the button that reopens a shut right panel. */
   headerEnd: React.ReactNode
+  /**
+   * The Trade chart's remembered zoom and position, which a coin's chart opens
+   * at while no trade is picked (Tyler, 10 Nov 2026: "Check my currant chart
+   * view setting and make default chart loading to it"). Only read: panning a
+   * backtest leaves the Trade chart's view alone.
+   */
+  savedView?: ChartView | null
   chartToolbarPosition?: ChartToolbarPosition | null
   onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
@@ -261,50 +258,50 @@ export function BacktestChartPanel({
   }, [focusTrade, focusTrades, bars, barMs])
 
   useErrorToast(!showGraph || !graphSeries ? error : null, onRetry)
+  const [overlays, setOverlays] = React.useState<GraphOverlays>(ALL_GRAPH_OVERLAYS)
 
   return (
     <>
-      <DashboardCardTitleHeader
-        // The middle's one header on the Bots dashboard: back to the table,
-        // the run's name and which picture shows, then the swap between the
-        // Graph and the Chart, the way to the recipe, and the reopen button.
-        back={{ onClick: onBack, label: "Back to backtests" }}
-        title={`${title} · ${
-          showGraph ? "Graph" : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ?? "No market picked")
-        }`}
-        // The Graph carries no meta: the dates it covers are along its own bottom axis.
-        meta={
-          showGraph
-            ? undefined
-            : `${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`
-        }
-        action={
-          <div className="flex items-center gap-2">
-            {/* One button, two labels: it always names the picture you are not
-                looking at. Hidden on a run with no line to draw. */}
-            {hasGraph ? (
-              <Button type="button" variant="outline" onClick={onSwapView}>
-                {showGraph ? (
-                  <>
-                    <CandlestickChartIcon className="size-4" />
-                    Chart
-                  </>
-                ) : (
-                  <>
-                    <TrendingUpIcon className="size-4" />
-                    Graph
-                  </>
-                )}
-              </Button>
-            ) : null}
-            <Button type="button" variant="ghost" onClick={onOpenRecipe}>
-              <WorkflowIcon className="size-4" />
-              Canvas
-            </Button>
-            {headerEnd}
-          </div>
-        }
-      />
+      {/* The middle's one header on the Bots dashboard: the button that
+          reopens a shut page panel, then the Chart (one coin's candles) and
+          Graph (the pot over the whole run) tabs (Tyler, 10 Nov 2026: "this
+          should be 3 tabs", then "remoev the arrow back ... this spot should
+          house this uncollapse icon", "remove canvas from the tab"). The
+          Dashboards block's Backtests row goes back to the table. Graph is
+          left out on a run with no line to draw. */}
+      <DashboardCardHeader className="gap-2">
+        <PanelReopenButton side="left" label="Show the page" />
+        <DashboardTabs
+          className="flex-none"
+          value={showGraph ? "graph" : "chart"}
+          onValueChange={(value) => {
+            if (value === "graph" || value === "chart") onView(value)
+          }}
+          tabs={[
+            { value: "chart", label: "Chart" },
+            ...(hasGraph ? [{ value: "graph", label: "Graph" }] : []),
+          ]}
+        />
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+          {/* On the Graph, its window (Tyler, 10 Nov 2026: "move this to
+              header right"); on the Chart, the coin it draws. */}
+          {showGraph ? (
+            <>
+              {/* The graph's line switches, beside its window (Tyler, 10 Nov
+                  2026: "move this beside the timeframe in the middle header"). */}
+              <div className="flex items-center gap-3">
+                <GraphOverlayToggles overlays={overlays} onOverlays={setOverlays} />
+              </div>
+              <GraphWindowControls window={window} onWindow={onWindow} />
+            </>
+          ) : (
+            <span className="hidden truncate text-xs text-muted-foreground xl:inline">
+              {`${coins.find((coin) => coin.marketKey === openCoin)?.symbol ?? "No market picked"} · ${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`}
+            </span>
+          )}
+          {headerEnd}
+        </div>
+      </DashboardCardHeader>
 
       {live && !showGraph ? (
         <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
@@ -322,6 +319,7 @@ export function BacktestChartPanel({
             leverage={leverage}
             window={window}
             onWindow={onWindow}
+            overlays={overlays}
           />
         ) : error ? (
           <ErrorRow message={error} onRetry={onRetry} />
@@ -329,7 +327,7 @@ export function BacktestChartPanel({
           <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {chartable.length === 0
               ? "No market was tested, so there is nothing to chart."
-              : "Pick a market above, or click a row in the Results tab below."}
+              : "Pick a market above, or press one in the Trades card."}
           </p>
         ) : loading ? (
           <div
@@ -349,7 +347,7 @@ export function BacktestChartPanel({
               // The picked trade is part of the key: changing it re-frames the
               // chart, which is what moves it to the trade and back again.
               viewKey={`${openCoin}:${interval}:${focusTrade?.n ?? "all"}`}
-              readView={() => focusView}
+              readView={() => focusView ?? savedView}
               overlay={(surface) => (
                 <>
                   {/* First, so everything else sits over it. The base is the

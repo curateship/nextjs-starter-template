@@ -72,7 +72,7 @@ export function RecipeFlowCanvas({
   onSelectEdge,
   onDeleteNode,
   onSizeChange,
-  toolbarEnd,
+  onDropNode,
 }: {
   graph: AutomationGraph
   errors: AutomationValidationError[]
@@ -83,8 +83,8 @@ export function RecipeFlowCanvas({
   onSelectEdge: (edgeId: string | null) => void
   onDeleteNode: (nodeId: string) => void
   onSizeChange: (size: CanvasSize) => void
-  /** Beside the zoom bar, a button of its own: the Bots dashboard's + Add step. */
-  toolbarEnd?: React.ReactNode
+  /** A step dragged from the step list let go over the canvas, at that point. */
+  onDropNode?: (position: CanvasPoint) => void
 }) {
   const canvasRef = React.useRef<HTMLDivElement | null>(null)
   const dragRef = React.useRef<DragState | null>(null)
@@ -359,6 +359,20 @@ export function RecipeFlowCanvas({
       aria-label="Recipe canvas"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onDragOver={(event) => {
+        if (!onDropNode) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = "copy"
+      }}
+      onDrop={(event) => {
+        if (!onDropNode) return
+        event.preventDefault()
+        const point = worldFromClient(event.clientX, event.clientY)
+        onDropNode({
+          x: point.x - NODE_WIDTH / 2,
+          y: point.y - NODE_HEIGHT / 2,
+        })
+      }}
       onDoubleClick={(event) => {
         if (event.target !== event.currentTarget) return
         fitToView()
@@ -577,10 +591,9 @@ export function RecipeFlowCanvas({
       ) : null}
 
       <div
-        className="absolute bottom-3 left-3 flex items-center gap-2"
+        className="absolute bottom-3 left-3 flex items-center rounded-lg border bg-card/90 p-0.5 shadow-sm backdrop-blur-sm"
         onPointerDown={(event) => event.stopPropagation()}
       >
-      <div className="flex items-center rounded-lg border bg-card/90 p-0.5 shadow-sm backdrop-blur-sm">
         <DisabledReason
           reason={`Already at the smallest size, ${Math.round(MIN_ZOOM * 100)}%.`}
           disabled={atMinZoom}
@@ -625,9 +638,6 @@ export function RecipeFlowCanvas({
           Fit
         </Button>
       </div>
-        {toolbarEnd}
-      </div>
-
     </div>
   )
 }

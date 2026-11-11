@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Button } from "@/components/ui/button"
@@ -61,11 +60,6 @@ export function LineAlertSettings() {
     try {
       const saved = await saveLineAlertsPausedSetting(!on)
       if (mounted.current) setPaused(saved)
-      toast.success(
-        saved
-          ? "Line alerts are paused. Every line keeps its alert, and none fires until this is back on."
-          : "Line alerts are on."
-      )
     } catch (error) {
       if (mounted.current) setPaused(previous)
       showErrorToast(getLineAlertsPausedSaveErrorMessage(error))

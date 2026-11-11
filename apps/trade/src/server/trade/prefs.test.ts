@@ -6,7 +6,6 @@ import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_TRADING_WIDGET_LAYOUT } from "@/lib/trade/dashboard/widgets"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
@@ -30,16 +29,15 @@ import {
   saveChartView,
   saveChartOptions,
   saveChartToolbarPosition,
+  saveHiddenTradeColumns,
   saveHeaderProfitVisibility,
   saveLastMarketKey,
   saveLastWalletId,
   saveMinimumMarketVolume,
   saveLiquidationWarning,
   saveTradingOverviewWidgets,
-  importLegacyTradePanelLayouts,
   loadTradePanelLayouts,
   saveOpenMarketRow,
-  saveTradePanelLayout,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -327,89 +325,28 @@ describe("where a bare /trade opens", () => {
   })
 })
 
-describe("the remembered trade panel layouts", () => {
-  const backtest = { workspace: 70, trades: 30 }
-  const vertical = { workspace: 72, trades: 28 }
-
-  it("starts empty and keeps each panel group in the account", async () => {
+describe("the remembered trade panel choices", () => {
+  it("starts with nothing chosen", async () => {
     const { id } = await insertUser(database)
     expect(await loadTradePanelLayouts(id, database)).toEqual({
-      legacyImported: false,
-      current: {},
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-    })
-
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.backtestVertical,
-      backtest,
-      database
-    )
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.flowRunVertical,
-      vertical,
-      database
-    )
-
-    expect(await loadTradePanelLayouts(id, database)).toMatchObject({
-      legacyImported: true,
-      current: {
-        [tradePanelLayoutKey.backtestVertical]: backtest,
-        [tradePanelLayoutKey.flowRunVertical]: vertical,
-      },
+      hiddenTradeColumns: {},
     })
   })
 
-  it("replaces a damaged current value when the next valid group is saved", async () => {
+  it("keeps the trades popover's hidden columns per table, and refuses unknown ones", async () => {
     const { id } = await insertUser(database)
-    await database
-      .update(tradePrefs)
-      .set({
-        panelLayouts: {
-          legacyImported: true,
-          current: [],
-          named: [],
-        } as never,
-      })
-      .where(eq(tradePrefs.userId, id))
+    await saveHiddenTradeColumns(id, "backtest", ["exit", "side"], database)
+    await saveHiddenTradeColumns(id, "bot", ["market"], database)
 
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.backtestVertical,
-      backtest,
-      database
-    )
-
-    expect(await loadTradePanelLayouts(id, database)).toMatchObject({
-      current: {
-        [tradePanelLayoutKey.backtestVertical]: backtest,
-      },
+    expect((await loadTradePanelLayouts(id, database)).hiddenTradeColumns).toEqual({
+      backtest: ["side", "exit"],
+      bot: ["market"],
     })
-  })
-
-  it("accepts the first old browser layout and refuses a later import", async () => {
-    const { id } = await insertUser(database)
-    await importLegacyTradePanelLayouts(
-      id,
-      { [tradePanelLayoutKey.backtestVertical]: backtest },
-      database
-    )
-    const saved = await importLegacyTradePanelLayouts(
-      id,
-      {
-        [tradePanelLayoutKey.backtestVertical]: {
-          workspace: 60,
-          trades: 40,
-        },
-      },
-      database
-    )
-
-    expect(saved.current[tradePanelLayoutKey.backtestVertical]).toEqual(
-      backtest
+    await expect(saveHiddenTradeColumns(id, "bot", ["closed"], database)).rejects.toThrow(
+      "PANEL_LAYOUT_INVALID"
     )
   })
 
@@ -425,20 +362,13 @@ describe("the remembered trade panel layouts", () => {
     })
   })
 
-  it("keeps the eye choice when old browser panel sizes are imported", async () => {
+  it("keeps the eye choice when the folder row is saved after it", async () => {
     const { id } = await insertUser(database)
     await saveHeaderProfitVisibility(id, false, database)
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
+    await saveOpenMarketRow(id, scope, null, database)
 
-    const saved = await importLegacyTradePanelLayouts(
-      id,
-      { [tradePanelLayoutKey.backtestVertical]: backtest },
-      database
-    )
-
-    expect(saved.headerProfitVisible).toBe(false)
-    expect(saved.current[tradePanelLayoutKey.backtestVertical]).toEqual(
-      backtest
-    )
+    expect((await loadTradePanelLayouts(id, database)).headerProfitVisible).toBe(false)
   })
 })
 
