@@ -116,9 +116,14 @@ to the trader's page.
 
 ## The buttons
 
-- **A position's footer:** Stop and target and Add as icons, then Close.
-  Close opens the same close window as the row's own button. The ⋮ has the
-  same three and Share as a picture.
+- **A position's footer:** two buttons and nothing else, Close trade (the
+  row's own close window; Sell all for a coin owned outright) and Close all
+  trades (the same Close all list as the middle header's ⋮), side by side with
+  room and one under the other without (Tyler, 11 Nov 2026: "The footer should
+  only have 2 buttons with icon [Close trade] [Close all trades]"). Add to
+  position, Stop and target and Share as a picture are in the ⋮.
+- **A coin with nothing held:** the footer says "Nothing is held on BTC right
+  now." ("this goes into the footer").
 - **A Journal trade's footer:** the bin, which asks first, then Show on chart.
   The ⋮ has Show on chart, Share as a picture and Remove.
 - **Share as a picture** downloads a 1200 by 630 picture of the coin, its

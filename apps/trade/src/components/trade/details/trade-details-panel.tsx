@@ -7,6 +7,7 @@ import {
   ChartLineIcon,
   HistoryIcon,
   LayersIcon,
+  ListXIcon,
   ShieldAlertIcon,
   ImageDownIcon,
   PlusIcon,
@@ -73,6 +74,8 @@ export type DetailsSubject =
 
 export type DetailsActions = {
   onClose: (position: TradePosition) => void
+  /** The Close all list, opened from the trigger handed in. */
+  closeAll: (trigger: React.ReactElement) => React.ReactNode
   onAdd: (position: TradePosition) => void
   onEdit: (position: TradePosition) => void
   /** Draws the trade on the chart and goes to the chart tab. */
@@ -166,8 +169,15 @@ function CoinDetails({ marketKey, data, actions }: { marketKey: string; data: Da
   if (held) return <PositionDetails position={held} data={data} actions={actions} />
   const symbol = symbolOf(data, marketKey)
   return (
-    <OpenRunPanel title={symbol} icon={ReceiptTextIcon} menu={null} hideLabel="Hide the trade">
-      <p className="px-1 text-sm text-muted-foreground">Nothing is held on {symbol} right now.</p>
+    <OpenRunPanel
+      title={symbol}
+      icon={ReceiptTextIcon}
+      menu={null}
+      hideLabel="Hide the trade"
+      // Said in the footer, where a held trade's buttons sit (Tyler, 11 Nov
+      // 2026: "this goes into the footer").
+      footer={<p className="text-sm text-muted-foreground">Nothing is held on {symbol} right now.</p>}
+    >
       <EarlierTrades marketKey={marketKey} except={null} data={data} actions={actions} />
     </OpenRunPanel>
   )
@@ -242,19 +252,22 @@ function PositionDetails({
       menu={<RecordMenu label={`${symbol} position menu`} actions={menuActions} />}
       footer={
         <>
-          <span className="mr-auto text-xs text-muted-foreground">Open</span>
-          {/* Icons, so the three fit on one line at the panel's narrowest. */}
-          {position.owned ? null : (
-            <IconAction label="Stop and target" disabled={data.busy} onClick={() => actions.onEdit(position)}>
-              <SettingsIcon className="size-4" />
-            </IconAction>
-          )}
-          <IconAction label="Add to position" disabled={data.busy} onClick={() => actions.onAdd(position)}>
-            <PlusIcon className="size-4" />
-          </IconAction>
-          <Button type="button" size="sm" disabled={data.busy} onClick={() => actions.onClose(position)}>
-            {position.owned ? "Sell all" : "Close"}
-          </Button>
+          {/* Two buttons and nothing else (Tyler, 11 Nov 2026: "The footer
+              should only have 2 buttons with icon [Close trade] [Close all
+              trades]"); Add and Stop and target are in the ⋮. Side by side
+              with room, one under the other without. */}
+          <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2">
+            <Button type="button" disabled={data.busy} onClick={() => actions.onClose(position)}>
+              <XIcon className="size-4" />
+              {position.owned ? "Sell all" : "Close trade"}
+            </Button>
+            {actions.closeAll(
+              <Button type="button" variant="outline" disabled={data.busy}>
+                <ListXIcon className="size-4" />
+                Close all trades
+              </Button>
+            )}
+          </div>
         </>
       }
     >

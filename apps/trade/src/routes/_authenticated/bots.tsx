@@ -30,8 +30,11 @@ export const Route = createFileRoute("/_authenticated/bots")({
   loaderDeps: ({ search }) => ({
     view: botsViewOf(search),
     archived: search.archived === true,
-    // A picked backtest is read too: its Result shows on the right.
-    opened: search.full || botsViewOf(search) === "backtests" ? search.open : undefined,
+    // A picked backtest or recipe is read too: its cards show on the right.
+    opened:
+      search.full || botsViewOf(search) === "backtests" || botsViewOf(search) === "recipes"
+        ? search.open
+        : undefined,
   }),
   // Kept for no time once the dashboard is left, so coming back reads fresh.
   gcTime: 0,

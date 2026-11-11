@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CopyIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CopyIcon, Loader2Icon, PlusIcon, Trash2Icon, WorkflowIcon } from "lucide-react"
 
 import type { BotsSectionProps } from "@/components/bots/bots-dashboard"
 import { RecordMenu } from "@/components/bots/bots-record"
@@ -7,6 +7,7 @@ import { RecipeSavedResults } from "@/components/bots/recipe-saved-results"
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { RecipeEditor } from "@/components/recipes/recipe-editor"
+import { RecipeOverviewPanel } from "@/components/recipes/recipe-overview-panel"
 import { FoldingMenu } from "@/components/shared/folding-menu"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /** What the route read for Recipes: the workspace's recipes, and the one opened on its canvas. */
 export type RecipesLoaded = {
@@ -41,16 +43,60 @@ type Column = "name" | "status" | "steps" | "updated"
 const COLUMNS = [
   { key: "name", label: "Name", column: "main" },
   { key: "status", label: "Status", column: "meta" },
-  { key: "steps", label: "Steps", column: "meta", className: "hidden @4xl:table-cell" },
+  { key: "steps", label: "Steps", column: "meta", className: "hidden @3xl:table-cell" },
   { key: "updated", label: "Updated", column: "meta", className: "hidden @2xl:table-cell" },
 ] as const
 
-/** Where a recipe's bot stands, in a few words. */
-function runWords(recipe: RecipeListItem) {
+/**
+ * A recipe's name split at its dashes, drawn as the name and a chip per part
+ * (Tyler, 11 Nov 2026: "revamp the recipes table design", after his drawing):
+ * "Hyper Liquid - Large cap - DCA ladder" reads Hyper Liquid, then Large cap
+ * and DCA ladder as chips.
+ */
+function nameParts(name: string): { name: string; chips: string[] } {
+  const [first, ...rest] = name.split(" - ").map((part) => part.trim()).filter(Boolean)
+  return { name: first ?? name, chips: rest }
+}
+
+/** The dot's colour for where a recipe's bot stands. */
+const STATUS_DOT: Record<string, string> = {
+  Running: "bg-emerald-500",
+  Paused: "bg-amber-500",
+  Stopping: "bg-amber-500",
+  Stopped: "bg-muted-foreground",
+}
+
+/**
+ * Where a recipe's bot stands: a dot and a word, on a grey pill once it has
+ * run, then the day it stopped or where it runs, in grey.
+ */
+function RunStatus({ recipe }: { recipe: RecipeListItem }) {
   const run = recipe.run
-  if (!run) return "Never run"
-  if (run.status === "Stopped") return run.stoppedAt ? `Stopped ${formatDate(run.stoppedAt)}` : "Stopped"
-  return run.activeCount > 1 ? `${run.status} on ${run.activeCount} wallets` : `${run.status} · ${run.walletLabel}`
+  if (!run) {
+    return (
+      <span className="inline-flex items-center gap-2 px-2 text-muted-foreground">
+        <span className="size-1.5 rounded-full bg-muted-foreground/40" aria-hidden />
+        Never run
+      </span>
+    )
+  }
+  const after =
+    run.status === "Stopped"
+      ? run.stoppedAt
+        ? formatDate(run.stoppedAt)
+        : null
+      : run.activeCount > 1
+        ? `${run.activeCount} wallets`
+        : run.walletLabel
+  return (
+    <span className="inline-flex items-center gap-3 whitespace-nowrap">
+      <span className="inline-flex items-center gap-2 rounded-md bg-muted px-2 py-0.5 font-medium">
+        <span className={cn("size-1.5 rounded-full", STATUS_DOT[run.status] ?? "bg-muted-foreground")} aria-hidden />
+        {run.status}
+      </span>
+      {after ? <span className="text-muted-foreground">{after}</span> : null}
+    </span>
+  )
 }
 
 /** Switched-on recipes first, then paused, stopping, stopped, never run. */
@@ -59,13 +105,14 @@ function runRank(recipe: RecipeListItem) {
 }
 
 /**
- * Recipes on the Bots dashboard: the workspace's trading plans. The table has
- * no right panel, because a line opens its canvas at once (Tyler, 9 Nov 2026:
- * "clicking on the recipe should just go to the canvas"). Opened, the canvas
- * fills the middle and its five steps come from + Add step. The right panel
- * shows only while a step is picked, holding its settings (Tyler: "just dont
- * show the right panel until a node is clicked on"). New recipe is the
- * header's one New button, a dropdown holding the name.
+ * Recipes on the Bots dashboard: the workspace's trading plans. A line picked
+ * shows the recipe's Last result and Parameters on the right, with Open canvas
+ * in the footer, and the line's cog opens the canvas too (Tyler, 11 Nov 2026,
+ * replacing 9 Nov's "clicking on the recipe should just go to the canvas").
+ * Opened, the canvas fills the middle with its step list beside it; the right
+ * panel holds the picked step's settings, or the same two cards with no step
+ * picked. New recipe is the header's one New button, a dropdown holding the
+ * name.
  */
 export function RecipesSection({
   loaded,
@@ -185,7 +232,8 @@ export function RecipesSection({
       if (count < gone.size) {
         showErrorToast(describeBulkResult({ done: count, kept: gone.size - count, one: "recipe", many: "recipes", verb: "deleted" }))
       }
-      if (search.full && openId && gone.has(openId)) go({ view: "recipes" })
+      // The picked or opened recipe went: the first row opens in its place.
+      if (openId && gone.has(openId)) go({ view: "recipes", q: search.q })
     } catch (error) {
       // A recipe with a live run cannot be deleted; the server says which.
       showErrorToast(getRecipeErrorMessage(error))
@@ -292,6 +340,8 @@ export function RecipesSection({
   const header = (
     <CrmListHeader
       tabs={heading}
+      // The button that reopens a shut right panel, last in the header.
+      end={headingEnd}
       selected={
         chosen.length ? (
           <SelectedMenu
@@ -420,14 +470,34 @@ export function RecipesSection({
                 }
               : null
           }
-          onOpen={() => go({ view: "recipes", open: recipe.id, full: true, q: search.q }, { push: true })}
+          // A line is picked, its Last result and Parameters on the right;
+          // Open canvas there, or the cog, opens its canvas (Tyler, 11 Nov
+          // 2026: "In the footer add a button to go to canvas. ANd in the
+          // middle panel, link the cog to the canvas editor").
+          onOpen={() => go({ view: "recipes", open: recipe.id, q: search.q })}
+          cog={{
+            label: `Open ${recipe.name} on its canvas`,
+            onPress: () => go({ view: "recipes", open: recipe.id, full: true, q: search.q }, { push: true }),
+          }}
           onDelete={() => setDeleting([recipe])}
           onRightClick={(x, y) => setRowMenu({ id: recipe.id, x, y })}
         >
-          <MainCell name={recipe.name}>{recipe.isValid ? null : <Chip muted>Draft</Chip>}</MainCell>
-          <TableCell column="meta">{runWords(recipe)}</TableCell>
-          <TableCell column="meta" className="hidden @4xl:table-cell">
-            {recipe.summary}
+          <MainCell name={nameParts(recipe.name).name}>
+            {nameParts(recipe.name).chips.map((chip) => (
+              <Chip key={chip} muted className="bg-muted/60">
+                {chip}
+              </Chip>
+            ))}
+            {recipe.isValid ? null : <Chip muted>Draft</Chip>}
+          </MainCell>
+          <TableCell column="meta">
+            <RunStatus recipe={recipe} />
+          </TableCell>
+          <TableCell column="meta" className="hidden whitespace-nowrap @3xl:table-cell">
+            <span className="inline-flex min-w-6 items-center justify-center rounded-md border bg-muted px-1.5 font-mono text-xs tabular-nums">
+              {recipe.nodeCount}
+            </span>
+            <span className="ml-2 text-muted-foreground">{recipe.nodeCount === 1 ? "step" : "steps"}</span>
           </TableCell>
           <TableCell column="meta" className="hidden @2xl:table-cell" title={formatDateTime(new Date(recipe.updated_at))}>
             {formatDate(recipe.updated_at)}
@@ -437,7 +507,33 @@ export function RecipesSection({
     </CrmTable>
   )
 
-  // No right panel: a recipe's line opens its canvas at once (Tyler, 9 Nov 2026:
-  // "clicking on the recipe should just go to the canvas").
-  return frame({ header, middle: table, ids, openId, windows })
+  // The line picked shows its Last result and Parameters on the right, with
+  // Open canvas in the footer, as a picked backtest shows its Result.
+  const picked = loaded.opened && loaded.opened.id === openId ? loaded.opened : null
+  const pickedRow = picked ? recipes.find((recipe) => recipe.id === picked.id) : undefined
+  const openCanvas = (recipeId: string, node?: string) =>
+    go({ view: "recipes", open: recipeId, full: true, q: search.q, node }, { push: true })
+  const right = picked
+    ? {
+        label: "Recipe",
+        content: (
+          <RecipeOverviewPanel
+            key={picked.id}
+            recipeId={picked.id}
+            graph={picked.graph}
+            menu={pickedRow ? menuFor(pickedRow) : null}
+            onPickStep={(nodeId) => openCanvas(picked.id, nodeId)}
+            onOpenBacktest={(runId) => openElsewhere("backtests", runId)}
+            footer={
+              <Button type="button" size="sm" className="ml-auto" onClick={() => openCanvas(picked.id)}>
+                <WorkflowIcon className="size-4" />
+                Open canvas
+              </Button>
+            }
+          />
+        ),
+      }
+    : undefined
+
+  return frame({ header, middle: table, right, ids, openId, windows })
 }

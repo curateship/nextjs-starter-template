@@ -183,11 +183,16 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
   // A Backtests line picked shows its Result card on the right, with Open
   // chart in the footer (Tyler, 10 Nov 2026: "clicking on the table item
   // should open up the right panel to show the results").
-  const backtestPicked = loaded.view === "backtests" && Boolean(search.open)
+  // A Recipes line picked shows its Last result and Parameters the same way,
+  // with Open canvas in the footer (Tyler, 11 Nov 2026: "clicking on the item
+  // should open the right panel showing the last result card and the
+  // parameters card").
+  const recordPicked =
+    (loaded.view === "backtests" || loaded.view === "recipes") && Boolean(search.open)
   const twoPanels =
     overview ||
-    (!search.full && !backtestPicked) ||
-    (loaded.view === "recipes" && !search.node && !place.rightLabel)
+    (!search.full && !recordPicked) ||
+    (loaded.view === "recipes" && Boolean(search.full) && !search.node && !place.rightLabel)
 
   const frame: BotsFrame = (panels) => (
     <SectionPanels view={loaded.view} panels={panels} rightSpot={rightSpot} onReport={report} />

@@ -14,8 +14,8 @@ bot is the same recipe run on a real or practice wallet.
 ```
              Left: page              Middle                                Right
 Overview     Dashboards block        widget cards (no right panel)         none
-Recipes      Dashboards block        recipes table (a line opens it)       none
-Backtests    Dashboards block        backtests table (a line picks it)     the line's Result card, Open chart
+Recipes      Dashboards block        recipes table (a line picks it)       Last result, Parameters, Open canvas
+Backtests    Dashboards block        backtests table (a line picks it)     Result card, Open canvas, Open chart
 Bots         Dashboards block        bots table (a line opens it)          none
 Open recipe  Dashboards block        step list | ← name, status,           the step picked; with none,
                                      Backtest, ⋮; canvas                   Last result and Parameters
@@ -45,9 +45,15 @@ Open bot     Dashboards block        [Chart|Graph], chart                  Resul
   shell's rows.
 - Running bots is on both Overviews, the Trade dashboard's and this one
   ("Both dashboards"). A row opens that bot here.
-- A recipe's line opens its canvas at once ("clicking on the recipe should
-  just go to the canvas. it doesnt need to load the right sidebar"), so the
-  Recipes table has two panels, page and table. An open recipe's right panel
+- A recipe's line picks it, and the right panel shows its Last result and
+  Parameters cards with Open canvas in the footer; the line's cog opens the
+  canvas too (Tyler, 11 Nov 2026: "clicking on the item should open the right
+  panel showing the last result card and the parameters card. In the footer
+  add a button to go to canvas. ANd in the middle panel, link the cog to the
+  canvas editor"). Until then a line opened its canvas at once (9 Nov:
+  "clicking on the recipe should just go to the canvas"). Pressing a step in
+  Parameters opens the canvas on that step, and Back from the canvas returns
+  to the table with the recipe still picked. An open recipe's right panel
   is the picked step, or with none picked its Last result and Parameters
   cards (Tyler, 11 Nov 2026, replacing his 9 Nov "just dont show the right
   panel until a node is clicked on").
@@ -217,3 +223,40 @@ coin at the right.
 No back arrow, name or Canvas button (Tyler, 10 Nov 2026: "remove canvas from
 the tab", "the chart and graph tab needs to be applied to the bots dashboard
 too"); the Dashboards block's row goes back to the table.
+
+## The picked line's footer and the way back (11 Nov 2026)
+
+- A picked backtest's footer holds Open canvas (its recipe's canvas) and Open
+  chart, with no state word before them (Tyler: "remove this label", "Add
+  another button called "Open canvas" here"). The two share the footer's
+  width, side by side with room and one under the other without ("fix
+  aligment").
+- Every table with a right panel, Recipes and Backtests, ends its header with
+  the button that brings a folded right panel back, as an opened record does
+  (Tyler: "the backtest dashboard is missing the right uncollapsible icon").
+  A scan of every three-panel screen on port 3014 (Trade, the five Bots
+  places, the eight Admin sections, the six CRM sections, Automations) found
+  each side panel with its fold button and, folded, a way back.
+
+## How the three tables read (11 Nov 2026)
+
+Redrawn after Tyler's drawings ("redesign the backtest table", "revamp the
+recipes table design", "revamp bots table"):
+
+- **Backtests:** the name a run was given, else its recipe's, with the
+  timeframe as a grey chip ("Large cap DCA" 4h; a saved name ending ", 4h"
+  loses the ending to the chip, and a run named by hand has none). Coins and
+  Made or lost sit right-aligned, the money on a green or red pill; Worst dip
+  is the dollars then a red bar, the deepest dip listed filling it; Ran is the
+  day with the time in grey; Took is the duration alone. Then the chart
+  button, the recipe button and the bin.
+- **Recipes:** the name split at its dashes, the first part the name and the
+  rest grey chips ("DCA" Aster). Status is a dot and word on a grey pill
+  (green running, amber paused or stopping, grey stopped) with the day it
+  stopped or where it runs in grey after it; never run is a faint dot and the
+  words. Steps is the count on a light grey box, then "steps". The summary
+  column is gone.
+- **Bots:** the full name and an amber "Real money" chip with a dot; the
+  wallet in a fixed-width face with its group as a small chip ("HL1" GRID);
+  None and No trades yet in grey, money on a green or red pill once a trade
+  closed; Started as the day with the time in grey.

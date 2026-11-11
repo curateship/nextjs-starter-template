@@ -2,13 +2,13 @@ import {
   CandlestickChartIcon,
   ChartLineIcon,
   FlaskConicalIcon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import type { BacktestCoinRow, BacktestRunView } from "@/components/backtest/backtest-run-page"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
 import { useBacktestFigures } from "@/components/backtest/use-backtest-figures"
 import { OpenRunPanel } from "@/components/bots/bots-record"
-import { FooterState } from "@/components/crm/record-frame"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { backtestMeter } from "@/lib/trade/backtest/progress"
@@ -26,6 +26,7 @@ export function BacktestPreviewPanel({
   coins,
   menu,
   onOpen,
+  onOpenCanvas,
 }: {
   run: BacktestRunView
   coins: BacktestCoinRow[]
@@ -33,6 +34,8 @@ export function BacktestPreviewPanel({
   menu: React.ReactNode
   /** Opens the chart and graph in the middle. */
   onOpen: () => void
+  /** Opens the recipe this backtest ran, on its canvas. */
+  onOpenCanvas: () => void
 }) {
   const { window, graphStats } = useBacktestFigures(run)
   const done = run.finishedAt !== null
@@ -44,13 +47,20 @@ export function BacktestPreviewPanel({
       menu={menu}
       hideLabel="Hide the backtest"
       footer={
-        <>
-          <FooterState>{done ? "Finished" : run.stopRequested ? "Stopping" : "Running"}</FooterState>
+        // The recipe's canvas beside the chart (Tyler, 11 Nov 2026: "Add
+        // another button called "Open canvas" here"). Side by side with room,
+        // one under the other at full width without, never one hanging off
+        // the other ("fix aligment").
+        <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2">
+          <Button type="button" variant="outline" onClick={onOpenCanvas}>
+            <WorkflowIcon className="size-4" />
+            Open canvas
+          </Button>
           <Button type="button" onClick={onOpen}>
             <CandlestickChartIcon className="size-4" />
             Open chart
           </Button>
-        </>
+        </div>
       }
     >
       <PanelCard storageId="backtest-result" icon={<ChartLineIcon />} title="Result">

@@ -559,6 +559,31 @@ export function ActivityPanel({
   const marginNow =
     trading.positions.find((one) => one.id === changingMargin?.id) ?? null
 
+  /**
+   * The Close all list, opened from whatever is handed in: the middle
+   * header's ⋮ row, or the details panel's Close all trades button.
+   */
+  const closeAllMenu = (trigger: React.ReactElement) => (
+    <CloseAllMenu
+      trigger={trigger}
+      positions={trading.positions}
+      watched={trading.watchOrders}
+      smart={standing}
+      restingOrders={trading.orders.length}
+      markets={markets}
+      realWallets={realWallets}
+      onConfirm={(picked) => {
+        // Started together, never queued behind each other. This is
+        // the press somebody makes because the market is moving, so
+        // a stuck watch must never be the reason real money stayed
+        // open. Each call reports its own refusals.
+        if (picked.positions) void trading.closeAll()
+        if (picked.watched) void trading.cancelAllWatchedOrders()
+        if (picked.smart) void trading.cancelAllSmartOrders()
+      }}
+    />
+  )
+
   // A count that is not known yet shows nothing rather than a zero — before
   // the first read, and after a first read that failed, "0" would be claiming
   // an answer the panel does not have.
@@ -773,32 +798,15 @@ export function ActivityPanel({
                 closing what you hold and standing your waiting orders down are
                 two different decisions, and a fast market is exactly when
                 somebody wants one without the other. */}
-            {closable > 0 ? (
-              <CloseAllMenu
-                trigger={
+            {closable > 0
+              ? closeAllMenu(
                   <MenuRow
                     icon={<XIcon />}
                     label="Close all"
                     disabled={trading.busy}
                   />
-                }
-                positions={trading.positions}
-                watched={trading.watchOrders}
-                smart={standing}
-                restingOrders={trading.orders.length}
-                markets={markets}
-                realWallets={realWallets}
-                onConfirm={(picked) => {
-                  // Started together, never queued behind each other. This is
-                  // the press somebody makes because the market is moving, so
-                  // a stuck watch must never be the reason real money stayed
-                  // open. Each call reports its own refusals.
-                  if (picked.positions) void trading.closeAll()
-                  if (picked.watched) void trading.cancelAllWatchedOrders()
-                  if (picked.smart) void trading.cancelAllSmartOrders()
-                }}
-              />
-            ) : null}
+                )
+              : null}
             </MiddleMenu>
             {detailsSlot ? <PanelReopenButton side="right" label="Show the trade" /> : null}
           </>
@@ -1058,6 +1066,7 @@ export function ActivityPanel({
               }}
               actions={{
                 onClose: setConfirmingClose,
+                closeAll: closeAllMenu,
                 onAdd: onAddToPosition,
                 onEdit: setEditing,
                 onShowOnChart: (trade) => onShowOnChart?.(trade),

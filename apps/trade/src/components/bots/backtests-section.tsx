@@ -2,7 +2,7 @@ import * as React from "react"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  ChartCandlestickIcon,
+  ChartColumnIcon,
   PinIcon,
   Trash2Icon,
   WorkflowIcon,
@@ -32,12 +32,13 @@ import {
   renameBacktest,
 } from "@/lib/api/trade/backtests"
 import { describeBulkResult } from "@/lib/format/bulk-result"
-import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
+import { formatDate, formatDateTime } from "@/lib/format/format-time"
+import { moneyToneSurface } from "@/lib/trade/money-tone"
+import { cn } from "@/lib/utils"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { ErrorRow } from "@/components/ui/error-row"
 import type { BacktestListRow } from "@/lib/trade/backtest/result"
-import { backtestName } from "@/lib/trade/backtest/backtest-name"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 
@@ -58,12 +59,34 @@ type Column = "name" | "coins" | "madeOrLost" | "worstDip" | "ran" | "took"
 
 const COLUMNS = [
   { key: "name", label: "Name", column: "main" },
-  { key: "coins", label: "Coins", column: "meta", className: "hidden @3xl:table-cell" },
-  { key: "madeOrLost", label: "Made or lost", column: "meta" },
+  { key: "coins", label: "Coins", column: "meta", className: "hidden @3xl:table-cell text-right [&_button]:ml-auto [&_button]:w-fit [&_button]:flex-row-reverse" },
+  { key: "madeOrLost", label: "Made or lost", column: "meta", className: "text-right [&_button]:ml-auto [&_button]:w-fit [&_button]:flex-row-reverse" },
   { key: "worstDip", label: "Worst dip", column: "meta", className: "hidden @4xl:table-cell" },
   { key: "ran", label: "Ran", column: "meta", className: "hidden @2xl:table-cell" },
   { key: "took", label: "Took", column: "meta", className: "hidden @5xl:table-cell" },
 ] as const
+
+/**
+ * What a row is called: the name somebody gave the run, else its recipe's,
+ * with the timeframe beside it as a chip (Tyler, 11 Nov 2026: "redesign the
+ * backtest table", after his drawing).
+ */
+function rowName(run: { name: string | null; automationName: string; spec: { interval: string } }): string {
+  const name = run.name ?? run.automationName
+  // A saved name ending in its timeframe ("Large cap DCA, 4h") loses it here,
+  // because the chip beside the name says it.
+  const suffix = `, ${run.spec.interval}`
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name
+}
+
+/** The timeframe chip shows unless the run was given a name of its own. */
+function showsInterval(run: { name: string | null; spec: { interval: string } }): boolean {
+  return run.name === null || run.name.endsWith(`, ${run.spec.interval}`)
+}
+
+/** "3:53 PM": the time a run started, after its day. */
+const timeOfDay = (at: number) =>
+  new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 
 /** How often the list is read again while a run is still going. */
 const REFRESH_MS = 2_000
@@ -145,7 +168,7 @@ export function BacktestsSection({
       .filter(
         (run) =>
           !query ||
-          backtestName(run).toLowerCase().includes(query) ||
+          rowName(run).toLowerCase().includes(query) ||
           run.automationName.toLowerCase().includes(query)
       )
       .sort((left, right) => {
@@ -153,7 +176,7 @@ export function BacktestsSection({
         if (left.pinned !== right.pinned) return left.pinned ? -1 : 1
         switch (sort) {
           case "name":
-            return way * backtestName(left).localeCompare(backtestName(right))
+            return way * rowName(left).localeCompare(rowName(right))
           case "coins":
             return way * (left.coinsTotal - right.coinsTotal)
           case "madeOrLost":
@@ -169,6 +192,8 @@ export function BacktestsSection({
   }, [runs, query, sort, direction, now, recipe])
 
   const ids = sorted.map((run) => run.id)
+  // The deepest dip listed fills its bar; every other bar is that share of it.
+  const deepestDip = sorted.reduce((most, run) => Math.max(most, Math.abs(run.summary?.worstDipUsd ?? 0)), 0)
   const openId = search.open
   const chosen = [...ticked].filter((id) => ids.includes(id))
 
@@ -220,7 +245,7 @@ export function BacktestsSection({
       label="Backtest menu"
       name={{
         value: run.name ?? "",
-        placeholder: backtestName({ ...run, name: null }),
+        placeholder: run.automationName,
         note: NAME_NOTE,
         onCommit: (name) => void rename(run, name),
       }}
@@ -296,6 +321,8 @@ export function BacktestsSection({
   const header = (
     <CrmListHeader
       tabs={heading}
+      // The button that reopens a shut right panel, last in the header.
+      end={headingEnd}
       selected={
         chosen.length ? (
           <SelectedMenu
@@ -430,7 +457,7 @@ export function BacktestsSection({
         <CrmTableRow
           key={run.id}
           open={run.id === openId}
-          label={backtestName(run)}
+          label={rowName(run)}
           tick={
             massOn
               ? {
@@ -455,8 +482,8 @@ export function BacktestsSection({
           // goes to the chart page. Beside it add another icon that links to
           // the canvas recipe").
           cog={{
-            label: `Open the chart of ${backtestName(run)}`,
-            icon: <ChartCandlestickIcon className="size-4" />,
+            label: `Open the chart of ${rowName(run)}`,
+            icon: <ChartColumnIcon className="size-4" />,
             onPress: () => go({ ...search, open: run.id, full: true, coin: undefined }, { push: true }),
           }}
           buttons={[
@@ -470,26 +497,58 @@ export function BacktestsSection({
           onRightClick={(x, y) => setRowMenu({ id: run.id, x, y })}
         >
           <MainCell
-            name={backtestName(run)}
+            name={rowName(run)}
             lead={run.pinned ? <PinIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Pinned" /> : null}
           >
+            {/* A run named by hand keeps the name alone, as drawn. */}
+            {showsInterval(run) ? <Chip muted className="bg-muted/60 font-mono">{run.spec.interval}</Chip> : null}
             {run.finishedAt === null ? <Chip>{`${run.coinsDone} of ${run.coinsTotal}`}</Chip> : null}
             {run.archived ? <Chip muted>Archived</Chip> : null}
           </MainCell>
-          <TableCell column="meta" className="hidden tabular-nums @3xl:table-cell">
+          <TableCell column="meta" className="hidden text-right font-mono text-muted-foreground tabular-nums @3xl:table-cell">
             {run.coinsTotal}
           </TableCell>
-          <TableCell column="meta" className="tabular-nums">
-            {run.summary ? signedUsd(run.summary.madeOrLost) : "None yet"}
+          <TableCell column="meta" className="text-right">
+            {run.summary ? (
+              <span
+                className={cn(
+                  "inline-block rounded-md px-2 py-0.5 font-mono font-medium tabular-nums",
+                  moneyToneSurface(run.summary.madeOrLost)
+                )}
+              >
+                {signedUsd(run.summary.madeOrLost)}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">None yet</span>
+            )}
           </TableCell>
-          <TableCell column="meta" className="hidden tabular-nums @4xl:table-cell">
-            {run.summary ? usd(run.summary.worstDipUsd) : "None yet"}
+          <TableCell column="meta" className="hidden @4xl:table-cell">
+            {run.summary ? (
+              // The dip in dollars, then a bar: the deepest listed fills it.
+              <span className="flex items-center gap-3">
+                <span className="w-20 shrink-0 font-mono tabular-nums">
+                  -{usd(Math.abs(run.summary.worstDipUsd))}
+                </span>
+                <span className="h-1.5 w-28 shrink-0 overflow-hidden rounded-full bg-muted" aria-hidden>
+                  <span
+                    className="block h-full rounded-full bg-destructive/70"
+                    style={{
+                      width: `${deepestDip > 0 ? Math.max(4, (Math.abs(run.summary.worstDipUsd) / deepestDip) * 100) : 0}%`,
+                    }}
+                  />
+                </span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">None yet</span>
+            )}
           </TableCell>
-          <TableCell column="meta" className="hidden @2xl:table-cell" title={formatDateTime(new Date(run.createdAt))}>
-            {formatRelativeTime(new Date(run.createdAt), formatDateTime)}
+          <TableCell column="meta" className="hidden whitespace-nowrap @2xl:table-cell" title={formatDateTime(new Date(run.createdAt))}>
+            {formatDate(new Date(run.createdAt))}{" "}
+            <span className="ml-1 font-mono text-xs text-muted-foreground">{timeOfDay(run.createdAt)}</span>
           </TableCell>
-          <TableCell column="meta" className="hidden whitespace-nowrap tabular-nums @5xl:table-cell">
-            {backtestDurationText(run, now)}
+          <TableCell column="meta" className="hidden whitespace-nowrap font-mono tabular-nums @5xl:table-cell">
+            {/* The heading says Took, so a finished row is the time alone. */}
+            {backtestDurationText(run, now).replace(/^Took /, "")}
           </TableCell>
         </CrmTableRow>
       ))}
@@ -527,6 +586,7 @@ export function BacktestsSection({
             coins={picked.coins}
             menu={pickedRow ? menuFor(pickedRow) : null}
             onOpen={() => go({ ...search, open: picked.run.id, full: true }, { push: true })}
+            onOpenCanvas={() => go({ view: "recipes", open: picked.run.automationId, full: true }, { push: true })}
           />
         ),
       }

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
 
-import { toneClass } from "@/components/backtest/backtest-kpi"
 import type { BotsSectionProps } from "@/components/bots/bots-dashboard"
 import { RecordMenu } from "@/components/bots/bots-record"
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
@@ -19,7 +18,9 @@ import {
   type FlowRunReport,
 } from "@/lib/api/trade/flow-runs"
 import { describeBulkResult } from "@/lib/format/bulk-result"
-import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
+import { formatDate, formatDateTime } from "@/lib/format/format-time"
+import { moneyToneSurface, WARNING_SURFACE } from "@/lib/trade/money-tone"
+import { cn } from "@/lib/utils"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -43,6 +44,24 @@ const COLUMNS = [
   { key: "net", label: "Made or lost", column: "meta" },
   { key: "started", label: "Started", column: "meta", className: "hidden @2xl:table-cell" },
 ] as const
+
+/**
+ * A wallet's name as drawn: "HL1 - GRID" is HL1 in a fixed-width face, then
+ * GRID as a small chip; a name with no dash is the name alone.
+ */
+function WalletLabel({ label }: { label: string }) {
+  const [name, ...rest] = label.split(" - ")
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="font-mono">{name}</span>
+      {rest.length ? (
+        <span className="rounded border bg-muted/50 px-1.5 font-mono text-[11px] text-muted-foreground uppercase">
+          {rest.join(" - ")}
+        </span>
+      ) : null}
+    </span>
+  )
+}
 
 /** How often the list is read again while anything is still switched on. */
 const REFRESH_MS = 5_000
@@ -260,6 +279,8 @@ export function BotRunsSection({
   const header = (
     <CrmListHeader
       tabs={heading}
+      // The button that reopens a shut right panel, last in the header.
+      end={headingEnd}
       selected={
         chosen.length ? (
           <SelectedMenu
@@ -361,25 +382,43 @@ export function BotRunsSection({
           onRightClick={(x, y) => setRowMenu({ id: run.id, x, y })}
         >
           <MainCell name={run.automationName}>
-            {/* Real money is said in words, never in colour alone. */}
-            {run.real ? <Chip>Real money</Chip> : null}
+            {/* Real money is said in words, never in colour alone; the amber
+                dot only repeats it (Tyler, 11 Nov 2026: "revamp bots table",
+                after his drawing). */}
+            {run.real ? (
+              <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/30 px-1.5 py-0.5 text-xs font-medium", WARNING_SURFACE)}>
+                <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                Real money
+              </span>
+            ) : null}
             {run.status !== "stopped" ? <Chip>{stateOf(run)}</Chip> : null}
           </MainCell>
-          <TableCell column="meta" className="hidden @3xl:table-cell">
-            {run.walletLabel}
+          <TableCell column="meta" className="hidden whitespace-nowrap @3xl:table-cell">
+            <WalletLabel label={run.walletLabel} />
           </TableCell>
-          <TableCell column="meta" className="hidden tabular-nums @4xl:table-cell">
-            {run.status === "running"
-              ? `${run.working} of ${run.coins}`
-              : run.status === "stopping"
-                ? `${run.working} left`
-                : "None"}
+          <TableCell column="meta" className="hidden font-mono tabular-nums @4xl:table-cell">
+            {run.status === "running" ? (
+              `${run.working} of ${run.coins}`
+            ) : run.status === "stopping" ? (
+              `${run.working} left`
+            ) : (
+              <span className="font-sans text-muted-foreground">None</span>
+            )}
           </TableCell>
-          <TableCell column="meta" className={`tabular-nums ${toneClass(run.netUsd)}`}>
-            {run.tradesClosed === 0 ? "No trades yet" : formatSignedUsd(run.netUsd)}
+          <TableCell column="meta">
+            {run.tradesClosed === 0 ? (
+              <span className="text-muted-foreground">No trades yet</span>
+            ) : (
+              <span className={cn("inline-block rounded-md px-2 py-0.5 font-mono font-medium tabular-nums", moneyToneSurface(run.netUsd))}>
+                {formatSignedUsd(run.netUsd)}
+              </span>
+            )}
           </TableCell>
-          <TableCell column="meta" className="hidden @2xl:table-cell" title={formatDateTime(new Date(run.startedAt))}>
-            {formatRelativeTime(new Date(run.startedAt), formatDateTime)}
+          <TableCell column="meta" className="hidden whitespace-nowrap @2xl:table-cell" title={formatDateTime(new Date(run.startedAt))}>
+            {formatDate(new Date(run.startedAt))}
+            <span className="ml-2 font-mono text-xs text-muted-foreground">
+              {new Date(run.startedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </span>
           </TableCell>
         </CrmTableRow>
       ))}

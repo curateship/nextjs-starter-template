@@ -9,7 +9,9 @@ steps.
 ## The table
 
 The table lists each recipe's name, its bot's status, its steps and its last
-update. Clicking a line opens its canvas; the table has no right panel. An
+update. Clicking a line picks it, and the right panel shows its Last result
+and Parameters cards with Open canvas in the footer; the line's cog opens the
+canvas too (Tyler, 11 Nov 2026). An
 admin can search (in the header's ⋮), sort, make a recipe from the header's
 New recipe dropdown, duplicate or delete one with a right-click on its line,
 and rename, duplicate or delete the open one from its ⋮ in the canvas header. A recipe with a live run

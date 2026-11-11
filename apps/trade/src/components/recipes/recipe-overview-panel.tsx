@@ -34,7 +34,13 @@ export function RecipeOverviewPanel({
   graph,
   onPickStep,
   onOpenBacktest,
+  menu = null,
+  footer,
 }: {
+  /** The recipe's ⋮, where the panel is drawn beside the Recipes table. */
+  menu?: React.ReactNode
+  /** Open canvas, on a recipe picked in the Recipes table. */
+  footer?: React.ReactNode
   recipeId: string
   graph: AutomationGraph
   onPickStep: (nodeId: string) => void
@@ -46,7 +52,7 @@ export function RecipeOverviewPanel({
   const steps = [...graph.nodes].sort((one, two) => one.x - two.x || one.y - two.y)
 
   return (
-    <OpenRunPanel title="Recipe" icon={WorkflowIcon} menu={null} hideLabel="Hide the recipe">
+    <OpenRunPanel title="Recipe" icon={WorkflowIcon} menu={menu} hideLabel="Hide the recipe" footer={footer}>
       <PanelCard
         storageId="recipe-last-result"
         icon={<ChartLineIcon />}
@@ -57,7 +63,7 @@ export function RecipeOverviewPanel({
         ) : last.state === "error" ? (
           <ErrorRow message={last.message} onRetry={last.retry} />
         ) : last.state === "none" ? (
-          <p className="text-sm text-muted-foreground">No backtest yet. Press Backtest above the canvas to run one.</p>
+          <p className="text-sm text-muted-foreground">No backtest yet. Run one with Backtest on the recipe's canvas.</p>
         ) : (
           <div className="grid gap-4">
             <p className="grid gap-0.5">
