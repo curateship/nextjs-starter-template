@@ -1,5 +1,5 @@
 import * as React from "react"
-import { SparklesIcon } from "lucide-react"
+import { PaperclipIcon, SparklesIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,9 @@ import { CRM_MAX_BODY_LENGTH } from "@/lib/crm/crm"
 import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { getCrmErrorMessage, sendReply } from "@/lib/api/crm/inbox"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { cn } from "@/lib/utils"
+import { MediaPicker } from "@/components/media/media-picker"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -27,6 +30,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * opened. See `src/lib/crm/reply-drafts.ts`.
  */
 export function ReplyComposer({
+  className,
   threadId,
   body,
   canSend,
@@ -34,7 +38,11 @@ export function ReplyComposer({
   onBodyChange,
   onSent,
   onDraft,
+  status,
 }: {
+  /** The conversation's status dropdown, on the left of the last line. */
+  status: React.ReactNode
+  className?: string
   threadId: string
   /** What is in the box, held by the screen so it survives a switch. */
   body: string
@@ -58,6 +66,16 @@ export function ReplyComposer({
   onDraft: () => Promise<string>
 }) {
   const [sending, setSending] = React.useState(false)
+  // Files from the media library, by the address the picker gave (CRM task
+  // 22). Kept through a refused send; a sent reply clears them, and so does
+  // opening another conversation.
+  const [files, setFiles] = React.useState<string[]>([])
+  const [filesFor, setFilesFor] = React.useState(threadId)
+  if (filesFor !== threadId) {
+    setFilesFor(threadId)
+    setFiles([])
+  }
+  const [picking, setPicking] = React.useState(false)
   const [drafting, setDrafting] = React.useState(false)
   const boxRef = React.useRef<HTMLTextAreaElement | null>(null)
 
@@ -81,12 +99,13 @@ export function ReplyComposer({
     if (!body.trim() || sending) return
     setSending(true)
     try {
-      const { reopened } = await sendReply(threadId, body.trim())
+      const { reopened } = await sendReply(threadId, body.trim(), files)
       setBody("")
-      // The conversation was closed or snoozed and answering it put it back in
-      // the inbox. Said out loud, because a status changing under somebody
+      setFiles([])
+      // The conversation was closed by a block and answering it put it back
+      // in the inbox. Said out loud, because a conversation reappearing
       // without a word is its own surprise.
-      if (reopened) toast.success("Reopened, because you answered it.")
+      if (reopened) toast.success("Back in the inbox, because you answered it.")
       onSent()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))
@@ -114,36 +133,104 @@ export function ReplyComposer({
 
   const noAddress = !replyFrom
 
+  // Tyler, 7 Nov 2026: "clean up the right panel footer. move the send button
+  // here ... move the draft with ai button beside it as well as file
+  // attachemtn icon. Move the send as email right into the box bottom left".
+  // So the box holds the words, the files and who it goes out as; the row
+  // under it is the panel's last line, the state on the left and Draft with
+  // AI, Attach and Send together on the right.
   return (
-    <div className="grid shrink-0 gap-2 border-t p-3">
-      <Textarea
-        ref={boxRef}
-        value={body}
-        maxLength={CRM_MAX_BODY_LENGTH}
-        onChange={(event) => setBody(event.target.value)}
-        placeholder={
-          noAddress
-            ? "Add the address mail arrives at in Settings → Email before replying"
-            : "Write a reply"
-        }
-        aria-label="Your reply"
-        rows={4}
-        className="min-h-[5.5rem] resize-none"
-      />
+    <div className={cn("@container grid shrink-0 grid-cols-[minmax(0,1fr)]", className)}>
+      <div className="min-w-0 p-3.75 pb-2">
+        <div className="min-w-0 rounded-md border bg-background shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+          <Textarea
+            ref={boxRef}
+            value={body}
+            maxLength={CRM_MAX_BODY_LENGTH}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder={
+              noAddress
+                ? "Add the address mail arrives at in Settings → Email before replying"
+                : "Write a reply"
+            }
+            aria-label="Your reply"
+            rows={3}
+            // No ground of its own, in either theme: the box behind it is the
+            // ground, so the "Sent as" line under it is not a darker bar
+            // (Tyler, 7 Nov 2026: "why is there a black bar here").
+            className="min-h-[4.5rem] resize-none rounded-b-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+          />
+          {files.length ? (
+            <ul className="flex flex-wrap gap-1.5 px-3 pb-2" aria-label="Files going with the reply">
+              {files.map((url) => (
+                <li
+                  key={url}
+                  className="flex max-w-full items-center gap-1 rounded-md bg-muted py-0.5 pr-0.5 pl-2 text-xs"
+                >
+                  <PaperclipIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="min-w-0 truncate">{fileName(url)}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Take off ${fileName(url)}`}
+                    onClick={() => setFiles((current) => current.filter((item) => item !== url))}
+                  >
+                    <XIcon className="size-3" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {replyFrom ? (
+            <p className="truncate px-3 pb-2 text-xs text-muted-foreground">Sent as {replyFrom}</p>
+          ) : null}
+        </div>
+      </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={draft}
-          disabled={drafting}
-        >
-          <SparklesIcon className="size-4" />
-          {drafting ? "Writing…" : "Draft with AI"}
-        </Button>
-
-        <div className="ml-auto flex items-center gap-2">
+      {/* No line between the box and this row (Tyler, 7 Nov 2026: "remove the
+          divider"); the whole footer is one light grey ground. */}
+      <div className="flex items-center gap-1 px-3.75 pb-2.5">
+        <div className="flex min-w-0 flex-1">{status}</div>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="Draft with AI"
+                onClick={draft}
+                disabled={drafting}
+              >
+                <SparklesIcon className="size-4" />
+                <span className="@max-[16rem]:hidden">{drafting ? "Writing…" : "Draft with AI"}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Writes a reply from the conversation, under anything typed</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Attach a file from the media library, up to 10 MB in all"
+                onClick={() => setPicking(true)}
+              >
+                <PaperclipIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Attach a file, up to 10 MB in all</TooltipContent>
+          </Tooltip>
+          <MediaPicker
+            open={picking}
+            onOpenChange={setPicking}
+            onSelectMedia={(url) => {
+              setPicking(false)
+              setFiles((current) => (current.includes(url) || current.length >= 10 ? current : [...current, url]))
+            }}
+          />
           <DisabledReason
             disabled={noAddress}
             reason="No address is set for mail to arrive at, so a reply would have nowhere to come back to. Settings → Email is where that goes."
@@ -159,12 +246,16 @@ export function ReplyComposer({
           </DisabledReason>
         </div>
       </div>
-
-      {replyFrom ? (
-        <p className="text-xs text-muted-foreground">
-          Sent as {replyFrom}
-        </p>
-      ) : null}
     </div>
   )
+}
+
+/** A picked file's name, from the end of its address. */
+function fileName(url: string) {
+  const last = url.split("?")[0]?.split("/").pop() ?? url
+  try {
+    return decodeURIComponent(last) || url
+  } catch {
+    return last || url
+  }
 }

@@ -1,4 +1,7 @@
-import { SettingsIcon } from "lucide-react"
+import {
+  MailIcon,
+  SettingsIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -20,7 +23,7 @@ export default function SendEmailFields({
   const parsed = sendEmailDraftSettingsSchema.safeParse(node.settings)
 
   return (
-    <InspectorCard title="Email">
+    <InspectorCard icon={<MailIcon />} title="Email">
       {parsed.success ? (
         <>
           <div className="grid gap-1">

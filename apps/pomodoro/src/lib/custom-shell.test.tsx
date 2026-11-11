@@ -25,7 +25,7 @@ describe("shellConfigSaveRefusal", () => {
         ...config,
         publicTheme: { ...config.publicTheme, brandColor: "#12" },
       })
-    ).toBe("fix the brand colour on Public → Styling")
+    ).toBe("fix the brand colour in Admin → Styling → Public")
   })
 
   it("asks for the workspace name first, since the save stops there", () => {
