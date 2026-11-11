@@ -196,7 +196,7 @@ Settings → Styling and Settings → Public → Styling until 9 Nov 2026.
   to two lines. Tiles are at least 11rem wide, as many to a row as fit, and
   the picked one lifts on a soft shadow. Platform: Spacing & borders,
   Divider lines, Dashboard tabs, Dark mode, Gutter shade, Side panels,
-  Blocks, Widgets, Panel cards, Left menu shade, Modal, Cards inside modals.
+  Blocks, Widgets, Panel cards, Sidebar & Top navigation, Modal, Cards inside modals.
   Public: Presets, Brand, Page frame, Spacing & borders, Header & footer,
   Modal.
 - **Right:** the group picked, its own words, sliders, pickers and preview,

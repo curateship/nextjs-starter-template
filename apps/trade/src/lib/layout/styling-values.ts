@@ -70,6 +70,13 @@ export type ShellStyling = {
    */
   sidebarShade?: number
   /**
+   * How dark the line down the left menu's edge and under the top bar is, 0
+   * to 100 of the theme's text colour. Unset, it is the Divider lines colour,
+   * as it always was (Tyler, 11 Nov 2026: "add another option to isolate just
+   * the sidebar and top navigation border shade").
+   */
+  sidebarBorderShade?: number
+  /**
    * How dark the page behind the cards is, from a card's colour (0) to the
    * theme's deepest page grey (100). Unset reads as halfway
    * (`DEFAULT_PAGE_SHADE`). Optional for the same reason as `dashboardTabs`.
@@ -394,6 +401,28 @@ export function clampSidebarShade(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_SIDEBAR_SHADE)
 }
 
+/** Where the Sidebar & Top navigation card's Border shade slider starts while unset. */
+export const DEFAULT_SIDEBAR_BORDER_SHADE = 10
+
+export function clampSidebarBorderShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_SIDEBAR_BORDER_SHADE)
+}
+
+/**
+ * The colour of the left menu's edge and the top bar's line: its own Border
+ * shade when one is set, else the Divider lines colour, else nothing (the
+ * theme's own). `dividerColor` is that resolved Divider lines colour.
+ */
+export function sidebarBorderColor(
+  styling: Pick<ShellStyling, "sidebarBorderShade">,
+  dividerColor: string | null | undefined
+): string | null {
+  if (styling.sidebarBorderShade !== undefined) {
+    return `color-mix(in oklab, var(--foreground) ${clampSidebarBorderShade(styling.sidebarBorderShade)}%, transparent)`
+  }
+  return dividerColor ?? null
+}
+
 export function clampPageShade(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_PAGE_SHADE)
 }
@@ -567,6 +596,9 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.sidebarShade === undefined
       ? {}
       : { sidebarShade: clampSidebarShade(styling.sidebarShade) }),
+    ...(styling.sidebarBorderShade === undefined
+      ? {}
+      : { sidebarBorderShade: clampSidebarBorderShade(styling.sidebarBorderShade) }),
     ...(styling.pageShade === undefined
       ? {}
       : { pageShade: clampPageShade(styling.pageShade) }),
@@ -746,10 +778,9 @@ export function getBorderStyleVars(styling: ShellStyling): Record<string, string
   const dividerColor = resolveBackground(styling.dividerColor, {
     base: "--muted-foreground",
   })
-  if (dividerColor) {
-    vars["--border"] = dividerColor
-    vars["--sidebar-border"] = dividerColor
-  }
+  if (dividerColor) vars["--border"] = dividerColor
+  const edge = sidebarBorderColor(styling, dividerColor)
+  if (edge) vars["--sidebar-border"] = edge
   const cardBorderColor = resolveBackground(styling.cardBorderColor, {
     base: "--muted-foreground",
   })

@@ -169,7 +169,7 @@
     );
     /* The rail and the sticky bar, halfway between the page and a card, so
        they read as off white here and off black in the dark block without
-       either being set by hand twice. Settings -> Styling -> Left menu shade
+       either being set by hand twice. Settings -> Styling -> Sidebar & Top navigation
        moves them along that line through --shell-rail-card-share. */
     --shell-rail: color-mix(
       in oklab,

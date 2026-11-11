@@ -66,6 +66,7 @@ import {
   getPanelCardStyleVars,
   PANEL_CARD_STYLE_VAR_NAMES,
   getSidebarShadeVars,
+  sidebarBorderColor,
   MODAL_STYLE_VAR_NAMES,
   normalizeStyling,
   resolveBackground,
@@ -646,10 +647,12 @@ export function ShellLayout({
   const dividerColor = resolveBackground(config.styling.dividerColor, {
     base: "--muted-foreground",
   })
+  // The left menu's edge and the top bar's line follow their own Border
+  // shade when one is set (Settings -> Styling -> Sidebar & Top navigation).
+  const edgeColor = sidebarBorderColor(config.styling, dividerColor)
   const rootStyle = {
-    ...(dividerColor
-      ? { "--border": dividerColor, "--sidebar-border": dividerColor }
-      : {}),
+    ...(dividerColor ? { "--border": dividerColor } : {}),
+    ...(edgeColor ? { "--sidebar-border": edgeColor } : {}),
   } as React.CSSProperties
   const pageTitle = getCurrentPageTitle(
     config,

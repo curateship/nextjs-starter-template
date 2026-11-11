@@ -1,8 +1,9 @@
 # The left menu shade
 
 The left menu and the bar along the top share one background, and an admin
-sets how light it is in Admin → Styling → Left menu shade. Tyler asked for
-the card on 30 October 2026.
+sets how light it is in Admin → Styling → Sidebar & Top navigation (called
+Left menu shade until 11 Nov 2026). Tyler asked for the card on 30 October
+2026.
 
 ## What the slider means
 
@@ -43,3 +44,19 @@ have no left menu.
 
 The setting is saved per workspace, with the rest of Styling, so every admin in
 the workspace sees the same left menu.
+
+## The border shade
+
+The same card has a Border shade slider for the line down the left menu's
+edge and the line under the top bar, apart from the thin lines inside cards
+and tables (Tyler, 11 Nov 2026: "add another option to isolate just the
+sidebar and top navigation border shade. Rename this card to "Sidebar & Top
+navigation" and put the border shade there").
+
+- Until it is moved, the edge is the Divider lines colour, as it always was,
+  and the slider says "Divider lines".
+- Moved, it is that share of the text colour, 0 to 100
+  (`sidebarBorderShade`, `sidebarBorderColor` in `src/lib/layout/styling-values.ts`),
+  set as `--sidebar-border` both on the page and on the shell's own wrapper,
+  so Divider lines no longer reaches the edge.
+- It is stored with the workspace's styling, so no migration is needed.

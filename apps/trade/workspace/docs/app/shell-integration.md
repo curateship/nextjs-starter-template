@@ -347,3 +347,14 @@ Later the same day: side panel cards sit flush with no gap (`PANEL_GUTTER`,
 the automation step panel), and two "/" blocks in a row on a left page lose
 the 15px between them. Trade keeps its own page editor
 (`src/components/trade/notes/saving-document.tsx`), which took the same rule.
+
+## Sidebar & Top navigation border shade, 11 November 2026
+
+Settings -> Styling's Left menu shade card is now Sidebar & Top navigation,
+with a Border shade slider for the line down the left menu's edge and under the
+top bar on its own (`sidebarBorderShade`; unset, it follows Divider lines).
+Made in `apps/shell` and copied here unchanged (`styling-values.ts`,
+`shell-layout.tsx`, `styling-settings.tsx`, `styling-tab.tsx`,
+`shell-settings.ts` and its test); `theme.css` differs from the shell's, so only
+its comment naming the card was changed here. The shell's
+`workspace/docs/settings/left-menu-shade.md` has the details.

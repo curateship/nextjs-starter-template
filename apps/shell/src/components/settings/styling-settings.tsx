@@ -56,6 +56,7 @@ import {
   DEFAULT_DASHBOARD_TABS,
   DEFAULT_PAGE_SHADE,
   DEFAULT_SIDEBAR_SHADE,
+  DEFAULT_SIDEBAR_BORDER_SHADE,
   isDarkShadeId,
   isDashboardTabStyle,
   MAX_BLOCK_INSET,
@@ -85,6 +86,12 @@ export function StylingSettings({
   const [previewTab, setPreviewTab] = React.useState("list")
   const shade = darkShade(styling.darkShade)
   const sidebarShade = styling.sidebarShade ?? DEFAULT_SIDEBAR_SHADE
+  // Unset follows Divider lines; the slider starts at its own default then.
+  const sidebarBorderShade = styling.sidebarBorderShade ?? DEFAULT_SIDEBAR_BORDER_SHADE
+  const sidebarEdge =
+    styling.sidebarBorderShade === undefined
+      ? undefined
+      : `color-mix(in oklab, var(--foreground) ${sidebarBorderShade}%, transparent)`
   const pageShade = styling.pageShade ?? DEFAULT_PAGE_SHADE
   const blockRadius = styling.blockRadius ?? DEFAULT_BLOCK_RADIUS
   const blockShade = styling.blockShade ?? DEFAULT_BLOCK_SHADE
@@ -790,8 +797,8 @@ export function StylingSettings({
 
       <CollapsibleSettingsCard
         storageId="styling-sidebar-shade"
-        title="Left menu shade"
-        description="The background of the left menu and the bar along the top. The whole admin area recolors live as you adjust this."
+        title="Sidebar & Top navigation"
+        description="The left menu and the bar along the top: their background, and the line along their edge. The whole admin area recolors live as you adjust this."
         contentClassName="space-y-6"
       >
         <SliderRow
@@ -803,6 +810,18 @@ export function StylingSettings({
           onChange={(value) => update({ sidebarShade: value })}
           help="0% matches the page behind the cards and 100% matches a card. It stays between the two in light and dark mode."
         />
+        {/* The edge on its own, apart from the lines inside cards (Tyler, 11
+            Nov 2026: "isolate just the sidebar and top navigation border
+            shade"). Unset, it is the Divider lines colour. */}
+        <SliderRow
+          label="Border shade"
+          value={sidebarBorderShade}
+          min={0}
+          max={100}
+          valueLabel={styling.sidebarBorderShade === undefined ? "Divider lines" : `${sidebarBorderShade}%`}
+          onChange={(value) => update({ sidebarBorderShade: value })}
+          help="How dark the line down the left menu's edge and under the top bar is. Until it is moved, it is the Divider lines colour."
+        />
 
         <FieldGroup label="Preview" className="gap-2">
           <div
@@ -811,13 +830,13 @@ export function StylingSettings({
           >
             <div
               className="w-1/4 border-r"
-              style={{ background: railPreview }}
+              style={{ background: railPreview, borderColor: sidebarEdge }}
               aria-hidden="true"
             />
             <div className="flex flex-1 flex-col">
               <div
                 className="h-8 border-b"
-                style={{ background: railPreview }}
+                style={{ background: railPreview, borderColor: sidebarEdge }}
                 aria-hidden="true"
               />
               <div className="flex-1 p-3">

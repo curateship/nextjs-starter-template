@@ -117,3 +117,22 @@ describe("panel cards", () => {
     })
   })
 })
+
+describe("the Sidebar & Top navigation border shade", () => {
+  it("follows Divider lines until it is set, then is its own shade of the text colour", async () => {
+    const { sidebarBorderColor, getBorderStyleVars } = await import("@/lib/layout/styling-values")
+    expect(sidebarBorderColor({}, "rgb(1 2 3)")).toBe("rgb(1 2 3)")
+    expect(sidebarBorderColor({}, null)).toBeNull()
+    expect(sidebarBorderColor({ sidebarBorderShade: 30 }, "rgb(1 2 3)")).toBe(
+      "color-mix(in oklab, var(--foreground) 30%, transparent)"
+    )
+    // The lines inside cards keep the Divider lines colour either way.
+    const vars = getBorderStyleVars({
+      ...createDefaultStyling(),
+      dividerColor: { mode: "custom", strength: 100, color: "#123456" },
+      sidebarBorderShade: 40,
+    })
+    expect(vars["--sidebar-border"]).toBe("color-mix(in oklab, var(--foreground) 40%, transparent)")
+    expect(vars["--border"]).not.toBe(vars["--sidebar-border"])
+  })
+})
