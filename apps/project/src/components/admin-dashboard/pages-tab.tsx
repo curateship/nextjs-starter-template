@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ExternalLinkIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import type { AdminFrame } from "@/components/admin-dashboard/admin-dashboard"
 import { useNewPageForm } from "@/components/admin-dashboard/new-page-form"
@@ -33,7 +32,6 @@ import { PAGE_GROUP_LABELS, PAGE_GROUPS, pageGroup, type PageGroup } from "@/lib
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
-  PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
 
@@ -123,7 +121,6 @@ export function PagesTab({
     void runVisibility(async () => {
       await savePageVisibility({ path: row.path, visibility: next })
       await router.invalidate()
-      toast.success(`${row.name} is now ${PAGE_VISIBILITY_SENTENCES[next]}`)
     }).finally(() => setSaving(null))
   }
 
@@ -139,7 +136,7 @@ export function PagesTab({
       if (listSearch.open === target.path) setListSearch({ open: undefined })
       await router.invalidate()
       setDeleting(null)
-    }, `${target.name} was deleted.`)
+    })
   }
 
   const [rightClick, setRightClick] = React.useState<{ id: string; x: number; y: number } | null>(null)

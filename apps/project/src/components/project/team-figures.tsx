@@ -43,7 +43,7 @@ export function TeamPicturesCard({ team }: { team: Pick<TeamSummary, "photoUrl">
           className="max-w-48"
           disabled={busy}
           onChange={(url) =>
-            void run(() => saveTeamPhoto(url, teamId), url ? "Cover saved." : "Cover removed.").then((ok) =>
+            void run(() => saveTeamPhoto(url, teamId)).then((ok) =>
               ok ? router.invalidate() : undefined
             )
           }

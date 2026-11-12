@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
@@ -36,13 +35,11 @@ import { cn } from "@/lib/utils"
 export function TestWithContactDialog({
   open,
   automationId,
-  automationName,
   onOpenChange,
   onStarted,
 }: {
   open: boolean
   automationId: string
-  automationName: string
   onOpenChange: (open: boolean) => void
   onStarted: (runId: string) => void | Promise<void>
 }) {
@@ -93,9 +90,6 @@ export function TestWithContactDialog({
       const { runId } = await testAutomationWithContact(
         automationId,
         selected.id
-      )
-      toast.success(
-        `Testing "${automationName}" as ${selected.name || selected.email}.`
       )
       onOpenChange(false)
       setSearch("")

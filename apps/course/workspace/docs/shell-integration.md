@@ -212,3 +212,23 @@ Every shell change since the 7 Nov merge (`e69b7243e`) is in Course, up to the s
 
 **One Course file follows the shell.** The course editor puts the shell's remembered panel widths on its panels with `groupRef`, as the shell's layout hook now asks, instead of rebuilding the panels to take them.
 **Tests.** `delivery.test.ts` (expects the shell's port 3002) and `public-branding.test.ts` fail in the shell too.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `04d976ea4` is in Course, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited copy of the shell at that commit, which is newer than the `32a7c20fe` the last record names: a later shell fix had already been copied in.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 345 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

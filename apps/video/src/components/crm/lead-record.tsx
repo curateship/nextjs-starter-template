@@ -1,6 +1,5 @@
 import * as React from "react"
 import { UserIcon, UserPlusIcon, UsersIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { AddToContactsRow, LeadFactGroups } from "@/components/crm/crm-record-menu"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
@@ -152,7 +151,6 @@ export function LeadRecord({
                 setAdding(true)
                 try {
                   await addLeadToContactList(lead.id)
-                  toast.success(`${lead.email} is on the mailing list now.`)
                   changed()
                 } catch (error) {
                   showErrorToast(getLeadErrorMessage(error))

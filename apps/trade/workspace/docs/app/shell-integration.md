@@ -358,3 +358,23 @@ Made in `apps/shell` and copied here unchanged (`styling-values.ts`,
 `shell-settings.ts` and its test); `theme.css` differs from the shell's, so only
 its comment naming the card was changed here. The shell's
 `workspace/docs/settings/left-menu-shade.md` has the details.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `04d976ea4` is in Trade, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited copy of the shell at that commit.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean apart from `block-heights.ts`, which fails the same way before the merge. 344 of 345 tests in the changed folders pass; `page-visibility.test.ts` looks for `src/routes/tools/compound-growth.tsx`, which Trade does not have, and fails the same way before the merge. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

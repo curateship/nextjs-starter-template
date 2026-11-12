@@ -11,7 +11,7 @@ toast across all these active apps".
   in the error toast. A bulk action where every row went says nothing.
 - **Copy buttons say nothing when the copy worked.** A copy that failed still
   says so.
-- **Undo stays.** A toast that carries an Undo button is the only way back, so it is kept: deleting a note into the trip's bin, deleting trips into the Bin, adding a drafted plan, and the day board's moves and Best order (`trip-notes-panel.tsx`, `use-trip-bin.ts`, `draft-plan-dialog.tsx`, `board-actions.tsx`). Tyler decides whether these go too.
+- **Undo bars went too** (Tyler, 11 Nov 2026: "remove them"). A deleted card, note or trip waits in its bin, which is the way back; a moved card is moved back by hand.
 
 ## Where it applies
 

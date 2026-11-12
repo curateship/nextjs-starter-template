@@ -1,6 +1,5 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 import { BellIcon, BellRingIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, UndoIcon } from "lucide-react"
 
 import { ChatThread } from "@/components/project/task-chat"
@@ -51,7 +50,6 @@ import {
   followProjectTask,
   handBackProjectTask,
   loadTask,
-  restoreProjectTask,
   reviewProjectTask,
   saveTask,
   setStatus,
@@ -99,20 +97,6 @@ const NOTHING = () => undefined
 
 export const DELETE_TASK_QUESTION = "Delete this task?"
 export const DELETE_TASK_DETAIL = `It moves to the project's bin with its chat and files, and can be brought back for ${BIN_DAYS} days.`
-
-/** "Task moved to the bin." with Undo, after a task is deleted from its panel or its Board card. */
-export function showBinnedToast(taskId: string, router: { invalidate: () => Promise<unknown> }) {
-  toast.success("Task moved to the bin.", {
-    action: {
-      label: "Undo",
-      onClick: () =>
-        void restoreProjectTask(taskId).then(
-          () => router.invalidate(),
-          (error: unknown) => showErrorToast(getProjectErrorMessage(error))
-        ),
-    },
-  })
-}
 
 /**
  * What a task shows, split into the pieces the right panel places
@@ -393,7 +377,7 @@ function MoreTimeCard({
 /** Answers that no retry can change. */
 const GONE = new Set<string>([PROJECT_ERRORS.taskNotFound, PROJECT_ERRORS.taskInBin])
 
-export type Change = (work: () => Promise<unknown>, successText?: string) => Promise<boolean>
+export type Change = (work: () => Promise<unknown>) => Promise<boolean>
 
 function TaskForm({
   detail,
@@ -432,8 +416,8 @@ function TaskForm({
   const isMine = task.assignee?.id === myUserId
   const canHandBack = isMine && Boolean(task.assignedBy) && task.assignedBy?.id !== myUserId
 
-  const change: Change = async (work, successText) => {
-    const ok = await run(work, successText)
+  const change: Change = async (work) => {
+    const ok = await run(work)
     if (ok) await refresh()
     return ok
   }
@@ -465,8 +449,7 @@ function TaskForm({
       return
     }
     const ok = await change(
-      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: stuckReason.trim() }),
-      "Marked Stuck."
+      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: stuckReason.trim() })
     )
     if (ok) {
       setPendingStuck(false)
@@ -480,8 +463,7 @@ function TaskForm({
       return
     }
     const ok = await change(
-      () => handBackProjectTask(task.id, handBackReason.trim()),
-      task.assignedBy ? `Handed back to ${task.assignedBy.name}.` : "Handed back."
+      () => handBackProjectTask(task.id, handBackReason.trim())
     )
     if (ok) {
       setHandingBack(false)
@@ -507,8 +489,7 @@ function TaskForm({
           taskId: task.id,
           assigneeUserId: handingTo.id,
           note: handoverNote.trim() || null,
-        }),
-      `Handed to ${handingTo.name}.`
+        })
     )
     if (ok) {
       setHandingTo(null)
@@ -522,8 +503,7 @@ function TaskForm({
       return
     }
     const ok = await change(
-      () => reviewProjectTask({ taskId: task.id, action: "send_back", reason: sendBackReason.trim() }),
-      task.assignee ? `Sent back to ${task.assignee.name}.` : "Sent back to Doing."
+      () => reviewProjectTask({ taskId: task.id, action: "send_back", reason: sendBackReason.trim() })
     )
     if (ok) {
       setSendingBack(false)
@@ -534,7 +514,6 @@ function TaskForm({
   async function remove() {
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return false
-    showBinnedToast(task.id, router)
     await router.invalidate()
     return true
   }
@@ -558,15 +537,13 @@ function TaskForm({
           onKeepReason={setKeepReason}
           onYes={() =>
             void change(
-              () => answerMoreTaskTime({ taskId: task.id, answer: "yes" }),
-              `It's now due ${shortDayLabel(detail.moreTime!.day)}.`
+              () => answerMoreTaskTime({ taskId: task.id, answer: "yes" })
             )
           }
           onNo={() => setKeepingDate(true)}
           onKeep={async () => {
             const ok = await change(
-              () => answerMoreTaskTime({ taskId: task.id, answer: "no", reason: keepReason.trim() || null }),
-              "The due date stays."
+              () => answerMoreTaskTime({ taskId: task.id, answer: "no", reason: keepReason.trim() || null })
             )
             if (ok) {
               setKeepingDate(false)
@@ -601,7 +578,7 @@ function TaskForm({
               <Button
                 type="button"
                 disabled={busy}
-                onClick={() => void change(() => acceptProjectTask(task.id), "Task accepted.")}
+                onClick={() => void change(() => acceptProjectTask(task.id))}
               >
                 Accept task
               </Button>
@@ -653,7 +630,7 @@ function TaskForm({
                   type="button"
                   disabled={busy}
                   onClick={() =>
-                    void change(() => reviewProjectTask({ taskId: task.id, action: "confirm" }), "Confirmed.")
+                    void change(() => reviewProjectTask({ taskId: task.id, action: "confirm" }))
                   }
                 >
                   <ClipboardCheckIcon className="size-4" />
@@ -698,7 +675,7 @@ function TaskForm({
               size="sm"
               disabled={busy}
               onClick={() =>
-                void change(() => thankForProjectTask(task.id), `${task.assignee?.name ?? "They"} will see your thanks.`)
+                void change(() => thankForProjectTask(task.id))
               }
             >
               <HeartIcon className="size-4" />
@@ -949,8 +926,7 @@ function TaskForm({
         disabled={readOnly || busy}
         onCheckedChange={(on) =>
           void change(
-            () => setTaskNeedsReview(task.id, on),
-            on ? "You'll review it when it's Done." : "It no longer needs your review."
+            () => setTaskNeedsReview(task.id, on)
           )
         }
       />
@@ -1020,8 +996,7 @@ function TaskForm({
       detail={detail}
       onSave={(address) =>
         change(
-          () => setProjectTaskLink(task.id, address),
-          address ? "The task now opens that record." : "The task no longer points at a record."
+          () => setProjectTaskLink(task.id, address)
         )
       }
     />
@@ -1113,10 +1088,7 @@ function TaskForm({
           checked={task.review.needed}
           disabled={readOnly || busy}
           onCheckedChange={(on) =>
-            void change(
-              () => setTaskNeedsReview(task.id, on === true),
-              on === true ? "You'll review it when it's Done." : "It no longer needs your review."
-            )
+            void change(() => setTaskNeedsReview(task.id, on === true))
           }
         />
         <FieldLabel
@@ -1241,8 +1213,7 @@ function TaskForm({
               clearLabel="No reminder"
               onPick={(day) =>
                 void change(
-                  () => setReminder(task.id, day),
-                  day ? `You'll get a reminder on ${shortDayLabel(day)}, at your check-in time.` : "No reminder."
+                  () => setReminder(task.id, day)
                 )
               }
             />
@@ -1282,8 +1253,7 @@ function TaskForm({
             disabled={busy}
             onClick={() =>
               void change(
-                () => followProjectTask(task.id, !detail.following),
-                detail.following ? "You stopped following this task." : "You're following this task."
+                () => followProjectTask(task.id, !detail.following)
               )
             }
           >
@@ -1301,8 +1271,7 @@ function TaskForm({
           locked: task.notesLocked,
           toggle: () =>
             void change(
-              () => saveTask({ taskId: task.id, notesLocked: !task.notesLocked }),
-              task.notesLocked ? "Notes unlocked." : "Notes locked. Nobody can change them until they're unlocked."
+              () => saveTask({ taskId: task.id, notesLocked: !task.notesLocked })
             ),
         },
     move: () => setMoving(true),
@@ -1336,8 +1305,7 @@ function TaskForm({
         disabled={busy}
         onClick={() =>
           void change(
-            () => followProjectTask(task.id, !detail.following),
-            detail.following ? "You stopped following this task." : "You're following this task."
+            () => followProjectTask(task.id, !detail.following)
           )
         }
       >

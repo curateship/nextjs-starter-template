@@ -64,8 +64,8 @@ const CELL_TRIGGER =
 function useTaskChange() {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  async function change(action: () => Promise<unknown>, success?: string) {
-    const ok = await run(action, success)
+  async function change(action: () => Promise<unknown>) {
+    const ok = await run(action)
     if (ok) await router.invalidate()
     return ok
   }
@@ -146,8 +146,7 @@ export function StatusCellMenu({ task, look }: { task: TaskCard; look: "badge" |
           onClose={() => setAskingStuck(false)}
           onConfirm={async (reason) => {
             const ok = await change(
-              () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason }),
-              "Marked Stuck."
+              () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason })
             )
             if (ok) setAskingStuck(false)
             return ok
@@ -327,8 +326,7 @@ export function AssigneeCellMenu({
           onClose={() => setHandingTo(null)}
           onConfirm={async (note) => {
             const ok = await change(
-              () => assignProjectTask({ taskId: task.id, assigneeUserId: handingTo.id, note: note || null }),
-              `Handed to ${handingTo.name}.`
+              () => assignProjectTask({ taskId: task.id, assigneeUserId: handingTo.id, note: note || null })
             )
             if (ok) setHandingTo(null)
             return ok

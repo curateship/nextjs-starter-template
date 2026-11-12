@@ -1174,8 +1174,7 @@ Each task has a Plan card with three fields that save the moment they change.
 - **Deleted project notes wait in the same bin**, marked "Note", for the
   same 30 days. Delete doesn't ask for a note, and Bring back is for
   everyone who can see the project. See [Project notes](project-notes.md).
-- **Delete moves a task to its project's bin** for 30 days, with "Undo" on
-  the message. Both ways a task opens ask the same question first: "Delete
+- **Delete moves a task to its project's bin** for 30 days. Both ways a task opens ask the same question first: "Delete
   this task? It moves to the project's bin with its chat and files,
   and can be brought back for 30 days." In a panel that's a confirm window
   (on the project page, from Delete task in the ⋮ menu); in the

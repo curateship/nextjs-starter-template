@@ -64,7 +64,7 @@ export function useSubscriberForm(knownTags: string[], onCreated: (contactId: st
       setInvalid(false)
       created = true
       await onCreated(id)
-    }, `Added ${email}.`)
+    })
     return created
   }
 

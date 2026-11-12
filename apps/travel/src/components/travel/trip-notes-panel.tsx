@@ -1,7 +1,6 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import { ArrowLeftIcon, CopyIcon, Loader2Icon, NotebookPenIcon, PinIcon, PinOffIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SavingDocument } from "@/components/travel/saving-document"
 import { useTrip } from "@/components/travel/trip-context"
@@ -14,16 +13,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { copyNote, newTripNote, pinNote, removeNote, restoreNote, saveNote } from "@/lib/api/travel/trip-notes"
+import { copyNote, newTripNote, pinNote, removeNote, saveNote } from "@/lib/api/travel/trip-notes"
 import type { TripNote } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatLongDate } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { noteFirstLine as firstLine } from "@/lib/travel/notes"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
-/** How long the Undo bar stays, the same as the board's (task part 16: "for 6 seconds"). */
-const UNDO_MS = 6000
 
 
 /** A point on the page for a menu to open from, in the page's body so no scroller shifts it off the mouse. */
@@ -74,31 +70,20 @@ export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
     await run(async () => {
       await copyNote(note.id)
       await refresh()
-    }, "Note duplicated.")
+    })
   }
 
   async function pin(note: TripNote) {
     await run(async () => {
       await pinNote(note.id, !note.pinned)
       await refresh()
-    }, note.pinned ? "Note unpinned." : "Note pinned to the top.")
+    })
   }
 
   async function remove(note: TripNote) {
-    const ok = await run(async () => {
+    await run(async () => {
       await removeNote(note.id)
       await refresh()
-    })
-    if (!ok) return
-    toast.success("Note moved to the bin.", {
-      duration: UNDO_MS,
-      action: {
-        label: "Undo",
-        onClick: () =>
-          void restoreNote(note.id)
-            .then(() => refresh())
-            .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error))),
-      },
     })
   }
 

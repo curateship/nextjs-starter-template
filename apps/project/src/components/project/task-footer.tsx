@@ -38,7 +38,7 @@ export function TaskFooter({
           type="button"
           className="ml-auto"
           disabled={busy}
-          onClick={() => void change(() => setStatus({ taskId: task.id, status: "done", stuckReason: null }), "Task completed.")}
+          onClick={() => void change(() => setStatus({ taskId: task.id, status: "done", stuckReason: null }))}
         >
           <CheckIcon className="size-4" />
           Completed

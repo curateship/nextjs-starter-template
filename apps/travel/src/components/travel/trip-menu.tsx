@@ -252,8 +252,7 @@ function LockBlocksButton() {
           async () => {
             await saveTrip({ tripId: trip.id, descriptionLocked: !locked })
             await refresh()
-          },
-          locked ? "Blocks unlocked." : "Blocks locked. Nothing in the trip's description can change until they're unlocked."
+          }
         )
       }
     >

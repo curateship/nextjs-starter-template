@@ -11,7 +11,7 @@ toast across all these active apps".
   in the error toast. A bulk action where every row went says nothing.
 - **Copy buttons say nothing when the copy worked.** A copy that failed still
   says so.
-- **Undo stays.** Moving an archive item to the Bin (Put back) and blocking a subreddit (Undo) keep their toast, because the button on it is the way back (`archive-item-panel.tsx`, `reddit-module.tsx`). Tyler decides whether these go too.
+- **Undo bars went too** (Tyler, 11 Nov 2026: "remove them"). An archive item is put back from the Bin, and a blocked subreddit is unblocked in Blocked subreddits.
 
 ## Where it applies
 

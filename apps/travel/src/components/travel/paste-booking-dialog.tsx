@@ -149,7 +149,7 @@ export function PasteBookingDialog({
         nights: Number.isInteger(nights) && nights >= 1 && nights <= MAX_TRIP_DAYS ? nights : null,
         place: placeName || address ? { name: placeName, address, lat: null, lng: null, placeId: null } : null,
       })
-    }, "Activity created.")
+    })
     // When the activity was made but the rest didn't save, it opens anyway so
     // the person fixes it there, rather than pressing again and making two.
     if (!ok && !activityId) return

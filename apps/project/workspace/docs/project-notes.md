@@ -15,7 +15,8 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
   dragging notes into order.
 - Who writes a team note: "Everyone on the project".
 - Pins and the dragged order: "Same for everyone".
-- Delete: "Bin with Undo, no ask".
+- Delete: "Bin with Undo, no ask". The Undo went with every success toast on
+  11 Nov 2026 (Tyler: "remove them"); the Bin brings a note back.
 - Later the same day: "remove the privacy feature". There are no private
   notes. Whoever can see the project sees every note on it.
 
@@ -86,8 +87,8 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
 
 ## Deleting
 
-- **Delete doesn't ask.** The note goes to the project's Bin and "Note moved
-  to the bin." shows with Undo, which puts it back where it was.
+- **Delete doesn't ask.** The note goes to the project's Bin, where Bring
+  back puts it back where it was. Nothing pops up.
 - **The Bin,** under the tasks panel's More menu, lists deleted notes beside
   deleted tasks, newest first. Each note says "Note, deleted by Ben" and when.
   Bring back works for everyone who can see the project.

@@ -304,7 +304,6 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
         heading={heading}
         headingEnd={headingEnd}
         frame={frame}
-        onOpenLead={(leadId) => goTo(crmTabSearch("leads", { open: leadId }))}
       />
     )
   } else if (loaded.tab === "broadcasts") {

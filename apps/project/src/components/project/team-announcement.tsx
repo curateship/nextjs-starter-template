@@ -104,8 +104,8 @@ export function AnnouncementCard({
     markTeamAnnouncementSeen(announcement.id, teamId).catch(() => undefined)
   }, [announcement.id, teamId])
 
-  async function act(work: () => Promise<unknown>, successText: string) {
-    const ok = await run(work, successText)
+  async function act(work: () => Promise<unknown>) {
+    const ok = await run(work)
     if (ok) await router.invalidate()
     return ok
   }
@@ -159,8 +159,7 @@ export function AnnouncementCard({
             disabled={busy}
             onClick={() =>
               void act(
-                () => hideTeamAnnouncement(announcement.id, teamId),
-                "Hidden for you. A new announcement will show again."
+                () => hideTeamAnnouncement(announcement.id, teamId)
               )
             }
           >
@@ -178,7 +177,7 @@ export function AnnouncementCard({
         destructive
         loading={busy}
         onConfirm={() =>
-          void act(() => takeDownTeamAnnouncement(teamId), "Announcement taken down.").then((ok) => {
+          void act(() => takeDownTeamAnnouncement(teamId)).then((ok) => {
             if (ok) setConfirmTakeDown(false)
           })
         }
@@ -264,7 +263,7 @@ export function AnnouncementDialog({
       showErrorToast("Write the announcement first.")
       return
     }
-    const ok = await run(() => postTeamAnnouncement(text.trim(), kind, teamId), "Announcement posted. Everyone on the team is told.")
+    const ok = await run(() => postTeamAnnouncement(text.trim(), kind, teamId))
     if (!ok) return
     await router.invalidate()
     close()

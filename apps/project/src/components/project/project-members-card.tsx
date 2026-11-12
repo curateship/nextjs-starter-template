@@ -69,10 +69,8 @@ export function ProjectMembersList({ page, bare = false }: { page: ProjectPage; 
   const canAdd = !readOnly && !wholeTeam && (page.addable.length > 0 || canInviteToTeam)
 
   async function add(userId: string) {
-    const person = page.addable.find((p) => p.userId === userId)
     const ok = await run(
-      () => addMemberToProject(page.project.id, userId),
-      person ? `${person.name} added.` : "Member added."
+      () => addMemberToProject(page.project.id, userId)
     )
     if (ok) await router.invalidate()
   }
@@ -80,16 +78,14 @@ export function ProjectMembersList({ page, bare = false }: { page: ProjectPage; 
   async function setLead(member: ProjectMemberRow) {
     const isLead = page.project.leadUserId === member.userId
     const ok = await run(
-      () => saveProjectLead(page.project.id, isLead ? null : member.userId),
-      isLead ? `${member.name} no longer leads the project.` : `${member.name} leads the project.`
+      () => saveProjectLead(page.project.id, isLead ? null : member.userId)
     )
     if (ok) await router.invalidate()
   }
 
   async function remove(member: ProjectMemberRow) {
     const ok = await run(
-      () => removeMemberFromProject(page.project.id, member.userId),
-      `${member.name} removed from the project.`
+      () => removeMemberFromProject(page.project.id, member.userId)
     )
     if (!ok) return
     setRemoving(null)

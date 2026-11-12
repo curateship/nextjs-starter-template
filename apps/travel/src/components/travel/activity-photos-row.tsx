@@ -52,18 +52,18 @@ export function ActivityPhotosRow({ activity }: { activity: Activity }) {
   if (!photos.length) return null
   const ids = photos.map((photo, index) => `${index}:${photo.url}`)
 
-  function save(next: CardPhoto[], done?: string) {
+  function save(next: CardPhoto[]) {
     return run(async () => {
       await saveActivityPhotos(activity.id, next)
       await refresh()
-    }, done)
+    })
   }
 
   function onDragEnd(event: DragEndEvent) {
     const from = ids.indexOf(String(event.active.id))
     const to = event.over ? ids.indexOf(String(event.over.id)) : -1
     if (from < 0 || to < 0 || from === to) return
-    void save(arrayMove(photos, from, to), to === 0 ? "That photo is the card's picture now." : undefined)
+    void save(arrayMove(photos, from, to))
   }
 
   function add(photo: CardPhoto) {
@@ -120,8 +120,7 @@ export function ActivityPhotosRow({ activity }: { activity: Activity }) {
         onRemove={(index) => {
           setViewing(null)
           void save(
-            photos.filter((_, each) => each !== index),
-            "Photo removed from the card. It's still in your media library."
+            photos.filter((_, each) => each !== index)
           )
         }}
       />

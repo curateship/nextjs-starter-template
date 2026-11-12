@@ -5,7 +5,7 @@ import { EllipsisVerticalIcon, ListChecksIcon, Loader2Icon, PlusIcon, SearchIcon
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
-import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
+import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION } from "@/components/project/task-body"
 import { TaskFilterPopover, type FilterProject } from "@/components/project/task-filter-popover"
 import { SearchToggle } from "@/components/project/task-header-controls"
 import { TaskList, type ProjectColumn } from "@/components/project/task-list"
@@ -150,7 +150,7 @@ export function TeamTasksTab({
     if (task.status === status) return true
     const before = tasks
     setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, status, stuckReason } : t)))
-    const ok = await run(() => setStatus({ taskId: task.id, status, stuckReason }), status === "stuck" ? "Marked Stuck." : undefined)
+    const ok = await run(() => setStatus({ taskId: task.id, status, stuckReason }))
     if (!ok) setTasks(before)
     await router.invalidate()
     return ok
@@ -221,7 +221,7 @@ export function TeamTasksTab({
     let copyId = ""
     const ok = await run(async () => {
       copyId = (await duplicateProjectTask(task.id)).id
-    }, "Task copied. This is the copy.")
+    })
     if (!ok) return
     await router.invalidate()
     onOpenTask(copyId)
@@ -231,7 +231,6 @@ export function TeamTasksTab({
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return
     setDeleting(null)
-    showBinnedToast(task.id, router)
     await router.invalidate()
   }
 

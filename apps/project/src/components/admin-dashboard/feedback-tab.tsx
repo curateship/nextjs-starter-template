@@ -167,7 +167,7 @@ export function FeedbackTab({
       await deleteFeedback(target.id)
       removed([target.id])
       setDeleteTarget(null)
-    }, "Feedback deleted.")
+    })
   }
 
   const removeTicked = () =>
@@ -176,7 +176,7 @@ export function FeedbackTab({
       removed(result.feedbackIds)
       selection.clear()
       setMassDeleteOpen(false)
-    }, "Feedback deleted.")
+    })
 
   const toggleSort = useListSort<FeedbackSortColumn>({ sort, direction }, (column) =>
     column === "created" || column === "votes" || column === "comments" ? "desc" : "asc"

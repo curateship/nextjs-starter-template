@@ -268,3 +268,23 @@ Every shell change since the 7 Nov merge (`e69b7243e`) is in Pomodoro, up to the
 **Styling copied.** The shell's saved styling, all 37 values, was copied onto Pomoder in the local database on 11 Nov 2026 (Tyler: "Also transfer the styling settings too").
 **Tests.** `delivery.test.ts` (expects the shell's port 3002) and `public-branding.test.ts` fail in the shell too.
 `room-clock-store.test.tsx` fails on files this merge did not touch (its snapshot has no member list), and two Pomodoro test files do not typecheck for the same reason: they are behind Pomodoro's own code.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `04d976ea4` is in Pomodoro, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited copy of the shell at that commit, which is newer than the `32a7c20fe` the last record names: a later shell fix had already been copied in.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean apart from the two Pomodoro test files that were already behind its own code. The 397 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

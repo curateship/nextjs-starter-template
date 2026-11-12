@@ -31,8 +31,7 @@ project the person owns, three cards across on a wide screen.
   the same one a task's settings button opens (`settings-window.tsx`). Every
   task already in the project follows a new name.
 - **Archive** with the archive button. It spins and cannot be pressed again
-  while it saves, then the toast "Archived <name>" carries Undo, which puts
-  the project straight back in the live cards. A failed archive, undo or
+  while it saves, then the card leaves the live cards. A failed archive or
   bring-back says so in the error toast. "Archived · N" in the panel's corner
   shows the archived projects under the cards, each with one button to bring
   it back. They are hidden until it is pressed.

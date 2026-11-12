@@ -5,7 +5,6 @@ import {
   UserMinusIcon,
   UserPlusIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { ContactBulkMenu } from "@/components/broadcasts/contact-bulk-menu"
 import { ContactFilterMenu } from "@/components/broadcasts/contact-filter-menu"
@@ -100,7 +99,6 @@ export function CrmPeopleList({
   onOpen,
   onSaveAsSegment,
   onRefresh,
-  onOpenLead,
 }: {
   data: ContactsPage
   listSearch: CrmPeopleSearch
@@ -121,8 +119,6 @@ export function CrmPeopleList({
   onOpen: (id: string | undefined) => void
   onSaveAsSegment: (rules: SegmentRules, searchExcluded: boolean) => void
   onRefresh: () => Promise<void>
-  /** Opens a lead in the Leads section. */
-  onOpenLead: (leadId: string) => void
 }) {
   const setListSearch = useListSearchNavigate()
   const searchQuery = listSearch.q ?? ""
@@ -200,7 +196,6 @@ export function CrmPeopleList({
     void runRow(async () => {
       const mailable = contact.status === "subscribed" || contact.status === "cold"
       await setContactsStatus([contact.id], mailable ? "unsubscribed" : "subscribed")
-      toast.success(mailable ? `${contact.email} will not get any more.` : `${contact.email} is back on the list.`)
       await onRefresh()
     })
 
@@ -216,16 +211,13 @@ export function CrmPeopleList({
       },
       // A subscriber can be a lead too (Tyler, 9 Nov 2026: "in subscribers, I
       // should be able to right click and add subscriber to lead as well").
-      // They stay here; the toast's Open shows the lead.
+      // They stay here, and the lead shows under Leads.
       {
         label: "Add to leads",
         icon: <HandshakeIcon className="size-4" />,
         onSelect: () =>
           void runRow(async () => {
-            const { leadId, existed } = await addSubscriberToLeads(contact.id)
-            toast.success(existed ? `${contact.email} is already a lead.` : `${contact.email} is now a lead too.`, {
-              action: { label: "Open", onClick: () => onOpenLead(leadId) },
-            })
+            await addSubscriberToLeads(contact.id)
             await onRefresh()
           }),
       },
@@ -422,11 +414,10 @@ export function CrmPeopleList({
         loading={deleting}
         onConfirm={() => {
           if (!deleteTarget) return
-          const { id, email } = deleteTarget
+          const { id } = deleteTarget
           void runDelete(async () => {
-            const { deleted } = await deleteContacts([id])
+            await deleteContacts([id])
             setDeleteTarget(null)
-            if (deleted) toast.success(`Deleted ${email}.`)
             if (id === openId) onOpen(undefined)
             await onRefresh()
           })

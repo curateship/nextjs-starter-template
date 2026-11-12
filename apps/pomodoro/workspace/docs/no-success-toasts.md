@@ -11,14 +11,14 @@ toast across all these active apps".
   in the error toast. A bulk action where every row went says nothing.
 - **Copy buttons say nothing when the copy worked.** A copy that failed still
   says so.
-- **Undo stays.** Archiving a project and binning uploads keep their toast, because its Undo or Bring back button is the way back (`projects-card.tsx`, `media-uploads-section.tsx`). Tyler decides whether these go too.
+- **Undo bars went too** (Tyler, 11 Nov 2026: "remove them"). An archived project is brought back from the archived list, and binned uploads from the Bin tab.
 - **Notices about something that happened to you stay, as plain notices.** A room that ended under you, often by the host's hand, and a badge earned (`room-clock-store.ts`, `achievement-toast.tsx`). They are not a success message for something you pressed.
 - **A button that had nothing to do says so plainly.** "All 20 are made already" and "There are no made-up members to remove" are plain notes in Settings → Simulated members.
 
 ## Where it applies
 
-- This app's own files, done 11 Nov 2026. The shell-origin screens (Admin,
-  CRM, Automations, Settings) get it at the next shell merge; the shell made
-  the change the same day.
+- This app's own files and the shell's screens (Admin, CRM, Automations,
+  Settings), done 11 Nov 2026; the shell's arrived with that day's shell
+  merge.
 - A new screen never adds a success toast. The UI standard
   (`.agents/skills/Ui-standards/SKILL.md`, Modals) says the same.

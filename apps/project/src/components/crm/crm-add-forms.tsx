@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { SegmentLiveCount } from "@/components/broadcasts/segment-dialog"
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
@@ -58,7 +57,6 @@ export function useSegmentForm(options: SegmentRuleOptions | null, onCreated: ()
         rules: { ...(match === "any" ? { match } : {}), conditions },
         contactIds: [],
       })
-      toast.success("Segment created.")
       setName("")
       setDescription("")
       setConditions(defaultSegmentRules().conditions)
@@ -149,7 +147,7 @@ export function useBroadcastForm(onCreated: () => Promise<void>) {
       setInvalid(false)
       created = true
       await onCreated()
-    }, "Newsletter created. It is in Broadcasts as a draft.")
+    })
     return created
   }
 

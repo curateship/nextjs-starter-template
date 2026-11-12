@@ -310,7 +310,7 @@ describe("notes: pins and the bin (parts 6 and 7)", () => {
     expect(items).toEqual(["Pin", "Duplicate", "Delete"])
   })
 
-  it("deletes into the bin without asking, with Undo on the bar", async () => {
+  it("deletes into the bin without asking, and nothing pops up", async () => {
     const page = tripPage({ notes: [note("n1", "Ramen list")] })
     act(() => root.render(withTrip(page, <TripNotes />)))
     const row = host.querySelector<HTMLButtonElement>("[data-note-id]")!
@@ -323,11 +323,7 @@ describe("notes: pins and the bin (parts 6 and 7)", () => {
     await settle()
     expect(removeNote).toHaveBeenCalledWith("n1")
     expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
-    const [line, options] = vi.mocked(toast.success).mock.calls.at(-1)! as [string, { action: { label: string; onClick: () => void } }]
-    expect(line).toBe("Note moved to the bin.")
-    expect(options.action.label).toBe("Undo")
-    await act(async () => options.action.onClick())
-    expect(restoreNote).toHaveBeenCalledWith("n1")
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it("lists a binned note in the trip's Bin, and puts it back", async () => {

@@ -50,7 +50,7 @@ export function CopyTripDialog({ trip, onClose }: { trip: TripListRow | null; on
     let id = ""
     const ok = await run(async () => {
       id = (await copyTripAs(trip.id, name)).id
-    }, "Trip copied.")
+    })
     if (!ok) return
     onClose()
     await navigate({ to: "/trips/$tripId", params: { tripId: id } })

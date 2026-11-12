@@ -1,6 +1,6 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm"
+import { and, asc, eq, isNull } from "drizzle-orm"
 
-import { MAX_TRIP_DAYS, type DayPart } from "@/lib/travel/rules"
+import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import { now, uuid } from "@/server/auth/security"
 import { copyActivityPhotos } from "@/server/travel/activity-photos"
@@ -232,59 +232,4 @@ export async function moveActivities(
     }
   })
   return { done: moving }
-}
-
-/**
- * Where an activity was before a change, so Undo can put it back exactly. Its
- * time and part of the day are part of where it was, because moving to Ideas
- * clears them.
- */
-export type ActivityPlace = {
-  id: string
-  day: number | null
-  position: number
-  inBin: boolean
-  startTime: string | null
-  dayPart: DayPart | null
-}
-
-/**
- * Undo (task part 16). Puts each activity back on its day, at its position,
- * in or out of the bin, and removes the copies a change made. Every id must be
- * on the same trip, and that trip must be the person's.
- */
-export async function restoreActivities(
-  userId: string,
-  input: { tripId: string; places: ActivityPlace[]; created: string[] },
-  database: CustomShellDb = db
-) {
-  const trip = await requireTrip(userId, input.tripId, database)
-  const ids = [...input.places.map((place) => place.id), ...input.created]
-  if (ids.length === 0) return
-  const rows = await database
-    .select({ id: travelActivities.id })
-    .from(travelActivities)
-    .where(and(eq(travelActivities.tripId, trip.id), inArray(travelActivities.id, ids)))
-  const found = new Set(rows.map((row) => row.id))
-  if (input.places.some((place) => !found.has(place.id))) throw new Error(TRAVEL_ERRORS.undoGone)
-  await database.transaction(async (tx) => {
-    const at = now()
-    const created = input.created.filter((id) => found.has(id))
-    if (created.length) await tx.delete(travelActivities).where(inArray(travelActivities.id, created))
-    for (const place of input.places) {
-      const day = place.day !== null && place.day > trip.days ? null : place.day
-      await tx
-        .update(travelActivities)
-        .set({
-          day,
-          position: place.position,
-          // A day that has gone sends the card to Ideas, where it has no time.
-          startTime: day === null ? null : place.startTime,
-          dayPart: day === null ? null : place.dayPart,
-          deletedAt: place.inBin ? at : null,
-          updatedAt: at,
-        })
-        .where(eq(travelActivities.id, place.id))
-    }
-  })
 }

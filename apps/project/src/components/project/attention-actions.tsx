@@ -28,7 +28,7 @@ export function useAttentionActions(attention: AdminAttention) {
   const [saying, setSaying] = React.useState<TaskCard | null>(null)
   const isSaving = (taskId: string) => saving.has(taskId)
 
-  async function save(taskId: string, work: () => Promise<unknown>, done: string) {
+  async function save(taskId: string, work: () => Promise<unknown>) {
     const mark = (on: boolean) =>
       setSaving((current) => {
         const next = new Set(current)
@@ -38,7 +38,7 @@ export function useAttentionActions(attention: AdminAttention) {
       })
     mark(true)
     try {
-      const ok = await run(work, done)
+      const ok = await run(work)
       if (ok) await router.invalidate()
       return ok
     } finally {
@@ -72,8 +72,7 @@ export function useAttentionActions(attention: AdminAttention) {
             onClick={() =>
               void save(
                 task.id,
-                () => answerMoreTaskTime({ taskId: task.id, answer: "yes" }),
-                `Yes. It's now due ${dayLabel(ask.day)}.`
+                () => answerMoreTaskTime({ taskId: task.id, answer: "yes" })
               )
             }
           >
@@ -93,8 +92,7 @@ export function useAttentionActions(attention: AdminAttention) {
         value=""
         disabled={isSaving(task.id)}
         onValueChange={(assigneeUserId) => {
-          const name = people.find((person) => person.userId === assigneeUserId)?.name ?? "them"
-          void save(task.id, () => assignProjectTask({ taskId: task.id, assigneeUserId }), `Handed to ${name}.`)
+          void save(task.id, () => assignProjectTask({ taskId: task.id, assigneeUserId }))
         }}
       >
         <SelectTrigger aria-label={`Hand "${task.title}" to`} className="w-32">
@@ -126,8 +124,7 @@ export function useAttentionActions(attention: AdminAttention) {
         if (!saying) return false
         const ok = await save(
           saying.id,
-          () => answerMoreTaskTime({ taskId: saying.id, answer: "no", reason: reason.trim() || null }),
-          "No. The date stays."
+          () => answerMoreTaskTime({ taskId: saying.id, answer: "no", reason: reason.trim() || null })
         )
         if (ok) setSaying(null)
         return ok

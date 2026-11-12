@@ -277,25 +277,6 @@ export const segmentStatusDotClassName: Record<ContactSegmentStatus, string> = {
 }
 
 /**
- * What to say after somebody's status was set by hand.
- *
- * A sentence each rather than "is now " plus the label, because the labels are
- * not written to finish that sentence: "is now marked it spam" is not English,
- * and a message an admin has to re-read is worse than no message.
- *
- * `%s` is the address, and callers substitute it with a function rather than a
- * string — a `$` in a local part is legal, and `String.replace` reads `$&` and
- * friends in a string replacement as instructions.
- */
-export const segmentStatusSaidDone: Record<ContactSegmentStatus, string> = {
-  subscribed: "%s is back on the list.",
-  unsubscribed: "%s will not get any more.",
-  bounced: "%s is marked as bouncing.",
-  complained: "%s is marked as having reported spam.",
-  cold: "%s is marked as gone quiet.",
-}
-
-/**
  * What each status means, for the dropdown that sets one by hand.
  *
  * The two the mail provider reports say so, because setting one of those

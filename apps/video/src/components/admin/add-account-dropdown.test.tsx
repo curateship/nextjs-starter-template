@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const errorToast = vi.hoisted(() => ({ show: vi.fn() }))
 const admin = vi.hoisted(() => ({ create: vi.fn() }))
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 
 vi.mock("@/lib/api/people/admin-users", () => ({
   createAccountAsAdmin: admin.create,

@@ -94,13 +94,11 @@ them says "Your files are kept. They come back with Pro." The space line reads
 The bin icon on a card's corner moves that file to the bin. A tick box on the
 picture's other corner, shown on hover, once any card is ticked, and always on
 a phone, lets several go at once: "2 files ticked", Move to bin, Tick all,
-Clear. Either way it is one request, and the line afterwards counts what moved
-and what did not ("2 files moved to the bin.").
+Clear. Either way it is one request. The files leave the list and nothing
+pops up; only a move where no file went says so, in the error toast.
 
-Nothing asks first, because nothing is lost: the toast has a Bring back
-button, and the Bin tab keeps the file for 30 days. Bring back says how it
-went ("1 file brought back."), and the toast goes when you switch tabs, so the
-Bin tab is never left showing a file the toast already brought back. The bin
+Nothing asks first, because nothing is lost: the Bin tab keeps the file for
+30 days, and Bring back there returns it. The bin
 button waits while a move is on its way, so a double click moves it once.
 
 A file in the bin:

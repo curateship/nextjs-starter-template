@@ -65,8 +65,6 @@ there.
   is taken as that day whatever number the AI put on it.
 - **Short ideas:** an idea of 15 minutes or more that fits its gap whole is
   kept; the 30-minute floor is only for ideas cut to fit.
-- **Undo:** Create adds them with Undo on the bar at the bottom for 6
-  seconds, which removes them again.
 - **Nothing already there changes.** Must do cards included, no card is moved
   or replaced.
 - **The code:** `fillTripDay` in `src/server/travel/trip-draft.ts`, with the
@@ -95,8 +93,6 @@ it, in one AI call (Travel features 4, part 10).
   the free time on those days." With no day to fill, it says "No day with
   plans has free time of 45 minutes or more between 8 AM and 10 PM. Draft a
   plan fills the empty days."
-- **Undo:** Create adds the ticked ones with Undo on the bar at the bottom,
-  the same as Fill this day.
 - **The same allowance** and the same 20 plans in 10 minutes as drafting.
 - **The code:** `fillTripGaps` in `src/server/travel/trip-draft.ts`, sharing
   `describeDay` and `fittedItems` with `fillTripDay`.

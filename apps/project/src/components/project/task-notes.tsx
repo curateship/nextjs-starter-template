@@ -812,7 +812,7 @@ export function NoteVersionsList({
   async function bringBack(version: NoteVersion) {
     if (bringing) return
     setBringing(version.id)
-    const ok = await change(() => bringBackNoteVersion(version.id), "Those notes are back.")
+    const ok = await change(() => bringBackNoteVersion(version.id))
     setBringing(null)
     if (ok) onClose()
   }

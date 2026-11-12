@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
-import { DAY_PARTS, MAX_TRIP_DAYS, TIME_PATTERN, id } from "@/lib/travel/rules"
+import { MAX_TRIP_DAYS, id } from "@/lib/travel/rules"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { userPost } from "@/server/guards"
 import { bestOrderForDay } from "@/server/travel/best-order"
@@ -13,12 +13,9 @@ import {
   moveActivities,
   moveDay,
   removeDay,
-  restoreActivities,
 } from "@/server/travel/days"
 
-import type { ActivityPlace } from "@/server/travel/days"
 
-export type { ActivityPlace } from "@/server/travel/days"
 export type { BestOrderResult } from "@/server/travel/best-order"
 
 const day = z.number().int().min(1).max(MAX_TRIP_DAYS)
@@ -52,28 +49,6 @@ const moveManyFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ activityIds: z.array(id).min(1).max(500), day: day.nullable() }))
   .handler(async ({ data, context }) => moveActivities(context.user.id, data))
-
-const restoreFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    z.object({
-      tripId: id,
-      places: z
-        .array(
-          z.object({
-            id,
-            day: day.nullable(),
-            position: z.number().int().min(0).max(1000),
-            inBin: z.boolean(),
-            startTime: z.string().regex(TIME_PATTERN).nullable(),
-            dayPart: z.enum(DAY_PARTS).nullable(),
-          })
-        )
-        .max(500),
-      created: z.array(id).max(500),
-    })
-  )
-  .handler(async ({ data, context }) => restoreActivities(context.user.id, data))
 
 const bestOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -110,7 +85,4 @@ export function duplicateTripActivity(activityId: string) {
 }
 export function moveManyActivities(activityIds: string[], dayNumber: number | null) {
   return moveManyFn({ data: { activityIds, day: dayNumber } })
-}
-export function undoActivities(data: { tripId: string; places: ActivityPlace[]; created: string[] }) {
-  return restoreFn({ data })
 }

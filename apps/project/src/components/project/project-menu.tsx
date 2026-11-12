@@ -92,7 +92,7 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
               images: project.coverImages,
               busy: cover.busy,
               set: ({ url, images }) =>
-                void cover.save({ bannerUrl: url ?? "", coverImages: images }, url ? "Cover saved." : "Cover removed."),
+                void cover.save({ bannerUrl: url ?? "", coverImages: images }),
             }}
           />
         </PickGroup>
@@ -130,8 +130,7 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
           disabled={off || lock.busy}
           onClick={() =>
             void lock.save(
-              { notesLocked: !project.notesLocked },
-              project.notesLocked ? "Page unlocked." : "Page locked. Nobody can change it until it's unlocked."
+              { notesLocked: !project.notesLocked }
             )
           }
         >

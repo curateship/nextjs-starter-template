@@ -144,7 +144,7 @@ export function TaskPlanCard({
               variant="ghost"
               size="sm"
               disabled={busy}
-              onClick={() => void change(() => setReminder(task.id, null), "Reminder taken off.")}
+              onClick={() => void change(() => setReminder(task.id, null))}
             >
               <XIcon className="size-4" />
               Take it off

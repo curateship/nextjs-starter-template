@@ -1,6 +1,5 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { ContactPanel } from "@/components/broadcasts/contact-panel"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
@@ -27,7 +26,6 @@ import {
 } from "@/lib/contacts/contact-segments"
 import { CONTACT_SHORTCUTS, shortcutIsOn } from "@/lib/contacts/contact-shortcuts"
 import type { CrmPeopleSearch, CrmSearch } from "@/lib/crm/crm-search"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useLastValue } from "@/lib/hooks/use-last-value"
@@ -80,7 +78,6 @@ export function CrmPeopleTab({
   heading,
   headingEnd,
   frame,
-  onOpenLead,
 }: {
   data: ContactsPage
   search: CrmSearch
@@ -91,8 +88,6 @@ export function CrmPeopleTab({
   headingEnd: React.ReactNode
   /** Draws the section into the dashboard's one frame. */
   frame: CrmFrame
-  /** Opens a lead in the Leads section, from a subscriber's "Add to leads". */
-  onOpenLead: (leadId: string) => void
 }) {
   const router = useRouter()
   // The reader left only this tab's keys in the address (`readCrmSearch`).
@@ -193,15 +188,6 @@ export function CrmPeopleTab({
         return
       }
       setDeleteTarget(null)
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: blocked.length,
-          one: "segment",
-          many: "segments",
-          verb: "deleted",
-        })
-      )
       // The list was showing it, so it shows everybody again.
       if (listSearch.segment === segment.id) {
         setListSearch({ filter: undefined, segment: undefined, page: undefined })
@@ -281,7 +267,6 @@ export function CrmPeopleTab({
           setSegmentWindow({ mode: "new", rules: saved, searchExcluded })
         }
         onRefresh={refresh}
-        onOpenLead={onOpenLead}
       />
     ),
     right: {

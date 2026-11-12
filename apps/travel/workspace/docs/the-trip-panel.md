@@ -59,8 +59,7 @@ should then turn into an x icon to close with the morph animation").
   last changed. A duplicate starts unpinned; a note put back from the bin
   keeps its pin. The pin is `pinned_at` on `travel_trip_notes`.
 - **Delete puts a note in the trip's bin** (Tyler, 6 Nov 2026: "Same Bin as
-  cards"), with Undo on the bar at the bottom for 6 seconds, so it no longer
-  asks first. The note waits 30 days in the same Bin as deleted cards (the
+  cards"), and does not ask first, because Put back returns it. The note waits 30 days in the same Bin as deleted cards (the
   ⋮ after the board's tabs), listed as "Note", with Put back and Delete for
   good (which asks on the row first), then goes for good the next time the
   Bin opens after 30 days. A binned note isn't in
@@ -124,7 +123,7 @@ setting.
   open. Using a box opened from inside, such as the media library or
   Unsplash, doesn't close the menu.
 - Tags go in with a comma between them and filter the Trips table.
-- Delete trip moves the trip to the Trips table's Bin with Undo, then goes
+- Delete trip moves the trip to the Trips table's Bin, then goes
   back to Trips (see [Trips and the trip page](trips-and-the-trip-page.md)).
 - The number of days changes on the board.
 - With no start date, the Calendar tab has its own date picker that saves

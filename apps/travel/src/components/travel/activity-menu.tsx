@@ -58,7 +58,7 @@ export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity;
     const ok = await runTips(async () => {
       await addTips(activity.id)
       await refresh()
-    }, `Added tips to ${activity.title}'s notes.`)
+    })
     if (ok) {
       setOpen(false)
       onNotesChanged()
@@ -155,7 +155,6 @@ export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity;
                 label: dayLabel(index + 1, trip.startDate),
               })),
             ]}
-            // Moving to another day can be undone.
             onPick={(value) => void actions.moveTo(activity, value === IDEAS ? null : Number(value))}
           />
           <PickRow label="Time" empty={!timeLine} value={timeLine || "None"}>

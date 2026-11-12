@@ -13,7 +13,7 @@ import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-v
 import { DashboardTabButton, DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { ALL_LANE, NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
 import { TaskCalendar } from "@/components/project/task-calendar"
-import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
+import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION } from "@/components/project/task-body"
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
 import {
   MembersFilterMenu,
@@ -332,14 +332,10 @@ export function ProjectTasksPanel({
         ...(places.has(t.id) ? { position: places.get(t.id)! } : null),
       }))
     )
-    // Only Stuck says so, as it does from the task: a toast on every drag would be noise.
-    const ok = await run(
-      async () => {
-        await setStatus({ taskId: task.id, status, stuckReason })
-        if (order) await saveTaskOrder(page.project.id, order)
-      },
-      status === "stuck" ? "Marked Stuck." : undefined
-    )
+    const ok = await run(async () => {
+      await setStatus({ taskId: task.id, status, stuckReason })
+      if (order) await saveTaskOrder(page.project.id, order)
+    })
     if (!ok) setTasks(before)
     await router.invalidate()
     return ok
@@ -386,8 +382,7 @@ export function ProjectTasksPanel({
           await setStatus({ taskId: task.id, status, stuckReason: null })
         }
         await saveTaskOrder(page.project.id, order)
-      },
-      person ? `Handed to ${person.name}.` : "Nobody is assigned now."
+      }
     )
     if (ok) setHandingOver(null)
     await router.invalidate()
@@ -448,7 +443,7 @@ export function ProjectTasksPanel({
     let copyId = ""
     const ok = await run(async () => {
       copyId = (await duplicateProjectTask(task.id)).id
-    }, "Task copied. This is the copy.")
+    })
     if (!ok) return
     await router.invalidate()
     onOpenTask(copyId)
@@ -458,7 +453,6 @@ export function ProjectTasksPanel({
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return
     setDeleting(null)
-    showBinnedToast(task.id, router)
     // A deleted task can't stay open beside the Board.
     if (task.id === openTaskId) {
       void navigate({

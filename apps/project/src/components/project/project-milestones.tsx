@@ -164,7 +164,7 @@ function MilestoneRow({
         destructive
         loading={busy}
         onConfirm={async () => {
-          const ok = await run(() => removeMilestone(milestone.id), "Milestone deleted.")
+          const ok = await run(() => removeMilestone(milestone.id))
           if (!ok) return
           setDeleting(false)
           await router.invalidate()
@@ -257,8 +257,7 @@ function MilestoneForm({
       () =>
         milestone
           ? saveMilestone({ milestoneId: milestone.id, name: name.trim(), dueDate })
-          : addMilestone({ projectId, name: name.trim(), dueDate }),
-      milestone ? "Milestone saved." : "Milestone added."
+          : addMilestone({ projectId, name: name.trim(), dueDate })
     )
     if (!ok) return
     await router.invalidate()

@@ -104,7 +104,7 @@ export function TeamPageSettingsFields({
       setSettings(saved)
       setHandle(saved.handle ?? "")
       await onChanged()
-    }, next.pagePublic === settings.pagePublic ? "Address saved." : next.pagePublic ? "The page is public." : "The page is off.")
+    })
 
   const saveHandle = () => {
     if ((settings.handle ?? "") === typed) return

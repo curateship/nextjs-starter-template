@@ -10,8 +10,8 @@ type Fields = Omit<Parameters<typeof saveProject>[0], "projectId">
 export function useSaveProject(projectId: string) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  async function save(fields: Fields, done = "Saved.") {
-    const ok = await run(() => saveProject({ projectId, ...fields }), done)
+  async function save(fields: Fields) {
+    const ok = await run(() => saveProject({ projectId, ...fields }))
     if (ok) await router.invalidate()
     return ok
   }
@@ -23,8 +23,7 @@ export function useArchiveProject(project: ProjectPage["project"]) {
   const { run, busy, router } = useSaveProject(project.id)
   async function toggle() {
     const ok = await run(
-      () => archiveProject(project.id, !project.archived),
-      project.archived ? "Project brought back." : "Project archived."
+      () => archiveProject(project.id, !project.archived)
     )
     if (ok) await router.invalidate()
   }

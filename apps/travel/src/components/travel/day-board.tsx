@@ -217,7 +217,7 @@ export function DayBoard({
       void run(async () => {
         await moveTripDay(trip.id, from, to)
         await refresh()
-      }, `Moved Day ${from} to Day ${to}.`)
+      })
       return
     }
     const state = heldRef.current
@@ -590,7 +590,7 @@ function AddDayButton() {
             void run(async () => {
               await addTripDay(trip.id, trip.days)
               await refresh()
-            }, `Added Day ${trip.days + 1}.`)
+            })
           }
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}

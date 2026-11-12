@@ -1,9 +1,7 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import {
   describeAccountDeletion,
-  describeDeletion,
   type AccountTarget,
 } from "@/components/admin-dashboard/account-words"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -52,7 +50,6 @@ export function AccountActionDialogs({
     const target = ask.account
     void run(async () => {
       const result = await deleteAccountAsAdmin(target.id)
-      toast.success(describeDeletion(result))
       onClose()
       await onDone({ kind: "delete", accountId: target.id, goneForGood: result.deleted > 0 })
     })
@@ -63,7 +60,6 @@ export function AccountActionDialogs({
     const target = ask.account
     void run(async () => {
       await restoreAccountsAsAdmin([target.id])
-      toast.success("Account restored.")
       onClose()
       await onDone({ kind: "restore", accountId: target.id, goneForGood: false })
     })

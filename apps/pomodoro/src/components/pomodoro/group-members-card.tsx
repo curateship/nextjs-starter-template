@@ -155,7 +155,7 @@ export function GroupMembersList({
         run(async () => {
           await removeFocusGroupMember(group.id, member.membershipId, keepOut)
           await refreshAll()
-        }, keepOut ? "Removed and kept out." : "Removed from the group."),
+        }),
     })
 
   const askHandOver = (member: Member) =>
@@ -178,7 +178,7 @@ export function GroupMembersList({
         run(async () => {
           await handOverFocusGroup(group.id, member.membershipId)
           await onChanged()
-        }, `${memberName(member)} owns the group now.`),
+        }),
     })
 
   return (
@@ -272,7 +272,7 @@ export function GroupMembersList({
                     void run(async () => {
                       await answerFocusGroupRequest(group.id, request.requestId, true)
                       await refreshAll()
-                    }, `${request.name} is in the group.`)
+                    })
                   }
                 >
                   Let in
@@ -285,7 +285,7 @@ export function GroupMembersList({
                     void run(async () => {
                       await answerFocusGroupRequest(group.id, request.requestId, false)
                       await refreshAll()
-                    }, "Request turned down.")
+                    })
                   }
                 >
                   Turn down
@@ -316,7 +316,7 @@ export function GroupMembersList({
                     void run(async () => {
                       await letFocusGroupBanBackIn(group.id, person.banId)
                       keptOut.refresh()
-                    }, `${person.name} can join with the link again.`)
+                    })
                   }
                 >
                   Let back in

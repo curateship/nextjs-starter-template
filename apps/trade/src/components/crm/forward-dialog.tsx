@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -56,7 +55,6 @@ export function ForwardDialog({
             setSending(true)
             try {
               await forwardConversation(threadId, to, note)
-              toast.success(`Forwarded to ${to.trim()}.`)
               setTo("")
               setNote("")
               onClose()

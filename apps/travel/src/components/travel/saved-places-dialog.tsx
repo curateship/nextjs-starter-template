@@ -114,7 +114,7 @@ export function SavedPlacesDialog({
     let id = ""
     const ok = await run(async () => {
       id = (await addGoAgain(tripId, place.id)).id
-    }, `${place.title} added to Ideas.`)
+    })
     setWorking(null)
     if (ok) onAdded?.(id)
   }
@@ -138,14 +138,14 @@ export function SavedPlacesDialog({
     let id = ""
     const ok = await run(async () => {
       id = (await addSavedPlace(tripId, place.id)).id
-    }, `${place.title} added to Ideas.`)
+    })
     setWorking(null)
     if (ok) onAdded?.(id)
   }
 
   async function forget(place: SavedPlace) {
     setWorking(place.id)
-    const ok = await run(() => forgetSavedPlace(place.id), `${place.title} removed from saved places.`)
+    const ok = await run(() => forgetSavedPlace(place.id))
     setWorking(null)
     if (ok) setPlaces((was) => (was ?? []).filter((item) => item.id !== place.id))
   }

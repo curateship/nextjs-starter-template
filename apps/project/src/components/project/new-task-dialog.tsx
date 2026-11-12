@@ -222,7 +222,6 @@ export function NewTaskDialog({
     if (!project) return
     const assigneeUserId = assignee === NOBODY ? null : assignee
     const someoneElse = assigneeUserId && assigneeUserId !== me.id
-    const name = project.members.find((m) => m.userId === assigneeUserId)?.name
     // The note only goes with a task handed to someone else.
     const note = someoneElse ? handoverNote.trim() || null : null
     // Checked first, so a refused Stuck never leaves a task made twice.
@@ -244,8 +243,7 @@ export function NewTaskDialog({
             dueDate: due,
             handoverNote: note,
           })).ids
-        },
-        `${pasted.length} tasks made${someoneElse && name ? ` and handed to ${name}` : ""}.`
+        }
       )
       if (!ok) return
     } else {
@@ -268,8 +266,7 @@ export function NewTaskDialog({
           })
           madeId = made.id
           madeIds = [made.id]
-        },
-        someoneElse && name ? `Task handed to ${name}.` : "Task created."
+        }
       )
       if (!ok) return
     }

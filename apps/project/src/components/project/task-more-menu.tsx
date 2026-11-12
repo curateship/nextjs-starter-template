@@ -140,7 +140,7 @@ function useDuplicateTask(detail: TaskDetail) {
     let copyId = ""
     const ok = await run(async () => {
       copyId = (await duplicateProjectTask(detail.task.id)).id
-    }, "Task copied. This is the copy.")
+    })
     if (!ok) return
     await router.invalidate()
     void navigate({
@@ -243,7 +243,7 @@ export function MoveTaskCard({ detail, onDone }: { detail: TaskDetail; onDone: (
 
   async function move() {
     if (!chosen) return
-    const ok = await run(() => moveProjectTask(task.id, chosen.id), `Moved to ${chosen.name}.`)
+    const ok = await run(() => moveProjectTask(task.id, chosen.id))
     if (!ok) return
     onDone()
     // On the old project's page the task has left; follow it to its new one.
@@ -359,8 +359,7 @@ function ReminderDay({
   async function pick(day: string | null) {
     if (!day) return
     const ok = await change(
-      () => setReminder(detail.task.id, day),
-      `You'll get a reminder on ${shortDayLabel(day)}, at your check-in time.`
+      () => setReminder(detail.task.id, day)
     )
     if (ok) onPicked?.()
   }
@@ -425,8 +424,7 @@ export function AskTimeCard({
       return
     }
     const ok = await change(
-      () => askForMoreTaskTime({ taskId: task.id, day, reason: reason.trim() }),
-      `Asked ${answerer} for ${shortDayLabel(day)}.`
+      () => askForMoreTaskTime({ taskId: task.id, day, reason: reason.trim() })
     )
     if (ok) onDone()
   }

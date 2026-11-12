@@ -7,7 +7,6 @@ import {
   MoveVerticalIcon,
   SearchIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   InspectorCard,
@@ -47,7 +46,6 @@ import { MAX_WRITTEN_PAGE_DESCRIPTION } from "@/lib/pages/front-page"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
-  PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
 import {
@@ -140,7 +138,6 @@ export function FrontPageSettingsPanel({
         imageAlt,
         description,
       })
-      toast.success(`${saved.title} was saved.`)
       // The address can have changed, and this screen is keyed by it, so the
       // editor moves with the page rather than looking at one that is gone.
       await router.navigate({
@@ -168,7 +165,6 @@ export function FrontPageSettingsPanel({
     try {
       await savePageVisibility({ path: page.path, visibility: next })
       await router.invalidate()
-      toast.success(`${page.name} is now ${PAGE_VISIBILITY_SENTENCES[next]}`)
     } catch (error) {
       showErrorToast(getPageVisibilityErrorMessage(error))
     } finally {

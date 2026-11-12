@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import type { AdminFrame } from "@/components/admin-dashboard/admin-dashboard"
 import { AnnouncementPanel } from "@/components/admin-dashboard/announcement-panel"
@@ -207,7 +206,7 @@ export function AnnouncementsTab({
       await deleteAdminAnnouncements([target.id])
       removed([target.id])
       setDeleteTarget(null)
-    }, "Announcement deleted.")
+    })
   }
   const retireOne = () => {
     if (!retireTarget) return
@@ -216,7 +215,7 @@ export function AnnouncementsTab({
       await retireAdminAnnouncements([target.id])
       setRetireTarget(null)
       readAgain()
-    }, "Announcement retired.")
+    })
   }
   const runTicked = () => {
     const ids = [...selection.selected]
@@ -231,9 +230,6 @@ export function AnnouncementsTab({
       }
       selection.clear()
       setMassAction(null)
-      toast.success(
-        `${ids.length} ${plural(ids.length, "announcement", "announcements")} ${action === "delete" ? "deleted" : "retired"}.`
-      )
     })
   }
 

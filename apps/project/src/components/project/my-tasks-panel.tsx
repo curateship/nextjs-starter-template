@@ -5,7 +5,7 @@ import { AlarmClockIcon, CheckCheckIcon, EllipsisVerticalIcon, ListChecksIcon, L
 import { useAttentionActions } from "@/components/project/attention-actions"
 import { CatchUpDialog } from "@/components/project/catch-up-dialog"
 import { MyTaskRows } from "@/components/project/my-task-rows"
-import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION, showBinnedToast } from "@/components/project/task-body"
+import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION } from "@/components/project/task-body"
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
@@ -411,7 +411,6 @@ export function MyTasksPanel({
     const ok = await run(() => deleteProjectTask(task.id))
     if (!ok) return
     setDeleting(null)
-    showBinnedToast(task.id, router)
     await router.invalidate()
   }
 

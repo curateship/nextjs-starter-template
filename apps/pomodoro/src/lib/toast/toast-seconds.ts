@@ -1,5 +1,6 @@
 /**
- * How long a success toast stays up, in seconds.
+ * How long a toast that is not an error stays up, in seconds: a warning, or a
+ * note such as an upload being cancelled. Nothing pops up when something works.
  *
  * Its own module with no imports on purpose. The Toaster is a `components/ui/*`
  * primitive and reads this through `toast-duration.ts`; if these lived in

@@ -68,7 +68,7 @@ export function CopyProjectDialog({
     let id = ""
     const ok = await run(async () => {
       id = (await copyOfProject(project.id, next)).id
-    }, "Project copied.")
+    })
     if (!ok) return
     close()
     await navigate({ to: "/projects/$projectId", params: { projectId: id } })

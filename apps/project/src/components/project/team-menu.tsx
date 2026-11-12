@@ -317,7 +317,7 @@ function TeamCoverRow({ team }: { team: TeamSummary }) {
         images: team.coverImages,
         busy,
         set: ({ url, images }) =>
-          void run(() => saveTeamCover({ photoUrl: url ?? "", coverImages: images }, teamId), url ? "Cover saved." : "Cover removed.").then(
+          void run(() => saveTeamCover({ photoUrl: url ?? "", coverImages: images }, teamId)).then(
             (ok) => (ok ? router.invalidate() : undefined)
           ),
       }}
@@ -336,8 +336,7 @@ function PageLockButton({ locked }: { locked: boolean }) {
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   async function toggle() {
     const ok = await run(
-      () => saveTeamPageLock(!locked, teamId),
-      locked ? "Notes unlocked." : "Notes locked. Nobody can change them until they're unlocked."
+      () => saveTeamPageLock(!locked, teamId)
     )
     if (ok) await router.invalidate()
   }
@@ -383,7 +382,7 @@ function HolidaysGroup({ holidays }: { holidays: Holiday[] }) {
     const dayKey = keyFromDate(day)
     if (!dayKey) return showErrorToast("Pick the holiday's day.")
     if (!name.trim()) return showErrorToast("Give the holiday a name.")
-    const ok = await run(() => addTeamHoliday({ day: dayKey, name: name.trim() }, teamId), "Holiday added.")
+    const ok = await run(() => addTeamHoliday({ day: dayKey, name: name.trim() }, teamId))
     if (!ok) return
     setDay(undefined)
     setName("")
@@ -392,7 +391,7 @@ function HolidaysGroup({ holidays }: { holidays: Holiday[] }) {
   }
 
   async function remove(holiday: Holiday) {
-    const ok = await run(() => removeTeamHoliday(holiday.id, teamId), `${holiday.name} removed.`)
+    const ok = await run(() => removeTeamHoliday(holiday.id, teamId))
     if (ok) await router.invalidate()
   }
 

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { HandshakeIcon, NewspaperIcon, PencilIcon, PlusIcon, Trash2Icon, UserPlusIcon, UsersIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CRM_APP_BLOCKS, CrmBlocksProvider, CrmSectionsBlock, type CrmBlocks } from "@/components/crm/crm-blocks"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -316,7 +315,7 @@ export function CrmPagePanel({
       </div>
 
       <ScrollArea className="relative min-h-0 flex-1">
-        <div className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
+        <div data-side-panel-body="" className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
           {page ? (
             <CrmBlocksProvider value={provided}>
               <LockedPageContext.Provider value={lockedPage}>
@@ -507,8 +506,7 @@ function AddAddressDialog({
     if (!address.trim() || adding) return
     setAdding(true)
     try {
-      const added = await addCrmAddress(address.trim(), label.trim() || undefined)
-      toast.success(`Mail to ${added.address} now lands here.`)
+      await addCrmAddress(address.trim(), label.trim() || undefined)
       setAddress("")
       setLabel("")
       onClose()

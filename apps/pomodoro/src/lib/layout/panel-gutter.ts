@@ -12,8 +12,10 @@
 // The cards sit flush, one under the next, with no gap between them (Tyler,
 // 11 Nov 2026: "remove the spacing here for the right panels", then
 // "Actually the same for left panels too"). The 15px stays at the panel's
-// edges.
-export const PANEL_GUTTER = "gap-0 p-3.75 [--panel-gutter:0.9375rem]"
+// sides and bottom; the first card sits straight under the panel's header
+// (Tyler, 11 Nov 2026: "remove this spacing here ... for both left and right
+// panels").
+export const PANEL_GUTTER = "gap-0 px-3.75 pt-0 pb-3.75 [--panel-gutter:0.9375rem]"
 export const PANEL_FOOTER_PADDING = "p-3.75"
 /**
  * A footer card's body, under its heading: the heading's 16px at the sides and

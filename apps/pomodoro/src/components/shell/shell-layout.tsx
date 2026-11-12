@@ -8,7 +8,6 @@ import {
   useRouterState,
   useSearch,
 } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { AccountDialog, accountTabForHref } from "@/components/account/account-dialog"
 import { AnnouncementBanners } from "@/components/shell/announcement-banner"
@@ -134,7 +133,6 @@ import { buildHeaderBreadcrumb } from "@/lib/nav/header-breadcrumb"
 import { knownRoutePageTitle, routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
 import { setToastSeconds } from "@/lib/toast/toast-duration"
-import { plural } from "@/lib/format/plural"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
@@ -452,11 +450,6 @@ export function ShellLayout({
           ...latestConfigRef.current,
           maintenance: saved,
         }
-        toast.success(
-          saved.enabled
-            ? "Maintenance mode is on. Only admins can use the app."
-            : "Maintenance mode is off. Everyone can use the app again."
-        )
         return true
       } catch (error) {
         showErrorToast(getMaintenanceErrorMessage(error))
@@ -482,15 +475,6 @@ export function ShellLayout({
           automationPause: state.pause,
         }
         dismissErrorToast()
-        toast.success(
-          state.pause.enabled
-            ? state.held_runs > 0
-              ? `Every automation is paused. ${state.held_runs} ${
-                  plural(state.held_runs, "run is", "runs are")
-                } held where they stopped.`
-              : "Every automation is paused. Nothing was part-way through."
-            : "Automations are running again."
-        )
         return state
       } catch (error) {
         showErrorToast(getAutomationPauseErrorMessage(error))
@@ -516,7 +500,6 @@ export function ShellLayout({
           ...latestConfigRef.current,
           sessionPolicy: saved,
         }
-        toast.success("Session security saved.")
         return true
       } catch (error) {
         showErrorToast(getSessionPolicyErrorMessage(error))

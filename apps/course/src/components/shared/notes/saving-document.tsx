@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils"
  * Project's page: "This should be the gutter size for the blocks"). Project's
  * pattern: each block (`data-note-block`) takes 15px above and below, and the
  * two margins between blocks meet in one 15px gap. A block that opens the page
- * takes none above, so it sits right under the panel's 15px edge. The writing
- * area adds no padding of its own.
+ * takes none above, and the writing area then drops its own 15px top edge, so
+ * the block sits straight under the panel's header.
  */
 const BLOCK_STYLES = `
   .page-rte .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0; }
@@ -135,8 +135,11 @@ export function SavingDocument({
         // A plain writing area, no box: the panel around it is the page.
         "[&>div:first-of-type]:rounded-none [&>div:first-of-type]:border-0 [&>div:first-of-type]:bg-transparent",
         // The panel's 15px top edge is the writing area's own, so a click there
-        // lands in the page (Tyler, 7 Nov 2026: "cant click here").
+        // lands in the page (Tyler, 7 Nov 2026: "cant click here"). A page that
+        // opens with a block has none, so the block sits straight under the
+        // panel's header (Tyler, 11 Nov 2026: "remove this spacing here").
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-3.75 [&_.page-rte_.tiptap]:!pb-4",
+        "[&_.page-rte_.tiptap:has(>.react-renderer:first-child)]:!pt-0",
         "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
         locked && "[&>div:first-of-type]:opacity-100",
         className

@@ -12,7 +12,6 @@ import {
   WorkflowIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { AutomationDeliveryHistory } from "@/components/automations/automation-delivery-history"
 import { ActionRow } from "@/components/crm/crm-record-menu"
@@ -133,9 +132,6 @@ export function RunRecord({
     dismissErrorToast()
     try {
       await decideApproval(runId, decision)
-      toast.success(
-        decision === "approved" ? "Approved. The run carried on from there." : "Rejected. Nothing after that step ran."
-      )
     } catch (decideError) {
       // It very likely moved without us (the deadline, or another tab), so
       // the run is read again either way rather than leaving stale buttons.
@@ -256,7 +252,7 @@ export function RunRecord({
             await deleteAutomationRun(runId)
             setAskDelete(false)
             onDeleted()
-          }, "Run deleted.")
+          })
         }
       />
     </>
