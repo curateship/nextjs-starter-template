@@ -1,12 +1,9 @@
+import type { SkyCity } from "@/lib/notes/sky-city"
 import {
   DynamicIcon,
   iconNames,
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
-import {
-  createDefaultDashboardWidgets,
-  type DashboardWidgetLayout,
-} from "@/lib/dashboard/dashboard-widgets"
 import {
   createDefaultPageOverrides,
   type ShellPageOverrides,
@@ -386,6 +383,13 @@ export type ShellTopRightBuiltIn = {
   type: "builtIn"
   id: ShellTopRightNavigationItemId
   visible: boolean
+  /**
+   * Links drawn inside the Settings cog's panel, under its settings rows.
+   * Only the `settings` item carries them, and they go wherever the cog goes:
+   * a hidden cog hides them, and on a phone they fold into the three dots with
+   * it. Each role's menu has its own list, the same way it has its own row.
+   */
+  links?: ShellTopRightLink[]
 }
 
 /** An app-owned control that shares the fixed controls' order and visibility. */
@@ -474,6 +478,12 @@ export type ShellConfig = {
    * link in the sidebar an admin built for them.
    */
   memberHomeRoute: string
+  /**
+   * The city whose real sunrise and sunset the cover sky follows, found by
+   * name in Settings → General (`src/lib/notes/sky-city.ts`). Null: fixed
+   * hours on the viewer's clock.
+   */
+  skyCity: SkyCity | null
   /** App-wide browser-tab image selected from the media library. */
   favicon: string
   /** Image overrides for the current site. Empty uses app-wide branding. */
@@ -588,12 +598,6 @@ export type ShellConfig = {
   pages: ShellPageOverrides
   /** Per-workspace visual styling: spacing, card border, backgrounds. */
   styling: ShellStyling
-  /**
-   * Which cards the Overview dashboard draws, and where. Saved per workspace
-   * like the sidebar, so two admins can arrange their own. See
-   * `lib/dashboard/dashboard-widgets.ts`.
-   */
-  dashboardWidgets: DashboardWidgetLayout
 }
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
@@ -873,7 +877,7 @@ export function shellConfigSaveRefusal(config: ShellConfig): string | null {
     return "add a workspace name"
   }
   const colour = publicThemeColorProblem(config.publicTheme)
-  return colour ? `fix the ${colour} on Public \u2192 Styling` : null
+  return colour ? `fix the ${colour} in Admin \u2192 Styling \u2192 Public` : null
 }
 
 /**
@@ -898,6 +902,7 @@ export function createDefaultShellConfig(): ShellConfig {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     adminRoute: "",
     memberHomeRoute: "",
+    skyCity: null,
     favicon: "",
     workspaceLogo: "",
     workspaceShareImage: "",
@@ -941,17 +946,15 @@ export function createDefaultShellConfig(): ShellConfig {
     sessionPolicy: createDefaultSessionPolicy(),
     pages: createDefaultPageOverrides(),
     styling: createDefaultStyling(),
-    dashboardWidgets: createDefaultDashboardWidgets(),
   }
 }
 
 /**
  * What a brand-new install offers members before an admin has built anything.
  *
- * Deliberately short: their own home page and the changelog are the only two
- * places in this app a member can go. It is a starting point, not a rule — an
- * admin can rename these, reorder them or empty the list out entirely, and an
- * empty list stays empty.
+ * Deliberately short: their own home page is the one place in this app a
+ * member can go. It is a starting point, not a rule — an admin can rename it,
+ * add to it or empty the list out entirely, and an empty list stays empty.
  */
 export function createDefaultMemberSections(): ShellSection[] {
   return [
@@ -966,28 +969,6 @@ export function createDefaultMemberSections(): ShellSection[] {
           href: "/home",
           icon: "house",
           visible: true,
-        },
-      ],
-    },
-    {
-      id: "section-member-updates",
-      title: "Updates",
-      entries: [
-        {
-          type: "item",
-          id: "item-member-changelog",
-          label: "Changelog",
-          href: "/changelog",
-          icon: "sparkles",
-          visible: true,
-          children: [
-            {
-              id: "item-member-whats-new",
-              label: "What's new",
-              href: "/changelog/whats-new",
-              icon: "sparkles",
-            },
-          ],
         },
       ],
     },
@@ -1045,11 +1026,16 @@ export function normalizeTopRightNavigation(
 
     if (builtInIds.has(id)) {
       seenIds.add(id)
+      const links =
+        id === "settings"
+          ? normalizeTopRightLinks((raw as { links?: unknown }).links)
+          : []
       kept.push({
         type: "builtIn",
         id: id as ShellTopRightNavigationItemId,
         // Missing reads as shown: hiding is a deliberate saved `false`.
         visible: item.visible !== false,
+        ...(links.length ? { links } : {}),
       })
       continue
     }
@@ -1068,20 +1054,10 @@ export function normalizeTopRightNavigation(
       continue
     }
 
-    if (
-      item.type === "link" &&
-      typeof item.label === "string" &&
-      typeof item.href === "string" &&
-      typeof item.icon === "string"
-    ) {
+    const link = asTopRightLink(raw)
+    if (link) {
       seenIds.add(id)
-      kept.push({
-        type: "link",
-        id,
-        label: item.label,
-        href: item.href,
-        icon: item.icon,
-      })
+      kept.push(link)
     }
   }
 
@@ -1091,6 +1067,64 @@ export function normalizeTopRightNavigation(
     ...kept,
     ...missing.filter((item) => item.type !== "app"),
   ]
+}
+
+/** A saved link row, or null when it is missing a part a link needs. */
+function asTopRightLink(raw: unknown): ShellTopRightLink | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const item = raw as Partial<ShellTopRightLink>
+  if (
+    item.type !== "link" ||
+    typeof item.id !== "string" ||
+    !item.id ||
+    typeof item.label !== "string" ||
+    typeof item.href !== "string" ||
+    typeof item.icon !== "string"
+  ) {
+    return null
+  }
+  return {
+    type: "link",
+    id: item.id,
+    label: item.label,
+    href: item.href,
+    icon: item.icon,
+  }
+}
+
+/** The Settings cog's saved links, malformed and repeated ones dropped. */
+function normalizeTopRightLinks(raw: unknown): ShellTopRightLink[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  return raw.flatMap((one) => {
+    const link = asTopRightLink(one)
+    if (!link || seen.has(link.id)) return []
+    seen.add(link.id)
+    return [link]
+  })
+}
+
+/**
+ * The links a header draws for this person: named, with an address, and never
+ * an admin page for anybody but an admin. The same rules the sidebar renders
+ * by, for the row and the cog alike.
+ */
+export function isTopRightLinkShown(link: ShellTopRightLink, role: string) {
+  return (
+    isShellEntryNamed(link) &&
+    Boolean(link.href.trim()) &&
+    canSeeShellEntry(link, role)
+  )
+}
+
+/** The cog's links, read off the `settings` item of a top right menu. */
+export function settingsCogLinks(
+  items: readonly ShellTopRightNavigationItem[]
+): ShellTopRightLink[] {
+  const cog = items.find(
+    (item) => item.type === "builtIn" && item.id === "settings"
+  )
+  return cog?.type === "builtIn" ? (cog.links ?? []) : []
 }
 
 export function isShellItem(entry: ShellEntry): entry is ShellItem {

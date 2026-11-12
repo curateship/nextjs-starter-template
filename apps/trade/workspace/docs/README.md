@@ -308,8 +308,9 @@ always used.
   catalogue size, the figures its public API does not state, and how each
   coin's leverage ceiling is read with a connected wallet's keys.
 - `dukascopy.md` — the stock, index, metal and currency-pair history feed:
-  instrument naming, start dates, bid prices, hours, volume, request pacing
-  and the measured numbers from the build.
+  instrument naming, start dates, bid prices, hours, volume, request pacing,
+  the firewall check that needs dukascopy-node 1.51.1 or later, and the
+  measured numbers from the build.
 - `lighter.md` — Lighter's markets, charts and hourly funding: why 18 listed
   markets are left out, how far its three prices ran from the other four
   venues, what a minute of reading costs against its sixty-a-minute cap, why

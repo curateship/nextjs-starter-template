@@ -11,8 +11,6 @@ const failedNotification: NotificationItem = {
   recipient_name: "Admin",
   feedback_id: null,
   feedback_message: null,
-  changelog_entry_id: null,
-  changelog_title: null,
   announcement_id: null,
   announcement_title: null,
   announcement_body: null,
@@ -32,12 +30,12 @@ const failedNotification: NotificationItem = {
 }
 
 describe("notificationAction", () => {
-  it("opens a failed run and selects its failed node", () => {
+  it("opens a failed run on its flow's Runs tab", () => {
     expect(notificationAction(failedNotification)).toEqual({
       kind: "automationRun",
       automationId: "automation-1",
       runId: "run-1",
-      nodeId: "webhook-1",
+      waiting: false,
     })
   })
 })

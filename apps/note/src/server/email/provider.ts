@@ -30,6 +30,11 @@ export type SendEmailParams = {
   text?: string
   replyTo?: string
   headers?: Record<string, string>
+  /**
+   * Files sent with the mail, each as base64, which is what Resend's API
+   * takes (CRM task 22). Left out, the mail carries none.
+   */
+  attachments?: { filename: string; content: string; contentType?: string }[]
 }
 
 export type SendEmailResult = {
@@ -60,10 +65,28 @@ export type ReceiveEmailResult = {
   failureKind?: EmailDeliveryFailureKind
 }
 
+/** One file of a received email, with an address it can be downloaded from for a while. */
+export type ReceivedFile = {
+  id: string
+  filename: string
+  contentType: string | null
+  size: number | null
+  downloadUrl: string
+}
+
+export type ReceiveFilesResult =
+  | { success: true; files: ReceivedFile[] }
+  | { success: false; error: string; failureKind?: EmailDeliveryFailureKind }
+
 export type EmailProvider = {
   send(params: SendEmailParams): Promise<SendEmailResult>
   /** Fetches the body of one received email by the id the webhook gave. */
   receive(emailId: string): Promise<ReceiveEmailResult>
+  /**
+   * Lists one received email's files, each with an address to download it
+   * from (CRM task 21). Optional, so a test's stand-in need not invent it.
+   */
+  receiveFiles?(emailId: string): Promise<ReceiveFilesResult>
 }
 
 /**
@@ -139,6 +162,15 @@ class ResendProvider implements EmailProvider {
           ...(params.text ? { text: params.text } : {}),
           ...(params.replyTo ? { reply_to: params.replyTo } : {}),
           ...(params.headers ? { headers: params.headers } : {}),
+          ...(params.attachments?.length
+            ? {
+                attachments: params.attachments.map((file) => ({
+                  filename: file.filename,
+                  content: file.content,
+                  ...(file.contentType ? { content_type: file.contentType } : {}),
+                })),
+              }
+            : {}),
         }),
       })
     } catch {
@@ -176,6 +208,48 @@ class ResendProvider implements EmailProvider {
     }
 
     return { success: true, messageId: body.id }
+  }
+
+  /**
+   * Resend's list of a received email's files (CRM task 21). Built against
+   * Resend's receiving API (`/emails/receiving/<id>/attachments`, each entry
+   * with a `download_url`) and not yet run against a real Resend account from
+   * this repo, so every field is read defensively: an entry with no usable
+   * download address is left out rather than guessed at.
+   */
+  async receiveFiles(emailId: string): Promise<ReceiveFilesResult> {
+    let response: Response
+    try {
+      response = await fetch(
+        `${RESEND_RECEIVING_ENDPOINT}/${encodeURIComponent(emailId)}/attachments`,
+        { method: "GET", headers: { Authorization: `Bearer ${this.apiKey}` } }
+      )
+    } catch {
+      const failure = unreachableEmailServiceFailure()
+      return { success: false, error: failure.reason, failureKind: failure.kind }
+    }
+    const body = (await response.json().catch(() => null)) as { data?: unknown } | unknown[] | null
+    if (!response.ok) {
+      const failure = describeResendFailure(response.status, body as never)
+      return { success: false, error: failure.reason, failureKind: failure.kind }
+    }
+    const list = Array.isArray(body) ? body : Array.isArray((body as { data?: unknown })?.data) ? ((body as { data: unknown[] }).data) : []
+    const files = list.flatMap((entry): ReceivedFile[] => {
+      if (!entry || typeof entry !== "object") return []
+      const item = entry as Record<string, unknown>
+      const downloadUrl = typeof item.download_url === "string" ? item.download_url : null
+      if (!downloadUrl || !downloadUrl.startsWith("https://")) return []
+      return [
+        {
+          id: typeof item.id === "string" ? item.id : "",
+          filename: typeof item.filename === "string" ? item.filename : "",
+          contentType: typeof item.content_type === "string" ? item.content_type : null,
+          size: typeof item.size === "number" ? item.size : null,
+          downloadUrl,
+        },
+      ]
+    })
+    return { success: true, files }
   }
 
   async receive(emailId: string): Promise<ReceiveEmailResult> {
@@ -295,6 +369,7 @@ export function getEmailProvider(apiKey: string): EmailProvider {
     const stub = providerFactoryOverride(apiKey)
     return {
       send: (params) => stub.send(params),
+      ...(stub.receiveFiles ? { receiveFiles: (emailId: string) => stub.receiveFiles!(emailId) } : {}),
       receive: (emailId) =>
         stub.receive
           ? stub.receive(emailId)

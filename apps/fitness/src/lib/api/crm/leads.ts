@@ -6,7 +6,20 @@ import {
   CRM_STAGES,
   type CrmStage,
 } from "@/lib/crm/crm"
-import { addLeadToContacts, getLead, updateLead } from "@/server/crm/leads"
+import { CRM_LEAD_TAG_MAX_LENGTH } from "@/lib/crm/lead-tags"
+import { changeLeadTag, listLeadTags, listWorkspaceLeadTags } from "@/server/crm/lead-tags"
+import { CSV_IMPORT_SOURCE } from "@/lib/contacts/contact-csv"
+import { LEAD_IMPORT_BATCH } from "@/lib/crm/lead-csv"
+import { HAND_ADDED_SOURCE } from "@/server/crm/compose"
+import {
+  addContactToLeads,
+  addLeadToContacts,
+  addWorkspaceLeads,
+  deleteLeads as deleteWorkspaceLeads,
+  getLead,
+  setLeadsStage as setWorkspaceLeadsStage,
+  updateLead,
+} from "@/server/crm/leads"
 import { adminGet, adminPost } from "@/server/guards"
 import { currentWorkspaceId } from "@/server/people/workspaces"
 
@@ -27,9 +40,15 @@ export type LeadPanel = {
   /** The newsletter contact they are, or null when they are not one. */
   contactId: string | null
   created_at: string
+  /** What kind of lead it is, A to Z (CRM task 27). */
+  tags: string[]
 }
 
-export type LeadBundle = { lead: LeadPanel }
+export type LeadBundle = {
+  lead: LeadPanel
+  /** Every tag the site uses, for picking one already in use. */
+  siteTags: string[]
+}
 
 const leadSchema = z.object({ leadId: z.string().min(1).max(36) })
 
@@ -40,8 +59,13 @@ const loadLeadFn = createServerFn({ method: "GET" })
     const workspaceId = await currentWorkspaceId(context.user.id)
     const lead = await getLead(workspaceId, data.leadId)
     if (!lead) throw new Error("CRM_LEAD_NOT_FOUND")
+    const [tags, siteTags] = await Promise.all([
+      listLeadTags([lead.id]),
+      listWorkspaceLeadTags(workspaceId),
+    ])
 
     return {
+      siteTags,
       lead: {
         id: lead.id,
         email: lead.email,
@@ -55,6 +79,7 @@ const loadLeadFn = createServerFn({ method: "GET" })
         followUpNote: lead.followUpNote,
         contactId: lead.contactId,
         created_at: lead.createdAt.toISOString(),
+        tags: tags.get(lead.id) ?? [],
       },
     }
   })
@@ -104,6 +129,98 @@ const addToContactsFn = createServerFn({ method: "POST" })
     return result
   })
 
+/**
+ * New leads by hand (one row, a stage picked) or from a CSV file (up to 500
+ * rows a request, every new one at New). An address already a lead is
+ * updated, never added twice: see `addWorkspaceLeads`.
+ */
+const addLeadsSchema = z.object({
+  from: z.enum(["hand", "csv"]),
+  rows: z
+    .array(
+      z.object({
+        email: z.email().max(255),
+        name: z.string().trim().max(255).nullable().optional(),
+        company: z.string().trim().max(255).nullable().optional(),
+        phone: z.string().trim().max(60).nullable().optional(),
+        stage: z.enum(CRM_STAGES).optional(),
+      })
+    )
+    .min(1)
+    .max(LEAD_IMPORT_BATCH),
+})
+
+const addLeadsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(addLeadsSchema)
+  .handler(async ({ data, context }) => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return addWorkspaceLeads(
+      workspaceId,
+      data.from === "csv" ? data.rows.map(({ stage: _stage, ...row }) => row) : data.rows,
+      data.from === "csv" ? CSV_IMPORT_SOURCE : HAND_ADDED_SOURCE
+    )
+  })
+
+export function addLeads(input: z.input<typeof addLeadsSchema>) {
+  return addLeadsFn({ data: input })
+}
+
+/** The leads ticked or right-clicked on the Leads list: a page holds 100 at most. */
+const leadIdsSchema = z.object({ leadIds: z.array(z.string().min(1).max(36)).min(1).max(200) })
+
+const setLeadsStageFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(leadIdsSchema.extend({ stage: z.enum(CRM_STAGES) }))
+  .handler(async ({ data, context }) =>
+    setWorkspaceLeadsStage(await currentWorkspaceId(context.user.id), data.leadIds, data.stage)
+  )
+
+const deleteLeadsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(leadIdsSchema)
+  .handler(async ({ data, context }) => deleteWorkspaceLeads(await currentWorkspaceId(context.user.id), data.leadIds))
+
+export function setLeadsStage(leadIds: string[], stage: CrmStage) {
+  return setLeadsStageFn({ data: { leadIds, stage } })
+}
+
+export function deleteLeads(leadIds: string[]) {
+  return deleteLeadsFn({ data: { leadIds } })
+}
+
+/** A subscriber made a lead too, from the Subscribers list's right-click. */
+const addContactToLeadsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ contactId: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) => {
+    const result = await addContactToLeads(await currentWorkspaceId(context.user.id), data.contactId)
+    if (!result) throw new Error("CRM_LEAD_NOT_FOUND")
+    return result
+  })
+
+export function addSubscriberToLeads(contactId: string) {
+  return addContactToLeadsFn({ data: { contactId } })
+}
+
+/** Adds or takes away one tag on a lead. */
+const changeTagFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    leadSchema.extend({
+      mode: z.enum(["add", "remove"]),
+      tag: z.string().trim().min(1).max(CRM_LEAD_TAG_MAX_LENGTH),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    return { change: await changeLeadTag(workspaceId, data.leadId, data.mode, data.tag) }
+  })
+
+export function changeLeadTagOn(leadId: string, mode: "add" | "remove", tag: string) {
+  return changeTagFn({ data: { leadId, mode, tag } })
+}
+
 export function loadLead(leadId: string) {
   return loadLeadFn({ data: { leadId } })
 }
@@ -117,6 +234,10 @@ export function addLeadToContactList(leadId: string) {
 }
 
 export const getLeadErrorMessage = createErrorMessage(
-  { CRM_LEAD_NOT_FOUND: "That lead is no longer here." },
+  {
+    CRM_LEAD_NOT_FOUND: "That lead is no longer here.",
+    CRM_LEAD_TAG_INVALID: "A tag is a short word or two, with no comma.",
+    CRM_LEAD_TAG_LIMIT: "That lead has 30 tags, the most it can hold. Take one off first.",
+  },
   "That did not save. Try again."
 )

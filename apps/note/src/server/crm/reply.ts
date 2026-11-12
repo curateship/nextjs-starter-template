@@ -11,6 +11,7 @@ import {
 } from "@/lib/crm/message-text"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { loadReplyFiles } from "@/server/crm/reply-files"
 import { getCrmOutgoingReply } from "@/server/crm/sender"
 import { getEmailProvider } from "@/server/email/provider"
 import { getAppEmailApiKey } from "@/server/email/settings"
@@ -190,13 +191,16 @@ export async function sendCrmReply(
   workspaceId: string,
   threadId: string,
   body: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /** Files from the site's media library, by the address the picker gave (CRM task 22). */
+  fileUrls: string[] = []
 ): Promise<SendReplyResult> {
   const [thread] = await database
     .select({
       id: customShellCrmThreads.id,
       subject: customShellCrmThreads.subject,
       status: customShellCrmThreads.status,
+      toAddress: customShellCrmThreads.toAddress,
       leadId: customShellCrmLeads.id,
       leadEmail: customShellCrmLeads.email,
       leadStage: customShellCrmLeads.stage,
@@ -215,7 +219,11 @@ export async function sendCrmReply(
     .limit(1)
   if (!thread) throw new Error(CRM_THREAD_NOT_FOUND)
 
-  const outgoing = await getCrmOutgoingReply(workspaceId, database)
+  const outgoing = await getCrmOutgoingReply(
+    workspaceId,
+    database,
+    thread.toAddress
+  )
   if (!outgoing) throw new Error(CRM_NO_INBOUND_ADDRESS)
   const { sender, signature, quoteReplies } = outgoing
 
@@ -249,6 +257,9 @@ export async function sendCrmReply(
   }
 
   const subject = replySubject(thread.subject)
+  // Read before the send, so a file that is missing or too big refuses the
+  // reply with the words kept, rather than sending half of what was meant.
+  const files = await loadReplyFiles(workspaceId, fileUrls, database)
   const apiKey = await getAppEmailApiKey(database, workspaceId)
   const result = await getEmailProvider(apiKey ?? "").send({
     from: sender.from,
@@ -257,6 +268,7 @@ export async function sendCrmReply(
     html: replyHtml(body, signature, quote),
     text: replyText(body, signature, quote),
     ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    ...(files.length ? { attachments: files.map((file) => file.send) } : {}),
   })
 
   if (!result.success) {
@@ -287,7 +299,8 @@ export async function sendCrmReply(
     rfcMessageId: null,
     inReplyTo: parent?.rfcMessageId ?? null,
     providerEmailId: result.messageId ?? null,
-    attachments: [],
+    // The same shape inbound files use, so the bubble draws them as it does theirs.
+    attachments: files.map((file) => file.attachment),
     // Ours, so there is no second request coming and nothing to retry.
     bodyFetchedAt: at,
     bodyAttempts: 0,

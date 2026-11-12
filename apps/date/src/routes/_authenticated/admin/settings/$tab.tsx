@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import {
   getSettingsTabFromPath,
@@ -7,8 +7,17 @@ import {
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getShellSettingsErrorMessage } from "@/lib/api/shell-settings"
+import { movedSettingsTab } from "@/lib/admin-dashboard/moved-settings"
+import { appSettingsTabs } from "@/lib/app-options"
 
 export const Route = createFileRoute("/_authenticated/admin/settings/$tab")({
+  // Navigation and Styling moved into the Admin dashboard on 9 Nov 2026; their
+  // old addresses land there, unless the app drew its own screen in the row.
+  beforeLoad: ({ params }) => {
+    const moved = movedSettingsTab(params.tab)
+    if (!moved || appSettingsTabs().some((tab) => tab.id === params.tab)) return
+    throw redirect({ to: "/admin/dashboard", search: moved, replace: true })
+  },
   component: SettingsTabRoute,
   errorComponent: routeErrorComponent(getShellSettingsErrorMessage),
 })

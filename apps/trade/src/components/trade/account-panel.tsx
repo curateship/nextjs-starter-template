@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   ArchiveIcon,
-  CheckIcon,
   ChevronDownIcon,
   CreditCardIcon,
   EllipsisVerticalIcon,
@@ -22,7 +21,8 @@ import type { useTradeAccount } from "@/components/trade/use-trade-account"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
+import { SlideBar } from "@/components/shared/notes/side-rows"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import {
   Dialog,
   DialogBody,
@@ -212,26 +212,30 @@ function WalletRowCells({
   return (
     <>
       <span className="flex min-w-0 items-center gap-2">
-        {selector}
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-medium">
-            {wallet.label}
-          </span>
-          {wallet.liquidationWarningInUse ? (
-            <span className="block text-xs break-words text-muted-foreground">
-              Liquidation warning:{" "}
-              {[
-                wallet.liquidationWarningInUse.usd !== null
-                  ? `${formatPrice(wallet.liquidationWarningInUse.usd)} away`
-                  : null,
-                wallet.liquidationWarningInUse.pct !== null
-                  ? `${wallet.liquidationWarningInUse.pct} out of 100 away`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" or ")}
+        {/* The bar and the name share a box with no gap, so the bar adds
+            room only when it is showing. */}
+        <span className="flex min-w-0 items-center">
+          {selector}
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium">
+              {wallet.label}
             </span>
-          ) : null}
+            {wallet.liquidationWarningInUse ? (
+              <span className="block text-xs break-words text-muted-foreground">
+                Liquidation warning:{" "}
+                {[
+                  wallet.liquidationWarningInUse.usd !== null
+                    ? `${formatPrice(wallet.liquidationWarningInUse.usd)} away`
+                    : null,
+                  wallet.liquidationWarningInUse.pct !== null
+                    ? `${wallet.liquidationWarningInUse.pct} out of 100 away`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" or ")}
+              </span>
+            ) : null}
+          </span>
         </span>
         <WalletStatusDot state={state} />
         {inactive ? (
@@ -303,37 +307,45 @@ function ActiveWalletRow({
       className={cn(
         walletRowFrameClassName,
         wallet.kind === "live" && "flex-wrap",
-        selected ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
+        "hover:bg-muted/40"
       )}
     >
-      <label className={cn(walletRowGridClassName, "cursor-pointer")}>
-        <WalletRowCells
-          wallet={wallet}
-          profit={figures?.madeOrLost ?? null}
-          state={state}
-          showKindBadge
-          selector={
-            <DisabledReason
-              disabled={usingCache}
-              reason="These wallets are from last visit. Waiting for a successful read."
-            >
-              <Checkbox
-                disabled={usingCache}
-                checked={selected}
-                onCheckedChange={() => {
-                  if (!selected) onSelect()
-                }}
-                aria-label={
-                  selected
-                    ? `${wallet.label} is the wallet in use`
-                    : `Trade with ${wallet.label}`
-                }
-                className="rounded-full"
-              />
-            </DisabledReason>
+      {/* The whole row picks the wallet. The one in use is marked as every
+          block's picked row is: the small dark bar that grows in before its
+          name, no shading and no round tick (Tyler, 12 Nov 2026: "for the
+          blocks. make a the selected styling to use this"). */}
+      <DisabledReason
+        disabled={usingCache}
+        reason="These wallets are from last visit. Waiting for a successful read."
+        className="min-w-0 flex-1 self-stretch"
+      >
+        <button
+          type="button"
+          disabled={usingCache}
+          aria-pressed={selected}
+          aria-label={
+            selected
+              ? `${wallet.label} is the wallet in use`
+              : `Trade with ${wallet.label}`
           }
-        />
-      </label>
+          onClick={() => {
+            if (!selected) onSelect()
+          }}
+          className={cn(
+            walletRowGridClassName,
+            "cursor-pointer rounded-lg text-left disabled:cursor-default",
+            focusRingInset
+          )}
+        >
+          <WalletRowCells
+            wallet={wallet}
+            profit={figures?.madeOrLost ?? null}
+            state={state}
+            showKindBadge
+            selector={<SlideBar on={selected} />}
+          />
+        </button>
+      </DisabledReason>
       <DisabledReason
         disabled={usingCache}
         reason="These wallets are from last visit. Waiting for a successful read."
@@ -382,7 +394,7 @@ function WalletCard({
       className={cn(
         walletRowFrameClassName,
         wallet.kind === "live" && "flex-wrap",
-        active ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
+        "hover:bg-muted/40"
       )}
     >
       <div className={walletRowGridClassName}>
@@ -390,17 +402,7 @@ function WalletCard({
           wallet={wallet}
           profit={figures?.openProfit ?? null}
           state={state}
-          selector={
-            <span
-              className={cn(
-                "flex size-4 shrink-0 items-center justify-center rounded-full border",
-                active && "border-primary bg-primary text-primary-foreground"
-              )}
-              aria-hidden
-            >
-              {active ? <CheckIcon className="size-3" /> : null}
-            </span>
-          }
+          selector={<SlideBar on={active} />}
         />
       </div>
       <DisabledReason

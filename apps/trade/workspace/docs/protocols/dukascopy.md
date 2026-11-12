@@ -142,6 +142,30 @@ proved. The measurements came from the `dukascopy-node` package, version
   it saved. Nothing comes back as an empty answer the store would mistake
   for a market with no bars.
 
+## The firewall check
+
+- Dukascopy's feed sits behind a firewall that can stop answering requests
+  that do not look like a browser. When it does, every file comes back as an
+  empty `202` with `x-amzn-waf-action: challenge`, for every instrument at
+  once. The same address asked with a browser's user agent and referer gets
+  its data.
+- On 12 Nov 2026 that started for this app: every chart fill failed with
+  `Request failed with status 202`, and stock charts showed their stored bars
+  with "Older bars could not all be loaded." and a Try again that could not
+  help.
+- `dukascopy-node` 1.51 deals with it, so Trade needs at least 1.51.1. It sends
+  a browser's user agent and referer on every request. If the check still
+  comes back, it opens a hidden Chrome once to pass it and reuses the pass,
+  saved in `~/.dukascopy-node/waf-token.json`, until it expires.
+- The browser details alone were enough on 12 Nov 2026: AMD 4-hour (5,251
+  bars) and GOOGL daily (1,954 bars) filled in full without Chrome. The live
+  server has no Chrome. If Dukascopy ever insists on the hidden-browser step
+  there, the fill fails and the chart shows the same line with Try again.
+  Nothing breaks beyond that.
+- A firewall check that is not passed is not a 429, so it is not raised as
+  `EXCHANGE_BUSY`. The library's own 429 message still contains `status 429`,
+  so `busyIfRefused` in `candles.ts` still recognises it.
+
 ## What is published when
 
 - A day's minute file appears after the day ends. Measured 2 Sep 2026: minute,

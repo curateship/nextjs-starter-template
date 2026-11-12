@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
+import { z } from "zod"
 
+import { analyticsRangeSchema, type AnalyticsRange } from "@/lib/analytics/range"
 import { createErrorMessage } from "@/lib/api/error-message"
 import {
   loadAdminUsage as loadAdminUsageQuery,
@@ -16,8 +18,9 @@ export const getUsageErrorMessage = createErrorMessage(
 
 const loadAdminUsageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async (): Promise<AdminUsageSummary> => loadAdminUsageQuery())
+  .inputValidator(z.object({ days: analyticsRangeSchema }))
+  .handler(async ({ data }): Promise<AdminUsageSummary> => loadAdminUsageQuery(data.days))
 
-export function loadAdminUsage() {
-  return loadAdminUsageFn()
+export function loadAdminUsage(days: AnalyticsRange) {
+  return loadAdminUsageFn({ data: { days } })
 }

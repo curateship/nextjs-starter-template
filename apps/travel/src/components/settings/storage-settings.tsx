@@ -143,7 +143,7 @@ export function StorageSettings() {
       setSecret("")
       setTestMessage(null)
       setConfirmingClear(false)
-    }, "The saved storage settings were removed.")
+    })
   }
 
   return (

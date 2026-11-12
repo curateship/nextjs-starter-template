@@ -33,6 +33,11 @@ export function DashboardCardHeader({
       data-slot="dashboard-card-header"
       className={cn(
         "flex min-h-[var(--dashboard-card-header-height)] shrink-0 items-center gap-2 border-b p-3",
+        // A ⋮ reaches 6px into the gap on each side: its dots are narrower
+        // than the icons beside it, so it then sits 24px from them, as they
+        // sit from each other (Tyler, 11 Nov 2026: "the icon spacing of the
+        // right panel has to match with the spacing from the middle panel").
+        "[&_[data-more-button]]:-mx-1.5",
         className
       )}
       style={{

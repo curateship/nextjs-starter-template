@@ -27,6 +27,7 @@ export function AutomationCanvasNode({
   onMoveStart,
   onConnectStart,
   onConnectFinish,
+  onContextMenu,
 }: {
   node: AutomationNode
   selected: boolean
@@ -36,6 +37,8 @@ export function AutomationCanvasNode({
   onMoveStart: (event: React.PointerEvent) => void
   onConnectStart: (sourcePort: AutomationSourcePort) => void
   onConnectFinish: () => void
+  /** A right-click on the step, at the pointer: its menu (Delete step). */
+  onContextMenu?: (x: number, y: number) => void
 }) {
   const ports = nodeOutputPorts(node)
   const hasInput = automationNodeHasInput(node)
@@ -64,6 +67,16 @@ export function AutomationCanvasNode({
         onSelect()
         onMoveStart(event)
       }}
+      onContextMenu={
+        onContextMenu
+          ? (event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onSelect()
+              onContextMenu(event.clientX, event.clientY)
+            }
+          : undefined
+      }
       className={cn(
         "pointer-events-auto absolute top-0 left-0 box-border cursor-grab rounded-lg border bg-card shadow-sm active:cursor-grabbing",
         focusRing,

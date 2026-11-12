@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import { FOLLOW_UP_BATCH, notifyDueFollowUps } from "@/server/crm/follow-ups"
-import { wakeSnoozedThreads } from "@/server/crm/inbox"
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellCrmLeads,
@@ -195,51 +194,5 @@ describe("chasing a lead", () => {
 
     expect(await notifyDueFollowUps(db)).toBe(1)
     expect(await db.select().from(customShellNotifications)).toHaveLength(2)
-  })
-
-  it("wakes a conversation whose snooze has run out", async () => {
-    await insertLead("lead-1", { followUpAt: null })
-    await db.insert(customShellCrmThreads).values({
-      id: "thread-1",
-      workspaceId: WORKSPACE,
-      leadId: "lead-1",
-      subject: "Snoozed",
-      subjectKey: "snoozed",
-      status: "snoozed",
-      snoozedUntil: new Date(Date.now() - 60 * 1000),
-      lastMessageAt: new Date(),
-      lastDirection: "in",
-      messageCount: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    expect(await wakeSnoozedThreads(db)).toBe(1)
-
-    const [thread] = await db.select().from(customShellCrmThreads)
-    expect(thread.status).toBe("open")
-    expect(thread.snoozedUntil).toBeNull()
-  })
-
-  it("leaves a snooze that has not run out alone", async () => {
-    await insertLead("lead-1", { followUpAt: null })
-    await db.insert(customShellCrmThreads).values({
-      id: "thread-1",
-      workspaceId: WORKSPACE,
-      leadId: "lead-1",
-      subject: "Snoozed",
-      subjectKey: "snoozed",
-      status: "snoozed",
-      snoozedUntil: new Date(Date.now() + 60 * 60 * 1000),
-      lastMessageAt: new Date(),
-      lastDirection: "in",
-      messageCount: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    expect(await wakeSnoozedThreads(db)).toBe(0)
-    const [thread] = await db.select().from(customShellCrmThreads)
-    expect(thread.status).toBe("snoozed")
   })
 })

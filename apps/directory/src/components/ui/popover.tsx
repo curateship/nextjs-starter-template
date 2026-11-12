@@ -124,6 +124,13 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/** Closes the popover it sits in when pressed, as a link inside one should. */
+function PopoverClose({
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Close>) {
+  return <PopoverPrimitive.Close data-slot="popover-close" {...props} />
+}
+
 function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
   return (
     <div
@@ -134,4 +141,4 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
   )
 }
 
-export { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger }
+export { Popover, PopoverClose, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger }

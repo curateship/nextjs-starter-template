@@ -83,7 +83,7 @@ describe("what each role may see", () => {
       expect(roleMay("employee", feature, options)).toBe(false)
     }
     expect(roleMay("editor", "feedback", options)).toBe(true)
-    expect(roleMay("editor", "changelog", options)).toBe(true)
+    expect(roleMay("editor", "aiUsage", options)).toBe(true)
     expect(roleMay("editor", "billing", options)).toBe(false)
   })
 

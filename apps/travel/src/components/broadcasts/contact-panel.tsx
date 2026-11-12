@@ -12,7 +12,6 @@ import {
   UserPlusIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { ContactTagsBox } from "@/components/broadcasts/contact-tags-box"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
@@ -51,7 +50,6 @@ import {
   segmentStatusDotClassName,
   segmentStatusHints,
   segmentStatusLabels,
-  segmentStatusSaidDone,
   type ContactSegmentStatus,
   type SegmentKind,
 } from "@/lib/contacts/contact-segments"
@@ -174,7 +172,6 @@ function OpenContact({
     if (!contact || next === contact.status) return
     void runStatus(async () => {
       await setContactsStatus([contact.id], next)
-      toast.success(segmentStatusSaidDone[next].replace("%s", () => contact.email))
       await onChanged()
     })
   }
@@ -369,7 +366,6 @@ function OpenContact({
           void runDelete(async () => {
             await deleteContacts([contact.id])
             setDeleteAsk(false)
-            toast.success(`Deleted ${contact.email}.`)
             onDeleted()
             await onChanged()
           })
@@ -458,13 +454,11 @@ function SegmentsBox({
   const add = (segment: SegmentItem) =>
     void run(async () => {
       await addContactsToWorkspaceSegment(segment.id, [contactId])
-      toast.success(`Added to ${quoteOneLine(segment.name)}.`)
       await onChanged()
     })
   const remove = (segment: { id: string; name: string }) =>
     void run(async () => {
       await removeContactsFromWorkspaceSegment(segment.id, [contactId])
-      toast.success(`Taken out of ${quoteOneLine(segment.name)}.`)
       await onChanged()
     })
 

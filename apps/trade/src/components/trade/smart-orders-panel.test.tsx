@@ -688,7 +688,12 @@ describe("the Smart orders panel", () => {
       ?.closest("button")
     await act(async () => ticker?.click())
 
-    expect(ticker?.closest("tr")?.dataset.state).toBe("selected")
+    const row = ticker?.closest("tr")
+    expect(row?.dataset.state).toBeUndefined()
+    expect(row?.getAttribute("aria-current")).toBe("true")
+    expect(row?.querySelector("[data-dashboards-bar]")?.className).toContain(
+      "w-3"
+    )
     await act(async () => root.unmount())
     host.remove()
   })

@@ -99,8 +99,10 @@ export function DashboardsRows<Key extends string>({
               // 12px at the left, not 10px, so the bar and the names start
               // where the icons above them are drawn (a 16px icon is drawn
               // 2px inside its box) (Tyler, 9 Nov 2026: "this should also be
-              // aligned").
-              "grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-1 pr-2.5 pl-3 text-left text-sm",
+              // aligned"). 34px tall, so 16px sits between one name and the
+              // next, 10% less than the 18px a 36px row left (Tyler, 11 Nov
+              // 2026: "decrease the gap between the items by 10%").
+              "grid min-h-[34px] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-1 pr-2.5 pl-3 text-left text-sm",
               "hover:[&>span:first-child]:text-foreground",
               focusRingInset
             )}

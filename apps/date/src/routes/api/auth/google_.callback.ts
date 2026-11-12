@@ -63,9 +63,7 @@ export const Route = createFileRoute("/api/auth/google_/callback")({
           const identity = await exchangeGoogleCode(code, handshake.verifier)
           const { user, sessionToken } = await signInWithGoogle(
             identity,
-            origin,
-            undefined,
-            handshake.referralCode
+            origin
           )
 
           await clearRateLimit(rateLimitKey)

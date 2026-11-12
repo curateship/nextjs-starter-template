@@ -6,6 +6,8 @@ import {
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall, type AiCallUsage } from "@/server/ai/usage"
 import { db, type CustomShellDb } from "@/server/db"
+import { customShellCrmThreads } from "@/server/schema"
+import { and, eq } from "drizzle-orm"
 import { messageSnippet } from "@/lib/crm/message-text"
 import { getThread, listThreadMessages } from "@/server/crm/inbox"
 import { getLead } from "@/server/crm/leads"
@@ -21,6 +23,15 @@ export const CRM_DRAFT_FAILED = "CRM_DRAFT_FAILED"
 
 /** How long a draft may be. Enough for a real answer, short of an essay. */
 const MAX_DRAFT_TOKENS = 700
+
+/**
+ * A conversation shorter than this has nothing worth summarising: reading it
+ * is quicker (CRM task 32).
+ */
+export const SUMMARY_MIN_MESSAGES = 4
+
+/** Said when a summary is asked of a conversation too short to need one. */
+export const CRM_TOO_SHORT_TO_SUMMARISE = "CRM_TOO_SHORT_TO_SUMMARISE"
 
 /** How much of the conversation is sent. The newest mail matters most. */
 const HISTORY_MESSAGES = 8
@@ -239,4 +250,80 @@ export async function draftCrmReply(
 
   if (!draft.trim()) throw new Error(CRM_DRAFT_FAILED)
   return draft.trim()
+}
+
+/**
+ * Told in the strongest terms not to invent anything, because a summary that
+ * invents a price or a date is worse than none (CRM task 32).
+ */
+const SUMMARY_PROMPT = [
+  "You summarise one email conversation between a small business and a customer, for the business owner.",
+  "Write two or three short plain sentences: what they want, where it stands, and what is waiting on whom.",
+  "Never state a price, a date, a quantity or a promise that is not written in the conversation. If something is unclear, say it is unclear.",
+  "No greeting, no headings, no bullet points, no advice, and no suggested stage or next step.",
+].join(" ")
+
+/**
+ * A short summary of one conversation, made on a press and never on its own
+ * (CRM task 32, built in task 36 on 7 Nov 2026). Every press spends from the
+ * AI allowance through `runAiCall`, so a summary made on every open would
+ * spend it all. It is kept on the thread with the message count it was made
+ * at, so opening it twice does not pay twice, and a new message makes it
+ * stale. Answers the summary.
+ */
+export async function summariseCrmThread(
+  workspaceId: string,
+  threadId: string,
+  userId: string,
+  database: CustomShellDb = db
+): Promise<string> {
+  const thread = await getThread(workspaceId, threadId, database)
+  if (!thread) throw new Error(CRM_THREAD_NOT_FOUND)
+  if (thread.messageCount < SUMMARY_MIN_MESSAGES) throw new Error(CRM_TOO_SHORT_TO_SUMMARISE)
+
+  const provider = await firstProviderWithAKey()
+  if (!provider) throw new Error(CRM_NO_AI_KEY)
+  const key = await getAiKey(provider)
+  if (!key) throw new Error(CRM_NO_AI_KEY)
+
+  const messages = await listThreadMessages(workspaceId, threadId, database)
+  const transcript = messages
+    .slice(-20)
+    .map((message) => {
+      const who = message.direction === "in" ? "Them" : "Us"
+      const body =
+        message.textBody?.trim() ||
+        messageSnippet(message.textBody, message.htmlBody) ||
+        "(no readable body)"
+      return `${who} (${message.occurredAt.toISOString().slice(0, 10)}):\n${body.slice(0, MESSAGE_LENGTH)}`
+    })
+    .join("\n\n")
+
+  const model = DEFAULT_AI_MODEL[provider]
+  const summary = await runAiCall<string>(
+    { userId, provider, model, feature: "crm-thread-summary" },
+    async () => {
+      const generated = await generate(
+        provider,
+        model,
+        key,
+        SUMMARY_PROMPT,
+        `Subject: ${thread.subject || "(none)"}\n\nThe conversation, oldest first:\n\n${transcript}\n\nWrite the summary.`
+      )
+      return { result: generated.text, usage: generated.usage }
+    }
+  )
+  const kept = summary.trim().slice(0, 1200)
+  if (!kept) throw new Error(CRM_DRAFT_FAILED)
+
+  await database
+    .update(customShellCrmThreads)
+    .set({ summary: kept, summaryMessageCount: thread.messageCount })
+    .where(
+      and(
+        eq(customShellCrmThreads.workspaceId, workspaceId),
+        eq(customShellCrmThreads.id, threadId)
+      )
+    )
+  return kept
 }
