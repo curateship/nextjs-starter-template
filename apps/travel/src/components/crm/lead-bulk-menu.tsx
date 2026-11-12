@@ -1,13 +1,11 @@
 import * as React from "react"
 import { CircleDotIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Dot, DOT } from "@/components/crm/crm-table"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { deleteLeads, getLeadErrorMessage, setLeadsStage } from "@/lib/api/crm/leads"
 import { CRM_STAGE_LABELS, CRM_STAGES, type CrmStage } from "@/lib/crm/crm"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
@@ -39,34 +37,23 @@ export function LeadBulkMenu({
   const [run, busy] = useAsyncAction(getLeadErrorMessage)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
 
-  const finish = async (message: string) => {
+  const finish = async () => {
     onDone()
-    toast.success(message)
     await onRefresh()
   }
 
   const moveTo = (stage: CrmStage) =>
     void run(async () => {
-      const { changed } = await setLeadsStage(selectedIds, stage)
-      await finish(
-        describeBulkResult({
-          done: changed,
-          kept: Math.max(0, count - changed),
-          one: "lead",
-          many: "leads",
-          verb: `moved to ${CRM_STAGE_LABELS[stage]}`,
-        })
-      )
+      await setLeadsStage(selectedIds, stage)
+      await finish()
     })
 
   const remove = () =>
     void run(async () => {
-      const { deleted } = await deleteLeads(selectedIds)
+      await deleteLeads(selectedIds)
       setConfirmDelete(false)
       onDeleted()
-      await finish(
-        describeBulkResult({ done: deleted, kept: Math.max(0, count - deleted), one: "lead", many: "leads", verb: "deleted" })
-      )
+      await finish()
     })
 
   return (

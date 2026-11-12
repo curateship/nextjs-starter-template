@@ -16,6 +16,7 @@ import {
   ImageIcon,
   MailIcon,
   PlusIcon,
+  SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
 import * as React from "react"
@@ -24,6 +25,7 @@ import {
   useNavSensors,
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
+import { RichTextEditor } from "@/components/shared/rich-text-editor"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -51,6 +53,7 @@ import {
   renderBroadcastBlockHtml,
   type EmailRenderStyle,
 } from "@/lib/broadcasts/render"
+import { BROADCAST_BLOCK_ICONS } from "@/lib/broadcasts/block-icons"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useAppName } from "@/lib/branding"
@@ -106,7 +109,33 @@ export function BroadcastCanvas({
   onInsert,
   onDuplicate,
   onDelete,
+  inPanel = false,
+  onOpenBlockSettings,
+  onRichTextChange,
+  onFieldChange,
 }: {
+  /**
+   * A cog in each block's bar; only it opens the block's options (Tyler,
+   * 7 Nov 2026: "There should be a setting cog here and only clicking it
+   * opens the dropdown"). Handed where the cog is, for the options to open
+   * beside it.
+   */
+  onOpenBlockSettings?: (blockId: string, at: { x: number; y: number }) => void
+  /** Rich text is written straight into the block, not in its options. */
+  onRichTextChange?: (blockId: string, html: string) => void
+  /**
+   * The subject and preview line typed straight onto the email rather than
+   * in the options (Tyler, 7 Nov 2026: "I should be able to edit the subject
+   * inline", then "preview as well").
+   */
+  onFieldChange?: (field: "subject" | "preheader", value: string) => void
+  /**
+   * Drawn in the CRM's right panel: the panel stays white and the email sits
+   * on it as a faint grey box (Tyler, 7 Nov 2026: "make bg white ... and the
+   * email box light gray instead", then "its supposed to be faint light gray"). The full-page editors keep the grey
+   * backdrop and the white sheet.
+   */
+  inPanel?: boolean
   blocks: BroadcastBlock[]
   subject: string
   preheader: string
@@ -156,9 +185,18 @@ export function BroadcastCanvas({
   }
 
   return (
-    <ScrollArea className="h-full min-h-0 flex-1 bg-muted/30">
+    // In the CRM's right panel the space round the email is the panel's own
+    // colour. It was the page's, which dark mode draws near black, so the
+    // panel went black under the email (Tyler, 7 Nov 2026: "why is this bg
+    // black").
+    // In the CRM's right panel, no colour of its own: the panel is the card,
+    // and its cover fades in behind the email as the left page's does
+    // (Tyler, 8 Nov 2026: "broadcast got cut off").
+    <ScrollArea className={cn("h-full min-h-0 flex-1", !inPanel && "bg-muted/30")}>
       <div
-        className="flex w-full flex-col items-center px-6 py-8"
+        // In the CRM's panel the space above the email is the space at its
+        // sides (Tyler, 7 Nov 2026: "top padding must match sides").
+        className={cn("flex w-full flex-col items-center px-6", inPanel ? "py-6" : "py-8")}
         onClick={handleBackgroundClick}
       >
         <div
@@ -168,12 +206,32 @@ export function BroadcastCanvas({
           {/* Subject, preview line and the blocks are one sheet of paper. No
               `overflow-hidden`: the corner tag and the hover toolbar sit
               slightly outside their block and would be clipped away. */}
-          <div className="rounded-lg bg-white ring-1 ring-black/10">
-            <SubjectCard
-              subject={subject}
-              preheader={preheader}
-              onOpenSettings={onOpenSettings}
-            />
+          <div
+            className={cn(
+              "rounded-lg",
+              // In the CRM the email follows the theme (Tyler, 7 Nov 2026:
+              // "this is not theme sensative"): a faint grey of the theme's own,
+              // and in dark mode the email's white grounds and dark words give
+              // way to the theme's (`crm-email-sheet` below). The full-page
+              // editors keep the white sheet a reader receives.
+              inPanel ? "crm-email-sheet bg-muted/40 ring-1 ring-border" : "bg-white ring-1 ring-black/10"
+            )}
+          >
+            {inPanel ? (
+              <style>{`
+                .dark .crm-email-sheet [data-email-html] { color: var(--foreground); }
+                .dark .crm-email-sheet [data-email-html] *:not(a) { background-color: transparent !important; color: inherit !important; border-color: var(--border) !important; }
+              `}</style>
+            ) : null}
+            {onFieldChange && !disabled ? (
+              <SubjectFields subject={subject} preheader={preheader} onChange={onFieldChange} />
+            ) : (
+              <SubjectCard
+                subject={subject}
+                preheader={preheader}
+                onOpenSettings={onOpenSettings}
+              />
+            )}
 
             {blocks.length === 0 ? (
               <EmptyEmail disabled={disabled} onInsert={onInsert} />
@@ -204,6 +262,12 @@ export function BroadcastCanvas({
                       onInsertAfter={(kind) => onInsert(kind, index + 1)}
                       onDuplicate={() => onDuplicate(block.id)}
                       onDelete={() => onDelete(block.id)}
+                      onOpenSettings={
+                        onOpenBlockSettings ? (at) => onOpenBlockSettings(block.id, at) : undefined
+                      }
+                      onRichTextChange={
+                        onRichTextChange ? (html) => onRichTextChange(block.id, html) : undefined
+                      }
                     />
                   ))}
                 </SortableContext>
@@ -253,6 +317,55 @@ function SubjectCard({
         muted
       />
     </button>
+  )
+}
+
+/**
+ * The subject and preview line as boxes typed into in place, laid out as the
+ * card above them is: the small label, then the words. They save with the
+ * rest of the email, 700ms after the last key.
+ */
+function SubjectFields({
+  subject,
+  preheader,
+  onChange,
+}: {
+  subject: string
+  preheader: string
+  onChange: (field: "subject" | "preheader", value: string) => void
+}) {
+  const subjectId = React.useId()
+  const preheaderId = React.useId()
+  const box =
+    "min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 placeholder:italic focus-visible:ring-0"
+  return (
+    <div
+      data-subject-card=""
+      className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5 rounded-t-lg border-b px-5 py-4"
+    >
+      <label htmlFor={subjectId}>
+        <PreviewFieldLabel>Subject</PreviewFieldLabel>
+      </label>
+      <input
+        id={subjectId}
+        value={subject}
+        maxLength={500}
+        placeholder="What this email is about"
+        className={cn(box, "font-medium text-foreground")}
+        onChange={(event) => onChange("subject", event.target.value)}
+      />
+      <label htmlFor={preheaderId}>
+        <PreviewFieldLabel>Preview</PreviewFieldLabel>
+      </label>
+      <input
+        id={preheaderId}
+        value={preheader}
+        maxLength={500}
+        placeholder="The grey line the inbox shows next to it"
+        className={cn(box, "text-muted-foreground")}
+        onChange={(event) => onChange("preheader", event.target.value)}
+      />
+    </div>
   )
 }
 
@@ -340,7 +453,11 @@ function SortableBlock({
   onInsertAfter,
   onDuplicate,
   onDelete,
+  onOpenSettings,
+  onRichTextChange,
 }: {
+  onOpenSettings?: (at: { x: number; y: number }) => void
+  onRichTextChange?: (html: string) => void
   block: BroadcastBlock
   appName: string
   renderStyle: EmailRenderStyle
@@ -412,13 +529,34 @@ function SortableBlock({
           selected && "after:border-foreground"
         )}
       >
-        {empty ? (
+        {block.kind === "richText" && onRichTextChange && !disabled ? (
+          // Written in place. Its keys and clicks stay inside it, so Enter
+          // and Space type rather than pressing the block around it.
+          <div
+            // In dark mode the block's own ground (white unless changed) gives
+            // way to the theme's, or white words would sit on white.
+            className="cursor-text text-foreground dark:!bg-transparent"
+            style={{ backgroundColor: block.content.backgroundColor, padding: block.content.padding }}
+            onKeyDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <RichTextEditor
+              inline
+              mergeTags
+              allowImages
+              placeholder="Write here"
+              value={block.content.htmlContent}
+              onChange={onRichTextChange}
+            />
+          </div>
+        ) : empty ? (
           <EmptyBlock kind={block.kind} name={name} />
         ) : (
           <div
             // Links in here are part of the picture, not things to follow, so
             // they take no pointer at all — the click goes to the block behind
             // them and opens its options like anywhere else in the block.
+            data-email-html=""
             className="[&_a]:pointer-events-none"
             // The HTML here comes from our own renderer, over content that was
             // cleaned when it was saved — never from raw user markup.
@@ -453,6 +591,7 @@ function SortableBlock({
             listeners={listeners}
             onDuplicate={onDuplicate}
             onDelete={onDelete}
+            onOpenSettings={onOpenSettings}
           />
           <InsertHere name={name} onInsert={onInsertAfter} />
         </>
@@ -523,7 +662,9 @@ function BlockControls({
   listeners,
   onDuplicate,
   onDelete,
+  onOpenSettings,
 }: {
+  onOpenSettings?: (at: { x: number; y: number }) => void
   name: string
   selected: boolean
   attributes: DraggableAttributes
@@ -539,6 +680,26 @@ function BlockControls({
         selected && "opacity-100"
       )}
     >
+      {onOpenSettings ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Options for the ${name} block`}
+              onClick={(event) => {
+                event.stopPropagation()
+                const box = event.currentTarget.getBoundingClientRect()
+                onOpenSettings({ x: box.right, y: box.bottom })
+              }}
+            >
+              <SettingsIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Options</TooltipContent>
+        </Tooltip>
+      ) : null}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -646,11 +807,15 @@ function InsertMenu({
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="center" className="w-44">
-        {BROADCAST_BLOCK_KINDS.map((kind) => (
-          <DropdownMenuItem key={kind} onSelect={() => onInsert(kind)}>
-            {BROADCAST_BLOCK_META[kind].name}
-          </DropdownMenuItem>
-        ))}
+        {BROADCAST_BLOCK_KINDS.map((kind) => {
+          const Icon = BROADCAST_BLOCK_ICONS[kind]
+          return (
+            <DropdownMenuItem key={kind} onSelect={() => onInsert(kind)}>
+              <Icon className="size-4 text-muted-foreground" />
+              {BROADCAST_BLOCK_META[kind].name}
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

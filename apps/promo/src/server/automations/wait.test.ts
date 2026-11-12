@@ -122,13 +122,12 @@ async function insertSequence(stopOnClick = true) {
   })
 }
 
-async function addToSegment(label: string, userId?: string) {
+async function addToSegment(label: string) {
   const contactId = uuid()
   const timestamp = now()
   await database.insert(customShellContacts).values({
     id: contactId,
     workspaceId,
-    userId,
     email: `${label}@example.test`,
     firstName: label,
     status: "subscribed",
@@ -292,7 +291,7 @@ describe("Wait", () => {
       workspaceId,
       ownerId,
       automationId,
-      contactId,
+      `c:${contactId}`,
       database
     )
     await runAutomationTick(database)

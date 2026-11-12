@@ -90,7 +90,7 @@ const ENGINE_CRASH = "test-engine-crash"
 const approval = {
   kind: "waitForApproval",
   settings: {
-    summary: "Sends the changelog email to 42 paying members.",
+    summary: "Sends the weekly email to 42 paying members.",
     timeoutDays: 3,
   },
 }
@@ -100,7 +100,6 @@ async function insertContact(
     email: string
     firstName?: string
     lastName?: string
-    userId?: string
     status?: "subscribed" | "unsubscribed" | "cold"
     workspaceId?: string
   }
@@ -111,7 +110,6 @@ async function insertContact(
     .values({
       id: uuid(),
       workspaceId: values.workspaceId ?? site,
-      userId: values.userId ?? null,
       email: values.email,
       firstName: values.firstName ?? null,
       lastName: values.lastName ?? null,
@@ -184,7 +182,7 @@ describe("running a flow", () => {
     expect(automationExecutorMayRunInTest("future-member-write")).toBe(false)
   })
 
-  it("starts a test run with one contact and the admin's saved address", async () => {
+  it("starts a test run with one account and the admin's saved address", async () => {
     const admin = await insertUser(db, {
       role: "admin",
       email: "admin@example.test",
@@ -193,41 +191,36 @@ describe("running a flow", () => {
       email: "member@example.test",
       name: "Sam Member",
     })
-    const contact = await insertContact({
-      email: "member@example.test",
-      firstName: "Sam",
-      lastName: "Member",
-      userId: member.id,
-    })
     const automation = await insertAutomation(admin.id, [placeholder])
 
+    // An account is tested as itself: accounts are not on the subscriber list.
     const run = await startAutomationTestRun(
       site,
       admin.id,
       automation.id,
-      contact.id,
+      `a:${member.id}`,
       db
     )
 
     expect(run).toMatchObject({
       testRun: true,
       testRecipientEmail: "admin@example.test",
-      subjectContactId: contact.id,
+      subjectContactId: null,
       subjectUserId: member.id,
       subjectLabel: "Sam Member (member@example.test)",
     })
   })
 
-  it("tests with a contact that has no account", async () => {
+  it("tests with a subscriber", async () => {
     const admin = await insertUser(db, { role: "admin" })
     const lead = await insertContact({ email: "lead@example.test" })
     const automation = await insertAutomation(admin.id, [placeholder])
 
     expect(await listAutomationTestContacts(site, "lead", db)).toEqual([
-      { id: lead.id, userId: null, name: "", email: "lead@example.test" },
+      { id: `c:${lead.id}`, kind: "subscriber", contactId: lead.id, userId: null, name: "", email: "lead@example.test" },
     ])
     await expect(
-      startAutomationTestRun(site, admin.id, automation.id, lead.id, db)
+      startAutomationTestRun(site, admin.id, automation.id, `c:${lead.id}`, db)
     ).resolves.toMatchObject({
       testRun: true,
       subjectContactId: lead.id,
@@ -247,7 +240,7 @@ describe("running a flow", () => {
       site,
       admin.id,
       automation.id,
-      lead.id,
+      `c:${lead.id}`,
       db
     )
     await runAutomationTick(db)
@@ -277,31 +270,24 @@ describe("running a flow", () => {
       startAutomationRun(site, admin.id, automation.id, db)
     ).rejects.toThrow("REQUIRES_SUBJECT")
     await expect(
-      startAutomationTestRun(site, admin.id, automation.id, contact.id, db)
+      startAutomationTestRun(site, admin.id, automation.id, `c:${contact.id}`, db)
     ).resolves.toMatchObject({ testRun: true, subjectContactId: contact.id })
   })
 
-  it("refuses a contact a real send could not reach", async () => {
+  it("refuses a person a real send could not reach", async () => {
     const admin = await insertUser(db, { role: "admin" })
     const inactive = await insertUser(db, { status: "suspended" })
-    const adminContact = await insertContact({
-      email: "admin-contact@example.test",
-      userId: admin.id,
-    })
-    const inactiveContact = await insertContact({
-      email: "inactive@example.test",
-      userId: inactive.id,
-    })
     const unsubscribed = await insertContact({
       email: "gone@example.test",
       status: "unsubscribed",
     })
     const automation = await insertAutomation(admin.id, [placeholder])
 
+    // An admin, a suspended account and an opted-out subscriber are never offered.
     expect(await listAutomationTestContacts(site, "", db)).toEqual([])
-    for (const contact of [adminContact, inactiveContact, unsubscribed]) {
+    for (const key of [`a:${admin.id}`, `a:${inactive.id}`, `c:${unsubscribed.id}`]) {
       await expect(
-        startAutomationTestRun(site, admin.id, automation.id, contact.id, db)
+        startAutomationTestRun(site, admin.id, automation.id, key, db)
       ).rejects.toThrow("CONTACT_NOT_FOUND")
     }
   })
@@ -319,7 +305,7 @@ describe("running a flow", () => {
       []
     )
     await expect(
-      startAutomationTestRun(site, admin.id, automation.id, otherContact.id, db)
+      startAutomationTestRun(site, admin.id, automation.id, `c:${otherContact.id}`, db)
     ).rejects.toThrow("CONTACT_NOT_FOUND")
   })
 
@@ -741,7 +727,7 @@ describe("approval checkpoints", () => {
     expect(row.status).toBe("waiting_approval")
     expect(row.approvalNodeId).toBe("n1")
     expect(row.approvalSummary).toBe(
-      "Sends the changelog email to 42 paying members."
+      "Sends the weekly email to 42 paying members."
     )
     expect(row.approvalDeadlineAt).not.toBeNull()
     // Nothing is holding it: the claim is back and no decision has been made.
@@ -759,7 +745,7 @@ describe("approval checkpoints", () => {
 
     const page = await getNotificationPage({ currentUser: user, database: db })
     expect(page.notifications[0]?.automation_approval_summary).toBe(
-      "Sends the changelog email to 42 paying members."
+      "Sends the weekly email to 42 paying members."
     )
   })
 

@@ -159,6 +159,13 @@ export type ShellStyling = {
   hiddenCrmSections?: string[]
   /** The CRM's section order, as `adminSectionOrder` (9 Nov 2026). */
   crmSectionOrder?: string[]
+  /**
+   * The same pair for the Automations dashboard's Dashboards block (Tyler,
+   * 11 Nov 2026: "add this same feature for all apps that has dashboards
+   * block"): the sections it leaves out, and their order.
+   */
+  hiddenAutomationSections?: string[]
+  automationSectionOrder?: string[]
   /** Stages the CRM's Leads card leaves out, from its ⋮ (9 Nov 2026). */
   hiddenLeadStages?: string[]
   /**
@@ -214,6 +221,15 @@ export type ShellStyling = {
   panelCardInset?: number
   panelCardBodyShade?: number
   panelCardEdgeToEdge?: boolean
+  /**
+   * How solid the first card in each side panel is, 0 to 100, heading and
+   * rows alike, so the panel's cover photo shows through it (Tyler, 11 Nov
+   * 2026: "adjust the whole card so that the image in the background can see
+   * through"). 0 is wholly clear with no blur ("when its 0, its completely
+   * see through in that theres no blur at all"); the blur grows with it to
+   * 12px. Unset is 100, the look it always had.
+   */
+  panelCardOpacity?: number
 }
 
 /**
@@ -443,6 +459,11 @@ export function clampBlockBorder(value: unknown): number {
   return clampInt(value, 0, MAX_BLOCK_BORDER, DEFAULT_BLOCK_BORDER)
 }
 
+/** The first side panel card's Opacity, 0 clear to 100 solid; unset is solid. */
+export function clampPanelCardOpacity(value: unknown): number {
+  return clampInt(value, 0, 100, 100)
+}
+
 export function clampBlockShadow(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_BLOCK_SHADOW)
 }
@@ -624,6 +645,12 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(Array.isArray(styling.crmSectionOrder)
       ? { crmSectionOrder: cleanHiddenSections(styling.crmSectionOrder) }
       : {}),
+    ...(Array.isArray(styling.hiddenAutomationSections)
+      ? { hiddenAutomationSections: cleanHiddenSections(styling.hiddenAutomationSections) }
+      : {}),
+    ...(Array.isArray(styling.automationSectionOrder)
+      ? { automationSectionOrder: cleanHiddenSections(styling.automationSectionOrder) }
+      : {}),
     ...(Array.isArray(styling.hiddenLeadStages)
       ? { hiddenLeadStages: cleanHiddenSections(styling.hiddenLeadStages) }
       : {}),
@@ -653,6 +680,9 @@ export function normalizeStyling(value: unknown): ShellStyling {
       ? {}
       : { panelCardBodyShade: clampBlockBodyShade(styling.panelCardBodyShade) }),
     ...(typeof styling.panelCardEdgeToEdge === "boolean" ? { panelCardEdgeToEdge: styling.panelCardEdgeToEdge } : {}),
+    ...(styling.panelCardOpacity === undefined
+      ? {}
+      : { panelCardOpacity: clampPanelCardOpacity(styling.panelCardOpacity) }),
   }
 }
 
@@ -943,6 +973,7 @@ function sliderShade(bg: ShellBackground | undefined, fallback: number) {
  * own fallback shows.
  */
 export function getPanelCardStyleVars(styling: ShellStyling): Record<string, string> {
+  const firstOpacity = clampPanelCardOpacity(styling.panelCardOpacity)
   const vars: Record<string, string> = {
     "--shell-panel-card-border-width": String(
       clampCardBorderWidth(styling.panelCardBorderWidth ?? DEFAULT_PANEL_CARD_BORDER_WIDTH)
@@ -960,6 +991,9 @@ export function getPanelCardStyleVars(styling: ShellStyling): Record<string, str
     "--shell-panel-card-tile-top": styling.panelCardBodyShade === undefined ? "0px" : "12px",
     // 1 reaches past the panel's space, 0 keeps it; the card multiplies.
     "--shell-panel-card-bleed": styling.panelCardEdgeToEdge === true ? "1" : "0",
+    // How solid the first card in each side panel is, and its blur with it.
+    "--shell-panel-first-opacity": `${firstOpacity}%`,
+    "--shell-panel-first-blur": `${(firstOpacity * 12) / 100}px`,
   }
   const background = resolveBackground(styling.panelCardBackground ?? DEFAULT_PANEL_CARD_COLOR, {
     base: "--muted",
@@ -984,4 +1018,6 @@ export const PANEL_CARD_STYLE_VAR_NAMES = [
   "--shell-panel-card-body",
   "--shell-panel-card-tile-top",
   "--shell-panel-card-bleed",
+  "--shell-panel-first-opacity",
+  "--shell-panel-first-blur",
 ] as const

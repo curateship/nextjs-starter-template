@@ -10,7 +10,6 @@ const api = vi.hoisted(() => ({
   loadContacts: vi.fn(),
 }))
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 
 vi.mock("@/lib/toast/error-toast", () => ({
   dismissErrorToast: vi.fn(),

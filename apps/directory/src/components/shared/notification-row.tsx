@@ -4,10 +4,10 @@ import {
   CircleAlertIcon,
   GaugeIcon,
   GitMergeIcon,
+  MailIcon,
   MegaphoneIcon,
   MailWarningIcon,
   MessageSquareIcon,
-  SparklesIcon,
   ThumbsUpIcon,
   UserCheckIcon,
   UserRoundCogIcon,
@@ -62,7 +62,6 @@ function approvalState(item: NotificationItem) {
 /** Every notice the app sends about itself rather than about a person's doing. */
 function isFromTheApp(item: NotificationItem) {
   return (
-    item.type === "changelog" ||
     item.type === "announcement" ||
     item.type === "automation_approval" ||
     item.type === "automation_failed" ||
@@ -135,7 +134,6 @@ function ShellNotificationIcon({
   item: NotificationItem
   className?: string
 }) {
-  if (item.type === "changelog") return <SparklesIcon className={className} />
   if (item.type === "announcement") return <MegaphoneIcon className={className} />
   if (item.type === "automation_approval")
     return <UserCheckIcon className={className} />
@@ -148,6 +146,7 @@ function ShellNotificationIcon({
   if (item.type === "app_activity") return <ActivityIcon className={className} />
   if (item.type === "crm_follow_up")
     return <CalendarClockIcon className={className} />
+  if (item.type === "crm_mail_arrived") return <MailIcon className={className} />
   if (isAiLimitNotification(item.type)) return <GaugeIcon className={className} />
   if (item.type === "feedback_merged")
     return <GitMergeIcon className={className} />
@@ -163,7 +162,6 @@ function shellHeadingText(item: NotificationItem): string {
   if (carriesItsOwnWords(item.type)) {
     return item.message ?? "The app needs attention"
   }
-  if (item.type === "changelog") return "New update shipped"
   if (isAiLimitNotification(item.type)) {
     return aiLimitNotificationText[item.type].message
   }
@@ -186,19 +184,17 @@ function notificationText(item: NotificationItem) {
   const text =
     carriesItsOwnWords(item.type)
       ? (item.detail ?? "")
-      : item.type === "changelog"
-        ? (item.changelog_title ?? "")
-        : item.type === "announcement"
-          ? (item.announcement_body ?? "")
-          : item.type === "automation_approval"
-            ? approvalSummary
-              ? `${approvalText.message}. ${approvalSummary}`
-              : approvalText.detail
-            : item.type === "automation_failed"
-              ? `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
-              : isAiLimitNotification(item.type)
-                ? aiLimitNotificationText[item.type].detail
-                : (item.feedback_message ?? "")
+      : item.type === "announcement"
+        ? (item.announcement_body ?? "")
+        : item.type === "automation_approval"
+          ? approvalSummary
+            ? `${approvalText.message}. ${approvalSummary}`
+            : approvalText.detail
+          : item.type === "automation_failed"
+            ? `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
+            : isAiLimitNotification(item.type)
+              ? aiLimitNotificationText[item.type].detail
+              : (item.feedback_message ?? "")
 
   return text
 }

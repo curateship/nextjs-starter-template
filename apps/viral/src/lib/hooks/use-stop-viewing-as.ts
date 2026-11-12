@@ -23,7 +23,7 @@ export function useStopViewingAs() {
     setLeaving(true)
     try {
       await stopViewingAsMember()
-      window.location.href = "/admin/users"
+      window.location.href = "/admin/dashboard?tab=users"
     } catch (error) {
       setLeaving(false)
       showErrorToast(getViewAsErrorMessage(error))

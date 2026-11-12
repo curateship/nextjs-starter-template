@@ -3,6 +3,8 @@ import { requireCurrentWorkspace, parseWorkspaceSettings } from "@/server/people
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
+import { skyCitySchema } from "@/lib/notes/sky-city"
+
 import { appPublicTheme } from "@/lib/app-options"
 import { ROLE_ID_PATTERN } from "@/lib/role-id"
 import {
@@ -21,7 +23,6 @@ import {
   SOCIAL_CARD_TYPES,
   normalizeShareImage,
 } from "@/lib/pages/public-metadata"
-import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
 import {
   brandImagesAreCurrent,
   type BrandImages,
@@ -103,6 +104,11 @@ import {
   DASHBOARD_TAB_STYLES,
   DEFAULT_DARK_SHADE,
   SHELL_BACKGROUND_MODES,
+  DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  MAX_STEP_LIST_WIDTH,
+  MIN_STEP_LIST_WIDTH,
+  MAX_SIDE_PANEL_WIDTH,
 } from "@/lib/layout/styling-values"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
@@ -182,6 +188,15 @@ const shellSectionSchema = z.object({
   entries: z.array(shellEntrySchema),
 })
 
+/** One link the admin added, in the header row or inside the Settings cog. */
+const shellTopRightLinkSchema = z.object({
+  type: z.literal("link"),
+  id: z.string().min(1),
+  label: z.string(),
+  href: z.string(),
+  icon: shellIconSchema,
+})
+
 /**
  * Both header rows are the same shape — the admin's own, and the members'. The
  * client normalizes what it reads (normalizeTopRightNavigation), so a save only
@@ -194,6 +209,9 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     // refused here by a copy of the names nobody remembered to change.
     id: z.enum(TOP_RIGHT_NAVIGATION_ITEM_IDS),
     visible: z.boolean(),
+    // The links inside the Settings cog's panel. Left out of the schema, zod
+    // would drop them on every save without a word.
+    links: z.array(shellTopRightLinkSchema).max(50).optional(),
   }),
   z.object({
     type: z.literal("app"),
@@ -201,13 +219,7 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     visible: z.boolean(),
     foldsOnPhone: z.boolean().optional(),
   }),
-  z.object({
-    type: z.literal("link"),
-    id: z.string().min(1),
-    label: z.string(),
-    href: z.string(),
-    icon: shellIconSchema,
-  }),
+  shellTopRightLinkSchema,
 ])
 
 /** One link in the top-left shortcuts row. */
@@ -249,7 +261,45 @@ const shellStylingSchema = z.object({
   modal: shellModalStylingSchema,
   dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
   sidebarShade: z.number().int().min(0).max(100).optional(),
+  sidebarBorderShade: z.number().int().min(0).max(100).optional(),
   pageShade: z.number().int().min(0).max(100).optional(),
+  blockRadius: z.number().int().min(0).max(32).optional(),
+  blockShade: z.number().int().min(0).max(100).optional(),
+  blockInset: z.number().int().min(0).max(16).optional(),
+  blockBodyShade: z.number().int().min(0).max(100).optional(),
+  blockBorder: z.number().int().min(0).max(3).optional(),
+  blockShadow: z.number().int().min(0).max(100).optional(),
+  blockBorderShade: z.number().int().min(0).max(100).optional(),
+  blockEdgeToEdge: z.boolean().optional(),
+  leftPanelWidth: z.number().int().min(DEFAULT_LEFT_PANEL_WIDTH).max(MAX_SIDE_PANEL_WIDTH).optional(),
+  // The same floor the Side panels slider and every dashboard use (12%). It
+  // said 16 after the default moved, so saving any styling setting with the
+  // right width under 16 was refused with a raw "too_small" message.
+  rightPanelWidth: z.number().int().min(DEFAULT_RIGHT_PANEL_WIDTH).max(MAX_SIDE_PANEL_WIDTH).optional(),
+  stepListWidth: z.number().int().min(MIN_STEP_LIST_WIDTH).max(MAX_STEP_LIST_WIDTH).optional(),
+  hiddenAdminSections: z.array(z.string().min(1).max(40)).max(20).optional(),
+  hiddenCrmSections: z.array(z.string().min(1).max(40)).max(20).optional(),
+  adminSectionOrder: z.array(z.string().min(1).max(40)).max(20).optional(),
+  crmSectionOrder: z.array(z.string().min(1).max(40)).max(20).optional(),
+  hiddenAutomationSections: z.array(z.string().min(1).max(40)).max(20).optional(),
+  automationSectionOrder: z.array(z.string().min(1).max(40)).max(20).optional(),
+  hiddenLeadStages: z.array(z.string().min(1).max(40)).max(20).optional(),
+  widgetRadius: z.number().int().min(0).max(32).optional(),
+  widgetShade: z.number().int().min(0).max(100).optional(),
+  widgetInset: z.number().int().min(0).max(16).optional(),
+  widgetBodyShade: z.number().int().min(0).max(100).optional(),
+  widgetBorder: z.number().int().min(0).max(3).optional(),
+  widgetBorderShade: z.number().int().min(0).max(100).optional(),
+  widgetShadow: z.number().int().min(0).max(100).optional(),
+  panelCardBackground: shellBackgroundSchema.optional(),
+  panelCardBorderWidth: z.number().int().min(0).max(3).optional(),
+  panelCardBorderColor: shellBackgroundSchema.optional(),
+  panelCardRadius: z.number().int().min(0).max(32).optional(),
+  panelCardShadow: z.number().int().min(0).max(100).optional(),
+  panelCardOpacity: z.number().int().min(0).max(100).optional(),
+  panelCardInset: z.number().int().min(0).max(16).optional(),
+  panelCardBodyShade: z.number().int().min(0).max(100).optional(),
+  panelCardEdgeToEdge: z.boolean().optional(),
 })
 
 const publicNavigationLinkSchema = z.object({
@@ -408,26 +458,6 @@ const publicThemePresetsSchema = z
   )
   .max(MAX_PUBLIC_THEME_PRESETS)
 
-
-/**
- * Each slot as written, checked for shape only: `normalizeDashboardWidgets` in
- * the handler is what decides which ids survive, and it drops anything no
- * widget answers to along with any widget placed twice.
- *
- * Deliberately not an enum of today's widget ids. A tab left open from before a
- * widget was retired would then fail this whole request — taking every other
- * settings edit on the page down with it — where dropping the dead id quietly
- * is both safer and what the row ends up holding either way. The lengths are
- * capped because this is the only door into that row.
- */
-const widgetSlotSchema = z.array(z.string().max(64)).max(50)
-
-const dashboardWidgetsSchema = z.object({
-  top: widgetSlotSchema,
-  left: widgetSlotSchema,
-  right: widgetSlotSchema,
-})
-
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -453,6 +483,9 @@ const shellConfigSchema = z.object({
   topLeftShortcuts: z.array(shellTopLeftShortcutSchema).max(50).optional(),
   adminRoute: z.string().catch(""),
   memberHomeRoute: z.string().catch(""),
+  // Optional, and the saved city is kept when it is missing, so a settings
+  // tab opened before the field existed cannot wipe it on its next save.
+  skyCity: skyCitySchema.nullable().optional(),
   workspaceLogo: z.string().trim().max(2048),
   workspaceShareImage: z.string().trim().max(2048),
   // The one brand image. It is the signed-out logo and the browser-tab icon,
@@ -555,7 +588,6 @@ const shellConfigSchema = z.object({
     idleMinutes: z.number().int().min(0),
   }),
   styling: shellStylingSchema,
-  dashboardWidgets: dashboardWidgetsSchema,
 })
 
 /**
@@ -670,7 +702,6 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
             styling: data.styling,
-            dashboardWidgets: normalizeDashboardWidgets(data.dashboardWidgets),
           },
           updatedAt,
         })
@@ -758,6 +789,7 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
           topLeftShortcuts:
             data.topLeftShortcuts ?? existingGlobals.topLeftShortcuts,
           roleSections: data.roleSections ?? existingGlobals.roleSections,
+          skyCity: data.skyCity === undefined ? existingGlobals.skyCity : data.skyCity,
         }),
         publicTheme: publicThemeOverrides(nextPublicTheme, appPublicTheme()),
         maintenance: {

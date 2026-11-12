@@ -20,25 +20,24 @@ describe("pricing choice search", () => {
 })
 
 describe("registration choice search", () => {
-  it("keeps a valid invite code with the pricing choice", () => {
+  it("keeps the pricing choice and a carried email", () => {
     expect(
       readRegistrationChoice({
         plan: "pro",
         interval: "monthly",
-        ref: "A".repeat(32),
+        email: "ada@example.com",
       })
     ).toEqual({
       plan: "pro",
       interval: "monthly",
-      ref: "a".repeat(32),
+      email: "ada@example.com",
     })
   })
 
-  it("marks a malformed invite code so registration can refuse it", () => {
-    expect(readRegistrationChoice({ ref: "not-a-code" })).toEqual({
+  it("drops an old invite link's code so the page opens as a plain signup", () => {
+    expect(readRegistrationChoice({ ref: "a".repeat(32) })).toEqual({
       plan: undefined,
       interval: undefined,
-      invalidReferral: true,
     })
   })
 })

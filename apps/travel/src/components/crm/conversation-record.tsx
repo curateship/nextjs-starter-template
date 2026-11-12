@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { ConversationPanel } from "@/components/crm/conversation-panel"
 import { blockAddress, getBlockedSenderErrorMessage } from "@/lib/api/crm/blocked"
@@ -44,7 +43,6 @@ export async function blockAndCloseThread(threadId: string, address: string, onD
     return
   }
 
-  toast.success(`Mail from ${address} will not reach the inbox. Settings → Email unblocks it.`)
   onDone()
 }
 
@@ -201,7 +199,6 @@ export function ConversationRecord({
         if (!conversation) return
         try {
           await setConversationSaved(conversation.id, saved)
-          toast.success(saved ? "Saved." : "Taken out of Saved.")
           reloadBoth()
         } catch (error) {
           showErrorToast(getCrmErrorMessage(error))

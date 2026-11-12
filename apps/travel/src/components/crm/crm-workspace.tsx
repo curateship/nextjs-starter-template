@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { blockAndCloseThread, ConversationRecord } from "@/components/crm/conversation-record"
 import type { CrmFrame } from "@/components/crm/crm-frame"
@@ -29,7 +28,6 @@ import {
   type ReplyDraftUpdate,
   type ReplyDrafts,
 } from "@/lib/crm/reply-drafts"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { STREAM_NUDGE_EVENT } from "@/lib/hooks/use-notification-stream"
@@ -256,17 +254,9 @@ export function CrmWorkspace({
     }
   }
 
-  /**
-   * One ticked-rows press: one request, one honest sentence, one redraw.
-   *
-   * The count said is the count the server wrote. The ones that were already
-   * read or already closed are named separately and never folded in, because
-   * "20 closed" when three of them were shut yesterday is a number nobody can
-   * check.
-   */
+  /** One ticked-rows press: one request, one redraw. */
   const runOnTicked = async (
-    write: (threadIds: string[]) => Promise<ManyThreadsResult>,
-    words: { verb: string; keptReason: string }
+    write: (threadIds: string[]) => Promise<ManyThreadsResult>
   ) => {
     const threadIds = Array.from(ticks.selected)
     if (threadIds.length === 0 || tickedBusy) return
@@ -280,17 +270,7 @@ export function CrmWorkspace({
 
     setTickedBusy(true)
     try {
-      const { changed, unchanged } = await write(threadIds)
-      toast.success(
-        describeBulkResult({
-          done: changed,
-          kept: unchanged,
-          one: "conversation",
-          many: "conversations",
-          verb: words.verb,
-          keptReason: words.keptReason,
-        })
-      )
+      await write(threadIds)
       ticks.clear()
       // The list redraws itself, and the open conversation with it: closing a
       // set that includes the one on screen must not leave its header saying
@@ -319,7 +299,6 @@ export function CrmWorkspace({
   const changeSaved = async (threadId: string, saved: boolean) => {
     try {
       await setConversationSaved(threadId, saved)
-      toast.success(saved ? "Saved." : "Taken out of Saved.")
       if (threadId === openThreadId) reloadThread()
       onReloadInbox()
     } catch (error) {
@@ -385,10 +364,7 @@ export function CrmWorkspace({
       onToggleTick={ticks.toggle}
       onClearTicks={ticks.clear}
       onMarkTickedRead={() =>
-        void runOnTicked(markConversationsRead, {
-          verb: "marked read",
-          keptReason: "already read",
-        })
+        void runOnTicked(markConversationsRead)
       }
       onLoadMore={loadMore}
     />

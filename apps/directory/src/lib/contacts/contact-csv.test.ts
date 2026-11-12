@@ -4,8 +4,15 @@ import {
   guessImportField,
   parseCsv,
   readImportRows,
-  SAMPLE_CONTACTS_CSV,
 } from "@/lib/contacts/contact-csv"
+
+/** A file in the headings `guessImportField` knows, as a spreadsheet saves one. */
+const SAMPLE_CONTACTS_CSV = [
+  "email,first_name,last_name,tags",
+  'maya@example.com,Maya,Chen,"creator, podcast"',
+  "jordan@example.com,Jordan,Reyes,course",
+  "sam@example.com,Sam,,",
+].join("\n")
 
 describe("parseCsv", () => {
   it("reads quoted cells holding commas, quotes and line breaks", () => {
@@ -39,7 +46,7 @@ describe("guessImportField", () => {
 })
 
 describe("readImportRows", () => {
-  it("reads the sample file as three people", () => {
+  it("reads a usual file as three people", () => {
     const [heading = [], ...rows] = parseCsv(SAMPLE_CONTACTS_CSV)
     const { rows: read, invalid } = readImportRows(rows, heading.map(guessImportField))
     expect(invalid).toBe(0)

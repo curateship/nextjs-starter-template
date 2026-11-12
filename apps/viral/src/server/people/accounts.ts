@@ -284,53 +284,6 @@ function toAccountRow(
 }
 
 /**
- * The newest accounts, for the Overview's table.
- *
- * Deliberately not `listAccounts` with a page size of five: that is three
- * round trips — the rows, then `count(*)`, then the default plan — and the
- * Overview needs neither the count nor a second plan read, because the page
- * has already read every plan. This is one query.
- */
-export async function loadNewestAccounts(
-  limit: number,
-  defaultPlan: { name: string; slug: string } | null | undefined,
-  database: CustomShellDb = db
-): Promise<AccountRow[]> {
-  const rows = await database
-    .select({
-      user: customShellUsers,
-      subscription: customShellSubscriptions,
-      plan: customShellPlans,
-    })
-    .from(customShellUsers)
-    .leftJoin(
-      customShellSubscriptions,
-      eq(customShellSubscriptions.userId, customShellUsers.id)
-    )
-    .leftJoin(
-      customShellPlans,
-      eq(customShellPlans.id, customShellSubscriptions.planId)
-    )
-    .orderBy(desc(customShellUsers.createdAt))
-    .limit(limit)
-
-  const timestamp = now()
-  const tagsByUser = await listMemberTags(
-    rows.map((row) => row.user.id),
-    database
-  )
-  return rows.map((row) =>
-    toAccountRow(
-      row,
-      defaultPlan,
-      timestamp,
-      false,
-      tagsByUser.get(row.user.id) ?? []
-    )
-  )
-}
-
-/**
  * Adds a person directly, instead of waiting for them to register themselves.
  *
  * Without a password the account starts with no password at all — nothing typed

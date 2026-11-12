@@ -159,6 +159,13 @@ export type ShellStyling = {
   hiddenCrmSections?: string[]
   /** The CRM's section order, as `adminSectionOrder` (9 Nov 2026). */
   crmSectionOrder?: string[]
+  /**
+   * The same pair for the Automations dashboard's Dashboards block (Tyler,
+   * 11 Nov 2026: "add this same feature for all apps that has dashboards
+   * block"): the sections it leaves out, and their order.
+   */
+  hiddenAutomationSections?: string[]
+  automationSectionOrder?: string[]
   /** Stages the CRM's Leads card leaves out, from its ⋮ (9 Nov 2026). */
   hiddenLeadStages?: string[]
   /**
@@ -637,6 +644,12 @@ export function normalizeStyling(value: unknown): ShellStyling {
       : {}),
     ...(Array.isArray(styling.crmSectionOrder)
       ? { crmSectionOrder: cleanHiddenSections(styling.crmSectionOrder) }
+      : {}),
+    ...(Array.isArray(styling.hiddenAutomationSections)
+      ? { hiddenAutomationSections: cleanHiddenSections(styling.hiddenAutomationSections) }
+      : {}),
+    ...(Array.isArray(styling.automationSectionOrder)
+      ? { automationSectionOrder: cleanHiddenSections(styling.automationSectionOrder) }
       : {}),
     ...(Array.isArray(styling.hiddenLeadStages)
       ? { hiddenLeadStages: cleanHiddenSections(styling.hiddenLeadStages) }

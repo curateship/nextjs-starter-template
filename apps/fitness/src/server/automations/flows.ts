@@ -13,7 +13,6 @@ import {
 } from "@/lib/automations/graph"
 import { sendEmailDraftSettingsSchema } from "@/lib/automations/nodes/send-email"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
-import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import {
   automationKindIsTrigger,
   automationNodeName,
@@ -21,7 +20,6 @@ import {
 import {
   automationCanStartManually,
   automationEntryNodeId,
-  automationTriggerKind,
 } from "@/lib/automations/run"
 import { db, type CustomShellDb } from "@/server/db"
 import { nextScheduledRunAt } from "@/server/automations/time-triggers"
@@ -30,7 +28,6 @@ import {
   resetJoinedSegmentWatch,
 } from "@/server/automations/segment-triggers"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -218,15 +215,6 @@ export async function setAutomationEnabled(
     !nextRunAt
   ) {
     throw new Error("SCHEDULE_FINISHED")
-  }
-  if (
-    enabled &&
-    inspected.compiledConfig &&
-    automationTriggerKind(inspected.compiledConfig) === joinedSegmentNode.kind
-  ) {
-    // Kept outside the flow-row transaction. The ticker syncs contacts before
-    // locking that row too, so both paths take locks in the same order.
-    await syncContactsFromUsers(workspaceId, database)
   }
   return database.transaction(async (tx) => {
     await tx.execute(sql`

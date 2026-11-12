@@ -23,7 +23,6 @@ import {
   getSegmentDefinition,
   segmentConditions,
 } from "@/server/people/contact-segments"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import {
   customShellAutomationDeliveries,
   customShellAutomationRuns,
@@ -272,7 +271,6 @@ async function letInNextBatch(
     const batch = await tx
       .select({
         id: customShellContacts.id,
-        userId: customShellContacts.userId,
         email: customShellContacts.email,
         firstName: customShellContacts.firstName,
         lastName: customShellContacts.lastName,
@@ -319,7 +317,8 @@ async function letInNextBatch(
           configSnapshot: trigger.config,
           wakeAt: timestamp,
           attempts: 0,
-          subjectUserId: contact.userId,
+          // A segment is subscribers only; accounts are not on the list.
+          subjectUserId: null,
           subjectContactId: contact.id,
           subjectLabel: contactLabel(contact),
           triggerKind: segmentDripNode.kind,
@@ -362,15 +361,6 @@ export async function runSegmentDripTriggers(
     if (segmentDripNextBatchAt(pace, row.id, last, timestamp) <= timestamp) {
       due.push(row)
     }
-  }
-
-  // Only a batch about to go needs the contact list brought up to date. The
-  // sync reads every contact in the workspace, and doing that every fifteen
-  // seconds for the days a long list takes to let in would be most of the
-  // ticker's work for nothing.
-  const workspaces = [...new Set(due.map((row) => row.workspaceId))]
-  for (const workspaceId of workspaces) {
-    await syncContactsFromUsers(workspaceId, database)
   }
 
   let started = 0

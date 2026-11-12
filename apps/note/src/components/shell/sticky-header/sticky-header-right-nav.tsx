@@ -25,10 +25,10 @@ import {
   type AppHeaderActionProps,
 } from "@/lib/app-options"
 import {
-  canSeeShellEntry,
-  isShellEntryNamed,
+  isTopRightLinkShown,
   normalizeTopRightNavigation,
   renderShellIcon,
+  settingsCogLinks,
   type ShellTopRightLink,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
@@ -141,9 +141,12 @@ function AppActionsOverflow({
   actions,
   role,
   withSettings,
+  cogLinks,
 }: {
   actions: readonly AppHeaderAction[]
   role: string
+  /** The cog's own links, drawn after its rows. */
+  cogLinks: readonly ShellTopRightLink[]
   /** False when the cog is switched off in the Top right menu. */
   withSettings: boolean
 }) {
@@ -206,7 +209,9 @@ function AppActionsOverflow({
             )}
           </div>
         ))}
-        {withSettings ? <QuickSettingsRows role={role} /> : null}
+        {withSettings ? (
+          <QuickSettingsRows role={role} links={cogLinks} />
+        ) : null}
       </PopoverContent>
     </Popover>
   )
@@ -230,6 +235,9 @@ export function StickyHeaderRightNav({
   // three-dot button drawn at the end of it, below, and the cog folds in with
   // them. The rest keep their place at every width.
   const isMobile = useIsMobile()
+  const cogLinks = settingsCogLinks(navItems).filter((link) =>
+    isTopRightLinkShown(link, role)
+  )
   const foldedActions = isMobile
     ? navItems.flatMap((item) => {
         if (item.type !== "app" || !item.visible) return []
@@ -242,13 +250,11 @@ export function StickyHeaderRightNav({
     <div className="flex items-center gap-1 pr-1 [&>[data-nav-shape=icon]+[data-nav-shape=text]]:ml-2 [&>[data-nav-shape=text]+[data-nav-shape=icon]]:ml-2">
       {navItems.map((item) => {
         if (item.type === "link") {
-          // The same rules the sidebar renders by: an unnamed or address-less
-          // link stays editable in Settings but never reaches the header, and
-          // a member is never shown a link to an admin page whatever the row
-          // says — the /admin route guard refuses them a second time anyway.
-          if (!isShellEntryNamed(item)) return null
-          if (!item.href.trim()) return null
-          if (!canSeeShellEntry(item, role)) return null
+          // An unnamed or address-less link stays editable in Settings but
+          // never reaches the header, and a member is never shown a link to an
+          // admin page whatever the row says; the /admin route guard refuses
+          // them a second time anyway.
+          if (!isTopRightLinkShown(item, role)) return null
           return <TopRightLinkButton key={item.id} link={item} />
         }
 
@@ -286,7 +292,9 @@ export function StickyHeaderRightNav({
           // folded controls, so the cog itself is not drawn there. An app that
           // folds nothing keeps its cog.
           if (foldedActions.length) return null
-          return <QuickSettingsMenu key={item.id} role={role} />
+          return (
+            <QuickSettingsMenu key={item.id} role={role} links={cogLinks} />
+          )
         }
 
         // Explicit, not a catch-all `else`: when links joined this list the
@@ -309,6 +317,7 @@ export function StickyHeaderRightNav({
         <AppActionsOverflow
           actions={foldedActions}
           role={role}
+          cogLinks={cogLinks}
           withSettings={navItems.some(
             (item) =>
               item.type !== "link" && item.id === "settings" && item.visible

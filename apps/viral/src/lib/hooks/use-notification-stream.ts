@@ -30,6 +30,15 @@ import * as React from "react"
 
 const STREAM_PATH = "/api/v1/notifications/stream"
 
+/**
+ * Said on the window each time the stream itself brings a nudge, and only
+ * then: never for the minute's fallback check, and never when the live bell
+ * is off. A screen that wants to hear about new things without a connection
+ * of its own listens for this (the CRM's live inbox, CRM task 33), so it
+ * rides the bell's one stream and its switch, and nothing polls.
+ */
+export const STREAM_NUDGE_EVENT = "shell:notification-stream-nudge"
+
 /** A burst of notices at once should be one check, not one each. */
 const NUDGE_DEBOUNCE_MS = 300
 
@@ -75,7 +84,10 @@ export function useNotificationStream({
       const opened = new EventSource(STREAM_PATH)
       source = opened
       opened.onopen = sync
-      opened.onmessage = sync
+      opened.onmessage = () => {
+        sync()
+        window.dispatchEvent(new Event(STREAM_NUDGE_EVENT))
+      }
       opened.onerror = () => {
         // A dropped stream is the browser's own job — it waits and reconnects,
         // and the `onopen` above then catches up on the gap. This only handles

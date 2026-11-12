@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, UploadIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -121,15 +120,11 @@ export function LeadImportDialog({
       showErrorToast("None of the rows has a real email address, so there is nobody to import.")
       return
     }
-    const totals = { added: 0, updated: 0, unchanged: 0 }
     setSent(0)
     for (let at = 0; at < read.rows.length; at += LEAD_IMPORT_BATCH) {
       const batch = read.rows.slice(at, at + LEAD_IMPORT_BATCH)
       try {
-        const result = await addLeads({ from: "csv", rows: batch })
-        totals.added += result.added
-        totals.updated += result.updated
-        totals.unchanged += result.unchanged
+        await addLeads({ from: "csv", rows: batch })
         setSent(at + batch.length)
       } catch (error) {
         setSent(null)
@@ -142,7 +137,6 @@ export function LeadImportDialog({
         return
       }
     }
-    toast.success(describeImport(totals, read.invalid))
     onClose()
     await onImported()
   }
@@ -279,21 +273,4 @@ function describeReady(ready: number, invalid: number): string {
   const people = `${ready.toLocaleString()} ${ready === 1 ? "lead" : "leads"} ready to import.`
   if (!invalid) return people
   return `${people} ${invalid.toLocaleString()} ${invalid === 1 ? "row has" : "rows have"} no real email address and will be left out.`
-}
-
-/** The toast once every batch is in. */
-function describeImport(
-  totals: { added: number; updated: number; unchanged: number },
-  invalid: number
-): string {
-  // A count of nothing is left unsaid: "Added 0" reads as a failure when the
-  // file simply held people already on the list.
-  const parts = [
-    totals.added ? `added ${totals.added.toLocaleString()}` : "",
-    totals.updated ? `updated ${totals.updated.toLocaleString()}` : "",
-    totals.unchanged ? `${totals.unchanged.toLocaleString()} already up to date` : "",
-    invalid ? `${invalid.toLocaleString()} left out with no real address` : "",
-  ].filter(Boolean)
-  const sentence = parts.join(", ") || "nobody new"
-  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`
 }

@@ -288,3 +288,16 @@ Every shell change since `04d976ea4` is in Pomodoro, up to the shell at `3d6037c
 
 **Checked.** Typecheck is clean apart from the two Pomodoro test files that were already behind its own code. The 397 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
 worktree, not workspace-4.
+
+## Shell merge, 12 November 2026
+
+Every shell change since `3d6037c83` is in Pomodoro, up to the shell at `9757749ff`: 6 files replaced. Each was an unedited copy of the shell at `3d6037c83`.
+
+**What arrived.**
+
+- **The Automations dashboard block has a ⋮.** Automations and Waiting on you each have an eye and a grip, so an admin can hide one or drag it into a new place. The choice is saved with the site's styling (`hiddenAutomationSections`, `automationSectionOrder`), so no migration.
+- **Dashboards block rows are 34px tall instead of 36px**, so 16px sits between one name and the next. Tyler, 11 Nov 2026: "add this same feature for all apps that has dashboards block" and "decrease the gap between the items by 10%".
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 39 tests in the styling, automations and notes folders pass. Not checked in a browser: no dev server on this app's port runs from workspace-4.

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
@@ -97,7 +96,6 @@ function ReportUnwantedSignInRoute() {
   return (
     <AuthShell title="Stopping that link" description="One moment…">
       <div className="flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground">
-        <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden />
         <span>We are checking your report.</span>
       </div>
     </AuthShell>

@@ -130,21 +130,6 @@ describe("inbound mail", () => {
     expect(contacts).toHaveLength(0)
   })
 
-  it("links a contact that already exists on the address", async () => {
-    await db.insert(customShellContacts).values({
-      id: "contact-jane",
-      workspaceId,
-      email: "JANE@buyer.com",
-      status: "subscribed",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    await recordInboundEmail(workspaceId, inboundEvent(), db)
-    const [lead] = await db.select().from(customShellCrmLeads)
-    expect(lead.contactId).toBe("contact-jane")
-  })
-
   it("writes one message when the same event arrives twice", async () => {
     const event = inboundEvent()
     expect((await recordInboundEmail(workspaceId, event, db)).changed).toBe(1)

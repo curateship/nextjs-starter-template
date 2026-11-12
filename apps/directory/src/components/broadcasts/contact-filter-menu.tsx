@@ -1,6 +1,5 @@
 import * as React from "react"
 import { BookmarkPlusIcon, ChevronDownIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { FilterPopover } from "@/components/shared/filter-popover"
@@ -153,7 +152,6 @@ export function ContactFilterMenu({
         rules: cleanSegmentRules(rules),
       })
       setConfirmUpdate(false)
-      toast.success(`${quoteOneLine(openSegment.name)} now holds these rules.`)
       await onUpdated()
     })
   }

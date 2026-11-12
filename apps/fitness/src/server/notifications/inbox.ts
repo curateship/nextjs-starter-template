@@ -1,19 +1,14 @@
 import {
   and,
-  asc,
-  count,
   desc,
   eq,
-  ilike,
   inArray,
-  isNotNull,
   isNull,
   lt,
   or,
   sql,
   type SQL,
 } from "drizzle-orm"
-import { alias, type PgSelect } from "drizzle-orm/pg-core"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { publishNotificationCreated } from "@/server/notifications/events"
@@ -22,23 +17,18 @@ import {
   customShellAnnouncements,
   customShellAutomationRuns,
   customShellAutomations,
-  customShellChangelogEntries,
   customShellFeedback,
   customShellNotifications,
   customShellUsers,
   type CustomShellNotification,
   type CustomShellUser,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/auth/security"
+import { findCurrentUser, now } from "@/server/auth/security"
 import { type NotificationItem } from "@/lib/api/notification"
 import {
-  aiLimitNotificationText,
   createDefaultNotificationTypeVisibility,
-  notificationTypeLabels,
-  SELF_WORDED_NOTIFICATION_TYPES,
   visibleNotificationTypes,
   type AutomationApprovalState,
-  type NotificationType,
   type NotificationTypeVisibility,
 } from "@/lib/notification-types"
 import { readShellGlobals } from "@/server/shell-settings"
@@ -54,51 +44,9 @@ type NotificationListResponse = {
   unseen_count: number
 }
 
-export type AdminNotificationQuery = {
-  search: string
-  read: "all" | "unread" | "read"
-  type: "all" | NotificationType
-  page: number
-  pageSize: number
-  sort: "activity" | "recipient" | "type" | "status" | "created"
-  direction: "asc" | "desc"
-}
-
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 50
 const CURSOR_SEPARATOR = "|"
-
-// The same person's row can be the recipient of one notice and the actor on
-// another, so the users table is joined twice under two names.
-const actorUsers = alias(customShellUsers, "actor_users")
-const recipientUsers = alias(customShellUsers, "recipient_users")
-
-/**
- * The free text a row shows and searches on: the update's title for a changelog
- * notice, the broadcast's own title for an announcement, the notice's own words
- * for one an app wrote, and the feedback it is about for the rest. Mirrors
- * `notificationSubject` on the page.
- */
-const subjectExpression = sql<string>`case
-  when ${customShellNotifications.type} in (${sql.join(
-    SELF_WORDED_NOTIFICATION_TYPES.map((type) => sql`${type}`),
-    sql`, `
-  )}) then coalesce(${customShellNotifications.message}, '')
-  when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
-  when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
-  when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')
-  when ${customShellNotifications.type} = 'automation_failed' then coalesce(${customShellAutomations.name}, '')
-  else coalesce(${customShellChangelogEntries.title}, ${customShellAnnouncements.title}, ${customShellFeedback.message}, '')
-end`
-
-/** The words the Type badge shows, so sorting by Type matches what you read. */
-const typeLabelExpression = sql<string>`case ${sql.join(
-  Object.entries(notificationTypeLabels).map(
-    ([type, label]) =>
-      sql`when ${customShellNotifications.type} = ${type} then ${label}`
-  ),
-  sql` `
-)} else ${customShellNotifications.type} end`
 
 export async function listCurrentUserNotificationPage({
   cursor,
@@ -117,127 +65,6 @@ export async function listCurrentUserNotificationPage({
     database: db,
     notificationTypes,
   })
-}
-
-/**
- * Every notice in the app, searched, filtered and sorted by the database.
- *
- * The admin page cannot do this in the browser: it only ever holds one page, so
- * filtering there would search the rows already fetched and quietly miss the
- * rest. The count that comes back is the real number of matches, not the size
- * of the page.
- */
-export async function listAdminNotifications(
-  query: AdminNotificationQuery,
-  database: CustomShellDb = db
-): Promise<{ notifications: NotificationItem[]; total: number }> {
-  const filters: SQL[] = []
-  const search = query.search.trim()
-
-  if (search) {
-    const pattern = `%${search}%`
-    const match = or(
-      ilike(actorUsers.name, pattern),
-      ilike(recipientUsers.name, pattern),
-      sql`${subjectExpression} ilike ${pattern}`
-    )
-    if (match) filters.push(match)
-  }
-  if (query.read !== "all") {
-    filters.push(
-      query.read === "unread"
-        ? isNull(customShellNotifications.readAt)
-        : isNotNull(customShellNotifications.readAt)
-    )
-  }
-  if (query.type !== "all") {
-    filters.push(eq(customShellNotifications.type, query.type))
-  }
-
-  const where = filters.length ? and(...filters) : undefined
-  const direction = query.direction === "asc" ? asc : desc
-  const sortExpression = {
-    activity: subjectExpression,
-    recipient: recipientUsers.name,
-    type: typeLabelExpression,
-    status: sql`case when ${customShellNotifications.readAt} is null then 0 else 1 end`,
-    created: customShellNotifications.createdAt,
-  }[query.sort]
-
-  const rows = await joinNotificationSources(
-    database
-      .select({ notification: customShellNotifications })
-      .from(customShellNotifications)
-      .$dynamic()
-  )
-    .where(where)
-    // Rows sharing a value would otherwise arrive in whatever order the
-    // database felt like, which lets one row show up on two pages.
-    .orderBy(direction(sortExpression), desc(customShellNotifications.id))
-    .limit(query.pageSize)
-    .offset((query.page - 1) * query.pageSize)
-
-  const [totals] = await joinNotificationSources(
-    database
-      .select({ total: count() })
-      .from(customShellNotifications)
-      .$dynamic()
-  ).where(where)
-
-  return {
-    notifications: await serializeNotificationRows(
-      rows.map((row) => row.notification),
-      database
-    ),
-    total: totals?.total ?? 0,
-  }
-}
-
-/**
- * Every table a notice takes its words from. Search, sort and the count all go
- * through here so the number in the badge counts exactly the rows the table can
- * show.
- */
-function joinNotificationSources<T extends PgSelect>(query: T) {
-  return (
-    query
-      .innerJoin(
-        recipientUsers,
-        eq(recipientUsers.id, customShellNotifications.recipientUserId)
-      )
-      .leftJoin(
-        actorUsers,
-        eq(actorUsers.id, customShellNotifications.actorUserId)
-      )
-      .leftJoin(
-        customShellFeedback,
-        eq(customShellFeedback.id, customShellNotifications.feedbackId)
-      )
-      .leftJoin(
-        customShellChangelogEntries,
-        eq(
-          customShellChangelogEntries.id,
-          customShellNotifications.changelogEntryId
-        )
-      )
-      .leftJoin(
-        customShellAnnouncements,
-        eq(customShellAnnouncements.id, customShellNotifications.announcementId)
-      )
-      // Two hops, because the notice points at the run and the words it needs
-      // are the flow's name.
-      .leftJoin(
-        customShellAutomationRuns,
-        eq(
-          customShellAutomationRuns.id,
-          customShellNotifications.automationRunId
-        )
-      )
-      .leftJoin(
-        customShellAutomations,
-        eq(customShellAutomations.id, customShellAutomationRuns.automationId)
-      )
-  )
 }
 
 /**
@@ -397,70 +224,12 @@ export async function markAllCurrentUserNotificationsRead() {
   }
 }
 
-export async function deleteAdminNotificationRows(notificationIds: string[]) {
-  requireAppOrigin()
-  await requireAdminNotificationUser()
-
-  const rows = await db
-    .delete(customShellNotifications)
-    .where(inArray(customShellNotifications.id, notificationIds))
-    .returning({ id: customShellNotifications.id })
-
-  return { count: rows.length }
-}
-
-export async function clearAdminNotificationRows() {
-  requireAppOrigin()
-  await requireAdminNotificationUser()
-
-  const rows = await db
-    .delete(customShellNotifications)
-    .returning({ id: customShellNotifications.id })
-
-  return { count: rows.length }
-}
-
-/**
- * One made-up notice in the admin's own bell, so the red number and the tray
- * can be looked at without waiting for a real one. Tyler asked for it on
- * 7 Nov 2026. It is an `app_activity` notice, the kind that carries its own
- * words, so nothing else in the database has to exist behind it.
- */
-export async function sendCurrentUserTestNotification() {
-  requireAppOrigin()
-  const user = await requireAdminNotificationUser()
-
-  await db.insert(customShellNotifications).values({
-    id: uuid(),
-    recipientUserId: user.id,
-    type: "app_activity",
-    message: "Test notification",
-    detail: "Sent from the Notifications page to check the bell.",
-    createdAt: now(),
-  })
-  await publishNotificationCreated(user.id)
-
-  return { sent: true }
-}
-
 async function requireNotificationUser() {
   const user = await findCurrentUser()
   if (!user) {
     throw new Error("Missing Custom Shell session")
   }
   return user
-}
-
-export async function requireAdminNotificationUser() {
-  const user = await requireNotificationUser()
-  if (!canViewAllNotifications(user)) {
-    throw new Error("Not authorized")
-  }
-  return user
-}
-
-export function canViewAllNotifications(user: Pick<CustomShellUser, "role">) {
-  return user.role === "admin"
 }
 
 /** One person's own notices, newest first — what the bell in the header shows. */
@@ -562,13 +331,6 @@ export async function serializeNotificationRows(
   const feedbackIds = Array.from(
     new Set(rows.flatMap((row) => (row.feedbackId ? [row.feedbackId] : [])))
   )
-  const changelogIds = Array.from(
-    new Set(
-      rows.flatMap((row) =>
-        row.changelogEntryId ? [row.changelogEntryId] : []
-      )
-    )
-  )
   const announcementIds = Array.from(
     new Set(
       rows.flatMap((row) => (row.announcementId ? [row.announcementId] : []))
@@ -583,7 +345,6 @@ export async function serializeNotificationRows(
   const [
     userRows,
     feedbackRows,
-    changelogRows,
     announcementRows,
     automationRunRows,
   ] = await Promise.all([
@@ -603,15 +364,6 @@ export async function serializeNotificationRows(
           })
           .from(customShellFeedback)
           .where(inArray(customShellFeedback.id, feedbackIds))
-      : [],
-    changelogIds.length
-      ? database
-          .select({
-            id: customShellChangelogEntries.id,
-            title: customShellChangelogEntries.title,
-          })
-          .from(customShellChangelogEntries)
-          .where(inArray(customShellChangelogEntries.id, changelogIds))
       : [],
     announcementIds.length
       ? database
@@ -651,9 +403,6 @@ export async function serializeNotificationRows(
   const feedbackMessages = new Map(
     feedbackRows.map((row) => [row.id, row.message])
   )
-  const changelogTitles = new Map(
-    changelogRows.map((row) => [row.id, row.title])
-  )
   const announcements = new Map(announcementRows.map((row) => [row.id, row]))
   const automations = new Map(automationRunRows.map((row) => [row.id, row]))
 
@@ -671,10 +420,6 @@ export async function serializeNotificationRows(
     feedback_id: row.feedbackId,
     feedback_message: row.feedbackId
       ? (feedbackMessages.get(row.feedbackId) ?? "Deleted feedback")
-      : null,
-    changelog_entry_id: row.changelogEntryId,
-    changelog_title: row.changelogEntryId
-      ? (changelogTitles.get(row.changelogEntryId) ?? "Deleted update")
       : null,
     announcement_id: row.announcementId,
     // Deleting an announcement takes its notices with it, so the fallback here
