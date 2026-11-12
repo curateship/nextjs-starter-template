@@ -58,6 +58,7 @@ import {
   type TradingOverviewProfitChartPoint,
 } from "@/lib/trade/dashboard/profit-series"
 import { PnlAmount } from "@/components/trade/pnl-amount"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { useRememberedChoice } from "@/lib/remembered-choice"
@@ -717,12 +718,16 @@ function WalletResultRow({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-lg px-3 py-2.5 text-left transition-colors",
-        focusRing,
-        selected ? "bg-muted" : "hover:bg-muted/50"
+        "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50",
+        focusRing
       )}
     >
-      <span className="truncate text-sm font-medium">{label}</span>
+      {/* The picked account is marked as every block's picked row is: the
+          small dark bar before its name, no shading (Tyler, 12 Nov 2026). */}
+      <span className="flex min-w-0 items-center text-sm font-medium">
+        <SlideBar on={selected} />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
       <PnlAmount
         className={cn(
           "text-right font-mono text-sm font-semibold tabular-nums",

@@ -136,8 +136,9 @@ exchange's page, the dashboard's left panel (`dashboard-blocks.md`).
   markets says so and points at the cog.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
-  when a second exchange exists. The selected row keeps its gray fill and adds
-  a right border in the theme's text color in saved folders and All markets.
+  when a second exchange exists. The selected row has the small dark bar
+  before its name that every block's picked row has, and no gray fill or
+  right border (`dashboard-blocks.md`, "A picked row").
 
 ### The Manual orders panel
 

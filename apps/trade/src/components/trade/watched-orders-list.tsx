@@ -47,6 +47,7 @@ import {
   type WatchedLevel,
 } from "@/lib/trade/watched-cache"
 import { cn } from "@/lib/utils"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 /**
  * Every hand-placed price you are waiting on, shown in Manual orders.
@@ -434,8 +435,12 @@ export function WatchedOrdersList({
                     key={row.id}
                     title={row.title}
                     rowAction={() => onSelectMarket(row.marketKey)}
-                    data-state={
-                      row.marketKey === selectedKey ? "selected" : undefined
+                    // The market on the chart is marked by the small dark bar
+                    // before its ticker, as every block's picked row is, not
+                    // by shading (Tyler, 12 Nov 2026: "for the blocks. make a
+                    // the selected styling to use this").
+                    aria-current={
+                      row.marketKey === selectedKey ? "true" : undefined
                     }
                   >
                     {/* Cell for cell, the Smart orders row above: coin art
@@ -443,19 +448,22 @@ export function WatchedOrdersList({
                         mono, PnL in the money colours (Tyler, 14 Sep 2026). */}
                     <TableCell className="py-2 pr-2 pl-1">
                       <div className="grid min-w-0 gap-1">
-                        <div className="flex min-w-0 items-center gap-1">
-                          {shows("avatar") ? (
-                            <MarketIcon
-                              symbol={row.symbol}
-                              iconUrl={row.iconUrl}
-                            />
-                          ) : null}
-                          <span
-                            className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm"
-                            title={row.symbol}
-                          >
-                            {row.symbol}
-                          </span>
+                        <div className="flex min-w-0 items-center">
+                          <SlideBar on={row.marketKey === selectedKey} />
+                          <div className="flex min-w-0 flex-1 items-center gap-1">
+                            {shows("avatar") ? (
+                              <MarketIcon
+                                symbol={row.symbol}
+                                iconUrl={row.iconUrl}
+                              />
+                            ) : null}
+                            <span
+                              className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm"
+                              title={row.symbol}
+                            >
+                              {row.symbol}
+                            </span>
+                          </div>
                         </div>
                         {row.refusal ? (
                           <RefusalNote refusal={row.refusal} />

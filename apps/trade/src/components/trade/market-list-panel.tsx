@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 import { CautionBadge } from "@/components/trade/caution-badge"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import {
@@ -115,12 +116,9 @@ export const MarketRowLine = React.memo(function MarketRowLine({
       onClick={() => onSelect(row.key)}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex h-9 min-w-0 items-center border-r-2 text-left",
+        "flex h-9 min-w-0 items-center text-left hover:bg-muted/50",
         ROW_COLUMNS,
         focusRing,
-        selected
-          ? "border-r-foreground bg-muted"
-          : "border-r-transparent hover:bg-muted/50",
         className
       )}
     >
@@ -129,12 +127,20 @@ export const MarketRowLine = React.memo(function MarketRowLine({
           panel. The day's volume sits beside it, quiet, under the volume sort
           heading. */}
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-        <span
-          title={row.symbol}
-          className="min-w-0 truncate text-sm font-medium"
-        >
-          <span className="sr-only">{row.symbol}</span>
-          <span aria-hidden>{tickerLabel(row.symbol)}</span>
+        {/* The picked market is marked as every block's picked row is: the
+            small dark bar that grows in before its name, no shading (Tyler,
+            12 Nov 2026: "for the blocks. make a the selected styling to use
+            this"). The bar sits with the name, so the gap after the name
+            never moves on the rows that are not picked. */}
+        <span className="flex min-w-0 items-center self-center">
+          <SlideBar on={selected} />
+          <span
+            title={row.symbol}
+            className="min-w-0 truncate text-sm font-medium"
+          >
+            <span className="sr-only">{row.symbol}</span>
+            <span aria-hidden>{tickerLabel(row.symbol)}</span>
+          </span>
         </span>
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {formatCompactUsd(volume24hUsd)}

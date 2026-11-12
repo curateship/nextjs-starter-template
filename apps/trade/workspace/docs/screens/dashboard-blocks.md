@@ -260,6 +260,19 @@ at most.
   does not count as last.
 - **Block titles stay on one line.** A title too long for a narrow panel
   shortens with "…" rather than breaking mid-word.
+- **A picked row is marked by the small dark bar.** The Markets list's picked
+  market, the P&L graph's picked account, the wallet in use under Wallets,
+  and the row for the market on the chart in Manual orders and Grid trades
+  each have the bar the Protocols block draws before its picked row
+  (`SlideBar`), sliding the name over, with no grey shading. The Markets list
+  lost its black line on the right edge, and Wallets lost its round tick: the
+  whole wallet row is the button that picks it. The order tables' picked row
+  says `aria-current` instead of the table's `data-state="selected"`, which
+  is what drew the shade. The other rows keep their dark names and a light
+  grey shade under the pointer (Tyler, 12 Nov 2026: "for the blocks. make a
+  the selected styling to use this", for the Market list, P&L graph accounts
+  and Wallets, then "its not changed" of Grid trades). The bottom Positions
+  and Journal tables are not blocks and keep their shade.
 
 ## The dashboard's ⋮
 

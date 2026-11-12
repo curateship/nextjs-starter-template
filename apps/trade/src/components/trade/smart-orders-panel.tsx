@@ -66,6 +66,7 @@ import {
 } from "@/lib/trade/dashboard-cache"
 import { smartOrderSales, type SmartOrderSale } from "@/lib/trade/smart-order-sales"
 import { cn } from "@/lib/utils"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 /**
  * Every coin a smart order is working right now, under the wallets.
@@ -126,7 +127,7 @@ type SmartOrdersViewProps = {
   markets: ReadonlyMap<string, MarketRow>
   wallets: readonly TradeWallet[]
   walletName: (walletId: string) => string
-  /** The market on the chart. Its smart-order row keeps the selected shade. */
+  /** The market on the chart. Its smart-order row shows the small dark bar. */
   selectedMarketKey: string | null
   /** Both the practice and real-money reads have landed. */
   settled: boolean
@@ -452,44 +453,50 @@ function SmartOrdersView({
                       key={order.id}
                       className="group"
                       rowAction={() => onSelectMarket(order.marketKey)}
-                      data-state={selected ? "selected" : undefined}
+                      // Marked by the small dark bar before its ticker, as
+                      // every block's picked row is, not by shading (Tyler,
+                      // 12 Nov 2026).
+                      aria-current={selected ? "true" : undefined}
                     >
                       <TableCell className="py-2 pl-1 pr-2">
                         <div className="grid min-w-0 gap-1">
-                          <div className="flex min-w-0 items-center gap-1">
-                            <SmartOrderDetailsPopover
-                              order={order}
-                              symbol={symbol}
-                              position={position}
-                              openProfit={openProfit}
-                              banked={banked}
-                              keyExpired={keyExpired}
-                              walletName={walletName(order.walletId)}
-                            >
-                              {shows("avatar") ? (
-                                <MarketIcon
-                                  symbol={symbol}
-                                  iconUrl={
-                                    markets.get(order.marketKey)?.iconUrl ?? null
-                                  }
-                                />
-                              ) : null}
-                              <button
-                                type="button"
-                                onClick={() => onSelectMarket(order.marketKey)}
-                                className={cn(
-                                  "min-w-0 flex-1 rounded-sm text-left",
-                                  focusRing
-                                )}
+                          <div className="flex min-w-0 items-center">
+                            <SlideBar on={selected} />
+                            <div className="flex min-w-0 flex-1 items-center gap-1">
+                              <SmartOrderDetailsPopover
+                                order={order}
+                                symbol={symbol}
+                                position={position}
+                                openProfit={openProfit}
+                                banked={banked}
+                                keyExpired={keyExpired}
+                                walletName={walletName(order.walletId)}
                               >
-                                {/* Block, because an inline span ignores
-                                    the clipping and a long name ran into
-                                    the Type column (Tyler, 24 Sep 2026). */}
-                                <span className="block min-w-0 truncate text-xs font-semibold sm:text-sm">
-                                  {symbol}
-                                </span>
-                              </button>
-                            </SmartOrderDetailsPopover>
+                                {shows("avatar") ? (
+                                  <MarketIcon
+                                    symbol={symbol}
+                                    iconUrl={
+                                      markets.get(order.marketKey)?.iconUrl ?? null
+                                    }
+                                  />
+                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectMarket(order.marketKey)}
+                                  className={cn(
+                                    "min-w-0 flex-1 rounded-sm text-left",
+                                    focusRing
+                                  )}
+                                >
+                                  {/* Block, because an inline span ignores
+                                      the clipping and a long name ran into
+                                      the Type column (Tyler, 24 Sep 2026). */}
+                                  <span className="block min-w-0 truncate text-xs font-semibold sm:text-sm">
+                                    {symbol}
+                                  </span>
+                                </button>
+                              </SmartOrderDetailsPopover>
+                            </div>
                           </div>
                           {order.plan.paused ? (
                             <span

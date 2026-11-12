@@ -215,7 +215,10 @@ describe("the Manual orders list", () => {
       failed: false,
       selectedKey: waitingLevel.marketKey,
     })
-    expect(rows).toContain('data-state="selected"')
+    // The small dark bar, not the table's grey shade.
+    expect(rows).toContain('aria-current="true"')
+    expect(rows).not.toContain('data-state="selected"')
+    expect(rows).toMatch(/data-dashboards-bar=""[^>]*w-3/)
   })
 
   it("draws the levels the landed half brought, without waiting for the other", () => {
