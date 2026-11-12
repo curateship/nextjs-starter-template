@@ -3823,8 +3823,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.4.6)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0)
       dukascopy-node:
-        specifier: ^1.50.0
-        version: 1.50.0(supports-color@7.2.0)
+        specifier: ^1.51.1
+        version: 1.51.1(supports-color@7.2.0)
       lightweight-charts:
         specifier: 5.2.0
         version: 5.2.0
@@ -9119,9 +9119,9 @@ packages:
   duck@0.1.12:
     resolution: {integrity: sha512-wkctla1O6VfP89gQ+J/yDesM0S7B7XLXjKGzXxMDVFg7uEn706niAtyYovKbyq1oT9YwDcly721/iUWoc8MVRg==}
 
-  dukascopy-node@1.50.0:
-    resolution: {integrity: sha512-o2Co/asUD/TXFNhblJUYkRseHMt/uvFrnhzOKWezLuiFJqbl4Zn2oJGL4/W+PY1b2YsI11+9+TO40qNQBAj8/w==}
-    engines: {node: '>=18'}
+  dukascopy-node@1.51.1:
+    resolution: {integrity: sha512-W/VzCKMcT9kRhO1BEQ5dl5nHrawtJuLZ2ydwVGQOA6KkLkxRW43cYUrgODQFCQCezYaw+NSTiRqsEmBdubCQEg==}
+    engines: {node: '>=20'}
     hasBin: true
 
   dunder-proto@1.0.1:
@@ -10805,6 +10805,11 @@ packages:
   playwright-core@1.61.1:
     resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+    engines: {node: '>=20'}
     hasBin: true
 
   playwright@1.61.1:
@@ -16835,7 +16840,7 @@ snapshots:
     dependencies:
       underscore: 1.13.8
 
-  dukascopy-node@1.50.0(supports-color@7.2.0):
+  dukascopy-node@1.51.1(supports-color@7.2.0):
     dependencies:
       chalk: 3.0.0
       cli-progress: 3.10.0
@@ -16844,6 +16849,7 @@ snapshots:
       debug: 4.3.4(supports-color@7.2.0)
       fastest-validator: 1.10.0
       fs-extra: 10.1.0
+      playwright-core: 1.64.1
     transitivePeerDependencies:
       - supports-color
 
@@ -18665,6 +18671,8 @@ snapshots:
       find-up: 3.0.0
 
   playwright-core@1.61.1: {}
+
+  playwright-core@1.64.1: {}
 
   playwright@1.61.1:
     dependencies:
