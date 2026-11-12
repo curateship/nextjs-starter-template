@@ -63,10 +63,11 @@ export function TripMenu({ actions = [] }: {
   const { binTrips, busy: deleting } = useTripBin()
   const zones = useZoneRows(trip.timeZone ?? WHERE_I_AM, PINNED_ZONES)
 
-  // Into the Trips table's bin with Undo, so it doesn't ask first (Travel features part 8).
+  // Into the Trips table's bin, so it doesn't ask first (Travel features part 8). It lands on the Bin tab
+  // with the trip open on the right, so the page itself shows where it went (Travel polish part 15).
   async function deleteTrip() {
     setOpen(false)
-    if (await binTrips([trip])) await navigate({ to: "/trips" })
+    if (await binTrips([trip], { reload: false })) await navigate({ to: "/trips", search: { show: "bin", open: trip.id } })
   }
 
   const general = (

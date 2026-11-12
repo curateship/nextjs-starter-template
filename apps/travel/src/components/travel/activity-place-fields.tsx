@@ -16,9 +16,10 @@ import { fillPlacePhoto } from "@/lib/api/travel/services"
 import type { Activity } from "@/lib/api/travel/trips"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { dateOfDay, weekday } from "@/lib/travel/dates"
-import { getTravelErrorMessage } from "@/lib/travel/errors"
+import { alreadyOnTripMessage, getTravelErrorMessage } from "@/lib/travel/errors"
 import { googleRatingLine } from "@/lib/travel/google-rating"
 import { hoursLines, hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
+import { findSamePlace } from "@/lib/travel/same-place"
 import type { OpeningHours } from "@/lib/travel/rules"
 import { webAddress } from "@/lib/travel/schemas"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -48,6 +49,11 @@ export function ActivityPlaceFields({ activity }: { activity: Activity }) {
   // Shut all day: the nearest day it's open, as on the card (Travel features part 1).
   const openDay = nearestOpenDay(activity.openingHours, page.trip, activity.day)
   const actions = useBoardActions()
+  // A place typed by hand isn't refused the way a Google pick is, so another card at the same place only
+  // gets a line under the address (Travel polish part 17). It warns and never blocks.
+  const twin = activity.place
+    ? findSamePlace(activity, page.activities.filter((other) => other.id !== activity.id))
+    : undefined
 
   return (
       <div className="grid gap-3">
@@ -89,6 +95,12 @@ export function ActivityPlaceFields({ activity }: { activity: Activity }) {
               })
             }}
           />
+          {twin ? (
+            <p className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground">
+              <TriangleAlertIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
+              {alreadyOnTripMessage(twin.place?.name || twin.title, twin.day !== null && twin.day <= page.trip.days ? twin.day : null)}
+            </p>
+          ) : null}
           {activity.place?.address && activity.place.address !== activity.place.name ? (
             <p className="text-xs break-words text-muted-foreground">{activity.place.address}</p>
           ) : null}

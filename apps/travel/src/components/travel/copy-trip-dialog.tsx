@@ -33,10 +33,14 @@ export function CopyTripDialog({ trip, onClose }: { trip: TripListRow | null; on
   const closing = useLastValue(trip)
   const shown = trip ?? closing
   const [name, setName] = React.useState("")
+  // A blank name is marked on the field, as New trip marks it (Travel polish part 22).
+  const [invalid, setInvalid] = React.useState(false)
+  const nameRef = React.useRef<HTMLInputElement>(null)
   const [openedFor, setOpenedFor] = React.useState<string | null>(null)
   if (trip && openedFor !== trip.id) {
     setOpenedFor(trip.id)
     setName(`Copy of ${trip.name}`.slice(0, TRIP_NAME_MAX))
+    setInvalid(false)
   }
   if (!trip && openedFor !== null) setOpenedFor(null)
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
@@ -44,6 +48,8 @@ export function CopyTripDialog({ trip, onClose }: { trip: TripListRow | null; on
   async function copy() {
     if (!trip) return
     if (!name.trim()) {
+      setInvalid(true)
+      nameRef.current?.focus()
       showErrorToast("Give the copy a name.")
       return
     }
@@ -82,12 +88,17 @@ export function CopyTripDialog({ trip, onClose }: { trip: TripListRow | null; on
                   <div className="grid gap-2">
                     <Label htmlFor="copy-trip-name">Name</Label>
                     <Input
+                      ref={nameRef}
                       id="copy-trip-name"
+                      aria-invalid={invalid || undefined}
                       value={name}
                       maxLength={TRIP_NAME_MAX}
                       autoFocus
                       onFocus={(event) => event.target.select()}
-                      onChange={(event) => setName(event.target.value)}
+                      onChange={(event) => {
+                        setName(event.target.value)
+                        if (invalid && event.target.value.trim()) setInvalid(false)
+                      }}
                     />
                   </div>
                 </CardContent>

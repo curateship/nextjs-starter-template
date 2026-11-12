@@ -1,6 +1,7 @@
 import * as React from "react"
 import { StarIcon } from "lucide-react"
 
+import { STAR_ON } from "@/components/travel/stars"
 import { dayLabel } from "@/components/travel/new-activity"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
@@ -100,7 +101,7 @@ export function RateTripDialog({ open, onClose }: { open: boolean; onClose: () =
                     <StarIcon
                       className={cn(
                         "size-6",
-                        card.rating !== null && stars <= card.rating ? "fill-amber-400 text-amber-500" : "text-muted-foreground"
+                        card.rating !== null && stars <= card.rating ? STAR_ON : "text-muted-foreground"
                       )}
                     />
                   </Button>

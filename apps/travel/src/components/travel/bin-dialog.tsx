@@ -15,13 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { loadBin, purgeActivity, restoreActivity, type BinEntry, type BinNote } from "@/lib/api/travel/trip-admin"
 import { purgeNote, restoreNote } from "@/lib/api/travel/trip-notes"
 import { noteFirstLine } from "@/lib/travel/notes"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** "today", "yesterday", "4 days ago". */
 function ago(iso: string) {
@@ -48,6 +48,9 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
   const [working, setWorking] = React.useState<string | null>(null)
   const [purging, setPurging] = React.useState<BinItem | null>(null)
+  const [failed, setFailed] = React.useState<string | null>(null)
+  // Bumped by Try again, to read the bin again after a failed load.
+  const [ask, setAsk] = React.useState(0)
 
   React.useEffect(() => {
     if (!open) return
@@ -55,17 +58,20 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
     loadBin(page.trip.id)
       .then((loaded) => {
         if (!alive) return
+        setFailed(null)
         const items: BinItem[] = [
           ...loaded.activities.map((entry): BinItem => ({ kind: "activity", entry })),
           ...loaded.notes.map((entry): BinItem => ({ kind: "note", entry })),
         ]
         setEntries(items.sort((a, b) => b.entry.deletedAt.localeCompare(a.entry.deletedAt)))
       })
-      .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error)))
+      .catch((error: unknown) => {
+        if (alive) setFailed(getTravelErrorMessage(error))
+      })
     return () => {
       alive = false
     }
-  }, [open, page.trip.id])
+  }, [open, page.trip.id, ask])
 
   async function act(item: BinItem, kind: "restore" | "purge") {
     const { id } = item.entry
@@ -93,8 +99,13 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
         <DialogBody>
           <Card size="sm">
             <CardContent>
-              {entries === null ? (
-                <LoadingRow label="Loading the bin" />
+              {failed ? (
+                <ErrorRow message={failed} onRetry={() => {
+                    setFailed(null)
+                    setAsk((was) => was + 1)
+                  }} className="py-4" />
+              ) : entries === null ? (
+                <LoadingRow label="Loading the bin…" />
               ) : entries.length === 0 ? (
                 <p className="py-2 text-sm text-muted-foreground">The bin is empty.</p>
               ) : (
@@ -119,7 +130,7 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
                       </span>
                       {purging?.entry.id === item.entry.id ? (
                         <>
-                          <span className="shrink-0 text-xs text-muted-foreground">Delete for good?</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">Can't be put back.</span>
                           <Button
                             type="button"
                             variant="destructive"
@@ -130,7 +141,7 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
                               void act(item, "purge")
                             }}
                           >
-                            Delete
+                            Delete for good
                           </Button>
                           <Button type="button" variant="ghost" size="sm" onClick={() => setPurging(null)}>
                             Cancel

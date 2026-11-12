@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BookmarkIcon, MapPinIcon, PlusIcon, StarIcon, Trash2Icon, Undo2Icon } from "lucide-react"
+import { BookmarkIcon, MapPinIcon, PlusIcon, Trash2Icon, Undo2Icon } from "lucide-react"
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
@@ -10,6 +10,7 @@ import { FilterPopover } from "@/components/shared/filter-popover"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { PanelReopenButton } from "@/components/shared/three-panels"
+import { RatingValue } from "@/components/travel/stars"
 import { PlaceRecord } from "@/components/travel/place-record"
 import { SectionTabs } from "@/components/travel/section-tabs"
 import { placeFacts, type PlaceRow } from "@/lib/travel/trips-lists"
@@ -18,7 +19,9 @@ import { ActivityTypeIcon, ActivityTypeSelect } from "@/components/travel/type-i
 import { useTravelOffline } from "@/components/travel/use-travel-offline"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableCell } from "@/components/ui/table"
 import type { PlaceDetails } from "@/lib/api/travel/services"
@@ -38,9 +41,8 @@ import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useLoad } from "@/lib/hooks/use-load"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
-import { addDays, formatDayDate } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
+import { binGoesLine, TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import {
   PLACE_SORT_LABELS,
   PLACE_TAB_LABELS,
@@ -52,11 +54,6 @@ import {
 } from "@/lib/travel/trips-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-/** "Goes for good 3 Dec": a binned place's line. */
-function binLine(deletedAt: string) {
-  const gone = formatDayDate(addDays(deletedAt.slice(0, 10), TRIP_BIN_DAYS))
-  return `Goes for good ${gone.split(" ").slice(1).join(" ")}`
-}
 
 /** "newest" is no column: newest first shows no column as sorted. */
 type PlaceColumn = "name" | "went" | "stars" | "newest"
@@ -104,18 +101,15 @@ export function PlacesSection({
   const shownPurging = purging ?? closingPurging
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
 
-  // Each list is read when its tab first shows, and again after a change.
+  // Every list is read at once, so each tab shows its count before it is picked, and again after a change.
   const [round, setRound] = React.useState(0)
   const reread = () => setRound((count) => count + 1)
   const saved = useLoad(() => loadSavedPlaces(), getTravelErrorMessage, { keys: [round], remember: "trips-saved-places" })
-  const binned = useLoad(() => (tab === "bin" ? loadSavedPlaces({ inBin: true }) : Promise.resolve(null)), getTravelErrorMessage, {
-    keys: [round, tab === "bin"],
+  const binned = useLoad(() => loadSavedPlaces({ inBin: true }), getTravelErrorMessage, {
+    keys: [round],
+    remember: "trips-binned-places",
   })
-  const cards = useLoad(
-    () => (tab === "again" || tab === "been" ? loadTripPlaces() : Promise.resolve(null)),
-    getTravelErrorMessage,
-    { keys: [round, tab === "again" || tab === "been"], remember: "trips-trip-places" }
-  )
+  const cards = useLoad(() => loadTripPlaces(), getTravelErrorMessage, { keys: [round], remember: "trips-trip-places" })
   const types = useLoad(getActivityTypes, getTravelErrorMessage, { remember: "trips-activity-types" })
   const typeList: readonly ActivityType[] = types.data ?? []
   const typeName = (typeId: string | null) => (typeId ? (typeList.find((type) => type.id === typeId)?.name ?? "Other") : "No type")
@@ -135,6 +129,13 @@ export function PlacesSection({
       .filter((card) => (tab === "again" ? card.goAgain : card.done))
       .map((card) => ({ kind: "trip" as const, id: card.id, card }))
   }, [binned.data, cards.data, saved.data, tab])
+
+  const tabCount = (value: PlaceTab) =>
+    value === "saved"
+      ? saved.data?.length
+      : value === "bin"
+        ? binned.data?.length
+        : cards.data?.filter((card) => (value === "again" ? card.goAgain : card.done)).length
 
   const rows = React.useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -261,7 +262,7 @@ export function PlacesSection({
               tabs={PLACE_TABS.map((value) => ({
                 value,
                 label: PLACE_TAB_LABELS[value],
-                count: value === "saved" ? saved.data?.length : value === tab ? all?.length : undefined,
+                count: tabCount(value),
               }))}
             />
           </>
@@ -331,7 +332,7 @@ export function PlacesSection({
           >
             <FilterRow id="places-type" label="Type">
               <Select value={typeFilter || ANY} onValueChange={(value) => setListSearch({ type: value === ANY ? undefined : value })}>
-                <SelectTrigger id="places-type" className="h-8 w-full">
+                <SelectTrigger id="places-type" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -353,7 +354,7 @@ export function PlacesSection({
                 value={search.group ?? "none"}
                 onValueChange={(value) => setListSearch({ group: value === "none" ? undefined : value })}
               >
-                <SelectTrigger id="places-group" className="h-8 w-full">
+                <SelectTrigger id="places-group" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -365,7 +366,7 @@ export function PlacesSection({
             </FilterRow>
             <FilterRow id="places-sort" label="Order">
               <Select value={sort} onValueChange={(value) => setListSearch({ sort: value === "newest" ? undefined : value })}>
-                <SelectTrigger id="places-sort" className="h-8 w-full">
+                <SelectTrigger id="places-sort" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -418,17 +419,21 @@ export function PlacesSection({
         }
         empty={
           all === null ? (
-            source.error ? source.error : "Reading the places…"
+            source.error ? (
+              <ErrorRow message={source.error} onRetry={source.retry} className="py-0" />
+            ) : (
+              <LoadingRow label="Loading the places…" className="py-0" />
+            )
           ) : rows.length > 0 ? null : q || typeFilter ? (
-            "No places match that search."
+            <EmptyLine>{"No places match that search."}</EmptyLine>
           ) : tab === "saved" ? (
-            "No saved places yet. Save one from an activity's How was it, or make one with New place."
+            <EmptyLine>{"No saved places yet. Save one from an activity's How was it, or make one with New place."}</EmptyLine>
           ) : tab === "again" ? (
-            "Nothing here yet. Tick Would go again on an activity you've done."
+            <EmptyLine>{"Nothing here yet. Tick Would go again on an activity you've done."}</EmptyLine>
           ) : tab === "been" ? (
-            "Nothing here yet. Mark an activity Done on a trip to see it here."
+            <EmptyLine>{"Nothing here yet. Mark an activity Done on a trip to see it here."}</EmptyLine>
           ) : (
-            `The bin is empty. A deleted place waits here for ${TRIP_BIN_DAYS} days.`
+            <EmptyLine>{`The bin is empty. A deleted place waits here for ${TRIP_BIN_DAYS} days.`}</EmptyLine>
           )
         }
       >
@@ -462,7 +467,7 @@ export function PlacesSection({
                           {row.kind === "trip"
                             ? `${row.card.tripName} · ${row.card.day === null ? "Ideas" : `Day ${row.card.day}`}`
                             : row.saved.deletedAt
-                              ? binLine(row.saved.deletedAt)
+                              ? binGoesLine(row.saved.deletedAt)
                               : (facts.place?.address ?? "No address")}
                         </span>
                       </TableCell>
@@ -471,14 +476,7 @@ export function PlacesSection({
                       </TableCell>
                       {row.kind === "trip" ? (
                         <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
-                          {row.card.rating === null ? (
-                            <span className="text-muted-foreground">None</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 tabular-nums" aria-label={`${row.card.rating} of 5 stars`}>
-                              <StarIcon className="size-3.5 fill-current text-amber-500" aria-hidden />
-                              {row.card.rating}
-                            </span>
-                          )}
+                          <RatingValue rating={row.card.rating} />
                         </TableCell>
                       ) : null}
                     </CrmTableRow>
@@ -547,7 +545,11 @@ export function PlacesSection({
             ? `Delete ${shownPurging[0].title} for good?`
             : `Delete ${shownPurging?.length ?? 0} places for good?`
         }
-        description="It goes at once and can't be put back. Copies already on a trip stay."
+        description={
+          shownPurging && shownPurging.length > 1
+            ? "They go at once and can't be put back. Copies already on a trip stay."
+            : "It goes at once and can't be put back. Copies already on a trip stay."
+        }
         confirmLabel="Delete for good"
         destructive
         loading={busy}
@@ -637,4 +639,9 @@ function NewPlace({ types, onMade }: { types: readonly ActivityType[]; onMade: (
       </div>
     </NewRecordDropdown>
   )
+}
+
+/** The table's empty line wraps onto more lines on a phone instead of running off the edge. */
+function EmptyLine({ children }: { children: React.ReactNode }) {
+  return <span className="block whitespace-normal">{children}</span>
 }

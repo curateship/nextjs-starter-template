@@ -74,6 +74,10 @@ on 6 Nov 2026 and work as they do there:
     enough"). The fold is remembered
     in this browser, for every Budget block at once, and works in a note that
     can't be written in too.
+  - **In the trip's narrow left panel** (about 108px wide at its narrowest)
+    "Budget" sits on its own line with the money under it, the wallet icon
+    goes, the tabs read "Day" and "Type", and each day's name sits over its
+    money. With room, they go back to one line and "By day", "By type".
   - **Opened, it shows** a bar that turns red over budget with how far over,
     the Budget field, then the By day and By type tabs. By day is a line per day. By type is a line per activity type
     with its icon, biggest first; cards with no type, or a removed one, count

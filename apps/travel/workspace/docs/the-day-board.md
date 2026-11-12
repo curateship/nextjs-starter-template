@@ -106,7 +106,8 @@ this browser.
   on the Board tab ("Hide select" while on), then Open, Duplicate, Move to
   day, Mark done, Mark must do, and Delete.
 - **Done.** The tick in a card's corner marks it done; done cards fade and are
-  struck through.
+  struck through. The tick changes at once and takes no second click until the
+  save is in, so a double-click can't undo it; a refused save puts it back.
 - **Nothing pops up after a move, delete, duplicate or copy.** The board
   redraws with the cards where they went. There is no Undo bar (Tyler,
   11 Nov 2026, removing the success toasts and the Undo bars with them): a
@@ -227,8 +228,9 @@ this browser.
   - **Each row** is a little tighter: a Done circle that marks it done or not,
     a circle with a tick, green once done (Tyler, 6 Nov 2026: "make the
     checkbox green color", then "just chanbge the color"),
-    the name, then Time, Type, Cost and Delete. Delete moves it to the bin.
-    A press anywhere else on the row opens it on the right.
+    the name, then Time, Type and Cost. There is no Delete column: a row's
+    right-click menu, the card's own, has Delete, as the Trips table's rows
+    do. A press on the row opens it on the right.
   - **Type changes from its cell:** a press opens your types, and a pick saves.
   - **Sorting:** Activity, Type and Cost sort within each day. Time is the
     day's own order, the board's, and pressing it again turns it round.
@@ -311,6 +313,8 @@ in the ⋮ holds both.
 Under 640px wide the board shows one day at a time, with arrows either side of
 the day's name and a sideways swipe of 60px or more to move a day. Opening a card switches to the Activity pill.
 Moving a card to another day is press and hold, then Move to day.
+Where the middle header is too narrow for Board, List, Calendar, Map and
+Photos, as on a phone, they are one dropdown naming the view showing.
 
 ## Where it lives
 

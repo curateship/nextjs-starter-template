@@ -44,24 +44,46 @@ const NO_WEATHER: TripWeather = { forecast: [], typical: [], holidays: [] }
  * what later days are usually like (More Travel features part 7) and the
  * public holidays (part 8), loaded once the page is up so the board never
  * waits for it. It loads again when the dates or the destination change.
- * Nothing shows while it loads or when the services don't answer.
+ * Nothing shows on the board while it loads or when the services don't answer.
  */
 export function useTripWeather(trip: { id: string; startDate: string | null; destination: string | null }) {
-  const [weather, setWeather] = React.useState<{ key: string; days: TripWeather }>({ key: "", days: NO_WEATHER })
-  const key = JSON.stringify([trip.id, trip.startDate, trip.destination])
+  return useTripWeatherRead(trip).weather
+}
+
+/**
+ * The same reading, with whether it is still loading or failed, and a way to
+ * try again. Overview's Weather and Holidays widgets use it, so they never
+ * say "none" before the answer is in (Travel polish part 2).
+ */
+export function useTripWeatherRead(trip: { id: string; startDate: string | null; destination: string | null }) {
+  const [read, setRead] = React.useState<{ key: string; days: TripWeather | null; failed: boolean }>({
+    key: "",
+    days: null,
+    failed: false,
+  })
+  const [ask, setAsk] = React.useState(0)
+  const key = JSON.stringify([trip.id, trip.startDate, trip.destination, ask])
   React.useEffect(() => {
     if (!trip.startDate) return
     let alive = true
     loadWeather(trip.id)
       .then((days) => {
-        if (alive) setWeather({ key, days })
+        if (alive) setRead({ key, days, failed: false })
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (alive) setRead({ key, days: null, failed: true })
+      })
     return () => {
       alive = false
     }
   }, [key, trip.id, trip.startDate])
-  return weather.key === key ? weather.days : NO_WEATHER
+  const current = read.key === key ? read : null
+  const status: "loading" | "failed" | "ready" = !trip.startDate || current?.days ? "ready" : current?.failed ? "failed" : "loading"
+  return {
+    weather: current?.days ?? NO_WEATHER,
+    status,
+    retry: React.useCallback(() => setAsk((was) => was + 1), []),
+  }
 }
 
 /** "☀ 18° / 9°" under a day's heading, then "· 70% rain" when the chance is 30 out of 100 or more. */

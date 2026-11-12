@@ -15,7 +15,7 @@ import { TripsPagePanel } from "@/components/travel/trips-page-panel"
 import { TripsTableSection } from "@/components/travel/trips-table-section"
 import { useTravelOffline } from "@/components/travel/use-travel-offline"
 import { ErrorRow } from "@/components/ui/error-row"
-import { widgetsShown } from "@/lib/admin-dashboard/overview-widgets"
+import { LoadingRow } from "@/components/ui/loading-row"
 import type { TripsPage } from "@/lib/api/travel/trips"
 import {
   loadTripsPage,
@@ -115,7 +115,6 @@ export function TripsDashboard({ page, search }: { page: TripsPage; search: Trip
     sectionOrder: sections.order,
     onSectionsChange: changeSections,
     counts: {
-      overview: widgets.layout ? widgetsShown(widgets.layout) : null,
       trips: page.trips.filter((trip) => tabOf(trip) === "upcoming").length,
       places: savedCount,
     },
@@ -138,7 +137,9 @@ export function TripsDashboard({ page, search }: { page: TripsPage; search: Trip
       <TripsOverview trips={page.trips} layout={widgets.layout} onChange={widgets.change} />
     ) : widgets.error ? (
       <ErrorRow message={widgets.error} onRetry={widgets.retry} />
-    ) : null
+    ) : (
+      <LoadingRow label="Loading the Overview…" />
+    )
   }
 
   const recordLabel = place?.rightLabel ?? (section === "places" ? "Place" : "Trip")

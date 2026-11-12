@@ -61,17 +61,24 @@ export function BudgetCard({ editable = true, tools }: { editable?: boolean; too
   const inputId = React.useId()
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="grid grid-cols-[minmax(0,1fr)]">
+    // Sized by its own width (`@container/budget`), since it sits in the trip's narrow left panel as
+    // often as in a wide note (Travel polish part 22).
+    <Collapsible open={open} onOpenChange={setOpen} className="@container/budget grid grid-cols-[minmax(0,1fr)]">
       {/* The heading is the button that folds the block, with no arrow (Tyler, 7 Nov 2026: "clicking on header
           to toggle is enough"). Its size is set here, so the note's own heading styles never reach it: 20% under
           the 16px it was ("reduce header font by 30%", then "increase by 10"). */}
-      <div className="flex items-center gap-2 py-2.5 pr-2.5 pl-4">
-        <WalletIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      {/* At the trip panel's narrowest (about 108px) the wallet goes and the sides tighten, so "Budget"
+          and the tabs keep their words. */}
+      <div className="flex items-center gap-2 py-2.5 pr-1.5 pl-2.5 @[10rem]/budget:pr-2.5 @[10rem]/budget:pl-4">
+        <WalletIcon className="hidden size-4 shrink-0 text-muted-foreground @[10rem]/budget:block" aria-hidden />
         <h2 className="m-0! min-w-0 flex-1 text-[0.8rem]! leading-tight! font-semibold">
           <CollapsibleTrigger asChild>
             <button type="button" className={cn("w-full cursor-pointer rounded-md text-left select-none", focusRingInset)}>
-              {/* Each amount stays on one line, so a narrow panel never splits a number in two. */}
-              Budget: <span className="whitespace-nowrap">{money(total)}</span>
+              {/* "Budget" on its own line and the money under it in a narrow panel, beside it when there's room.
+                  Each amount stays on one line, so a narrow panel never splits a word or a number in two. */}
+              <span className="block @[16rem]/budget:inline">Budget</span>
+              <span className="hidden @[16rem]/budget:inline">: </span>
+              <span className="whitespace-nowrap">{money(total)}</span>
               {trip.budgetCents !== null ? (
                 <>
                   {" of "}
@@ -83,7 +90,7 @@ export function BudgetCard({ editable = true, tools }: { editable?: boolean; too
         </h2>
         {tools}
       </div>
-      <CollapsibleContent data-collapse-key={noFlashKey} className="grid grid-cols-[minmax(0,1fr)] gap-3 px-4 pb-4">
+      <CollapsibleContent data-collapse-key={noFlashKey} className="grid grid-cols-[minmax(0,1fr)] gap-3 px-2.5 pb-4 @[10rem]/budget:px-4">
         {trip.budgetCents !== null ? (
           <Meter
             value={total}
@@ -120,15 +127,23 @@ export function BudgetCard({ editable = true, tools }: { editable?: boolean; too
         {/* As wide as the block and no wider, so a narrow panel never pushes the switch past its edge. */}
         <Tabs value={view} onValueChange={(next) => setView(next as (typeof MONEY_VIEWS)[number])} className="min-w-0">
           <TabsList aria-label="Show the money" className="w-full min-w-0">
-            <TabsTrigger value="day" className="min-w-0 flex-1">
-              <span className="truncate">By day</span>
+            {/* "Day" and "Type" when narrow, so neither is cut to "B.". */}
+            <TabsTrigger value="day" className="min-w-0 flex-1 px-1 text-xs @[12rem]/budget:px-3 @[12rem]/budget:text-sm">
+              <span className="truncate">
+                <span className="hidden @[12rem]/budget:inline">By </span>
+                <span className="capitalize @[12rem]/budget:normal-case">day</span>
+              </span>
             </TabsTrigger>
-            <TabsTrigger value="type" className="min-w-0 flex-1">
-              <span className="truncate">By type</span>
+            <TabsTrigger value="type" className="min-w-0 flex-1 px-1 text-xs @[12rem]/budget:px-3 @[12rem]/budget:text-sm">
+              <span className="truncate">
+                <span className="hidden @[12rem]/budget:inline">By </span>
+                <span className="capitalize @[12rem]/budget:normal-case">type</span>
+              </span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <dl className="m-0! grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 text-xs">
+        {/* Narrow, each day's name sits over its money, right-aligned; with room, side by side. */}
+        <dl className="m-0! grid grid-cols-[minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs @[12rem]/budget:grid-cols-[minmax(0,1fr)_auto]">
           {view === "day" ? (
             perDay.map((cents, index) => (
               <React.Fragment key={index}>
@@ -137,7 +152,7 @@ export function BudgetCard({ editable = true, tools }: { editable?: boolean; too
               </React.Fragment>
             ))
           ) : total === 0 ? (
-            <div className="col-span-2 text-muted-foreground">No costs on the trip's days yet.</div>
+            <div className="col-span-full text-muted-foreground">No costs on the trip's days yet.</div>
           ) : (
             spendingByType(perType, page.types).map(({ type, cents }) => (
               <React.Fragment key={type?.id ?? "other"}>

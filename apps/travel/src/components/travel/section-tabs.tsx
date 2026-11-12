@@ -2,7 +2,7 @@ import { DashboardTabs, type DashboardTab } from "@/components/shared/dashboard-
 import { ViewMenu } from "@/components/shared/view-menu"
 
 /**
- * A Trips dashboard section's tabs in its middle header: the shell's tabs
+ * A middle header's tabs, on the Trips dashboard and the trip page: the shell's tabs
  * where the header is wide enough, and the shell's view dropdown when it is
  * not, so a phone still reaches every tab beside the search and buttons (a
  * row of tabs squeezed to nothing there). The header measures itself

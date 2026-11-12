@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ChevronLeftIcon, ChevronRightIcon, PlaneTakeoffIcon } from "lucide-react"
 
+import { CoverImage } from "@/components/travel/cover-image"
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -40,7 +41,7 @@ export function TripsYearView({ trips, onOpen }: { trips: readonly TripListRow[]
           </YearButton>
         </div>
         <p className="text-sm text-muted-foreground">
-          {bars.length === 0 ? `No dated trips in ${year}.` : bars.length === 1 ? "1 trip this year." : `${bars.length} trips this year.`}
+          {bars.length === 0 ? `No dated trips in ${year}.` : bars.length === 1 ? `1 trip in ${year}.` : `${bars.length} trips in ${year}.`}
           {undated ? ` ${undated === 1 ? "1 trip has" : `${undated} trips have`} no dates, so ${undated === 1 ? "it isn't" : "they aren't"} shown.` : ""}
         </p>
       </div>
@@ -79,13 +80,15 @@ export function TripsYearView({ trips, onOpen }: { trips: readonly TripListRow[]
                     onClick={() => onOpen(trip)}
                     className="relative flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md pr-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   >
-                    {trip.coverUrl ? (
-                      <img src={trip.coverUrl} alt="" className="ml-1 size-5 shrink-0 rounded object-cover" />
-                    ) : (
-                      <span className="ml-1 flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
-                        <PlaneTakeoffIcon className="size-3" aria-hidden />
-                      </span>
-                    )}
+                    <CoverImage
+                      url={trip.coverUrl}
+                      className="ml-1 size-5 shrink-0 rounded object-cover"
+                      fallback={
+                        <span className="ml-1 flex size-5 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                          <PlaneTakeoffIcon className="size-3" aria-hidden />
+                        </span>
+                      }
+                    />
                     <span className="truncate text-xs font-medium">{trip.name}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">{formatTripDates(trip.startDate, trip.days)}</span>
                   </button>

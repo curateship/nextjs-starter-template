@@ -5,6 +5,7 @@ import { ArrowUpRightIcon, ExternalLinkIcon, MapPinIcon, StarIcon } from "lucide
 import type { RowMenuItem } from "@/components/crm/crm-row"
 import { RecordFrame } from "@/components/crm/record-frame"
 import { PanelHeading } from "@/components/shared/panel-card"
+import { STAR_ON } from "@/components/travel/stars"
 import { AddToTrip } from "@/components/travel/add-to-trip"
 import { mapsLink } from "@/components/travel/activity-place-fields"
 import { GoogleMap } from "@/components/travel/google-map"
@@ -215,7 +216,7 @@ function TripCardFields({
             onClick={() => save({ rating: card.rating === stars ? null : stars })}
           >
             <StarIcon
-              className={cn("size-4", card.rating !== null && stars <= card.rating ? "fill-current text-amber-500" : "text-muted-foreground")}
+              className={cn("size-4", card.rating !== null && stars <= card.rating ? STAR_ON : "text-muted-foreground")}
             />
           </Button>
         ))}

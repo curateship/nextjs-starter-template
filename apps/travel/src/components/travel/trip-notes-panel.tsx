@@ -2,6 +2,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { ArrowLeftIcon, CopyIcon, Loader2Icon, NotebookPenIcon, PinIcon, PinOffIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
+import { STAR_ON } from "@/components/travel/stars"
 import { SavingDocument } from "@/components/travel/saving-document"
 import { useTrip } from "@/components/travel/trip-context"
 import { Button } from "@/components/ui/button"
@@ -145,7 +146,7 @@ export function TripNotes({ startOpen = null }: { startOpen?: string | null }) {
               >
                 <span className="flex min-w-0 items-center gap-1.5">
                   {note.pinned ? (
-                    <PinIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-label="Pinned" role="img" />
+                    <PinIcon className={`size-3.5 shrink-0 ${STAR_ON}`} aria-label="Pinned" role="img" />
                   ) : null}
                   <span className="truncate text-sm font-medium">{firstLine(note.body)}</span>
                 </span>

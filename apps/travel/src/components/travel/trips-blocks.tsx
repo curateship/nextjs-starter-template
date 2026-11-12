@@ -27,8 +27,11 @@ export type TripsBlocks = {
   hiddenSections: readonly ListSection[]
   sectionOrder: readonly ListSection[]
   onSectionsChange: (sections: { hidden: ListSection[]; order: ListSection[] }) => void
-  /** Each row's count: Overview's widgets, the upcoming trips, the saved places. Null while it is read. */
-  counts: Record<TripsSection, number | null>
+  /**
+   * Trips' and Places' counts: the upcoming trips and the saved places, null while read. Overview has
+   * none, since its widgets counted beside "Trips 1" read as trips (Travel polish part 26).
+   */
+  counts: Record<ListSection, number | null>
   /** Every tag on the person's trips with how many trips carry it, A to Z. */
   tags: { tag: string; count: number }[]
   /** The tag the Trips table is narrowed to, or "". */
@@ -98,7 +101,7 @@ export function TripsSectionsBlock() {
         .map((section) => ({
           key: section,
           label: TRIPS_SECTION_LABELS[section],
-          value: blocks.counts[section]?.toLocaleString(),
+          value: section === "overview" ? undefined : blocks.counts[section]?.toLocaleString(),
         }))}
     />
   )

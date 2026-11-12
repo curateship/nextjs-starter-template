@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
+import { CoverImage } from "@/components/travel/cover-image"
 import { SavedPlaceEditor } from "@/components/travel/saved-place-editor"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -27,7 +29,6 @@ import {
 import { getActivityTypes, type ActivityType } from "@/lib/api/travel/types"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Saved places (task part 41) from inside a trip: the person's favourite
@@ -62,6 +63,11 @@ export function SavedPlacesDialog({
   const [tab, setTab] = React.useState<"saved" | "again">("saved")
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [types, setTypes] = React.useState<ActivityType[] | null>(null)
+  // Each list says why a load failed, with Try again, rather than waiting for good.
+  const [placesFailed, setPlacesFailed] = React.useState<string | null>(null)
+  const [placesAsk, setPlacesAsk] = React.useState(0)
+  const [typesFailed, setTypesFailed] = React.useState<string | null>(null)
+  const [typesAsk, setTypesAsk] = React.useState(0)
   const editing = editingId ? places?.find((place) => place.id === editingId) : undefined
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
   const [working, setWorking] = React.useState<string | null>(null)
@@ -99,13 +105,17 @@ export function SavedPlacesDialog({
     let alive = true
     getActivityTypes()
       .then((loaded) => {
-        if (alive) setTypes(loaded)
+        if (!alive) return
+        setTypesFailed(null)
+        setTypes(loaded)
       })
-      .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error)))
+      .catch((error: unknown) => {
+        if (alive) setTypesFailed(getTravelErrorMessage(error))
+      })
     return () => {
       alive = false
     }
-  }, [editingId, types])
+  }, [editingId, types, typesAsk])
 
   async function addAgain(place: GoAgainPlace) {
     setWorking(place.id)
@@ -122,13 +132,17 @@ export function SavedPlacesDialog({
     let alive = true
     loadSavedPlaces()
       .then((loaded) => {
-        if (alive) setPlaces(loaded)
+        if (!alive) return
+        setPlacesFailed(null)
+        setPlaces(loaded)
       })
-      .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error)))
+      .catch((error: unknown) => {
+        if (alive) setPlacesFailed(getTravelErrorMessage(error))
+      })
     return () => {
       alive = false
     }
-  }, [open])
+  }, [open, placesAsk])
 
   async function add(place: SavedPlace) {
     setWorking(place.id)
@@ -168,22 +182,16 @@ export function SavedPlacesDialog({
             <Card size="sm">
               <CardContent>
                 {goAgainFailed ? (
-                  <div className="grid justify-items-start gap-2 py-2">
-                    <p className="text-sm text-destructive">{goAgainFailed}</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setGoAgainFailed(null)
-                        setGoAgainAsk((was) => was + 1)
-                      }}
-                    >
-                      Try again
-                    </Button>
-                  </div>
+                  <ErrorRow
+                    message={goAgainFailed}
+                    onRetry={() => {
+                      setGoAgainFailed(null)
+                      setGoAgainAsk((was) => was + 1)
+                    }}
+                    className="py-4"
+                  />
                 ) : goAgain === null ? (
-                  <LoadingRow label="Loading places to go again" />
+                  <LoadingRow label="Loading places to go again…" />
                 ) : goAgain.length === 0 ? (
                   <p className="py-2 text-sm text-muted-foreground">
                     Nothing here yet. Once an activity is done, tick Would go again in its How was it section.
@@ -220,11 +228,21 @@ export function SavedPlacesDialog({
                     onChange={(next) => setPlaces((was) => (was ?? []).map((item) => (item.id === next.id ? next : item)))}
                     onBack={() => setEditingId(null)}
                   />
+                ) : typesFailed ? (
+                  <ErrorRow message={typesFailed} onRetry={() => {
+                    setTypesFailed(null)
+                    setTypesAsk((was) => was + 1)
+                  }} className="py-4" />
                 ) : (
-                  <LoadingRow label="Loading the place" />
+                  <LoadingRow label="Loading the place…" />
                 )
+              ) : placesFailed ? (
+                <ErrorRow message={placesFailed} onRetry={() => {
+                  setPlacesFailed(null)
+                  setPlacesAsk((was) => was + 1)
+                }} className="py-4" />
               ) : places === null ? (
-                <LoadingRow label="Loading saved places" />
+                <LoadingRow label="Loading saved places…" />
               ) : places.length === 0 ? (
                 <p className="py-2 text-sm text-muted-foreground">
                   No saved places yet. Rate an activity you've done, then press Save to saved places.
@@ -278,11 +296,15 @@ export function SavedPlacesDialog({
 
 /** A place's small picture, or a pin when it has none. */
 function PlacePicture({ url }: { url: string | null }) {
-  return url ? (
-    <img src={url} alt="" className="size-10 shrink-0 rounded-md object-cover" />
-  ) : (
-    <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted">
-      <MapPinIcon className="size-4 text-muted-foreground" aria-hidden />
-    </span>
+  return (
+    <CoverImage
+      url={url}
+      className="size-10 shrink-0 rounded-md object-cover"
+      fallback={
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted">
+          <MapPinIcon className="size-4 text-muted-foreground" aria-hidden />
+        </span>
+      }
+    />
   )
 }
