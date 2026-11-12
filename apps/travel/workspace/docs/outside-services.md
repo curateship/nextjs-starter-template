@@ -15,8 +15,9 @@ that, which the page can see.
 
 - `GOOGLE_MAPS_API_KEY` is a Google Cloud key. Google charges for it. In Google
   Cloud, switch on two APIs for the key: Places API (New) and Routes API.
-- `GOOGLE_MAPS_BROWSER_KEY` draws the maps: the trip's Map tab and the map of
-  places visited above the Trips table. The browser sees it, so in Google
+- `GOOGLE_MAPS_BROWSER_KEY` draws the maps: the trip's Map tab, the Trips
+  dashboard's Map widget, and the small map of a place picked in Places. The
+  browser sees it, so in Google
   Cloud limit it to the Maps JavaScript API and to the site's own address.
   Without it, each map says the key is missing.
 - `UNSPLASH_ACCESS_KEY` is the Access Key of a free Unsplash app.
@@ -147,7 +148,7 @@ With no Unsplash key, the Unsplash button doesn't show and Upload still works.
   and low average the 15 days around each date across those years; the rain
   counts the days of 1mm or more in the 31 days around it, scaled to 30. A
   date with under half its history shows nothing.
-- **Where a destination is.** The map of places visited finds each trip's
+- **Where a destination is.** The Trips dashboard's Map widget finds each trip's
   destination with Open-Meteo's place search. The same search gives the
   destination's country, for its holidays, and its time zone, which New trip
   and a change of destination use (see

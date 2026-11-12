@@ -349,29 +349,32 @@ Tyler, 4 Nov 2026: "Into the card's notes".
 ## Saved places
 
 Save to saved places copies the name, type, place, links, notes and picture.
+The copy is its own from then on, so editing a copy on a trip never changes
+the saved place, and editing the saved place never changes a copy.
 
-The Saved places window has two tabs, Saved and Go again (Tyler, 4 Nov 2026:
-"Tab in Saved places", "Ticked only"). Go again lists every place ticked
-"Would go again" in its How was it section, on any of the person's trips not
-in the Bin, newest trip first, each with its trip and day. Opened from a
-trip's Ideas column, each has Add to trip, which copies it into Ideas the way
-a saved place is copied, with no cost, rating or Done. Opened from the Trips
-table, each has Open trip, which opens that trip on that card. The list is
-`listGoAgain` in `src/server/travel/saved-places.ts`.
-The Trips table's Saved places button lists them and removes one. The bookmark
-on a trip's Ideas column adds one to that trip's Ideas. The copy is its own
-from then on, so editing it never changes the saved place.
+- **Away from a trip,** saved places live in the Trips dashboard's Places
+  section, with Go again and Been beside them ([The Trips dashboard](trips-dashboard.md)).
+  New place, Add to a trip on any day, editing and the Bin are there.
+- **Inside a trip,** "+ Add" → Saved places opens a window with two tabs,
+  Saved and Go again (Tyler, 4 Nov 2026: "Tab in Saved places", "Ticked
+  only"). Each place has Add to trip, which copies it into the trip's Ideas
+  with no cost, rating or Done. Its bin moves a saved place to Places' Bin.
+- **Go again** lists every place ticked "Would go again" in its How was it
+  section, on any of the person's trips not in the Bin, newest trip first,
+  each with its trip and day (`listGoAgain` in `src/server/travel/saved-places.ts`).
 
-**Editing a saved place** (Tyler, 6 Nov 2026: "Opens in the window"): clicking
-a saved place's name opens it inside the Saved places window, with Back to
-saved places above it. Its name saves 700ms after the last letter, when it's
-left or on Enter; an empty name is refused and stays as typed. Its type and
-picture (an upload or Unsplash, with the credit) save the moment they're
-picked, and its notes save themselves like any other note. The notes offer
-Image, Video and Link blocks but not Place or Map, because a saved place
-belongs to no trip; the server drops any that arrive. Copies already added to
-a trip don't change. The server side is `updateSavedPlace` in
-`saved-places.ts`, and the view is `saved-place-editor.tsx`.
+**Editing a saved place** (Tyler, 6 Nov 2026: "Opens in the window"): in the
+window, clicking a saved place's name opens it with Back to saved places above
+it; on the Trips dashboard it opens in the right panel.
+
+- Its name saves 700ms after the last letter, when it's left, or on Enter. An
+  empty name is refused and stays as typed.
+- Its type and picture (an upload or Unsplash, with the credit) save the
+  moment they're picked, and its notes save themselves like any other note.
+- The notes offer Image, Video and Link blocks but not Place or Map, because a
+  saved place belongs to no trip; the server drops any that arrive.
+- The server side is `updateSavedPlace` in `saved-places.ts`, and the view is
+  `saved-place-editor.tsx`.
 
 ## Where it lives
 

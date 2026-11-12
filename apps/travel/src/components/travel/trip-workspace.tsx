@@ -59,9 +59,17 @@ export function TripWorkspace({
     [navigate]
   )
 
-  // The Photos tab asks the left panel to show the note a picture is in.
-  const [noteRequest, setNoteRequest] = React.useState<TripContextValue["noteRequest"]>(null)
+  // The Photos tab asks the left panel to show the note a picture is in, and
+  // a pinned note pressed on the Trips dashboard arrives as `?note=`.
+  const [noteRequest, setNoteRequest] = React.useState<TripContextValue["noteRequest"]>(() =>
+    search.note ? { noteId: search.note, at: Date.now() } : null
+  )
   const openTripNote = React.useCallback((noteId: string | null) => setNoteRequest({ noteId, at: Date.now() }), [])
+  // Shown once: the address lets it go, so a reload or coming back keeps the description.
+  const arrivedWithNote = Boolean(search.note)
+  React.useEffect(() => {
+    if (arrivedWithNote) onSearch({ note: undefined })
+  }, [arrivedWithNote, onSearch])
 
   const typesById = React.useMemo(() => new Map(page.types.map((type) => [type.id, type])), [page.types])
 

@@ -1,8 +1,9 @@
-import { and, asc, count, desc, eq, isNull } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm"
 
 import type { Place } from "@/lib/travel/rules"
 
 import { TRAVEL_ERRORS } from "@/lib/travel/errors"
+import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import { copiedNotes, savedPlaceNotes } from "@/lib/travel/notes"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -21,17 +22,84 @@ import { checkTypeId } from "@/server/travel/types"
 
 const MAX_SAVED_PLACES = 500
 
-export type SavedPlace = Omit<typeof travelSavedPlaces.$inferSelect, "ownerUserId" | "createdAt"> & {
+export type SavedPlace = Omit<typeof travelSavedPlaces.$inferSelect, "ownerUserId" | "createdAt" | "deletedAt"> & {
   createdAt: string
+  /** When it went into Places' bin, or null. */
+  deletedAt: string | null
 }
 
-export async function listSavedPlaces(userId: string, database: Pick<CustomShellDb, "select"> = db): Promise<SavedPlace[]> {
+function toSavedPlace({ ownerUserId: _owner, createdAt, deletedAt, ...rest }: typeof travelSavedPlaces.$inferSelect): SavedPlace {
+  return { ...rest, createdAt: createdAt.toISOString(), deletedAt: deletedAt?.toISOString() ?? null }
+}
+
+/** The person's saved places, newest first: the ones in use, or with `inBin` the ones in Places' bin. */
+export async function listSavedPlaces(
+  userId: string,
+  database: Pick<CustomShellDb, "select"> = db,
+  { inBin = false }: { inBin?: boolean } = {}
+): Promise<SavedPlace[]> {
   const rows = await database
     .select()
     .from(travelSavedPlaces)
-    .where(eq(travelSavedPlaces.ownerUserId, userId))
-    .orderBy(desc(travelSavedPlaces.createdAt))
-  return rows.map(({ ownerUserId: _owner, createdAt, ...rest }) => ({ ...rest, createdAt: createdAt.toISOString() }))
+    .where(
+      and(
+        eq(travelSavedPlaces.ownerUserId, userId),
+        inBin ? isNotNull(travelSavedPlaces.deletedAt) : isNull(travelSavedPlaces.deletedAt)
+      )
+    )
+    .orderBy(desc(inBin ? travelSavedPlaces.deletedAt : travelSavedPlaces.createdAt))
+  return rows.map(toSavedPlace)
+}
+
+/** The ids of these saved places that are the person's, in the bin or out of it as asked. */
+async function ownSavedPlaceIds(userId: string, ids: string[], inBin: boolean, database: Pick<CustomShellDb, "select">) {
+  const rows = await database
+    .select({ id: travelSavedPlaces.id })
+    .from(travelSavedPlaces)
+    .where(
+      and(
+        eq(travelSavedPlaces.ownerUserId, userId),
+        inArray(travelSavedPlaces.id, ids),
+        inBin ? isNotNull(travelSavedPlaces.deletedAt) : isNull(travelSavedPlaces.deletedAt)
+      )
+    )
+  return rows.map((row) => row.id)
+}
+
+/**
+ * Mass select's changes and a row's bin, in one request each: into Places'
+ * bin, back out of it, or gone for good from it. Answers with the ids changed
+ * and the ids skipped (not the person's, or not where the change needs them).
+ */
+export async function changeSavedPlaces(
+  userId: string,
+  input: { ids: string[]; change: "bin" | "restore" | "purge" },
+  database: CustomShellDb = db
+) {
+  const done = await ownSavedPlaceIds(userId, input.ids, input.change !== "bin", database)
+  if (done.length) {
+    if (input.change === "purge") await database.delete(travelSavedPlaces).where(inArray(travelSavedPlaces.id, done))
+    else
+      await database
+        .update(travelSavedPlaces)
+        .set({ deletedAt: input.change === "bin" ? now() : null })
+        .where(inArray(travelSavedPlaces.id, done))
+  }
+  return { done, skipped: input.ids.filter((id) => !done.includes(id)) }
+}
+
+/** Saved places in the bin more than 30 days go for good, the next time Places loads. */
+export async function emptySavedPlacesBin(userId: string, database: CustomShellDb = db, at: Date = new Date()) {
+  const cutoff = new Date(at.getTime() - TRIP_BIN_DAYS * 24 * 60 * 60 * 1000)
+  await database
+    .delete(travelSavedPlaces)
+    .where(
+      and(
+        eq(travelSavedPlaces.ownerUserId, userId),
+        isNotNull(travelSavedPlaces.deletedAt),
+        lt(travelSavedPlaces.deletedAt, cutoff)
+      )
+    )
 }
 
 export async function saveActivityAsPlace(userId: string, activityId: string, database: CustomShellDb = db) {
@@ -39,7 +107,7 @@ export async function saveActivityAsPlace(userId: string, activityId: string, da
   const [held] = await database
     .select({ value: count() })
     .from(travelSavedPlaces)
-    .where(eq(travelSavedPlaces.ownerUserId, userId))
+    .where(and(eq(travelSavedPlaces.ownerUserId, userId), isNull(travelSavedPlaces.deletedAt)))
   if ((held?.value ?? 0) >= MAX_SAVED_PLACES) throw new Error(TRAVEL_ERRORS.tooManySavedPlaces)
   const id = uuid()
   await database.insert(travelSavedPlaces).values({
@@ -54,6 +122,40 @@ export async function saveActivityAsPlace(userId: string, activityId: string, da
     notes: savedPlaceNotes(activity.notes),
     photoUrl: activity.photoUrl,
     photoCredit: activity.photoCredit,
+    createdAt: now(),
+  })
+  return { id }
+}
+
+/**
+ * A new saved place from the Trips dashboard's New place (12 Nov 2026): its
+ * name, type, and the place picked from Google with its website and phone
+ * when Google had them.
+ */
+export async function createSavedPlace(
+  userId: string,
+  input: { title: string; typeId: string | null; place: Place | null; website: string | null; phone: string | null },
+  database: CustomShellDb = db
+) {
+  const [held] = await database
+    .select({ value: count() })
+    .from(travelSavedPlaces)
+    .where(and(eq(travelSavedPlaces.ownerUserId, userId), isNull(travelSavedPlaces.deletedAt)))
+  if ((held?.value ?? 0) >= MAX_SAVED_PLACES) throw new Error(TRAVEL_ERRORS.tooManySavedPlaces)
+  await checkTypeId(userId, input.typeId, database)
+  const id = uuid()
+  await database.insert(travelSavedPlaces).values({
+    id,
+    ownerUserId: userId,
+    title: input.title,
+    typeId: input.typeId,
+    place: input.place,
+    website: input.website,
+    menuUrl: null,
+    phone: input.phone,
+    notes: "",
+    photoUrl: null,
+    photoCredit: null,
     createdAt: now(),
   })
   return { id }
@@ -79,7 +181,13 @@ export async function updateSavedPlace(userId: string, input: SavedPlacePatch, d
   const [saved] = await database
     .select({ id: travelSavedPlaces.id })
     .from(travelSavedPlaces)
-    .where(and(eq(travelSavedPlaces.id, input.savedPlaceId), eq(travelSavedPlaces.ownerUserId, userId)))
+    .where(
+      and(
+        eq(travelSavedPlaces.id, input.savedPlaceId),
+        eq(travelSavedPlaces.ownerUserId, userId),
+        isNull(travelSavedPlaces.deletedAt)
+      )
+    )
     .limit(1)
   if (!saved) throw new Error(TRAVEL_ERRORS.savedPlaceNotFound)
   if (input.typeId !== undefined) await checkTypeId(userId, input.typeId, database)
@@ -92,51 +200,71 @@ export async function updateSavedPlace(userId: string, input: SavedPlacePatch, d
   await database.update(travelSavedPlaces).set(values).where(eq(travelSavedPlaces.id, savedPlaceId))
 }
 
-export async function deleteSavedPlace(userId: string, savedPlaceId: string, database: CustomShellDb = db) {
-  const deleted = await database
-    .delete(travelSavedPlaces)
-    .where(and(eq(travelSavedPlaces.id, savedPlaceId), eq(travelSavedPlaces.ownerUserId, userId)))
-    .returning({ id: travelSavedPlaces.id })
-  if (deleted.length === 0) throw new Error(TRAVEL_ERRORS.savedPlaceNotFound)
-}
+/** What a copy into a trip takes from a saved place or a Go again place. */
+type CopiedPlace = Pick<
+  typeof travelSavedPlaces.$inferSelect,
+  "title" | "typeId" | "place" | "website" | "menuUrl" | "phone" | "notes" | "photoUrl" | "photoCredit"
+>
 
-/** A copy of a saved place at the end of a trip's Ideas column. */
-export async function addSavedPlaceToTrip(
-  userId: string,
-  input: { tripId: string; savedPlaceId: string },
-  database: CustomShellDb = db
+/**
+ * A copy of a place at the end of one of the trip's days, or of its Ideas
+ * column when `day` is null (the Trips dashboard's Add to a trip; Tyler,
+ * 12 Nov 2026). A place already on the trip makes no copy (More Travel
+ * features part 3). The copy is the trip's own from then on.
+ */
+async function copyIntoTrip(
+  trip: Awaited<ReturnType<typeof requireTrip>>,
+  day: number | null,
+  source: CopiedPlace,
+  database: CustomShellDb
 ) {
-  const trip = await requireTrip(userId, input.tripId, database)
-  const [saved] = await database
-    .select()
-    .from(travelSavedPlaces)
-    .where(and(eq(travelSavedPlaces.id, input.savedPlaceId), eq(travelSavedPlaces.ownerUserId, userId)))
-    .limit(1)
-  if (!saved) throw new Error(TRAVEL_ERRORS.savedPlaceNotFound)
-  await refuseSamePlace(trip.id, saved, null, database)
+  if (day !== null && (day < 1 || day > trip.days)) throw new Error(TRAVEL_ERRORS.dayOutOfRange)
+  await refuseSamePlace(trip.id, source, null, database)
   const live = await database
-    .select({ id: travelActivities.id, day: travelActivities.day })
+    .select({ day: travelActivities.day })
     .from(travelActivities)
     .where(and(eq(travelActivities.tripId, trip.id), isNull(travelActivities.deletedAt)))
-    .orderBy(asc(travelActivities.position))
   if (live.length >= MAX_ACTIVITIES) throw new Error(TRAVEL_ERRORS.tooManyActivities)
   const id = uuid()
   await database.insert(travelActivities).values({
     ...blankActivity(trip.id, now()),
     id,
-    day: null,
-    position: live.filter((activity) => activity.day === null).length,
-    title: saved.title,
-    typeId: saved.typeId,
-    place: saved.place,
-    website: saved.website,
-    menuUrl: saved.menuUrl,
-    phone: saved.phone,
-    notes: copiedNotes(saved.notes),
-    photoUrl: saved.photoUrl,
-    photoCredit: saved.photoCredit,
+    day,
+    position: live.filter((row) => row.day === day).length,
+    title: source.title,
+    typeId: source.typeId,
+    place: source.place,
+    website: source.website,
+    menuUrl: source.menuUrl,
+    phone: source.phone,
+    notes: copiedNotes(source.notes),
+    photoUrl: source.photoUrl,
+    photoCredit: source.photoCredit,
   })
   return { id }
+}
+
+/** A copy of a saved place on a trip: at the end of `day`, or of Ideas when it is null or left out. */
+export async function addSavedPlaceToTrip(
+  userId: string,
+  input: { tripId: string; savedPlaceId: string; day?: number | null },
+  database: CustomShellDb = db
+) {
+  // The trip is checked first, so someone else's trip says so whatever is being added.
+  const trip = await requireTrip(userId, input.tripId, database)
+  const [saved] = await database
+    .select()
+    .from(travelSavedPlaces)
+    .where(
+      and(
+        eq(travelSavedPlaces.id, input.savedPlaceId),
+        eq(travelSavedPlaces.ownerUserId, userId),
+        isNull(travelSavedPlaces.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!saved) throw new Error(TRAVEL_ERRORS.savedPlaceNotFound)
+  return copyIntoTrip(trip, input.day ?? null, saved, database)
 }
 
 /** One place ticked "Would go again", with the trip and day it was on (More Travel features part 14). */
@@ -184,40 +312,16 @@ export async function listGoAgain(userId: string, database: Pick<CustomShellDb, 
 }
 
 /**
- * A copy of a Go again place at the end of a trip's Ideas column, made the
- * way a saved place is copied: its name, type, place, links, notes and
- * picture, and nothing of how it went. A place already on the trip makes no
- * copy (More Travel features part 3).
+ * A copy of a Go again place on a trip, made the way a saved place is copied:
+ * its name, type, place, links, notes and picture, and nothing of how it went.
  */
 export async function addGoAgainToTrip(
   userId: string,
-  input: { tripId: string; activityId: string },
+  input: { tripId: string; activityId: string; day?: number | null },
   database: CustomShellDb = db
 ) {
   const trip = await requireTrip(userId, input.tripId, database)
   const { activity } = await requireActivity(userId, input.activityId, database)
   if (!activity.goAgain) throw new Error(TRAVEL_ERRORS.activityNotFound)
-  await refuseSamePlace(trip.id, activity, null, database)
-  const live = await database
-    .select({ day: travelActivities.day })
-    .from(travelActivities)
-    .where(and(eq(travelActivities.tripId, trip.id), isNull(travelActivities.deletedAt)))
-  if (live.length >= MAX_ACTIVITIES) throw new Error(TRAVEL_ERRORS.tooManyActivities)
-  const id = uuid()
-  await database.insert(travelActivities).values({
-    ...blankActivity(trip.id, now()),
-    id,
-    day: null,
-    position: live.filter((row) => row.day === null).length,
-    title: activity.title,
-    typeId: activity.typeId,
-    place: activity.place,
-    website: activity.website,
-    menuUrl: activity.menuUrl,
-    phone: activity.phone,
-    notes: copiedNotes(activity.notes),
-    photoUrl: activity.photoUrl,
-    photoCredit: activity.photoCredit,
-  })
-  return { id }
+  return copyIntoTrip(trip, input.day ?? null, activity, database)
 }

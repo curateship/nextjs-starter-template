@@ -372,6 +372,7 @@ describe("the Year tab (part 9)", () => {
     archived: false,
     deletedAt: null,
     activityCount: 0,
+    rating: null,
     timeZone: null,
     createdAt: "2099-01-01T00:00:00.000Z",
     ...patch,
@@ -426,6 +427,7 @@ describe("editing a saved place (part 11)", () => {
     photoUrl: null,
     photoCredit: null,
     createdAt: "2099-01-01T00:00:00.000Z",
+    deletedAt: null,
   }
 
   it("saves a new name after a pause, and refuses an empty one", async () => {

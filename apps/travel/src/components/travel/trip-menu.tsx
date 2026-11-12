@@ -49,7 +49,10 @@ const ROW = "w-full justify-start font-normal"
  * field saves itself, so the one being typed in is left before the menu
  * shuts.
  */
-export function TripMenu() {
+export function TripMenu({ actions = [] }: {
+  /** More rows above Rate the trip, from the Trips dashboard's right panel: Copy and Archive. */
+  actions?: readonly { label: string; icon: React.ReactNode; onSelect: () => void }[]
+} = {}) {
   const { page } = useTrip()
   const { trip } = page
   const navigate = useNavigate()
@@ -184,6 +187,21 @@ export function TripMenu() {
       </div>
       {/* Under the groups, the actions as ghost rows, then Delete in red under a line of its own. */}
       <div className="grid gap-1 px-2 pb-2">
+        {actions.map((action) => (
+          <Button
+            key={action.label}
+            type="button"
+            variant="ghost"
+            className={ROW}
+            onClick={() => {
+              setOpen(false)
+              action.onSelect()
+            }}
+          >
+            {action.icon}
+            {action.label}
+          </Button>
+        ))}
         <Button
           type="button"
           variant="ghost"

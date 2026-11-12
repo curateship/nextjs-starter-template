@@ -21,7 +21,7 @@ vi.mock("@/lib/api/travel/saved-places", () => ({
   ]),
   addSavedPlace: vi.fn(),
   addGoAgain: vi.fn(async () => ({ id: "copy-1" })),
-  forgetSavedPlace: vi.fn(),
+  changeSavedPlaceList: vi.fn(),
 }))
 vi.mock("@/lib/api/travel/trip-draft", () => ({
   draftPlan: vi.fn(async () => ({ items: [], days: [], skipped: [], later: 0 })),

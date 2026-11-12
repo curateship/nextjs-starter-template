@@ -1,6 +1,6 @@
 # Working without signal
 
-The Trips table and every trip opened on a phone open again with no signal,
+The Trips dashboard and every trip opened on a phone open again with no signal,
 read only (Tyler, 3 Nov 2026: "Read only", built in the shell and copied into
 Travel). How the keeping works, and when it is emptied, is the shell's: see
 the repo's `docs/shell/offline-pages.md`.
@@ -17,7 +17,7 @@ the repo's `docs/shell/offline-pages.md`.
 
 ## With no signal
 
-A line under the trip page's tabs, and above the Trips table, reads "No
+A line under the trip page's tabs, and above the Trips dashboard, reads "No
 signal. This is the copy from your last visit, and changes are off until
 you're back online."
 
@@ -35,8 +35,13 @@ Every change is off:
   show faded and can't be typed in, the budget field is off, and the trip's
   notes have no New note and no right-click menu.
 - **The Calendar tab** on a trip with no start date has no date picker.
-- **The Trips table:** no New trip, Saved places, tick boxes or row buttons,
-  and the map of places visited is hidden, since it needs Google.
+- **The Trips dashboard:** the Trips table shows the kept trips, with no New
+  trip, Mass select or right-click menu, and the picked trip has no ⋮ and no
+  buttons at its foot. Places has no New place or Mass select, and a place's
+  stars, fields and buttons are off.
+- **What the dashboard reads afresh** needs signal: the left page, Overview's
+  widgets and the Places lists say they could not be read, with Try again.
+  The Dashboards block still moves between the sections.
 
 When signal comes back, all of it comes back at once, with no reload. The
 board still shows the kept copy until the next change or reload brings the

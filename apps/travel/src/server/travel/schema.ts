@@ -165,7 +165,30 @@ export const travelSavedPlaces = pgTable("travel_saved_places", {
   notes: text("notes").notNull(),
   photoUrl: text("photo_url"),
   photoCredit: jsonb("photo_credit").$type<PhotoCredit>(),
+  /** When the place went into Places' bin, or null (`drizzle/0126_travel_trips_dashboard.sql`). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: createdAt(),
+})
+
+/**
+ * Each person's left page on the Trips dashboard and their Overview's widget
+ * layout (`drizzle/0126_travel_trips_dashboard.sql`). No row: the starting
+ * blocks and widgets.
+ */
+export const travelTripsPages = pgTable("travel_trips_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(userRef, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's sections left out and their dragged order (`TripsSections`). */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: updatedAt(),
 })
 
 export const travelRouteTimes = pgTable(

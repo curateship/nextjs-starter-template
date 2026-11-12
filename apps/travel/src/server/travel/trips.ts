@@ -53,6 +53,8 @@ export type TripListRow = {
   /** When the trip went into the bin, or null (Travel features part 8). */
   deletedAt: string | null
   activityCount: number
+  /** The average of the stars given to its cards, or null with none rated (the Trips table's Rating column). */
+  rating: number | null
   timeZone: string | null
   createdAt: string
 }
@@ -101,6 +103,9 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
     .select({
       trip: travelTrips,
       activityCount: sql<number>`count(${travelActivities.id}) filter (where ${travelActivities.deletedAt} is null)`.mapWith(Number),
+      rating: sql<number | null>`avg(${travelActivities.rating}) filter (where ${travelActivities.deletedAt} is null and ${travelActivities.rating} is not null)`.mapWith(
+        (value: string | null) => (value === null ? null : Math.round(Number(value) * 10) / 10)
+      ),
     })
     .from(travelTrips)
     .leftJoin(travelActivities, eq(travelActivities.tripId, travelTrips.id))
@@ -108,7 +113,7 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
     .groupBy(travelTrips.id)
     .orderBy(desc(travelTrips.createdAt))
   return {
-    trips: rows.map(({ trip, activityCount }) => ({
+    trips: rows.map(({ trip, activityCount, rating }) => ({
       id: trip.id,
       name: trip.name,
       destination: trip.destination,
@@ -122,6 +127,7 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
       archived: trip.archivedAt !== null,
       deletedAt: trip.deletedAt?.toISOString() ?? null,
       activityCount,
+      rating,
       timeZone: trip.timeZone,
       createdAt: trip.createdAt.toISOString(),
     })),

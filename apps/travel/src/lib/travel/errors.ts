@@ -10,6 +10,8 @@ export const TRAVEL_ERRORS = {
   activityNotFound: "That activity doesn't exist or you can't see it.",
   activityInBin: "That activity is in the trip's bin. Put it back from the Bin to open it.",
   dayOutOfRange: "That day isn't on this trip. Add a day first.",
+  tripsPageLocked: "The page is locked. Unlock it from the ⋮ at the top first.",
+  tripsPageTooLong: "The page is too long to save. Take something off it first.",
   tooManyDays: "A trip can have at most 60 days.",
   lastDay: "A trip needs at least one day.",
   tooManyActivities: "A trip can hold at most 500 activities.",

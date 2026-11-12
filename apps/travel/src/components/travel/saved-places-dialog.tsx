@@ -1,6 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { ArrowUpRightIcon, Loader2Icon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, MapPinIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { SavedPlaceEditor } from "@/components/travel/saved-place-editor"
 import { Button } from "@/components/ui/button"
@@ -19,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   addGoAgain,
   addSavedPlace,
-  forgetSavedPlace,
+  changeSavedPlaceList,
   loadGoAgain,
   loadSavedPlaces,
   type GoAgainPlace,
@@ -31,15 +30,15 @@ import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * Saved places (task part 41): the person's favourite places, saved from an
- * activity's "How was it" card. From the Trips table it lists them and lets
- * one go. From a trip's Ideas column (`tripId` set) each has "Add to trip",
- * which drops a copy into Ideas; the copy is its own record from then on.
+ * Saved places (task part 41) from inside a trip: the person's favourite
+ * places, saved from an activity's "How was it" card, each with "Add to trip",
+ * which drops a copy into the trip's Ideas; the copy is its own record from
+ * then on. Away from a trip, saved places live in the Trips dashboard's
+ * Places section (12 Nov 2026), so this window opens only from a trip.
  *
  * The Go again tab (More Travel features part 14; Tyler: "Tab in Saved
  * places", "Ticked only") lists every place ticked "Would go again" on any
- * trip. From a trip it adds a copy to Ideas; from the Trips table it opens the
- * trip it was on.
+ * trip, each adding a copy to Ideas.
  *
  * Clicking a saved place's name opens it here to change its name, type,
  * picture and notes (Travel features 4, part 11: "Opens in the window").
@@ -52,7 +51,7 @@ export function SavedPlacesDialog({
 }: {
   open: boolean
   onClose: () => void
-  tripId?: string
+  tripId: string
   onAdded?: (activityId: string) => void
 }) {
   const [places, setPlaces] = React.useState<SavedPlace[] | null>(null)
@@ -109,7 +108,6 @@ export function SavedPlacesDialog({
   }, [editingId, types])
 
   async function addAgain(place: GoAgainPlace) {
-    if (!tripId) return
     setWorking(place.id)
     let id = ""
     const ok = await run(async () => {
@@ -133,7 +131,6 @@ export function SavedPlacesDialog({
   }, [open])
 
   async function add(place: SavedPlace) {
-    if (!tripId) return
     setWorking(place.id)
     let id = ""
     const ok = await run(async () => {
@@ -143,9 +140,10 @@ export function SavedPlacesDialog({
     if (ok) onAdded?.(id)
   }
 
-  async function forget(place: SavedPlace) {
+  async function binPlace(place: SavedPlace) {
     setWorking(place.id)
-    const ok = await run(() => forgetSavedPlace(place.id))
+    // Into Places' bin on the Trips dashboard, where it can be put back.
+    const ok = await run(() => changeSavedPlaceList([place.id], "bin"))
     setWorking(null)
     if (ok) setPlaces((was) => (was ?? []).filter((item) => item.id !== place.id))
   }
@@ -156,9 +154,7 @@ export function SavedPlacesDialog({
         <DialogHeader>
           <DialogTitle>Saved places</DialogTitle>
           <DialogDescription>
-            {tripId
-              ? "Add one to this trip's Ideas column. The copy is its own from then on. Click a place's name to change it."
-              : "Save a place from an activity's How was it card, then add it to any trip. Click a place's name to change it."}
+            Add one to this trip's Ideas column. The copy is its own from then on. Click a place's name to change it.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -203,19 +199,10 @@ export function SavedPlacesDialog({
                             {place.tripName} · {place.day === null ? "Ideas" : `Day ${place.day}`}
                           </span>
                         </span>
-                        {tripId ? (
-                          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void addAgain(place)}>
-                            {working === place.id ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-                            Add to trip
-                          </Button>
-                        ) : (
-                          <Button asChild type="button" variant="outline" size="sm">
-                            <Link to="/trips/$tripId" params={{ tripId: place.tripId }} search={{ open: place.id }} onClick={onClose}>
-                              <ArrowUpRightIcon className="size-4" />
-                              Open trip
-                            </Link>
-                          </Button>
-                        )}
+                        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void addAgain(place)}>
+                          {working === place.id ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+                          Add to trip
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -257,19 +244,17 @@ export function SavedPlacesDialog({
                           <span className="truncate text-xs text-muted-foreground">{place.place.address}</span>
                         ) : null}
                       </button>
-                      {tripId ? (
-                        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void add(place)}>
-                          {working === place.id ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-                          Add to trip
-                        </Button>
-                      ) : null}
+                      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void add(place)}>
+                        {working === place.id ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+                        Add to trip
+                      </Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label={`Remove ${place.title} from saved places`}
+                        aria-label={`Delete ${place.title}`}
                         disabled={busy}
-                        onClick={() => void forget(place)}
+                        onClick={() => void binPlace(place)}
                       >
                         <Trash2Icon className="size-4" />
                       </Button>

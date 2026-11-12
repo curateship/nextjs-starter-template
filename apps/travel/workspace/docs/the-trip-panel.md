@@ -122,9 +122,12 @@ setting.
 - **Escape** inside a row's box or list closes that box and leaves the menu
   open. Using a box opened from inside, such as the media library or
   Unsplash, doesn't close the menu.
-- Tags go in with a comma between them and filter the Trips table.
-- Delete trip moves the trip to the Trips table's Bin, then goes
-  back to Trips (see [Trips and the trip page](trips-and-the-trip-page.md)).
+- Tags go in with a comma between them, and the Trips dashboard's Tags block
+  and Filter narrow the Trips table by them.
+- Delete trip moves the trip to the Trips table's Bin, then goes back to Trips
+  (see [The Trips dashboard](trips-dashboard.md)).
+- The same Trip settings, without Delete trip, is the ⋮ of a trip picked on
+  the Trips dashboard, so a trip can be changed there without opening it.
 - The number of days changes on the board.
 - With no start date, the Calendar tab has its own date picker that saves
   the start date.

@@ -23,9 +23,16 @@ export const COMPACT_CARDS_KEY = "travel-compact-cards"
 /** The day columns folded shut on a trip. */
 export const foldedDaysKey = (tripId: string) => `travel-folded-days-${tripId}`
 
-/** Whether the Trips table shows the places-visited map. */
-export const TRIPS_MAP_KEY = "travel-trips-map"
-/** Which pins the Trips map shows: each trip's destination, or every place done (Travel features 3, part 12). */
+/** The Trips dashboard's panel widths, with a list on the right (12 Nov 2026). */
+export const TRIPS_DASHBOARD_LAYOUT_KEY = "travel-trips-horizontal-1"
+
+/** The Trips dashboard's widths on Overview, which has no right panel. */
+export const TRIPS_OVERVIEW_LAYOUT_KEY = "travel-trips-overview-horizontal-1"
+
+/** Where the Trips dashboard was: its section, tab, filters and open trip or place. */
+export const TRIPS_PLACE_KEY = "travel-trips-place"
+
+/** Which pins Overview's Map widget shows: each trip's destination, or every place done (Travel features 3, part 12). */
 export const TRIPS_MAP_PINS_KEY = "travel-trips-map-pins"
 
 /** Whether a trip's Ideas column is hidden behind its eye. */

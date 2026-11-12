@@ -35,7 +35,8 @@ export function SavedPlaceEditor({
   types: readonly ActivityType[]
   /** The place as saved, after each change the server took. */
   onChange: (place: SavedPlace) => void
-  onBack: () => void
+  /** Back to the list, inside the Saved places window; left out on the Trips dashboard's right panel. */
+  onBack?: () => void
 }) {
   const [title, setTitle] = React.useState(place.title)
   const [invalid, setInvalid] = React.useState(false)
@@ -89,12 +90,14 @@ export function SavedPlaceEditor({
 
   return (
     <div className="grid gap-4">
-      <div>
-        <Button type="button" variant="link" size="sm" className="px-1" onClick={onBack}>
-          <ArrowLeftIcon className="size-4" />
-          Back to saved places
-        </Button>
-      </div>
+      {onBack ? (
+        <div>
+          <Button type="button" variant="link" size="sm" className="px-1" onClick={onBack}>
+            <ArrowLeftIcon className="size-4" />
+            Back to saved places
+          </Button>
+        </div>
+      ) : null}
       <div className="grid gap-2">
         <Label htmlFor={`${idBase}-name`}>Name</Label>
         <Input

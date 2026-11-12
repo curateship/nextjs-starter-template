@@ -14,8 +14,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const ROW_PX = 36
 
 /**
- * The Trips table's Year tab (Travel features 4, part 9; Tyler, 6 Nov 2026:
- * "Cover, name, dates"): the months across the top and each dated trip as a
+ * The Trips dashboard's Year widget, the Trips table's Year tab until
+ * 12 Nov 2026 (Travel features 4, part 9; Tyler, 6 Nov 2026: "Cover, name,
+ * dates"): the months across the top and each dated trip as a
  * bar across its days, with its small cover, name and dates. Clicking a bar
  * opens the trip, and the arrows step a year at a time. It opens on the year
  * of the next trip. Trips with no dates can't be placed, so a line says how
@@ -27,7 +28,7 @@ export function TripsYearView({ trips, onOpen }: { trips: readonly TripListRow[]
   const undated = trips.filter((trip) => !trip.startDate).length
 
   return (
-    <div className="grid gap-3 border-t p-3">
+    <div className="grid gap-3 p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <div className="flex items-center gap-1">
           <YearButton label="Previous year" onClick={() => setYear(year - 1)}>

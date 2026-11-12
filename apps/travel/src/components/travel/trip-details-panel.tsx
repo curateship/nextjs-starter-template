@@ -26,7 +26,8 @@ import { cn } from "@/lib/utils"
 export function TripDetailsPanel() {
   const { page, readOnly, noteRequest } = useTrip()
   const { trip } = page
-  const [notesOpen, setNotesOpen] = React.useState(false)
+  // A note asked for on arrival (a pinned note on the Trips dashboard) shows straight away.
+  const [notesOpen, setNotesOpen] = React.useState(() => Boolean(noteRequest?.noteId))
   // A picture clicked on the Photos tab shows the note it's in, or the description.
   const [seenRequest, setSeenRequest] = React.useState(noteRequest)
   if (noteRequest !== seenRequest) {
