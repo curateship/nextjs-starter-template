@@ -161,8 +161,8 @@ tab row does ("tabs font is too small").
     20%", from 40px) with its number, its date with the day's own
     description under it ("add trip discription here"; the words written in
     the day's heading on the board, such as "Asakusa and the bay"), how many
-    activities it has (or Free) and an arrow. The count of activities drops out when the panel
-    is narrow.
+    activities it has (or Free) in a grey chip beside the date ("move the
+    activities here and style it in a chip"), and an arrow.
     - Pressing a day folds open its activities in place, and pressing it
       again folds them away (Tyler, 12 Nov 2026: "dont link the days to the
       trip page. Just open a toggle to show the title of the activities, its

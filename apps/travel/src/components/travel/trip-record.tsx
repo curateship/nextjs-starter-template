@@ -361,13 +361,22 @@ function Itinerary({
                 </span>
                 <span className="text-[0.616rem] font-semibold">{day}</span>
               </span>
-              {/* The day's description under its date (Tyler, 12 Nov 2026: "add trip discription here"). */}
+              {/* The day's description under its date (Tyler, 12 Nov 2026: "add trip discription here"),
+                  and how many activities beside the date as a chip ("move the activities here and style it in a chip"). */}
               <span className="grid min-w-0 flex-1">
-                <span className="truncate">{date ?? `Day ${day}`}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate">{date ?? `Day ${day}`}</span>
+                  {/* A filled chip, as the tabs' counts are; white on an open day's grey band. */}
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-md px-1.5 py-0.5 text-[0.77rem] leading-none text-muted-foreground",
+                      shown ? "bg-card" : "bg-muted"
+                    )}
+                  >
+                    {cards.length ? `${cards.length} ${cards.length === 1 ? "activity" : "activities"}` : "Free"}
+                  </span>
+                </span>
                 {note ? <span className="truncate text-[0.77rem] text-muted-foreground">{note}</span> : null}
-              </span>
-              <span className="hidden shrink-0 text-[0.77rem] text-muted-foreground @[16rem]:inline">
-                {cards.length ? `${cards.length} ${cards.length === 1 ? "activity" : "activities"}` : "Free"}
               </span>
               <ChevronRightIcon
                 className={cn("size-4 shrink-0 text-muted-foreground transition-transform", shown && "rotate-90")}
