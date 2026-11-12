@@ -9,7 +9,7 @@ const mediaApi = vi.hoisted(() => ({
   loadAdminMediaPage: vi.fn(),
 }))
 const toasts = vi.hoisted(() => {
-  const toast = Object.assign(vi.fn(), { success: vi.fn(), warning: vi.fn() })
+  const toast = vi.fn()
   return { toast, showError: vi.fn() }
 })
 

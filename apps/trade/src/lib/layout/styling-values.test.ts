@@ -66,9 +66,20 @@ describe("panel cards", () => {
       "--shell-panel-card-body": "transparent",
       "--shell-panel-card-tile-top": "0px",
       "--shell-panel-card-bleed": "0",
+      "--shell-panel-first-opacity": "100%",
+      "--shell-panel-first-blur": "12px",
     })
     expect(panelCardShade(styling)).toEqual({ value: 40, isDefault: true, custom: false })
     expect(panelCardBorderShade(styling)).toEqual({ value: 18, isDefault: true, custom: false })
+  })
+
+  it("makes the first side panel card wholly clear with no blur at 0%", () => {
+    const styling = normalizeStyling({ ...createDefaultStyling(), panelCardOpacity: 140 })
+    expect(styling.panelCardOpacity).toBe(100)
+    const clear = getPanelCardStyleVars({ ...styling, panelCardOpacity: 0 })
+    expect(clear["--shell-panel-first-opacity"]).toBe("0%")
+    expect(clear["--shell-panel-first-blur"]).toBe("0px")
+    expect(getPanelCardStyleVars({ ...styling, panelCardOpacity: 50 })["--shell-panel-first-blur"]).toBe("6px")
   })
 
   it("shows a grey saved before the sliders at its own strength", () => {

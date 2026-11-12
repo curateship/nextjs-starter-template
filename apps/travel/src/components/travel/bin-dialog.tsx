@@ -69,15 +69,13 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
   async function act(item: BinItem, kind: "restore" | "purge") {
     const { id } = item.entry
-    const name = itemName(item)
     setWorking(id)
     const ok = await run(
       async () => {
         if (item.kind === "activity") await (kind === "restore" ? restoreActivity(id) : purgeActivity(id))
         else await (kind === "restore" ? restoreNote(id) : purgeNote(id))
         await refresh()
-      },
-      kind === "restore" ? `${name} is back.` : `${name} deleted for good.`
+      }
     )
     setWorking(null)
     if (!ok) return

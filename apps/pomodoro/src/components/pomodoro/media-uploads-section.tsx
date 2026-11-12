@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import {
   ImageIcon,
   Loader2Icon,
@@ -31,7 +30,6 @@ import {
   getPomodoroUploadErrorMessage,
   loadUploadLibrary,
   binPomodoroUploads,
-  restorePomodoroUploads,
   type StoredUpload,
   type UploadLibrary,
 } from "@/lib/api/pomodoro/media-uploads"
@@ -127,15 +125,6 @@ export function MediaUploadsSection({
   // Ticked cards, for moving several to the bin in one go.
   const [chosen, setChosen] = React.useState<string[]>([])
   const [binning, setBinning] = React.useState(false)
-  // The "moved to the bin" toast goes when this tab does: its Bring back
-  // reloads this tab, and the Bin tab open beside it would go stale.
-  const binToast = React.useRef<string | number | null>(null)
-  React.useEffect(
-    () => () => {
-      if (binToast.current !== null) toast.dismiss(binToast.current)
-    },
-    []
-  )
 
   // Guests never own uploads, and asking the server anyway answers 401 — which
   // this strip then showed as a red "Please sign in again." on a page that was
@@ -228,32 +217,7 @@ export function MediaUploadsSection({
         many: "files",
         verb: "moved to the bin",
       })
-      if (!result.done.length) {
-        showErrorToast(line)
-        return
-      }
-      binToast.current = toast.success(line, {
-        description: `${result.done.length === 1 ? "It stays" : "They stay"} in the Bin tab for 30 days.`,
-        action: {
-          label: "Bring back",
-          onClick: () =>
-            void restorePomodoroUploads(result.done)
-              .then(async (restored) => {
-                await refresh()
-                const back = describeBulkResult({
-                  done: restored.done.length,
-                  kept: restored.skipped.length,
-                  one: "file",
-                  many: "files",
-                  verb: "brought back",
-                })
-                if (restored.skipped.length) showErrorToast(back)
-              })
-              .catch((restoreError: unknown) =>
-                showErrorToast(getPomodoroUploadErrorMessage(restoreError))
-              ),
-        },
-      })
+      if (!result.done.length) showErrorToast(line)
     } catch (binError) {
       showErrorToast(getPomodoroUploadErrorMessage(binError))
     } finally {

@@ -296,6 +296,7 @@ const shellStylingSchema = z.object({
   panelCardBorderColor: shellBackgroundSchema.optional(),
   panelCardRadius: z.number().int().min(0).max(32).optional(),
   panelCardShadow: z.number().int().min(0).max(100).optional(),
+  panelCardOpacity: z.number().int().min(0).max(100).optional(),
   panelCardInset: z.number().int().min(0).max(16).optional(),
   panelCardBodyShade: z.number().int().min(0).max(100).optional(),
   panelCardEdgeToEdge: z.boolean().optional(),

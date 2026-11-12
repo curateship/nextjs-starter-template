@@ -442,8 +442,7 @@ function PageLockButton({ locked }: { locked: boolean }) {
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   async function toggle() {
     const ok = await run(
-      () => saveAdminPageLock(!locked),
-      locked ? "Notes unlocked." : "Notes locked. Nobody can change them until they're unlocked."
+      () => saveAdminPageLock(!locked)
     )
     if (ok) await router.invalidate()
   }

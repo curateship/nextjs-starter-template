@@ -13,8 +13,8 @@ toast across all these active apps".
   says so.
 ## Where it applies
 
-- This app's own files, done 11 Nov 2026. The shell-origin screens (Admin,
-  CRM, Automations, Settings) get it at the next shell merge; the shell made
-  the change the same day.
+- This app's own files and the shell's screens (Admin, CRM, Automations,
+  Settings), done 11 Nov 2026; the shell's arrived with that day's shell
+  merge.
 - A new screen never adds a success toast. The UI standard
   (`.agents/skills/Ui-standards/SKILL.md`, Modals) says the same.

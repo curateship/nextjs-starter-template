@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import { GitMergeIcon, Loader2Icon, SaveIcon, Trash2Icon } from "lucide-react"
 
 import { FeedbackTagsSelect } from "@/components/feedback/feedback-tags-select"
@@ -82,7 +81,7 @@ export function EditFeedbackModal({
       })
       onUpdated(updated)
       onOpenChange(false)
-    }, "Feedback updated.")
+    })
   }
 
   const handleDelete = async () => {
@@ -93,7 +92,6 @@ export function EditFeedbackModal({
     try {
       await deleteFeedback(feedback.id)
       onDeleted(feedback.id)
-      toast.success("Feedback deleted.")
       setConfirmingDelete(false)
       onOpenChange(false)
     } catch (deleteError) {
@@ -334,7 +332,7 @@ export function MergeFeedbackDialog({
       })
       onMerged(feedback.id, updated)
       onOpenChange(false)
-    }, "Feedback merged.")
+    })
   }
 
   return (

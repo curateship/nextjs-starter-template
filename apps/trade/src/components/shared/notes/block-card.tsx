@@ -242,6 +242,8 @@ export function BlockCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
+      // Found by Panel cards → Opacity's rule in theme.css when it opens a side panel.
+      data-block-card=""
       // Corners, grey and edge from Settings → Styling → Blocks; the
       // fallbacks are the look blocks had before the setting existed. The
       // grey is a little see-through, 60% of the solid one, so a page's

@@ -4,7 +4,6 @@ import type { AccountDetail, AccountRow } from "@/lib/api/people/admin-users"
 import { pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { formatDate } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
-import { plural } from "@/lib/format/plural"
 
 /**
  * The words the Users tab says about an account: in its row, on the right
@@ -54,18 +53,6 @@ export function viewAsRefusal(account: AccountTarget) {
   if (isPendingDeletion(account)) return "This account is scheduled for deletion. Restore it first."
   if (account.status !== "active") return "This account is suspended. Set it back to active first."
   return null
-}
-
-/**
- * What deleting these accounts did, said plainly. The same action both marks
- * an account and, on a second go, removes one for good, so a mixed selection
- * reports both.
- */
-export function describeDeletion({ marked, deleted }: { marked: number; deleted: number }) {
-  const parts = []
-  if (marked) parts.push(`${marked} ${plural(marked, "account", "accounts")} scheduled for deletion`)
-  if (deleted) parts.push(`${deleted} deleted for good`)
-  return parts.length ? `${parts.join(", ")}.` : "Nothing to delete."
 }
 
 /**

@@ -15,7 +15,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
@@ -543,10 +542,7 @@ function ItemMenu({
                 void act(async () => {
                   await binArchiveItems([item.id])
                   setOpen(false)
-                  // It goes to the Bin with Put back, so it doesn't ask first (the UI standard's Delete rule).
-                  toast.success("Moved to the Bin.", {
-                    action: { label: "Put back", onClick: () => void restoreArchiveItem(item.id).then(onChanged, () => undefined) },
-                  })
+                  // It goes to the Bin, where it can be put back, so it doesn't ask first.
                   onLeft(undefined)
                 })
               }

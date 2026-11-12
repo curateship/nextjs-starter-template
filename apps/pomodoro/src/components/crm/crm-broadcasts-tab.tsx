@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CopyIcon, LayoutTemplateIcon, MailIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { BroadcastRecord, BROADCAST_STATUS_LABELS, broadcastProgress, TemplateRecord } from "@/components/crm/broadcast-records"
 import type { CrmFrame } from "@/components/crm/crm-frame"
@@ -33,7 +32,6 @@ import type { SegmentChoice } from "@/lib/api/people/contact-segments"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import type { CrmBroadcastSearch, CrmBroadcastView, CrmSearch } from "@/lib/crm/crm-search"
 import { formatInboxTime } from "@/lib/crm/inbox-time"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -117,7 +115,6 @@ export function CrmBroadcastsTab({
   const copy = async (broadcastId: string) => {
     try {
       const made = await duplicateBroadcast(broadcastId)
-      toast.success(`Copied as "${made.name}". The copy is a draft.`)
       // The copy is a draft, so it opens under Drafts.
       // The list is read again first, then the new one opened: the other way
       // round, the read raced the address change and the row only showed
@@ -413,12 +410,9 @@ export function CrmBroadcastsTab({
             const targets = deleteTargets
             if (!targets) return
             void runDelete(async () => {
-              const { deleted } = await deleteBroadcasts(targets.map((item) => item.id))
+              await deleteBroadcasts(targets.map((item) => item.id))
               setDeleteTargets(null)
               selection.clear()
-              toast.success(
-                describeBulkResult({ done: deleted, kept: targets.length - deleted, one: "newsletter", many: "newsletters", verb: "deleted" })
-              )
               // The list first, then letting go of the open one, for the same
               // reason as `copy`: the other way round the row stayed on screen.
               await refresh()

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { BanIcon, EyeIcon, PauseIcon, PlayIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import type { AccountAsk } from "@/components/admin-dashboard/account-actions"
 import { aiAllowanceText, targetOfDetail, viewAsRefusal } from "@/components/admin-dashboard/account-words"
@@ -72,22 +71,16 @@ export function UserMenu({
   const grantedEnds = subscription.source === "manual" ? subscription.currentPeriodEnd : null
   const paying = subscription.isPaid || subscription.paused
 
-  /** Saves one change, says so, then reads the person and the list again. */
-  const save = (work: () => Promise<unknown>, done: string) =>
+  /** Saves one change, then reads the person and the list again. */
+  const save = (work: () => Promise<unknown>) =>
     run(async () => {
       await work()
-      toast.success(done)
       await onChanged()
     })
 
   const setPaused = (paused: boolean) =>
     void runPause(async () => {
       await setAccountPlanPaused(profile.id, paused)
-      toast.success(
-        paused
-          ? `${profile.name}'s plan is paused. They are not being billed and are back on the free plan.`
-          : `${profile.name}'s plan is running again. Billing starts from today.`
-      )
       setConfirmingPause(false)
       await onChanged()
     })
@@ -132,7 +125,7 @@ export function UserMenu({
                     // this account still holds it.
                     options={rolesWith(profile.role).map((one) => ({ value: one.id, label: one.label }))}
                     selected={profile.role}
-                    onPick={(role) => void save(() => updateAccountRole(profile.id, role), "Role saved.")}
+                    onPick={(role) => void save(() => updateAccountRole(profile.id, role))}
                   />
                   <PickMenuRow
                     label="Status"
@@ -145,8 +138,7 @@ export function UserMenu({
                     selected={status}
                     onPick={(value) =>
                       void save(
-                        () => updateAccountStatus(profile.id, value as "active" | "suspended"),
-                        value === "suspended" ? `${profile.name} is suspended.` : `${profile.name} is active again.`
+                        () => updateAccountStatus(profile.id, value as "active" | "suspended")
                       )
                     }
                   />
@@ -173,8 +165,7 @@ export function UserMenu({
                     selected={grantedPlan?.id ?? "none"}
                     onPick={(planId) =>
                       void save(
-                        () => grantAccountPlan(profile.id, planId === "none" ? null : planId, planId === "none" ? null : grantedEnds),
-                        planId === "none" ? "Granted plan removed." : "Plan granted."
+                        () => grantAccountPlan(profile.id, planId === "none" ? null : planId, planId === "none" ? null : grantedEnds)
                       )
                     }
                   />
@@ -193,8 +184,7 @@ export function UserMenu({
                               profile.id,
                               grantedPlan.id,
                               day ? new Date(`${format(day, "yyyy-MM-dd")}T23:59:59`).toISOString() : null
-                            ),
-                          day ? `The plan ends on ${formatDate(day.toISOString())}.` : "The plan stays until you remove it."
+                            )
                         )
                       }
                     />
@@ -204,7 +194,7 @@ export function UserMenu({
                       key={String(detail.aiAllowance.overrideCents)}
                       overrideCents={detail.aiAllowance.overrideCents}
                       onSave={(cents) =>
-                        save(() => saveAiAllowanceOverride(profile.id, cents), "AI allowance saved.")
+                        save(() => saveAiAllowanceOverride(profile.id, cents))
                       }
                     />
                   </PickRow>
@@ -219,7 +209,7 @@ export function UserMenu({
                     <TagsBox
                       key={profile.tags.join("\n")}
                       tags={profile.tags}
-                      onSave={(tags) => save(() => updateAccountMemberTags(profile.id, tags), "Tags saved.")}
+                      onSave={(tags) => save(() => updateAccountMemberTags(profile.id, tags))}
                     />
                   </PickRow>
                 </PickGroup>

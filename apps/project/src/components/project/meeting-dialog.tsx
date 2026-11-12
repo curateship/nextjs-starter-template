@@ -176,8 +176,7 @@ export function MeetingDialog({
       peopleIds: draft.peopleIds,
     }
     const ok = await run(
-      () => (meeting ? changeMeeting({ meetingId: meeting.id, meeting: input }, teamId) : makeMeeting(input, teamId)),
-      meeting ? "Meeting saved." : "Meeting created."
+      () => (meeting ? changeMeeting({ meetingId: meeting.id, meeting: input }, teamId) : makeMeeting(input, teamId))
     )
     if (!ok) return
     await router.invalidate()
@@ -380,7 +379,7 @@ export function MeetingDialog({
               destructive
               loading={busy}
               onConfirm={async () => {
-                const ok = await run(() => removeMeeting(meeting.id, teamId), "Meeting deleted.")
+                const ok = await run(() => removeMeeting(meeting.id, teamId))
                 if (!ok) return
                 setDeleting(false)
                 await router.invalidate()

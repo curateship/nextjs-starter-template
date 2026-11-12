@@ -47,7 +47,7 @@ export function useNewPageForm(onCreated: (page: WrittenPage) => Promise<void> |
       setDescription("")
       created = true
       await onCreated(page)
-    }, "Page created.")
+    })
     return created
   }
 

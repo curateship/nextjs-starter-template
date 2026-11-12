@@ -148,7 +148,7 @@ export function InvitePeopleButton({
             await resetFocusGroupInvite(group.id)
             setConfirmingNewLink(false)
             await onChanged()
-          }, "New link made. The old one no longer works.")
+          })
         }
       />
       <QrCodeDialog
@@ -203,13 +203,12 @@ function InviteLinkFields({
   const lifetimeId = React.useId()
 
   const saveSettings = (
-    settings: Parameters<typeof saveFocusGroupInviteSettings>[1],
-    done: string
+    settings: Parameters<typeof saveFocusGroupInviteSettings>[1]
   ) =>
     void run(async () => {
       await saveFocusGroupInviteSettings(group.id, settings)
       await onChanged()
-    }, done)
+    })
 
   return (
     <>
@@ -282,8 +281,7 @@ function InviteLinkFields({
               disabled={busy}
               onCheckedChange={(checked) =>
                 saveSettings(
-                  { joinsPaused: !checked },
-                  checked ? "The link lets people in again." : "The link is paused."
+                  { joinsPaused: !checked }
                 )
               }
             />
@@ -297,12 +295,7 @@ function InviteLinkFields({
               checked={group.approveJoins}
               disabled={busy}
               onCheckedChange={(checked) =>
-                saveSettings(
-                  { approveJoins: checked },
-                  checked
-                    ? "You let each person in from now on."
-                    : "People join straight away again. Anybody waiting is in."
-                )
+                saveSettings({ approveJoins: checked })
               }
             />
             <Label htmlFor={askId} className="text-sm font-normal">
@@ -321,8 +314,7 @@ function InviteLinkFields({
               disabled={busy}
               onValueChange={(value) =>
                 saveSettings(
-                  { linkLifetime: value as GroupLinkLifetime },
-                  "Saved."
+                  { linkLifetime: value as GroupLinkLifetime }
                 )
               }
             >
@@ -536,7 +528,7 @@ function InviteFollowsDialog({
               }
               const sent = await run(async () => {
                 await sendFocusGroupInvites(groupId, [...picked])
-              }, picked.size === 1 ? "Invite sent." : `${picked.size} invites sent.`)
+              })
               if (sent) onOpenChange(false)
             }}
           >

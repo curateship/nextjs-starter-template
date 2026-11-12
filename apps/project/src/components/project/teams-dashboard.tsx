@@ -359,7 +359,7 @@ function DeleteTeam({ team, onClose }: { team: TeamListRow; onClose: () => void 
       confirmLabel="Delete team"
       loading={busy}
       onConfirm={() =>
-        void run(() => deleteProjectTeam(team.id), `${team.name} deleted.`).then(async (ok) => {
+        void run(() => deleteProjectTeam(team.id)).then(async (ok) => {
           if (!ok) return
           onClose()
           await router.invalidate()

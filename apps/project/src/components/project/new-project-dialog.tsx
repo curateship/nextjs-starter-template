@@ -84,7 +84,7 @@ export function NewProjectDialog({
           teamId || undefined
         )
       ).id
-    }, "Project created.")
+    })
     if (!ok) return
     close()
     await navigate({ to: "/projects/$projectId", params: { projectId } })

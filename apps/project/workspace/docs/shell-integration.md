@@ -96,3 +96,24 @@ Every shell change since the 10 Nov merge (`33c87ec4b`) is in Project, up to the
 **No migration was new**, and no route changed.
 
 **Checked.** Typecheck is clean, and the 256 tests in the admin, automations, broadcasts, CRM, pages, settings, shared, shell, project, API and layout folders pass. Not checked in a browser.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `5131991aa` is in Project, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited older shell copy.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+- **The sidebar and top bar border have a shade of their own** (Settings → Styling → Sidebar & Top navigation).
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 423 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

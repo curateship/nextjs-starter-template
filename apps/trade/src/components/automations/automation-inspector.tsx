@@ -123,7 +123,7 @@ export function AutomationInspector({
           {/* One column the panel's own width, so a narrow right panel wraps
               the settings rather than running them past its edge. Its 16px is
               the panel gutter, so a card set to edge to edge reaches the side. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-0 p-4 [--panel-gutter:1rem] [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-0 px-4 pt-0 pb-4 [--panel-gutter:1rem] [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
             {/* No line describing the step under its name: its settings say
                 it (Tyler, 10 Nov 2026: "all these tooltips are not
                 nesessary"). With no step picked, the panel says what to do. */}

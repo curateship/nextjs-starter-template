@@ -84,7 +84,7 @@ export function TimeOffSection({
       showErrorToast("Pick the first day off.")
       return
     }
-    const ok = await run(() => addDaysOff({ userId, firstDay, lastDay }, teamId), "Time off saved.")
+    const ok = await run(() => addDaysOff({ userId, firstDay, lastDay }, teamId))
     if (!ok) return
     setAdding(false)
     setFirst(undefined)
@@ -94,7 +94,7 @@ export function TimeOffSection({
   }
 
   async function remove(entry: TimeOff) {
-    if (await run(() => removeDaysOff(entry.id, teamId), "Time off removed.")) {
+    if (await run(() => removeDaysOff(entry.id, teamId))) {
       setRemoving(null)
       setReloads((n) => n + 1)
       await router.invalidate()

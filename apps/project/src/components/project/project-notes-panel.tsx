@@ -27,7 +27,6 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PageNoteEditor } from "@/components/project/project-page-notes"
 import { PersonAvatar } from "@/components/project/task-bits"
@@ -50,7 +49,6 @@ import {
   moveNote,
   newProjectNote,
   pinNote,
-  restoreNote,
   saveNote,
   type ProjectNote,
   type ProjectNotesList,
@@ -61,7 +59,6 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { NoteNode } from "@/lib/project/note-blocks"
 import { noteTitle } from "@/lib/project/project-notes"
-import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 type Loaded = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; list: ProjectNotesList }
@@ -181,17 +178,10 @@ export function ProjectNotes({
     if (!(await run(() => deleteNote(note.id)))) return
     if (openId === note.id) setOpenId(null)
     reload()
-    toast.success("Note moved to the bin.", {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          void restoreNote(note.id).then(reload, (error: unknown) => showErrorToast(getProjectErrorMessage(error))),
-      },
-    })
   }
 
-  async function change(work: () => Promise<unknown>, successText?: string) {
-    if (await run(work, successText)) reload()
+  async function change(work: () => Promise<unknown>) {
+    if (await run(work)) reload()
   }
 
   /** A note dropped on another in its own group goes just before or after it, as the drag showed. */
@@ -321,7 +311,7 @@ export function ProjectNotes({
               {menu.note.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
               {menu.note.pinned ? "Unpin" : "Pin to top"}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void change(() => duplicateNote(menu.note.id), "Note duplicated.")}>
+            <DropdownMenuItem onSelect={() => void change(() => duplicateNote(menu.note.id))}>
               <CopyIcon className="size-4" />
               Duplicate
             </DropdownMenuItem>

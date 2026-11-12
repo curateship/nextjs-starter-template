@@ -123,7 +123,7 @@ export function GroupEditDialog({
           await deleteFocusGroup(group.id)
           onOpenChange(false)
           await onGone()
-        }, "Group deleted."),
+        }),
     })
 
   const save = async () => {
@@ -148,7 +148,7 @@ export function GroupEditDialog({
         weeklyGoalHours: goalHours,
       })
       await onSaved()
-    }, "Group saved.")
+    })
     if (saved) onOpenChange(false)
   }
 

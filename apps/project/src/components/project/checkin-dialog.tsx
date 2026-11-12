@@ -186,8 +186,7 @@ export function CheckinDialog({
           }),
           picks: [...ticked],
           notes: notesToSave(notes, page.people),
-        }),
-      "Checked in."
+        })
     )
     if (!ok) return
     await router.invalidate()
@@ -680,8 +679,7 @@ function PickRow({
       return
     }
     const ok = await run(
-      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason.trim() }),
-      task.assignedBy ? `Marked Stuck. ${task.assignedBy.name} has been told.` : "Marked Stuck."
+      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason.trim() })
     )
     if (!ok) return
     setStuckOpen(false)
@@ -809,7 +807,7 @@ function AddTaskRow({
         assigneeUserId: myUserId,
       })
       created.id = task.id
-    }, "Task added and picked.")
+    })
     if (!ok) return
     setTitle("")
     await onAdded(created.id)

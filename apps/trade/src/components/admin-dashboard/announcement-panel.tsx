@@ -8,7 +8,6 @@ import {
   MegaphoneIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { MenuActionRow } from "@/components/admin-dashboard/list-parts"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
@@ -212,7 +211,6 @@ function AnnouncementForm({
       const saved = announcement
         ? await updateAdminAnnouncement(announcement.id, input)
         : await createAdminAnnouncement(input)
-      toast.success(announcement ? "Announcement saved." : "Announcement created.")
       onDirtyChange(false)
       onSaved(saved)
     } catch (saveError) {
@@ -463,13 +461,11 @@ function AnnouncementForm({
             try {
               if (confirm === "delete") {
                 await deleteAdminAnnouncements([announcement.id])
-                toast.success("Announcement deleted.")
                 setConfirm(null)
                 onDirtyChange(false)
                 onRemoved(announcement.id)
               } else {
                 await retireAdminAnnouncements([announcement.id])
-                toast.success("Announcement retired.")
                 setConfirm(null)
                 onRetired()
               }

@@ -6,7 +6,7 @@ import { TRAVEL_ERRORS } from "@/lib/travel/errors"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { addDay, copyDay, duplicateActivity, moveActivities, moveDay, removeDay, restoreActivities } from "@/server/travel/days"
+import { addDay, copyDay, duplicateActivity, moveActivities, moveDay, removeDay } from "@/server/travel/days"
 import { createTripNote, deleteTripNote, duplicateTripNote, saveTripNote } from "@/server/travel/trip-notes"
 import { giveSampleTrip } from "@/server/travel/sample"
 import { addSavedPlaceToTrip, saveActivityAsPlace } from "@/server/travel/saved-places"
@@ -192,59 +192,6 @@ describe("days (parts 7, 10 and 11)", () => {
     await add(tripId, 1, "B")
     await duplicateActivity(anna.id, a, database)
     expect(await titlesOn(tripId, 1)).toEqual(["A", "A", "B"])
-  })
-})
-
-describe("undo (part 16)", () => {
-  it("puts deleted cards back exactly and removes copies", async () => {
-    const tripId = await trip()
-    const a = await add(tripId, 1, "A")
-    const b = await add(tripId, 1, "B")
-    const before = (await loadTripPage(anna.id, tripId, database)).activities.map((activity) => ({
-      id: activity.id,
-      day: activity.day,
-      position: activity.position,
-      inBin: false,
-      startTime: activity.startTime,
-      dayPart: activity.dayPart,
-    }))
-    await binActivities(anna.id, [a], database)
-    const { id: copy } = await duplicateActivity(anna.id, b, database)
-    await restoreActivities(anna.id, { tripId, places: before, created: [copy] }, database)
-    expect(await titlesOn(tripId, 1)).toEqual(["A", "B"])
-  })
-
-  it("can't be used on another person's trip", async () => {
-    const tripId = await trip()
-    const a = await add(tripId, 1, "A")
-    await expect(
-      restoreActivities(
-        ben.id,
-        { tripId, places: [{ id: a, day: 2, position: 0, inBin: false, startTime: null, dayPart: null }], created: [] },
-        database
-      )
-    ).rejects.toThrow(TRAVEL_ERRORS.tripNotFound)
-  })
-
-  it("brings back a card's time and part of the day after a move to Ideas cleared them", async () => {
-    const tripId = await trip()
-    const timed = await add(tripId, 1, "Breakfast")
-    const parted = await add(tripId, 1, "Temple")
-    await updateActivity(anna.id, { activityId: timed, startTime: "08:00" }, database)
-    await updateActivity(anna.id, { activityId: parted, dayPart: "afternoon" }, database)
-    const before = (await loadTripPage(anna.id, tripId, database)).activities.map((activity) => ({
-      id: activity.id,
-      day: activity.day,
-      position: activity.position,
-      inBin: false,
-      startTime: activity.startTime,
-      dayPart: activity.dayPart,
-    }))
-    await moveActivities(anna.id, { activityIds: [timed, parted], day: null }, database)
-    await restoreActivities(anna.id, { tripId, places: before, created: [] }, database)
-    const back = (await loadTripPage(anna.id, tripId, database)).activities
-    expect(back.find((activity) => activity.id === timed)).toMatchObject({ day: 1, startTime: "08:00" })
-    expect(back.find((activity) => activity.id === parted)).toMatchObject({ day: 1, dayPart: "afternoon" })
   })
 })
 

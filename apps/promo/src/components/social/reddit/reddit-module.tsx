@@ -1,6 +1,5 @@
 import * as React from "react"
 import { AlertTriangleIcon, ListChecksIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CommentsDashboard, type CommentsTab } from "@/components/social/comments/comments-dashboard"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
@@ -18,7 +17,6 @@ import {
 import {
   blockRedditSubreddit,
   getBlockedErrorMessage,
-  unblockRedditSubreddit,
 } from "@/lib/api/social/reddit/blocked"
 import {
   cancelComment,
@@ -48,7 +46,6 @@ import {
   keywordTitle,
   postButtonWords,
   postingBlockedReason,
-  postsWord,
 } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FindRow, KeywordRow } from "@/server/social/keywords"
@@ -508,24 +505,6 @@ export function RedditModule({
       ) {
         setSelectedFind(null)
       }
-      await afterBlockChange()
-      toast.success(
-        `r/${answer.subreddit} blocked. ${postsWord(answer.hidden)} hidden.`,
-        {
-          action: {
-            label: "Undo",
-            onClick: () => void unblockSubreddit(answer.subreddit),
-          },
-        }
-      )
-    } catch (error) {
-      showErrorToast(getBlockedErrorMessage(error))
-    }
-  }
-
-  async function unblockSubreddit(subreddit: string) {
-    try {
-      await unblockRedditSubreddit(subreddit)
       await afterBlockChange()
     } catch (error) {
       showErrorToast(getBlockedErrorMessage(error))

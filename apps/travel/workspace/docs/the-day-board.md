@@ -44,7 +44,7 @@ this browser.
   its closed Monday, says "Closed on Mondays" in red whether or not it has a
   start time, with a "Move to Tue" button along its foot (Tyler, 3 Nov 2026:
   "Warning + Move button"). The button moves it to the nearest day of the
-  trip the place is open, the later day when two are as near, with Undo. It
+  trip the place is open, the later day when two are as near. It
   needs a start date, to know the weekdays, and opening hours on the place.
   A place open on none of the trip's days warns with no button. Compact
   cards leave the line off, to stay one line.
@@ -74,7 +74,7 @@ this browser.
   day whose forecast is 70 out of 100 rain or more, an outdoor card reads
   "Rain on Tue" with "Move to Thu" along its foot, the same as the closed-day
   button. Thu is the driest forecast day of the trip under 30, the nearer one
-  when two are as dry, and the move has Undo. With no day that dry, the card
+  when two are as dry. With no day that dry, the card
   says "Rain on Tue" in red with no button. A card is outdoors when Google
   calls its place a park, garden, beach, hiking area, zoo, amusement park and
   the like (the list is `src/lib/travel/rainy-day.ts`), so only places picked
@@ -107,11 +107,10 @@ this browser.
   day, Mark done, Mark must do, and Delete.
 - **Done.** The tick in a card's corner marks it done; done cards fade and are
   struck through.
-- **Undo.** After a move, delete, duplicate, copy or a change to several
-  cards, a bar at the bottom says what happened, with Undo, for 6 seconds.
-  Undo puts every card back where it was, with its start time and part of
-  the day, and removes any copies. Marking
-  Done or Must do has no Undo; pressing again undoes it.
+- **Nothing pops up after a move, delete, duplicate or copy.** The board
+  redraws with the cards where they went. There is no Undo bar (Tyler,
+  11 Nov 2026, removing the success toasts and the Undo bars with them): a
+  deleted card waits in the bin, and a moved one is moved back by hand.
 - **A day's menu** (the three dots) adds a day after it, fills it with AI,
   puts it in its best order, copies its cards onto another day, or removes
   it. Removing a day with cards asks whether to send
@@ -126,8 +125,8 @@ this browser.
   time when that is free. Each answer is checked: a card outside the gaps is
   dropped, one running past its gap is cut to fit (or dropped when under 30
   minutes would be left), and none overlap. They show first in the Draft a
-  plan window, titled "Fill Day 2", to untick or change, and Create adds them
-  with Undo on the bar at the bottom. A day with no gap says so and asks
+  plan window, titled "Fill Day 2", to untick or change, and Create adds them.
+  A day with no gap says so and asks
   nothing. It needs the trip's destination and an AI key (see
   [Drafting a plan with AI](drafting-a-plan.md)).
 - **Best order** (Tyler, 3 Nov 2026: "From the hotel") puts the day's cards
@@ -142,10 +141,9 @@ this browser.
   still wins over the order, so a Morning card stays before an Afternoon one.
   - Up to 8 cards, every order is tried. Past 8, each step goes to the
     nearest card left.
-  - The toast says what it saved, such as "Day 2 in its best order: saves
-    25m of walking", with Undo. A day already in its best order says so and
-    changes nothing. When Google finds no route between two of the places,
-    the order still changes, and the toast says the time saved isn't known.
+  - The cards change order on the board and nothing pops up. A day already
+    in its best order changes nothing. When Google finds no route between two
+    of the places, the order still changes.
   - It needs `GOOGLE_MAPS_API_KEY`; without it the toast says Google Maps
     isn't set up. Google charges for each new pair of places: five cards and
     a hotel are 15 pairs the first time, and none after, because every time
@@ -183,7 +181,7 @@ this browser.
   gather in the "N selected" button. Its first row is Mark done (Tyler, 4 Nov
   2026: "Mark done / not done"), which reads Mark not done when every ticked
   card is already done, then Move to day and Delete. Mark done is one request
-  with no Undo, the same as the single tick. The cards change on the board and
+  the same as the single tick. The cards change on the board and
   nothing pops up.
 - **Today.** While a dated trip is on, the board opens on today's column and
   marks it Today. Today is worked out in the trip's time zone, from Trip
@@ -229,15 +227,15 @@ this browser.
   - **Each row** is a little tighter: a Done circle that marks it done or not,
     a circle with a tick, green once done (Tyler, 6 Nov 2026: "make the
     checkbox green color", then "just chanbge the color"),
-    the name, then Time, Type, Cost and Delete. Delete moves it to the bin
-    with Undo. A press anywhere else on the row opens it on the right.
+    the name, then Time, Type, Cost and Delete. Delete moves it to the bin.
+    A press anywhere else on the row opens it on the right.
   - **Type changes from its cell:** a press opens your types, and a pick saves.
   - **Sorting:** Activity, Type and Cost sort within each day. Time is the
     day's own order, the board's, and pressing it again turns it round.
   - **Mass select** works here as on the Board, from the ⋮ or first in a
     row's right-click, which is the card's menu. It shows tick boxes, a tick
     box over the column to tick every row in view, and drag handles. A row
-    dragged under another day moves there, with Undo; a row with a start time
+    dragged under another day moves there; a row with a start time
     keeps its place by time. With a column sorted, rows don't drag, and a
     line offers "Use the day's order".
   - **Left out from Project:** status, priority, person and due, which a trip
@@ -249,7 +247,7 @@ this browser.
 - **Calendar:** the trip's dates as weeks, each day listing its activities by
   time. A trip with no start date says so, with a date picker that saves one.
   A card drags onto another day of the trip (Tyler, 4 Nov 2026: "Keep time
-  and part"), keeping its start time and part of the day, with Undo, through
+  and part"), keeping its start time and part of the day, through
   the board's own move. A drag starts after 8px, so a click still opens the
   card. Dates outside the trip take no drop.
 - **Map:** the activities picked from Google as numbered pins, one colour per

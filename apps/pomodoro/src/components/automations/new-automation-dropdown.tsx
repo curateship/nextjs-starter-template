@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { AUTOMATION_TEMPLATE_ICONS } from "@/components/automations/automation-template-icons"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
@@ -76,7 +75,6 @@ export function NewAutomationDropdown({
     }
     await run(async () => {
       const created = await createAutomation(name.trim(), start === "blank" ? null : start)
-      toast.success(`Created "${created.name}".`)
       setName("")
       setStart("blank")
       setInvalid(false)

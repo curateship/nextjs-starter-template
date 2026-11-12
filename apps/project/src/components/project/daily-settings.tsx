@@ -314,8 +314,8 @@ export function DailyHabitsSetting({ daily }: { daily: DailyCard }) {
   )
   const dndId = React.useId()
 
-  async function act(work: () => Promise<unknown>, done?: string) {
-    if (await run(work, done)) await reload()
+  async function act(work: () => Promise<unknown>) {
+    if (await run(work)) await reload()
   }
 
   function partOf(id: string): DayPart | null {
@@ -378,7 +378,7 @@ export function DailyHabitsSetting({ daily }: { daily: DailyCard }) {
               variant="outline"
               className="justify-self-start"
               disabled={busy}
-              onClick={() => void act(() => addSampleRoutines(), "Added the sample routines.")}
+              onClick={() => void act(() => addSampleRoutines())}
             >
               Start from the samples
             </Button>
@@ -414,7 +414,7 @@ export function DailyHabitsSetting({ daily }: { daily: DailyCard }) {
           </div>
         </DndContext>
         {admin.retired.length ? (
-          <RetiredHabits retired={admin.retired} busy={busy} onBringBack={(habit) => void act(() => bringBackHabit(habit.id), `"${habit.name}" is back.`)} />
+          <RetiredHabits retired={admin.retired} busy={busy} onBringBack={(habit) => void act(() => bringBackHabit(habit.id))} />
         ) : null}
       </HabitSave.Provider>
     </section>
@@ -639,7 +639,7 @@ function HabitLine({
             <DropdownMenuItem
               disabled={busy}
               onSelect={() =>
-                void run(() => retireMyHabit(habit.id), `Retired "${habit.name}". Its ticks are kept.`).then((ok) => {
+                void run(() => retireMyHabit(habit.id)).then((ok) => {
                   if (ok) void reload()
                 })
               }

@@ -416,3 +416,24 @@ Every shell change since the 7 Nov merge (`e69b7243e`) is in Video, up to the sh
 **Kept as Video's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator. The shell's `scripts/crm-samples.mjs` stays out, as Video never carried it.
 
 **Checked.** Typecheck is clean, and 4,328 of 4,335 tests pass. These failed before the merge too: delivery and public-branding, which fail in the shell as well, and the guard test, which finds three Video server functions from 5 Nov that it does not list (`sayAgainFn`, `requestSteadyCopyFn`, `scoreFn`). The unsubscribe test timed out in the full run and passes when run alone. Not checked in a browser.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `5131991aa` is in Video, up to the shell at `3d6037c83`: 81 files replaced, each an unedited older shell copy. `src/theme.css` is Video's own and was merged three ways, with no conflict: it kept its fonts and took the shell's new rules.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+- **The sidebar and top bar border have a shade of their own** (Settings → Styling → Sidebar & Top navigation).
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 345 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

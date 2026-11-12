@@ -81,7 +81,7 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
 - **The ⋮** holds folding rows for Name, Description and Project (Copy or Move),
   then Pin to the top, then Delete in red. In the Bin it holds Put back and Delete
   for good.
-  - **Delete** goes to the Bin with Put back in the message, so it doesn't ask
+  - **Delete** goes to the Bin, where Put back returns it, so it doesn't ask
     first.
   - **Delete for good** asks first, because it can't be undone.
 

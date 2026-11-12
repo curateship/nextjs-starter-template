@@ -1,6 +1,5 @@
 import * as React from "react"
 import { PaperclipIcon, SparklesIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -99,13 +98,9 @@ export function ReplyComposer({
     if (!body.trim() || sending) return
     setSending(true)
     try {
-      const { reopened } = await sendReply(threadId, body.trim(), files)
+      await sendReply(threadId, body.trim(), files)
       setBody("")
       setFiles([])
-      // The conversation was closed by a block and answering it put it back
-      // in the inbox. Said out loud, because a conversation reappearing
-      // without a word is its own surprise.
-      if (reopened) toast.success("Back in the inbox, because you answered it.")
       onSent()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))

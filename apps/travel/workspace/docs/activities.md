@@ -100,8 +100,7 @@ The groups, in order:
   Yes or No (see "Must do" below).
 - **When:** Day (Ideas or Day N), then Time, which opens the start time, the
   length in hours and minutes, and nights for a stay. Nights shows for a
-  Hotel or anything with nights set. Moving to another day can be undone
-  from the bar at the bottom. A card on a day with no start time also has
+  Hotel or anything with nights set. A card on a day with no start time also has
   Part of day: Any time, Morning, Afternoon, Evening or Night (see
   [The day board](the-day-board.md)).
 - **The weather** sits under When's list, on a card on a dated day (Tyler,
@@ -129,7 +128,7 @@ The groups, in order:
   "Would go again", and Save to saved places.
 - **Under the groups:** Add tips (see "Tips by AI" below) and Duplicate
   activity, then Delete activity in red under a line of its own. Delete moves
-  it to the trip's bin, with Undo.
+  it to the trip's bin, where Put back returns it.
 
 Inside a row's box the row's own name is the field's label, so a field on
 its own carries no second label on screen; screen readers still read one

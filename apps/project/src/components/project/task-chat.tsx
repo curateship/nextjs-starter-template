@@ -317,8 +317,7 @@ function Composer({
     const sentFiles = files
     const sentLinks = links
     const ok = await change(
-      () => sendChatMessage({ chat, body, replyToId: replyTo?.id ?? null, files: sentFiles }),
-      sentFiles.length ? `${sentFiles.length} ${plural(sentFiles.length, "file")} sent.` : undefined
+      () => sendChatMessage({ chat, body, replyToId: replyTo?.id ?? null, files: sentFiles })
     )
     inFlight.current = false
     setSending(false)
@@ -577,11 +576,11 @@ function MessageRow({
   // A teammate's page opens from the name, except inside a window.
   const openPerson = useOpenPerson()
 
-  async function work(task: () => Promise<unknown>, successText?: string) {
+  async function work(task: () => Promise<unknown>) {
     if (inFlight.current) return false
     inFlight.current = true
     setBusy(true)
-    const ok = await change(task, successText)
+    const ok = await change(task)
     inFlight.current = false
     setBusy(false)
     return ok
@@ -612,8 +611,7 @@ function MessageRow({
   async function remove() {
     const keepFiles = !dropFiles
     const ok = await work(
-      () => deleteChatMessage({ commentId: message.id, keepFiles }),
-      message.deleted ? `${plural(fileCount, "File")} deleted.` : "Message deleted."
+      () => deleteChatMessage({ commentId: message.id, keepFiles })
     )
     if (ok) setConfirmDelete(false)
   }

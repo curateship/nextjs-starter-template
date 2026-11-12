@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { PencilIcon, RotateCcwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { AUTOMATION_TEMPLATE_ICONS } from "@/components/automations/automation-template-icons"
 import { EmptyRow } from "@/components/shared/feed-card"
@@ -118,7 +117,6 @@ export function AutomationTemplateCards({
         description,
       })
       await hooks.after(saved)
-      toast.success(`Saved "${saved.name}".`)
       closeDetails()
     })
   }
@@ -129,7 +127,6 @@ export function AutomationTemplateCards({
       if ((await hooks.before?.(resetTarget.key)) === false) return
       const reset = await resetAutomationTemplate(resetTarget.key)
       await hooks.after(reset)
-      toast.success(`Reset "${reset.name}" to the built-in version.`)
       setResetTarget(null)
     })
   }

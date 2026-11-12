@@ -227,7 +227,7 @@ function FileRow({ file, change }: { file: TaskFile; change: Change }) {
               disabled={busy}
               onClick={async () => {
                 setBusy(true)
-                await change(() => deleteFileFromTask(file.id), "File deleted.")
+                await change(() => deleteFileFromTask(file.id))
                 setBusy(false)
               }}
             >

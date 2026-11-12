@@ -13,7 +13,6 @@ import {
   UserIcon,
 } from "lucide-react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
-import { toast } from "sonner"
 
 import { RefreshAutomationCounts } from "@/components/automations/automation-blocks"
 import { AutomationRunsPanel } from "@/components/automations/automation-runs-panel"
@@ -351,11 +350,6 @@ export function AutomationEditor({
       const saved = await setAutomationLive(initial.id, next)
       dismissErrorToast()
       setLive(saved.enabled)
-      toast.success(
-        next
-          ? `"${name}" is on. Its "${saved.trigger_name}" step starts it from now on. Nothing from before is caught up.`
-          : `"${name}" is off. Nothing starts it on its own any more.`
-      )
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
     } finally {
@@ -406,7 +400,6 @@ export function AutomationEditor({
     try {
       change((current) => ({ ...current, name: next }))
       if (await saveNow()) {
-        toast.success(`Renamed to "${next}".`)
         onRenamed?.(next)
         setRenameOpen(false)
       }
@@ -559,7 +552,6 @@ export function AutomationEditor({
         <TestWithContactDialog
           open={testOpen}
           automationId={initial.id}
-          automationName={name}
           onOpenChange={setTestOpen}
           onStarted={async (startedId) => {
             setAppPanelShut(false)

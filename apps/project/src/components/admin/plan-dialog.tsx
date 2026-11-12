@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -192,10 +191,8 @@ export function PlanDialog({
     try {
       if (plan) {
         await updateAdminPlan(plan.id, input)
-        toast.success("Plan updated.")
       } else {
         await createAdminPlan(input)
-        toast.success("Plan created.")
       }
       await onSaved()
     } catch (saveError) {
@@ -525,7 +522,6 @@ export function PlanDialog({
                 setArchiving(true)
                 try {
                   await archiveAdminPlan(plan.id)
-                  toast.success("Plan archived.")
                   setArchiveOpen(false)
                   await onSaved()
                 } catch (archiveError) {

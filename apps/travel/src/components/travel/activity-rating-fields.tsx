@@ -67,7 +67,7 @@ export function ActivityRatingFields({ activity }: { activity: Activity }) {
             variant="outline"
             size="sm"
             disabled={busy}
-            onClick={() => void run(() => saveAsPlace(activity.id), "Saved to your saved places.")}
+            onClick={() => void run(() => saveAsPlace(activity.id))}
           >
             {busy ? <Loader2Icon className="size-4 animate-spin" /> : <BookmarkPlusIcon className="size-4" />}
             Save to saved places

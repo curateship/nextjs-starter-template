@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -67,13 +66,11 @@ export function useAccountForm(onCreated: () => Promise<void>) {
         role,
         settingPassword ? password : undefined
       )
-      toast.success(
-        settingPassword
-          ? "Account created. They can sign in with the password you set."
-          : delivered
-            ? "Account created. They have been emailed a link to set their password."
-            : "Account created. Email is switched off here, so the set-password link was printed in the server log instead."
-      )
+      // Only partly done: the person was never emailed, so the admin has to
+      // know where the link went.
+      if (!settingPassword && !delivered) {
+        showErrorToast("Account created. Email is switched off here, so the set-password link was printed in the server log instead.")
+      }
       setName("")
       setEmail("")
       setRole("member")

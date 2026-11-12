@@ -140,7 +140,7 @@ export function HolidaysCard({ holidays, canEdit }: { holidays: Holiday[]; canEd
       showErrorToast("Give the holiday a name.")
       return
     }
-    const ok = await run(() => addTeamHoliday({ day: dayKey, name: name.trim() }, teamId), "Holiday added.")
+    const ok = await run(() => addTeamHoliday({ day: dayKey, name: name.trim() }, teamId))
     if (!ok) return
     setDay(undefined)
     setName("")
@@ -226,7 +226,7 @@ export function HolidaysCard({ holidays, canEdit }: { holidays: Holiday[]; canEd
           loading={busy}
           onConfirm={async () => {
             if (!removing) return
-            const ok = await run(() => removeTeamHoliday(removing.id, teamId), "Holiday removed.")
+            const ok = await run(() => removeTeamHoliday(removing.id, teamId))
             if (!ok) return
             setRemoving(null)
             await router.invalidate()

@@ -69,7 +69,8 @@ They outrank the code.
   destination and an Unsplash key, the new trip gets a cover photo by itself
   (see "The cover photo" below).
 - **A row's actions:** Copy, Archive or Bring back, and Delete. Delete moves
-  the trip to the Bin at once, with Undo, so it doesn't ask first.
+  the trip to the Bin at once, without asking, because the Bin can bring it
+  back.
 - **The Bin** (Tyler, 3 Nov 2026: "A Bin tab") holds deleted trips for 30
   days, with everything on them. Each row reads "Goes for good 3 Dec" under
   its dates, and its actions are Put back and Delete for good.
@@ -188,7 +189,7 @@ after the day it was made. It is given once, ever:
   that day, and the header's "+ Add" → New activity opens the same dropdown
   set to Day 1.
 - **Right panel:** the open activity ([Activities](activities.md)). The bin
-  icon moves it to the trip's bin, with Undo.
+  icon moves it to the trip's bin.
 - **The open activity is in the address**, `?open=<id>`, so a reload or a
   pasted link opens the same one. On arrival with nothing open, the first
   activity of Day 1 opens (Ideas count last), so the right panel is never

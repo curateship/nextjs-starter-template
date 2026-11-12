@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { HandshakeIcon, Trash2Icon, UserPlusIcon, UsersIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ConversationRecord } from "@/components/crm/conversation-record"
 import type { CrmFrame } from "@/components/crm/crm-frame"
@@ -112,7 +111,7 @@ export function CrmLeadsTab({
       setDeleteTarget(null)
       if (lead.id === openId) setOpen(undefined)
       await router.invalidate()
-    }, `Deleted ${lead.email}.`)
+    })
 
   const rowMenuItems = (id: string): RowMenuItem[] => {
     const lead = leadById.get(id)
@@ -130,7 +129,6 @@ export function CrmLeadsTab({
             onSelect: () =>
               void runRow(async () => {
                 await addLeadToContactList(lead.id)
-                toast.success(`${lead.email} is on the subscriber list.`)
                 await router.invalidate()
               }),
           },

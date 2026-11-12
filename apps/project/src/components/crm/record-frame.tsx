@@ -82,7 +82,7 @@ export function RecordFrame({
         <div className={cn("flex min-h-0 flex-1 flex-col", bodyClassName)}>{body}</div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className={cn("grid grid-cols-[minmax(0,1fr)] content-start", PANEL_GUTTER, bodyClassName)}>
+          <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)] content-start", PANEL_GUTTER, bodyClassName)}>
             {body}
           </div>
         </ScrollArea>

@@ -73,8 +73,7 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
   async function restore(entry: BinEntry) {
     setRestoring(entry.id)
     const ok = await run(
-      () => (entry.kind === "note" ? restoreNote(entry.id) : restoreProjectTask(entry.id)),
-      `"${entry.title}" is back.`
+      () => (entry.kind === "note" ? restoreNote(entry.id) : restoreProjectTask(entry.id))
     )
     setRestoring(null)
     if (ok) {
@@ -84,7 +83,7 @@ function BinContents({ projectId, onClose }: { projectId: string; onClose: () =>
   }
 
   async function empty() {
-    if (!(await run(() => emptyBin(projectId), "The bin is empty."))) return
+    if (!(await run(() => emptyBin(projectId)))) return
     setEmptying(false)
     setReloads((n) => n + 1)
   }

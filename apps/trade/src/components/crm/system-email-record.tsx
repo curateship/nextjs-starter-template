@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, RotateCcwIcon, SendIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ActionRow, TextPickRow } from "@/components/crm/crm-record-menu"
 import { EmailPage, useEmailDraft, type EmailEditableFields } from "@/components/crm/email-page"
@@ -110,7 +109,8 @@ function OpenSystemEmail({
     try {
       if (!(await saveNow())) return
       const { delivered } = await sendSystemEmailTest(initial.kind)
-      toast.success(delivered ? "Sent. Check your inbox." : "Email is not set up on this server, so it was only written to the log.")
+      // Nothing was sent, which is worth knowing.
+      if (!delivered) showErrorToast("Email is not set up on this server, so it was only written to the log.")
     } catch (error) {
       showErrorToast(getSystemEmailErrorMessage(error))
     } finally {
@@ -127,7 +127,6 @@ function OpenSystemEmail({
       setIncoming(fieldsOf(restored))
       setVersion((current) => current + 1)
       setResetOpen(false)
-      toast.success(`${meta.name} is back to its built-in wording.`)
     } catch (error) {
       showErrorToast(getSystemEmailErrorMessage(error))
     } finally {

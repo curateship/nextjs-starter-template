@@ -86,7 +86,7 @@ export function CalendarLinkDialog({
     await run(async () => {
       const link = await replaceCalendarLink(tripId)
       setState({ kind: "ready", link })
-    }, "New calendar link made. Subscribe again with it.")
+    })
     setConfirmReset(false)
   }
 

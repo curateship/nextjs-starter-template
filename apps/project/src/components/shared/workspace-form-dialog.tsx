@@ -3,7 +3,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -209,13 +208,6 @@ export function WorkspaceFormDialog({
         )
       }
       await router.invalidate()
-      toast.success(
-        editing
-          ? `${capitalise(word.one)} updated.`
-          : draft.copySourceId === "blank"
-            ? `${capitalise(word.one)} created.`
-            : `${capitalise(word.one)} copied.`
-      )
       onClose()
     })
   }

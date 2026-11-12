@@ -500,7 +500,7 @@ draw a menu any other way on this pattern.
 - **Boxes opened from inside** (selects, date pickers, time zones, the media
   library, Unsplash) don't close the menu.
 - **Delete asks first** in a `ConfirmDialog` when it can't be undone. When it
-  goes to a bin with Undo, it doesn't ask.
+  goes to a bin it can be brought back from, it doesn't ask.
 
 ### Where this guide and the older rules disagree
 
@@ -676,7 +676,9 @@ card in the rail on `/admin/settings`.
   `dirty` and `busy`, and wire Cancel through its `requestClose` callback.
 - Report failures through the persistent error toast. **Nothing pops up when
   something works** (Tyler, 10 Nov 2026: "Remove all success toast", "All of
-  trade and shell too"): the changed screen is the answer. Something only
+  trade and shell too"): the changed screen is the answer. That includes a
+  toast carrying an Undo button (Tyler, 11 Nov 2026: "remove them"); a bin
+  is the way back. Something only
   partly done says the part that was not done, in the error toast. Trade's
   `workspace/docs/screens/no-success-toasts.md` has the cases.
 - A record with several tabs opens from its list and keeps the open record in

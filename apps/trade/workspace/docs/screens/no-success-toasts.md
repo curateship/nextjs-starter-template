@@ -26,9 +26,8 @@ toast", then "All of trade and shell too".
 
 ## Where it applies
 
-- Trade's own files, done 10 Nov 2026. Shell-origin files in this app (the
-  Admin, CRM, Automations and Settings screens) keep theirs until the shell
-  makes the same change and it is merged in; that is the shell's task
-  `no-success-toasts.md` in workspace-4.
+- Trade's own files, done 10 Nov 2026. The shell's screens in this app
+  (Admin, CRM, Automations and Settings) came with the shell merge of
+  11 Nov 2026.
 - A new screen never adds a success toast. The UI standard
   (`.agents/skills/Ui-standards/SKILL.md`, Modals) says the same.

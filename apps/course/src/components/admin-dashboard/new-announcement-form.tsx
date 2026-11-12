@@ -71,7 +71,7 @@ export function useAnnouncementForm(onCreated: () => Promise<void>) {
       setAttempted(false)
       created = true
       await onCreated()
-    }, "Announcement published.")
+    })
     return created
   }
 

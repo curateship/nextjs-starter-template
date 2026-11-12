@@ -296,7 +296,7 @@ tasks span projects, so Hand to refuses anyone who isn't on a task's project.
 **Right-click** (Tyler, 23 Oct 2026: "My dashboard is missing right click to
 add task and delete task"), as on the project page: on a task's row, card,
 chip or bar it opens Duplicate and Delete (Delete only on a task I made, or
-on any task for the site admin, asking first, with Undo in its message); on
+on any task for the site admin, asking first); on
 empty space it opens New task at the mouse, with its project picker. A text
 box, a link or picked words keep the browser's own menu.
 

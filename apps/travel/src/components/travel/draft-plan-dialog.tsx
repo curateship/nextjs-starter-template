@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { dayLabel } from "@/components/travel/new-activity"
 import { forgetDraftOnArrival, wantsDraftOnArrival } from "@/components/travel/draft-on-arrival"
@@ -18,8 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import { undoActivities } from "@/lib/api/travel/days"
-import { createPlan, draftPlan, fillDay, fillGaps, type DraftItem, type MadePlan, type TripDraft } from "@/lib/api/travel/trip-draft"
+import { createPlan, draftPlan, fillDay, fillGaps, type DraftItem, type TripDraft } from "@/lib/api/travel/trip-draft"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import type { ActivityType } from "@/lib/travel/activity-types"
 import { formatMinutes } from "@/lib/travel/board"
@@ -153,9 +151,8 @@ export function DraftPlanDialog({
       showErrorToast("Give every ticked activity a name, or untick it.")
       return
     }
-    let made: MadePlan | null = null
     const ok = await run(async () => {
-      made = await createPlan(
+      await createPlan(
         tripId,
         ticked.map(({ day, title, typeId, startTime, durationMinutes }) => ({
           day,
@@ -167,27 +164,7 @@ export function DraftPlanDialog({
       )
       await onMade()
     })
-    // Set inside the callback, which TypeScript can't follow, so it is read back as its own name.
-    const result = made as MadePlan | null
-    if (!ok || !result) return
-    const found = result.looked ? ` Google found ${result.placed} of ${result.created.length} places.` : ""
-    const left = result.repeated
-      ? ` ${activities(result.repeated)} already on the trip ${result.repeated === 1 ? "was" : "were"} left out.`
-      : ""
-    if (day !== null || gaps) {
-      // Filling free time can be undone, the way every other change to the board can.
-      const created = result.created
-      toast.success(`Added ${activities(created.length)} to ${day !== null ? `Day ${day}` : "the trip"}.${found}${left}`, {
-        duration: 6000,
-        action: {
-          label: "Undo",
-          onClick: () =>
-            void undoActivities({ tripId, places: [], created })
-              .then(() => onMade())
-              .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error))),
-        },
-      })
-    }
+    if (!ok) return
     close()
   }
 

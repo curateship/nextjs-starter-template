@@ -137,11 +137,9 @@ const orphanSortDirection = (column: OrphanSort) => (column === "size" || column
 type UploadState = { done: number; total: number }
 
 /**
- * One toast for the whole pick, whatever happened: a plain success, a plain
+ * One toast for the whole pick when something did not go to plan: a plain
  * note after Cancel, or the red one naming the files that did not make it.
- * The success wording names where the files went, because this lists
- * everyone's files but uploads only ever land in the signed-in admin's own
- * library.
+ * A pick that all went in shows no toast: the files appear in the list.
  */
 function showUploadSummary(
   done: number,
@@ -157,10 +155,7 @@ function showUploadSummary(
     )
     return
   }
-  if (!failures.length) {
-    toast.success(done === 1 ? "Uploaded to your library." : `${done} files uploaded to your library.`)
-    return
-  }
+  if (!failures.length) return
   if (picked === 1) {
     showErrorToast(failures[0].reason)
     return
@@ -193,7 +188,7 @@ function showUploadSummary(
  * are in the address, so the person panel's "Open their files" and older
  * links land on the same list. Search, type, sort and page stay here.
  * Uploads land in the signed-in admin's own library, and Upload's tooltip
- * and the toast say so.
+ * says so.
  */
 export function MediaTab({
   loaded,
@@ -503,12 +498,11 @@ export function MediaTab({
         many: "files",
         verb: "deleted",
       })
+      // Only partly done, so the part that was not done is said.
       if (result.protectedCount) {
-        toast.warning(
+        showErrorToast(
           `${summary} ${result.protectedCount} ${plural(result.protectedCount, "file was", "files were")} kept because ${plural(result.protectedCount, "it appears", "they appear")} in email already sent.`
         )
-      } else {
-        toast.success(summary)
       }
       selection.setSelected((current) => {
         const next = new Set(current)
@@ -530,20 +524,15 @@ export function MediaTab({
     await runClean(async () => {
       // Each request checks again against a fresh scan, so a "delete all" over
       // a big bucket goes in batches rather than one oversized call.
-      let deleted = 0
       for (let start = 0; start < picked.length; start += CLEAN_BATCH_SIZE) {
         const batch = picked.slice(start, start + CLEAN_BATCH_SIZE)
-        const result = await cleanOrphanedMedia({
+        await cleanOrphanedMedia({
           mediaIds: batch
             .filter((row) => row.kind === "missing_file" && row.mediaId)
             .map((row) => row.mediaId as string),
           storagePaths: batch.filter((row) => row.kind === "unlinked_object").map((row) => row.storagePath),
         })
-        deleted += result.deletedCount
       }
-      toast.success(
-        describeBulkResult({ done: deleted, kept: picked.length - deleted, one: "orphan", many: "orphans", verb: "deleted" })
-      )
       selection.setSelected((current) => {
         const next = new Set(current)
         keys.forEach((key) => next.delete(key))
