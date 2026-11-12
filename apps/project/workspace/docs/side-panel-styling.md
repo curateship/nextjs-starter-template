@@ -28,8 +28,15 @@ file says how Project's own panels pick them up.
 - **Advanced blocks reach the panel's edges:** each panel body carries
   `--panel-gutter`, and Project's own live blocks sit in
   `ADVANCED_BLOCK_FRAME` (`notes/note-block-drawings.tsx`), which reads it.
-  Those blocks are Projects, Daily card, Rating calendar and trend, Inbox,
-  Look back, the five team blocks and Milestones. A locked page, drawn read
+  Those blocks are every advanced one in the "/" list: Task card, File,
+  Comments, Video or Promo, Projects, Daily card, Rating calendar and trend,
+  Inbox, Look back, the five team blocks and Milestones (`ADVANCED_ATOM_TYPES`
+  in `src/lib/project/note-blocks.ts`). In an open task's notes, which sit
+  4px further in, they reach 4px further, so they meet the right panel's
+  edges too (Tyler, 12 Nov 2026: "edge padding is not applied"). Notes that
+  open with a block put it straight under the task's header, with none of
+  the notes' 4px or the block's own 8px above it ("right panel still has
+  the gap", `task-notes.tsx`). A locked page, drawn read
   only, reaches the edges the same way (`ADVANCED_READER_FRAME` in
   `notes/note-reader.tsx`); until 11 Nov 2026 its blocks sat 15px in while
   locked (Tyler: "it changes depending on lock or unlock thats why"). Image, Callout, Checklist and the other basic

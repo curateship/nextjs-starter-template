@@ -611,9 +611,12 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
     the monthly review, with Rate your day under the habits at night.
   - **How it looks:** the block card every block has (Tyler, 9 Nov 2026:
     "this should have the same heading as any block and the header needs to
-    be collapsible too", `assets/pasted-image-1794255319529436000.png`). The
-    greeting is its heading: 57px, dark grey, cut short with "…" in a narrow
-    panel, after the sunrise icon the "/" menu shows for Daily card (Tyler,
+    be collapsible too", `assets/pasted-image-1794255319529436000.png`). Its
+    heading reads **Daily habits** and the greeting is the first line inside,
+    over the date (Tyler, 12 Nov 2026: "Put the good morning text here and
+    rename the header to "Daily habits""; the greeting was the heading
+    until then): 57px, dark grey, cut short with "…" in a narrow panel,
+    after the sunrise icon the "/" menu shows for Daily card (Tyler,
     9 Nov 2026: "the headers are missing icons",
     `assets/pasted-image-1794255680390194000.png`). The icon that changed
     with the part of the day stays gone (6 Nov 2026: "remove this icon",

@@ -59,6 +59,14 @@ import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
 /**
+ * The right panel's notes sit 4px inside the panel's 15px, so an advanced
+ * block set to reach the panel's edges reaches that much further
+ * (`--panel-gutter`, read by the block's frame; Tyler, 12 Nov 2026: "edge
+ * padding is not applied"). The 15px is `PANEL_GUTTER`'s.
+ */
+const NOTES_GUTTER = "[--panel-gutter:calc(0.9375rem+0.25rem)]"
+
+/**
  * A task's notes: read as formatted text with links that open in a new tab,
  * and written in the shared editor (select words for bold, lists and links),
  * opened by Edit notes or by double-clicking the notes.
@@ -463,7 +471,7 @@ export function LiveTaskNotes({
   if (readOnly) {
     if (!panel) return <TaskNotesField notes={notes} readOnly onSave={onSave} task={task} />
     return (
-      <div className="px-1">
+      <div className={cn("px-1", NOTES_GUTTER)}>
         <TaskNotesField notes={notes} readOnly onSave={onSave} task={task} hideLabel />
         {versions}
       </div>
@@ -498,7 +506,13 @@ export function LiveTaskNotes({
           "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
           // Two lines tall when empty (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
           panel
-            ? "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4"
+            ? cn(
+                "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4",
+                // Notes that open with a block put it straight under the panel's header,
+                // as a left page does (Tyler, 12 Nov 2026: "right panel still has the gap").
+                "[&_.page-rte_.tiptap:has(>.react-renderer:first-child)]:!pt-0 [&_.page-rte_.tiptap>.react-renderer:first-child_[data-note-block]]:!mt-0",
+                NOTES_GUTTER
+              )
             : "[&_.page-rte_.tiptap]:!min-h-[3.3em] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!py-0"
         )}
         onFocus={() => {

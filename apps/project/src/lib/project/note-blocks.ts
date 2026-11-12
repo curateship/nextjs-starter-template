@@ -83,6 +83,25 @@ export const TEAM_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
 export const PROJECT_PAGE_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteMilestones"])
 
 /**
+ * The "/" list's advanced blocks, the ones that show something live from the
+ * app: Task card, File, Comments, Video or Promo, and every dashboard, team
+ * and project-page block. With Settings → Styling → Blocks → "Advanced blocks
+ * reach the panel's edges" on, they reach past a side panel's 15px to its
+ * edges, on a page being written and on one read only alike; basic blocks
+ * keep the space (Tyler, 12 Nov 2026, of a Task card in the right panel:
+ * "edge padding is not applied").
+ */
+export const ADVANCED_ATOM_TYPES: ReadonlySet<string> = new Set<NoteAtomType>([
+  "noteTask",
+  "noteFile",
+  "noteComments",
+  "noteRecord",
+  ...DASHBOARD_ATOM_TYPES,
+  ...TEAM_ATOM_TYPES,
+  ...PROJECT_PAGE_ATOM_TYPES,
+])
+
+/**
  * Where a note is kept: `dashboard` for the site admin's own page, which alone
  * keeps the dashboard blocks, `team` for a team's page, which alone keeps
  * the team blocks, and `projectPage` for a project's own page, which alone
