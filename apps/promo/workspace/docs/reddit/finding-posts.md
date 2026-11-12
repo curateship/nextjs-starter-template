@@ -318,11 +318,10 @@ put it ("match 9" in a search, "newest 3" in a watch), and the keyword that
 found it when several are listed together. On the right, the upvotes, the
 replies and the button that blocks the row's subreddit. The bands are the
 order said in words; the row has no tooltip, as Tyler asked on 13 Oct 2026.
-The chosen row has a grey ground and a dark line
-down its left edge. It is a plain list rather than the dashboard table since
-the 13 Oct 2026 design. Posts under To look at have tick boxes, and ticking any
-shows **Skip** for the ticked posts; one post is also skipped from the right
-column.
+Since 12 Nov 2026 the list is the dashboard's table again, with the open
+row marked by the small bar, tick boxes only after Select, and Block in a
+row's right-click menu
+([Commenting inside a project](../commenting.md#the-posts)).
 
 The date is said the way a person would: Today, Yesterday, 5 days ago, Last
 week. Whole days apart, not hours, or a post from 11pm last night would read as

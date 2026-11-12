@@ -8,13 +8,27 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
+import { middleGutterClassName, SideTogglesProvider } from "@/components/shared/three-panels"
+import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useBlankSpaceDoubleClick, usePanelToggle } from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { useBlankSpaceDoubleClick, usePanelCollapsed, usePanelFold, usePanelToggle } from "@/lib/layout/panel-collapse"
+import { sidePanelWidthsKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { clampSidePanelWidth, DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH } from "@/lib/layout/styling-values"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { cn } from "@/lib/utils"
 import { PROJECTS_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
 
 import { ProjectColumnsPick } from "./project-columns-pick"
+
+/**
+ * A table's name column takes the room the other columns leave and cuts a
+ * long name short with "…", never narrower than its 160px floor: a post
+ * title as long as a paragraph would otherwise widen the table past the
+ * panel and push its figures off the edge (Tyler, 12 Nov 2026, of Reddit's
+ * Commenting: "this is a crazy ui"). Set from the frame, so the shell's table
+ * is not edited.
+ */
+const MIDDLE_TABLES = "[&_td[data-column=main]]:w-full [&_td[data-column=main]]:max-w-0"
 
 /**
  * A table drawn inside a column, rather than as a card of its own on the page:
@@ -29,9 +43,14 @@ export const IN_COLUMN_TABLE = "rounded-none bg-transparent ring-0"
  * Every network fills the same frame, so a second network is a second pair of
  * panels and nothing else.
  *
- * The sides collapse all the way to nothing and leave a tab on the middle
- * column's edge to bring them back, double-clicking a side's blank space shuts
- * it, the dividers drag, and the arrangement is remembered.
+ * Drawn as Project's own three-panel frame is (Tyler, 12 Nov 2026: "the
+ * project page itsel is not updated to the new design"). The sides open at
+ * the Styling widths, fold with a slide from their header's collapse button
+ * or a double-click on blank space, and come back from the middle's header
+ * (or a knob on its edge, for a network whose header has no reopen buttons
+ * yet). The dividers drag, and the widths are remembered. Not the shell's
+ * `ThreePanels`: a guest from Project opens this page outside the signed-in
+ * area, where that frame cannot read where it was.
  *
  * Below 1280px one column shows at a time, as on every three-column dashboard
  * (UI standard, "Under 1280px, one panel at a time"): a row of the three
@@ -48,6 +67,7 @@ export function ProjectColumns({
   rightOpen,
   rightLabel,
   onCloseRight,
+  reopenInHeader = false,
   children,
 }: {
   left: React.ReactNode
@@ -65,6 +85,12 @@ export function ProjectColumns({
    * row above, so pressing the same post again shows it again.
    */
   onCloseRight?: () => void
+  /**
+   * The middle's header draws the shell's `PanelReopenButton`s, so a shut
+   * side comes back from there rather than from a knob on the middle's edge.
+   * A network whose header does not yet leaves it off.
+   */
+  reopenInHeader?: boolean
   /** Windows, drawn beside the columns. */
   children?: React.ReactNode
 }) {
@@ -82,16 +108,37 @@ export function ProjectColumns({
     if (rightOpen) setNarrowView("right")
     else if (narrowView === "right") setNarrowView("middle")
   }
-  const [leftCollapsed, setLeftCollapsed] = React.useState(false)
-  const [rightCollapsed, setRightCollapsed] = React.useState(false)
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
-  const layout = useRememberedPanelLayout(PROJECTS_PANEL_LAYOUT_KEY)
-
-  const toggleLeft = usePanelToggle(leftRef)
-  const toggleRight = usePanelToggle(rightRef)
+  // Each side opens at the width Settings → Styling → Side panels sets, and
+  // neither drags narrower, as on the shell's dashboards and Project's frame
+  // (`apps/project/src/components/project/three-panels.tsx`). A width dragged
+  // in this browser still wins, kept under the key with the two widths added.
+  const styling = useOptionalShellRuntime()?.config.styling
+  const leftWidth = clampSidePanelWidth(styling?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH)
+  const rightWidth = clampSidePanelWidth(styling?.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH)
+  const middleWidth = 100 - leftWidth - rightWidth
+  const defaultLayout = React.useMemo(
+    () => ({ left: leftWidth, middle: middleWidth, right: rightWidth }),
+    [leftWidth, middleWidth, rightWidth]
+  )
+  const layout = useRememberedPanelLayout(sidePanelWidthsKey(PROJECTS_PANEL_LAYOUT_KEY, leftWidth, rightWidth), defaultLayout)
+  const leftState = usePanelCollapsed(leftRef)
+  const rightState = usePanelCollapsed(rightRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapLeft = usePanelToggle(leftRef)
+  const snapRight = usePanelToggle(rightRef)
+  const toggleLeft = React.useCallback(() => fold(snapLeft), [fold, snapLeft])
+  const toggleRight = React.useCallback(() => fold(snapRight), [fold, snapRight])
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
+  // The side headers' collapse buttons and the middle header's reopen
+  // buttons work through these, as in the shell's frame.
+  const toggles = React.useMemo(
+    () => ({ left: toggleLeft, right: toggleRight, leftCollapsed: leftState.collapsed, rightCollapsed: rightState.collapsed }),
+    [toggleLeft, toggleRight, leftState.collapsed, rightState.collapsed]
+  )
 
   if (!desktop) {
     return (
@@ -112,7 +159,7 @@ export function ProjectColumns({
         {(["middle", "left", "right"] as const).map((column) => (
           <WorkspacePanel
             key={column}
-            className={narrowView === column ? "flex min-w-0 flex-1 flex-col" : "hidden"}
+            className={cn(narrowView === column ? "flex min-w-0 flex-1 flex-col" : "hidden", column === "middle" && [middleGutterClassName, "[&_td[colspan]]:whitespace-normal", MIDDLE_TABLES])}
             inert={narrowView !== column}
           >
             {column === "middle" ? middle : column === "left" ? left : right}
@@ -124,61 +171,61 @@ export function ProjectColumns({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup
-        key={layout.layoutKey}
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-        defaultLayout={layout.defaultLayout}
-        onLayoutChanged={layout.onLayoutChanged}
-      >
-        <ResizablePanel
-          id="project"
-          panelRef={leftRef}
-          collapsible
-          collapsedSize="0%"
-          // Opens at its narrowest, so the middle gets the room. Tyler, 6 Oct
-          // 2026: each side panel's default is its minimum width.
-          defaultSize="18%"
-          minSize="18%"
-          maxSize="32%"
-          onResize={(size) => setLeftCollapsed(size.asPercentage < 0.5)}
+    <SideTogglesProvider value={toggles}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ResizablePanelGroup
+          groupRef={layout.groupRef}
+          orientation="horizontal"
+          className={cn("min-h-0 flex-1", foldingClassName)}
+          onLayoutChanged={layout.onLayoutChanged}
         >
-          <WorkspacePanel className="flex flex-col" collapsed={leftCollapsed} onDoubleClick={leftDoubleClick}>
-            {left}
-          </WorkspacePanel>
-        </ResizablePanel>
+          <ResizablePanel
+            id="left"
+            panelRef={leftRef}
+            collapsible
+            collapsedSize="0%"
+            defaultSize={`${leftWidth}%`}
+            minSize={`${DEFAULT_LEFT_PANEL_WIDTH}%`}
+            maxSize="36%"
+            onResize={leftState.onResize}
+          >
+            <WorkspacePanel className="flex flex-col" collapsed={leftState.collapsed} onDoubleClick={leftDoubleClick}>
+              {left}
+            </WorkspacePanel>
+          </ResizablePanel>
 
-        <ResizableHandle gap collapsed={leftCollapsed} />
+          <ResizableHandle gap collapsed={leftState.collapsed} />
 
-        <ResizablePanel id="middle" defaultSize="58%" minSize="30%">
-          <div className="relative flex h-full min-h-0 flex-col">
-            <WorkspacePanel className="flex min-h-0 flex-1 flex-col">{middle}</WorkspacePanel>
-            {leftCollapsed ? (
-              <PanelReopenTab side="left" label="Show the project and its networks" onClick={toggleLeft} />
-            ) : null}
-            {rightCollapsed ? <PanelReopenTab side="right" label={rightLabel} onClick={toggleRight} /> : null}
-          </div>
-        </ResizablePanel>
+          <ResizablePanel id="middle" defaultSize={`${middleWidth}%`} minSize="28%">
+            {/* 24px at the middle's sides, its header and a table's first and last columns lining up. */}
+            <WorkspacePanel className={cn("relative flex min-h-0 flex-col [&_td[colspan]]:whitespace-normal", MIDDLE_TABLES, middleGutterClassName)}>
+              {middle}
+              {leftState.collapsed && !reopenInHeader ? (
+                <PanelReopenTab side="left" label="Show the project and its networks" onClick={toggleLeft} />
+              ) : null}
+              {rightState.collapsed && !reopenInHeader ? <PanelReopenTab side="right" label={rightLabel} onClick={toggleRight} /> : null}
+            </WorkspacePanel>
+          </ResizablePanel>
 
-        <ResizableHandle gap collapsed={rightCollapsed} />
+          <ResizableHandle gap collapsed={rightState.collapsed} />
 
-        <ResizablePanel
-          id="answer"
-          panelRef={rightRef}
-          collapsible
-          collapsedSize="0%"
-          defaultSize="24%"
-          minSize="24%"
-          maxSize="50%"
-          onResize={(size) => setRightCollapsed(size.asPercentage < 0.5)}
-        >
-          <WorkspacePanel className="flex flex-col" collapsed={rightCollapsed} onDoubleClick={rightDoubleClick}>
-            {right}
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-      {children}
-    </div>
+          <ResizablePanel
+            id="right"
+            panelRef={rightRef}
+            collapsible
+            collapsedSize="0%"
+            defaultSize={`${rightWidth}%`}
+            minSize={`${DEFAULT_RIGHT_PANEL_WIDTH}%`}
+            maxSize="36%"
+            onResize={rightState.onResize}
+          >
+            <WorkspacePanel className="flex flex-col" collapsed={rightState.collapsed} onDoubleClick={rightDoubleClick}>
+              {right}
+            </WorkspacePanel>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+        {children}
+      </div>
+    </SideTogglesProvider>
   )
 }

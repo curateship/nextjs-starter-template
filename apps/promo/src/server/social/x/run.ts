@@ -189,7 +189,7 @@ export async function saveXSignIn(
         `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
         "Sort it out in the browser window on the Browser profiles dashboard, then let it run again from the Accounts dashboard.",
       ].join(" "),
-      href: "/admin/accounts?platform=x",
+      href: "/admin/projects?section=accounts&platform=x",
     },
     db,
     now

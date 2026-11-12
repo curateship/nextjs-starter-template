@@ -1,50 +1,52 @@
-# The Accounts dashboard
+# Accounts
 
 Every account on every platform in one list, with its status, the project it
 comments for, the browser profile or phone it runs on, and how that goes
-online. It is at `/admin/accounts`, under **Projects** in the left menu, right
-after Voices.
+online. Since 12 Nov 2026 it is the Accounts section of the
+[Projects dashboard](../projects-dashboard.md)
+(`/admin/projects?section=accounts`). Tyler: "We need to consolidate
+projects, voices, accounts, archive and messages into one cohesive 3 panel
+design."
 
 Tyler, 15 Oct 2026: "I think accounts should be on its own dashboard with
 platform filtering". It had been a window inside each project for a day, after
 the Reddit accounts page left the left menu on 14 Oct 2026
 ([Networks as modules](../network-modules.md)).
 
-- **Platform** is a filter in the toolbar, "All platforms" or one network, and
+- **Platform** is one of Filter's choices, "All platforms" or one network, and
   each row names its platform after the account ("u/name · Reddit",
   "@name · Instagram", "in/name · LinkedIn"). Reddit, Instagram, TikTok,
   Medium, X and LinkedIn accounts are listed.
 - **A Medium account's row** says how long it has been on Medium and its
   followers, and has a key button that opens Medium's emailed sign-in link in
-  its own browser ([Medium accounts and signing in](../medium/signing-in-and-accounts.md)).
+  its own browser, at the top of the account on the right ([Medium accounts and signing in](../medium/signing-in-and-accounts.md)).
   Add account offers each network the browser profiles with none of that
   network's accounts in them yet, never the reader and never a profile that
   searches X or LinkedIn.
 - **An X account's row** says how long it has been on X, shows the daily
   look's guess whether X hides it, and has a key button that sends X's
-  sign-in code when its authenticator secret is saved. Its Settings window
+  sign-in code when its authenticator secret is saved. Its right panel
   holds Paid, Follow the people it replies to, every Nth reply starting as Help
   only, and its followers and views week by week ([X accounts](../x/accounts.md)).
   Check now takes the daily look straight away.
 - **A LinkedIn account's row** says when Promo first saw it signed in, shows
   the weekly look at whether its comments still show, Premium, and a line when
-  LinkedIn wants its emailed code. Its Settings window holds Premium, the box
+  LinkedIn wants its emailed code. Its right panel holds Premium, the box
   for the code, the comments look, and its followers, connections, profile
   views and impressions week by week ([LinkedIn accounts](../linkedin/accounts.md)).
   Check now takes the comments look straight away.
-- **The filter lives in the address** as `?platform=reddit`, so a reload, a
-  link or the left menu's own link always shows what the address says.
-  **Manage accounts**, the last item in the **Comment as** dropdown above a
-  project's comment box, comes here that way. A platform Promo does not offer
-  is ignored and the filter shows All platforms.
-- **The old address** `/admin/reddit-accounts`, which the bell's suspended
-  account notice used, sends here filtered to Reddit. New suspended notices
-  open `/admin/accounts?platform=reddit` straight away.
-- **An account's own windows** (its settings, Add account, help-only posts)
-  open over this page, one window at a time.
-- **The left menu link** is added by `drizzle/0119_promo_accounts_menu.sql`
-  to every saved left menu with a Projects entry: after Voices, or last under
-  Projects where Voices is not there.
+- **The filters live in the address** as `?platform=reddit`, `?status=`,
+  `?importance=`, `?tag=` and, on Retired, `?reason=`, so a reload or a link
+  always shows what the address says. **Manage accounts**, the last item in
+  the **Comment as** dropdown above a project's comment box, comes here that
+  way. A platform Promo does not offer is ignored.
+- **The old addresses** `/admin/accounts` and `/admin/reddit-accounts`, which
+  bell notices stored before 12 Nov 2026 use, open this section with the same
+  `?platform=` and `?open=`; the second always filters to Reddit.
+- **The Projects block** on the dashboard's left page narrows the list to one
+  project's accounts.
+- **Windows that stay:** Add account, from New account; Help-only posts, from
+  the account's ⋮; and Retire, which asks why. One window at a time.
 - **Each action speaks its account's network.** Add account asks for the
   network first, Check now takes Reddit's reading or Instagram's and TikTok's
   ([Instagram and TikTok accounts](../instagram/accounts-and-the-daily-reading.md)),
@@ -71,7 +73,7 @@ browser from Settings → Behaviour, are not offered. A phone may hold a Reddit,
 an Instagram and a TikTok account at once. The account is then signed in
 there, and starts in no project.
 
-An Instagram or TikTok account's settings window also has its **Profile**: the
+An Instagram or TikTok account's right panel also has its **Profile**: the
 name, bio, link and picture the phone types into the app
 ([an account's profile](../instagram/profile.md)).
 
@@ -128,63 +130,70 @@ set it by hand.
 
 ## The list
 
-Columns: the account (u/name, or "Not signed in"), its status, its project or
-"No project", where it runs (a browser profile linking to the Browser profiles
-dashboard, or "Phone:" and the phone's name linking to the phone on its rack's page,
-"Nowhere" in red when neither is set), the profile's proxy with its last test
-or the phone's SIM carrier or Wi-Fi, its voice with a menu to swap it, its age, its karma and its
-last comment. On an Instagram or TikTok row the age is its post count, Karma
-or followers is its followers (following behind it), and the status carries
-"Not shadowbanned" or "Shadowbanned" in red once the daily reading has read
-the app's Account status page. Under 1536px wide the age, karma and last comment fold into a line
-under the name, because the row was otherwise wider than a 1440px window and
-its buttons went off the edge.
+The middle header has **In use** and **Retired** as tabs (a dropdown when the
+middle is narrow), then search, Select, Filter and **New account**. Columns:
+the account (u/name, or "Not signed in") with its platform and "Paused", its
+status, its project or "No project", where it runs ("Phone:" and the phone's
+name, or "Nowhere" in red), and its last comment or post. Columns drop out as
+the middle narrows, the last first.
 
-- **Counts per app** sit above the list: one card per app with accounts,
-  counting Warming up, Ready, Working, At risk and Banned. Clicking a count
-  filters the list to that app and status ([Bans](../bans.md), part 17).
-- **Filter** by status (All, Warming up, Ready, Working, At risk, Banned), by
-  important or throwaway, and by the profile's or phone's tags. **Rows group** under their profile's or phone's
-  folder, the folders both dashboards share, with "No folder" last; with no folders anywhere there are
-  no headings. Nothing new is stored for either.
-- **Tick many, then act.** Each is one request, and the message says how many
-  changed, such as "3 accounts set to Ready."
+- **No counts strip.** The cards of counts per app that sat above the list
+  (Bans task, part 17) went on 12 Nov 2026, so the middle keeps one header.
+  The same counts are Filter's Status and Platform choices and Overview's
+  Accounts by status widget.
+- **Filter** by platform, status (Warming up, Ready, Working, At risk,
+  Banned), important or throwaway, the profile's or phone's tag, and on
+  Retired why it was retired. **Rows group** under their profile's or phone's
+  folder, with "No folder" last; with no folders anywhere there are no
+  headings. Nothing new is stored for either.
+- **Select, tick many, then act** from the "N selected" menu. Each is one
+  request.
+  - Check now: the same health reading as Settings → Reddit account, for each
+    one. One already being checked, or retired, is skipped.
   - Set status, or Let the app decide.
-  - Check now: queues the same health reading as Settings → Reddit account, for
-    each one. One already being checked, or retired, is skipped and counted.
   - Pause, and Resume.
-  - Retire, which asks why in its window.
-- **Each row** has Check now, Help-only posts, Pause or Resume, the settings
-  button, and Retire. The settings button moves the account to another profile
-  or phone, where sign-ins do not move with it, and saves its authenticator
-  secret so its two-factor code shows there and beside its phone's screen
-  ([the screen](../phones/screen-window.md)). The test phone of the
-  daily self-test is never on its list.
-- **Important** shows under an important account's status, and **Moving to**
-  a phone's name while a move from its browser profile is waiting on the phone.
-- **The settings window** says whether the account is important or a
-  throwaway. A throwaway on a phone has **Mark important**, after a
-  confirmation and for good. A throwaway on a browser profile has **Move to a
-  phone**, then **Check sign-in** and **Cancel move** while it waits
-  ([Reddit on phones](reddit-on-phones.md)). An important account is offered
-  phones only under Runs on.
-- **Stopped by a ban** shows under an account's status when a phone or a
-  browser found the app's suspended, locked or "confirm it's you" screen,
-  with the screen's words on hover. Its jobs are refused until **Let it run
-  again** on the ban card in its settings window, which also has the picture,
-  the appeal and **Clean up** ([Bans](../bans.md)).
+  - Retire, which asks why in its window. On Retired, Bring back.
+- **A row's right-click menu** has Mass select, Check now, Pause or Resume,
+  and Retire, or Bring back on a retired one.
+
+## The account on the right
+
+Pressing a row opens the account on the right with `?open=<id>`, which is
+where a phone's Accounts card, a phone's History tab and the Bans dashboard
+lead. A link to a retired account opens the Retired tab on it. It replaced the
+settings window on 12 Nov 2026.
+
+- **The header** has its name and platform, its project (or when and why it
+  was retired), Medium's sign-in key on a Medium account, and the ⋮.
+- **The ⋮'s General tab** has Project, Voice, Runs on and Status as rows that
+  save on a pick, then Check now, Send X's sign-in code (an X account in a
+  browser with its secret saved), Help-only posts (Reddit), Pause or Resume,
+  and Retire in red, or Bring back. Runs on moves the account to another
+  profile or phone, where sign-ins do not move with it; an important account,
+  and an Instagram or TikTok one, is offered phones only, and the test phone of
+  the daily self-test never.
+- **The body** has its status with every line it adds (set by hand, paused
+  and why, half pace, important, moving to a phone, stopped by a ban,
+  shadowbanned or not, X's reach and Paid, LinkedIn's comments look, Premium
+  and the emailed code, and the status's own warning), then Last read: its
+  age or joined date, karma or followers, last comment or post, where it runs
+  and how that goes online.
+- **Then the cards the window held:** a ban's card with its words, picture,
+  appeal, **Let it run again** and **Clean up** ([Bans](../bans.md)); an app's
+  Profile; X's and LinkedIn's own; important or throwaway, with **Mark
+  important** for a throwaway on a phone and **Move to a phone**, **Check
+  sign-in** and **Cancel move** for one on a browser profile
+  ([Reddit on phones](reddit-on-phones.md)); the two-factor code; and **Where
+  it came from**: made or bought, the seller and the price, saved as they
+  change. Its **History** is last: added, moved, banned, appealed, let run
+  again, retired and cleaned up, newest first.
+- **The footer** has its status and Check now, or Bring back.
 - **Half pace** shows in amber under the status while the account goes at
   half its limits: shadowbanned, for 7 days after Let it run again, or for 2
   days after a ban on its phone, proxy or SIM.
-- **The settings window has a History tab**: added, moved, banned, appealed,
-  let run again, retired and cleaned up, newest first. Its Settings tab also
-  has **Where it came from**: made or bought, the seller and the price, saved
-  as they change.
-- **`?open=<id>`** opens an account's settings window, which is where a
-  phone's Accounts card and the Bans dashboard lead.
-- **The voice menu is 128px wide**, 32px narrower than it was, so a row with
-  four buttons still fits a 1440px window (measured 13 Oct 2026: 1232px of
-  columns against 1232px of room).
+
+The section is `src/components/social/projects-dashboard/accounts-section.tsx`
+and the account `src/components/social/accounts/account-record.tsx`.
 
 ## Pausing
 
@@ -197,7 +206,7 @@ retiring, a pause is meant to end. A retired account cannot be paused.
 
 ## Help-only posts
 
-The hand button on a row opens that account's help-only posts: the newest
+Help-only posts, in a Reddit account's ⋮, opens that account's help-only posts: the newest
 posts in the subreddits it has joined, to answer with help and never a word
 about what you make. Tyler, 12 Oct 2026: it lives here, on the Reddit accounts
 dashboard. The window shows the subreddits the account has joined with **Read

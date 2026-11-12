@@ -14,7 +14,7 @@ that does not find its button stops with a picture of the screen.
 
 ## On a phone only
 
-- **Adding one:** Add account on the Accounts dashboard has a Network pick.
+- **Adding one:** Add account on the Projects dashboard's Accounts has a Network pick.
   Instagram and TikTok offer phones only, never a browser profile. Sign in to
   the app on the phone through its screen on its rack's page, then
   press Check now on the account's row.
@@ -53,7 +53,7 @@ that does not find its button stops with a picture of the screen.
 
 - **When:** once a day for every Instagram and TikTok account that is on a
   phone, signed in and not retired, inside the account's waking hours, like a
-  Reddit account's. Check now on the Accounts dashboard asks for one at once.
+  Reddit account's. Check now on the Projects dashboard's Accounts asks for one at once.
 - **What it reads:** followers, following and posts off the account's own
   profile. TikTok's profile shows no post count, so that stays empty there.
 - **The shadowban line:** Tyler, 16 Oct 2026, after asking "or are you talking
@@ -63,7 +63,7 @@ that does not find its button stops with a picture of the screen.
   would say "all fine". The phone opens the app's own Account status page in
   Settings and reads whether it says the account's posts are not shown to
   non-followers.
-- **What the Accounts dashboard shows:** "Not shadowbanned" under the status,
+- **What the Projects dashboard's Accounts shows:** "Not shadowbanned" under the status,
   or "Shadowbanned" in red with the page's own words behind it. A page that
   could not be read leaves the last answer as it was, never "Not
   shadowbanned".
@@ -77,7 +77,7 @@ that does not find its button stops with a picture of the screen.
   everyone else while its owner still signs in.
 - **A glance at the inbox:** if the app's inbox button shows something unread
   that no notification brought in, the reading asks for a read of the
-  messages ([the Messages dashboard](../messages-dashboard.md)).
+  messages ([the Projects dashboard's Messages](../messages-dashboard.md)).
 
 ## Each post's numbers
 
@@ -88,7 +88,7 @@ that does not find its button stops with a picture of the screen.
   views. A post that would not open keeps its last numbers and their date.
 - A post whose link Promo never got (the app would not give it) has no numbers.
 
-## The status on the Accounts dashboard
+## The status on the Projects dashboard's Accounts
 
 - **Banned** once a ban screen stopped the account, **Working** when it posted
   in the last week, **Ready** otherwise. **At risk** when it reads

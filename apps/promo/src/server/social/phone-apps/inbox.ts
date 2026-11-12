@@ -293,7 +293,7 @@ export async function storeInboxReading(
         // Who wrote and what is left out: a conversation is kept only while it
         // is open in Promo, and a notice outlives it.
         detail: `A new message to ${name}. It is on the Messages dashboard with a suggested answer; nothing is sent until you press Send.`,
-        href: "/admin/messages",
+        href: "/admin/projects?section=messages",
       },
       db,
       now

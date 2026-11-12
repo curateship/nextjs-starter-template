@@ -23,7 +23,7 @@ acts on a bad reading". Tyler picked this the same day.
   the browser stopped part-way. A comment's or an answer's opens the Failed
   list of Reddit's Sent tab on the network's Commenting row; a post's opens the
   Failed list beside your Reddit posts on the project's dashboard, or the
-  Projects table for an account in no project.
+  Projects dashboard for an account in no project.
 - **A proxy renewing in the next three days**: "Renews soon: US residential 3",
   with the day and the cost. Once per renewal date. Opens the proxy.
 - **A phone or the rack in trouble**: "Phone offline:", "Phone running hot:",
@@ -49,10 +49,10 @@ acts on a bad reading". Tyler picked this the same day.
   [The self-test and app updates](phones/self-test-and-app-updates.md).
 - **An Instagram or TikTok account shadowbanned**, from the daily reading of
   the app's Account status page: "Shadowbanned: @name on Instagram", once,
-  gone when a reading says it is over. Opens the Accounts dashboard filtered
+  gone when a reading says it is over. Opens the Projects dashboard's Accounts filtered
   to that network.
 - **A message or a comment a phone read**: "New message for @name on
-  Instagram", which opens the Messages dashboard, and "New comment on a post
+  Instagram", which opens the Projects dashboard's Messages, and "New comment on a post
   by @name on TikTok", which opens the project's Comments tab for that
   network. Nothing is sent until a person presses Send.
 - **An Instagram or TikTok post, a profile change, or an answer that did not go
@@ -79,7 +79,7 @@ acts on a bad reading". Tyler picked this the same day.
   X reply", "... an X post", "... a change on X", "... a follow on X". A
   found post, a sent reply or a failed reply opens its tab on the Commenting
   dashboard; a mention or a post of your own opens X on the project's
-  dashboard; an account's notice opens the Accounts dashboard or Settings →
+  dashboard; an account's notice opens the Projects dashboard's Accounts or Settings →
   Behaviour.
 - **LinkedIn** ([Comments on LinkedIn](linkedin/comments.md),
   [Search accounts](linkedin/search-accounts.md), [LinkedIn accounts](linkedin/accounts.md)):
@@ -97,7 +97,7 @@ acts on a bad reading". Tyler picked this the same day.
   request", "... accepting a LinkedIn request". A found post, a sent or failed
   comment, or a connection opens its tab on the network's Commenting row; a post
   of your own opens LinkedIn on the project's dashboard; an account's notice
-  opens the Accounts dashboard or Settings → Behaviour.
+  opens the Projects dashboard's Accounts or Settings → Behaviour.
 - **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.

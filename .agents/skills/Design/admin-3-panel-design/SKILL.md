@@ -254,6 +254,25 @@ page offers, `notes/project-page-blocks.tsx`, and the project ⋮ as a
   everything in them (the frame `isolate`, the cover `-z-10`). Nothing in a
   record paints its own white under the header, or the cover stops in a hard
   line there ("broadcast got cut off").
+  **Always, on every three-panel screen** (Tyler, 12 Nov 2026: "Update the 3
+  panel skill to always connect right panel to the left panel bg"). That
+  includes an app's own frame (Promo's project page wraps its panels in
+  `RightCoverProvider` with the project's cover) and every right panel that
+  is not a `RecordFrame`: such a panel is `relative isolate`, draws
+  `RightPanelCover` first and makes its header's bottom line see-through
+  while there is a cover. A right panel with a plain white header beside a
+  left panel with a cover is a bug ("the right panel is missing the bg thats
+  connect to the left panel").
+- **The first block's card follows Panel cards → Opacity** (Tyler, 12 Nov
+  2026: "the block header has to connect to the opacity settings", after "the
+  opacity is not connected to the setting" of a Dashboards block's heading).
+  Settings → Styling → Panel cards → Opacity sets how see-through the first
+  block or card under a side panel's header is, 0 being clear with no blur.
+  The shell's rules in `theme.css` only reach a body marked
+  `data-side-panel-body`, so every side panel's scrolling body carries that
+  attribute, an app's own panels too (`admin-page-panel.tsx` is the
+  reference). Without it the first block keeps the Blocks grey whatever the
+  setting says.
 - **A side panel's header line follows Divider lines.** The shell draws a
   table's line under a header whose next element holds a table, and the
   tables inside blocks set that off. Wrap the side panel's header in its own
@@ -791,6 +810,11 @@ print numbers:
 - Tables: from 1280 to 2240px in 40px steps, no table wider than its panel.
 - A two-and-three panel screen: drag a side wider, go to the two-panel
   section and back, and the width held.
+- The covers: with a cover on the left page, each right panel (the empty
+  one, a record, any panel of the app's own) shows it behind its header, and
+  `getComputedStyle` of the first `[data-side-panel-body] … [data-block-card]`
+  has the background the Panel cards → Opacity setting gives on the shell's
+  own Admin dashboard.
 - Light and dark, and Tab and Enter reaching every control.
 - Note any pre-existing errors separately, such as the phone-width hydration
   mismatch from `three-panels.tsx`.

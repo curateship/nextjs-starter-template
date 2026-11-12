@@ -117,7 +117,7 @@ export async function recordAppHealth(
             reading.shadowban.words ? `: "${reading.shadowban.words.slice(0, 300)}".` : ".",
             " It is on the Accounts dashboard.",
           ].join(""),
-          href: `/admin/accounts?platform=${network}`,
+          href: `/admin/projects?section=accounts&platform=${network}`,
         },
         null,
         db,

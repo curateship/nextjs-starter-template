@@ -25,6 +25,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -68,12 +69,15 @@ type Item = ArchiveItemView & { canDownload: boolean }
 export function ArchiveItemPanel({
   itemId,
   canManage,
+  collapse = false,
   projects,
   onChanged,
   onOpen,
 }: {
   itemId: string | undefined
   canManage: boolean
+  /** The collapse button at the header's edge, on the Projects dashboard, whose right panel shuts from it. */
+  collapse?: boolean
   /** Every project, for Copy and Move. Empty for a guest. */
   projects: { id: string; name: string }[]
   /** The list behind should read again: the item changed, moved or left. */
@@ -114,7 +118,11 @@ export function ArchiveItemPanel({
   if (!itemId) {
     return (
       <>
-        <DashboardCardTitleHeader icon={<FilmIcon className="size-4" />} title="Item" />
+        <DashboardCardTitleHeader
+          icon={<FilmIcon className="size-4" />}
+          title="Item"
+          action={collapse ? <SidePanelCollapseButton side="right" label="Hide the item" /> : undefined}
+        />
         <p className="p-4 text-center text-sm text-muted-foreground">Click a video, carousel or picture to play it and see where it went.</p>
       </>
     )
@@ -128,7 +136,8 @@ export function ArchiveItemPanel({
         icon={<Icon className="size-4" />}
         title={shown?.title || (shown ? "Untitled" : "Opening…")}
         action={
-          shown ? (
+          <>
+          {shown ? (
             <ItemMenu
               item={shown}
               canManage={canManage}
@@ -143,7 +152,9 @@ export function ArchiveItemPanel({
                 onOpen(next)
               }}
             />
-          ) : null
+          ) : null}
+          {collapse ? <SidePanelCollapseButton side="right" label="Hide the item" /> : null}
+          </>
         }
       />
       <ScrollArea className="min-h-0 flex-1">

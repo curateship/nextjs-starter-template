@@ -69,10 +69,10 @@ and a comment or post is never tried twice."
   screen shows.
 - **Letting it run again** is a person's call: sort it out on the phone
   through its screen on its rack's page, then press **Let it run again** on the ban card
-  in the account's settings on the Accounts dashboard. That clears the block
+  on the account's right panel in the Projects dashboard's Accounts. That clears the block
   and the notices, and the account goes at half pace for 7 days. **Clean
   up** on the same card retires it as Banned and wipes its phone instead.
-- **The Accounts dashboard** shows "Stopped by a ban" under the account's
+- **The Projects dashboard's Accounts** shows "Stopped by a ban" under the account's
   status, with the words on hover.
 
 The known phrases are each app's published wording, and the saved screens the
@@ -92,5 +92,5 @@ screen's dump in place of the written one.
   `src/server/phones/rack.ts`; the refusal and the no-retry rule in
   `src/server/social/runner.ts`; `promo_accounts.ban_screen_at` and
   `promo_phone_actions.recovered` from `drizzle/0116_promo_phone_health.sql`.
-- The account's card: `src/components/social/accounts/ban-card.tsx`, in
-  `account-settings-dialog.tsx`.
+- The account's card: `src/components/social/accounts/ban-card.tsx`, in the
+  account's right panel on the Projects dashboard (`account-record.tsx`).

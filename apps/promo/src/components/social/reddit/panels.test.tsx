@@ -8,7 +8,7 @@ import type { PostingState } from "@/server/social/posting"
 import { AnswerPanel, PostsAs, type FindDetail } from "./answer-panel"
 import { paceLineText } from "@/lib/social/wording"
 
-import { FindsPanel, FindsSearch } from "./finds-panel"
+import { FindsPanel } from "./finds-panel"
 
 /**
  * What the Reddit panels draw, rendered from the real components. The clicks
@@ -169,6 +169,7 @@ function findsPanel(finds: FindRow[], tab: "new" | "commented", everything = fal
   return renderToStaticMarkup(
     <TooltipProvider>
       <FindsPanel
+        header={(tabs) => <div>{tabs}</div>}
         everything={everything}
         keywordNames={new Map([["k1", "reddit marketing tool"], ["k2", "r/SaaS"]])}
         hasKeywords
@@ -190,8 +191,8 @@ function findsPanel(finds: FindRow[], tab: "new" | "commented", everything = fal
 }
 
 describe("blocking a subreddit from a row", () => {
-  it("offers a block button naming the row's subreddit", () => {
-    expect(findsPanel([row({})], "new")).toContain('aria-label="Block r/nosleep"')
+  it("keeps Block off the row itself: it is in the row's right-click menu", () => {
+    expect(findsPanel([row({})], "new")).not.toContain('aria-label="Block r/nosleep"')
   })
 
   it("offers none on a post already replied to, which is never hidden", () => {
@@ -202,8 +203,8 @@ describe("blocking a subreddit from a row", () => {
 })
 
 describe("ticking posts to skip several at once", () => {
-  it("gives each post still to look at a tick box", () => {
-    expect(findsPanel([row({})], "new")).toContain('aria-label="Tick A horror story')
+  it("shows no tick boxes until Select is pressed in the header", () => {
+    expect(findsPanel([row({})], "new")).not.toContain('role="checkbox"')
   })
 
   it("gives none on the Replied tab, whose posts are never skipped", () => {
@@ -212,17 +213,15 @@ describe("ticking posts to skip several at once", () => {
 })
 
 describe("the search box over the posts", () => {
-  it("is its own box, drawn in the keywords row rather than beside the tabs", () => {
+  it("is the header's, never drawn by the list itself", () => {
     expect(findsPanel([row({})], "new")).not.toContain("Search these posts")
-    expect(renderToStaticMarkup(<FindsSearch value="" onChange={() => {}} />)).toContain(
-      'aria-label="Search these posts by title, subreddit or author"'
-    )
   })
 
   it("narrows the list to the posts whose words match", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <FindsPanel
+          header={(tabs) => <div>{tabs}</div>}
           everything={false}
           keywordNames={new Map()}
           hasKeywords
@@ -262,7 +261,9 @@ describe("every keyword's posts in one list", () => {
   })
 
   it("groups rows under their band with a count", () => {
-    expect(findsPanel([row({})], "new")).toContain('aria-label="Strong fit, 1"')
+    const html = findsPanel([row({})], "new")
+    expect(html).toContain("Strong fit")
+    expect(html).toMatch(/Strong fit[\s\S]*1/)
   })
 })
 
@@ -317,9 +318,9 @@ describe("the pace line and a waiting comment", () => {
 })
 
 describe("sorting the posts by a figure", () => {
-  it("offers a sort over the upvotes and over the replies", () => {
+  it("sorts by upvotes or replies from their column headings", () => {
     const html = findsPanel([row({})], "new")
-    expect(html).toContain('aria-label="Sort by upvotes, most first"')
-    expect(html).toContain('aria-label="Sort by replies, most first"')
+    expect(html).toContain("Upvotes")
+    expect(html).toContain("Replies")
   })
 })

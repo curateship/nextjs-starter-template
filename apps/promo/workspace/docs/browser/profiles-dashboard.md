@@ -113,7 +113,7 @@ profiles never share either. Making a new identity is file 04's job.
 The Reddit account tab in Settings no longer holds the proxy, the browser
 buttons, or the AI's words. It has two pickers: which browser profile the
 account uses, with a link to it here, and which voice it drafts with, with a
-link to the [Voices dashboard](../voices-dashboard.md). A profile that already
+link to the [Projects dashboard's Voices](../voices-dashboard.md). A profile that already
 holds a Reddit account is not offered.
 
 Every message on the Projects dashboard about the browser names the profile and

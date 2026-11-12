@@ -1,8 +1,12 @@
-# The Messages dashboard
+# Messages
 
 Every phone account's direct messages on Reddit, Instagram, TikTok, X and
-LinkedIn, and every X and LinkedIn account's in a browser, in one list at
-`/admin/messages`, under Projects in the left menu after Accounts. Each
+LinkedIn, and every X and LinkedIn account's in a browser, in one list. Since
+12 Nov 2026 it is the Messages section of the
+[Projects dashboard](projects-dashboard.md) (`/admin/projects?section=messages`;
+Tyler: "consolidate projects, voices, accounts, archive and messages into one
+cohesive 3 panel design"). The old `/admin/messages`, which stored bell
+notices use, opens it with the same `?platform=` and `?open=`. Each
 conversation is read off the phone after the app's notification said a
 message arrived, and answered only when a person presses Send. Phone farm
 file 06, part 38, X task part 41, and LinkedIn task part 42.
@@ -50,8 +54,12 @@ suspicious?" So the phones do not check the inbox on a clock.
 - One row per conversation: who it is with and the network, the newest line,
   which account it was written to, Waiting for you or Reply on its way, and
   when the newest line arrived. Newest first.
-- **Platform** filters to one network (`?platform=`), and the search box looks
-  through names and words.
+- **Platform**, in Filter, narrows to one network (`?platform=`), and the
+  search box looks through names and words.
+- **The Projects block** on the dashboard's left page narrows the list to the
+  conversations written to one project's accounts.
+- **Select** ticks conversations for Skip, and a row's right-click menu has
+  Skip too.
 - **The bell** rings "New message for @name on Instagram" when a conversation
   first opens.
 - A conversation already listed takes its new lines, and opens again if it
@@ -62,8 +70,9 @@ suspicious?" So the phones do not check the inbox on a clock.
 Nothing answers by itself. Tyler, 16 Oct 2026, asked "does it auto respond to
 everything with my voice?": no.
 
-- **Opening a row** opens the conversation in a window (`?open=<id>`), the
-  account's own lines on the right. A suggested answer in the account's voice
+- **Opening a row** opens the conversation on the right (`?open=<id>`), in
+  place of the window it had until 12 Nov 2026, the account's own lines on
+  the right of it. A suggested answer in the account's voice
   is written into the box the first time it opens. Write again asks for
   another.
 - **Send from phone** sends what is in the box, at most 1,000 characters. A
@@ -80,7 +89,7 @@ everything with my voice?": no.
 - **A new line that comes in after Send** shows on the row while the answer is
   on its way. Once the answer is sent, the conversation stays open with that
   line instead of being deleted, so nothing is deleted unread.
-- **Skip** puts a conversation away without a word. One whose answer's job
+- **Skip**, under the box and in the conversation's ⋮, puts a conversation away without a word. One whose answer's job
   failed or was dropped can be skipped too.
 
 ## Kept only while it is open
@@ -103,13 +112,14 @@ The words pass through two other places, and neither keeps them:
 
 ## Where it is
 
-- The route: `src/routes/_authenticated/admin/messages.tsx`, and the dashboard
-  `src/components/social/phone-apps/messages-dashboard.tsx` with its answer
-  window `inbox-answer.tsx`.
+- The section: `src/components/social/projects-dashboard/messages-section.tsx`,
+  with the answer box `src/components/social/phone-apps/inbox-answer.tsx`. The
+  old route `src/routes/_authenticated/admin/messages.tsx` only forwards.
 - The server: `src/server/social/phone-apps/inbox.ts`; the endpoints in
   `src/lib/api/social/phone-apps.ts`.
 - The rack: `new_alerts`, `action_app_inbox`, `conversation_from_screen` and
   `action_app_reply` in `rack/promo_rack.py`; Reddit's chats are its
   `reddit/inbox` and `reddit/reply_message`.
-- The tables: `promo_inbox` and `promo_inbox_seen`, and the left menu link,
-  from `drizzle/0120_promo_instagram_tiktok.sql`.
+- The tables: `promo_inbox` and `promo_inbox_seen`, from
+  `drizzle/0120_promo_instagram_tiktok.sql`. Its left menu link, added there,
+  was taken out by `drizzle/0157_promo_projects_dashboard.sql`.

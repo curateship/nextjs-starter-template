@@ -9,7 +9,7 @@ import { RedditModule } from "@/components/social/reddit/reddit-module"
 import { RedditPostsModule } from "@/components/social/reddit/reddit-posts-module"
 import { LinkedinModule } from "@/components/social/linkedin/linkedin-module"
 import { XModule } from "@/components/social/x/x-module"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import {
   getNetworkErrorMessage,
   getProjectErrorMessage,
@@ -34,6 +34,8 @@ import { ArchiveItemsPanel } from "@/components/archive/archive-items-panel"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 
 import { ProjectColumns } from "./project-columns"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { ProjectBackButton, ProjectBackProvider } from "./project-back"
 import { ProjectColumnsPick } from "./project-columns-pick"
 import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
@@ -125,7 +127,15 @@ export function ProjectsWorkspace({
           : { key: "", label: "Networks" },
     [archive, network, side]
   )
-  const framed = (node: React.ReactNode) => <ProjectColumnsPick.Provider value={pick}>{node}</ProjectColumnsPick.Provider>
+  // The arrow back to the Projects dashboard, which every network's middle header draws first; none for a guest.
+  const framed = (node: React.ReactNode) => (
+    <ProjectBackProvider value={guest ? null : projectId}>
+      {/* The right panels carry on the left panel's cover, as on every three-panel dashboard. */}
+      <RightCoverProvider value={view.project.imageUrl || null}>
+        <ProjectColumnsPick.Provider value={pick}>{node}</ProjectColumnsPick.Provider>
+      </RightCoverProvider>
+    </ProjectBackProvider>
+  )
 
   const setSearch = React.useCallback(
     (patch: ProjectRouteSearch, options: { replace?: boolean } = {}) =>
@@ -317,7 +327,11 @@ export function ProjectsWorkspace({
       left={left}
       middle={
         <>
-          <DashboardCardTitleHeader icon={<LayersIcon className="size-4" />} title="No network yet" />
+          <DashboardCardHeader className="gap-2">
+            <ProjectBackButton />
+            <LayersIcon className="size-4 text-muted-foreground" aria-hidden />
+            <h2 className={dashboardCardHeadingClassName}>No network yet</h2>
+          </DashboardCardHeader>
           <p className="p-4 text-sm text-muted-foreground">
             This project uses no network yet. Press Add network in the left column, and your
             posts on that network open here.

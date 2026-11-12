@@ -27,8 +27,8 @@ and a step that does not find its button stops with a picture of the screen.
   phone reads the post itself before it comments.
 - **Direct messages:** since phone farm file 06, a Reddit chat that arrives on
   the phone is read off it when its notification shows, and answered from the
-  Messages dashboard when a person presses Send
-  ([the Messages dashboard](../messages-dashboard.md)).
+  Projects dashboard's Messages when a person presses Send
+  ([the Projects dashboard's Messages](../messages-dashboard.md)).
 - **Anything else is refused when its button is pressed,** with words such as
   "u/name's phone cannot do answering a reply yet": answering replies, posts of
   your own, and editing or deleting a sent comment. A step that reaches the
@@ -96,7 +96,7 @@ The accounts in the dropdown are listed under **Important** and **Throwaway**
 ## Moving an account from a browser profile to a phone
 
 How a throwaway that turned valuable is promoted, one way only. In the
-account's settings on the Accounts dashboard, under Throwaway. An X account
+account's right panel on the Projects dashboard's Accounts, under Throwaway. An X account
 moves the same way, signed in to the X app on the phone
 ([X accounts](../x/accounts.md#moving-to-a-phone)), and so does a LinkedIn
 account, signed in to the LinkedIn app ([LinkedIn accounts](../linkedin/accounts.md#moving-to-a-phone)).
@@ -108,7 +108,7 @@ account, signed in to the LinkedIn app ([LinkedIn accounts](../linkedin/accounts
    and project must not be shared with a throwaway.
 2. **Sign in by hand** on the phone through its screen on its rack's
    page. The account keeps running on its browser profile meanwhile, and
-   the Accounts dashboard shows "Moving to" the phone.
+   the Projects dashboard's Accounts shows "Moving to" the phone.
 3. **Check sign-in** asks the phone who the Reddit app is signed in as. The
    window says what the phone last read, such as "found u/other signed in, not
    u/name".
@@ -126,7 +126,7 @@ self-test phone, and the account counts as important for the voice and project
 rules, as well as for the rules about posts. If anything holds the move back
 when the phone reads it signed in (the phone given to another account, made
 the self-test phone or wiped, or a voice or project now shared with a
-throwaway), the move waits and the settings window says why.
+throwaway), the move waits and the account's right panel says why.
 
 ## Where it is
 

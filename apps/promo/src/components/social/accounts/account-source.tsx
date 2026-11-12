@@ -45,7 +45,7 @@ export function SourceFields({
             onCommit?.(next)
           }}
         >
-          <SelectTrigger id={`${idPrefix}-source`} className="w-full sm:w-fit sm:min-w-48">
+          <SelectTrigger id={`${idPrefix}-source`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -74,6 +74,7 @@ import { cn } from "@/lib/utils"
 
 import { KeywordPicker } from "../keyword-picker"
 import { NetworkIcon } from "../network-icon"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 type Keyword = LinkedinModuleView["keywords"][number]
 
@@ -180,6 +181,7 @@ export function LinkedinKeywords({
 
   return (
     <DashboardCardHeader className="flex-wrap items-center gap-x-3 gap-y-2">
+      <ProjectBackButton />
       <DashboardCardHeaderIcon>
         <NetworkIcon network="linkedin" />
       </DashboardCardHeaderIcon>

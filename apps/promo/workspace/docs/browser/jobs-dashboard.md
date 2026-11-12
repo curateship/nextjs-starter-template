@@ -3,8 +3,10 @@
 **Jobs**, a button in the middle column's header on the network's Commenting row,
 opens a window that shows whether the browser program is running, and lists
 every job it is doing, waiting to do, or did lately, for every project. The
-button shows how many are running or waiting. **See the jobs**, in the red line
-under the column's header, opens the same window.
+button shows how many are running or waiting. While the program is stopped,
+Reddit's header has a small amber warning with how many wait, and Medium's,
+X's and LinkedIn's a red line with **See the jobs**; each opens the same
+window.
 
 Tyler asked for it on 13 Oct 2026: "should there be jobs visible somewhere in
 the settings so I can see what's running?" His searches had sat waiting since
@@ -47,8 +49,8 @@ slow database answer never reads as a stop.
   database on port 54320 that is not there.
 - **The Projects dashboard** reads the same answer through its job counts
   (`programRunning` on `JobCounts` in `src/server/social/jobs.ts`). While the
-  program is stopped and jobs wait, it shows a red line under the column's
-  header linking here (**See the jobs**), and a waiting keyword says "waiting"
+  program is stopped and jobs wait, it shows the warning above in the
+  middle's header, and a waiting keyword says "waiting"
   in the keywords list instead of spinning.
 
 ## The list

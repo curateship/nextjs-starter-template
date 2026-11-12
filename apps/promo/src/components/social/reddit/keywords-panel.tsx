@@ -1,20 +1,15 @@
 import * as React from "react"
-import { EllipsisVerticalIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
+import { AlertTriangleIcon, ListChecksIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
 
 import { MenuAction } from "@/components/shared/folding-menu"
-import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Select,
   SelectContent,
@@ -30,12 +25,11 @@ import {
 } from "@/lib/social/reddit/options"
 import { keywordChipTimeText, keywordScopeText, keywordTitle } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 import type { KeywordRow } from "@/server/social/keywords"
 
 import { KeywordPicker, type KeywordPickerItem } from "../keyword-picker"
-import { NetworkIcon } from "../network-icon"
 import { KeywordIdeasDialog } from "./keyword-ideas-dialog"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /**
  * The posts column's header: Reddit's name, then on the right the search box,
@@ -74,8 +68,12 @@ export function KeywordsBar({
   selectedId,
   runningIds,
   stalled,
-  search,
-  actions,
+  searchText,
+  onSearchText,
+  tabs,
+  tools,
+  stalledJobs,
+  jobs,
   onThreads,
   onSelect,
   onAdd,
@@ -94,12 +92,27 @@ export function KeywordsBar({
   runningIds: Set<string>
   /** The browser program is not running, so a waiting search says it waits rather than spinning. */
   stalled: boolean
-  /** The posts' search box, drawn first in the buttons on the right. */
-  search: React.ReactNode
+  /** The words the posts are narrowed by, in the header's search box. */
+  searchText: string
+  onSearchText: (text: string) => void
+  /** The list's Select and its "N selected" menu, handed up by the list. */
+  tools: { selected: React.ReactNode; massSelect: { on: boolean; onToggle: () => void } | null }
   /** Opens the Self-promotion threads window, from the "⋮" menu. */
   onThreads: () => void
-  /** The column's own buttons, drawn after the search box and before the "⋮" menu. */
-  actions: React.ReactNode
+  /**
+   * The list's tabs (To look at, Replied, Skipped, Today, Sent), in the one
+   * header in place of a title (Tyler, 12 Nov 2026: the project page in the
+   * new design; "There should only be one middle header").
+   */
+  tabs: React.ReactNode
+  /**
+   * The browser program is not running and jobs wait: a small amber warning
+   * in the header, its words on hover, opening the jobs when pressed (null
+   * for a guest, who has no Jobs window). Null while all is well.
+   */
+  stalledJobs: { queued: number; onOpen: (() => void) | null } | null
+  /** The Jobs window in the ⋮, with how many are running or waiting. Null for a guest. */
+  jobs: { waiting: number; onOpen: () => void } | null
   /** A keyword's id, or null to go back to every keyword's posts. */
   onSelect: (id: string | null) => void
   onAdd: (input: {
@@ -146,81 +159,78 @@ export function KeywordsBar({
     }
   })
 
+  // The one middle header every list in the design has (`CrmListHeader`):
+  // the tabs, the "N selected" menu, the search box, Select, and a ⋮ with
+  // Jobs, Ideas and the self-promotion threads. The keyword list itself is
+  // drawn under the Commenting row on the left (`KeywordPicker`).
   return (
-    <DashboardCardHeader className="flex-wrap items-center gap-x-3 gap-y-2">
-      <DashboardCardHeaderIcon>
-        <NetworkIcon network="reddit" />
-      </DashboardCardHeaderIcon>
-      <h2 className={cn(dashboardCardHeadingClassName, "min-w-0 truncate")}>Reddit</h2>
-
-      {/* A row of its own on a phone, where the search box takes what the
-          two buttons leave. */}
-      <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
-        {search}
-        <KeywordPicker
-          items={items}
-          loading={loading}
-          selectedId={selectedId}
-          onSelect={onSelect}
-          onRun={onRun}
-          onSwitch={onSwitch}
-          menu={(item, close) => (
-            <MenuAction
-              destructive
-              icon={<XIcon className="size-4" />}
-              onClick={() => {
-                close()
-                void onDelete(item.id)
-              }}
-            >
-              Remove {item.label} and everything it found
-            </MenuAction>
-          )}
-          addForm={(close) => (
-            <AddKeywordForm
-              onAdd={async (input) => {
-                await onAdd(input)
-                close()
-              }}
-              onCancel={close}
-            />
-          )}
-        />
-        {actions}
-        {/* The column's less used tools, behind one button. Tyler, 13 Oct 2026. */}
-        <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label="More">
-                  <EllipsisVerticalIcon />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>{guest ? "Self-promotion threads" : "Ideas and self-promotion threads"}</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="w-56">
-            {guest ? null : (
-              <DropdownMenuItem onSelect={() => setIdeasOpen(true)}>
-                <SparklesIcon />
-                Ideas
-              </DropdownMenuItem>
+    <>
+      <CrmListHeader
+        tabs={
+          <>
+            <PanelReopenButton side="left" label="Show the project" />
+            <ProjectBackButton />
+            {tabs}
+          </>
+        }
+        end={<PanelReopenButton side="right" label="Show the post and your comment" />}
+        selected={tools.selected}
+        massSelect={tools.massSelect}
+        search={{
+          name: "reddit-post-search",
+          label: "Search these posts by title, subreddit or author",
+          placeholder: "Search posts",
+          value: searchText,
+          onChange: onSearchText,
+        }}
+        view={
+          <>
+          {stalledJobs ? <StalledJobs queued={stalledJobs.queued} onOpen={stalledJobs.onOpen} /> : null}
+          <KeywordPicker
+            items={items}
+            loading={loading}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            onRun={onRun}
+            onSwitch={onSwitch}
+            menu={(item, close) => (
+              <MenuAction
+                destructive
+                icon={<XIcon className="size-4" />}
+                onClick={() => {
+                  close()
+                  void onDelete(item.id)
+                }}
+              >
+                Remove {item.label} and everything it found
+              </MenuAction>
             )}
-            <DropdownMenuItem onSelect={onThreads}>
-              <MegaphoneIcon />
-              Self-promotion threads
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
+            addForm={(close) => (
+              <AddKeywordForm
+                onAdd={async (input) => {
+                  await onAdd(input)
+                  close()
+                }}
+                onCancel={close}
+              />
+            )}
+          />
+          </>
+        }
+        menuLabel={guest ? "Self-promotion threads" : "Jobs, ideas and self-promotion threads"}
+        menuItems={[
+          ...(jobs ? [{ label: jobs.waiting ? `Jobs · ${jobs.waiting}` : "Jobs", icon: <ListChecksIcon className="size-4" />, onClick: jobs.onOpen }] : []),
+          ...(guest ? [] : [{ label: "Ideas", icon: <SparklesIcon className="size-4" />, onClick: () => setIdeasOpen(true) }]),
+          { label: "Self-promotion threads", icon: <MegaphoneIcon className="size-4" />, onClick: onThreads },
+        ]}
+      />
       <KeywordIdeasDialog
         projectId={projectId}
         open={ideasOpen && !guest}
         onClose={() => setIdeasOpen(false)}
         onAdd={onAddIdea}
       />
-    </DashboardCardHeader>
+    </>
   )
 }
 
@@ -346,5 +356,33 @@ function AddKeywordForm({
         </Button>
       </div>
     </form>
+  )
+}
+
+/**
+ * The browser program not running, as a small amber warning in the header:
+ * the triangle and how many jobs wait, the whole sentence on hover, and the
+ * Jobs window on a press.
+ */
+function StalledJobs({ queued, onOpen }: { queued: number; onOpen: (() => void) | null }) {
+  const words = `The browser program is not running, so ${queued} ${queued === 1 ? "job is" : "jobs are"} waiting and nothing is searched.${onOpen ? " Press to see the jobs." : ""}`
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={words}
+          aria-disabled={onOpen ? undefined : true}
+          className="shrink-0 gap-1 px-2 text-amber-700 hover:text-amber-800 dark:text-amber-400"
+          onClick={onOpen ?? undefined}
+        >
+          <AlertTriangleIcon className="size-4" aria-hidden />
+          <span className="tabular-nums">{queued}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">{words}</TooltipContent>
+    </Tooltip>
   )
 }

@@ -220,13 +220,13 @@ function RedditAccountSettings() {
               <>
                 Drafts use this voice&apos;s words, what you make and your rules.{" "}
                 <Link
-                  to="/admin/voices"
-                  search={{ open: chosenVoice.id }}
+                  to="/admin/projects"
+                  search={{ section: "voices", open: chosenVoice.id }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
                   Open {chosenVoice.name}
                 </Link>{" "}
-                on the Voices dashboard to change them. Every account using it changes
+                in the Projects dashboard's Voices to change them. Every account using it changes
                 with it.
               </>
             ) : (
@@ -234,11 +234,11 @@ function RedditAccountSettings() {
                 Without a voice, drafts are written plainly and never mention what
                 you make. Write one on the{" "}
                 <Link
-                  to="/admin/voices"
-                  search={{ open: undefined }}
+                  to="/admin/projects"
+                  search={{ section: "voices" }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
-                  Voices dashboard
+                  Projects dashboard&apos;s Voices
                 </Link>
                 .
               </>

@@ -83,7 +83,7 @@ opened "when the phone buzzes" as on an Android.
 - **Once an hour, in waking hours,** Promo queues a read of each iPhone
   account's inbox, one for messages and one for comments, through the same
   inbox read an Android gets after a notification, only recorded as the inbox
-  being opened (there was no notification to tap). The Messages dashboard then
+  being opened (there was no notification to tap). The Projects dashboard's Messages then
   reads what arrived exactly as it does on an Android.
 - **At night nothing is opened.** The hour is counted on the phone's own clock
   against the waking hours on Settings, Behaviour.

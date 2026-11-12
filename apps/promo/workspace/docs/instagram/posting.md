@@ -32,7 +32,7 @@ is pressed, with a back arrow to the list.
 
 ## What the AI is told
 
-The account's voice and its rules from the Voices dashboard, the project's
+The account's voice and its rules from the Projects dashboard's Voices, the project's
 description, what Tyler said the post is about, whether it is a photo or a
 video, and the network's limits: "at most 30 hashtags" on Instagram, and the
 caption's length. A caption that comes back too long is still put in the box,

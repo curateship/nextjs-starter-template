@@ -99,7 +99,7 @@ profile's history. One line per event:
 
 Above the lines, an **Accounts** card lists every account the phone has held
 since 3 Nov 2026: handle, app, from and to, and how it left (moved, banned or
-retired). Each opens the account's settings on the Accounts dashboard.
+retired). Each opens the account on the Projects dashboard's Accounts.
 
 ## Where it is
 

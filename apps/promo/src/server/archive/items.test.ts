@@ -232,3 +232,26 @@ describe("captions and deleting a project", () => {
     await expect(deleteProject(user.id, projectId, db)).rejects.toThrow("1 archive item")
   })
 })
+
+describe("every project's archive at once", () => {
+  it("lists every project's items with their project, never another person's, and counts every Bin", async () => {
+    const second = await createProject(user.id, "Second", db)
+    const mine = await item({ title: "Mine" })
+    const other = await item({ title: "Other project", projectId: second })
+    const binned = await item({ title: "Binned", projectId: second, deletedAt: new Date() })
+    const stranger = await insertUser(db)
+    const theirProject = await createProject(stranger.id, "Theirs", db)
+    await item({ title: "Theirs", userId: stranger.id, projectId: theirProject })
+
+    const every = await items.listArchiveItems(user.id, { projectId: null }, db)
+    expect(new Set(every.items.map((row) => row.id))).toEqual(new Set([mine, other]))
+    expect(every.items.find((row) => row.id === other)?.projectId).toBe(second)
+    expect(every.binCount).toBe(1)
+
+    // One project named still lists that project alone.
+    const one = await items.listArchiveItems(user.id, { projectId }, db)
+    expect(one.items.map((row) => row.id)).toEqual([mine])
+    expect(one.binCount).toBe(0)
+    expect((await items.listArchiveItems(user.id, { projectId: null, bin: true }, db)).items.map((row) => row.id)).toEqual([binned])
+  })
+})

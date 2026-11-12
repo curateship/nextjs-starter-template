@@ -9,7 +9,7 @@ Nothing here has run on a real phone yet.
 
 ## Where
 
-The account's settings window on the Accounts dashboard has a Profile card for
+The account's right panel on the Projects dashboard's Accounts has a Profile card for
 an Instagram or TikTok account:
 
 - **Name**, up to 30 characters.

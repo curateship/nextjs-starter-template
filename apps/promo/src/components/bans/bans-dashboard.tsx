@@ -344,7 +344,7 @@ function BanDialog({ row, onClose, onChanged }: { row: BanRow | null; onClose: (
               {row.account ? (
                 <p className="text-sm text-muted-foreground">
                   {"The account's own history is on its settings window: "}
-                  <Link to="/admin/accounts" search={{ open: row.account.id }} className="font-medium text-foreground underline underline-offset-2">
+                  <Link to="/admin/projects" search={{ section: "accounts", open: row.account.id }} className="font-medium text-foreground underline underline-offset-2">
                     open {name} on the Accounts dashboard
                   </Link>
                   .

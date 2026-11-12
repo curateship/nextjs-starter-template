@@ -30,7 +30,7 @@ export type RedditWindow = (typeof REDDIT_WINDOWS)[number]
  * `useRememberedPanelLayout` takes any string, and the `promo-` prefix is what
  * keeps these from colliding with a shell key.
  */
-export const PROJECTS_PANEL_LAYOUT_KEY = "promo-projects-workspace"
+export const PROJECTS_PANEL_LAYOUT_KEY = "promo-projects-workspace-2"
 
 /**
  * The Everything row at the top of the keywords panel, chosen in place of a

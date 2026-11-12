@@ -64,8 +64,8 @@ Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
 
 - **Authenticator codes.** Each account on the phone with an authenticator
   secret saved shows its current six digits, the seconds left, and Copy. The
-  secret is saved from the account's settings button on the Reddit accounts
-  dashboard, as its letters or the `otpauth://` link from the QR code, and is
+  secret is saved on the account's right panel in the Projects dashboard's
+  Accounts, as its letters or the `otpauth://` link from the QR code, and is
   kept encrypted with the server's key, the same way a window password is. It
   is never shown again; only the code is. The code is RFC 6238's, the one an
   authenticator app shows.

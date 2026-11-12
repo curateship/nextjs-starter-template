@@ -167,7 +167,7 @@ export function LinkedinAccountPicker({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem asChild>
-          <Link to="/admin/accounts" search={{ platform: "linkedin" }}>
+          <Link to="/admin/projects" search={{ section: "accounts", platform: "linkedin" }}>
             <UsersIcon />
             Manage accounts
           </Link>

@@ -141,7 +141,7 @@ export function AccountPicker({
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem asChild>
-              <Link to="/admin/accounts" search={{ platform: "reddit" }}>
+              <Link to="/admin/projects" search={{ section: "accounts", platform: "reddit" }}>
                 <UsersIcon />
                 Manage accounts
               </Link>

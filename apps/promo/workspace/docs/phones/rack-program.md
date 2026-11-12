@@ -46,7 +46,7 @@ home and nothing changes on the Hetzner server.
   app and "message" or "comment", never the words. Each notification is
   reported once; an alert Promo did not hear waits for the next check-in.
   Promo then has the account's phone read it
-  ([the Messages dashboard](../messages-dashboard.md)). An iPhone hands a
+  ([the Projects dashboard's Messages](../messages-dashboard.md)). An iPhone hands a
   computer no notifications, so it has no alerts here; its inboxes are
   opened on the screen instead (part 52, not built yet).
 - **Every 3 seconds** it asks `/api/rack/next` for the oldest waiting action,
@@ -169,7 +169,7 @@ self-test and app updates](self-test-and-app-updates.md) has them.
   `reddit/comment`:** the Reddit app's own steps, answering in the browser's
   shapes. [Reddit on phones](../reddit/reddit-on-phones.md).
 - **`reddit/inbox` and `reddit/reply_message`:** reading a Reddit chat and
-  answering it ([the Messages dashboard](../messages-dashboard.md)).
+  answering it ([the Projects dashboard's Messages](../messages-dashboard.md)).
 - **`instagram/…` and `tiktok/…`:** `state`, `quick_state`, `health`,
   `profile`, `post`, `inbox` and `reply` in each app, the same steps read off
   each app's own buttons in `APP_SCREENS`.

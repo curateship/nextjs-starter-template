@@ -80,7 +80,7 @@ Instagram twice".
 - **A History line.** Each ban writes a Banned line in the phone's History.
 - **Accounts card.** The phone's History tab starts with every account it
   has held: handle, app, from and to, and how it left (moved, banned or
-  retired). Each opens the account's settings on the Accounts dashboard.
+  retired). Each opens the account on the Projects dashboard's Accounts.
   Older phones start with the account on them now; older moves are only the
   free-text lines below. Promo never deletes an account, so "deleted" is
   never a way to leave.
@@ -105,7 +105,7 @@ Instagram twice".
 
 ## At a ban (parts 6 to 11)
 
-- **Clean up** is in the account's settings window, on its ban card, and in
+- **Clean up** is on the ban card of the account's right panel, and in
   the ban's window on the Bans dashboard. It asks once in the card, then
   retires the account as Banned, takes it off its phone or browser profile,
   closes its row on the phone as banned, and queues the phone's wipe. A
@@ -164,7 +164,7 @@ Instagram twice".
   empty list says "No account has been banned yet".
 - **Above the list,** only when there is something: the apps the brake holds,
   each screen Promo is asking about, and the sellers.
-- **Each account's own history** is the History tab of its settings window:
+- **Each account's own history** is the History list on its right panel:
   added, moved, banned, appealed, the appeal's answer, let run again,
   retired with its reason, and cleaned up, newest first. Lines start from
   this task; nothing older was recorded.
@@ -173,14 +173,15 @@ Instagram twice".
   "Retired 2 days ago · Sold", accounts retired before read "Not recorded",
   and with Show retired on, a filter splits them by reason.
 - **Where it came from.** Made or bought, the seller and the price in
-  dollars, in the add-account window and the account's settings window,
+  dollars, in the add-account window and on the account's right panel,
   saved as they change. The Bans dashboard groups bans by seller: "Seller A:
   4 bans out of 10 bought, $120 lost". A seller counts the accounts a counted
   ban hit, and the dollars are what those accounts cost.
-- **Counts per app.** A strip at the top of the Accounts dashboard has one
-  card per app with accounts, counting Warming up, Ready, Working, At risk
-  and Banned among the accounts in use. Clicking a count filters the list to
-  that app and status.
+- **Counts per app.** The Projects dashboard's Overview has Accounts by
+  status, counting Warming up, Ready, Working, At risk and Banned among the
+  accounts in use; a press opens Accounts filtered to that status, and
+  Accounts' Filter narrows to one app. The strip of counts per app that sat
+  above the Accounts list went on 12 Nov 2026, so that list keeps one header.
 - **Lost accounts per project.** Each project's row and its left column say
   "2 accounts banned in the last 30 days", counting accounts a counted ban
   hit. Clicking it opens the Bans dashboard filtered to that project and the
@@ -190,7 +191,7 @@ Instagram twice".
 
 - **Instagram and TikTok warm up for 7 days,** counted from when the account
   was added to Promo, a number in Settings → Behaviour, and the account reads
-  Warming up on the Accounts dashboard until then. Post is refused with the
+  Warming up on the Projects dashboard's Accounts until then. Post is refused with the
   day it ends. Once a day inside waking hours the phone opens the app,
   scrolls the feed for a few minutes and likes a few posts by pressing each
   post's own Like button found on screen. Nothing else is ever pressed, a
@@ -263,7 +264,9 @@ Instagram twice".
 - **Words and numbers:** `src/lib/bans/options.ts`.
 - **Screens:** `src/components/bans/bans-dashboard.tsx`,
   `src/components/social/accounts/ban-card.tsx`, `retire-dialog.tsx`,
-  `account-counts.tsx`, `account-source.tsx`, `account-history-panel.tsx`.
+  `account-source.tsx`, `account-history-panel.tsx`, all shown in the
+  account's right panel on the Projects dashboard (`account-record.tsx`); the
+  status counts are Overview's Accounts by status widget.
 - **Tables:** `drizzle/0133_promo_bans.sql` adds `promo_bans`,
   `promo_phone_tenancies`, `promo_ban_phrases`, `promo_account_events`,
   `promo_app_brakes`, and account columns for the retire reason, the source,

@@ -20,51 +20,69 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
   and nothing is booked for later.
 - **"Watch and post only."** A guest from Project can play and post archive items,
   and has no Download.
-- **"Under Projects."** The Archive sits under Projects in the left menu, after
-  Accounts.
-- **"Three panels", "Travel's trip page", "List of projects".** The dashboard copies
-  Travel's trip page. The left panel lists every project.
+- **One cohesive 3 panel design.** Since 12 Nov 2026 the Archive is a section of
+  the [Projects dashboard](projects-dashboard.md), not a screen under Projects in
+  the left menu (Tyler: "We need to consolidate projects, voices, accounts,
+  archive and messages into one cohesive 3 panel design"). The Projects block on
+  that dashboard's left page picks the project, in place of the Archive's own
+  list of projects of 4 Nov 2026.
 - **"Size and dollars a month".** Each project shows its storage that way, for
   example "12.4 GB, about $0.19 a month".
 
 ## Where it is
 
-- **The Archive dashboard** is at `/admin/archive`, under Projects in the left menu.
-  It is added by `drizzle/0134_promo_archive.sql`.
-  - **Left panel:** every project, with its item count and storage, biggest first.
-  - **Middle panel:** the picked project's items as a grid.
-  - **Right panel:** the open item.
+- **The Archive section** of the Projects dashboard,
+  `/admin/projects?section=archive`.
+  - **Left:** the dashboard's own page; its Projects block picks the project,
+    each row with its item count. With no project picked, every project's items
+    show, each row naming its project.
+  - **Middle:** the items as a table.
+  - **Right:** the open item.
   - **The address** holds the project, the open item, the tab and the filters
-    (`?project=<id>&open=<id>&kind=video&posted=no&sort=views&group=source`), so a
-    pasted link, a bell notice or Video's Open in Promo lands on the item.
-- **Inside a project.** A project's own dashboard has an Archive row under Networks,
-  in a section called Content. Picking it shows the same middle and right panels for
-  that project alone (`?archive=1`). Guests from Project reach the archive this way.
+    (`?section=archive&project=<id>&open=<id>&kind=video&posted=no&sort=views&group=source`).
+    The old `/admin/archive` address, which bell notices and Video's Open in
+    Promo use, opens the section with the same project, item and filters.
+  - **Storage:** Overview's Archive room widget shows each project's items and
+    the room they take with what that costs, "12.4 GB, about $0.19 a month",
+    as Tyler's rule says.
+- **Inside a project.** A project's own page has an Archive row under Networks,
+  in a section called Content. Picking it shows its own middle and right panels
+  for that project alone (`?archive=1`). Guests from Project reach the archive
+  this way.
 
 ## The middle panel
 
-- **Tabs:** All, Videos, Carousels, Pictures.
-- **The ⋮ after the tabs:** the Bin with its count, and Download everything as a zip.
-- **The toolbar, left to right:** Mass select, the search, Filter, Views, and "+ Add".
+- **Tabs:** All, Videos, Carousels, Pictures and Bin with its count (a dropdown
+  when the middle is narrow).
+- **The header, left to right:** the search, Select, Filter, Views, Add, and a
+  ⋮ with Download everything as a zip while a project is picked.
   - **Search** looks in titles, captions and descriptions.
   - **Filter** has three choices: Posted (Not posted yet), Sort (Most viewed) and
     Group (By Video project).
-  - **Views** are saved per project. They are on the Archive dashboard only; a
+  - **Views** are saved per project, so they show while a project is picked. A
     project's own page leaves them out.
-  - **"+ Add"** is a menu. Upload or pick files opens the media library.
-    **Ask Video for a video** sends a brief to a Video project you pick
-    (part 42). Video makes a draft video there, with the brief as its notes
-    and its first line as the name, and rings its bell. Nothing is written by
-    AI.
-- **The cards** are newest first, with pinned items on top whatever the sort.
+  - **Add** is a menu. Upload or pick files opens the media library. **Ask
+    Video for a video** sends a brief to a Video project you pick (part 42).
+    Video makes a draft video there, with the brief as its notes and its first
+    line as the name, and rings its bell. Nothing is written by AI. With no
+    project picked, each action is listed once per project, so nothing lands
+    in a project nobody chose.
+- **The rows** show each item's cover, name, kind, project (with none picked),
+  how many times it was posted and its length or size. They are newest first,
+  with pinned items on top whatever the sort, until a column is sorted.
   - **Most viewed** adds up the views Promo reads once a day for each post made from
     an item. Items never posted go last.
   - **Grouping** puts uploads under "Uploaded".
-  - **An item still copying from Video** shows "Arriving…" and the list asks again
+  - **An item still copying from Video** shows "Arriving" and the list asks again
     every 4 seconds.
-  - **A newer version on its way** is not shown as a second card. It lands on the
+  - **A newer version on its way** is not shown as a second row. It lands on the
     item it replaces.
-- **Mass select** ticks cards for Move to the Bin.
+- **Select** ticks rows for Move to the Bin, or Put back in the Bin. A row's
+  right-click menu has the same.
+- **Every project at once** is read by `loadEveryArchiveItem`
+  (`src/lib/api/archive/items.ts`), admin only, through the same
+  `listArchiveItems` with no project; a guest's reads always name their
+  project.
 
 ## The right panel
 

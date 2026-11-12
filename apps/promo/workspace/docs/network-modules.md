@@ -33,10 +33,11 @@ instagram panels."
   (`workspace/tasks/X/01-x-features.md`, [The X module](x/x-module.md)), and
   LinkedIn (`workspace/tasks/LinkedIn/01-linkedin-features.md`,
   [The LinkedIn module](linkedin/linkedin-module.md)).
-- **Voices stays in the left menu,** because one voice serves every network.
-- **Accounts has its own dashboard,** with a Platform filter, under Projects
-  after Voices. Tyler, 15 Oct 2026: "I think accounts should be on its own
-  dashboard with platform filtering".
+- **Voices and Accounts serve every network,** so they are sections of the
+  [Projects dashboard](projects-dashboard.md), not part of any network's
+  module. Accounts has a Platform filter (Tyler, 15 Oct 2026: "I think
+  accounts should be on its own dashboard with platform filtering"). They sat
+  under Projects in the left menu until 12 Nov 2026.
 
 ## Two sides of each network
 
@@ -45,7 +46,8 @@ show my own posts but reddit, medium, x and linkedin are showing search to
 comments." Then: "I think its better that commenting lives within its
 project. Make each network have its own card and inside that cade have 2
 rows, one for posts and one for commenting". So each network in the left
-column is a card with two rows:
+panel has two rows, since 12 Nov 2026 in the page's fixed Networks block
+rather than a card each ([A project's own page](projects-dashboard.md#a-projects-own-page)):
 
 - **Posts,** your own posts on it. A network opens on this row.
 - **Commenting,** other people's posts its keywords found
@@ -58,17 +60,15 @@ Medium, X and LinkedIn draw both sides from one module, with `side="posts"` or
 `reddit-module.tsx` and its posts are `reddit-posts-module.tsx`. Instagram and
 TikTok have only the posts side. Which tab is on which side is each network's
 `options.ts`; a link from one row's panels to a tab of the other row
-switches to that row. The cards are the UI standard's `PanelCard`, which
-folds from its title (Tyler, 5 Nov 2026: "cards should be collapsible", "use
-ui standard card").
+switches to that row.
 
 ## A project's networks
 
-- **The left column** lists them under **Networks**, one row each, in the order
-  they were added. The picked one has a grey ground.
-- **Add network** offers the networks Promo has built that the project does not
-  use yet. When it uses all of them, the menu says so.
-- **The X on a row** takes the network off. The server refuses while the
+- **The Networks block** on the project's page lists them in the order they
+  were added. The picked row has the sliding bar.
+- **Add a network**, in the project's ⋮ under Networks, offers the networks
+  Promo has built that the project does not use yet.
+- **The X beside a network** in that tab takes it off. The server refuses while the
   project still holds that network's accounts or keywords, and says how many
   of each: "My project still holds 2 Reddit accounts and 1 keyword. Take its
   accounts out and remove its keywords first, then take Reddit off."
@@ -108,7 +108,7 @@ One module serves both, `src/components/social/phone-apps/app-module.tsx`:
 - [Instagram and TikTok accounts, and the daily reading](instagram/accounts-and-the-daily-reading.md),
   [posting](instagram/posting.md) and [comments on your posts](instagram/comments.md)
   have the rest. Direct messages are on their own dashboard for every network
-  ([the Messages dashboard](messages-dashboard.md)).
+  ([the Projects dashboard's Messages](messages-dashboard.md)).
 
 ## Reddit's module
 
@@ -122,7 +122,7 @@ platform.
 | Today, a page across every project | The **Today** tab of Reddit on Commenting ([Today](commenting.md#today)) |
 | Comments, a page across every project | The **Sent** tab of Reddit on Commenting, with its Failed list ([What happened to your comments](reddit/sent-comments.md)) |
 | Posts of your own, a list under Comments | Reddit's **Posts** row, with Failed beside it and New post in the right column ([Posts of your own](reddit/your-own-posts.md)) |
-| Reddit accounts, a page | The **Accounts** dashboard at `/admin/accounts`, every platform's, with a Platform filter; **Manage accounts** in the accounts dropdown goes there filtered to Reddit ([The Accounts dashboard](reddit/accounts-dashboard.md)) |
+| Reddit accounts, a page | The **Accounts** section of the Projects dashboard, every platform's, with a Platform filter; **Manage accounts** in the accounts dropdown goes there filtered to Reddit ([The Projects dashboard's Accounts](reddit/accounts-dashboard.md)) |
 | Jobs, a page | The **Jobs** window, from the **Jobs** button in the middle column's header on Commenting ([The Jobs window](browser/jobs-dashboard.md)) |
 | Account cards in the left column | The **Comment as** dropdown above the comment box ([The accounts dropdown](commenting.md#the-accounts-dropdown)) |
 
@@ -168,10 +168,10 @@ moves to another project.
 | Address | Lands on |
 | --- | --- |
 | `/admin/comments?replies=<id>` or `?comment=<id>` | Reddit's Sent tab on Commenting, in the project the comment's account is in now, with that Replies window or comment open |
-| `/admin/comments`, `?tab=failed` | Reddit's Sent tab on the only project, and that list, or the Projects table |
-| `/admin/comments?tab=posts` | Reddit's Posts on the only project, or the Projects table |
-| `/admin/today` | Reddit's Today on Commenting, on the only project, or the Projects table |
-| `/admin/reddit-accounts` | The Accounts dashboard, filtered to Reddit |
+| `/admin/comments`, `?tab=failed` | Reddit's Sent tab on the only project, and that list, or the Projects dashboard |
+| `/admin/comments?tab=posts` | Reddit's Posts on the only project, or the Projects dashboard |
+| `/admin/today` | Reddit's Today on Commenting, on the only project, or the Projects dashboard |
+| `/admin/reddit-accounts` | The Projects dashboard's Accounts, filtered to Reddit |
 | `/admin/jobs` | The Jobs window on the first project's Reddit Commenting, since it lists every job |
 
 The project page's own old commenting addresses (`?view=today` and the like)
@@ -193,8 +193,8 @@ It is still stored, and shows again once its account is put in a project.
 - **The page**: `src/components/social/projects/workspace.tsx` picks the
   network, `project-columns.tsx` is the three columns any network fills, and
   `src/components/social/reddit/reddit-posts-module.tsx` is Reddit's posts.
-  Reddit's Commenting is `reddit-module.tsx`. The cards are `ProjectNetworks`
-  in `project-panel.tsx`. The Jobs window is `jobs-window.tsx` and the dropdown
+  Reddit's Commenting is `reddit-module.tsx`. The Networks block is
+  `project-networks-block.tsx` beside `project-panel.tsx`. The Jobs window is `jobs-window.tsx` and the dropdown
   `account-picker.tsx`, beside it. Instagram's and TikTok's module is
   `src/components/social/phone-apps/app-module.tsx`.
 - **The old addresses** are the four route files they always were, now only

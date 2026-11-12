@@ -25,6 +25,7 @@ import { AppAccountPicker } from "./app-account-picker"
 import { AppCommentsTable, AppPostsTable } from "./app-tables"
 import { InboxAnswer } from "./inbox-answer"
 import { PostComposer } from "./post-composer"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -112,7 +113,10 @@ export function AppModule({
   const comment = view?.comments.find((row) => row.id === openComment) ?? null
   const jobsWaiting = view ? view.jobs.queued + view.jobs.running : 0
 
+  // The arrow back to the Projects dashboard first, then the tabs (Tyler, 12 Nov 2026: "put the arrow back again").
   const tabs = (
+    <>
+    <ProjectBackButton />
     <Tabs value={tab} onValueChange={(next) => onSearch({ view: next === "comments" ? "comments" : undefined, comment: undefined })}>
       <TabsList>
         <TabsTrigger value="posts">
@@ -125,6 +129,7 @@ export function AppModule({
         </TabsTrigger>
       </TabsList>
     </Tabs>
+    </>
   )
 
   const controls = (

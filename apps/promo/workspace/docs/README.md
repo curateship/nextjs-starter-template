@@ -10,11 +10,13 @@ the repo's `docs/`, and is never copied here.
 
 ## Projects
 
-- [The Projects dashboard](projects-dashboard.md): the table of every project
-  with its Posts and Last post, and one project's description, networks and
-  its own posts on one screen, the count of posts that need you on each
-  network's row, what the AI is told about what you make, and pausing a
-  project.
+- [The Projects dashboard](projects-dashboard.md): Tyler's answers of
+  12 Nov 2026, one three-panel dashboard of Overview, Projects, Voices,
+  Accounts, Archive and Messages, the left page with its Dashboards and
+  Projects blocks, Overview's five widgets, a project's summary with Open
+  project, the old addresses that still land; and a project's own page with
+  its description, networks and posts, what the AI is told about what you
+  make, and pausing a project.
 - [Commenting inside a project](commenting.md): Tyler's answers of 5 Nov 2026,
   each network a folding card with a Posts row and a Commenting row, the
   keywords listed under Commenting, what sits on each row, the counts, Pause
@@ -26,8 +28,9 @@ the repo's `docs/`, and is never copied here.
   with your own posts on it, the two sides of each network,
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
-- [The Archive](archive.md): each project's videos, carousels and pictures, sent
-  from Video or uploaded, the key on Settings → Video, how a send is copied,
+- [The Archive](archive.md): the Projects dashboard's Archive section, every
+  project's videos, carousels and pictures or one project's, sent from Video
+  or uploaded, the key on Settings → Video, how a send is copied,
   the Bin, the zip, and posting from it with drafts, warnings and several
   accounts at once.
 - [The link with Viral](viral-link.md): the key on Settings → Viral, the X,
@@ -130,18 +133,18 @@ the repo's `docs/`, and is never copied here.
 
 ## Messages
 
-- [The Messages dashboard](messages-dashboard.md): every phone account's
-  direct messages on Reddit, Instagram and TikTok, read when a notification
-  says one arrived, answered only on a press, and deleted once answered or
-  skipped.
+- [Messages](messages-dashboard.md): the Projects dashboard's Messages
+  section, every account's direct messages, read when a notification says one
+  arrived, answered on the right only on a press, and deleted once answered
+  or skipped.
 
 ## Reddit
 
-- [The Accounts dashboard](reddit/accounts-dashboard.md): `/admin/accounts`,
-  under Projects after Voices, every account on every platform with a Platform
-  filter, and its status (Warming up, Ready, Working, Banned), project, profile and
-  proxy, adding one, setting a status by hand, pausing, help-only posts, and
-  retiring.
+- [Accounts](reddit/accounts-dashboard.md): the Projects dashboard's Accounts
+  section, every account on every platform with In use and Retired tabs and
+  Filter, its status, project, profile and proxy, the account on the right
+  with its ⋮ and the old window's cards, adding one, setting a status by
+  hand, pausing, help-only posts, and retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
   watching a subreddit, why there is no Reddit API, how the order is worked
   out, the Everything list, searching the posts, the best posts' replies read
@@ -263,8 +266,9 @@ the repo's `docs/`, and is never copied here.
 
 ## Writing
 
-- [The Voices dashboard](voices-dashboard.md) — how the AI sounds and the lines
-  it must not cross, as a record any number of accounts share, how the
+- [Voices](voices-dashboard.md): the Projects dashboard's Voices section, how
+  the AI sounds and the lines it must not cross, as a record any number of
+  accounts share, saved as it is typed, how the
   first account's words moved, and trying a voice on a real post.
 
 ## Notices

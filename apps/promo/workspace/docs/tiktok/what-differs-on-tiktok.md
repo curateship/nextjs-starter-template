@@ -8,12 +8,12 @@ The Instagram docs describe all of it once:
 - [Posting a photo or video](../instagram/posting.md)
 - [An account's profile](../instagram/profile.md)
 - [Comments on your posts](../instagram/comments.md)
-- [The Messages dashboard](../messages-dashboard.md)
+- [The Projects dashboard's Messages](../messages-dashboard.md)
 
 What is different on TikTok:
 
 - **No post count.** TikTok's profile shows following, followers and likes, so
-  the Accounts dashboard's post count stays empty for a TikTok account.
+  the Accounts section's post count stays empty for a TikTok account.
 - **The shadowban line** is read off Settings and privacy, Account, Account
   status, where TikTok says whether the account is eligible for the For You
   feed.

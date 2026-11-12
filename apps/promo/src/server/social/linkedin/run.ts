@@ -253,7 +253,7 @@ export async function saveLinkedinSignIn(
           ? "Sort it out in the browser window on the Browser profiles dashboard, then let it run again from the Accounts dashboard."
           : "Sort it out through the phone's screen on its rack's page, then let it run again from the Accounts dashboard.",
       ].join(" "),
-      href: "/admin/accounts?platform=linkedin",
+      href: "/admin/projects?section=accounts&platform=linkedin",
     },
     db,
     now
@@ -296,7 +296,7 @@ async function ringForCode(account: { id: string; userId: string; handle: string
       detail: account.onPhone
         ? "LinkedIn emailed a code to the account's address. Type it into the LinkedIn app through the phone's screen on its rack's page."
         : "LinkedIn emailed a code to the account's address. Paste it into the box in the account's settings on the Accounts dashboard within 15 minutes.",
-      href: "/admin/accounts?platform=linkedin",
+      href: "/admin/projects?section=accounts&platform=linkedin",
     },
     db,
     now

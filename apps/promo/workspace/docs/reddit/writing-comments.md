@@ -81,7 +81,7 @@ app waits 15.5, so the app hears the browser's own answer.
 - **The subreddit's name.**
 - **Your voice**, in your words, from the voice of the account picked on the
   Projects dashboard. Voices are kept on the
-  [Voices dashboard](../voices-dashboard.md).
+  [the Projects dashboard's Voices](../voices-dashboard.md).
 - **What you make**: the description of the picked account's project, and
   only when it genuinely answers what was asked. Before an account is picked,
   the post's own project's description. An account in no project, or an empty
@@ -291,7 +291,7 @@ first. The reasons:
   clear it by hand.
 - **The account is still warming up.** The tooltip says when its first comment
   is allowed. An account whose age has never been read is off too, until Check
-  now on the Accounts dashboard reads it.
+  now on the Projects dashboard's Accounts reads it.
 - **A young account is at its pace limit.** The tooltip says when the next one
   is allowed. The server refuses the same comment with the same words.
 - **A comment on this post is already waiting** for the account's morning.

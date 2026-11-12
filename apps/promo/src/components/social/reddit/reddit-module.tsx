@@ -1,12 +1,10 @@
 import * as React from "react"
-import { AlertTriangleIcon, ListChecksIcon } from "lucide-react"
 
 import { CommentsDashboard, type CommentsTab } from "@/components/social/comments/comments-dashboard"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { PromoThreadsDialog } from "@/components/social/projects/promo-threads"
 import { TodayDashboard } from "@/components/social/today/today-dashboard"
-import { Button } from "@/components/ui/button"
 import {
   getProjectErrorMessage,
   loadProject,
@@ -53,7 +51,7 @@ import type { FindRow, KeywordRow } from "@/server/social/keywords"
 import { AccountPicker } from "./account-picker"
 import { AnswerPanel, type DraftView, type FindDetail } from "./answer-panel"
 import { firstFindInTab } from "@/lib/social/reddit/first-find"
-import { FindsPanel, FindsSearch } from "./finds-panel"
+import { FindsPanel, type FindsHeaderTools } from "./finds-panel"
 import { KeywordsBar } from "./keywords-panel"
 import { JobsWindow } from "./jobs-window"
 
@@ -384,32 +382,21 @@ export function RedditModule({
 
   const jobsWaiting = view.jobs.queued + view.jobs.running
 
-  const keywordsPanel = (
+  // The middle's one header, drawn by the list with its tabs in it.
+  const keywordsPanel = (tabs: React.ReactNode, tools: FindsHeaderTools) => (
     <KeywordsBar
+      tabs={tabs}
+      tools={tools}
+      stalledJobs={stalled}
+      searchText={findSearch}
+      onSearchText={setFindSearch}
       projectId={projectId}
       keywords={keywords}
       loading={keywordsLoading}
       selectedId={selectedKeyword}
       runningIds={runningKeywords}
       stalled={!view.jobs.programRunning}
-      search={<FindsSearch value={findSearch} onChange={setFindSearch} />}
-      actions={
-        <>
-          {guest ? null : (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onSearch({ window: "jobs" })}
-              aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-            >
-              <ListChecksIcon />
-              {/* Its icon alone on a phone, so the search box keeps its room. */}
-              <span className="hidden sm:inline">Jobs</span>
-              {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-            </Button>
-          )}
-        </>
-      }
+      jobs={guest ? null : { waiting: jobsWaiting, onOpen: () => onSearch({ window: "jobs" }) }}
       onThreads={() => setThreadsOpen(true)}
       onSelect={(id) => {
         setSelectedKeyword(id ?? EVERYTHING)
@@ -516,25 +503,13 @@ export function RedditModule({
    * running, because nothing else on this dashboard can tell a search that
    * is coming from one that never will. Tyler, 13 Oct 2026.
    */
-  const stalledNotice =
-    !view.jobs.programRunning && view.jobs.queued > 0 ? (
-      <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm text-destructive">
-        <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span>
-          The browser program is not running, so {view.jobs.queued}{" "}
-          {view.jobs.queued === 1 ? "job is" : "jobs are"} waiting and nothing is searched.{" "}
-          {guest ? null : (
-            <button
-              type="button"
-              className="font-medium underline underline-offset-2"
-              onClick={() => onSearch({ window: "jobs" })}
-            >
-              See the jobs
-            </button>
-          )}
-        </span>
-      </p>
-    ) : null
+  // In the header as a small amber warning rather than a row of its own
+  // (Tyler, 12 Nov 2026: "this belong somewhere else so that it doesnt take up
+  // a row of space"). Its words are its tooltip; pressing it opens the jobs.
+  const stalled =
+    !view.jobs.programRunning && view.jobs.queued > 0
+      ? { queued: view.jobs.queued, onOpen: guest ? null : () => onSearch({ window: "jobs" }) }
+      : null
 
   /** Today and Comments, drawn under the tabs in place of the posts. */
   const otherView =
@@ -560,6 +535,7 @@ export function RedditModule({
 
   const findsPanel = (
     <FindsPanel
+      header={keywordsPanel}
       searchText={findSearch}
       everything={selectedKeyword === EVERYTHING}
       keywordNames={keywordNames}
@@ -755,14 +731,9 @@ export function RedditModule({
   return (
     <ProjectColumns
       left={left}
-      middle={
-        <>
-          {keywordsPanel}
-          {stalledNotice}
-          {findsPanel}
-        </>
-      }
+      middle={findsPanel}
       right={answerPanel}
+      reopenInHeader
       // Below 1280px the post takes the screen once one is open, and only on
       // a tab of posts: Today and Comments have nothing open beside them.
       rightOpen={Boolean(selectedFind) && isFindsTab(tab)}

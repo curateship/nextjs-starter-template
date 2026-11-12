@@ -41,6 +41,7 @@ import { LinkedinPeopleTab } from "./linkedin-people"
 import { LinkedinPostPanel, LinkedinPostsList } from "./linkedin-posts"
 import { LinkedinTodayList } from "./linkedin-today"
 import { linkedinAccountName } from "./linkedin-words"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -295,7 +296,15 @@ export function LinkedinModule({
   ) : null
 
   const tabs = (
-    <div role="tablist" aria-label="Which list" className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
+    // The arrow back to the Projects dashboard first, then the tabs (Tyler, 12 Nov 2026: "put the arrow back again").
+    <div className="flex shrink-0 items-end gap-x-2 border-b px-3">
+      {/* On Commenting the keyword header above has the arrow, so only Posts draws it here. */}
+      {side === "posts" ? (
+        <span className="flex h-11 items-center">
+          <ProjectBackButton />
+        </span>
+      ) : null}
+      <div role="tablist" aria-label="Which list" className="flex flex-wrap items-end gap-x-4">
       {views.map((item) => {
         const count =
           item === "new"
@@ -330,6 +339,7 @@ export function LinkedinModule({
           </button>
         )
       })}
+      </div>
     </div>
   )
 
@@ -353,7 +363,7 @@ export function LinkedinModule({
               ) : (
                 <>
                   Paste it in the account&apos;s settings on the{" "}
-                  <Link to="/admin/accounts" search={{ platform: "linkedin" }} className="font-medium underline underline-offset-2">
+                  <Link to="/admin/projects" search={{ section: "accounts", platform: "linkedin" }} className="font-medium underline underline-offset-2">
                     Accounts dashboard
                   </Link>{" "}
                   within 15 minutes.

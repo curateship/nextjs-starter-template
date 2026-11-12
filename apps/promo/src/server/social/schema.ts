@@ -125,10 +125,13 @@ export const promoProjects = pgTable(
     /** When it was pinned, which puts it first in the Projects table; null is not pinned. Added by `drizzle/0138`. */
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     /**
-     * The project's picture, a media address, or "" for none. Added by
-     * `drizzle/0111_promo_project_image.sql`.
+     * The project's cover: "" for none, "sky" for the drawn sky, or a media
+     * address. Added by `drizzle/0111_promo_project_image.sql`; Sky since
+     * 12 Nov 2026, picked with the shell's Cover photo row.
      */
     imageUrl: varchar("image_url", { length: 2048 }).notNull().default(""),
+    /** The pictures the cover has had, each a tile to pick again. Added by `drizzle/0158`. */
+    coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
     /**
      * The networks the project uses, in the order they were added, each a
      * row in its dashboard's left column (`src/lib/social/networks.ts`).
@@ -1176,3 +1179,28 @@ export const promoProjectGuests = pgTable(
 )
 
 export type PromoProjectGuestRow = typeof promoProjectGuests.$inferSelect
+
+/**
+ * Each person's left page on the Projects dashboard (Tyler, 12 Nov 2026: "We
+ * need to consolidate projects, voices, accounts, archive and messages into
+ * one cohesive 3 panel design"): what is written there, its cover and its
+ * lock, the layout of Overview's widgets, and the Dashboards block's hidden
+ * sections and their order. A person with no row sees the page's starting
+ * blocks and the starting widgets. The SQL is
+ * `drizzle/0157_promo_projects_dashboard.sql`.
+ */
+export const promoProjectsPages = pgTable("promo_projects_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's sections left out and their dragged order (`ProjectsSections`). */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

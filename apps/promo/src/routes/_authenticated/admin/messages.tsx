@@ -1,39 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { MessagesDashboard } from "@/components/social/phone-apps/messages-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { getPhoneAppErrorMessage, loadMessages } from "@/lib/api/social/phone-apps"
-import { isNetwork, type Network } from "@/lib/social/networks"
-
-type Search = { platform?: Network; open?: string }
+import { projectsDashboardSearch } from "@/lib/social/projects-dashboard-search"
 
 /**
- * Every phone account's direct messages on Reddit, Instagram and TikTok, in
- * one list. Under Projects in the left menu, after Accounts. `?platform=` is
- * the Platform filter and `?open=<id>` the conversation open in its window.
+ * The Messages dashboard's old address, which bell notices stored before
+ * 12 Nov 2026 use. Messages is a section of the Projects dashboard now, so
+ * this opens it with the same `?platform=` and `?open=`.
  */
 export const Route = createFileRoute("/_authenticated/admin/messages")({
-  validateSearch: (search: Record<string, unknown>): Search => ({
-    platform: isNetwork(search.platform) ? search.platform : undefined,
-    open: typeof search.open === "string" && /^[A-Za-z0-9-]{1,40}$/.test(search.open) ? search.open : undefined,
-  }),
-  loader: () => loadMessages(),
-  component: MessagesRoute,
-  errorComponent: routeErrorComponent(getPhoneAppErrorMessage),
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/projects", search: projectsDashboardSearch("messages", search), replace: true })
+  },
 })
-
-function MessagesRoute() {
-  const { platform, open } = Route.useSearch()
-  const navigate = Route.useNavigate()
-  return (
-    <MessagesDashboard
-      initial={Route.useLoaderData()}
-      platform={platform ?? null}
-      openId={open ?? null}
-      onPlatformChange={(next) =>
-        void navigate({ search: (previous) => ({ ...previous, platform: next ?? undefined }), replace: true })
-      }
-      onOpenChange={(id) => void navigate({ search: (previous) => ({ ...previous, open: id ?? undefined }) })}
-    />
-  )
-}

@@ -40,6 +40,7 @@ import { XKeywords } from "./x-keywords"
 import { XPostPanel, XPostsList } from "./x-posts"
 import { XMentionPanel, XMentionsList, XRepliesList, XReplyPanel } from "./x-replies"
 import { XTodayList } from "./x-today"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -296,7 +297,15 @@ export function XModule({
   ) : null
 
   const tabs = (
-    <div role="tablist" aria-label="Which list" className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
+    // The arrow back to the Projects dashboard first, then the tabs (Tyler, 12 Nov 2026: "put the arrow back again").
+    <div className="flex shrink-0 items-end gap-x-2 border-b px-3">
+      {/* On Commenting the keyword header above has the arrow, so only Posts draws it here. */}
+      {side === "posts" ? (
+        <span className="flex h-11 items-center">
+          <ProjectBackButton />
+        </span>
+      ) : null}
+      <div role="tablist" aria-label="Which list" className="flex flex-wrap items-end gap-x-4">
       {views.map((item) => {
         const count =
           item === "new"
@@ -327,6 +336,7 @@ export function XModule({
           </button>
         )
       })}
+      </div>
     </div>
   )
 

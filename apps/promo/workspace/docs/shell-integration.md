@@ -107,7 +107,11 @@ stay in `src/server/schema.ts`, which promo never opens.
   own), `promo_notices` (where each bell notice opens), and from
   `drizzle/0120_promo_instagram_tiktok.sql` `promo_app_posts` (Instagram and
   TikTok posts), `promo_profile_edits`, `promo_inbox` and `promo_inbox_seen`
-  (messages and comments read off the phones).
+  (messages and comments read off the phones), and from
+  `drizzle/0157_promo_projects_dashboard.sql` `promo_projects_pages` (each
+  person's left page, sections and Overview layout on the Projects dashboard);
+  `drizzle/0158_promo_project_cover_images.sql` adds
+  `promo_projects.cover_images` for the shell's Cover photo row.
 - `src/server/social/medium/schema.ts`, from `drizzle/0124_promo_medium.sql`:
   `promo_medium_keywords`, `promo_medium_finds`, `promo_medium_hidden`,
   `promo_medium_drafts`, `promo_medium_responses`, `promo_medium_articles`,
@@ -198,9 +202,12 @@ took Today, Comments, Reddit accounts and Jobs back out of every saved sidebar,
 wherever they sat, when they moved inside each project's Reddit module on 14 Oct
 2026 ([Networks as modules](network-modules.md)).
 `drizzle/0119_promo_accounts_menu.sql` put Accounts under Projects after
-Voices, and `drizzle/0120_promo_instagram_tiktok.sql` put Messages after
-Accounts ([the Messages dashboard](messages-dashboard.md)). After that the
-entries are an admin's to move or remove like any other.
+Voices, `drizzle/0120_promo_instagram_tiktok.sql` put Messages after
+Accounts, and `drizzle/0134_promo_archive.sql` put the Archive after that.
+`drizzle/0157_promo_projects_dashboard.sql` took Voices, Accounts, Archive and
+Messages back out of every saved sidebar, wherever they sat, when they became
+sections of the [Projects dashboard](projects-dashboard.md) on 12 Nov 2026.
+After that the entries are an admin's to move or remove like any other.
 
 ## Two shell hazards worth knowing
 

@@ -113,7 +113,7 @@ function PhoneAccountsCard({ phoneId }: { phoneId: string }) {
                 <div key={row.id} className="grid gap-1 px-4 py-3 text-sm">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     {row.accountId ? (
-                      <Link to="/admin/accounts" search={{ open: row.accountId }} className="font-medium hover:underline">
+                      <Link to="/admin/projects" search={{ section: "accounts", open: row.accountId }} className="font-medium hover:underline">
                         {name}
                       </Link>
                     ) : (

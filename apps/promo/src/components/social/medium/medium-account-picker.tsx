@@ -143,7 +143,7 @@ export function MediumAccountPicker({
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem asChild>
-            <Link to="/admin/accounts" search={{ platform: "medium" }}>
+            <Link to="/admin/projects" search={{ section: "accounts", platform: "medium" }}>
               <UsersIcon />
               Manage accounts
             </Link>

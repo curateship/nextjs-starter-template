@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ArrowLeftIcon, Loader2Icon, SparklesIcon, SquarePenIcon } from "lucide-react"
 
-import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
+import { FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { SubredditRules } from "@/components/social/reddit/subreddit-rules"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,6 @@ import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { ProjectAccount } from "@/lib/api/social/projects"
@@ -150,21 +149,23 @@ export function RedditNewPostPanel({
   }
 
   return (
-    <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void post(event)}>
-      <DashboardCardHeader className="items-center gap-2">
-        {onBack ? (
-          <Button type="button" size="icon" variant="ghost" aria-label="Back to the list" onClick={onBack}>
-            <ArrowLeftIcon />
-          </Button>
-        ) : (
-          <DashboardCardHeaderIcon>
-            <SquarePenIcon className="size-4" />
-          </DashboardCardHeaderIcon>
-        )}
-        <h2 className={dashboardCardHeadingClassName}>New post</h2>
-      </DashboardCardHeader>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-4 p-3">
+    // The design's record frame (Tyler, 12 Nov 2026: New post "Stays in the
+    // right panel"), with Post to Reddit at its foot.
+    <form className="flex h-full min-h-0 flex-1 flex-col" onSubmit={(event) => void post(event)}>
+      <RecordFrame
+        avatar={<SquarePenIcon aria-hidden />}
+        title="New post"
+        line={account ? (account.handle ? `As u/${account.handle}` : "As an account not signed in") : "Pick an account to post as"}
+        hideLabel="Hide New post"
+        actions={
+          onBack ? (
+            <Button type="button" size="icon" variant="ghost" aria-label="Back to the list" onClick={onBack}>
+              <ArrowLeftIcon />
+            </Button>
+          ) : null
+        }
+        body={
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 pt-3.75 [&>div]:min-w-0">
           <p className="text-sm text-muted-foreground">
             A post of your own in a subreddit, from one of this project&apos;s accounts. Read the
             subreddit&apos;s rules first: many remove anything that reads as promotion.
@@ -277,14 +278,22 @@ export function RedditNewPostPanel({
               onChange={(event) => setBody(event.target.value)}
             />
           </div>
-          <DisabledReason reason={postReason ?? "Posting now."} disabled={Boolean(postReason) || posting} className="justify-self-start">
-            <Button type="submit" disabled={Boolean(postReason) || posting}>
-              {posting ? <Loader2Icon className="animate-spin" /> : null}
-              Post to Reddit
-            </Button>
-          </DisabledReason>
         </div>
-      </ScrollArea>
+        }
+        footer={
+          <>
+            <FooterState>
+              <span className="text-muted-foreground">Nothing is sent until you press Post</span>
+            </FooterState>
+            <DisabledReason reason={postReason ?? "Posting now."} disabled={Boolean(postReason) || posting}>
+              <Button type="submit" disabled={Boolean(postReason) || posting}>
+                {posting ? <Loader2Icon className="animate-spin" /> : null}
+                Post to Reddit
+              </Button>
+            </DisabledReason>
+          </>
+        }
+      />
     </form>
   )
 }

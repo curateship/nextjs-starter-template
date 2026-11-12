@@ -28,19 +28,20 @@ an app wide feature, not just a reddit feature."
 | `src/components/browser/` | The Proxies and Browser profiles dashboards, their windows, the browser window inside the app, and the Browsers tab in Settings. |
 | `src/server/social/voices.ts` | Voices: the words the AI is told, shared by any number of accounts on any network. |
 | `src/lib/api/social/account.ts` | Settings → Reddit account's endpoints, for the oldest account in use. |
-| `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account on every platform as a list, with its status and platform, and the actions on ticked rows: the Accounts dashboard at `/admin/accounts`. |
+| `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account on every platform as a list, with its status and platform, and the actions on ticked rows: the Projects dashboard's Accounts section. |
 | `src/lib/social/account-status.ts` | Warming up, Ready, Working and Banned, and the order the Projects dashboard lists accounts in. |
 | `src/server/social/projects.ts`, `src/lib/api/social/projects.ts` | Projects: a description, the networks it uses, accounts and keywords, the check that an account comments only on its own project's posts, and which project an old screen's address now opens. |
 | `src/lib/social/networks.ts` | The networks Promo has built, which a project can add ([Networks as modules](network-modules.md)). |
-| `src/components/social/projects/` | The Projects table, and a project's own dashboard: the page that picks the network (`workspace.tsx`), the three columns any network fills (`project-columns.tsx`) and its project column. |
-| `src/components/social/accounts/` | The Accounts dashboard, its Add account window and the status badge. |
-| `src/lib/api/social/voices.ts` | The Voices dashboard's endpoints. |
+| `src/components/social/projects-dashboard/` | The Projects dashboard: its frame, left page, blocks, Overview and one file per section. |
+| `src/components/social/projects/` | A project's own dashboard: the page that picks the network (`workspace.tsx`), the three columns any network fills (`project-columns.tsx`) and its project column. |
+| `src/components/social/accounts/` | An account on the Projects dashboard's right panel (`account-record.tsx`) with its cards, the Add account window and the status badge. |
+| `src/lib/api/social/voices.ts` | The Voices section's endpoints. |
 | `src/components/social/account-settings.tsx` | The Reddit account tab in Settings: which profile and which voice the account uses. |
-| `src/components/social/voices/` | The Voices dashboard and its window, with Try it. |
+| `src/components/social/voices/` | A voice on the Projects dashboard's right panel, with Try it (`voice-record.tsx`). |
 | `src/server/social/pause.ts` | Pausing an account, a whole project, one network of it, or only its commenting on one network. |
 | `src/lib/social/sides.ts`, `src/lib/social/project-address.ts` | The two rows of each network's card, Posts and Commenting: which networks comment, the project's address, which row it opens, and where an old address goes. |
 | `src/components/social/keyword-picker.tsx`, `keyword-list-slot.ts` | Every network's keywords, drawn as a list in the project's left column, under Commenting. |
-| `src/server/social/post-counts.ts` | The posts of yours that need you on each network's row, and each project's Posts and Last post on the Projects table. |
+| `src/server/social/post-counts.ts` | The posts of yours that need you on each network's row, and each project's Posts and Last post on the Projects dashboard. |
 | `src/server/social/notices.ts`, `src/lib/social/notice-words.ts`, `src/lib/social/notices.ts`, `src/lib/api/social/notices.ts` | Promo's bell notices: writing them, their headings, their icons, and where each opens. |
 | `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Failed lists beside Sent and beside your Reddit posts, and the notice each failure rings, with the address it opens. |
 | `src/server/social/ai-tasks.ts` | The smaller things asked of the AI: the rules check, rewrites, keyword ideas, a post of your own, and trying a voice. All through `askModel` in `drafts.ts`. |
@@ -67,8 +68,8 @@ side differs except limits.
 | `src/lib/social/networks.ts` | `PHONE_ONLY_NETWORKS`: the networks whose accounts may only run on a phone. |
 | `src/lib/social/phone-apps.ts` | Their limits (caption, hashtags, bio, an answer's length), the inbox's kinds and statuses, and the words both halves draw. |
 | `src/server/social/phone-apps/` | The shapes the rack's answers are checked against (`calls.ts`), the daily reading with the shadowban line and post numbers (`health.ts`), posting (`posts.ts`), the AI caption (`captions.ts`), the profile (`profile.ts`), messages and comments for every phone account, Reddit's included (`inbox.ts`), and what the module reads (`module.ts`). |
-| `src/lib/api/social/phone-apps.ts` | The module's, the Messages dashboard's and the profile card's endpoints. |
-| `src/components/social/phone-apps/` | The module (`app-module.tsx`), its Posts and Comments tables, the new post, the answer box, the accounts dropdown, and the Messages dashboard. |
+| `src/lib/api/social/phone-apps.ts` | The module's, the Messages section's and the profile card's endpoints. |
+| `src/components/social/phone-apps/` | The module (`app-module.tsx`), its Posts and Comments tables, the new post, the answer box, the accounts dropdown, and the Projects dashboard's Messages. |
 | `rack/promo_rack.py` | Each app's steps, read off `APP_SCREENS`, and the notifications the rack reads once a minute. |
 
 [Instagram and TikTok accounts, and the daily reading](instagram/accounts-and-the-daily-reading.md)
@@ -112,7 +113,7 @@ Reddit's and Medium's, for the reason Medium does.
 
 The runner hands X's reads to `runXRead` (a search account's browser, looked
 at before and after) and its account jobs to `x/run.ts`, and learns nothing
-else about X. X's direct messages use the Messages dashboard's own
+else about X. X's direct messages use the Messages section's own
 `inbox_read` and `inbox_reply` jobs, in a browser as on a phone
 (`src/server/social/phone-apps/inbox.ts`).
 
@@ -138,7 +139,7 @@ other networks', for the reason Medium does.
 The runner hands LinkedIn's reads to `runLinkedinRead` (a search account's
 browser, looked at before and after) and its account jobs to
 `linkedin/run.ts`, and learns nothing else about LinkedIn. LinkedIn's messages
-use the Messages dashboard's own `inbox_read` and `inbox_reply` jobs, in a
+use the Messages section's own `inbox_read` and `inbox_reply` jobs, in a
 browser as on a phone (`src/server/social/phone-apps/inbox.ts`).
 
 ## Phones

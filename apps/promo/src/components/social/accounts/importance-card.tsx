@@ -157,7 +157,7 @@ export function ImportanceCard({
               <Label htmlFor="move-to-phone">Phone</Label>
               <div className="flex flex-wrap gap-2">
                 <Select value={phoneId} onValueChange={setPhoneId}>
-                  <SelectTrigger id="move-to-phone" className="w-full sm:w-fit sm:min-w-64">
+                  <SelectTrigger id="move-to-phone" className="w-full">
                     <SelectValue placeholder={phones.length ? "Pick a phone" : "No free phone"} />
                   </SelectTrigger>
                   <SelectContent>

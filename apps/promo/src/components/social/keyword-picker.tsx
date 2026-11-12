@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 import { EllipsisVerticalIcon, Loader2Icon, PlusIcon, RotateCwIcon, TimerIcon, TimerOffIcon } from "lucide-react"
 
 import { FoldingMenu } from "@/components/shared/folding-menu"
-import { PanelHeading } from "@/components/shared/panel-card"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -84,9 +84,11 @@ export function KeywordPicker({
   const reading = loading && !items.length
 
   return createPortal(
-    <div className="grid gap-1.5">
-      <div className="flex h-7 items-center justify-between gap-2">
-        <PanelHeading>{items.length ? `Keywords · ${items.length}` : "Keywords"}</PanelHeading>
+    <div className="grid gap-0.5">
+      {/* A quiet line naming the list, as a block row's muted words are; no
+          capitals, so the network rows above stay what the eye finds first. */}
+      <div className="flex h-7 items-center justify-between gap-2 pl-2.5">
+        <span className="text-xs text-muted-foreground">{items.length ? `Keywords · ${items.length}` : "Keywords"}</span>
         {items.length ? (
           // Its tooltip stays mounted, shut while the form is open, so opening it never draws the button again.
           <Tooltip open={adding ? false : undefined}>
@@ -98,7 +100,7 @@ export function KeywordPicker({
                   open={adding}
                   onOpenChange={setAdding}
                   trigger={
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Add a keyword">
+                    <Button type="button" variant="ghost" size="icon-xs" aria-label="Add a keyword">
                       <PlusIcon />
                     </Button>
                   }
@@ -125,15 +127,19 @@ export function KeywordPicker({
           <button
             type="button"
             aria-pressed={!selected}
+            onMouseDownCapture={(event) => event.preventDefault()}
             className={cn(
-              "flex h-9 items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              !selected && "bg-muted"
+              "flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+              selected ? "font-normal text-muted-foreground hover:text-foreground" : "font-semibold text-foreground"
             )}
             onClick={() => onSelect(null)}
           >
-            <span className="flex-1 truncate font-medium">All keywords</span>
-            {allCount !== undefined ? <span className="text-muted-foreground tabular-nums">{allCount}</span> : null}
-            {anyRunning ? <Loader2Icon className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Searching" /> : null}
+            <span className="flex min-w-0 flex-1 items-center">
+              <SlideBar on={!selected} />
+              <span className="truncate">All keywords</span>
+            </span>
+            {anyRunning ? <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Searching" /> : null}
+            {allCount !== undefined ? <Pill>{allCount}</Pill> : null}
           </button>
           {items.map((item) => (
             <KeywordRow
@@ -192,37 +198,34 @@ function KeywordRow({
   const searching = item.running && !item.stalled
 
   return (
-    <div className={cn("group/keyword relative flex min-w-0 items-center gap-1 rounded-sm hover:bg-muted [@media(hover:none)]:pr-1", picked && "bg-muted")}>
-      <button
-        type="button"
-        aria-pressed={picked}
-        aria-label={`${item.label}, ${item.count}, ${item.status}`}
-        onClick={onPick}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <span className="grid min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5 text-sm">
+    <div className="group/keyword relative flex min-w-0 items-center gap-1 [@media(hover:none)]:pr-1">
+      <Hint label={item.failed && !item.running ? item.failed : item.enabled ? item.status : `${item.status} · timer off`}>
+        <button
+          type="button"
+          aria-pressed={picked}
+          aria-label={`${item.label}, ${item.count}, ${item.status}`}
+          onClick={onPick}
+          onMouseDownCapture={(event) => event.preventDefault()}
+          className={cn(
+            "flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+            picked ? "font-semibold text-foreground" : "font-normal text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <SlideBar on={picked} />
             {item.badge}
-            <span className="truncate font-medium">{item.label}</span>
-            <span className="shrink-0 text-muted-foreground tabular-nums">{item.count}</span>
+            <span className="truncate">{item.label}</span>
+            {/* Its last search is said only when it needs saying: running, or failed. The rest is on hover. */}
             {searching ? <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" /> : null}
+            {item.failed && !item.running ? <span className="shrink-0 text-xs font-normal text-destructive">failed</span> : null}
           </span>
-          <Hint label={item.failed && !item.running ? item.failed : null}>
-            <span
-              // "just now" can become "1 minute ago" between the server drawing
-              // the page and the browser taking it over. Not worth a warning.
-              suppressHydrationWarning
-              className={cn("truncate text-xs", item.failed && !item.running ? "text-destructive" : "text-muted-foreground")}
-            >
-              {item.enabled ? item.status : `${item.status} · timer off`}
-            </span>
-          </Hint>
-        </span>
-      </button>
+          <Pill>{item.count}</Pill>
+        </button>
+      </Hint>
       <div
         className={cn(
-          // Over the row's end, on the row's own grey, so the name keeps the width.
-          "absolute inset-y-0 right-0 items-center gap-1 rounded-r-sm bg-muted pr-1 pl-1",
+          // Over the row's end, on the panel's white, so the name keeps the width.
+          "absolute inset-y-0 right-0 items-center gap-1 rounded-r-lg bg-card pr-1 pl-1",
           menuOpen || busy ? "flex" : "hidden group-hover/keyword:flex group-has-[:focus-visible]/keyword:flex",
           "[@media(hover:none)]:static [@media(hover:none)]:flex [@media(hover:none)]:bg-transparent [@media(hover:none)]:p-0"
         )}
@@ -279,5 +282,12 @@ function KeywordRow({
         </FoldingMenu>
       </div>
     </div>
+  )
+}
+
+/** A count in the lightest grey pill, as every block row's figure is. */
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="shrink-0 rounded-full bg-muted/50 px-2.5 py-0.5 font-medium text-muted-foreground tabular-nums">{children}</span>
   )
 }

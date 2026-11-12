@@ -1,25 +1,17 @@
 import * as React from "react"
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  BanIcon,
-  ChevronsUpDownIcon,
-  Loader2Icon,
-  MessageSquareIcon,
-  MessageSquareTextIcon,
-  RefreshCwIcon,
-  XIcon,
-} from "lucide-react"
+import { BanIcon, ExternalLinkIcon, MessageSquareTextIcon, SkipForwardIcon } from "lucide-react"
 
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
+import { ViewMenu } from "@/components/shared/view-menu"
+import { ErrorRow } from "@/components/ui/error-row"
+import { LoadingRow } from "@/components/ui/loading-row"
+import { TableCell } from "@/components/ui/table"
 import { matchesFindSearch } from "@/lib/social/find-search"
 import { isFindsTab, type FindsTab, type RedditView } from "@/lib/social/reddit/options"
 import { emptyFindsWords, postedDateText } from "@/lib/social/wording"
-import { cn } from "@/lib/utils"
-import { Hint } from "@/components/social/hint"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import type { FindRow } from "@/server/social/keywords"
 import { FIT_BAND_LABELS, FIT_BANDS, type FitBand } from "@/server/social/reddit/rank"
@@ -52,13 +44,6 @@ const TABS: Array<{ id: RedditView; label: string }> = [
   { id: "comments", label: "Sent" },
 ]
 
-/** Each band's dot. The band's name is always written beside it. */
-const BAND_DOTS: Record<FitBand, string> = {
-  strong: "bg-emerald-500",
-  possible: "bg-amber-500",
-  low: "bg-muted-foreground/40",
-}
-
 export function FindsPanel({
   everything,
   keywordNames,
@@ -75,6 +60,7 @@ export function FindsPanel({
   onBlock,
   onSkip,
   onRetry,
+  header,
 }: {
   /** True when every keyword's posts are listed together rather than one keyword's. */
   everything: boolean
@@ -85,6 +71,11 @@ export function FindsPanel({
   keywordNames: Map<string, string>
   /** Whether any keyword is saved, so an empty list can say to add one. */
   hasKeywords: boolean
+  /**
+   * The middle's one header, handed this list's tabs to draw in it (Tyler,
+   * 12 Nov 2026: the project page in the new design).
+   */
+  header: (tabs: React.ReactNode, tools: FindsHeaderTools) => React.ReactNode
   /** Every post for the keyword, whatever its status. This panel splits them. */
   finds: FindRow[]
   /**
@@ -163,6 +154,7 @@ export function FindsPanel({
    * already, and one replied to is never skipped.
    */
   const tickable = showsPosts && tab === "new"
+  const [massSelect, setMassSelect] = React.useState(false)
 
   /**
    * A tick only counts while its row is on screen, so "Skip 20" can never mean
@@ -170,36 +162,46 @@ export function FindsPanel({
    * rather than pruned in an effect.
    */
   const ticked = React.useMemo(() => {
-    if (!tickable) return new Set<string>()
+    if (!tickable || !massSelect) return new Set<string>()
     const alive = new Set(shown.map((find) => find.id))
     return new Set([...rawTicked].filter((id) => alive.has(id)))
-  }, [tickable, shown, rawTicked])
+  }, [tickable, massSelect, shown, rawTicked])
 
-  const allTicked = shown.length > 0 && ticked.size === shown.length
-
-  async function skipTicked() {
+  async function skip(ids: string[]) {
     setSkipping(true)
     try {
-      await onSkip([...ticked])
+      await onSkip(ids)
       setTicked(new Set())
     } finally {
       setSkipping(false)
     }
   }
-
-  /**
-   * Upvotes or replies, most first or fewest first, or null for the best-fit
-   * order. Sorted by a figure, the list is one list with no band headings,
-   * since the bands would cut the order up. Tyler, 13 Oct 2026.
-   */
-  const [sort, setSort] = React.useState<{ by: "score" | "commentCount"; most: boolean } | null>(null)
-
-  /** Most first, then fewest first, and back again. The X beside them clears it. */
-  function nextSort(by: "score" | "commentCount") {
-    setSort((current) => (!current || current.by !== by ? { by, most: true } : { by, most: !current.most }))
+  const guest = usePromoGuest()
+  async function block(subreddit: string) {
+    setBlocking(subreddit)
+    try {
+      await onBlock(subreddit)
+    } finally {
+      setBlocking(null)
+    }
   }
 
-  /** The rows in band order, under a heading for each band that has any. */
+  /**
+   * Upvotes or replies, most first or fewest first, from their column
+   * headings, or the best-fit order under Post. Sorted by a figure, the list
+   * is one list with no fit groups, since they would cut the order up (Tyler,
+   * 13 Oct 2026).
+   */
+  const [sort, setSort] = React.useState<{ by: "score" | "commentCount"; most: boolean } | null>(null)
+  const toggleSort = (column: Column) => {
+    if (column === "post" || column === "where") return setSort(null)
+    const by = column === "upvotes" ? "score" : "commentCount"
+    setSort((current) => (!current || current.by !== by ? { by, most: true } : { by, most: !current.most }))
+  }
+  const folds = useFolds()
+  const [rightClick, setRightClick] = React.useState<{ id: string; x: number; y: number } | null>(null)
+
+  /** The rows in fit order, under a heading for each group that has any. */
   const grouped = React.useMemo((): Array<{ band: FitBand | null; rows: FindRow[] }> => {
     if (sort) {
       const sign = sort.most ? -1 : 1
@@ -216,349 +218,205 @@ export function FindsPanel({
       return rows?.length ? [{ band, rows }] : []
     })
   }, [shown, sort])
+  const ids = grouped.flatMap((group) => (group.band && folds.folded(FIT_BAND_LABELS[group.band]) ? [] : group.rows)).map((find) => find.id)
+
+  /** What a post can do, from its right-click menu: Skip, Block its subreddit, Open on Reddit. */
+  const actionsFor = (find: FindRow): RowMenuItem[] => [
+    ...(tab === "new" ? [{ label: "Skip", icon: <SkipForwardIcon className="size-4" />, onSelect: () => void skip([find.id]) }] : []),
+    { label: "Open on Reddit", icon: <ExternalLinkIcon className="size-4" />, onSelect: () => openOnReddit(find.url) },
+    // A post already replied to is never hidden, and blocking hides a subreddit from every project, so it is the owner's alone.
+    ...(find.status === "commented" || guest || blocking
+      ? []
+      : [{ label: `Block r/${find.subreddit}`, icon: <BanIcon className="size-4" />, destructive: true, onSelect: () => void block(find.subreddit) }]),
+  ]
+
+  const tools: FindsHeaderTools = {
+    selected:
+      massSelect && ticked.size ? (
+        <SelectedMenu
+          count={ticked.size}
+          busy={skipping}
+          onClear={() => setTicked(new Set())}
+          pages={{}}
+          main={(menu) => (
+            <SelectedMenuRow
+              onClick={() => {
+                menu.close()
+                void skip([...ticked])
+              }}
+            >
+              <SkipForwardIcon className="size-4 text-muted-foreground" />
+              Skip
+            </SelectedMenuRow>
+          )}
+        />
+      ) : null,
+    massSelect: tickable
+      ? {
+          on: massSelect,
+          onToggle: () => {
+            setTicked(new Set())
+            setMassSelect(!massSelect)
+          },
+        }
+      : null,
+  }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* The status tabs on the left; on the right the ticked posts' buttons,
-          then the sort buttons, each above its own column of figures. */}
-      <div className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
-        {/* Wraps on a phone, where five tabs are wider than the screen. */}
-        <div role="tablist" aria-label="Which list" className="flex flex-wrap items-end gap-x-4">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={view === item.id}
-              onClick={() => onTabChange(item.id)}
-              className={cn(
-                "-mb-px flex h-11 items-center gap-1.5 border-b-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                view === item.id
-                  ? "border-foreground font-medium text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {item.label}
-              {/* Today and Comments count nothing here; their lists do. */}
-              {isFindsTab(item.id) ? (
-                <span className="font-normal text-muted-foreground tabular-nums">
-                  {loading && !finds.length ? "" : counts[item.id]}
-                </span>
-              ) : null}
-            </button>
-          ))}
-          {showsPosts && loading && finds.length ? (
-            <Loader2Icon className="mb-3.5 size-4 animate-spin text-muted-foreground" aria-label="Reading the posts again" />
-          ) : null}
-        </div>
-        {/* Ticking a post brings these in on the right of the tabs: tick
-            them all, start over, or skip them. Tyler, 13 Oct 2026. */}
-        {showsPosts ? (
-        <div className="ml-auto flex h-11 items-center gap-3">
-        {ticked.size ? (
-          <div className="flex items-center gap-3">
-            <Checkbox
-              checked={allTicked ? true : "indeterminate"}
-              aria-label="Tick every post listed"
-              onCheckedChange={() =>
-                setTicked(allTicked ? new Set() : new Set(shown.map((find) => find.id)))
-              }
+    <div className="@container flex min-h-0 flex-1 flex-col">
+      {header(
+        <>
+          <span className="hidden @3xl:contents">
+            {/* Drawn once the first read is in, so the line lands once under "To look at 26" rather
+                than under "To look at" and then sliding wider (Tyler, 12 Nov 2026: "this border and
+                tab here loads twice"). */}
+            {loading && !finds.length ? (
+              <span className="flex-1" />
+            ) : (
+              <DashboardTabs
+                value={view}
+                onValueChange={(next) => onTabChange(next as RedditView)}
+                tabs={TABS.map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                  // Today and Sent count nothing here; their lists do.
+                  count: isFindsTab(item.id) ? counts[item.id] : undefined,
+                }))}
+              />
+            )}
+          </span>
+          <span className="shrink-0 @3xl:hidden">
+            <ViewMenu
+              value={view}
+              onValueChange={(next) => onTabChange(next as RedditView)}
+              choices={TABS.map((item) => ({ value: item.id, label: item.label, count: isFindsTab(item.id) ? counts[item.id] : undefined }))}
+              label="Which list"
             />
-            <span className="text-sm whitespace-nowrap text-muted-foreground tabular-nums">{ticked.size} ticked</span>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setTicked(new Set())}>
-              Clear
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={skipping} onClick={() => void skipTicked()}>
-              {skipping ? <Loader2Icon className="animate-spin" /> : null}
-              Skip {ticked.size}
-            </Button>
-          </div>
-        ) : null}
-          {/* The same widths as a row's upvotes, replies and Block, so each
-              button sits over its own figures. */}
-          <SortButton
-            label="upvotes"
-            className="w-14"
-            icon={<ArrowUpIcon className="size-3.5" aria-hidden="true" />}
-            sort={sort?.by === "score" ? (sort.most ? "most" : "fewest") : null}
-            onClick={() => nextSort("score")}
-          />
-          <SortButton
-            label="replies"
-            className="w-14"
-            icon={<MessageSquareIcon className="size-3.5" aria-hidden="true" />}
-            sort={sort?.by === "commentCount" ? (sort.most ? "most" : "fewest") : null}
-            onClick={() => nextSort("commentCount")}
-          />
-          {/* Over the Block column: while sorted, the way back to the bands. */}
-          {sort ? (
-            <Hint label="Clear sorting: back to Strong fit, Possible and Low fit">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0 text-muted-foreground"
-                aria-label="Clear sorting"
-                onClick={() => setSort(null)}
-              >
-                <XIcon className="size-4" />
-              </Button>
-            </Hint>
-          ) : (
-            <span className="size-8 shrink-0" aria-hidden="true" />
-          )}
-        </div>
-        ) : null}
-      </div>
+          </span>
+        </>,
+        tools
+      )}
 
       {/* A container, so the tables in Today and Comments fold their columns
           by this column's width rather than the window's. */}
       {showsPosts ? null : <div className="@container flex min-h-0 flex-1 flex-col">{otherView}</div>}
 
-      {showsPosts ? (
-      <ScrollArea className="min-h-0 flex-1">
-        {error ? (
-          <div className="grid justify-items-start gap-3 p-4">
-            <p className="text-sm text-muted-foreground">The posts could not be read. {error}</p>
-            <Button type="button" variant="outline" onClick={onRetry}>
-              <RefreshCwIcon />
-              Try again
-            </Button>
-          </div>
-        ) : loading && !finds.length ? (
-          <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-            <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-            Reading the posts
-          </p>
-        ) : !shown.length ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            {emptyFindsWords({
-              loading,
-              everything,
-              hasKeywords,
-              tab,
-              searchHidAll: inTab.length > 0 && shown.length === 0,
-            })}
-          </p>
-        ) : (
-          <div className="pb-3">
-            {grouped.map(({ band, rows }) => (
-              <section
-                key={band ?? "sorted"}
-                aria-label={band ? `${FIT_BAND_LABELS[band]}, ${rows.length}` : `Sorted, ${rows.length}`}
-                className={band ? undefined : "pt-1.5"}
-              >
-                {band ? (
-                  <h3 className="flex items-center gap-2 px-3 pt-4 pb-1.5 text-xs font-medium">
-                    <span className={cn("size-2 rounded-full", BAND_DOTS[band])} aria-hidden="true" />
-                    {FIT_BAND_LABELS[band]}
-                    <span className="font-normal text-muted-foreground tabular-nums">{rows.length}</span>
-                  </h3>
+      {!showsPosts ? null : error ? (
+        <div className="px-6 py-3">
+          <ErrorRow message={`The posts could not be read. ${error}`} onRetry={onRetry} />
+        </div>
+      ) : loading && !finds.length ? (
+        <div className="px-6 py-3">
+          <LoadingRow label="Reading the posts" />
+        </div>
+      ) : (
+        <CrmTable<Column>
+          columns={[
+            { key: "post", label: "Post", column: "main", className: "min-w-40" },
+            { key: "where", label: "Where", column: "preview", className: "hidden md:hidden @2xl:table-cell", sortable: false },
+            { key: "upvotes", label: "Upvotes", column: "meta", className: "hidden md:hidden @lg:table-cell" },
+            { key: "replies", label: "Replies", column: "meta", className: "hidden md:hidden @lg:table-cell" },
+          ]}
+          sort={!sort ? "post" : sort.by === "score" ? "upvotes" : "replies"}
+          direction={!sort ? "asc" : sort.most ? "desc" : "asc"}
+          onSort={toggleSort}
+          actions={false}
+          select={
+            massSelect && tickable
+              ? {
+                  noun: "posts",
+                  disabled: ids.length === 0,
+                  checked: ticked.size === 0 ? false : ticked.size === ids.length ? true : "indeterminate",
+                  onToggle: () => setTicked(ticked.size === ids.length ? new Set() : new Set(ids)),
+                }
+              : null
+          }
+          empty={
+            shown.length
+              ? null
+              : emptyFindsWords({ loading, everything, hasKeywords, tab, searchHidAll: inTab.length > 0 && shown.length === 0 })
+          }
+        >
+          {grouped.map((group) => {
+            const label = group.band ? FIT_BAND_LABELS[group.band] : null
+            return (
+              <React.Fragment key={label ?? "sorted"}>
+                {label ? (
+                  <CrmGroupRow label={label} count={group.rows.length} folded={folds.folded(label)} onToggle={() => folds.toggle(label)} />
                 ) : null}
-                {rows.map((find) => (
-                  <FindLine
-                    key={find.id}
-                    find={find}
-                    keywordName={nameKeywords ? (keywordNames.get(find.keywordId) ?? null) : null}
-                    selected={find.id === selectedId}
-                    tick={
-                      tickable
-                        ? {
-                            checked: ticked.has(find.id),
-                            onChange: (checked) =>
+                {label && folds.folded(label)
+                  ? null
+                  : group.rows.map((find) => {
+                      const where = [`r/${find.subreddit}`, find.postedAt ? postedDateText(find.postedAt) : null, find.place, nameKeywords ? keywordNames.get(find.keywordId) : null]
+                        .filter(Boolean)
+                        .join(" · ")
+                      return (
+                        <CrmTableRow
+                          key={find.id}
+                          open={find.id === selectedId}
+                          label={find.title}
+                          tick={{
+                            shown: massSelect && tickable,
+                            ticked: ticked.has(find.id),
+                            onToggle: () =>
                               setTicked((current) => {
                                 const next = new Set(current)
-                                if (checked) next.add(find.id)
-                                else next.delete(find.id)
+                                if (next.has(find.id)) next.delete(find.id)
+                                else next.add(find.id)
                                 return next
                               }),
-                          }
-                        : null
-                    }
-                    blocking={blocking}
-                    onSelect={() => onSelect(find.id)}
-                    onBlock={async () => {
-                      setBlocking(find.subreddit)
-                      try {
-                        await onBlock(find.subreddit)
-                      } finally {
-                        setBlocking(null)
-                      }
-                    }}
-                  />
-                ))}
-              </section>
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-      ) : null}
-    </div>
-  )
-}
-
-/** One post: its title, where and when, then upvotes, replies and Block. */
-function FindLine({
-  find,
-  keywordName,
-  selected,
-  tick,
-  blocking,
-  onSelect,
-  onBlock,
-}: {
-  find: FindRow
-  /** The keyword that found it, said only when several are listed together. */
-  keywordName: string | null
-  selected: boolean
-  /** The row's tick box, or null on a tab whose posts cannot be skipped. */
-  tick: { checked: boolean; onChange: (checked: boolean) => void } | null
-  /** The subreddit whose block is on its way, if any. */
-  blocking: string | null
-  onSelect: () => void
-  onBlock: () => Promise<void>
-}) {
-  // Blocking hides a subreddit from every project, so it is the owner's alone.
-  const guest = usePromoGuest()
-  const where = [`r/${find.subreddit}`, find.postedAt ? postedDateText(find.postedAt) : null, find.place, keywordName]
-    .filter(Boolean)
-    .join(" · ")
-
-  return (
-    <div
-      className={cn(
-        "group flex min-w-0 items-center gap-3 px-3 py-2.5 hover:bg-muted/50",
-        // A line down the left edge as well as the fill, so the open post
-        // reads as chosen at a glance.
-        selected && "bg-muted shadow-[inset_2px_0_0_var(--foreground)] hover:bg-muted"
+                          }}
+                          onOpen={() => onSelect(find.id)}
+                          onRightClick={(x, y) => setRightClick({ id: find.id, x, y })}
+                        >
+                          <MainCell name={find.title}>
+                            {/* A quiet mark that the replies are already read, so the post can be answered at once. */}
+                            {find.threadRead ? (
+                              <MessageSquareTextIcon className="size-3.5 shrink-0 text-muted-foreground" role="img" aria-label="Replies read, ready to answer" />
+                            ) : null}
+                          </MainCell>
+                          <TableCell column="preview" className="hidden max-w-56 md:hidden @2xl:table-cell">
+                            <span className="block truncate text-muted-foreground">{where}</span>
+                          </TableCell>
+                          <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @lg:table-cell">
+                            {find.score}
+                          </TableCell>
+                          <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @lg:table-cell">
+                            {find.commentCount}
+                          </TableCell>
+                        </CrmTableRow>
+                      )
+                    })}
+              </React.Fragment>
+            )
+          })}
+        </CrmTable>
       )}
-    >
-      {tick ? (
-        <Checkbox
-          checked={tick.checked}
-          aria-label={`Tick ${find.title}`}
-          onCheckedChange={(checked) => tick.onChange(checked === true)}
+      {rightClick ? (
+        <CrmRowMenu
+          key={`${rightClick.id}-${rightClick.x}-${rightClick.y}`}
+          at={rightClick}
+          massSelect={tickable ? { on: massSelect, onToggle: () => tools.massSelect?.onToggle() } : null}
+          items={(() => {
+            const find = shown.find((each) => each.id === rightClick.id)
+            return find ? actionsFor(find) : []
+          })()}
+          onClose={() => setRightClick(null)}
         />
       ) : null}
-      <button
-        type="button"
-        onClick={onSelect}
-        aria-current={selected || undefined}
-        className="grid min-w-0 flex-1 gap-0.5 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <span className="truncate text-sm">{find.title}</span>
-        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <span className="truncate">{where}</span>
-          {/* A quiet mark that the replies are already read, so the post can
-              be answered with no Read the replies press. */}
-          {find.threadRead ? (
-            <MessageSquareTextIcon className="size-3.5 shrink-0" role="img" aria-label="Replies read, ready to answer" />
-          ) : null}
-        </span>
-      </button>
-      <Hint label="Upvotes">
-        <span className="flex w-14 shrink-0 items-center gap-1 text-xs text-muted-foreground tabular-nums">
-          <ArrowUpIcon className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="sr-only">Upvotes </span>
-          {find.score}
-        </span>
-      </Hint>
-      <Hint label="Replies">
-        <span className="flex w-14 shrink-0 items-center gap-1 text-xs text-muted-foreground tabular-nums">
-          <MessageSquareIcon className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="sr-only">Replies </span>
-          {find.commentCount}
-        </span>
-      </Hint>
-      {/* A post already replied to is never hidden, so blocking from its row
-          would do nothing to it. Not offered, and the space is kept so the
-          figures stay in line. */}
-      {find.status === "commented" || guest ? (
-        <span className="size-8 shrink-0" aria-hidden="true" />
-      ) : (
-        <Hint label={`Block r/${find.subreddit}: its posts leave every list`}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0 text-muted-foreground"
-            disabled={blocking !== null}
-            aria-label={`Block r/${find.subreddit}`}
-            onClick={() => void onBlock()}
-          >
-            {blocking === find.subreddit ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <BanIcon className="size-4" />
-            )}
-          </Button>
-        </Hint>
-      )}
     </div>
   )
 }
 
-/**
- * The box that narrows the posts by title, subreddit or author. It sits in the
- * keywords row at the top of the column, with the column's other buttons, and
- * the words stay while the keyword or the tab changes, since they are still in
- * the box for anyone to see and clear.
- */
-export function FindsSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <DashboardToolbarSearch
-      name="reddit-post-search"
-      aria-label="Search these posts by title, subreddit or author"
-      placeholder="Search posts"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      // Keeps room to type on a phone, where the keywords dropdown shares its row.
-      className="min-w-28"
-      inputClassName="sm:w-40 lg:w-40"
-    />
-  )
+type Column = "post" | "where" | "upvotes" | "replies"
+
+/** The list's Select and "N selected" menu, which the middle's one header draws. */
+export type FindsHeaderTools = {
+  selected: React.ReactNode
+  massSelect: { on: boolean; onToggle: () => void } | null
 }
 
-/**
- * A sort button over a column of figures: its icon, and an arrow while it
- * sorts. Pressing it switches between most first and fewest first.
- */
-function SortButton({
-  label,
-  className,
-  icon,
-  sort,
-  onClick,
-}: {
-  label: string
-  className: string
-  icon: React.ReactNode
-  sort: "most" | "fewest" | null
-  onClick: () => void
-}) {
-  const next = sort === "most" ? `Sort by ${label}, fewest first` : `Sort by ${label}, most first`
-  return (
-    <Hint label={next}>
-      <button
-        type="button"
-        aria-label={next}
-        aria-pressed={sort !== null}
-        onClick={onClick}
-        className={cn(
-          "flex h-7 shrink-0 items-center gap-0.5 rounded-md text-xs hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-          sort ? "text-foreground" : "text-muted-foreground",
-          className
-        )}
-      >
-        {icon}
-        {sort === "most" ? (
-          <ArrowDownIcon className="size-3" aria-hidden="true" />
-        ) : sort === "fewest" ? (
-          <ArrowUpIcon className="size-3" aria-hidden="true" />
-        ) : (
-          <ChevronsUpDownIcon className="size-3 opacity-50" aria-hidden="true" />
-        )}
-      </button>
-    </Hint>
-  )
+/** Only an address on Reddit is ever opened from a stored value. */
+function openOnReddit(url: string) {
+  if (url.startsWith("https://www.reddit.com/")) window.open(url, "_blank", "noopener,noreferrer")
 }

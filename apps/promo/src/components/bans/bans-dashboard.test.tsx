@@ -5,7 +5,6 @@ import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { BanRow, BansPage } from "@/lib/api/bans"
-import type { RedditAccountRow } from "@/lib/api/social/reddit-accounts"
 
 const navigation = vi.hoisted(() => ({ navigate: vi.fn(), invalidate: vi.fn(async () => {}) }))
 vi.mock("@tanstack/react-router", () => ({
@@ -34,7 +33,6 @@ vi.mock("@/lib/api/social/reddit-accounts", () => ({
 }))
 
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { AccountCounts } from "@/components/social/accounts/account-counts"
 
 import { BansDashboard } from "./bans-dashboard"
 
@@ -161,25 +159,5 @@ describe("Bans dashboard", () => {
     expect(document.body.textContent).toContain("Sign out of iCloud on its screen first.")
     expect(buttonByText("Clean up")).toBeUndefined()
     expect(document.body.textContent).toContain("Check iCloud on its phone")
-  })
-
-  it("the Accounts counts strip counts each status per app and filters on a click", async () => {
-    const row = (platform: string, status: RedditAccountRow["status"]["status"]) =>
-      ({ id: `${platform}-${status}-${Math.random()}`, platform, status: { status, byHand: false, warning: null }, retiredAt: null }) as unknown as RedditAccountRow
-    const picked = vi.fn()
-    await act(async () => {
-      root.render(
-        <AccountCounts
-          accounts={[row("instagram", "at_risk"), row("instagram", "banned"), row("instagram", "banned"), row("reddit", "ready")]}
-          platform={null}
-          status="all"
-          onPick={picked}
-        />
-      )
-    })
-    const instagram = Array.from(container.querySelectorAll("[aria-label^='Instagram:']")).map((button) => button.getAttribute("aria-label"))
-    expect(instagram).toEqual(["Instagram: 0 Warming up", "Instagram: 0 Ready", "Instagram: 0 Working", "Instagram: 1 At risk", "Instagram: 2 Banned"])
-    await act(async () => (container.querySelector("[aria-label='Instagram: 2 Banned']") as HTMLButtonElement).click())
-    expect(picked).toHaveBeenCalledWith("instagram", "banned")
   })
 })

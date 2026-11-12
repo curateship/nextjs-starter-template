@@ -281,10 +281,10 @@ async function ringForAppFailure(
     job.kind === "app_post"
       ? [`a post on ${network}`, inModule()]
       : job.kind === "app_profile"
-        ? [`a profile change on ${network}`, `/admin/accounts?platform=${encodeURIComponent(row.platform)}`]
+        ? [`a profile change on ${network}`, `/admin/projects?section=accounts&platform=${encodeURIComponent(row.platform)}`]
         : kind === "comment"
           ? [`an answer to a comment on ${network}`, inModule("&view=comments")]
-          : [`an answer to a message on ${network}`, "/admin/messages"]
+          : [`an answer to a message on ${network}`, "/admin/projects?section=messages"]
   // A message's reason can name who wrote, and the notice outlives the
   // conversation, so the reason stays on the conversation's own row.
   const detail =
