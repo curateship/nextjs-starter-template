@@ -17,7 +17,12 @@ export function useTripBin() {
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
 
   const binTrips = React.useCallback(
-    async (trips: { id: string; name: string }[]) => {
+    async (
+      trips: { id: string; name: string }[],
+      // Left off when the page is about to leave anyway: reloading a trip page whose trip has just
+      // gone to the bin asks for a trip it can no longer see (Delete trip, on the trip page).
+      { reload = true }: { reload?: boolean } = {}
+    ) => {
       const done: string[] = []
       let failed = 0
       const ok = await run(async () => {
@@ -29,7 +34,7 @@ export function useTripBin() {
             failed += 1
           }
         }
-        await router.invalidate()
+        if (reload) await router.invalidate()
       })
       if (!ok) return false
       // Nothing pops up when every trip went. The ones that did not are said.

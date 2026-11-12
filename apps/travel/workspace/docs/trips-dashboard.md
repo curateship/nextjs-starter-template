@@ -35,8 +35,9 @@ table is still there, as the middle of the Trips section.
 
 ### The Dashboards block
 
-- **Its rows** are Overview, Trips and Places, each with a count:
-  - Overview counts its widgets.
+- **Its rows** are Overview, Trips and Places:
+  - Overview has no count. Its widgets were counted until 12 Nov 2026, and
+    "Overview 7" beside "Trips 1" read as seven trips.
   - Trips counts the upcoming trips.
   - Places counts the saved places.
 - **Its ⋮** has an eye on Trips and on Places to hide or show each, and a grip
@@ -118,9 +119,14 @@ The widgets are listed in `src/lib/travel/trips-widgets.ts` and drawn in
   in the address (`?order=days&direction=asc`), so a reload keeps it:
   - Trip: the cover, name, destination and tags.
   - Dates, with a countdown under them ("in 12 days", "on now", "ended
-    yesterday"). "No dates" sorts last whichever way.
+    yesterday"). "No dates" sorts last whichever way. The column is never
+    narrower than "19 to 23 Jan 2027".
   - Days and Status.
-  - Rating: the average of the stars given to the trip's cards, such as 4.3.
+  - Rating: the average of the stars given to the trip's cards, such as 4.3,
+    or "Not rated", the same words as the right panel. Every rating in Travel
+    draws one yellow star (`stars.tsx`).
+  - A cover picture whose address no longer loads shows the plane, as the
+    right panel does (`cover-image.tsx`).
 - **The table has no actions column.** A row's right-click menu has Mass
   select, Open trip, Copy, Archive or Bring back, and Delete.
 - **New trip** opens the New trip window. It asks for the name, destination,
@@ -162,7 +168,9 @@ tab row does ("tabs font is too small").
     description under it ("add trip discription here"; the words written in
     the day's heading on the board, such as "Asakusa and the bay"), how many
     activities it has (or Free) in a grey chip beside the date ("move the
-    activities here and style it in a chip"), and an arrow.
+    activities here and style it in a chip"), and an arrow. The date always
+    shows whole; where the panel is too narrow for both, the chip drops under
+    the date rather than cut the date to its first letter.
     - Pressing a day folds open its activities in place, and pressing it
       again folds them away (Tyler, 12 Nov 2026: "dont link the days to the
       trip page. Just open a toggle to show the title of the activities, its
@@ -204,7 +212,9 @@ Tyler, 3 Nov 2026: "A Bin tab".
     exist.
   - Its phone calendar stops until it is put back.
   - It is off the map and out of Copy trip.
-- **Trip settings' Delete trip** does the same, then goes back to Trips.
+- **Trip settings' Delete trip** does the same, then opens Trips on its Bin
+  tab with that trip open on the right (`?show=bin&open=<id>`), so the page
+  shows where it went. Nothing pops up.
 - **A binned sample trip** still counts as given, so it never comes back as a
   new sample.
 
@@ -221,7 +231,8 @@ Tyler, 3 Nov 2026: "A Bin tab".
 The person's places in one list. They were a window behind a button, and a
 switch on the map, until 12 Nov 2026.
 
-- **The tabs,** a dropdown where the middle is too narrow, as on Trips:
+- **The tabs,** a dropdown where the middle is too narrow, as on Trips. Each
+  always shows its count, so every list is read when Places opens:
   - **Saved:** the saved places, newest first.
   - **Go again:** every card ticked Would go again, on any trip not in the
     Bin.
@@ -289,6 +300,10 @@ Go again place to that trip's Ideas. Its bin moves a place to Places' Bin.
   On a phone a row opened that way waits behind its pill; only a row pressed
   brings the right panel to the front.
 - **On a phone** one panel shows at a time, with a pill for each.
+- **A read that fails** says so where the list or widget would be, with Try
+  again: the Places list, Map (on either tab), Weather and Holidays. Weather
+  and Holidays never say "none" before the answer is in. Overview's middle
+  stays empty, with nothing moving, while its layout is read.
 - **Older links still land:** `/trips?show=bin` opens Trips on its Bin.
   `/trips?show=year` opens Trips on Upcoming, since Year is a widget now.
 

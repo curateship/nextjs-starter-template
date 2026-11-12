@@ -187,8 +187,8 @@ export function BoardCard({
   onToggleSelected: () => void
   onOpen: () => void
   onMenu: (at: { x: number; y: number }) => void
-  /** The Done tick; left off with no signal. */
-  onDone?: () => void
+  /** The Done tick; left off with no signal. Resolves once the save and the reload are in. */
+  onDone?: () => Promise<unknown>
   footer?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -199,6 +199,10 @@ export function BoardCard({
   const style: React.CSSProperties | undefined = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, transition }
     : undefined
+  // The tick shows its new state at once and takes no second click until the save lands, so a
+  // double-click can't undo it; a refused save puts it back (Travel polish part 13).
+  const [doneShown, setDoneShown] = React.useState<boolean | null>(null)
+  const done = doneShown ?? activity.done
   const pressRef = React.useRef<number | null>(null)
   const pressed = React.useRef(false)
   const cancelPress = () => {
@@ -276,15 +280,20 @@ export function BoardCard({
       ) : null}
       {onDone ? <button
         type="button"
-        onClick={onDone}
-        aria-label={activity.done ? `Mark ${activity.title} not done` : `Mark ${activity.title} done`}
-        aria-pressed={activity.done}
+        onClick={() => {
+          if (doneShown !== null) return
+          setDoneShown(!activity.done)
+          void onDone().finally(() => setDoneShown(null))
+        }}
+        aria-busy={doneShown !== null}
+        aria-label={done ? `Mark ${activity.title} not done` : `Mark ${activity.title} done`}
+        aria-pressed={done}
         className={cn(
           "absolute top-2 right-2 flex size-6 items-center justify-center rounded-full border bg-card text-muted-foreground transition-opacity hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-          activity.done
+          done
             ? "border-green-600 bg-green-600 text-white opacity-100 hover:text-white"
             : "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
-          activity.photoUrl && !activity.done && "bg-card/90"
+          activity.photoUrl && !done && "bg-card/90"
         )}
       >
         <CheckIcon className="size-3.5" aria-hidden />

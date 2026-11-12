@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CheckIcon, ChevronDownIcon, CircleCheckIcon, CircleIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, CircleCheckIcon, CircleIcon, GripVerticalIcon, PlusIcon } from "lucide-react"
 
 import type { BoardActions } from "@/components/travel/board-actions"
 import { CardMenu } from "@/components/travel/board-card"
@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableGroupRow, TableRow } from "@/components/ui/table"
 import type { Activity } from "@/lib/api/travel/trips"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { boardColumns, columnKey, formatWhen } from "@/lib/travel/board"
@@ -136,7 +136,8 @@ export function TripListView({
   const shownIds = groups.flatMap((group) => (folds.folded(group.key) ? [] : group.rows.map((row) => row.id)))
   const allTicked = shownIds.length > 0 && shownIds.every((id) => selected.has(id))
   const someTicked = shownIds.some((id) => selected.has(id))
-  const colSpan = COLUMNS.length + (canSelect ? 2 : 1)
+  // No actions column: a row's right-click menu holds Delete, as the Trips table's does (Travel polish part 16).
+  const colSpan = COLUMNS.length + (canSelect ? 1 : 0)
   const menuActivity = menu ? byId.get(menu.id) : undefined
 
   function onDragStart(event: DragStartEvent) {
@@ -195,7 +196,6 @@ export function TripListView({
                 />
               ) : null
             }
-            trailing={<TableHead column="meta">Actions</TableHead>}
           />
           <TableBody>
             {groups.map((group) => {
@@ -445,22 +445,6 @@ function ActivityRow({
       </TableCell>
       <TableCell column="preview" className="tabular-nums">
         {activity.costCents !== null ? formatMoney(activity.costCents, page.trip.currency) : ""}
-      </TableCell>
-      <TableCell column="actions">
-        {readOnly ? null : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Delete ${activity.title}`}
-            className="hover:text-destructive"
-            disabled={actions.busy}
-            // Into the trip's bin, with Undo, as everywhere on the board.
-            onClick={() => void actions.remove([activity.id])}
-          >
-            <Trash2Icon className="size-4" />
-          </Button>
-        )}
       </TableCell>
     </TableRow>
   )

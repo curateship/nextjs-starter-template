@@ -39,13 +39,17 @@ export function TripDetailsPanel() {
   const banner = trip.coverUrl && trip.coverUrl !== broken ? trip.coverUrl : null
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="@container/trip-left relative flex min-h-0 flex-1 flex-col">
       {banner ? <BlendedBanner url={banner} onBroken={() => setBroken(banner)} /> : null}
       <DashboardCardTitleHeader
         className={cn("relative", banner && "border-b-transparent")}
         icon={<PlaneTakeoffIcon className="size-4" />}
         back={{ label: "Back to trips", to: "/trips" }}
-        title={trip.name}
+        title={
+          // At the panel's narrowest the back arrow, notes and ⋮ leave the name no room, so it
+          // moves to its own line under them (Travel polish part 7); a screen reader still finds it here.
+          <span className="sr-only @[18rem]/trip-left:not-sr-only">{trip.name}</span>
+        }
         action={
           <div className="flex items-center gap-1">
             {/* The page bends into an × while the notes are open, as Project's inbox does. */}
@@ -60,6 +64,15 @@ export function TripDetailsPanel() {
           </div>
         }
       />
+      <p
+        aria-hidden
+        className={cn(
+          "relative px-3.75 pt-3 text-base leading-snug font-semibold break-words @[18rem]/trip-left:hidden",
+          banner && "drop-shadow-sm"
+        )}
+      >
+        {trip.name}
+      </p>
       {notesOpen ? (
         <TripNotes key={noteRequest?.at ?? "notes"} startOpen={noteRequest?.noteId ?? null} />
       ) : (
@@ -82,6 +95,9 @@ function TripDescription() {
     <div className="grid gap-1">
       {/* Lock blocks in the trip's ⋮ makes it read only; the editor is made again when the lock changes. */}
       <SavingDocument
+        // The panel opens narrow, so the description reads at the panel's body size rather than a note's
+        // larger one, which left one or two words a line (Travel polish part 6).
+        className="[&_.page-rte_.tiptap_:is(p,li)]:text-[0.8125rem] [&_.page-rte_.tiptap_:is(p,li)]:leading-normal"
         key={trip.descriptionLocked ? "locked" : "open"}
         value={trip.description}
         placeholder={trip.descriptionLocked ? "" : "Write something about the trip"}

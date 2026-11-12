@@ -4,6 +4,9 @@ The trip's left panel shows the trip itself: the header, then the
 description. The back arrow goes to Trips. Two icons sit in the header. The note icon opens the trip's notes, and the ⋮
 opens Trip settings.
 
+- **The trip's name** is in the header when the panel is 18rem wide or more.
+  Narrower, as when it opens, the back arrow, note icon and ⋮ leave it no
+  room, so it sits on its own line under them instead of shrinking to a dot.
 - **The cover photo** lies faintly behind the top of the panel, the way
   Project's banner does, with its Unsplash credit under the description. It is
   set in Trip settings → Cover photo, uploaded or from Unsplash, and shows as a
@@ -12,7 +15,9 @@ opens Trip settings.
   editor, with its toolbar over selected words (task "Misc": "I want to also
   inline edit discription with tiptap editor"). It saves 700ms after the last
   letter and when it's left. It is the only place the description is
-  written. Trip settings doesn't have it.
+  written. Trip settings doesn't have it. It reads at 13px, the panel's body
+  size, not a note's 15px, which left one or two words a line in the narrow
+  panel.
 - **Lock blocks** in the ⋮ makes the description read only, its words and
   its blocks, until Unlock blocks (Tyler, 7 Nov 2026: "add lock blocks
   button"), as Project's Lock the notes does for a page. While it's locked
@@ -124,8 +129,8 @@ setting.
   Unsplash, doesn't close the menu.
 - Tags go in with a comma between them, and the Trips dashboard's Tags block
   and Filter narrow the Trips table by them.
-- Delete trip moves the trip to the Trips table's Bin, then goes back to Trips
-  (see [The Trips dashboard](trips-dashboard.md)).
+- Delete trip moves the trip to the Trips table's Bin, then opens Trips on its
+  Bin tab with the trip picked (see [The Trips dashboard](trips-dashboard.md)).
 - The same Trip settings, without Delete trip, is the ⋮ of a trip picked on
   the Trips dashboard, so a trip can be changed there without opening it.
 - The number of days changes on the board.

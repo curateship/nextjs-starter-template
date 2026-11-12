@@ -1,5 +1,6 @@
-import { BedDoubleIcon, ClockIcon, CloudRainIcon, FlagIcon, HistoryIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
+import { BedDoubleIcon, ClockIcon, CloudRainIcon, FlagIcon, HistoryIcon, MoonIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
 
+import { StarRow } from "@/components/travel/stars"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import type { Activity } from "@/lib/api/travel/trips"
 import type { ActivityType } from "@/lib/travel/activity-types"
@@ -133,11 +134,7 @@ export function ActivityCardContent({
             <span className="text-muted-foreground tabular-nums">{formatMoney(activity.costCents, currency)}</span>
           ) : null}
           {activity.rating ? (
-            <span className="flex items-center gap-0.5 text-muted-foreground" aria-label={`Rated ${activity.rating} out of 5`}>
-              {Array.from({ length: activity.rating }, (_, index) => (
-                <StarIcon key={index} className="size-3 fill-current" aria-hidden />
-              ))}
-            </span>
+            <StarRow rating={activity.rating} />
           ) : null}
           {/* Google's own stars, in words, so they never read as the person's rating beside them. */}
           {google ? <span className="text-muted-foreground tabular-nums">{google}</span> : null}

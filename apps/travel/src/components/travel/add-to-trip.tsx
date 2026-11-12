@@ -122,7 +122,7 @@ export function AddToTrip({
           </Select>
         </div>
         <Button type="button" className="justify-self-end" disabled={busy} onClick={() => void addIt()}>
-          Add
+          Add to trip
         </Button>
         </>
         )}

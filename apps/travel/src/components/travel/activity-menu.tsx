@@ -1,6 +1,7 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon, SparklesIcon, Trash2Icon } from "lucide-react"
 
+import { NOT_RATED } from "@/components/travel/stars"
 import { canRate, ActivityRatingFields } from "@/components/travel/activity-rating-fields"
 import { ActivityPictureFields } from "@/components/travel/activity-picture-fields"
 import { ActivityPlaceFields } from "@/components/travel/activity-place-fields"
@@ -200,7 +201,7 @@ export function ActivityMenu({ activity, onNotesChanged }: { activity: Activity;
         </PickGroup>
         {canRate(activity, trip) ? (
           <PickGroup title="How was it">
-            <PickRow label="Rating" empty={!activity.rating} value={activity.rating ? `${activity.rating} of 5` : "Not rated"}>
+            <PickRow label="Rating" empty={!activity.rating} value={activity.rating ? `${activity.rating} of 5` : NOT_RATED}>
               <ActivityRatingFields activity={activity} />
             </PickRow>
           </PickGroup>

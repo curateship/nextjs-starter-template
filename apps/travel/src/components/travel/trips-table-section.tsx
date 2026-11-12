@@ -7,7 +7,6 @@ import {
   CopyIcon,
   PlaneTakeoffIcon,
   PlusIcon,
-  StarIcon,
   Trash2Icon,
   Undo2Icon,
 } from "lucide-react"
@@ -21,6 +20,8 @@ import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelReopenButton } from "@/components/shared/three-panels"
+import { RatingValue } from "@/components/travel/stars"
+import { CoverImage } from "@/components/travel/cover-image"
 import { CopyTripDialog } from "@/components/travel/copy-trip-dialog"
 import { NewTripDialog } from "@/components/travel/new-trip-dialog"
 import { SectionTabs } from "@/components/travel/section-tabs"
@@ -38,10 +39,10 @@ import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
-import { addDays, countdown, formatDayDate, formatTripDates } from "@/lib/travel/dates"
+import { countdown, formatTripDates } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { TRIP_STATUS_LABEL } from "@/lib/travel/rules"
-import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
+import { binGoesLine, TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import { MONTH_GROUPS, monthGroupOf, tabOf } from "@/lib/travel/trips-lists"
 import { TRIP_TABS, type TripTab, type TripsSearch } from "@/lib/travel/trips-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -52,11 +53,6 @@ const STATUS_RANK = { planning: 0, booked: 1, done: 2 } as const
 
 const TAB_LABELS: Record<TripTab, string> = { upcoming: "Upcoming", past: "Past", archived: "Archived", bin: "Bin" }
 
-/** "Goes for good 3 Dec": a binned trip's line under its dates. */
-function binLine(deletedAt: string) {
-  const gone = formatDayDate(addDays(deletedAt.slice(0, 10), TRIP_BIN_DAYS))
-  return `Goes for good ${gone.split(" ").slice(1).join(" ")}`
-}
 
 /**
  * The Trips section (Tyler, 12 Nov 2026): every trip of the person signed
@@ -191,43 +187,45 @@ export function TripsTableSection({
     if (await tripBin.binTrips(list)) selection.clear()
   }
 
-  /** Put back from the Bin, to the tab each came from. */
-  async function restoreTrips(list: TripListRow[]) {
-    const ok = await run(async () => {
-      for (const trip of list) await restoreTripById(trip.id)
-      await router.invalidate()
-    })
-    if (ok) selection.clear()
-  }
-
-  /** Delete for good, from the Bin, after the confirm. */
-  async function purgeTrips(list: TripListRow[]) {
+  /**
+   * Runs one change on each picked trip, carrying on past a trip that fails, then
+   * says how many didn't go through (UI standard, tables: describeBulkResult).
+   * True when every trip went (Travel polish part 8).
+   */
+  async function eachTrip(list: TripListRow[], change: (trip: TripListRow) => Promise<unknown>, verb: string) {
     let done = 0
     let failed = 0
     const ok = await run(async () => {
       for (const trip of list) {
         try {
-          await purgeTripById(trip.id)
+          await change(trip)
           done += 1
-        } catch {
+        } catch (error) {
+          // One trip on its own says why it failed, not "0 of 1".
+          if (list.length === 1) throw error
           failed += 1
         }
       }
     })
-    if (!ok) return
-    setPurging(null)
+    if (!ok) return false
+    if (failed) showErrorToast(describeBulkResult({ done, kept: failed, one: "trip", many: "trips", verb }))
     selection.clear()
-    if (failed) showErrorToast(describeBulkResult({ done, kept: failed, one: "trip", many: "trips", verb: "deleted for good" }))
     await router.invalidate()
+    return failed === 0
   }
 
-  async function setArchived(list: TripListRow[], archived: boolean) {
-    const ok = await run(async () => {
-      for (const trip of list) await archiveTrip(trip.id, archived)
-      await router.invalidate()
-    })
-    if (ok) selection.clear()
+  /** Put back from the Bin, to the tab each came from. */
+  const restoreTrips = (list: TripListRow[]) => eachTrip(list, (trip) => restoreTripById(trip.id), "put back")
+
+  /** Delete for good, from the Bin, after the confirm. */
+  async function purgeTrips(list: TripListRow[]) {
+    // The window stays open, its button working, until every trip has gone.
+    await eachTrip(list, (trip) => purgeTripById(trip.id), "deleted for good")
+    setPurging(null)
   }
+
+  const setArchived = (list: TripListRow[], archived: boolean) =>
+    eachTrip(list, (trip) => archiveTrip(trip.id, archived), archived ? "archived" : "put back")
 
   /** What a trip can do, for its right-click menu and the right panel's foot. */
   const actionsFor = (trip: TripListRow): RowMenuItem[] =>
@@ -328,7 +326,7 @@ export function TripsTableSection({
           <FilterPopover count={tag ? 1 : 0} onClear={() => setListSearch({ tag: undefined })} save={null} contentClassName="w-60">
             <FilterRow id="trips-tag" label="Tag">
               <Select value={tag || "all"} onValueChange={(value) => setListSearch({ tag: value === "all" ? undefined : value })}>
-                <SelectTrigger id="trips-tag" className="h-8 w-full">
+                <SelectTrigger id="trips-tag" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -355,7 +353,8 @@ export function TripsTableSection({
       <CrmTable<Column>
         columns={[
           { key: "name", label: "Trip", column: "main", className: "min-w-40" },
-          { key: "start", label: "Dates", column: "preview" },
+          // Wide enough for "19 to 23 Jan 2027", so the main column can't squeeze it (Travel polish part 5).
+          { key: "start", label: "Dates", column: "preview", className: "min-w-44" },
           { key: "days", label: "Days", column: "meta", className: "hidden md:hidden @2xl:table-cell" },
           { key: "status", label: "Status", column: "preview", className: "hidden md:hidden @xl:table-cell" },
           { key: "rating", label: "Rating", column: "meta", className: "hidden md:hidden @3xl:table-cell" },
@@ -412,13 +411,15 @@ export function TripsTableSection({
                     <MainCell
                       name={trip.name}
                       lead={
-                        trip.coverUrl ? (
-                          <img src={trip.coverUrl} alt="" className="size-7 shrink-0 rounded-md object-cover" />
-                        ) : (
-                          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                            <PlaneTakeoffIcon className="size-3.5" aria-hidden />
-                          </span>
-                        )
+                        <CoverImage
+                          url={trip.coverUrl}
+                          className="size-7 shrink-0 rounded-md object-cover"
+                          fallback={
+                            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                              <PlaneTakeoffIcon className="size-3.5" aria-hidden />
+                            </span>
+                          }
+                        />
                       }
                     >
                       {trip.destination ? (
@@ -430,11 +431,11 @@ export function TripsTableSection({
                         </Chip>
                       ))}
                     </MainCell>
-                    <TableCell column="preview">
+                    <TableCell column="preview" className="min-w-44">
                       <span className="grid">
                         <span className="truncate">{formatTripDates(trip.startDate, trip.days) ?? <span className="text-muted-foreground">No dates</span>}</span>
                         {trip.deletedAt ? (
-                          <span className="text-xs text-muted-foreground">{binLine(trip.deletedAt)}</span>
+                          <span className="text-xs text-muted-foreground">{binGoesLine(trip.deletedAt)}</span>
                         ) : trip.startDate ? (
                           <span className={cn("text-xs text-muted-foreground", countdown(trip) === "on now" && "font-medium text-foreground")}>
                             {countdown(trip)}
@@ -449,14 +450,7 @@ export function TripsTableSection({
                       <Chip muted>{TRIP_STATUS_LABEL[trip.status]}</Chip>
                     </TableCell>
                     <TableCell column="mutedMeta" className="hidden md:hidden @3xl:table-cell">
-                      {trip.rating === null ? (
-                        <span className="text-muted-foreground">None</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 tabular-nums" aria-label={`${trip.rating} out of 5 stars`}>
-                          <StarIcon className="size-3.5 fill-current text-amber-500" aria-hidden />
-                          {trip.rating.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                        </span>
-                      )}
+                      <RatingValue rating={trip.rating} />
                     </TableCell>
                   </CrmTableRow>
                 ))}
@@ -511,7 +505,11 @@ export function TripsTableSection({
               ? `Delete ${shownPurging[0].name} for good?`
               : `Delete ${shownPurging?.length ?? 0} trips for good?`
           }
-          description="It goes at once, with every activity and note on it, and can't be put back."
+          description={
+            shownPurging && shownPurging.length > 1
+              ? "They go at once, with every activity and note on them, and can't be put back."
+              : "It goes at once, with every activity and note on it, and can't be put back."
+          }
           confirmLabel="Delete for good"
           destructive
           loading={busy}

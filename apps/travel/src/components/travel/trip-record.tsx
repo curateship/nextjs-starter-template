@@ -7,6 +7,8 @@ import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
+import { NOT_RATED, STAR_ON } from "@/components/travel/stars"
+import { CoverImage } from "@/components/travel/cover-image"
 import { TripProvider, type TripContextValue } from "@/components/travel/trip-context"
 import { TripMenu } from "@/components/travel/trip-menu"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
@@ -19,12 +21,12 @@ import { loadTrip, type TripListRow, type TripPage } from "@/lib/api/travel/trip
 import { useLoad } from "@/lib/hooks/use-load"
 import { boardColumns, columnKey, formatTime } from "@/lib/travel/board"
 import { readDayInfo } from "@/lib/travel/trip-days"
-import { addDays, countdown, dateOfDay, formatDayDate, formatTripDates } from "@/lib/travel/dates"
+import { countdown, dateOfDay, formatDayDate, formatTripDates } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { noteFirstLine } from "@/lib/travel/notes"
 import { DAY_PART_LABEL, TRIP_STATUS_LABEL, type TripStatus } from "@/lib/travel/rules"
 import type { ActivityType } from "@/lib/travel/activity-types"
-import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
+import { binGoesLine } from "@/lib/travel/trip-bin"
 import { smallPhoto } from "@/lib/travel/trip-photos"
 import { PANEL_FOOTER_PADDING } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
@@ -110,7 +112,6 @@ export function TripRecord({
 
   const contents = React.useMemo(() => (page ? tripContents(page) : null), [page])
   const cover = page?.trip.coverUrl ?? trip.coverUrl
-  const [brokenCover, setBrokenCover] = React.useState<string | null>(null)
   const name = page?.trip.name ?? trip.name
   const [binMenuOpen, setBinMenuOpen] = React.useState(false)
   const runFromBinMenu = (action: RowMenuItem) => () => {
@@ -155,18 +156,15 @@ export function TripRecord({
           the sky background blended in"). */}
       <div className="shrink-0 bg-gradient-to-b from-sky-100 via-sky-50/70 to-card dark:from-sky-950/50 dark:via-sky-950/20">
       <div className="flex items-center gap-3 py-4 pr-3 pl-4">
-        {cover && cover !== brokenCover ? (
-          <img
-            src={cover}
-            alt=""
-            className="size-11 shrink-0 rounded-lg object-cover"
-            onError={() => setBrokenCover(cover)}
-          />
-        ) : (
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-card/70 text-muted-foreground">
-            <PlaneTakeoffIcon className="size-5" aria-hidden />
-          </span>
-        )}
+        <CoverImage
+          url={cover}
+          className="size-11 shrink-0 rounded-lg object-cover"
+          fallback={
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-card/70 text-muted-foreground">
+              <PlaneTakeoffIcon className="size-5" aria-hidden />
+            </span>
+          }
+        />
         <span className="grid min-w-0 flex-1 leading-tight">
           <h2 className="font-heading truncate text-[0.825rem] font-semibold">{name}</h2>
           {trip.destination ? <span className="truncate text-[0.77rem] text-muted-foreground">{trip.destination}</span> : null}
@@ -209,7 +207,7 @@ export function TripRecord({
             ) : read.error ? (
               <ErrorRow message={read.error} onRetry={retry} className="p-4" />
             ) : (
-              <LoadingRow label="Reading the trip…" />
+              <LoadingRow label="Loading the trip…" />
             )}
           </ScrollArea>
           {/* Open trip, at the foot (Tyler, 12 Nov 2026: "add a footer button link to the trip"). */}
@@ -234,12 +232,10 @@ export function TripRecord({
  */
 function TripFacts({ trip }: { trip: TripListRow }) {
   const dates = formatTripDates(trip.startDate, trip.days)
-  const binLine = trip.deletedAt
-    ? `Goes for good ${formatDayDate(addDays(trip.deletedAt.slice(0, 10), TRIP_BIN_DAYS)).split(" ").slice(1).join(" ")}`
-    : null
+  const binLine = trip.deletedAt ? binGoesLine(trip.deletedAt) : null
   const under = [
     ...trip.tags,
-    trip.rating === null ? "Not rated" : `${trip.rating.toLocaleString(undefined, { maximumFractionDigits: 1 })} of 5 stars`,
+    trip.rating === null ? NOT_RATED : `${trip.rating.toLocaleString(undefined, { maximumFractionDigits: 1 })} of 5 stars`,
   ].join(" · ")
   return (
     <dl className="grid shrink-0 grid-cols-1 border-b @[18rem]:grid-cols-2">
@@ -364,12 +360,14 @@ function Itinerary({
               {/* The day's description under its date (Tyler, 12 Nov 2026: "add trip discription here"),
                   and how many activities beside the date as a chip ("move the activities here and style it in a chip"). */}
               <span className="grid min-w-0 flex-1">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate">{date ?? `Day ${day}`}</span>
+                {/* The date always shows whole; at the panel's narrowest the chip drops under it
+                    rather than squeezing the date to its first letter (Travel polish part 4). */}
+                <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                  <span className="whitespace-nowrap">{date ?? `Day ${day}`}</span>
                   {/* A filled chip, as the tabs' counts are; white on an open day's grey band. */}
                   <span
                     className={cn(
-                      "shrink-0 rounded-md px-1.5 py-0.5 text-[0.77rem] leading-none text-muted-foreground",
+                      "shrink-0 rounded-md px-1.5 py-0.5 text-[0.77rem] leading-none whitespace-nowrap text-muted-foreground",
                       shown ? "bg-card" : "bg-muted"
                     )}
                   >
@@ -467,7 +465,7 @@ function Notes({ notes, onOpen }: { notes: TripPage["notes"]; onOpen: (search: {
       {notes.map((note) => (
         <li key={note.id}>
           <button type="button" className={ROW} onClick={() => onOpen({ note: note.id })}>
-            {note.pinned ? <PinIcon className="size-4 shrink-0 text-muted-foreground" aria-label="Pinned" /> : null}
+            {note.pinned ? <PinIcon className={cn("size-4 shrink-0", STAR_ON)} aria-label="Pinned" /> : null}
             <span className="min-w-0 flex-1 truncate">{noteFirstLine(note.body)}</span>
             <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           </button>

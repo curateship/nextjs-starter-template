@@ -20,6 +20,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { SectionTabs } from "@/components/travel/section-tabs"
 import { BinDialog } from "@/components/travel/bin-dialog"
 import { useBoardActions } from "@/components/travel/board-actions"
 import { CalendarLinkDialog } from "@/components/travel/calendar-link-dialog"
@@ -43,7 +44,6 @@ import { DraftPlanDialog } from "@/components/travel/draft-plan-dialog"
 import { TripListView } from "@/components/travel/trip-list-view"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
@@ -166,7 +166,10 @@ export function SchedulePanel({
   return (
     <>
       <DashboardCardHeader className="@container">
-        <DashboardTabs
+        {/* A dropdown when the header is narrow, as the Trips dashboard's sections, so Map and Photos
+            stay in reach on a phone (Travel polish part 12). */}
+        <SectionTabs
+          label="Which view"
           value={view}
           onValueChange={(value) => pickView(value as TripView)}
           tabs={[

@@ -299,6 +299,9 @@ is skipped, with a message such as "Kinkaku-ji is already on Day 2."
   itself. A place typed by hand in the Place section is the person's own
   words, so it is never refused. Duplicate, Copy day and Copy trip copy on
   purpose and aren't checked.
+- **A place typed by hand** that matches another card is saved, and the
+  Place section shows the same line under the address, such as "The Vintage
+  Cafe is already on Day 1.", as a warning only.
 - **Known gap:** two different places with the same typed name, such as two
   "Starbucks", count as one when neither came from Google.
 - **The code:** `src/lib/travel/same-place.ts`, and `refuseSamePlace` in

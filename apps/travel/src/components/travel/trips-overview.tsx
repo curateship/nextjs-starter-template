@@ -1,15 +1,18 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { ArrowUpRightIcon, PlaneTakeoffIcon, StarIcon } from "lucide-react"
+import { ArrowUpRightIcon, PlaneTakeoffIcon } from "lucide-react"
 
 import { WidgetCard } from "@/components/shared/widgets/widget-card"
 import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
 import { WidgetMenu } from "@/components/shared/widgets/widget-menus"
-import { DayWeatherLine, TypicalWeatherLine, useTripWeather } from "@/components/travel/day-weather"
+import { RatingValue } from "@/components/travel/stars"
+import { CoverImage } from "@/components/travel/cover-image"
+import { DayWeatherLine, TypicalWeatherLine, useTripWeatherRead } from "@/components/travel/day-weather"
 import { TripsMap } from "@/components/travel/trips-map"
 import { TripsYearView } from "@/components/travel/trips-year-view"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import {
@@ -24,7 +27,6 @@ import { useLoad } from "@/lib/hooks/use-load"
 import { countdown, dateOfDay, formatDayDate, formatTripDates, todayIn } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { formatMoney } from "@/lib/travel/rules"
-import type { TripWeather } from "@/lib/travel/weather"
 import { dayOfTripLine, nextTripOf, tabOf, whereFromAddress } from "@/lib/travel/trips-lists"
 import { findTripsWidget, TRIPS_WIDGET_OFFER, type TripsWidgetId } from "@/lib/travel/trips-widgets"
 
@@ -63,7 +65,7 @@ export function TripsOverview({
   const nextTrip = React.useMemo(() => nextTripOf(trips), [trips])
   // One reading for both widgets, taken only when one of them shows.
   const needsWeather = wants("weather", "holidays")
-  const weather = useTripWeather({
+  const weather = useTripWeatherRead({
     id: nextTrip?.id ?? "",
     startDate: needsWeather ? (nextTrip?.startDate ?? null) : null,
     destination: nextTrip?.destination ?? null,
@@ -82,9 +84,9 @@ export function TripsOverview({
       case "ideas":
         return <CardsWidget read={figures} pick={(read) => upcomingIdeas(read, trips)} empty="No ideas waiting on an upcoming trip." />
       case "weather":
-        return <WeatherWidget trip={nextTrip} weather={weather} />
+        return <WeatherWidget trip={nextTrip} read={weather} />
       case "holidays":
-        return <HolidaysWidget trip={nextTrip} weather={weather} />
+        return <HolidaysWidget trip={nextTrip} read={weather} />
       case "best-rated":
         return <BestRatedWidget read={places} />
       case "countries":
@@ -135,8 +137,11 @@ function Quiet({ children }: { children: React.ReactNode }) {
 function Loaded<T>({ read, children }: { read: Read<T>; children: (data: T) => React.ReactNode }) {
   if (read.data) return <>{children(read.data)}</>
   if (read.error) return <ErrorRow message={read.error} onRetry={read.retry} className="p-3" />
-  return <Quiet>Reading…</Quiet>
+  return <LoadingRow label="Loading…" className="p-3" />
 }
+
+/** The next trip's weather reading, as both weather widgets take it. */
+type WeatherRead = ReturnType<typeof useTripWeatherRead>
 
 /** A row that opens a trip, or a card on it. */
 function OpenRow({
@@ -179,19 +184,16 @@ function NextTripWidget({ trip }: { trip: TripListRow | null }) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col justify-end overflow-hidden">
       {/* The cover fades into the card behind the words, as a panel's banner does. */}
-      {trip.coverUrl ? (
-        <>
-          <img src={trip.coverUrl} alt="" aria-hidden className="absolute inset-0 size-full object-cover opacity-40" />
-          <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-transparent via-card/60 to-card" />
-        </>
-      ) : null}
+      <CoverImage url={trip.coverUrl} className="absolute inset-0 size-full object-cover opacity-40" fallback={null} />
+      {trip.coverUrl ? <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-transparent via-card/60 to-card" /> : null}
       <div className="relative grid gap-1 p-3">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase">
           <PlaneTakeoffIcon className="size-3.5" aria-hidden />
           {onDay ? "On now" : countdown(trip)}
         </span>
-        <span className="text-lg leading-tight font-semibold">{trip.name}</span>
-        <span className="text-sm text-muted-foreground">
+        {/* Two lines at most, so a long name stays inside the widget (Travel polish part 12). */}
+        <span className="line-clamp-2 text-lg leading-tight font-semibold break-words">{trip.name}</span>
+        <span className="line-clamp-2 text-sm text-muted-foreground">
           {[trip.destination, formatTripDates(trip.startDate, trip.days), onDay].filter(Boolean).join(" · ")}
         </span>
         <Button
@@ -262,9 +264,14 @@ function CardsWidget({
  * The next trip's forecast for its days in the next 14, and what later days
  * are usually like, from the same reading the trip's board shows.
  */
-function WeatherWidget({ trip, weather }: { trip: TripListRow | null; weather: TripWeather }) {
+function WeatherWidget({ trip, read }: { trip: TripListRow | null; read: WeatherRead }) {
   if (!trip) return <Quiet>No trip coming up.</Quiet>
   if (!trip.destination) return <Quiet>Give {trip.name} a destination to see its weather.</Quiet>
+  if (!trip.startDate) return <Quiet>Give {trip.name} dates to see its weather.</Quiet>
+  if (read.status === "failed")
+    return <ErrorRow message={`The weather for ${trip.destination} didn't load.`} onRetry={read.retry} className="p-3" />
+  if (read.status === "loading") return <LoadingRow label={`Loading the weather for ${trip.destination}…`} className="p-3" />
+  const { weather } = read
   const days = Array.from({ length: trip.days }, (_, index) => index + 1)
     .map((day) => ({
       day,
@@ -273,7 +280,7 @@ function WeatherWidget({ trip, weather }: { trip: TripListRow | null; weather: T
       typical: weather.typical.find((each) => each.day === day),
     }))
     .filter((row) => row.forecast || row.typical)
-  if (days.length === 0) return <Quiet>Reading the weather for {trip.destination}…</Quiet>
+  if (days.length === 0) return <Quiet>No weather for these dates yet.</Quiet>
   return (
     <Scroll>
       {days.map((row) => (
@@ -290,8 +297,13 @@ function WeatherWidget({ trip, weather }: { trip: TripListRow | null; weather: T
 }
 
 /** Public holidays on the next trip's days, when shops and sights may be shut. */
-function HolidaysWidget({ trip, weather }: { trip: TripListRow | null; weather: TripWeather }) {
+function HolidaysWidget({ trip, read }: { trip: TripListRow | null; read: WeatherRead }) {
   if (!trip) return <Quiet>No trip coming up.</Quiet>
+  if (!trip.startDate) return <Quiet>Give {trip.name} dates to see its public holidays.</Quiet>
+  if (read.status === "failed")
+    return <ErrorRow message={`The public holidays for ${trip.name} didn't load.`} onRetry={read.retry} className="p-3" />
+  if (read.status === "loading") return <LoadingRow label="Loading the public holidays…" className="p-3" />
+  const { weather } = read
   if (weather.holidays.length === 0) return <Quiet>No public holidays during {trip.name}.</Quiet>
   return (
     <Scroll>
@@ -330,10 +342,7 @@ function BestRatedWidget({ read }: { read: Read<TripPlace[]> }) {
                 title={place.title}
                 line={place.tripName}
                 end={
-                  <span className="inline-flex shrink-0 items-center gap-1 text-xs tabular-nums" aria-label={`${place.rating} of 5 stars`}>
-                    <StarIcon className="size-3.5 fill-current text-amber-500" aria-hidden />
-                    {place.rating}
-                  </span>
+                  <RatingValue rating={place.rating} className="shrink-0 text-xs" />
                 }
               />
             ))}

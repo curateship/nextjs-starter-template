@@ -165,7 +165,7 @@ export function TripsPagePanel({
                   <TripsSectionsBlock />
                 </TripsBlocksProvider>
               </div>
-              {error ? <ErrorRow message={error} onRetry={onRetry} /> : <LoadingRow label="Reading the page…" />}
+              {error ? <ErrorRow message={error} onRetry={onRetry} /> : <LoadingRow label="Loading the page…" />}
             </>
           )}
         </div>

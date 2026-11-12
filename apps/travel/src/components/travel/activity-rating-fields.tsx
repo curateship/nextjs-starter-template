@@ -1,5 +1,6 @@
 import { BookmarkPlusIcon, Loader2Icon, StarIcon } from "lucide-react"
 
+import { STAR_ON } from "@/components/travel/stars"
 import { useSaveActivity } from "@/components/travel/use-save-activity"
 import { useTrip } from "@/components/travel/trip-context"
 import { Button } from "@/components/ui/button"
@@ -46,7 +47,7 @@ export function ActivityRatingFields({ activity }: { activity: Activity }) {
                 className={cn(
                   "size-5",
                   activity.rating !== null && stars <= activity.rating
-                    ? "fill-amber-400 text-amber-500"
+                    ? STAR_ON
                     : "text-muted-foreground"
                 )}
               />

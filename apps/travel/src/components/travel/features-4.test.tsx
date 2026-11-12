@@ -343,13 +343,14 @@ describe("notes: pins and the bin (parts 6 and 7)", () => {
     await settle()
     const trash = document.body.querySelector<HTMLButtonElement>('[aria-label="Delete Ramen list for good"]')!
     act(() => trash.click())
-    expect(document.body.textContent).toContain("Delete for good?")
+    // The same words as the Trips dashboard's Bin (Travel polish part 20).
+    expect(document.body.textContent).toContain("Can't be put back.")
     expect(purgeNote).not.toHaveBeenCalled()
     const cancel = [...document.body.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Cancel")!
     act(() => cancel.click())
-    expect(document.body.textContent).not.toContain("Delete for good?")
+    expect(document.body.textContent).not.toContain("Can't be put back.")
     act(() => document.body.querySelector<HTMLButtonElement>('[aria-label="Delete Ramen list for good"]')!.click())
-    const confirm = [...document.body.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Delete")!
+    const confirm = [...document.body.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Delete for good")!
     await act(async () => confirm.click())
     await settle()
     expect(purgeNote).toHaveBeenCalledWith("n-binned")
@@ -389,7 +390,7 @@ describe("the Year tab (part 9)", () => {
       )
     )
     expect(host.textContent).toContain("2099")
-    expect(host.textContent).toContain("1 trip this year.")
+    expect(host.textContent).toContain("1 trip in 2099.")
     expect(host.textContent).toContain("1 trip has no dates, so it isn't shown.")
     const bar = host.querySelector<HTMLButtonElement>('[data-trip-id="t1"]')!
     expect(bar.textContent).toContain("Tokyo")

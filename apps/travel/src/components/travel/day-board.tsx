@@ -359,7 +359,7 @@ export function DayBoard({
                                   onToggleSelected={() => onToggleSelected(card.id)}
                                   onOpen={() => openActivity(card.id)}
                                   onMenu={(at) => (readOnly ? undefined : setMenu({ id: card.id, at }))}
-                                  onDone={readOnly ? undefined : () => void actions.setField(card, { done: !card.done })}
+                                  onDone={readOnly ? undefined : () => actions.setField(card, { done: !card.done })}
                                   footer={
                                     openDay !== null && warning ? (
                                       <ClosedDayMove
