@@ -1,38 +1,26 @@
 import * as React from "react"
-import { toast } from "sonner"
-import type { PanelImperativeHandle } from "react-resizable-panels"
 
-import { ConversationPanel } from "@/components/crm/conversation-panel"
-import { InboxListPanel, type InboxFilters } from "@/components/crm/inbox-list-panel"
-import { LeadPanel } from "@/components/crm/lead-panel"
+import { blockAndCloseThread, ConversationRecord } from "@/components/crm/conversation-record"
+import type { CrmFrame } from "@/components/crm/crm-frame"
+import { OutboxEmailPanel } from "@/components/crm/outbox-panels"
 import {
-  PanelReopenTab,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  WorkspacePanel,
-} from "@/components/ui/resizable"
+  InboxListPanel,
+  type InboxFilters,
+  type InboxRowActions,
+} from "@/components/crm/inbox-list-panel"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  blockAddress,
-  getBlockedSenderErrorMessage,
-} from "@/lib/api/crm/blocked"
-import {
-  draftReply,
-  fetchMessageBody,
   getCrmErrorMessage,
-  loadConversation,
   loadInbox,
-  markConversationRead,
   markConversationsRead,
   markConversationUnread,
-  setConversationStatus,
-  setConversationsStatus,
-  type Conversation,
+  setConversationSaved,
   type InboxPage,
+  type InboxThread,
   type ManyThreadsResult,
 } from "@/lib/api/crm/inbox"
-import { loadLead, type LeadBundle } from "@/lib/api/crm/leads"
-import { CRM_MAX_THREADS_PER_PRESS, type CrmThreadStatus } from "@/lib/crm/crm"
+import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
+import { CRM_MAX_THREADS_PER_PRESS } from "@/lib/crm/crm"
 import {
   applyReplyDraft,
   noReplyDrafts,
@@ -40,63 +28,70 @@ import {
   type ReplyDraftUpdate,
   type ReplyDrafts,
 } from "@/lib/crm/reply-drafts"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
-import {
-  useBlankSpaceDoubleClick,
-  usePanelToggle,
-} from "@/lib/layout/panel-collapse"
-import {
-  panelLayoutKey,
-  useRememberedPanelLayout,
-} from "@/lib/layout/panel-layout"
-import { useWideScreen } from "@/lib/layout/wide-screen"
+import { STREAM_NUDGE_EVENT } from "@/lib/hooks/use-notification-stream"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The CRM screen: the inbox on the left, the conversation in the middle, and
- * who it is with on the right.
- *
- * Three panels, not four. The bottom panel of the email and automation
- * editors holds a run or a send history — a list of things that happened to
- * the thing above it. A conversation already IS that list, so a fourth panel
- * would have nothing to put in it.
+ * The CRM's Inbox section, in the Admin 3 panel design (7 Nov 2026,
+ * `workspace/tasks/features/crm/36-crm-admin-3-panel.md`): the inbox in the
+ * middle, and the open conversation with who it is with on the right. The
+ * dashboard's one frame (`crm-frame.tsx`) holds the left page, remembers the
+ * widths, opens the first conversation on arrival and goes back to the last
+ * address.
  */
 export function CrmWorkspace({
   page,
+  outbox,
   filters,
-  openThreadId,
+  openThreadId: openId,
+  heading,
+  headingEnd,
+  frame,
   onFiltersChange,
   onOpenThread,
   onReloadInbox,
+  onOpenContact,
 }: {
   page: InboxPage
+  /** The local development outbox, read only while its pill is picked. */
+  outbox: DevOutboxItem[] | null
+  /** The start of the middle's header: the section's icon and name. */
+  heading: React.ReactNode
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  headingEnd: React.ReactNode
+  /** Draws the section into the dashboard's one frame. */
+  frame: CrmFrame
   filters: InboxFilters
   openThreadId: string | null
   onFiltersChange: (next: Partial<InboxFilters>) => void
   onOpenThread: (threadId: string | null) => void
   /** Sends the route's loader round again, which is what redraws the list. */
   onReloadInbox: () => void
+  /** Opens a lead's contact on the People tab, from the conversation's ⋮. */
+  onOpenContact: (contactId: string) => void
 }) {
-  const desktop = useWideScreen()
-
-  const [inboxCollapsed, setInboxCollapsed] = React.useState(false)
-  const [leadCollapsed, setLeadCollapsed] = React.useState(false)
-  const inboxPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const leadPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const layout = useRememberedPanelLayout(panelLayoutKey.crmWorkspace)
-
-  const toggleInbox = usePanelToggle(inboxPanelRef)
-  const toggleLead = usePanelToggle(leadPanelRef)
-  const inboxDoubleClick = useBlankSpaceDoubleClick(toggleInbox)
-  const leadDoubleClick = useBlankSpaceDoubleClick(toggleLead)
-
+  // Under the Outbox pill `?open=` names an outbox email, never a
+  // conversation, so nothing below reads it as one.
+  const openThreadId = filters.view === "outbox" ? null : openId
   // The ticked rows. They live here rather than in the panel, for the same
   // reason the open conversation does: this component survives every redraw
   // the panel below it does not.
   const ticks = useSelection()
   const [tickedBusy, setTickedBusy] = React.useState(false)
+  // Mass select, held here and handed to the list. Off clears the ticks.
+  const [massSelect, setMassSelect] = React.useState(false)
+  const toggleMassSelect = (tickId?: string) => {
+    if (massSelect) {
+      ticks.clear()
+      setMassSelect(false)
+      return
+    }
+    setMassSelect(true)
+    // Turned on from a row's right-click, that row starts ticked.
+    if (tickId) ticks.setSelected(new Set([tickId]))
+  }
 
   // Changing a filter, the search or the unread tab clears the ticks, because
   // the rows they pointed at are no longer the rows on screen. Same hook as
@@ -105,9 +100,10 @@ export function CrmWorkspace({
     ticks.setSelected,
     [
       filters.search,
-      filters.status,
       filters.stage,
-      filters.unreadOnly,
+      filters.view,
+      filters.toAddress,
+      filters.tag,
       filters.followUpDue,
       // The order too: page 1 of "longest waiting" is a different set of rows
       // from page 1 of "newest first", so a tick made in one must not be
@@ -149,82 +145,75 @@ export function CrmWorkspace({
   const changeReplyDraft = (threadId: string, update: ReplyDraftUpdate) =>
     setReplyDrafts((current) => applyReplyDraft(current, threadId, update))
 
-  const [loaded, setLoaded] = React.useState<{
-    conversation: Conversation
-    lead: LeadBundle | null
-  } | null>(null)
-  // Bumped to pull the conversation and the lead down again after a change.
-  const [reloads, setReloads] = React.useState(0)
-  // Which request has finished, which is what "still loading" is worked out
-  // from. Stamped when the fetch settles rather than flipped on at the start:
-  // turning a flag on inside an effect body is a second render for nothing,
-  // and `react-hooks/set-state-in-effect` refuses it. The same shape as
-  // `SystemEmailSendsPanel`.
-  const requestKey = openThreadId ? `${openThreadId}:${reloads}` : null
-  const [settledRequest, setSettledRequest] = React.useState<string | null>(
-    null
-  )
-  const loadingThread = requestKey !== null && settledRequest !== requestKey
-
-  // Which conversation is shown is worked out from the address, not stored.
-  // Keeping it in state meant clearing that state whenever the address said
-  // "none", which is a write inside an effect and one paint of the wrong
-  // conversation.
-  const conversation =
-    loaded && loaded.conversation.id === openThreadId
-      ? loaded.conversation
-      : null
-  const lead = conversation ? loaded?.lead ?? null : null
+  // Bumped to read the open conversation again from here: a new message
+  // in it from the live inbox, a press on ticked rows that included it, or a
+  // row's own Save or Close on it.
+  const [reloadToken, setReloadToken] = React.useState(0)
+  const reloadThread = () => setReloadToken((count) => count + 1)
   // The row in the list already knows who the conversation is with, so the
-  // header has a name to draw before the lead panel's own fetch lands, and
-  // blocking has an address to send before it too.
+  // header has a name to draw before the lead panel's own fetch lands.
   const openRow = threads.find((thread) => thread.id === openThreadId) ?? null
 
-  // Held in a ref so the fetch below is keyed on which conversation is open,
-  // not on a callback the owner rebuilds every render. In the deps it would
-  // re-run the whole fetch on any parent redraw.
-  const reloadInboxRef = React.useRef(onReloadInbox)
+  // The live inbox (CRM task 33). The bell's stream nudges when mail lands;
+  // this reads the first page again, quietly. **The rows never move under the
+  // pointer**: what is new is counted for a bar, and pressing it redraws. The
+  // tab counts change at once, because a number changing is not rows moving.
+  // The conversation open on the right takes its new message in place. With
+  // the live bell off there is no nudge, and the screen is what it was.
+  const [live, setLive] = React.useState<{
+    news: number
+    counts: { all: number; unread: number; saved: number; waiting: number }
+  } | null>(null)
+  const liveRef = React.useRef({ threads, filters, openThreadId, pageSize: page.pageSize })
   React.useEffect(() => {
-    reloadInboxRef.current = onReloadInbox
+    liveRef.current = { threads, filters, openThreadId, pageSize: page.pageSize }
   })
-
   React.useEffect(() => {
-    if (!openThreadId) return
-
     let cancelled = false
-    loadConversation(openThreadId)
-      .then(async (opened) => {
-        if (cancelled) return
-        // The conversation lands first so it can be read while the lead panel
-        // is still coming.
-        setLoaded({ conversation: opened, lead: null })
-
-        // Opening it is reading it, and that is a write, so it goes out as its
-        // own checked request once the thread is actually on screen. The list
-        // is asked again afterwards, which is what takes the bold off the row.
-        if (opened.unread) {
-          await markConversationRead(opened.id).catch(() => undefined)
-          if (!cancelled) reloadInboxRef.current()
-        }
-
-        const bundle = await loadLead(opened.leadId)
-        if (!cancelled) setLoaded({ conversation: opened, lead: bundle })
+    const check = () => {
+      const { threads: shown, filters: current, openThreadId: open } = liveRef.current
+      void loadInbox({
+        search: current.search || undefined,
+        stage: current.stage,
+        unreadOnly: current.view === "unread" || undefined,
+        savedOnly: current.view === "saved" || undefined,
+        waitingOnly: current.view === "waiting" || undefined,
+        toAddress: current.toAddress || undefined,
+        tag: current.tag || undefined,
+        followUpDue: current.followUpDue || undefined,
+        sort: current.sort,
       })
-      .catch((error) => {
-        if (cancelled) return
-        showErrorToast(getCrmErrorMessage(error))
-        setLoaded(null)
-      })
-      .finally(() => {
-        if (!cancelled) setSettledRequest(requestKey)
-      })
-
+        .then((fresh) => {
+          if (cancelled) return
+          const before = new Map(shown.map((row) => [row.id, row.last_message_at]))
+          const news = fresh.threads.filter(
+            (row) => before.get(row.id) !== row.last_message_at
+          )
+          setLive({
+            news: news.length,
+            counts: {
+              all: fresh.allCount,
+              unread: fresh.unreadCount,
+              saved: fresh.savedCount,
+              waiting: fresh.waitingCount,
+            },
+          })
+          if (open && news.some((row) => row.id === open)) reloadThread()
+        })
+        .catch(() => undefined)
+    }
+    window.addEventListener(STREAM_NUDGE_EVENT, check)
     return () => {
       cancelled = true
+      window.removeEventListener(STREAM_NUDGE_EVENT, check)
     }
-  }, [openThreadId, requestKey])
-
-  const reloadThread = () => setReloads((count) => count + 1)
+  }, [])
+  // A fresh inbox from the route is the news shown, so the bar goes.
+  const [liveFor, setLiveFor] = React.useState(page)
+  if (liveFor !== page) {
+    setLiveFor(page)
+    setLive(null)
+  }
 
   const reloadBoth = () => {
     reloadThread()
@@ -237,9 +226,12 @@ export function CrmWorkspace({
     try {
       const next = await loadInbox({
         search: filters.search || undefined,
-        status: filters.status,
         stage: filters.stage,
-        unreadOnly: filters.unreadOnly || undefined,
+        unreadOnly: filters.view === "unread" || undefined,
+        savedOnly: filters.view === "saved" || undefined,
+        waitingOnly: filters.view === "waiting" || undefined,
+        toAddress: filters.toAddress || undefined,
+        tag: filters.tag || undefined,
         followUpDue: filters.followUpDue || undefined,
         // Without this the next page comes back newest first, so Load more
         // would restart the order halfway down the list.
@@ -262,30 +254,9 @@ export function CrmWorkspace({
     }
   }
 
-  const changeStatus = async (
-    status: CrmThreadStatus,
-    snoozedUntil?: string | null
-  ) => {
-    if (!conversation) return
-    try {
-      await setConversationStatus(conversation.id, status, snoozedUntil)
-      reloadBoth()
-    } catch (error) {
-      showErrorToast(getCrmErrorMessage(error))
-    }
-  }
-
-  /**
-   * One ticked-rows press: one request, one honest sentence, one redraw.
-   *
-   * The count said is the count the server wrote. The ones that were already
-   * read or already closed are named separately and never folded in, because
-   * "20 closed" when three of them were shut yesterday is a number nobody can
-   * check.
-   */
+  /** One ticked-rows press: one request, one redraw. */
   const runOnTicked = async (
-    write: (threadIds: string[]) => Promise<ManyThreadsResult>,
-    words: { verb: string; keptReason: string }
+    write: (threadIds: string[]) => Promise<ManyThreadsResult>
   ) => {
     const threadIds = Array.from(ticks.selected)
     if (threadIds.length === 0 || tickedBusy) return
@@ -299,17 +270,7 @@ export function CrmWorkspace({
 
     setTickedBusy(true)
     try {
-      const { changed, unchanged } = await write(threadIds)
-      toast.success(
-        describeBulkResult({
-          done: changed,
-          kept: unchanged,
-          one: "conversation",
-          many: "conversations",
-          verb: words.verb,
-          keptReason: words.keptReason,
-        })
-      )
+      await write(threadIds)
       ticks.clear()
       // The list redraws itself, and the open conversation with it: closing a
       // set that includes the one on screen must not leave its header saying
@@ -322,45 +283,11 @@ export function CrmWorkspace({
     }
   }
 
-  /**
-   * Blocks the address this conversation is with, and closes the thread.
-   *
-   * Two writes, reported separately. The block goes first because it is the
-   * half that matters, and a close that then fails is said out loud rather
-   * than folded into one message: "nothing worked" when the address is in fact
-   * blocked would send somebody to Settings looking for a row that is there.
-   */
-  const blockSender = async () => {
-    const address = lead?.lead.email ?? openRow?.leadEmail ?? null
-    if (!conversation || !address) return
+  const blockThread = (threadId: string, address: string) => blockAndCloseThread(threadId, address, reloadBoth)
 
+  const markUnread = async (threadId: string) => {
     try {
-      await blockAddress(address, "Blocked from the conversation")
-    } catch (error) {
-      showErrorToast(getBlockedSenderErrorMessage(error))
-      return
-    }
-
-    try {
-      await setConversationStatus(conversation.id, "closed")
-    } catch {
-      showErrorToast(
-        `Mail from ${address} is blocked, but this conversation did not close. Press Close to shut it.`
-      )
-      reloadBoth()
-      return
-    }
-
-    toast.success(
-      `Mail from ${address} will not reach the inbox. Settings → Email unblocks it.`
-    )
-    reloadBoth()
-  }
-
-  const markUnread = async () => {
-    if (!conversation) return
-    try {
-      await markConversationUnread(conversation.id)
+      await markConversationUnread(threadId)
       // The list, not the conversation: the thread on screen is unchanged and
       // reloading it would stamp it read again the moment it came back.
       onReloadInbox()
@@ -369,28 +296,67 @@ export function CrmWorkspace({
     }
   }
 
-  const refetchBody = async (messageId: string) => {
-    if (!conversation) return
+  const changeSaved = async (threadId: string, saved: boolean) => {
     try {
-      await fetchMessageBody(conversation.id, messageId)
-      reloadThread()
+      await setConversationSaved(threadId, saved)
+      if (threadId === openThreadId) reloadThread()
+      onReloadInbox()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))
     }
   }
 
+  // A row's right-click asks before blocking, as the ⋮ does: a misclick that
+  // quietly stopped a real customer's mail is the failure this is shaped around.
+  const [blockAsk, setBlockAsk] = React.useState<InboxThread | null>(null)
+  const [blockingRow, setBlockingRow] = React.useState(false)
+
+  const rowActions: InboxRowActions = {
+    onSave: (thread, saved) => void changeSaved(thread.id, saved),
+    onMarkUnread: (thread) => void markUnread(thread.id),
+    onBlock: (thread) => setBlockAsk(thread),
+  }
+
+  const addressLabels = new Map(
+    page.addresses.map((address) => [
+      address.address.toLowerCase(),
+      address.label.trim() || address.address,
+    ])
+  )
+
   const inbox = (
     <InboxListPanel
       threads={threads}
-      allCount={page.allCount}
-      unreadCount={page.unreadCount}
+      allCount={live?.counts.all ?? page.allCount}
+      unreadCount={live?.counts.unread ?? page.unreadCount}
+      savedCount={live?.counts.saved ?? page.savedCount}
+      waitingCount={live?.counts.waiting ?? page.waitingCount}
+      waitingShown={page.unansweredDays > 0}
+      outboxShown={page.outboxAvailable}
+      outbox={outbox}
+      openOutboxId={filters.view === "outbox" ? openId : null}
+      onOpenOutbox={(emailId) => onOpenThread(emailId)}
+      heading={heading}
+      headingEnd={headingEnd}
+      newMail={live?.news ?? 0}
+      onShowNewMail={onReloadInbox}
       loading={false}
       loadingMore={loadingMore}
       hasMore={threads.length < page.total}
       openThreadId={openThreadId}
+      massSelect={{ on: massSelect, onToggle: toggleMassSelect }}
       replyDrafts={replyDrafts}
       filters={filters}
       inboundAddress={page.inboundAddress}
+      addressLabels={addressLabels}
+      actions={rowActions}
+      addresses={page.addresses}
+      siteTags={page.tags}
+      unansweredDays={page.unansweredDays}
+      onStarted={(threadId) => {
+        onReloadInbox()
+        onOpenThread(threadId)
+      }}
       ticked={ticks.selected}
       tickedBusy={tickedBusy}
       onFiltersChange={onFiltersChange}
@@ -398,140 +364,75 @@ export function CrmWorkspace({
       onToggleTick={ticks.toggle}
       onClearTicks={ticks.clear}
       onMarkTickedRead={() =>
-        void runOnTicked(markConversationsRead, {
-          verb: "marked read",
-          keptReason: "already read",
-        })
-      }
-      onCloseTicked={() =>
-        void runOnTicked(
-          (threadIds) => setConversationsStatus(threadIds, "closed"),
-          { verb: "closed", keptReason: "already closed" }
-        )
-      }
-      onSnoozeTicked={(until) =>
-        void runOnTicked(
-          (threadIds) =>
-            setConversationsStatus(threadIds, "snoozed", until.toISOString()),
-          { verb: "snoozed", keptReason: "already snoozed until then" }
-        )
+        void runOnTicked(markConversationsRead)
       }
       onLoadMore={loadMore}
     />
   )
 
-  const middle = (
-    <ConversationPanel
-      conversation={conversation}
-      leadName={lead?.lead.name ?? openRow?.leadName ?? null}
-      leadEmail={lead?.lead.email ?? openRow?.leadEmail ?? null}
-      loading={loadingThread}
-      canSend={conversation !== null}
-      replyFrom={page.replyFrom}
+  const right = (
+    <ConversationRecord
+      threadId={openThreadId}
+      fallbackName={openRow?.leadName ?? null}
+      fallbackEmail={openRow?.leadEmail ?? null}
+      emptyLine={
+        threads.length > 0
+          ? null
+          : filters.view === "saved"
+            ? "No conversation is saved."
+            : filters.view === "waiting"
+              ? "Nobody is waiting on you."
+              : filters.view === "unread" ||
+                  filters.search ||
+                  filters.stage !== "all" ||
+                  filters.toAddress ||
+                  filters.tag ||
+                  filters.followUpDue
+                ? "No conversation matches."
+                : "No mail has arrived yet."
+      }
+      replyFromFallback={page.replyFrom}
       replyDraft={replyDraftFor(replyDrafts, openThreadId)}
       onReplyDraftChange={changeReplyDraft}
-      onStatusChange={changeStatus}
-      onMarkUnread={markUnread}
-      onBlockSender={blockSender}
-      onFetchBody={refetchBody}
-      onSent={reloadBoth}
-      onDraft={async () => {
-        if (!conversation) return ""
-        const { draft } = await draftReply(conversation.id)
-        return draft
-      }}
+      reloadToken={reloadToken}
+      onListChanged={onReloadInbox}
+      onOpenContact={onOpenContact}
     />
   )
 
-  const right = (
-    <LeadPanel bundle={lead} loading={loadingThread} onChanged={reloadBoth} />
-  )
-
-  if (!desktop) {
-    // Under 1280px the panels are dropped, exactly as the editors do it: three
-    // side by side on a phone is three unreadable columns. The conversation
-    // takes the screen, and the inbox is what shows when none is open.
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-          {openThreadId ? middle : inbox}
-        </WorkspacePanel>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup
-        key={layout.layoutKey}
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-        defaultLayout={layout.defaultLayout}
-        onLayoutChanged={layout.onLayoutChanged}
-      >
-        <ResizablePanel
-          id="inbox"
-          panelRef={inboxPanelRef}
-          collapsible
-          collapsedSize="0%"
-          // A fifth narrower than it was, at Tyler's ask on 3 Oct 2026. A
-          // conversation needs the room more than a list of names does, so the
-          // 5 points come off here and go to the middle.
-          defaultSize="16%"
-          minSize="16%"
-          maxSize="40%"
-          onResize={(size) => setInboxCollapsed(size.asPercentage < 0.5)}
-        >
-          <WorkspacePanel
-            collapsed={inboxCollapsed}
-            onDoubleClick={inboxDoubleClick}
-          >
-            {inbox}
-          </WorkspacePanel>
-        </ResizablePanel>
-
-        <ResizableHandle gap collapsed={inboxCollapsed} />
-
-        <ResizablePanel id="conversation" defaultSize="66%" minSize="30%">
-          <WorkspacePanel className="relative flex flex-col">
-            {middle}
-            {inboxCollapsed ? (
-              <PanelReopenTab
-                side="left"
-                label="Show the inbox"
-                onClick={toggleInbox}
-              />
-            ) : null}
-            {leadCollapsed ? (
-              <PanelReopenTab
-                side="right"
-                label="Show the lead"
-                onClick={toggleLead}
-              />
-            ) : null}
-          </WorkspacePanel>
-        </ResizablePanel>
-
-        <ResizableHandle gap collapsed={leadCollapsed} />
-
-        <ResizablePanel
-          id="lead"
-          panelRef={leadPanelRef}
-          collapsible
-          collapsedSize="0%"
-          defaultSize="18%"
-          minSize="18%"
-          maxSize="34%"
-          onResize={(size) => setLeadCollapsed(size.asPercentage < 0.5)}
-        >
-          <WorkspacePanel
-            collapsed={leadCollapsed}
-            onDoubleClick={leadDoubleClick}
-          >
-            {right}
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
-  )
+  return frame({
+    ids: filters.view === "outbox" ? (outbox ?? []).map((email) => email.id) : threads.map((thread) => thread.id),
+    showMiddleFor: `${filters.toAddress}|${filters.stage}`,
+    showRightFor: openId ?? undefined,
+    middle: inbox,
+    right: {
+      label: filters.view === "outbox" ? "Email" : "Conversation",
+      showLabel: filters.view === "outbox" ? "Show the email" : "Show the conversation",
+      content:
+        filters.view === "outbox" ? (
+          <OutboxEmailPanel email={(outbox ?? []).find((email) => email.id === openId) ?? null} />
+        ) : (
+          right
+        ),
+    },
+    windows: (
+      <ConfirmDialog
+        open={blockAsk !== null}
+        onOpenChange={(open) => (open ? undefined : setBlockAsk(null))}
+        destructive={false}
+        title="Block mail from this address?"
+        description={`Mail from ${blockAsk?.leadEmail ?? "this address"} stops reaching the inbox and this conversation closes. Nothing is deleted: every message is still recorded, and Settings → Email → Blocked senders unblocks the address in one press.`}
+        confirmLabel="Block the address"
+        loading={blockingRow}
+        onConfirm={() => {
+          if (!blockAsk) return
+          setBlockingRow(true)
+          void blockThread(blockAsk.id, blockAsk.leadEmail).finally(() => {
+            setBlockingRow(false)
+            setBlockAsk(null)
+          })
+        }}
+      />
+    ),
+  })
 }

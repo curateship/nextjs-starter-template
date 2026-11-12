@@ -236,7 +236,11 @@ tasks templates feature too").
     page, which reaches the panel's bottom, as long as that leaves it at
     least 240px. A block that grew keeps its height when one under it gets
     taller, and the panel scrolls instead. On a page longer than the panel,
-    nothing grows. `block-heights.ts` is copied from Trade's, and
+    nothing grows. A last block that reaches the bottom stops above the
+    page's empty last line, which stays there to click and write on (Tyler,
+    12 Nov 2026: "I cant click under the left card bottom to enter to
+    editior"). A page read only leaves out empty lines at its very top and
+    bottom, so a block that opens the page sits straight under the header. `block-heights.ts` is copied from Trade's, and
     `BlockBody` in `project-block-card.tsx` sets the height on the shell's
     tile, so the shell's card is unchanged. It works on a page read only
     too.

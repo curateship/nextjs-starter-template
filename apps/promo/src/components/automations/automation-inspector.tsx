@@ -11,6 +11,8 @@ import {
 import { InspectorNote } from "@/components/automations/inspector-card"
 import { AutomationNodeIcon } from "@/components/automations/automation-node-icon"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { InlineError } from "@/components/ui/inline-error"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -20,7 +22,6 @@ import type {
   AutomationValidationError,
 } from "@/lib/automations/graph"
 import {
-  automationNodeDescription,
   automationNodeFields,
   automationNodeIcon,
   automationNodeName,
@@ -42,6 +43,7 @@ export function AutomationInspector({
   onAddNode,
   onDeleteNode,
 }: {
+  /** Drawn as the Automations dashboard's right panel, with its cover and collapse button. */
   className?: string
   automationId?: string
   selectedNode: AutomationNode | null
@@ -62,15 +64,21 @@ export function AutomationInspector({
   // the canvas yet — the only state where "Add node" is on offer.
   const previewing = Boolean(onAddNode)
   const { scrollRef, fades } = useScrollFades()
+  const cover = useRightCover()
 
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
+        "relative isolate flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
         className
       )}
     >
+      {/* The left page's cover carries on behind the header, as on every
+          right panel in the design. */}
+      <RightPanelCover />
+      <div>
       <DashboardCardTitleHeader
+        className={cover ? "border-b-transparent" : undefined}
         icon={
           selectedNode ? (
             <AutomationNodeIcon
@@ -84,7 +92,8 @@ export function AutomationInspector({
         title={selectedNode ? automationNodeName(selectedNode) : "Automation"}
         meta={previewing ? "Not added yet" : undefined}
         action={
-          selectedNode && onToggleFavorite ? (
+          <span className="ml-auto flex items-center gap-1">
+          {selectedNode && onToggleFavorite ? (
             <Button
               type="button"
               variant="ghost"
@@ -103,20 +112,29 @@ export function AutomationInspector({
                 />
               )}
             </Button>
-          ) : undefined
+          ) : null}
+          <SidePanelCollapseButton side="right" label="Hide the step" />
+          </span>
         }
       />
+      </div>
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
-          <div className="grid gap-4 p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground">
-              {selectedNode
-                ? automationNodeDescription(selectedNode)
-                : "Select a node to view and edit its settings."}
-            </p>
+          {/* One column the panel's own width, so a narrow right panel wraps
+              the settings rather than running them past its edge. Its 16px is
+              the panel gutter, so a card set to edge to edge reaches the side. */}
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-0 px-4 pt-0 pb-4 [--panel-gutter:1rem] [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
+            {/* No line describing the step under its name: its settings say
+                it (Tyler, 10 Nov 2026: "all these tooltips are not
+                nesessary"). With no step picked, the panel says what to do. */}
+            {selectedNode ? null : (
+              <p className="text-xs text-muted-foreground">
+                Select a node to view and edit its settings.
+              </p>
+            )}
 
             {nodeErrors.length > 0 ? (
-              <InlineError className="grid gap-1">
+              <InlineError className="mb-4 grid gap-1">
                 <div className="mb-1 flex items-center gap-1.5 font-medium">
                   <AlertCircleIcon className="size-3.5" />
                   {selectedNode

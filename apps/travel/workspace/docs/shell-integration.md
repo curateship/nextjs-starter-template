@@ -37,3 +37,18 @@ Every shell change since the 7 Nov merge (`e69b7243e`) is in Travel, up to the s
 **Kept as Travel's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator. The shell's migrations follow Travel's own 0108, so they are numbered from 0109.
 
 **Checked.** Typecheck is clean, and 2,669 of 2,685 tests pass. These failed before the merge too: delivery and public-branding, which fail in the shell as well, and the styling test expecting no Sidebar shade, which Travel's own saved styling sets to 100. features-4 (10 tests) and unsubscribe timed out in the full run and pass when run alone. Not checked in a browser.
+
+## Shell merge, 12 November 2026
+
+Every shell change since `5131991aa` is in Travel, up to the shell at `9757749ff`: 85 files replaced. Each was an unedited copy of the shell at `5131991aa`.
+
+**What arrived.**
+
+- **Nothing pops up when something works** on the shell's screens: Admin, the CRM, Automations, Settings and the rest. Success toasts and Undo bars are gone. Failures still raise the red error toast. Tyler, 11 Nov 2026: "remove success toast across all these active apps".
+- **No space under side panel headers**, and **Panel cards → Opacity**, which lets the panel's cover photo show through the first card in each side panel.
+- **The Automations dashboard block has a ⋮** to hide or drag Automations and Waiting on you, saved with the site's styling.
+- **Dashboards block rows are 34px tall instead of 36px.**
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and 2,679 of 2,684 tests pass, with 2 skipped. The 3 failures were there before the merge: delivery and public-branding, which fail in the shell too, and the styling test expecting no Sidebar shade, which Travel's own saved styling sets to 100. Not checked in a browser: no dev server on this app's port runs from workspace-4.

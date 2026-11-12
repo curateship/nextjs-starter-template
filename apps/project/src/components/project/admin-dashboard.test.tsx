@@ -333,16 +333,15 @@ describe("the site admin's My dashboard", () => {
 
   it("draws the Daily card block with Start day until the day starts, then the habits, and Rate your day under them at night", () => {
     const morning = drawCard(DAILY)
-    expect(morning).toContain("Good morning Tyler")
+    expect(morning).toContain("Good morning, Tyler")
     expect(morning).toContain(">Start day<")
-    // In the block card every block has: the greeting is the heading's title and folds the
-    // card (Tyler, 9 Nov 2026: "this should have the same heading as any block and the header
-    // needs to be collapsible too"), with Delete block in its ⋮.
-    expect(morning).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*>(?:<span[^>]*>)+Good morning Tyler/)
-    expect(morning).toContain('aria-label="More for Good morning Tyler')
+    // In the block card every block has, headed "Daily habits", folding the card, with
+    // Delete block in its ⋮ (Tyler, 12 Nov 2026: "rename the header to "Daily habits"").
+    expect(morning).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*>(?:<span[^>]*>)+Daily habits/)
+    expect(morning).toContain('aria-label="More for Daily habits')
     expect(morning).toContain("data-block-tile")
-    // The date is inside the card, so it folds away with it, leaving the greeting.
-    expect(morning).toMatch(/<\/h2>(?:(?!<\/h2>).)*Mar 2, 2099/)
+    // The greeting is the first line inside, over the date ("Put the good morning text here").
+    expect(morning).toMatch(/<\/h2>(?:(?!<\/h2>).)*Good morning, Tyler/)
 
     const started = { ...DAILY, admin: { ...DAILY.admin!, today: { ...DAILY.admin!.today, upAt: "2099-03-02T08:00:00.000Z" } } }
     const day = drawCard(started)
@@ -446,7 +445,7 @@ describe("the site admin's My dashboard", () => {
     expect(draw({ ...night, settings: { ...night.settings, hidden: ["tomorrow"] } })).not.toContain("No meetings, due dates or days off tomorrow.")
   })
 
-  it("labels afternoon's and night's habits, not morning's, ticks counted ones too with no minus, names the section after its first part with each part's starting hour, and drops the finished days line", () => {
+  it("draws each part's habits under its name and hour, a tick on each single habit, − and + on a counted one, and drops the finished days line", () => {
     const habit = (id: string, part: "morning" | "afternoon" | "night", position: number) => ({
       ...({} as NonNullable<DailyCard["admin"]>["habits"][number]),
       id,
@@ -470,13 +469,18 @@ describe("the site admin's My dashboard", () => {
       },
     }
     const html = drawCard(daily)
-    const labels = [...html.matchAll(/<li class="pt-3[^"]*">([^<]+)<\/li>/g)].map((m) => m[1])
-    expect(labels).toEqual(["Afternoon - 12:00 PM", "Night - 6:00 PM"])
-    expect(html).toContain("Morning - 5:00 AM")
-    expect(html).not.toContain("Today&#x27;s habits")
-    expect(html.match(/role="checkbox"/g)?.length).toBe(4)
+    // Tyler's drawing of 12 Nov 2026: every part named, its starting hour on the right.
+    const labels = [...html.matchAll(/<li class="flex[^"]*uppercase[^"]*"><span>([^<]+)<\/span><span[^>]*>([^<]+)<\/span><\/li>/g)].map((m) => `${m[1]} ${m[2]}`)
+    expect(labels).toEqual(["Morning 5:00 AM", "Afternoon 12:00 PM", "Night 6:00 PM"])
+    // A tick on each single habit; the counted one has − and + and its dashes' "3/8".
+    expect(html.match(/role="checkbox"/g)?.length).toBe(3)
     expect(html).toContain("One more Habit d")
-    expect(html).not.toContain("One less")
+    expect(html).toContain("One less Habit d")
+    expect(html).toContain("3/8")
+    expect(html).toContain("Start a streak today")
+    // The ring: none of the four done yet.
+    expect(html).toContain('aria-label="0 of 4 habits done"')
+    expect(html).not.toContain("habits left")
     expect(html).not.toContain("Finished days")
   })
 

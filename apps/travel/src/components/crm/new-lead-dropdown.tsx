@@ -57,7 +57,7 @@ export function useLeadForm(onCreated: (leadId: string) => Promise<void>) {
       created = true
       const id = result.leadIds[0]
       if (id) await onCreated(id)
-    }, `Added ${email}.`)
+    })
     return created
   }
 

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { PauseIcon, PlayIcon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -119,11 +118,6 @@ export function BroadcastStatusPanel({
           ? await pauseBroadcastSend(broadcast.id)
           : await resumeBroadcastSend(broadcast.id)
       onUpdated(detail)
-      toast.success(
-        detail.status === "paused"
-          ? "Paused. Nobody else will get it until you start it again."
-          : "Started again. It picks up where it left off."
-      )
     } catch (statusError) {
       showErrorToast(getBroadcastErrorMessage(statusError))
     } finally {

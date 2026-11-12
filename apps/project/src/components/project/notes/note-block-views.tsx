@@ -2,6 +2,7 @@ import * as React from "react"
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 
 import {
+  ADVANCED_BLOCK_FRAME,
   BLOCK_FRAME,
   CalloutFrame,
   CommentsDrawing,
@@ -23,14 +24,29 @@ import type { CalloutKind, NoteImageAttrs, NoteLink } from "@/lib/project/note-b
  * editor's own ways to fill, change and remove it.
  */
 
-/** `atom` for a block with no writing inside, so the note's own list and paragraph styles stay out of it. */
-function Frame({ selected, atom = true, children }: { selected: boolean; atom?: boolean; children: React.ReactNode }) {
+/**
+ * `atom` for a block with no writing inside, so the note's own list and
+ * paragraph styles stay out of it. `advanced` for Task card, File, Comments
+ * and Video or Promo, which reach the panel's edges with "Advanced blocks
+ * reach the panel's edges" on (`ADVANCED_ATOM_TYPES`).
+ */
+function Frame({
+  selected,
+  atom = true,
+  advanced = false,
+  children,
+}: {
+  selected: boolean
+  atom?: boolean
+  advanced?: boolean
+  children: React.ReactNode
+}) {
   return (
     <NodeViewWrapper
       data-selected={selected || undefined}
       data-note-block=""
       data-note-atom={atom ? "" : undefined}
-      className={BLOCK_FRAME}
+      className={advanced ? ADVANCED_BLOCK_FRAME : BLOCK_FRAME}
     >
       {children}
     </NodeViewWrapper>
@@ -88,7 +104,7 @@ export function TaskBlockView(props: NodeViewProps) {
   const taskId = typeof props.node.attrs.taskId === "string" ? props.node.attrs.taskId : null
   if (emptyAndLocked(props, Boolean(taskId))) return <NodeViewWrapper />
   return (
-    <Frame selected={props.selected}>
+    <Frame selected={props.selected} advanced>
       <TaskCardDrawing taskId={taskId} editing={editingOf(props)} onPick={(next) => fill(props, { taskId: next })} />
     </Frame>
   )
@@ -98,7 +114,7 @@ export function FileBlockView(props: NodeViewProps) {
   const fileId = typeof props.node.attrs.fileId === "string" ? props.node.attrs.fileId : null
   if (emptyAndLocked(props, Boolean(fileId))) return <NodeViewWrapper />
   return (
-    <Frame selected={props.selected}>
+    <Frame selected={props.selected} advanced>
       <FileDrawing fileId={fileId} editing={editingOf(props)} onPick={(next) => fill(props, { fileId: next })} />
     </Frame>
   )
@@ -106,7 +122,7 @@ export function FileBlockView(props: NodeViewProps) {
 
 export function CommentsBlockView(props: NodeViewProps) {
   return (
-    <Frame selected={props.selected}>
+    <Frame selected={props.selected} advanced>
       <CommentsDrawing editing={editingOf(props)} />
     </Frame>
   )
@@ -114,7 +130,7 @@ export function CommentsBlockView(props: NodeViewProps) {
 
 export function RecordBlockView(props: NodeViewProps) {
   return (
-    <Frame selected={props.selected}>
+    <Frame selected={props.selected} advanced>
       <RecordDrawing editing={editingOf(props)} />
     </Frame>
   )

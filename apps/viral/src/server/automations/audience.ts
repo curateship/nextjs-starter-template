@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm"
 
 import {
+  AUDIENCE_LIST,
   isAudienceKind,
   type AutomationAudienceKind,
 } from "@/lib/automations/nodes/audience"
@@ -34,6 +35,7 @@ import {
 } from "@/server/schema"
 import { now } from "@/server/auth/security"
 import { normalizeMemberTag } from "@/lib/member-tags"
+import { userBelongsToWorkspaceCondition } from "@/server/people/workspace-users"
 
 /**
  * Who a flow is about, worked out fresh every single time.
@@ -43,11 +45,12 @@ import { normalizeMemberTag } from "@/lib/member-tags"
  * node: a member who cancelled yesterday is not in today's run, and nobody had
  * to remember to take them off a list.
  *
- * The answer is a set of **contacts**, not accounts. Contacts are the one list
- * that has everybody — every account is kept in step with it by
- * `syncContactsFromUsers`, and an address added by hand with no account behind
- * it is a normal row, not an edge case. It is also where "unsubscribed" lives,
- * so an audience read from here can never include somebody who opted out.
+ * The answer comes from one of two lists that never mix (Tyler, 9 Nov 2026:
+ * "users and subscribers are also seperate"). **Subscribers** ("everyone",
+ * a segment) are the mailing list, read from `contacts`, where
+ * "unsubscribed" lives. **Accounts** (every account, confirmed, paying, a
+ * plan, a member tag) are read from `users` and emailed at their own
+ * address; an account that turned automated mail off is never in one.
  *
  * The compiled flow a run carries (`config_snapshot`) already holds this
  * choice, so a later send-style step reads it from there and asks again rather
@@ -124,39 +127,47 @@ export function readAutomationAudience(
  */
 const EXCLUDED_STATUSES = ["suspended", "pending_deletion"]
 
-/**
- * The database condition for one audience, over `contacts` — joined against
- * accounts, subscriptions and plans by the caller below.
- */
-function audienceCondition(
-  audience: AutomationAudience,
-  workspaceId: string,
-  planId: string | null,
-  segmentFilter: SQL | null,
-  timestamp: Date,
-  database: CustomShellDb
-): SQL {
+/** Which list a choice reads. */
+function isAccountAudience(audience: AutomationAudience) {
+  return AUDIENCE_LIST[audience.kind] === "accounts"
+}
+
+/** A subscriber audience's condition, over `contacts` alone. */
+function subscriberCondition(audience: AutomationAudience, workspaceId: string, segmentFilter: SQL | null): SQL {
   const filters: SQL[] = [
     eq(customShellContacts.workspaceId, workspaceId),
     // Nobody who unsubscribed is ever in an audience, whatever the choice
-    // says — that is the promise the unsubscribe link makes. Bounced and
-    // complained addresses are out for the same reason.
-    //
-    // Somebody cold stays in. They never asked to stop and their address
-    // works; they just have not opened anything lately, and the only way back
-    // on the list is opening something they were sent. A flow that does not
-    // want them says so with a status rule.
+    // says: that is the promise the unsubscribe link makes. Bounced and
+    // complained addresses are out for the same reason. Somebody cold stays
+    // in: they never asked to stop, and a message is how they stop being cold.
     inArray(customShellContacts.status, ["subscribed", "cold"]),
-    // A contact with no account has no account to be suspended, so the
-    // account-status rule only applies where there is one.
-    or(
-      isNull(customShellContacts.userId),
-      notInArray(customShellUsers.status, EXCLUDED_STATUSES)
-    ) as SQL,
+  ]
+  if (audience.kind === "segment") {
+    // A missing segment must never quietly widen into "everyone".
+    if (!segmentFilter) throw new MissingAudienceSegmentError()
+    filters.push(segmentFilter)
+  }
+  return and(...filters) as SQL
+}
+
+/**
+ * An account audience's condition, over `users` joined to subscriptions by
+ * the caller below.
+ */
+async function accountCondition(
+  audience: AutomationAudience,
+  workspaceId: string,
+  planId: string | null,
+  timestamp: Date,
+  database: CustomShellDb
+): Promise<SQL> {
+  const filters: SQL[] = [
+    await userBelongsToWorkspaceCondition(workspaceId, database),
+    notInArray(customShellUsers.status, EXCLUDED_STATUSES),
+    // Their own way out of automated mail (the account email's unsubscribe link).
+    isNull(customShellUsers.automatedMailOffAt),
   ]
 
-  // The three account-shaped choices exclude contacts with no account on
-  // their own: an address cannot have confirmed an email or paid for a plan.
   if (audience.kind === "registered") {
     filters.push(isNotNull(customShellUsers.emailVerifiedAt))
   }
@@ -169,26 +180,15 @@ function audienceCondition(
   }
 
   if (audience.kind === "plan") {
-    // Without the plan this would silently become "every paying member" — a far
-    // bigger group than the flow asked for. Refuse instead; this is the same
-    // refusal `requireAudiencePlan` already makes, kept here so no future
-    // caller can reach the query without a plan.
+    // Without the plan this would silently become "every paying account", a far
+    // bigger group than the flow asked for.
     if (!planId) throw new MissingAudiencePlanError(audience.planSlug)
     filters.push(eq(customShellSubscriptions.planId, planId))
   }
 
-  if (audience.kind === "segment") {
-    // Same shape as the plan refusal above: a missing segment must never
-    // quietly widen into "everyone".
-    if (!segmentFilter) throw new MissingAudienceSegmentError()
-    filters.push(segmentFilter)
-  }
-
   if (audience.kind === "tag") {
     if (!audience.tag) {
-      throw new Error(
-        "This audience step does not say which member tag to match."
-      )
+      throw new Error("This audience step does not say which member tag to match.")
     }
     filters.push(
       exists(
@@ -197,7 +197,7 @@ function audienceCondition(
           .from(customShellMemberTags)
           .where(
             and(
-              eq(customShellMemberTags.userId, customShellContacts.userId),
+              eq(customShellMemberTags.userId, customShellUsers.id),
               eq(customShellMemberTags.tag, audience.tag)
             )
           )
@@ -234,7 +234,7 @@ export type AudienceSegment = {
 }
 
 /**
- * The segment a "segment" audience points at, refusing an id nothing answers —
+ * The segment a "segment" audience points at, refusing an id nothing answers:
  * a deleted segment fails the run rather than matching more people. Null for
  * every other kind.
  */
@@ -266,16 +266,10 @@ export async function requireAudienceSegment(
 }
 
 /**
- * One audience as a finished database condition — the plan and the segment
- * looked up, and every rule folded in.
- *
- * The one place a choice becomes a query. The count below, the sample the
- * inspector shows and — later — the step that actually sends all read it, so
- * the number somebody was shown while building the flow is the number the flow
- * works on.
- *
- * `segment` can be passed in by a caller that already looked it up (the
- * executor wants its name for the run history); left out, it is fetched here.
+ * One audience as a finished database condition, over the list it reads:
+ * the plan and the segment looked up, and every rule folded in. The count, the
+ * sample the inspector shows and the step that sends all read it, so the
+ * number somebody was shown while building the flow is the number it works on.
  */
 async function audienceFilter(
   audience: AutomationAudience,
@@ -284,61 +278,42 @@ async function audienceFilter(
   timestamp: Date,
   segment?: AudienceSegment | null
 ): Promise<SQL> {
-  const planId = await requireAudiencePlan(audience, database)
-  const audienceSegment =
-    segment ?? (await requireAudienceSegment(audience, workspaceId, database))
+  if (isAccountAudience(audience)) {
+    const planId = await requireAudiencePlan(audience, database)
+    return accountCondition(audience, workspaceId, planId, timestamp, database)
+  }
+  const audienceSegment = segment ?? (await requireAudienceSegment(audience, workspaceId, database))
   const segmentFilter = audienceSegment
-    ? await segmentConditions(
-        workspaceId,
-        audienceSegment.definition,
-        database,
-        timestamp
-      )
+    ? await segmentConditions(workspaceId, audienceSegment.definition, database, timestamp)
     : null
-
-  return audienceCondition(
-    audience,
-    workspaceId,
-    planId,
-    segmentFilter,
-    timestamp,
-    database
-  )
+  return subscriberCondition(audience, workspaceId, segmentFilter)
 }
 
 /**
- * How many contacts a finished condition matches.
- *
- * Counts distinct contacts, not rows: the query joins accounts and
- * subscriptions to read the conditions, and a join is free to hand the same
- * contact back more than once. This is a count of people.
+ * How many people a finished condition matches, on its list. Accounts are
+ * joined to subscriptions to read the paying rules, and a join is free to
+ * hand the same account back more than once, so it counts distinct people.
  */
-async function countMatching(
-  database: CustomShellDb,
-  filter: SQL
-): Promise<number> {
+async function countMatching(database: CustomShellDb, accounts: boolean, filter: SQL): Promise<number> {
+  if (accounts) {
+    const [row] = await database
+      .select({ total: countDistinct(customShellUsers.id) })
+      .from(customShellUsers)
+      .leftJoin(customShellSubscriptions, eq(customShellSubscriptions.userId, customShellUsers.id))
+      .where(filter)
+    return row?.total ?? 0
+  }
   const [row] = await database
     .select({ total: countDistinct(customShellContacts.id) })
     .from(customShellContacts)
-    .leftJoin(
-      customShellUsers,
-      eq(customShellUsers.id, customShellContacts.userId)
-    )
-    .leftJoin(
-      customShellSubscriptions,
-      eq(customShellSubscriptions.userId, customShellContacts.userId)
-    )
     .where(filter)
-
   return row?.total ?? 0
 }
 
 /**
- * How many contacts match right now.
- *
- * A count rather than the rows, because that is what a run records. The step
- * that finally sends something asks for the people themselves, through the same
- * condition, at the moment it sends.
+ * How many people match right now. A count rather than the rows, because that
+ * is what a run records; the step that sends asks for the people themselves,
+ * through the same condition, at the moment it sends.
  */
 export async function countAutomationAudience(
   audience: AutomationAudience,
@@ -349,56 +324,68 @@ export async function countAutomationAudience(
 ): Promise<number> {
   return countMatching(
     database,
+    isAccountAudience(audience),
     await audienceFilter(audience, workspaceId, database, timestamp, segment)
   )
 }
 
-/** Whether a test run's one contact belongs to this audience right now. */
-export async function contactMatchesAutomationAudience(
+/**
+ * Whether a test run's one person belongs to this audience right now: a
+ * subscriber for a subscriber audience, an account for an account one.
+ */
+export async function personMatchesAutomationAudience(
   audience: AutomationAudience,
   workspaceId: string,
-  contactId: string,
+  person: { contactId: string | null; userId: string | null },
   database: CustomShellDb = db,
   timestamp: Date = now(),
   segment?: AudienceSegment | null
 ): Promise<boolean> {
-  return (
-    (await countMatching(
-      database,
-      and(
-        await audienceFilter(
-          audience,
-          workspaceId,
-          database,
-          timestamp,
-          segment
-        ),
-        eq(customShellContacts.id, contactId)
-      ) as SQL
-    )) > 0
-  )
+  const accounts = isAccountAudience(audience)
+  const filter = await audienceFilter(audience, workspaceId, database, timestamp, segment)
+  if (accounts) {
+    if (!person.userId) return false
+    return (await countMatching(database, true, and(filter, eq(customShellUsers.id, person.userId)) as SQL)) > 0
+  }
+  if (!person.contactId) return false
+  return (await countMatching(database, false, and(filter, eq(customShellContacts.id, person.contactId)) as SQL)) > 0
 }
 
-/** One contact a send-style automation step can act on. */
-export type AutomationAudienceContact = {
-  id: string
+/**
+ * One person a send-style automation step can act on: a subscriber
+ * (`contactId`) or an account (`userId`), never both.
+ */
+export type AutomationRecipient = {
+  contactId: string | null
   userId: string | null
   email: string
   firstName: string | null
   lastName: string | null
+  /** An account's confirmation; null for a subscriber, who has none. */
   emailVerifiedAt: Date | null
+  /** Where the next page starts: the row's own creation time and id. */
   createdAt: Date
+  cursorId: string
+}
+
+/** An account's name split the way an email greeting wants it. */
+export function splitAccountName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { firstName: null, lastName: null }
+  return {
+    firstName: parts[0],
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : null,
+  }
 }
 
 /**
- * One bounded page of an audience, in a stable order.
- *
- * Send-style steps ask for the next page after finishing the current one, so a
- * large audience never becomes one large array in server memory. Verification
- * is returned as a fact rather than folded into the audience condition: the
- * caller must count an unconfirmed member as skipped, not make them disappear.
+ * One bounded page of an audience, in a stable order. Send-style steps ask for
+ * the next page after finishing the current one, so a large audience never
+ * becomes one large array in server memory. An account's confirmation is
+ * returned as a fact rather than folded into the condition: the caller counts
+ * an unconfirmed account as skipped, not gone.
  */
-export async function listAutomationAudienceContacts(
+export async function listAutomationAudience(
   audience: AutomationAudience,
   workspaceId: string,
   options: {
@@ -407,62 +394,84 @@ export async function listAutomationAudienceContacts(
     timestamp?: Date
   },
   database: CustomShellDb = db
-): Promise<AutomationAudienceContact[]> {
+): Promise<AutomationRecipient[]> {
   const limit = Math.min(Math.max(options.limit, 1), 100)
-  const filter = await audienceFilter(
-    audience,
-    workspaceId,
-    database,
-    options.timestamp ?? now()
-  )
+  const filter = await audienceFilter(audience, workspaceId, database, options.timestamp ?? now())
+
+  if (isAccountAudience(audience)) {
+    const after = options.after
+      ? or(
+          gt(customShellUsers.createdAt, options.after.createdAt),
+          and(eq(customShellUsers.createdAt, options.after.createdAt), gt(customShellUsers.id, options.after.id))
+        )
+      : undefined
+    const rows = await database
+      .selectDistinct({
+        id: customShellUsers.id,
+        email: customShellUsers.email,
+        name: customShellUsers.name,
+        emailVerifiedAt: customShellUsers.emailVerifiedAt,
+        createdAt: customShellUsers.createdAt,
+      })
+      .from(customShellUsers)
+      .leftJoin(customShellSubscriptions, eq(customShellSubscriptions.userId, customShellUsers.id))
+      .where(and(filter, after))
+      .orderBy(asc(customShellUsers.createdAt), asc(customShellUsers.id))
+      .limit(limit)
+    return rows.map((row) => ({
+      contactId: null,
+      userId: row.id,
+      email: row.email,
+      ...splitAccountName(row.name),
+      emailVerifiedAt: row.emailVerifiedAt,
+      createdAt: row.createdAt,
+      cursorId: row.id,
+    }))
+  }
+
   const after = options.after
     ? or(
         gt(customShellContacts.createdAt, options.after.createdAt),
-        and(
-          eq(customShellContacts.createdAt, options.after.createdAt),
-          gt(customShellContacts.id, options.after.id)
-        )
+        and(eq(customShellContacts.createdAt, options.after.createdAt), gt(customShellContacts.id, options.after.id))
       )
     : undefined
-
-  return database
-    .selectDistinct({
+  const rows = await database
+    .select({
       id: customShellContacts.id,
-      userId: customShellContacts.userId,
       email: customShellContacts.email,
       firstName: customShellContacts.firstName,
       lastName: customShellContacts.lastName,
-      emailVerifiedAt: customShellUsers.emailVerifiedAt,
       createdAt: customShellContacts.createdAt,
     })
     .from(customShellContacts)
-    .leftJoin(
-      customShellUsers,
-      eq(customShellUsers.id, customShellContacts.userId)
-    )
-    .leftJoin(
-      customShellSubscriptions,
-      eq(customShellSubscriptions.userId, customShellContacts.userId)
-    )
     .where(and(filter, after))
     .orderBy(asc(customShellContacts.createdAt), asc(customShellContacts.id))
     .limit(limit)
+  return rows.map((row) => ({
+    contactId: row.id,
+    userId: null,
+    email: row.email,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    emailVerifiedAt: null,
+    createdAt: row.createdAt,
+    cursorId: row.id,
+  }))
 }
 
 /** One of the handful of people the inspector shows by name. */
 export type AudienceSampleContact = {
   id: string
   email: string
-  /** Their name when the contact has one, and "" when it does not. */
+  /** Their name when there is one, and "" when there is not. */
   name: string
 }
 
 /**
  * What the node's settings panel says about a choice while it is being built.
- *
  * `total` is what a run would match if it went now, `everyone` is how many the
- * widest choice would reach, and `sample` is the first few of them by email —
- * enough to recognise the group without turning the panel into a member list.
+ * widest choice of the same list would reach, and `sample` is the first few by
+ * email.
  */
 export type AudiencePreview = {
   total: number
@@ -474,14 +483,9 @@ export type AudiencePreview = {
 export const AUDIENCE_SAMPLE_SIZE = 5
 
 /**
- * The count, the whole list's size and a few names — everything the inspector
- * needs to show the blast radius of a choice before anything runs.
- *
- * The sample is bounded to a handful of rows, so an audience of fifty thousand
- * costs the same as one of five: a count and five rows, never the people
- * themselves. `everyone` is the same query with the widest choice, and it is
- * only what the "this is most of your list" nudge compares against — for the
- * widest choice itself there is nothing to compare, so it is not asked for.
+ * The count, the list's size and a few names: everything the inspector needs
+ * to show the blast radius of a choice before anything runs. Bounded to a
+ * handful of rows, so an audience of fifty thousand costs a count and five rows.
  */
 export async function previewAutomationAudience(
   audience: AutomationAudience,
@@ -489,57 +493,48 @@ export async function previewAutomationAudience(
   database: CustomShellDb = db,
   timestamp: Date = now()
 ): Promise<AudiencePreview> {
-  const filter = await audienceFilter(
-    audience,
-    workspaceId,
-    database,
-    timestamp
-  )
+  const accounts = isAccountAudience(audience)
+  const widest: AutomationAudience = {
+    kind: accounts ? "accounts" : "everyone",
+    planSlug: "",
+    segmentId: "",
+    tag: "",
+  }
+  const filter = await audienceFilter(audience, workspaceId, database, timestamp)
+
+  const sampleRows = accounts
+    ? database
+        .selectDistinct({ id: customShellUsers.id, email: customShellUsers.email, name: customShellUsers.name })
+        .from(customShellUsers)
+        .leftJoin(customShellSubscriptions, eq(customShellSubscriptions.userId, customShellUsers.id))
+        .where(filter)
+        .orderBy(asc(customShellUsers.email))
+        .limit(AUDIENCE_SAMPLE_SIZE)
+        .then((rows) => rows.map((row) => ({ id: row.id, email: row.email, name: row.name.trim() })))
+    : database
+        .select({
+          id: customShellContacts.id,
+          email: customShellContacts.email,
+          firstName: customShellContacts.firstName,
+          lastName: customShellContacts.lastName,
+        })
+        .from(customShellContacts)
+        .where(filter)
+        .orderBy(asc(customShellContacts.email))
+        .limit(AUDIENCE_SAMPLE_SIZE)
+        .then((rows) =>
+          rows.map((row) => ({
+            id: row.id,
+            email: row.email,
+            name: [row.firstName, row.lastName].filter((part) => part && part.trim()).join(" ").trim(),
+          }))
+        )
 
   const [total, sample, everyone] = await Promise.all([
-    countMatching(database, filter),
-    // The same joins as the count, because the condition reads accounts and
-    // subscriptions — and distinct for the same reason, so a person cannot be
-    // named twice.
-    database
-      .selectDistinct({
-        id: customShellContacts.id,
-        email: customShellContacts.email,
-        firstName: customShellContacts.firstName,
-        lastName: customShellContacts.lastName,
-      })
-      .from(customShellContacts)
-      .leftJoin(
-        customShellUsers,
-        eq(customShellUsers.id, customShellContacts.userId)
-      )
-      .leftJoin(
-        customShellSubscriptions,
-        eq(customShellSubscriptions.userId, customShellContacts.userId)
-      )
-      .where(filter)
-      .orderBy(asc(customShellContacts.email))
-      .limit(AUDIENCE_SAMPLE_SIZE),
-    audience.kind === "everyone"
-      ? null
-      : countAutomationAudience(
-          { kind: "everyone", planSlug: "", segmentId: "", tag: "" },
-          workspaceId,
-          database,
-          timestamp
-        ),
+    countMatching(database, accounts, filter),
+    sampleRows,
+    audience.kind === widest.kind ? null : countAutomationAudience(widest, workspaceId, database, timestamp),
   ])
 
-  return {
-    total,
-    everyone: everyone ?? total,
-    sample: sample.map((row) => ({
-      id: row.id,
-      email: row.email,
-      name: [row.firstName, row.lastName]
-        .filter((part) => part && part.trim())
-        .join(" ")
-        .trim(),
-    })),
-  }
+  return { total, everyone: everyone ?? total, sample }
 }

@@ -209,10 +209,10 @@ function ProjectSearch({ projects, onPick }: { projects: DashboardBlocks["projec
  * card itself, so every tick and button saves the way the card always has.
  * One per page.
  *
- * In the block card every block has, the greeting its heading, folding it to
- * the greeting alone (Tyler, 9 Nov 2026: "this should have the same heading
- * as any block and the header needs to be collapsible too"), with the "/"
- * menu's Daily card icon before it ("the headers are missing icons").
+ * In the block card every block has, headed "Daily habits" with the "/"
+ * menu's Daily card icon (Tyler, 12 Nov 2026), folding like any block; the
+ * greeting is the first line inside, over the date. Until then the greeting
+ * was the heading (9 Nov 2026).
  */
 export function DailyCardBlockView(props: NodeViewProps) {
   return (
@@ -235,8 +235,11 @@ export function DailyCardBlock({ daily, now, editing }: { daily: DailyCardData; 
       daily={daily}
       now={now}
       checkin={null}
-      frame={(greeting, body) => (
-        <ProjectBlockCard editing={editing} kind="daily-card" title={greeting} icon={<SunriseIcon className="size-4" />}>
+      frame={(body) => (
+        // The heading names the block; the card opens with its own greeting
+        // (Tyler, 12 Nov 2026: "rename the header to "Daily habits"", then
+        // "revamp daily card ui").
+        <ProjectBlockCard editing={editing} kind="daily-card" title="Daily habits" icon={<SunriseIcon className="size-4" />}>
           {/* The sections sit straight on the white tile, with no grey box of their own
               (Tyler, 9 Nov 2026: "remove this gray container"). */}
           <div className="p-3 pt-2.5 [&_[data-daily-section]]:rounded-none [&_[data-daily-section]]:border-0 [&_[data-daily-section]]:bg-transparent [&_[data-daily-section]]:p-0">

@@ -178,8 +178,7 @@ export function PlanChangeConfirmation({
         </p>
         {submitted ? (
           <p role="status" className="flex items-center gap-2 text-sm">
-            {waiting ? <Loader2Icon className="size-4 animate-spin" /> : null}
-            {waiting
+                        {waiting
               ? "Waiting for billing confirmation..."
               : "Confirmation is taking longer than usual. You can check again without submitting another change."}
           </p>

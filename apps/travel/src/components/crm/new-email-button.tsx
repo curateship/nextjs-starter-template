@@ -1,6 +1,5 @@
 import * as React from "react"
 import { PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
@@ -49,14 +48,13 @@ export function NewEmailButton({
     }
     setBusy(true)
     try {
-      const { threadId, leadExisted } = await startConversation({
+      const { threadId } = await startConversation({
         to: draft.to,
         name: draft.name || undefined,
         subject: draft.subject,
         body: draft.body,
         fromAddress: draft.from || undefined,
       })
-      toast.success(leadExisted ? "Sent. It is filed under the lead they already had." : "Sent.")
       setDraft(EMPTY)
       setOpen(false)
       onSent(threadId)

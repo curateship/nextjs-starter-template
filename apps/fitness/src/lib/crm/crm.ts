@@ -62,6 +62,13 @@ export type CrmAttachment = {
   contentType: string | null
   /** Bytes, when the provider said. Null when it did not. */
   size: number | null
+  /**
+   * Where the file is kept in the site's storage, once it is there (CRM task
+   * 21). Never sent to the browser: the file is served by a guarded route.
+   */
+  storageKey?: string
+  /** The file was larger than one file may be, so it was not fetched. */
+  tooBig?: boolean
 }
 
 /** The most money a lead can be worth: $10,000,000, in cents. */
@@ -100,4 +107,15 @@ export const CRM_DEFAULT_INBOX_SORT: CrmInboxSort = "newest"
 export const CRM_INBOX_SORT_LABELS: Record<CrmInboxSort, string> = {
   newest: "Newest first",
   oldest: "Longest waiting",
+}
+
+/**
+ * An email address the CRM may write to or receive at, lowered and trimmed,
+ * or null. One plain check, used by the address list, New email and Forward:
+ * one @, something on both sides, a dot after it, 255 characters at most.
+ */
+export function readEmailAddress(value: string): string | null {
+  const address = value.trim().toLowerCase()
+  if (!address || address.length > 255) return null
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ? address : null
 }

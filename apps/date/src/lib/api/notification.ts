@@ -1,16 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import {
   listCurrentUserNotificationPage,
-  listAdminNotifications as listAdminNotificationRows,
-  requireAdminNotificationUser,
   countUnreadNotifications as countUnreadNotificationRows,
   countUnseenNotifications as countUnseenNotificationRows,
   markCurrentUserNotificationsSeen,
   markCurrentUserNotificationRead,
   markAllCurrentUserNotificationsRead,
-  deleteAdminNotificationRows,
-  clearAdminNotificationRows,
-  sendCurrentUserTestNotification,
 } from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
 import { readShellGlobals } from "@/server/shell-settings"
@@ -18,11 +13,9 @@ import { readShellGlobals } from "@/server/shell-settings"
 // into `server/notifications/inbox.ts`, which reaches back, and a circle hands
 // out `undefined` to whichever side loads first. See `lib/notification-types`.
 import {
-  NOTIFICATION_TYPES,
   type AutomationApprovalState,
   type NotificationType,
 } from "@/lib/notification-types"
-import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { z } from "zod"
 
 import { createErrorMessage } from "./error-message"
@@ -31,8 +24,8 @@ export type NotificationItem = {
   id: string
   type: NotificationType
   /**
-   * Null on a changelog or announcement notice: both are posted by the product,
-   * not by a person acting on your feedback.
+   * Null on a notice the product posts itself, such as an announcement, rather
+   * than a person acting on your feedback.
    */
   actor_name: string | null
   /** The actor's profile photo, when they have one. Null with no actor. */
@@ -41,9 +34,6 @@ export type NotificationItem = {
   /** Both null unless the notice is about a piece of feedback. */
   feedback_id: string | null
   feedback_message: string | null
-  /** Both null unless the notice is about a published update. */
-  changelog_entry_id: string | null
-  changelog_title: string | null
   /**
    * All three null unless the notice is an announcement. It carries its own
    * words because there is no announcement page to open — the notice is the
@@ -99,37 +89,18 @@ const listNotificationsSchema = z.object({
   limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
 })
 
-const adminListQuerySchema = z.object({
-  search: z.string().trim().max(120).default(""),
-  read: z.enum(["all", "unread", "read"]).default("all"),
-  type: z.enum(["all", ...NOTIFICATION_TYPES]).default("all"),
-  page: z.number().int().min(1).default(1),
-  pageSize: z.number().int().min(5).max(100).default(25),
-  sort: z
-    .enum(["activity", "recipient", "type", "status", "created"])
-    .default("created"),
-  direction: z.enum(["asc", "desc"]).default("desc"),
-})
-
-export type AdminNotificationQueryInput = z.input<typeof adminListQuerySchema>
-
 const notificationIdSchema = z.object({
   notificationId: z.string().min(1),
 })
 
-const deleteNotificationsSchema = z.object({
-  notificationIds: z.array(z.string().min(1).max(100)).min(1).max(500),
-})
-
 /**
  * The inbox throws its own phrases rather than the guards' codes, so they are
- * named here. Before this, "Missing Custom Shell session" and "Not authorized"
- * reached the toast word for word.
+ * named here. Before this, "Missing Custom Shell session" reached the toast
+ * word for word.
  */
 export const getNotificationErrorMessage = createErrorMessage(
   {
     "Missing Custom Shell session": "Please sign in again.",
-    "Not authorized": "You do not have access to that.",
     "Notification not found": "That notification is no longer there.",
     "Invalid notification cursor":
       "We could not load more notifications. Please refresh and try again.",
@@ -141,32 +112,6 @@ const listNotificationsPageFn = createServerFn({ method: "GET" })
   .inputValidator(listNotificationsSchema)
   .handler(async ({ data }): Promise<NotificationListResponse> => {
     return listCurrentUserNotificationPage(data)
-  })
-
-const listAdminNotificationsFn = createServerFn({ method: "GET" })
-  .inputValidator(adminListQuerySchema)
-  .handler(async ({ data }) => {
-    await requireAdminNotificationUser()
-    return listAdminNotificationRows(data)
-  })
-
-/**
- * The admin page's first request, done on the server.
- *
- * Like the Users page, the page size is not passed in: the configured
- * rows-per-page is read here and sent back with the rows, so the table and the
- * footer's "1-10 of N" cannot disagree on first paint.
- */
-const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
-  .inputValidator(adminListQuerySchema.omit({ pageSize: true }))
-  .handler(async ({ data }) => {
-    await requireAdminNotificationUser()
-    const pageSize = await readDashboardRowsPerPage()
-
-    return {
-      ...(await listAdminNotificationRows({ ...data, pageSize })),
-      pageSize,
-    }
   })
 
 /**
@@ -226,30 +171,8 @@ const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(
   }
 )
 
-const deleteAdminNotificationsFn = createServerFn({ method: "POST" })
-  .inputValidator(deleteNotificationsSchema)
-  .handler(async ({ data }): Promise<{ count: number }> => {
-    return deleteAdminNotificationRows(data.notificationIds)
-  })
-
-const clearAdminNotificationsFn = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ count: number }> => {
-    return clearAdminNotificationRows()
-  }
-)
-
 export function listNotificationPage(payload: NotificationListPayload = {}) {
   return listNotificationsPageFn({ data: payload })
-}
-
-export function listAdminNotifications(query: AdminNotificationQueryInput) {
-  return listAdminNotificationsFn({ data: query })
-}
-
-export function loadAdminNotificationsPage(
-  query: Omit<AdminNotificationQueryInput, "pageSize">
-) {
-  return loadAdminNotificationsPageFn({ data: query })
 }
 
 /** Both numbers, despite the name. See the handler above. */
@@ -267,23 +190,4 @@ export function markNotificationRead(notificationId: string) {
 
 export function markAllNotificationsRead() {
   return markAllNotificationsReadFn()
-}
-
-export function deleteAdminNotifications(notificationIds: string[]) {
-  return deleteAdminNotificationsFn({ data: { notificationIds } })
-}
-
-export function clearAdminNotifications() {
-  return clearAdminNotificationsFn()
-}
-
-const sendTestNotificationFn = createServerFn({ method: "POST" }).handler(
-  async (): Promise<{ sent: boolean }> => {
-    return sendCurrentUserTestNotification()
-  }
-)
-
-/** Drops one test notice in the signed-in admin's own bell. */
-export function sendTestNotification() {
-  return sendTestNotificationFn()
 }

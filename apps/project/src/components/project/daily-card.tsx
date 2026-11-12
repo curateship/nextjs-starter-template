@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { burstConfetti } from "@/components/project/confetti"
-import { DailyHabits } from "@/components/project/daily-habits"
+import { DailyHabits, DailyHeader } from "@/components/project/daily-habits"
 import { RateYourDayButton, StartDayButton, TomorrowAtAGlance } from "@/components/project/daily-journal"
 import { DailySection } from "@/components/project/daily-section"
 import { DailySky } from "@/components/project/daily-sky"
@@ -86,12 +86,11 @@ export function DailyCard({
   onCheckIn?: () => void
   onCheckOut?: () => void
   /**
-   * The site admin's Daily card block on their page: the block draws the
-   * card's frame, with the greeting as its heading and the rest as its body
-   * (Tyler, 9 Nov 2026: "this should have the same heading as any block and
-   * the header needs to be collapsible too").
+   * The site admin's Daily habits block on their page: the block draws the
+   * card's frame and heading, and the card's body, which opens with its own
+   * greeting (`DailyHeader`), goes inside it (Tyler, 12 Nov 2026).
    */
-  frame?: (greeting: string, body: React.ReactNode) => React.ReactNode
+  frame?: (body: React.ReactNode) => React.ReactNode
 }) {
   const { nowMs, local, part, weather } = now
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
@@ -104,13 +103,19 @@ export function DailyCard({
   // The date, then today's parts: the same in the panel and in the site admin's block.
   const body = (
     <>
-      {/* The date and weather fold away with the card, so a folded card is the
-          greeting alone (Tyler, 6 Nov 2026: "the date should be inside when
-          collapsed"). */}
-      <p className="pt-0.5 text-sm text-muted-foreground">
-        {fullDayLabel(local.day)}
-        {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
-      </p>
+      {/* The site admin's block opens with the greeting, the weather in words
+          and a ring of the habits done (Tyler, 12 Nov 2026: "revamp daily card ui",
+          from his drawing). An employee's card, whose greeting is its heading,
+          keeps the date and weather, which fold away with it (6 Nov 2026: "the
+          date should be inside when collapsed"). */}
+      {frame && daily.admin ? (
+        <DailyHeader daily={daily} part={part} afterMidnight={isAfterMidnight(local.time, daily.settings.hours)} weather={weather} />
+      ) : (
+        <p className="pt-0.5 text-sm text-muted-foreground">
+          {fullDayLabel(local.day)}
+          {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+        </p>
+      )}
       {/* minmax(0, 1fr): a long task title truncates instead of widening the panel.
           15px apart, the same gutter as the panel's cards below and its edges. */}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75 empty:hidden">
@@ -154,7 +159,7 @@ export function DailyCard({
   if (frame) {
     return (
       <section ref={cardRef} aria-label="Daily card" className="grid min-w-0 grid-cols-[minmax(0,1fr)]">
-        {frame(greeting, body)}
+        {frame(body)}
       </section>
     )
   }

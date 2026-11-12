@@ -1,11 +1,9 @@
 import * as React from "react"
 import { EyeIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { AccountActionDialogs, type AccountAsk } from "@/components/admin-dashboard/account-actions"
 import {
   accountStatusWords,
-  describeDeletion,
   describePaidPlans,
   planCellLabel,
   STANDING_DOT,
@@ -180,18 +178,14 @@ export function UsersTab({
 
   const restoreTicked = () =>
     void runBulk(async () => {
-      const { restored } = await restoreAccountsAsAdmin(tickedLeaving)
-      toast.success(
-        `${restored} ${plural(restored, "account", "accounts")} restored. In-app notices were created and emails were attempted.`
-      )
+      await restoreAccountsAsAdmin(tickedLeaving)
       selection.clear()
       await changed()
     })
 
   const deleteTicked = () =>
     void runBulk(async () => {
-      const result = await deleteAccountsAsAdmin(ticked.map((account) => account.id))
-      toast.success(describeDeletion(result))
+      await deleteAccountsAsAdmin(ticked.map((account) => account.id))
       // One already scheduled for deletion is gone for good now, so if it was
       // open the panel falls back to the first row.
       const goneOpen = ticked.some((account) => account.id === listSearch.open && isPendingDeletion(account))

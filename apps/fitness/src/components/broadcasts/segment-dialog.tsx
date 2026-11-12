@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { Button } from "@/components/ui/button"
@@ -218,7 +217,6 @@ export function SegmentDialog({
         },
         contactIds: kind === "static" ? chosen : [],
       })
-      toast.success(segment ? "Segment saved." : "Segment created.")
       await onSaved(saved.id)
     } catch (error) {
       showErrorToast(getSegmentErrorMessage(error))
@@ -408,7 +406,7 @@ type LiveCountState =
   | { status: "error"; message: string }
 
 /** The draft's current reach, recalculated only after its rules settle. */
-function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
+export function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
   const [attempt, setAttempt] = React.useState(0)
   const [state, setState] = React.useState<LiveCountState>({
     status: "counting",
@@ -455,10 +453,7 @@ function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
         <CardTitle>Live count</CardTitle>
         <CardDescription>
           {state.status === "counting" ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Counting…
-            </span>
+            <span className="sr-only">Counting</span>
           ) : state.status === "error" ? (
             "We could not count these conditions right now."
           ) : state.matching === 0 ? (
@@ -502,10 +497,7 @@ function ChosenPeopleCount({
         <CardTitle>Live count</CardTitle>
         <CardDescription>
           {members.status === "loading" ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Counting…
-            </span>
+            <span className="sr-only">Counting</span>
           ) : members.status === "failed" ? (
             "We could not count who is in this segment right now."
           ) : count ? (
@@ -634,10 +626,7 @@ function ContactPicker({
           ))}
 
           {loading ? (
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2Icon className="size-4 animate-spin" />
-              Looking…
-            </span>
+            <span className="sr-only">Looking</span>
           ) : results.length === 0 ? (
             <span className="text-sm text-muted-foreground">
               Nobody matches that.

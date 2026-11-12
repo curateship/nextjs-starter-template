@@ -57,7 +57,7 @@ function MaintenanceRoute() {
       await stopViewingAsMember()
       // A full load, not a client-side navigation: this page was fetched as the
       // member. Back to the list they started from, as themselves.
-      window.location.href = "/admin/users"
+      window.location.href = "/admin/dashboard?tab=users"
     } catch (error) {
       setBusy(false)
       showErrorToast(getViewAsErrorMessage(error))

@@ -10,6 +10,7 @@ import { PlusIcon } from "lucide-react"
 import { AutomationWaitingTab } from "@/components/automations/automation-waiting-tab"
 import { AutomationsTab, type OpenCanvas } from "@/components/automations/automations-tab"
 import { useCrmFrame } from "@/components/crm/crm-frame"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
 import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import {
@@ -22,6 +23,7 @@ import type { AutomationRunsPage } from "@/lib/api/automations/automation-runs"
 import type { AutomationsPage } from "@/lib/api/automations/automations"
 import {
   AUTOMATION_TAB_LABELS,
+  AUTOMATION_TABS,
   automationTabOf,
   automationTabSearch,
   flowSearch,
@@ -106,6 +108,12 @@ export function AutomationsDashboard({
   }, [loaded, refreshCounts])
 
   const goTo = (next: AutomationsSearch) => void navigate({ to: "/admin/automations", search: next })
+  // The sections the Dashboards block leaves out, and their order, kept with
+  // the site's look and saved as the rest of Settings is, as Admin's are.
+  const { config, onConfigChange } = useShellRuntime()
+  const hiddenSections = (config.styling.hiddenAutomationSections ?? []).filter(
+    (section): section is AutomationTab => (AUTOMATION_TABS as readonly string[]).includes(section)
+  )
   const blocks = {
     tab: loaded.tab,
     onPickTab: (next: AutomationTab) => goTo(automationTabSearch(next)),
@@ -117,6 +125,12 @@ export function AutomationsDashboard({
       }
     },
     counts,
+    hiddenSections,
+    onHiddenSectionsChange: (hidden: AutomationTab[]) =>
+      onConfigChange({ ...config, styling: { ...config.styling, hiddenAutomationSections: hidden } }),
+    sectionOrder: config.styling.automationSectionOrder,
+    onSectionOrderChange: (order: string[]) =>
+      onConfigChange({ ...config, styling: { ...config.styling, automationSectionOrder: order } }),
   }
 
   const { place, frame, setRightSpot } = useCrmFrame<AutomationTab>(loaded.tab)

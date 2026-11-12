@@ -1,12 +1,14 @@
 "use client"
 
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { SettingsIcon } from "lucide-react"
 
 import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
@@ -23,6 +25,8 @@ import {
   type AppQuickSetting,
   type AppQuickSettingProps,
 } from "@/lib/app-options"
+import { renderShellIcon, type ShellTopRightLink } from "@/lib/custom-shell"
+import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 
 const lazyRows = new Map<
   AppQuickSetting["component"],
@@ -58,6 +62,50 @@ function AppQuickSettingRow({
 }
 
 /**
+ * The links an admin put inside the cog, one full-width row each, drawn after
+ * the settings rows. The caller has already dropped the ones this person may
+ * not see. Pressing one closes the panel, since the header stays put while the
+ * page under it changes.
+ */
+function QuickSettingsLinks({
+  links,
+}: {
+  links: readonly ShellTopRightLink[]
+}) {
+  return (
+    <div className="-mx-2 grid gap-0.5">
+      {links.map((link) => {
+        const body = (
+          <>
+            <span className="shrink-0 text-muted-foreground">
+              {renderShellIcon(link.icon, "size-4")}
+            </span>
+            <span className="truncate">{link.label}</span>
+          </>
+        )
+        return (
+          <PopoverClose key={link.id} asChild>
+            <Button
+              asChild
+              variant="ghost"
+              className="h-8 justify-start gap-2 px-2 font-normal"
+            >
+              {isExternalHref(link.href) ? (
+                <a href={link.href} target="_blank" rel="noreferrer">
+                  {body}
+                </a>
+              ) : (
+                <Link {...toLinkProps(link.href)}>{body}</Link>
+              )}
+            </Button>
+          </PopoverClose>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * The cog's rows without the cog: the app's own rows, then colour mode last.
  *
  * On a phone the cog folds into the header's three-dot dropdown along with the
@@ -66,7 +114,13 @@ function AppQuickSettingRow({
  * somebody opened the dropdown for, and there is no line between them because
  * every row already has the same shape.
  */
-export function QuickSettingsRows({ role }: { role: string }) {
+export function QuickSettingsRows({
+  role,
+  links = [],
+}: {
+  role: string
+  links?: readonly ShellTopRightLink[]
+}) {
   const { theme, setTheme } = useTheme()
   const rows = appQuickSettingsForRole(role)
 
@@ -81,13 +135,15 @@ export function QuickSettingsRows({ role }: { role: string }) {
           onChange={(mode) => setTheme(mode)}
         />
       </QuickSettingRow>
+      {links.length ? <QuickSettingsLinks links={links} /> : null}
     </>
   )
 }
 
 /**
- * The cog in the signed-in header: colour mode, and whatever the app running
- * on this shell puts under it.
+ * The cog in the signed-in header: colour mode, whatever the app running on
+ * this shell puts under it, and the links an admin added to the cog in the Top
+ * right menu, last, under a line.
  *
  * **The menu is the shell's and the rows are the app's.** Every app has a
  * colour mode and no two apps have the same switches after that — Trade hides
@@ -104,7 +160,14 @@ export function QuickSettingsRows({ role }: { role: string }) {
  * somebody changes and then looks at, and a menu that closes on the first
  * press would make changing two things two visits.
  */
-export function QuickSettingsMenu({ role }: { role: string }) {
+export function QuickSettingsMenu({
+  role,
+  links = [],
+}: {
+  role: string
+  /** Links set in the Top right menu to sit inside the cog, already filtered. */
+  links?: readonly ShellTopRightLink[]
+}) {
   const { theme, setTheme } = useTheme()
   const rows = appQuickSettingsForRole(role)
 
@@ -139,6 +202,12 @@ export function QuickSettingsMenu({ role }: { role: string }) {
         {rows.map((row) => (
           <AppQuickSettingRow key={row.id} row={row} role={role} />
         ))}
+        {links.length ? (
+          <>
+            <Separator />
+            <QuickSettingsLinks links={links} />
+          </>
+        ) : null}
       </PopoverContent>
     </Popover>
   )

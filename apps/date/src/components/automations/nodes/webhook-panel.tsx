@@ -1,3 +1,4 @@
+import { BracesIcon, SlidersHorizontalIcon } from "lucide-react"
 import {
   InspectorCard,
   InspectorNote,
@@ -26,7 +27,7 @@ export default function WebhookFields({
 
   return (
     <>
-      <InspectorCard title="Settings">
+      <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
         <div className="grid gap-2">
           <FieldLabel
             htmlFor={`webhook-${node.id}-url`}
@@ -72,7 +73,7 @@ export default function WebhookFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="Payload preview">
+      <InspectorCard icon={<BracesIcon />} title="Payload preview">
         <InspectorNote>
           <pre className="font-mono text-[11px] break-all whitespace-pre-wrap text-foreground">
             {JSON.stringify(WEBHOOK_PAYLOAD_PREVIEW, null, 2)}

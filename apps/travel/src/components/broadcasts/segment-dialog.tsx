@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { Button } from "@/components/ui/button"
@@ -218,7 +217,6 @@ export function SegmentDialog({
         },
         contactIds: kind === "static" ? chosen : [],
       })
-      toast.success(segment ? "Segment saved." : "Segment created.")
       await onSaved(saved.id)
     } catch (error) {
       showErrorToast(getSegmentErrorMessage(error))

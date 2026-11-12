@@ -33,7 +33,7 @@ export function MemberSettings({
         storageId: "member-sidebar",
         title: "Member sidebar",
         description:
-          "The links every member sees, in the order you put them. Your own sidebar is on the Platform → Navigation page and is not affected.",
+          "The links every member sees, in the order you put them. Your own sidebar is on the Platform tab and is not affected.",
       }}
       reset={{
         label: "Reset member sidebar",

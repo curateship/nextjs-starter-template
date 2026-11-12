@@ -10,7 +10,6 @@ import {
   Trash2Icon,
   UserIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { AutomationEditor, type EditorPane } from "@/components/automations/automation-editor"
 import { NewAutomationDropdown } from "@/components/automations/new-automation-dropdown"
@@ -51,7 +50,6 @@ import {
 import { compareAutomationSteps } from "@/lib/automations/list-sort"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import { formatInboxTime } from "@/lib/crm/inbox-time"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -234,7 +232,6 @@ export function AutomationsTab({
           item.id === renamed.id ? { ...item, name: renamed.name, updated_at: renamed.updated_at } : item
         )
       )
-      toast.success(`Renamed to "${renamed.name}".`)
       setRenameTarget(null)
     })
   }
@@ -246,7 +243,6 @@ export function AutomationsTab({
       const copy = await duplicateAutomation(automationId)
       dismissErrorToast()
       setAutomations((current) => [toAutomationListItem(copy), ...current])
-      toast.success(`Duplicated as "${copy.name}".`)
       if (openCopy) openCanvas(copy.id)
       void router.invalidate()
     } catch (error) {
@@ -263,7 +259,6 @@ export function AutomationsTab({
     try {
       const { runId } = await runAutomationNow(automation.id)
       dismissErrorToast()
-      toast.success(`Started "${automation.name}".`)
       openCanvas(automation.id, { pane: "runs", run: runId })
     } catch (error) {
       showErrorToast(getAutomationRunErrorMessage(error))
@@ -274,7 +269,7 @@ export function AutomationsTab({
 
   /**
    * Switches one flow's trigger on or off. Nothing is caught up on the way
-   * back on, and the toast says so.
+   * back on.
    */
   const handleToggleLive = async (automation: AutomationListItem, next: boolean) => {
     if (liveId) return
@@ -283,11 +278,6 @@ export function AutomationsTab({
       const saved = await setAutomationLive(automation.id, next)
       dismissErrorToast()
       setAutomations((current) => current.map((item) => (item.id === saved.id ? toAutomationListItem(saved) : item)))
-      toast.success(
-        next
-          ? `"${automation.name}" is on. Its "${saved.trigger_name}" step starts it from now on. Nothing from before is caught up.`
-          : `"${automation.name}" is off. Nothing starts it on its own any more.`
-      )
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
     } finally {
@@ -305,17 +295,8 @@ export function AutomationsTab({
     if (!deleteTargets?.length || deleting) return
     await runDelete(async () => {
       const gone = new Set(deleteTargets.map((item) => item.id))
-      const { count } = await deleteAutomations([...gone])
+      await deleteAutomations([...gone])
       setAutomations((current) => current.filter((item) => !gone.has(item.id)))
-      toast.success(
-        describeBulkResult({
-          done: count,
-          kept: gone.size - count,
-          one: "automation",
-          many: "automations",
-          verb: "deleted",
-        })
-      )
       selection.clear()
       setDeleteTargets(null)
       // Deleted from its own canvas, or the picked line: back to the table.
@@ -354,7 +335,6 @@ export function AutomationsTab({
         <TestWithContactDialog
           open
           automationId={testTarget.id}
-          automationName={testTarget.name}
           onOpenChange={(open) => {
             if (!open) setTestTarget(null)
           }}

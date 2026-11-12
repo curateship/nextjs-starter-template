@@ -123,15 +123,6 @@ const segmentConditionSchema = z.discriminatedUnion("type", [
     emails: z.number().int().min(1).max(MAX_RULE_EMAILS),
   }),
   z.object({
-    type: z.literal("account"),
-    operator: z.enum(["has", "hasnt"]),
-  }),
-  z.object({
-    type: z.literal("plan"),
-    operator: z.enum(["is", "isnt"]),
-    planSlug: z.string().trim().min(1).max(50),
-  }),
-  z.object({
     type: z.literal("in"),
     segmentIds: z.array(z.string().min(1).max(36)).min(1).max(25),
   }),
@@ -217,7 +208,8 @@ export function parseSegmentRules(value: unknown): SegmentRules {
 
 /**
  * The real things a rule may name, so the builder can only ever offer tags,
- * sources, plans and segments that exist.
+ * sources and segments that exist. No rule names an account or a plan: the
+ * subscriber list holds no accounts (Tyler, 9 Nov 2026; migration 0111).
  *
  * Both screens that build rules — the segment window and the contacts list's
  * filters — are handed this same shape by their loader.
@@ -225,7 +217,6 @@ export function parseSegmentRules(value: unknown): SegmentRules {
 export type SegmentRuleOptions = {
   tags: string[]
   sources: string[]
-  plans: { slug: string; name: string }[]
   segments: { id: string; name: string }[]
 }
 
@@ -255,8 +246,6 @@ export const segmentConditionLabels: Record<SegmentConditionType, string> = {
   emailed: "When they were last emailed",
   engaged: "When they last opened or clicked",
   opened: "Opens in their last few emails",
-  account: "Has an account",
-  plan: "Plan",
   in: "In another segment",
   notIn: "Not in another segment",
 }
@@ -285,25 +274,6 @@ export const segmentStatusDotClassName: Record<ContactSegmentStatus, string> = {
   bounced: "bg-destructive",
   complained: "bg-destructive",
   cold: "bg-amber-500 dark:bg-amber-400",
-}
-
-/**
- * What to say after somebody's status was set by hand.
- *
- * A sentence each rather than "is now " plus the label, because the labels are
- * not written to finish that sentence: "is now marked it spam" is not English,
- * and a message an admin has to re-read is worse than no message.
- *
- * `%s` is the address, and callers substitute it with a function rather than a
- * string — a `$` in a local part is legal, and `String.replace` reads `$&` and
- * friends in a string replacement as instructions.
- */
-export const segmentStatusSaidDone: Record<ContactSegmentStatus, string> = {
-  subscribed: "%s is back on the list.",
-  unsubscribed: "%s will not get any more.",
-  bounced: "%s is marked as bouncing.",
-  complained: "%s is marked as having reported spam.",
-  cold: "%s is marked as gone quiet.",
 }
 
 /**
@@ -348,10 +318,6 @@ export function newSegmentCondition(
       // last 7" and "has gone quiet" agree out of the box instead of being two
       // nearly-identical groups.
       return { type: "opened", operator: "hasnt", emails: 7 }
-    case "account":
-      return { type: "account", operator: "has" }
-    case "plan":
-      return { type: "plan", operator: "is", planSlug: "" }
     case "in":
       return { type: "in", segmentIds: [] }
     case "notIn":
@@ -409,14 +375,6 @@ export function describeSegmentCondition(
       return condition.operator === "has"
         ? `opened one of their last ${condition.emails} emails`
         : `opened none of their last ${condition.emails} emails`
-    case "account":
-      return condition.operator === "has"
-        ? "has an account"
-        : "has no account"
-    case "plan":
-      return condition.operator === "is"
-        ? `on the ${condition.planSlug} plan`
-        : `not on the ${condition.planSlug} plan`
     case "in":
       return `in ${condition.segmentIds
         .map((id) => segmentNames[id] ?? "a deleted segment")
@@ -447,7 +405,7 @@ export function describeSegmentRules(
 /**
  * Whether a condition is finished enough to save.
  *
- * The builder starts a tag, source, plan or segment-reference row empty, and
+ * The builder starts a tag, source or segment-reference row empty, and
  * an empty one would either match nobody or — worse — quietly drop out and
  * widen the segment. Saying so before the save is the only place this can be
  * caught while the words are still on screen.
@@ -458,8 +416,6 @@ export function segmentConditionIsComplete(condition: SegmentCondition) {
       return condition.tags.length > 0
     case "source":
       return condition.source.trim().length > 0
-    case "plan":
-      return condition.planSlug.trim().length > 0
     case "in":
     case "notIn":
       return condition.segmentIds.length > 0

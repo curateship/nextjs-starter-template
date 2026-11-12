@@ -54,7 +54,8 @@ Daily card", and that file wins wherever the two disagree.
   card. A night habit ticked at 1 AM counts for the evening before, and
   Rate day pressed at 12:30 AM lands on that evening too. Tasks and meetings
   still use the calendar day.
-- **The greeting.** "Good morning Tyler, it's Thursday", then "Good afternoon
+- **The greeting** on an employee's card. (The site admin's block has its
+  own top; see [Routines](#routines).) "Good morning Tyler, it's Thursday", then "Good afternoon
   Tyler", then "Good evening Tyler, time to wind down". After midnight it
   reads "Still up Tyler? Time to rest". It uses the first name only, and
   leaves the name out when there is none.
@@ -105,6 +106,39 @@ a team screen or sent to anyone.
 
 ### Routines
 
+The site admin's Daily habits block is drawn from Tyler's picture of 12 Nov
+2026 ("revamp daily card ui",
+`assets/pasted-image-1794494843622900000.png`), where it differs from what
+follows, the picture wins:
+
+- **The top:** "Good morning, Tyler" at 14px, 30% under the picture's 20px
+  ("Good afternoon", "Good evening", or "Still up, Tyler?" after midnight),
+  and on the right a ring filling as today's habits are done, "2/4" inside
+  it and a dot at its filled end. There is no "4 habits left for Thursday"
+  line (Tyler, the same day: "reduce the greeting text font by 30%. Remove
+  "4 habits left for Thursday""). It takes the place of the greeting line
+  and the date.
+- **The sub greeting** under it is the weather in words, "23°C with clear
+  blue sky" (Tyler, 12 Nov 2026: "Add a sub greeting here that discribe the
+  weather"): "clear night sky" at night, then "a few clouds", "cloudy
+  skies", "fog", "light drizzle", "rain", "snow" or "thunderstorms". It needs
+  a city in My settings → General → City for the weather, and shows nothing
+  until one is set or while the weather service doesn't answer.
+- **Each part** of the day is named in small capitals, "MORNING", with the
+  hour it starts in Your hours on the right, "5:00 AM". Every part has its
+  name, morning's too.
+- **Each habit** is a row: its icon on a grey tile, its name, and under it
+  "6-day streak" or "Start a streak today" (and its time, if it has one),
+  with its tick box on the right.
+- **A counted habit** shows a row of dashes under its name, one per count up
+  to 10, filling as it counts, then "0/4". On the right are − and +, which
+  count down and up; they are never greyed out, and do nothing past 0 or
+  the number. It has no tick box. A unit such as "glasses" isn't shown,
+  since a habit has no unit to show.
+- **What went:** the orange streak chip, the tick box on a counted habit and
+  the section's fold, as the picture has none of them.
+
+
 - **Three lists of habits: morning, afternoon and night.** The card's habits
   section shows every habit set for today at any time of day, morning's
   first, then afternoon's and night's ("show all habits and not just morning
@@ -112,8 +146,11 @@ a team screen or sent to anyone.
   part, "Morning", rather than "Today's habits", and afternoon's and night's
   habits start under a small "Afternoon" or "Night" label ("Add afternoon and
   night label to separate them ... dont need morning", then "Change the
-  "Today's habit" to "Morning""). In a narrow left panel a habit's name
-  keeps room for a few words and its streak chip, count and "+" drop to the
+  "Today's habit" to "Morning""). A counted habit's "0 of 4" and "+" follow
+  its name on the left rather than sitting at the row's far end (Tyler, 12
+  Nov 2026: "align the habit checks to left"); the streak chip stays at the
+  end. In a narrow left panel, when a habit's name and its count don't fit
+  on one line, the count and "+" drop to the
   next line, the way the project page's left panel wraps rather than cutting
   things off ("The project dashboard doesnt have this problem. Why dont you
   copy project dashboard pattern"). That first name is written like the labels,
@@ -130,10 +167,10 @@ a team screen or sent to anyone.
   beside the label"). An employee, with no habits, sets them under Your hours
   in My settings → General.
 - **Habits you count.** A habit can have a number, such as 8 glasses of
-  water. Plus counts up, and the habit is done at its number. It has a tick
-  box too: ticking it fills the whole count, and unticking empties it, which
-  is how a count goes down; there is no minus ("remove this") ("Add a checkbox even for habit with amounts ... if I
-  check the box then it checks all the whole amount").
+  water. + counts up, − counts down, and the habit is done at its number.
+  Until 12 Nov 2026 it had a tick box that filled or emptied the count and no
+  minus ("remove this"); the picture of that day brought − back and took the
+  tick box off.
 - **Days and times.** A habit can repeat on chosen weekdays only, such as the
   gym on Monday, Wednesday and Friday. On other days it doesn't show and
   doesn't count. A habit can carry a time, "Stretch at 3 PM", and habits
@@ -178,11 +215,10 @@ a team screen or sent to anyone.
   ticked. Tasks don't count. A day with no habits set doesn't count either
   way. The count feeds the milestones but is not written on the card (Tyler,
   31 Oct 2026: "remove this text").
-- **Each habit's streak** counts only the days it is set for. It is an orange
-  chip at the end of the habit's row, "2 days streak" (Tyler, 30 Oct 2026:
-  "put the streak here and make it chip styling and call it like "2 days
-  streak""). Nothing shows while the streak is at nothing; the best streak is
-  kept but no longer shown on the card.
+- **Each habit's streak** counts only the days it is set for. It shows under
+  the habit's name, "6-day streak", or "Start a streak today" while it is at
+  nothing (12 Nov 2026; until then an orange chip, "2 days streak"). The best
+  streak is kept but not shown on the card.
 - **Grace.** One missed day per Monday-to-Sunday week keeps a streak going and
   adds nothing to it. A second miss in the same week breaks it.
 - **Days off pause streaks.** A day off is skipped, never counted as a miss.

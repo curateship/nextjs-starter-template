@@ -7,7 +7,7 @@ import { saveAdminPage } from "@/lib/api/project/admin-dashboard"
 import { saveProject } from "@/lib/api/project/projects"
 import { saveTeamPage } from "@/lib/api/project/teams"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import type { NoteNode } from "@/lib/project/note-blocks"
+import { noteIsEmpty, type NoteNode } from "@/lib/project/note-blocks"
 import { notesForEditor, readTaskNotes, storedTaskNotes, taskNotesAreEmpty } from "@/lib/project/notes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -32,12 +32,11 @@ const PAGE_BLOCK_STYLES = `
   [data-page-notes] > .grid { gap: 0; }
   [data-page-notes] > .grid > :not([data-note-block]) + [data-note-block],
   [data-page-notes] > .grid > [data-note-block] + :not([data-note-block]) { margin-top: 15px; }
-  /* The last block reaching the panel's bottom (block-heights.ts), as on
-     Trade's page: no margin under it, and the editor's empty last line
-     takes no room. */
+  /* The last block reaching the panel's bottom (block-heights.ts) stops
+     above the editor's empty last line, which stays a line to click and
+     write on (Tyler, 12 Nov 2026: "I cant click under the left card bottom
+     to enter to editior"), unlike Trade's page, which takes it away. */
   [data-page-notes] .tiptap [data-note-block]:has(.project-block-fills) { margin-bottom: 0; }
-  [data-page-notes] .tiptap:has(.project-block-fills) > p:last-child:has(> br.ProseMirror-trailingBreak:only-child) { height: 0; margin: 0; overflow: hidden; }
-  [data-page-notes] .tiptap:has(.project-block-fills) { padding-bottom: 0 !important; }
   /* Panel cards -> Opacity on a page read rather than written (locked, or
      not the reader's to change): theme.css finds the first block inside the
      editor only, so the reader's first block gets the same rule. */
@@ -59,6 +58,22 @@ const PAGE_BLOCK_STYLES = `
     );
   }
 `
+
+/**
+ * A page read only, less the empty lines at its very top and bottom. Read,
+ * they draw nothing but space: one above the first block left a white gap
+ * under the panel's header and kept that block from being the page's first,
+ * so Panel cards → Opacity missed it (Tyler, 12 Nov 2026: "theres a white gap
+ * here", "the header is not wired to the panel card setting"). The editor
+ * keeps them, so they are still there to write on once the page is unlocked.
+ */
+function withoutEmptyEdges(body: NoteNode): NoteNode {
+  const content = [...(body.content ?? [])]
+  const blank = (node: NoteNode | undefined) => node?.type === "paragraph" && noteIsEmpty(node)
+  while (blank(content[0])) content.shift()
+  while (blank(content.at(-1))) content.pop()
+  return { ...body, content }
+}
 
 /** A pause in typing this long saves (UI standard, "Settings"). */
 const TYPING_SAVE_MS = 700
@@ -263,7 +278,7 @@ export function PageNoteEditor({
     return (
       <div data-page-notes="">
         <style>{PAGE_BLOCK_STYLES}</style>
-        <NoteView setup={setup} body={notesForEditor(read)} />
+        <NoteView setup={setup} body={withoutEmptyEdges(notesForEditor(read))} />
       </div>
     )
   }

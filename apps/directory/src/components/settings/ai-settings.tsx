@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SecretKeyField } from "@/components/settings/secret-key-field"
@@ -137,14 +136,13 @@ export function AiSettings() {
     }
   }
 
-  const remove = async (provider: AiProvider, name: string) => {
+  const remove = async (provider: AiProvider) => {
     setRunningId(`${provider}:remove`)
     dismissErrorToast()
     setTestResults((prev) => ({ ...prev, [provider]: "" }))
     try {
       loaded.setData(await removeAiProviderKey(provider))
       setRemoving(null)
-      toast.success(`${name} key removed.`)
     } catch (error) {
       showErrorToast(getAiErrorMessage(error))
     } finally {
@@ -238,7 +236,7 @@ export function AiSettings() {
         confirmLabel="Remove key"
         loading={runningId === `${removing}:remove`}
         onConfirm={() => {
-          if (removing) void remove(removing, removingName)
+          if (removing) void remove(removing)
         }}
       />
     </>

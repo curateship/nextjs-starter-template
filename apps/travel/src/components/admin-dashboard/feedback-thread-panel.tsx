@@ -1,6 +1,5 @@
 import * as React from "react"
 import { GitMergeIcon, MessageSquareTextIcon, SettingsIcon, SquareMousePointerIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { MenuActionRow } from "@/components/admin-dashboard/list-parts"
 import { Chip } from "@/components/crm/crm-table"
@@ -124,7 +123,7 @@ function OpenThread({
       setReplies((current) => (current ?? []).filter((reply) => reply.id !== target.id))
       onRepliesChange(feedback.id, -1)
       setDeleteTarget(null)
-    }, "Reply deleted.")
+    })
   }
 
   const line = [
@@ -336,7 +335,6 @@ function ReplyBox({ feedbackId, onSent }: { feedbackId: string; onSent: (reply: 
     try {
       const reply = await createFeedbackComment({ feedbackId, message })
       setText("")
-      toast.success("Reply sent.")
       onSent(reply)
     } catch (error) {
       showErrorToast(getFeedbackErrorMessage(error))
