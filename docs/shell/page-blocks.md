@@ -76,6 +76,9 @@ All of them are in `src/components/shared/notes/`, with their rules in
   section, names grey and the picked one dark, a count in the lightest grey
   pill, and a small bar that grows in before the picked name over 220ms, the
   section switching once it has grown.
+  Each row is 34px tall, 2px apart, so 16px sits between one name and the
+  next (Tyler, 11 Nov 2026: "decrease the gap between the items by 10%", from
+  18px).
 - **A block's ⋮ rows.** `useBlockMenu` puts a panel's rows above Delete
   block. A row can keep the menu open (`keepOpen`), grey its name (`muted`)
   and end with an icon (`end`), which is how the Admin Dashboards block's
@@ -83,6 +86,15 @@ All of them are in `src/components/shared/notes/`, with their rules in
   (Tyler, 9 Nov 2026). The block heading has 14px at its right, so its ⋮'s
   dots sit under the panel header's ⋮ when the block reaches the panel's
   edges.
+- **Every Dashboards block's ⋮** lists its sections with an eye that hides or
+  shows each, and each row drags into a new order (`sortKey` on the row,
+  `onReorder` to `useBlockMenu`). Admin and the CRM keep theirs in the site's
+  styling (`hiddenAdminSections`, `adminSectionOrder`, `hiddenCrmSections`,
+  `crmSectionOrder`), and the Automations dashboard in
+  `hiddenAutomationSections` and `automationSectionOrder` (Tyler, 11 Nov 2026:
+  "add this same feature for all apps that has dashboards block"). Overview,
+  where a dashboard has one, stays first and is never hidden. The section
+  showing keeps its row until another is picked.
 - **A ⋮ menu's footer.** A `TabbedMenu` tab can have a `footer`, drawn under
   a line across the menu and kept in view when the rows scroll: one
   `MenuFooterButton`, a full-width row with its icon. Lock blocks (`LockRow`)

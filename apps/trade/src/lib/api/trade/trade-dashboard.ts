@@ -16,6 +16,7 @@ import {
 import {
   loadTradeDashboardStart,
   saveHiddenProtocols,
+  saveProtocolOrder,
   saveHideEmptyBlocks,
   saveTradeDashboardView,
 } from "@/server/trade/prefs"
@@ -67,6 +68,20 @@ const saveHiddenFn = createServerFn({ method: "POST" })
 /** The exchanges hidden from the Protocols block, answered as stored. */
 export function saveHiddenDashboardProtocols(hidden: readonly ProtocolId[]) {
   return saveHiddenFn({ data: { hidden: [...hidden] } })
+}
+
+const orderSchema = z.object({
+  order: z.array(z.enum(DASHBOARD_PROTOCOLS as [ProtocolId, ...ProtocolId[]])).max(DASHBOARD_PROTOCOLS.length),
+})
+
+const saveOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(orderSchema)
+  .handler(({ context, data }) => saveProtocolOrder(context.user.id, data.order))
+
+/** The Protocols block's order, dragged in its ⋮, answered as stored. */
+export function saveDashboardProtocolOrder(order: readonly ProtocolId[]) {
+  return saveOrderFn({ data: { order: [...order] } })
 }
 
 const saveHideEmptyFn = createServerFn({ method: "POST" })

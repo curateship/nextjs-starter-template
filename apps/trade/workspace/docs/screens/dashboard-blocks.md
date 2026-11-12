@@ -138,6 +138,14 @@ market ticker on the middle tab." The task is
   and the menu stays open for the next. The eyes work on a locked page too;
   only the moves need it unlocked. Hiding the exchange on screen keeps its
   row until another row is picked.
+- **Ordering the exchanges:** each row in the ⋮ has a grip and drags into a
+  new place, by the grip or the name (Tyler, 11 Nov 2026: "add ability to
+  drag and drop order for trade dashboard"). The block's rows follow that
+  order, Overview always first. A move of 6px or more is a drag, so a drag
+  never flips the eye. Saved at once on the account
+  (`trade_prefs.protocol_order`, migration 0249). An exchange added later goes
+  at the end (`readProtocolOrder` in `src/lib/trade/dashboard-view.ts`). The
+  grips work on a locked page too.
 - **Names fit.** The name takes the room the count leaves and shortens only
   when there is none, so at the left panel's narrowest every name shows in
   full, "Robinhood Chain" included.

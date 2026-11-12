@@ -281,6 +281,8 @@ const shellStylingSchema = z.object({
   hiddenCrmSections: z.array(z.string().min(1).max(40)).max(20).optional(),
   adminSectionOrder: z.array(z.string().min(1).max(40)).max(20).optional(),
   crmSectionOrder: z.array(z.string().min(1).max(40)).max(20).optional(),
+  hiddenAutomationSections: z.array(z.string().min(1).max(40)).max(20).optional(),
+  automationSectionOrder: z.array(z.string().min(1).max(40)).max(20).optional(),
   hiddenLeadStages: z.array(z.string().min(1).max(40)).max(20).optional(),
   widgetRadius: z.number().int().min(0).max(32).optional(),
   widgetShade: z.number().int().min(0).max(100).optional(),

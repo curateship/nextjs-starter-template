@@ -92,3 +92,25 @@ export function botsRecordSearch(view: Exclude<BotsView, "overview">, id: string
 export function botsRecordHref(view: Exclude<BotsView, "overview">, id: string) {
   return `/bots?view=${view}&open=${encodeURIComponent(id)}&full=1`
 }
+
+/** The Bots Dashboards block's sections an admin hid or ordered in its ⋮. */
+export type BotsSections = {
+  /** Never Overview, which is where the dashboard starts. */
+  hidden: Exclude<BotsView, "overview">[]
+  /** Every section, Overview first, then in the order dragged. */
+  order: BotsView[]
+}
+
+/**
+ * Stored lists, cleaned: known sections only, once each, Overview never
+ * hidden and always first, and a section the order does not name after the
+ * named ones in the block's own order.
+ */
+export function readBotsSections(hidden: unknown, order: unknown): BotsSections {
+  const rest = BOTS_VIEWS.filter((view): view is Exclude<BotsView, "overview"> => view !== "overview")
+  const named = Array.isArray(order) ? [...new Set(order)].filter((view): view is Exclude<BotsView, "overview"> => (rest as readonly unknown[]).includes(view)) : []
+  return {
+    hidden: Array.isArray(hidden) ? rest.filter((view) => hidden.includes(view)) : [],
+    order: ["overview", ...named, ...rest.filter((view) => !named.includes(view))],
+  }
+}

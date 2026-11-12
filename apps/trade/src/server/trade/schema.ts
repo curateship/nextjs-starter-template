@@ -220,6 +220,18 @@ export const tradePrefs = pgTable("trade_prefs", {
    */
   botsWidgets: jsonb("bots_widgets").$type<WidgetLayout>(),
   /**
+   * The Bots dashboard's Dashboards block, from its ⋮: the sections it leaves
+   * out, and their order. Read through `readBotsSections`.
+   */
+  hiddenBotsSections: jsonb("hidden_bots_sections")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  botsSectionOrder: jsonb("bots_section_order")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /**
    * The Protocols block's row picked last ("overview" or an exchange's id),
    * so a bare `/trade` opens on it, and the exchange picked last, whose
    * blocks the left page keeps showing while Overview is open.
@@ -228,6 +240,14 @@ export const tradePrefs = pgTable("trade_prefs", {
   dashboardProtocol: varchar("dashboard_protocol", { length: 20 }),
   /** The exchanges hidden from the Protocols block, from the left page's ⋮. */
   hiddenProtocols: jsonb("hidden_protocols")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /**
+   * The order of the exchanges in the Protocols block, dragged in its ⋮.
+   * Empty keeps the block's own order. Read through `readProtocolOrder`.
+   */
+  protocolOrder: jsonb("protocol_order")
     .$type<string[]>()
     .notNull()
     .default([]),

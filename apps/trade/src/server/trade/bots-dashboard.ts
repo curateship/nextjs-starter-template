@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 
 import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import { readBotsSections, type BotsSections } from "@/lib/bots/bots-search"
 import { readBotsWidgetLayout } from "@/lib/bots/bots-widgets"
 import { buildTradingOverviewBots, type TradingOverviewBot } from "@/lib/trade/dashboard/overview"
 import { db } from "@/server/trade/db"
@@ -57,4 +58,34 @@ export async function saveBotsWidgets(userId: string, value: unknown): Promise<W
     .values({ userId, botsWidgets, updatedAt: new Date() })
     .onConflictDoUpdate({ target: tradePrefs.userId, set: { botsWidgets, updatedAt: new Date() } })
   return botsWidgets
+}
+
+/** The Dashboards block's hidden sections and order, for this admin. */
+export async function loadBotsSections(userId: string): Promise<BotsSections> {
+  const [row] = await db
+    .select({ hidden: tradePrefs.hiddenBotsSections, order: tradePrefs.botsSectionOrder })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readBotsSections(row?.hidden, row?.order)
+}
+
+/** The sections hidden from the Dashboards block, cleaned, answered as stored. */
+export async function saveBotsHiddenSections(userId: string, value: unknown): Promise<BotsSections["hidden"]> {
+  const hiddenBotsSections = readBotsSections(value, []).hidden
+  await db
+    .insert(tradePrefs)
+    .values({ userId, hiddenBotsSections, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: tradePrefs.userId, set: { hiddenBotsSections, updatedAt: new Date() } })
+  return hiddenBotsSections
+}
+
+/** The Dashboards block's order, made whole, answered as stored. */
+export async function saveBotsSectionOrder(userId: string, value: unknown): Promise<BotsSections["order"]> {
+  const botsSectionOrder = readBotsSections([], value).order
+  await db
+    .insert(tradePrefs)
+    .values({ userId, botsSectionOrder, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: tradePrefs.userId, set: { botsSectionOrder, updatedAt: new Date() } })
+  return botsSectionOrder
 }

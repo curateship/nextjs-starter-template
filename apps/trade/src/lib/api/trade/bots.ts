@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { BOTS_PAGE_LOCKED, BOTS_PAGE_TOO_LONG } from "@/lib/bots/bots-page"
+import { BOTS_VIEWS, type BotsView } from "@/lib/bots/bots-search"
 import { BOTS_WIDGET_IDS } from "@/lib/bots/bots-widgets"
 import { PAGE_MAX_LENGTH, type StoredPage } from "@/lib/notes/page-body"
 import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
@@ -11,6 +12,9 @@ import { adminGet, adminPost } from "@/server/guards"
 import {
   loadBotsOverview,
   loadBotsSectionCounts,
+  loadBotsSections as loadSections,
+  saveBotsHiddenSections,
+  saveBotsSectionOrder,
   loadBotsWidgets,
   saveBotsWidgets,
   type BotsSectionCounts,
@@ -107,6 +111,33 @@ export function loadBotsWidgetLayout() {
 }
 export function saveBotsWidgetLayout(layout: WidgetLayout) {
   return saveLayoutFn({ data: layout })
+}
+
+const loadSectionsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(({ context }) => loadSections(context.user.id))
+
+const section = z.enum(BOTS_VIEWS)
+
+const saveHiddenSectionsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ hidden: z.array(section).max(BOTS_VIEWS.length) }))
+  .handler(({ context, data }) => saveBotsHiddenSections(context.user.id, data.hidden))
+
+const saveSectionOrderFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ order: z.array(section).max(BOTS_VIEWS.length) }))
+  .handler(({ context, data }) => saveBotsSectionOrder(context.user.id, data.order))
+
+/** The Dashboards block's hidden sections and order, this admin's own. */
+export function loadBotsSections() {
+  return loadSectionsFn()
+}
+export function saveBotsHiddenSectionList(hidden: readonly BotsView[]) {
+  return saveHiddenSectionsFn({ data: { hidden: [...hidden] } })
+}
+export function saveBotsSectionOrderList(order: readonly BotsView[]) {
+  return saveSectionOrderFn({ data: { order: [...order] } })
 }
 
 export const getBotsErrorMessage = createErrorMessage(

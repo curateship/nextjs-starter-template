@@ -136,3 +136,17 @@ describe("the Sidebar & Top navigation border shade", () => {
     expect(vars["--border"]).not.toBe(vars["--sidebar-border"])
   })
 })
+
+describe("the Automations Dashboards block's ⋮", () => {
+  it("keeps its hidden sections and order, cleaned, and leaves them unset when never saved", () => {
+    const base = createDefaultStyling()
+    expect(normalizeStyling(base).automationSectionOrder).toBeUndefined()
+    const styling = normalizeStyling({
+      ...base,
+      hiddenAutomationSections: ["waiting", "waiting", 3],
+      automationSectionOrder: ["waiting", "automations"],
+    })
+    expect(styling.hiddenAutomationSections).toEqual(["waiting"])
+    expect(styling.automationSectionOrder).toEqual(["waiting", "automations"])
+  })
+})

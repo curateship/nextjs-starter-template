@@ -79,13 +79,31 @@ export function dashboardNetwork(protocol: ProtocolId, search: TradeDashboardSea
 export const FIRST_DASHBOARD_PROTOCOL: ProtocolId = DASHBOARD_PROTOCOLS[0]
 
 /**
- * The exchanges the Protocols block lists: every one, in order, less those
- * hidden in the left page's ⋮ (Tyler, 8 Nov 2026: "Pick in the ⋮"). The
+ * The exchanges the Protocols block lists: every one, in the order dragged in
+ * its ⋮, less those hidden there (Tyler, 8 Nov 2026: "Pick in the ⋮"). The
  * exchange on screen always stays, so hiding it never leaves the page
  * showing a row that is not there.
  */
-export function shownProtocols(hidden: readonly ProtocolId[], showing: ProtocolId | null): ProtocolId[] {
-  return DASHBOARD_PROTOCOLS.filter((id) => id === showing || !hidden.includes(id))
+export function shownProtocols(
+  hidden: readonly ProtocolId[],
+  showing: ProtocolId | null,
+  order: readonly ProtocolId[] = DASHBOARD_PROTOCOLS
+): ProtocolId[] {
+  return readProtocolOrder(order).filter((id) => id === showing || !hidden.includes(id))
+}
+
+/**
+ * A stored order of exchanges, made whole: known ids once each in the order
+ * saved, then any exchange the order does not name in the block's own order,
+ * so an exchange added later still shows. Nothing saved is the block's order.
+ */
+export function readProtocolOrder(value: unknown): ProtocolId[] {
+  const saved = Array.isArray(value)
+    ? DASHBOARD_PROTOCOLS.filter((id) => value.includes(id)).sort(
+        (a, b) => value.indexOf(a) - value.indexOf(b)
+      )
+    : []
+  return [...saved, ...DASHBOARD_PROTOCOLS.filter((id) => !saved.includes(id))]
 }
 
 /** A stored list of hidden exchanges, cleaned: known ids only, once each, in the block's order. */

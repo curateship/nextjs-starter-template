@@ -10,6 +10,7 @@ import {
   isDashboardView,
   OVERVIEW_VIEW,
   readHiddenProtocols,
+  readProtocolOrder,
   type DashboardView,
 } from "@/lib/trade/dashboard-view"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
@@ -440,6 +441,8 @@ export type TradeDashboardStart = {
   view: DashboardView | null
   protocol: ProtocolId | null
   hiddenProtocols: ProtocolId[]
+  /** Every exchange, in the order dragged in the block's ⋮. */
+  protocolOrder: ProtocolId[]
   /** "Hide empty blocks", off until switched on. */
   hideEmptyBlocks: boolean
 }
@@ -452,6 +455,7 @@ export async function loadTradeDashboardStart(
       view: tradePrefs.dashboardView,
       protocol: tradePrefs.dashboardProtocol,
       hidden: tradePrefs.hiddenProtocols,
+      order: tradePrefs.protocolOrder,
       hideEmptyBlocks: tradePrefs.hideEmptyBlocks,
     })
     .from(tradePrefs)
@@ -461,6 +465,7 @@ export async function loadTradeDashboardStart(
     view: isDashboardView(row?.view) ? row.view : null,
     protocol: row?.protocol && hasDashboard(row.protocol) ? row.protocol : null,
     hiddenProtocols: readHiddenProtocols(row?.hidden),
+    protocolOrder: readProtocolOrder(row?.order),
     hideEmptyBlocks: row?.hideEmptyBlocks ?? false,
   }
 }
@@ -521,6 +526,22 @@ export async function saveHiddenProtocols(
       set: { hiddenProtocols, updatedAt: new Date() },
     })
   return hiddenProtocols
+}
+
+/** The Protocols block's order, made whole, answered as stored. */
+export async function saveProtocolOrder(
+  userId: string,
+  value: unknown
+): Promise<ProtocolId[]> {
+  const protocolOrder = readProtocolOrder(value)
+  await db
+    .insert(tradePrefs)
+    .values({ userId, protocolOrder, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { protocolOrder, updatedAt: new Date() },
+    })
+  return protocolOrder
 }
 
 /**

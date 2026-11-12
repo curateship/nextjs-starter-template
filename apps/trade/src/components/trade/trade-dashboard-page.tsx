@@ -45,6 +45,7 @@ import {
   getTradeDashboardErrorMessage,
   loadHiddenTradeBlockColumns,
   loadTradeDashboardStartRead,
+  saveDashboardProtocolOrder,
   saveDashboardView,
   saveHiddenDashboardProtocols,
   saveHiddenTradeBlockColumns,
@@ -240,6 +241,7 @@ const NOTHING_SAVED: TradeDashboardStart = {
   view: null,
   protocol: null,
   hiddenProtocols: [],
+  protocolOrder: [...DASHBOARD_PROTOCOLS],
   hideEmptyBlocks: false,
 }
 
@@ -296,6 +298,22 @@ export function TradeDashboard() {
         storedHidden.current = await saveHiddenDashboardProtocols(next)
       } catch (error) {
         setHidden(storedHidden.current)
+        showErrorToast(getTradeDashboardErrorMessage(error))
+      }
+    })
+  }, [])
+
+  // ----- The Protocols block's order, dragged in its ⋮, saved in turn -----
+  const [order, setOrder] = React.useState<ProtocolId[]>(start.protocolOrder)
+  const storedOrder = React.useRef(start.protocolOrder)
+  const orderQueue = React.useRef<Promise<void>>(Promise.resolve())
+  const changeOrder = React.useCallback((next: ProtocolId[]) => {
+    setOrder(next)
+    orderQueue.current = orderQueue.current.then(async () => {
+      try {
+        storedOrder.current = await saveDashboardProtocolOrder(next)
+      } catch (error) {
+        setOrder(storedOrder.current)
         showErrorToast(getTradeDashboardErrorMessage(error))
       }
     })
@@ -370,7 +388,7 @@ export function TradeDashboard() {
   const protocolsBlock = (
     <ProtocolsRows
       view={view}
-      protocols={shownProtocols(hidden, exchangeShown)}
+      protocols={shownProtocols(hidden, exchangeShown, order)}
       widgets={widgets.layout ? widgetsShown(widgets.layout) : null}
       counts={counts}
       onPick={pick}
@@ -379,9 +397,10 @@ export function TradeDashboard() {
 
   const protocolsMenu = (
     <ProtocolsMenuRows
-      all={DASHBOARD_PROTOCOLS}
+      all={order}
       hidden={hidden}
       onHiddenChange={changeHidden}
+      onOrderChange={changeOrder}
     />
   )
 

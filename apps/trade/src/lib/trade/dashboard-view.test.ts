@@ -4,6 +4,7 @@ import { DASHBOARD_PROTOCOLS, marketChartHref } from "@/lib/protocols/contracts"
 import {
   dashboardNetwork,
   readHiddenProtocols,
+  readProtocolOrder,
   readTradeDashboardSearch,
   shownProtocols,
   viewFromSearch,
@@ -55,5 +56,17 @@ describe("the Protocols block's rows", () => {
   it("cleans a stored list to known exchanges, once each, in the block's order", () => {
     expect(readHiddenProtocols(["kucoin", "x", "phemex", "kucoin"])).toEqual(["phemex", "kucoin"])
     expect(readHiddenProtocols("phemex")).toEqual([])
+  })
+
+  it("lists them in the order dragged, still leaving out the hidden ones", () => {
+    const order = readProtocolOrder(["aster", "kucoin"])
+    expect(shownProtocols(["kucoin"], null, order).slice(0, 2)).toEqual(["aster", DASHBOARD_PROTOCOLS[0]])
+  })
+
+  it("makes a stored order whole: saved ones first, then the rest in the block's order", () => {
+    const order = readProtocolOrder(["kucoin", "x", "aster", "kucoin"])
+    expect(order.slice(0, 2)).toEqual(["kucoin", "aster"])
+    expect(order.slice(2)).toEqual(DASHBOARD_PROTOCOLS.filter((id) => id !== "kucoin" && id !== "aster"))
+    expect(readProtocolOrder(null)).toEqual(DASHBOARD_PROTOCOLS)
   })
 })

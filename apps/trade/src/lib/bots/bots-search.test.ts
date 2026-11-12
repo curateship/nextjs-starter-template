@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { botsRecordHref, botsViewOf, readBotsSearch } from "@/lib/bots/bots-search"
+import { botsRecordHref, botsViewOf, readBotsSearch, readBotsSections } from "@/lib/bots/bots-search"
 
 describe("the Bots dashboard's address", () => {
   it("opens on Overview, and keeps nothing else there", () => {
@@ -46,5 +46,21 @@ describe("the Bots dashboard's address", () => {
     expect(readBotsSearch({ view: "backtests", recipe: "r-1" }).recipe).toBe("r-1")
     expect(readBotsSearch({ view: "recipes", recipe: "r-1" }).recipe).toBeUndefined()
     expect(readBotsSearch({ view: "backtests", recipe: "x".repeat(81) }).recipe).toBeUndefined()
+  })
+})
+
+describe("the Dashboards block's ⋮", () => {
+  it("hides and orders nothing until saved", () => {
+    expect(readBotsSections(null, undefined)).toEqual({
+      hidden: [],
+      order: ["overview", "recipes", "backtests", "bots"],
+    })
+  })
+
+  it("never hides Overview, keeps it first, and fills in the sections an order leaves out", () => {
+    expect(readBotsSections(["overview", "bots", "nope"], ["bots", "overview", "x", "bots"])).toEqual({
+      hidden: ["bots"],
+      order: ["overview", "bots", "recipes", "backtests"],
+    })
   })
 })

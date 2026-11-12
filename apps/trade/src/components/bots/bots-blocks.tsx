@@ -1,11 +1,11 @@
 import * as React from "react"
-import { LayoutDashboardIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon, LayoutDashboardIcon } from "lucide-react"
 
-import { blockView } from "@/components/shared/notes/block-card"
+import { blockView, useBlockMenu } from "@/components/shared/notes/block-card"
 import { DashboardsRows } from "@/components/shared/notes/dashboards-rows"
 import { blockNode, keepOnPage, type AppBlock } from "@/components/shared/notes/note-block-nodes"
 import { BOTS_SECTIONS_NODE } from "@/lib/bots/bots-page"
-import { BOTS_VIEW_LABELS, BOTS_VIEWS, type BotsView } from "@/lib/bots/bots-search"
+import { BOTS_VIEW_LABELS, BOTS_VIEWS, type BotsSections, type BotsView } from "@/lib/bots/bots-search"
 import type { BotsSectionCounts } from "@/lib/api/trade/bots"
 
 /**
@@ -26,6 +26,10 @@ export type BotsBlocks = {
    * picked, so this block hears it itself.
    */
   onReturn?: () => void
+  /** The sections hidden and their order, from the block's ⋮; null while read. */
+  sections: BotsSections | null
+  onHiddenSectionsChange: (hidden: BotsSections["hidden"]) => void
+  onSectionOrderChange: (order: BotsSections["order"]) => void
 }
 
 const BotsBlocksContext = React.createContext<BotsBlocks | null>(null)
@@ -35,9 +39,42 @@ export const BotsBlocksProvider = BotsBlocksContext.Provider
 /**
  * Overview, Recipes, Backtests and Bots. Also drawn on its own while the left
  * page is read or could not be, because it is the only way between them.
+ *
+ * Its ⋮ lists every section but Overview, an eye on each that hides or shows
+ * it, and the rows drag into a new order (Tyler, 11 Nov 2026: "add this same
+ * feature for all apps that has dashboards block"), as the shell's Admin
+ * Dashboards block does. Overview stays first and is never hidden. The
+ * section showing keeps its row until another is picked.
  */
 export function BotsSectionsBlock() {
   const blocks = React.useContext(BotsBlocksContext)
+  const sections = blocks?.sections ?? null
+  const hidden: readonly BotsView[] = sections?.hidden ?? []
+  const ordered: readonly BotsView[] = sections?.order ?? BOTS_VIEWS
+  const changeHidden = blocks?.onHiddenSectionsChange
+  const changeOrder = blocks?.onSectionOrderChange
+  useBlockMenu(
+    sections && changeHidden
+      ? ordered.filter((view): view is Exclude<BotsView, "overview"> => view !== "overview").map((view) => {
+          const isHidden = hidden.includes(view)
+          return {
+            label: BOTS_VIEW_LABELS[view],
+            ariaLabel: `${isHidden ? "Show" : "Hide"} ${BOTS_VIEW_LABELS[view]}`,
+            muted: isHidden,
+            keepOpen: true,
+            end: isHidden ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />,
+            sortKey: view,
+            onSelect: () =>
+              changeHidden(
+                isHidden ? sections.hidden.filter((other) => other !== view) : [...sections.hidden, view]
+              ),
+          }
+        })
+      : undefined,
+    sections && changeOrder
+      ? (keys) => changeOrder(["overview", ...(keys as BotsView[]).filter((key) => key !== "overview")])
+      : undefined
+  )
   if (!blocks) return <p className="p-3 text-xs text-muted-foreground">This block shows on the Bots dashboard.</p>
   const onReturn = blocks.onReturn
   return (
@@ -53,7 +90,7 @@ export function BotsSectionsBlock() {
     <DashboardsRows
       current={blocks.view}
       onPick={blocks.onPickView}
-      sections={BOTS_VIEWS.map((view) => ({
+      sections={ordered.filter((view) => view === blocks.view || !hidden.includes(view)).map((view) => ({
         key: view,
         label: BOTS_VIEW_LABELS[view],
         value:

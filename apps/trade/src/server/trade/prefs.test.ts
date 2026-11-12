@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { DASHBOARD_PROTOCOLS } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_TRADING_WIDGET_LAYOUT } from "@/lib/trade/dashboard/widgets"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
@@ -12,6 +13,7 @@ import {
   loadTradingOverviewWidgets,
   loadTradeDashboardStart,
   saveHiddenProtocols,
+  saveProtocolOrder,
   saveHideEmptyBlocks,
   saveTradeDashboardView,
   loadChartView,
@@ -295,6 +297,7 @@ describe("where a bare /trade opens", () => {
       view: null,
       protocol: null,
       hiddenProtocols: [],
+      protocolOrder: DASHBOARD_PROTOCOLS,
       hideEmptyBlocks: false,
     })
   })
@@ -322,6 +325,14 @@ describe("where a bare /trade opens", () => {
       "kucoin",
     ])
     expect((await loadTradeDashboardStart(id)).hiddenProtocols).toEqual(["phemex", "kucoin"])
+  })
+
+  it("keeps the dragged order, made whole, dropping ones it does not know", async () => {
+    const { id } = await insertUser(database)
+    const saved = await saveProtocolOrder(id, ["aster", "nowhere", "kucoin", "aster"])
+    expect(saved.slice(0, 2)).toEqual(["aster", "kucoin"])
+    expect(saved).toHaveLength(DASHBOARD_PROTOCOLS.length)
+    expect((await loadTradeDashboardStart(id)).protocolOrder).toEqual(saved)
   })
 })
 

@@ -99,6 +99,14 @@ Open bot     Dashboards block        [Chart|Graph], chart                  Resul
   archived, and Bots the bots still switched on (running, waiting, paused or
   stopping). The counts are read again after each section switch and after a
   change.
+- **The Dashboards block's own ⋮:** Recipes, Backtests and Bots, each with an
+  eye that hides or shows its row, and each dragging into a new order by its
+  grip or name (Tyler, 11 Nov 2026: "add this same feature for all apps that
+  has dashboards block"). Overview stays first and is never hidden. The
+  section showing keeps its row until another is picked. Each admin's own,
+  saved at once in `trade_prefs.hidden_bots_sections` and
+  `trade_prefs.bots_section_order` (migration 0250), cleaned by
+  `readBotsSections` in `src/lib/bots/bots-search.ts`.
 - **Its ⋮:** General (Cover photo, Lock the notes) and Widgets (the Overview's
   two rows).
 

@@ -20,7 +20,10 @@ import {
   getBotsErrorMessage,
   loadBotsCounts,
   loadBotsPage,
+  loadBotsSections,
   loadBotsWidgetLayout,
+  saveBotsHiddenSectionList,
+  saveBotsSectionOrderList,
   saveBotsWidgetLayout,
 } from "@/lib/api/trade/bots"
 import { BOTS_WIDGET_OFFER } from "@/lib/bots/bots-widgets"
@@ -29,12 +32,14 @@ import {
   botsViewOf,
   botsViewSearch,
   type BotsSearch,
+  type BotsSections,
   type BotsView,
 } from "@/lib/bots/bots-search"
 import type { TradingOverviewBot } from "@/lib/trade/dashboard/overview"
 import { botsPanelKey } from "@/lib/trade/panel-keys"
 import { useLoad } from "@/lib/hooks/use-load"
 import type { StoredPage } from "@/lib/notes/page-body"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /** What the route's loader read, for the section showing. */
@@ -150,8 +155,38 @@ export function BotsDashboard({ loaded, search }: { loaded: BotsLoaded; search: 
   const openElsewhere = (next: Exclude<BotsView, "overview">, id: string) =>
     void navigate({ search: { view: next, open: id, full: true } })
 
+  // The Dashboards block's hidden sections and order, each saved in turn.
+  // A failed save puts back what was stored last.
+  const sectionsRead = useLoad(loadBotsSections, getBotsErrorMessage)
+  const setSections = sectionsRead.setData
+  const storedSections = React.useRef<BotsSections | null>(null)
+  React.useEffect(() => {
+    if (sectionsRead.data && !storedSections.current) storedSections.current = sectionsRead.data
+  }, [sectionsRead.data])
+  const sectionsQueue = React.useRef<Promise<void>>(Promise.resolve())
+  const saveSections = React.useCallback(
+    (change: Partial<BotsSections>, save: () => Promise<Partial<BotsSections>>) => {
+      setSections((current) => (current ? { ...current, ...change } : current))
+      sectionsQueue.current = sectionsQueue.current.then(async () => {
+        try {
+          const stored = await save()
+          if (storedSections.current) storedSections.current = { ...storedSections.current, ...stored }
+        } catch (error) {
+          setSections(storedSections.current)
+          showErrorToast(getBotsErrorMessage(error))
+        }
+      })
+    },
+    [setSections]
+  )
+
   const blocks: BotsBlocks = {
     view,
+    sections: sectionsRead.data,
+    onHiddenSectionsChange: (hidden) =>
+      saveSections({ hidden }, async () => ({ hidden: await saveBotsHiddenSectionList(hidden) })),
+    onSectionOrderChange: (order) =>
+      saveSections({ order }, async () => ({ order: await saveBotsSectionOrderList(order) })),
     onPickView: pickView,
     counts: countsRead.data,
     widgetCount: widgets.layout ? widgetsShown(widgets.layout) : null,
