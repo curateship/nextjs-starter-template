@@ -76,7 +76,7 @@ import { matchesClient } from "@/lib/project/clients"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
-import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import type { TaskFilters } from "@/lib/project/task-filters"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
@@ -454,7 +454,7 @@ function TeamPanel({
       </DashboardCardHeader>
       </div>
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+        <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
           <TeamBlocksProvider
             value={{
               day,

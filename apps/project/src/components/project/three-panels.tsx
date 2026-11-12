@@ -13,23 +13,29 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   useBlankSpaceDoubleClick,
   usePanelCollapsed,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { sidePanelWidthsKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import {
+  DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  clampSidePanelWidth,
+} from "@/lib/layout/styling-values"
+import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { cn } from "@/lib/utils"
 
 type Side = { label: string; content: React.ReactNode; showLabel: string }
 
 /**
- * Each side panel opens at the narrowest it can be dragged to, and the middle
- * takes the rest (Tyler, 31 Oct 2026: "The default width needs to be the
- * narrowest width the panel have"). A width dragged in this browser still wins;
- * the layout keys in `panel-keys.ts` carry a number so a change here reaches
- * browsers that had kept the old widths.
+ * Each side panel opens at the width Settings → Styling → Side panels sets,
+ * 10% left and 12% right unless changed, and neither drags narrower than
+ * that default, as on the shell's dashboards (`shared/three-panels.tsx`). The
+ * middle takes the rest. A width dragged in this browser still wins, kept
+ * under the layout key with the two widths added (`sidePanelWidthsKey`), so a
+ * changed setting reaches every browser and Reset panels forgets them.
  */
-const SIDE_MIN = "16%"
-const MIDDLE_DEFAULT = "68%"
 
 /**
  * Project's three-panel screen: the four-panel dashboard without its bottom
@@ -100,11 +106,24 @@ export function ThreePanels({
   }
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
   const rightRef = React.useRef<PanelImperativeHandle | null>(null)
-  const layout = useRememberedPanelLayout(layoutKey)
+  const styling = useOptionalShellRuntime()?.config.styling
+  const leftWidth = clampSidePanelWidth(styling?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH)
+  const rightWidth = clampSidePanelWidth(styling?.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH)
+  const middleWidth = 100 - leftWidth - rightWidth
+  const defaultLayout = React.useMemo(
+    () => ({ left: leftWidth, middle: middleWidth, right: rightWidth }),
+    [leftWidth, middleWidth, rightWidth]
+  )
+  const layout = useRememberedPanelLayout(sidePanelWidthsKey(layoutKey, leftWidth, rightWidth), defaultLayout)
   const leftState = usePanelCollapsed(leftRef)
   const rightState = usePanelCollapsed(rightRef)
-  const toggleLeft = usePanelToggle(leftRef)
-  const toggleRight = usePanelToggle(rightRef)
+  // Every fold and open slides over 240ms rather than snapping, as on the
+  // shell's dashboards (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapLeft = usePanelToggle(leftRef)
+  const snapRight = usePanelToggle(rightRef)
+  const toggleLeft = React.useCallback(() => fold(snapLeft), [fold, snapLeft])
+  const toggleRight = React.useCallback(() => fold(snapRight), [fold, snapRight])
   const leftDoubleClick = useBlankSpaceDoubleClick(toggleLeft)
   const rightDoubleClick = useBlankSpaceDoubleClick(toggleRight)
   const toggles = React.useMemo(
@@ -156,7 +175,7 @@ export function ThreePanels({
       <ResizablePanelGroup
         groupRef={layout.groupRef}
         orientation="horizontal"
-        className="min-h-0 flex-1"
+        className={cn("min-h-0 flex-1", foldingClassName)}
         onLayoutChanged={layout.onLayoutChanged}
       >
         <ResizablePanel
@@ -164,8 +183,8 @@ export function ThreePanels({
           panelRef={leftRef}
           collapsible
           collapsedSize="0%"
-          defaultSize={SIDE_MIN}
-          minSize={SIDE_MIN}
+          defaultSize={`${leftWidth}%`}
+          minSize={`${DEFAULT_LEFT_PANEL_WIDTH}%`}
           maxSize="36%"
           onResize={leftState.onResize}
         >
@@ -178,7 +197,7 @@ export function ThreePanels({
           </WorkspacePanel>
         </ResizablePanel>
         <ResizableHandle gap collapsed={leftState.collapsed} />
-        <ResizablePanel id="middle" defaultSize={MIDDLE_DEFAULT} minSize="32%">
+        <ResizablePanel id="middle" defaultSize={`${middleWidth}%`} minSize="28%">
           {/* 24px at the middle's sides, its header and a table's first and last
               columns lining up (the shell's look since 8 Nov 2026). */}
           <WorkspacePanel className={cn("relative flex flex-col", middleGutterClassName)}>
@@ -197,8 +216,8 @@ export function ThreePanels({
           panelRef={rightRef}
           collapsible
           collapsedSize="0%"
-          defaultSize={SIDE_MIN}
-          minSize={SIDE_MIN}
+          defaultSize={`${rightWidth}%`}
+          minSize={`${DEFAULT_RIGHT_PANEL_WIDTH}%`}
           maxSize="36%"
           onResize={rightState.onResize}
         >

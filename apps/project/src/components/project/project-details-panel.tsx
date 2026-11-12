@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { ArrowLeftIcon } from "lucide-react"
 
-import { NotesMorphIcon } from "@/components/project/inbox-morph-icon"
+import { NotesMorphIcon } from "@/components/project/notes-morph-icon"
 import { ProjectPageBlocksProvider } from "@/components/project/notes/project-page-blocks"
 import { ProjectNotes } from "@/components/project/project-notes-panel"
 import { ProjectPageNotes } from "@/components/project/project-page-notes"
@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
-import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
 import { PageCover } from "@/components/shared/notes/page-cover"
 
@@ -157,7 +157,7 @@ export function ProjectDetailsPanel({
         ) : (
           <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
             {/* The panel's 15px gutter round the page and between its blocks, as on My dashboard. */}
-            <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+            <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
               {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
                   Locking or unlocking it draws it again from what was saved. */}
               {shared ? (

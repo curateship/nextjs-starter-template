@@ -2,7 +2,7 @@ import * as React from "react"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
 import { FlagIcon } from "lucide-react"
 
-import { BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
+import { ADVANCED_BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
 import { ProjectBlockCard, QuietHeadingButtons } from "@/components/project/notes/project-block-card"
 import { AddMilestoneButton, MilestoneList } from "@/components/project/project-milestones"
 import type { Milestone } from "@/lib/api/project/projects"
@@ -33,7 +33,7 @@ export function ProjectPageBlocksProvider({ value, children }: { value: ProjectP
 
 export function MilestonesBlockView(props: NodeViewProps) {
   return (
-    <NodeViewWrapper data-selected={props.selected || undefined} data-note-block="" data-note-atom="" className={BLOCK_FRAME}>
+    <NodeViewWrapper data-selected={props.selected || undefined} data-note-block="" data-note-atom="" className={ADVANCED_BLOCK_FRAME}>
       <MilestonesDrawing editing={{ editable: props.editor.isEditable, remove: props.deleteNode }} />
     </NodeViewWrapper>
   )

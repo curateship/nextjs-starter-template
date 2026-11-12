@@ -28,7 +28,7 @@ import type {
   TaskStatus,
   TeamRole,
 } from "@/lib/project/rules"
-import type { DailySection, DayPart, SkyKind } from "@/lib/project/daily-card"
+import type { DailySection, DayPart } from "@/lib/project/daily-card"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
@@ -1004,6 +1004,13 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
   notes: text("notes").notNull().default(""),
   /** Their page reads only until it's unlocked (`drizzle/0155_project_admin_page_lock.sql`). */
   notesLocked: boolean("notes_locked").notNull().default(false),
+  /**
+   * Their page's cover from the shell's Cover photo row: a picture, "sky" for
+   * the drawn sky, or null for none; and the pictures kept as tiles
+   * (`drizzle/0180_project_admin_page_cover.sql`).
+   */
+  coverUrl: text("cover_url").default("sky"),
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
@@ -1042,10 +1049,6 @@ export const projectDailyCards = pgTable("project_daily_cards", {
   city: text("city"),
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
-  sky: varchar("sky", { length: 16 }).$type<SkyKind>().notNull().default("drawn"),
-  ownSkyMorning: text("own_sky_morning").notNull().default(""),
-  ownSkyAfternoon: text("own_sky_afternoon").notNull().default(""),
-  ownSkyNight: text("own_sky_night").notNull().default(""),
   reminderMorning: varchar("reminder_morning", { length: 5 }).default("10:00"),
   reminderAfternoon: varchar("reminder_afternoon", { length: 5 }).default("15:00"),
   reminderNight: varchar("reminder_night", { length: 5 }).default("21:00"),

@@ -7,7 +7,6 @@ import {
   dailyHiddenSectionsSchema,
   dailySectionOrderSchema,
   dailyRemindersSchema,
-  dailySkySchema,
   habitCountSchema,
   habitIdSchema,
   habitOrderSchema,
@@ -37,7 +36,6 @@ import {
   retireHabit,
   saveDailyCity,
   saveDailyHours,
-  saveDailySky,
   saveJournalRating,
   saveJournalText,
   saveHiddenSections,
@@ -96,11 +94,6 @@ const saveCityFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(dailyCitySchema)
   .handler(async ({ data, context }) => saveDailyCity(context.user.id, data.city))
-
-const saveSkyFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(dailySkySchema)
-  .handler(async ({ data, context }) => saveDailySky(context.user.id, data))
 
 const saveRemindersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -197,9 +190,6 @@ export function saveMyHours(data: z.input<typeof dailyHoursSchema>) {
 }
 export function saveMyCity(city: string) {
   return saveCityFn({ data: { city } })
-}
-export function saveMySky(data: z.input<typeof dailySkySchema>) {
-  return saveSkyFn({ data })
 }
 export function saveMyReminders(data: z.input<typeof dailyRemindersSchema>) {
   return saveRemindersFn({ data })

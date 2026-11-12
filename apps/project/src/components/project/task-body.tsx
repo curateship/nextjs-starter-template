@@ -26,8 +26,8 @@ import {
   WaitingBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelNotice } from "@/components/project/panel-notice"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -147,8 +147,8 @@ export type TaskSide = {
   versions: React.ReactNode
   /** The comments' box under the notes while no Comments block shows them; null otherwise. */
   commentsBelow: React.ReactNode
-  /** Follow or stop following, at the right of the cog dropdown's tabs. */
-  followButton: React.ReactNode
+  /** Follow task, or Stop following, a row in the ⋮'s General list under Needs review. */
+  followRow: React.ReactNode
   /**
    * The cog's Details tab as cards that fold open: Person, Dates, Priority,
    * the Video or Promo link and the Plan.
@@ -331,11 +331,7 @@ function MoreTimeCard({
   onCancelKeep: () => void
 }) {
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Asked for {shortDayLabel(ask.day)}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+    <PanelNotice title={<>Asked for {shortDayLabel(ask.day)}</>}>
         <p className="text-sm break-words">
           {ask.askedByName} asks to move the due date{dueDate ? ` from ${shortDayLabel(dueDate)}` : ""} to{" "}
           {shortDayLabel(ask.day)}: {ask.reason}
@@ -369,8 +365,7 @@ function MoreTimeCard({
             Waiting for {ask.answererName ?? "the site admin"} to answer.
           </p>
         )}
-      </CardContent>
-    </Card>
+    </PanelNotice>
   )
 }
 
@@ -560,11 +555,7 @@ function TaskForm({
         <ReminderCard detail={detail} change={change} onDone={() => setReminding(false)} />
       ) : null}
       {task.waiting && isMine && !readOnly ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>{task.assignedBy?.name ?? "Someone"} handed you this task</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+        <PanelNotice title={<>{task.assignedBy?.name ?? "Someone"} handed you this task</>}>
             {task.handoverNote ? (
               <p className="text-sm break-words">
                 <span className="text-muted-foreground">Note: </span>
@@ -587,8 +578,7 @@ function TaskForm({
                 Hand back
               </Button>
             </div>
-          </CardContent>
-        </Card>
+        </PanelNotice>
       ) : null}
 
       {handingBack ? (
@@ -614,11 +604,7 @@ function TaskForm({
       ) : null}
 
       {task.review.waiting ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Waiting for review</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+        <PanelNotice title="Waiting for review">
             <p className="text-sm text-muted-foreground">
               {detail.canReview
                 ? "It's Done and counts as Done. Confirm it, or send it back to Doing with what still needs doing."
@@ -657,8 +643,7 @@ function TaskForm({
                 }}
               />
             ) : null}
-          </CardContent>
-        </Card>
+        </PanelNotice>
       ) : null}
 
       {task.status === "done" && task.assignee && task.assignee.id !== myUserId ? (
@@ -1239,29 +1224,25 @@ function TaskForm({
         </PickGroup>
       </div>
     ),
-    // A bell alone in the panel's header beside the ⋮ (Tyler, 6 Nov 2026: "move the
-    // bell follow here (just add the icon only)"): ringing while followed.
-    followButton: (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={detail.following ? "Following. Stop following" : "Follow this task"}
-            aria-pressed={detail.following}
-            disabled={busy}
-            onClick={() =>
-              void change(
-                () => followProjectTask(task.id, !detail.following)
-              )
-            }
-          >
-            {detail.following ? <BellRingIcon className="size-4" /> : <BellIcon className="size-4" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{detail.following ? "Following. Press to stop" : "Follow this task"}</TooltipContent>
-      </Tooltip>
+    // A row in the ⋮'s General list, between Needs review and Lock the notes
+    // (Tyler, 11 Nov 2026: "Move follow task here"); it was a bell beside the ⋮
+    // from 6 Nov 2026. The bell rings while the task is followed.
+    followRow: (
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full justify-start font-normal"
+        aria-pressed={detail.following}
+        disabled={busy}
+        onClick={() =>
+          void change(
+            () => followProjectTask(task.id, !detail.following)
+          )
+        }
+      >
+        {detail.following ? <BellRingIcon className="size-4" /> : <BellIcon className="size-4" />}
+        {detail.following ? "Stop following" : "Follow task"}
+      </Button>
     ),
     detail,
     readOnly,

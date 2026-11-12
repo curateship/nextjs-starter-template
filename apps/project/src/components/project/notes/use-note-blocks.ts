@@ -39,6 +39,8 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   habit: "noteHabit",
   ratingMonth: "noteRatingMonth",
   ratingTrend: "noteRatingTrend",
+  inbox: "noteInbox",
+  lookBack: "noteLookBack",
   teamCheckins: "noteTeamCheckins",
   teamWorkload: "noteTeamWorkload",
   teamAttention: "noteTeamAttention",
@@ -51,6 +53,9 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
 const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = {
   comments: "noteComments",
   habit: "noteHabit",
+  // The whole inbox and the whole Look back, so a second would only repeat it.
+  inbox: "noteInbox",
+  lookBack: "noteLookBack",
   // Each team block shows the whole team, so a second would only repeat it.
   teamCheckins: "noteTeamCheckins",
   teamWorkload: "noteTeamWorkload",

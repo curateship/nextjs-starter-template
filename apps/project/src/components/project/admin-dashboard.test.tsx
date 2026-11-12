@@ -95,6 +95,7 @@ function dashboard(extra: Partial<Pick<AdminDashboard, "attention" | "projects" 
     me: { id: "tyler", name: "Tyler", email: "tyler@example.test", avatarUrl: "" },
     page: "",
     pageLocked: false,
+    cover: { url: "sky", images: [] },
     savedZone: "UTC",
     zone: "UTC",
     today: "2099-03-02",
@@ -135,8 +136,6 @@ const DAILY: DailyCard = {
   settings: {
     hours: { morning: "05:00", afternoon: "12:00", night: "18:00" },
     city: null,
-    sky: "drawn",
-    ownSkies: { morning: "", afternoon: "", night: "" },
     reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
     sections: ["meeting", "routine", "tomorrow"],
     hidden: [],
@@ -264,29 +263,40 @@ describe("the site admin's My dashboard", () => {
     expect(html).not.toContain('aria-label="Add a task to Overdue"')
   })
 
-  it("shows 6 notices in the Inbox, with Load more for the rest", () => {
+  // Read only, so the page's blocks draw without a live editor (Tyler, 11 Nov 2026:
+  // "turn look back and inbox tabs into blocks").
+  const blockPage = (...types: string[]) => ({
+    ...dashboard(),
+    page: JSON.stringify({ type: "doc", content: types.map((type) => ({ type })) }),
+    pageLocked: true,
+  })
+
+  it("shows 6 notices in the Inbox block, with Load more for the rest", () => {
     const notices = Array.from({ length: 8 }, (_, n) => notice(n))
-    const html = render(dashboard(), { notifications: notices, nextCursor: null })
+    const html = render(blockPage("noteInbox"), { notifications: notices, nextCursor: null })
     expect(html).toContain("Notice 5")
     expect(html).not.toContain("Notice 6")
     expect(html).toContain(">Load more<")
-    const few = render(dashboard(), { notifications: notices.slice(0, 3), nextCursor: null })
+    const few = render(blockPage("noteInbox"), { notifications: notices.slice(0, 3), nextCursor: null })
     expect(few).not.toContain(">Load more<")
     // More on the server: Load more fetches them.
-    expect(render(dashboard(), { notifications: notices.slice(0, 3), nextCursor: "c1" })).toContain(">Load more<")
+    expect(render(blockPage("noteInbox"), { notifications: notices.slice(0, 3), nextCursor: "c1" })).toContain(">Load more<")
   })
 
-  it("puts the inbox behind a header icon with a red bubble, and shows the cards first", () => {
+  it("has no inbox or Look back in the header: both are blocks on the page", () => {
     const notices = Array.from({ length: 12 }, (_, n) => notice(n))
-    const html = render(dashboard(), { notifications: notices, nextCursor: null })
-    expect(html).toContain('aria-label="Inbox, 12 unread"')
-    expect(html).toContain('aria-pressed="false"')
-    expect(html).toMatch(/bg-destructive[^>]*>9\+</)
-    // The inbox waits hidden in the panel, with no card around it, its tabs underlined.
-    expect(html).toMatch(/hidden"><section[^>]*aria-label="Inbox"/)
-    expect(html).toMatch(/aria-label="Inbox"(?:(?!<\/section>).)*data-slot="dashboard-tab"/)
-    expect(html).not.toContain("project-my-inbox")
-    expect(render(dashboard())).toContain('aria-label="Inbox"')
+    const html = render(blockPage("noteInbox", "noteLookBack"), { notifications: notices, nextCursor: null })
+    const left = html.slice(0, html.indexOf('id="middle"'))
+    expect(left).not.toContain('aria-label="Inbox, 12 unread"')
+    expect(left).not.toContain('aria-label="Look back"')
+    // Each block's heading, and the inbox's tabs drawn as the dashboard's tabs are.
+    expect(left).toContain(">Inbox<")
+    expect(left).toContain(">Look back<")
+    expect(left).toMatch(/>All<(?:(?!id="middle").)*>Unread</)
+    expect(left).toContain(">Month<")
+    // Without the blocks, neither shows.
+    const bare = render(dashboard(), { notifications: notices, nextCursor: null })
+    expect(bare.slice(0, bare.indexOf('id="middle"'))).not.toContain("Notice 0")
   })
 
   it("puts my page under the sky with no footer: the Daily card is a block on the page", () => {

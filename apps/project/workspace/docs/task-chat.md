@@ -224,8 +224,11 @@ the launch?" is settled without twelve messages.
 
 ## Following a task
 
-- **Anyone who can see a task can follow it** with the Follow button at the
-  top of the task. It reads "Following" while on, and pressing it again stops.
+- **Anyone who can see a task can follow it** with Follow task in the
+  task's ⋮, in the General list between Needs review and Lock the notes
+  (Tyler, 11 Nov 2026: "Move follow task here"; it was a bell beside the ⋮
+  from 6 Nov 2026). While on, it reads Stop following with a ringing bell,
+  and pressing it stops.
 - **A follower gets the chat, Stuck and Done notices** without being assigned.
 - **Someone removed from the project stops being told**, because every notice
   first checks the person can still see the project. Their follow is kept, so

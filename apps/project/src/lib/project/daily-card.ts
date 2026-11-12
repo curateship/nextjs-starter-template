@@ -29,17 +29,6 @@ export const DEFAULT_HOURS: DayHours = { morning: "05:00", afternoon: "12:00", n
 export type RoutineReminders = Record<DayPart, string | null>
 export const DEFAULT_REMINDERS: RoutineReminders = { morning: "10:00", afternoon: "15:00", night: "21:00" }
 
-export const SKY_KINDS = ["drawn", "beach", "city", "mountains", "forest", "own"] as const
-export type SkyKind = (typeof SKY_KINDS)[number]
-export const SKY_LABEL: Record<SkyKind, string> = {
-  drawn: "Sky",
-  beach: "Beach",
-  city: "City",
-  mountains: "Mountains",
-  forest: "Forest",
-  own: "My own photos",
-}
-
 /** The stretch of sky the card draws, a finer cut than the three parts of the day. */
 export type SkyPhase = "sunrise" | "day" | "golden" | "sunset" | "night"
 
@@ -241,13 +230,6 @@ export const dailyHoursSchema = z
 export const dailyCitySchema = z.object({ city: words(DAILY_LIMITS.city, "The city") })
 
 /** An uploaded photo's address, or none. Nothing but a web or site address is drawn. */
-const photoUrl = z.union([z.literal(""), z.string().max(2000).regex(/^(https?:\/\/|\/)/i, "That isn't a photo address.")])
-
-export const dailySkySchema = z.object({
-  sky: z.enum(SKY_KINDS),
-  own: z.object({ morning: photoUrl, afternoon: photoUrl, night: photoUrl }),
-})
-
 export const dailyRemindersSchema = z.object({ morning: time.nullable(), afternoon: time.nullable(), night: time.nullable() })
 
 /**

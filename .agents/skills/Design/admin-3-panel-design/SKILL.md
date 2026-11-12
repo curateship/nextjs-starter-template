@@ -701,8 +701,8 @@ Reference: `TabbedMenu` and `MySettingsMenu` in
   scrolls inside its box (the height limit goes on the `ScrollArea`'s
   viewport, never its root). A typed value opens a small box with its field
   (`PickRow`). No email line at the top.
-- **My settings tabs here:** General (Location: time zone, weather city; Daily
-  card: sky. For employees You: job title, check-in time; Daily card: city,
+- **My settings tabs here:** General (Page: the shell's Cover photo row, as
+  every left page has it; Location: time zone, weather city. For employees You: job title, check-in time; Daily card: city,
   their hours), Notifications, and a tab per card the person sets up (Daily
   card).
 - **Notifications tab:** a small muted heading per group, and each group's

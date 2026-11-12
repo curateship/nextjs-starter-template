@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
+import { ADVANCED_BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
 import { ProjectBlockCard } from "@/components/project/notes/project-block-card"
 import { CheckinsCard } from "@/components/project/team-checkins-card"
 import { TeamFiguresGrid } from "@/components/project/team-figures"
@@ -71,7 +71,7 @@ function useTeamBlocks() {
 /** The frame each block sits in, as every other "/" block's. */
 function Frame({ selected, children }: { selected: boolean; children: React.ReactNode }) {
   return (
-    <NodeViewWrapper data-selected={selected || undefined} data-note-block="" data-note-atom="" className={BLOCK_FRAME}>
+    <NodeViewWrapper data-selected={selected || undefined} data-note-block="" data-note-atom="" className={ADVANCED_BLOCK_FRAME}>
       {children}
     </NodeViewWrapper>
   )

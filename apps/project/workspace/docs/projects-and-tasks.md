@@ -284,9 +284,10 @@ couple of blocks like a links block and call out block".
   when it's left. Everyone else, and an archived project, reads it, and an
   empty page shows nothing to them. A "Just me" list has no page. "/" opens
   the list of blocks.
-- **Lock page.** The ⋮ menu's Lock page, under its line and above Archive,
-  makes the page read only for everyone, the site admin included, until
-  Unlock page (Tyler, 5 Nov 2026: "add a function here to lock the tip
+- **Lock blocks.** The ⋮ menu's General tab ends in Lock blocks, in its
+  footer under a line as on the shell's left page ⋮ (it read Lock page until
+  11 Nov 2026). It makes the page read only for everyone, the site admin
+  included, until Unlock blocks (Tyler, 5 Nov 2026: "add a function here to lock the tip
   tap"). Links still open, folds still fold for each reader, and ticks can't
   change. The server refuses a save to a locked page with "This page is
   locked. Unlock it from the ⋮ at the top of the panel to change it." An
@@ -355,8 +356,9 @@ show out of the left panel and into that header.
     and Due date opens the calendar at once, so one press picks and saves
     (Tyler, 6 Nov 2026: "It should be one step to select"). The rest open a
     small box with their field, which saves when it is left. Under the
-    lists are Lock page and Archive project (or Bring back). On an archived
-    project the rows can't be opened.
+    lists is Archive project (or Bring back), and Lock blocks is the tab's
+    footer. On an archived project the rows can't be opened and there is no
+    Lock blocks.
   - **Members**: the members as plain rows, with the crown and the bin at
     the row's end and "+ Invite" under them.
   Closing the menu with Escape or a click outside saves the field being

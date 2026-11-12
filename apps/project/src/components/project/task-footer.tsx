@@ -4,7 +4,7 @@ import { CheckIcon } from "lucide-react"
 import type { Change } from "@/components/project/task-body"
 import { Button } from "@/components/ui/button"
 import { setStatus, type TaskDetail } from "@/lib/api/project/tasks"
-import { PANEL_FOOTER_PADDING } from "@/lib/project/panel-gutter"
+import { PANEL_FOOTER_PADDING } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
 
 /**

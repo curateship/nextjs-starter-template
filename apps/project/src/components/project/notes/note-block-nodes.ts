@@ -16,6 +16,8 @@ import {
   FileIcon,
   FlagIcon,
   GlobeIcon,
+  HistoryIcon,
+  InboxIcon,
   ImageIcon,
   LinkIcon,
   InfoIcon,
@@ -46,6 +48,8 @@ import {
   ProjectBlockView,
   RatingMonthBlockView,
   RatingTrendBlockView,
+  InboxBlockView,
+  LookBackBlockView,
 } from "@/components/project/notes/dashboard-blocks"
 import {
   AttentionBlockView,
@@ -84,6 +88,8 @@ export type BlockKey =
   | "habit"
   | "ratingMonth"
   | "ratingTrend"
+  | "inbox"
+  | "lookBack"
   | "teamCheckins"
   | "teamWorkload"
   | "teamAttention"
@@ -125,6 +131,9 @@ const BLOCKS: BlockChoice[] = [
   { key: "habit", label: "Daily card", icon: SunriseIcon, group: "advanced" },
   { key: "ratingMonth", label: "Rating calendar", icon: CalendarDaysIcon, group: "advanced" },
   { key: "ratingTrend", label: "Rating trend", icon: ChartLineIcon, group: "advanced" },
+  // Were views swapped in from the panel's header (Tyler, 11 Nov 2026: "turn look back and inbox tabs into blocks").
+  { key: "inbox", label: "Inbox", icon: InboxIcon, group: "advanced" },
+  { key: "lookBack", label: "Look back", icon: HistoryIcon, group: "advanced" },
   // A team's own page only (task "Team dashboard/admin-3-panel-design", 7 Nov 2026).
   { key: "teamCheckins", label: "Check-ins", icon: ClipboardCheckIcon, group: "advanced" },
   { key: "teamWorkload", label: "Workload", icon: WeightIcon, group: "advanced" },
@@ -136,7 +145,7 @@ const BLOCKS: BlockChoice[] = [
 ]
 
 /** Blocks only the site admin's own page on My dashboard offers. */
-const DASHBOARD_BLOCKS = new Set<BlockKey>(["project", "habit", "ratingMonth", "ratingTrend"])
+const DASHBOARD_BLOCKS = new Set<BlockKey>(["project", "habit", "ratingMonth", "ratingTrend", "inbox", "lookBack"])
 
 /**
  * Blocks only a team's own page on the Team dashboard offers (Tyler, 7 Nov
@@ -296,6 +305,8 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteHabit", {}, DailyCardBlockView),
   atomNode("noteRatingMonth", {}, RatingMonthBlockView),
   atomNode("noteRatingTrend", {}, RatingTrendBlockView),
+  atomNode("noteInbox", {}, InboxBlockView),
+  atomNode("noteLookBack", {}, LookBackBlockView),
   atomNode("noteTeamCheckins", {}, CheckinsBlockView),
   atomNode("noteTeamWorkload", {}, WorkloadBlockView),
   atomNode("noteTeamAttention", {}, AttentionBlockView),

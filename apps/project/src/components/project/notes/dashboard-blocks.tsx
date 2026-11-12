@@ -1,11 +1,12 @@
 import * as React from "react"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { CalendarDaysIcon, ChartLineIcon, FolderKanbanIcon, SunriseIcon } from "lucide-react"
+import { CalendarDaysIcon, ChartLineIcon, FolderKanbanIcon, HistoryIcon, SunriseIcon } from "lucide-react"
 
 import { ProjectBlock, ProjectBlockButtons } from "@/components/project/admin-project-cards"
 import { DailyCard, type DailyNow } from "@/components/project/daily-card"
-import { RatingMonth, RatingTrend } from "@/components/project/daily-look-back"
-import { BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
+import { LookBackTabs, RatingMonth, RatingTrend } from "@/components/project/daily-look-back"
+import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
+import { ADVANCED_BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
 import {
   ProjectBlockCard,
   QuietHeadingButtons,
@@ -20,7 +21,8 @@ import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
 /**
  * The blocks only the site admin's own page on My dashboard offers (task "My
  * dashboard/left-panel-blocks", Tyler, 6 Nov 2026): Projects, Daily card,
- * Rating calendar and Rating trend. They draw from what the dashboard already
+ * Rating calendar and Rating trend, then Inbox and Look back (Tyler, 11 Nov
+ * 2026: "turn look back and inbox tabs into blocks"). They draw from what the dashboard already
  * loaded, handed down by `DashboardBlocksProvider`, so they follow its live
  * reloads and never ask the server on their own, except the two rating
  * blocks, which read the ratings as Look back does.
@@ -36,6 +38,8 @@ export type DashboardBlocks = {
   onPick: (projectId: string | undefined) => void
   daily: DailyCardData
   now: DailyNow
+  /** Their inbox's first page, as the dashboard loaded it. */
+  inbox: InboxPage
 }
 
 const DashboardBlocksContext = React.createContext<DashboardBlocks | null>(null)
@@ -51,7 +55,7 @@ function useDashboardBlocks() {
 /** The frame each block sits in, as every other "/" block's. */
 function Frame({ selected, children }: { selected: boolean; children: React.ReactNode }) {
   return (
-    <NodeViewWrapper data-selected={selected || undefined} data-note-block="" data-note-atom="" className={BLOCK_FRAME}>
+    <NodeViewWrapper data-selected={selected || undefined} data-note-block="" data-note-atom="" className={ADVANCED_BLOCK_FRAME}>
       {children}
     </NodeViewWrapper>
   )
@@ -282,6 +286,50 @@ export function RatingTrendDrawing({ editing }: { editing: BlockEditing }) {
       <div className={TILE_BODY}>
         <RatingTrend today={blocks.daily.cardDay} />
       </div>
+    </ProjectBlockCard>
+  )
+}
+
+// --- Inbox and Look back --------------------------------------------------------
+
+/**
+ * The site admin's inbox as a block (Tyler, 11 Nov 2026: "turn look back and
+ * inbox tabs into blocks"): All, Unread, Tasks, Flows and News, the unread
+ * count by the title and Mark all read in the heading. It was a view a tray
+ * icon in the panel's header swapped the page for. One per page.
+ */
+export function InboxBlockView(props: NodeViewProps) {
+  return (
+    <Frame selected={props.selected}>
+      <InboxDrawing editing={editingOf(props)} />
+    </Frame>
+  )
+}
+
+export function InboxDrawing({ editing }: { editing: BlockEditing }) {
+  const blocks = useDashboardBlocks()
+  if (!blocks) return <NotHere editing={editing} label="Remove inbox" />
+  return <InboxCard inbox={blocks.inbox} block={editing} />
+}
+
+/**
+ * Look back as a block: Month, Year and Search, as the graph in the panel's
+ * header opened until 11 Nov 2026. One per page.
+ */
+export function LookBackBlockView(props: NodeViewProps) {
+  return (
+    <Frame selected={props.selected}>
+      <LookBackDrawing editing={editingOf(props)} />
+    </Frame>
+  )
+}
+
+export function LookBackDrawing({ editing }: { editing: BlockEditing }) {
+  const blocks = useDashboardBlocks()
+  if (!blocks) return <NotHere editing={editing} label="Remove look back" />
+  return (
+    <ProjectBlockCard editing={editing} kind="look-back" title="Look back" icon={<HistoryIcon className="size-4" />}>
+      <LookBackTabs />
     </ProjectBlockCard>
   )
 }

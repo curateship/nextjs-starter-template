@@ -21,8 +21,8 @@ Daily card", and that file wins wherever the two disagree.
   "make it the same as the habits and greeting card in the footer (and
   remove the footer card)"). For that one day it sat in the left panel's
   footer. The whole card is in the block: greeting, Start day, the habits
-  and the rest, and Rate your day at night. The sky stays behind the header
-  (`notes/dashboard-blocks.tsx`, `frame` on `DailyCard`). See
+  and the rest, and Rate your day at night. Their page's cover, the sky
+  unless changed, stays behind the header (`notes/dashboard-blocks.tsx`, `frame` on `DailyCard`). See
   [On their page, as blocks](#on-their-page-as-blocks).
 - **The greeting folds the card**, on an employee's page and in the site admin's block, and the date and weather line folds away
   with it, so a folded card is the greeting alone (Tyler, 6 Nov 2026: "the
@@ -61,10 +61,7 @@ Daily card", and that file wins wherever the two disagree.
 - **The sky.** It is a drawing: a sunrise for the first hour of the morning,
   blue sky, gold for the last 90 minutes of the afternoon, a sunset for the
   first hour of the night, then stars (`daily-sky.tsx`). It is drawn faint,
-  so the header and greeting read in their usual colours over it. The sky
-  stays while the site admin's inbox or Look back is open in the panel ("the
-  panel background image should not disapeared when i click on the graph or
-  the inbox tab").
+  so the header and greeting read in their usual colours over it.
 - **The weather.** A City field in My settings → General, behind the ⋮
   beside the name. The card's sky then shows that city's weather, such as clouds, rain,
   snow or fog, and "12°, rain in Toronto" under the greeting. The browser
@@ -229,19 +226,14 @@ a team screen or sent to anyone.
 - **Sunday** shows the week's ratings and wins above the usual card, all day.
 - **The first of the month** shows last month's best habit (done most often
   for the days it was set), the typical rating and the top wins.
-- **Look back** is the graph in the panel's header, before the inbox ("Add
-  another icon here with the graph icon"); the card has no Look back button
-  ("remove the look back button"). It swaps the panel's cards for Look back,
-  and pressing it again, or the inbox, swaps them back, the way the inbox
-  does; it is never a window ("Dont put the look back into modal but instead
-  put it inline in the left panel like inbox", `daily-look-back.tsx`). While
-  it is open the graph bends into a cross, and back again when it shuts, the
-  way the inbox's tray does ("clicking on the graph icon shoulkd morhp like
-  the inbox icon", `inbox-morph-icon.tsx`). It
-  has three tabs, Month, Year and Search, underlined in a header of their own
-  under the panel's, like List and Board over My tasks ("put tabs here using
-  underline styling"), on the right in a row lower than a panel header ("tabs
-  align right and reduce tab height"); there is no "Look back" title. Month is one calendar, Monday first, each day shaded by how
+- **Look back** is a "/" block on the site admin's own page since 11 Nov
+  2026 (Tyler: "turn look back and inbox tabs into blocks"). Until then a
+  graph in the panel's header swapped the page for it. The card has no Look
+  back button ("remove the look back button"), and it is never a window
+  ("Dont put the look back into modal"). It has three tabs, Month, Year and
+  Search, in a 57px header at the top of the block, drawn as My tasks' List,
+  Board and Calendar are (`BlockTabs`; `LookBackTabs`,
+  `daily-look-back.tsx`). Month is one calendar, Monday first, each day shaded by how
   many of its habits were done ("If there is 10 habits, its too long"). Under
   it is a folded card for each day of the month so far, newest first, with
   the day on the left and its rating on the right ("replace it with
@@ -277,8 +269,7 @@ blocks show parts of it there (task "My dashboard/left-panel-blocks"; see
 ### In My settings, for the site admin
 
 The Daily card tab holds Card layout, then Routine habits, drawn from Tyler's
-picture of the tab (6 Nov 2026). Sky is in General, beside City for the
-weather. The reminder times are in Notifications. It all lived behind a pencil
+picture of the tab (6 Nov 2026). City for the weather is in General. The reminder times are in Notifications. It all lived behind a pencil
 in a window until that day (`daily-settings.tsx`).
 
 - **Card layout**, a grey heading as every list in these menus has, lists Next meeting (Work days), Routine (All day) and Tomorrow, at night
@@ -308,15 +299,18 @@ in a window until that day (`daily-settings.tsx`).
 - **Everything saves itself**, habits included; only a new habit's name has
   an Add button. An employee's hours are in My settings → General.
 
-- **Sky** picks the drawn sky or one of four scenes along the bottom of it:
-  beach, city, mountains or forest. The scenes are drawn too. "My own photos"
-  takes a photo for each part of the day through the shell's image upload.
+- **There is no sky choice** since 11 Nov 2026. The site admin's page has
+  the shell's Cover photo row instead (see
+  [My dashboard](my-dashboard.md)), and the Beach, City, Mountains and
+  Forest scenes and the own photo per part of the day went with the Sky row
+  (Tyler: "Shell row exactly"). An employee's page keeps the drawn sky.
 
 ## Where it is kept
 
 `drizzle/0137_project_daily_card.sql`:
 
-- `project_daily_cards`: each person's hours, city, sky and photos, reminder times, the milestones already celebrated, and the
+- `project_daily_cards`: each person's hours, city, reminder times (the sky
+  and photo columns were dropped by `0180_project_admin_page_cover.sql`), the milestones already celebrated, and the
   site admin's section order (`section_order`, from
   `drizzle/0138_project_daily_sections.sql`) and hidden sections
   (`hidden_sections`, from `drizzle/0140_project_daily_hidden_sections.sql`).

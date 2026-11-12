@@ -6,10 +6,8 @@ import { RateYourDayButton, StartDayButton, TomorrowAtAGlance } from "@/componen
 import { DailySection } from "@/components/project/daily-section"
 import { DailySky } from "@/components/project/daily-sky"
 import { FoldHeading } from "@/components/project/fold-heading"
-import { GraphMorphIcon } from "@/components/project/inbox-morph-icon"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { loadMyWeather, milestoneShown, type DailyCard as DailyCardData, type DailyWeather } from "@/lib/api/project/daily-card"
 import {
   DAY_RATING_TOP,
@@ -24,8 +22,6 @@ import {
 import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { useNow } from "@/lib/project/use-now"
-import { SKY_COVER } from "@/lib/notes/page-cover"
-import { cn } from "@/lib/utils"
 
 /** The clock, part of the day, sky and weather, worked out once for the sky behind the panel and the card in it. */
 export type DailyNow = {
@@ -50,7 +46,7 @@ export function useDailyNow(daily: DailyCardData): DailyNow {
  * how we built project avatar and background"). The panel holding it is
  * `relative`, and its header goes see-through at the foot.
  */
-export function DailySkyBanner({ daily, now }: { daily: DailyCardData; now: DailyNow }) {
+export function DailySkyBanner({ now }: { now: DailyNow }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 overflow-hidden">
       <div className="absolute inset-0 opacity-45">
@@ -58,55 +54,10 @@ export function DailySkyBanner({ daily, now }: { daily: DailyCardData; now: Dail
           phase={now.phase}
           part={now.part}
           weather={now.weather?.kind ?? null}
-          sky={daily.admin ? daily.settings.sky : "drawn"}
-          ownPhoto={daily.settings.ownSkies[now.part]}
         />
       </div>
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
     </div>
-  )
-}
-
-/**
- * What the right panel carries on of My dashboard's sky (the shell's look,
- * Tyler, 8 Nov 2026: "make it an extension of the left panel"): the
- * person's own photo for this part of the day when they picked their own,
- * and otherwise the shell's drawn sky with no sun or moon. A scene (beach,
- * city and the rest) is drawn on the left only; the right shows the sky.
- */
-export function rightSkyCover(daily: DailyCardData, nowMs: number): string {
-  if (daily.admin && daily.settings.sky === "own") {
-    const part = partOfDay(localNow(new Date(nowMs), daily.zone).time, daily.settings.hours)
-    const photo = daily.settings.ownSkies[part]
-    if (photo) return photo
-  }
-  return SKY_COVER
-}
-
-/**
- * The graph in the site admin's panel header, before the pencil (Tyler, 30
- * Oct 2026: "Add another icon here with the graph icon that will open up the
- * look back modal"). It swaps the panel's cards for Look back and back again,
- * the way the inbox does ("put it inline in the left panel like inbox").
- */
-export function DailyLookBackButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={open ? "Back to my page" : "Look back"}
-          aria-pressed={open}
-          className={cn(open && "bg-muted")}
-          onClick={onToggle}
-        >
-          <GraphMorphIcon open={open} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{open ? "Back to my page" : "Look back"}</TooltipContent>
-    </Tooltip>
   )
 }
 

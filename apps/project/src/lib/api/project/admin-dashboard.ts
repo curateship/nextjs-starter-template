@@ -1,11 +1,12 @@
 import { createServerFn } from "@tanstack/react-start"
 import type { z } from "zod"
 
-import { adminPageLockSchema, adminPageSchema, adminTimeZoneSchema, myStatusOrderSchema } from "@/lib/project/rules"
+import { adminPageCoverSchema, adminPageLockSchema, adminPageSchema, adminTimeZoneSchema, myStatusOrderSchema } from "@/lib/project/rules"
 import { userGet, userPost } from "@/server/guards"
 import {
   loadAdminDashboard,
   setAdminPage,
+  setAdminPageCover,
   setAdminPageLock,
   setAdminStatusOrder,
   setAdminTimeZone,
@@ -42,6 +43,11 @@ const setAdminPageLockFn = createServerFn({ method: "POST" })
   .inputValidator(adminPageLockSchema)
   .handler(async ({ data, context }) => setAdminPageLock(context.user.id, data.locked))
 
+const setAdminPageCoverFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(adminPageCoverSchema)
+  .handler(async ({ data, context }) => setAdminPageCover(context.user.id, data))
+
 const setAdminStatusOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(myStatusOrderSchema)
@@ -62,6 +68,10 @@ export function saveAdminPage(notes: unknown) {
 /** The site admin's own page locked or unlocked, from My settings. */
 export function saveAdminPageLock(locked: boolean) {
   return setAdminPageLockFn({ data: { locked } })
+}
+/** The site admin's page cover and its pictures, from its Cover photo row in My settings. */
+export function saveAdminPageCover(cover: { coverUrl: string; coverImages: string[] }) {
+  return setAdminPageCoverFn({ data: cover })
 }
 /** The site admin's Board columns in their own order. */
 export function saveAdminStatusOrder(statusOrder: z.input<typeof myStatusOrderSchema>["statusOrder"]) {

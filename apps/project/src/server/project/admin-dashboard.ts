@@ -9,6 +9,8 @@ import { storedNotesForCopy } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES, boardStatusOrder, PERSONAL_PROJECT_NAME, priorityRank, type ProjectColor, type TaskStatus } from "@/lib/project/rules"
 import { now } from "@/server/auth/security"
 import { db } from "@/server/db"
+import { readCoverImages, SKY_COVER } from "@/lib/notes/page-cover"
+import { checkCoverPictures } from "@/server/project/cover"
 import { inTeam, requireSiteAdmin, whoCanStillSee, type ProjectDb } from "@/server/project/access"
 import { handedOutBy, openAsk } from "@/server/project/more-time"
 import { loadMyTaskOrder } from "@/server/project/my-task-order"
@@ -90,6 +92,11 @@ export type AdminDashboard = {
   page: string
   /** Their page reads only until they unlock it in My settings. */
   pageLocked: boolean
+  /**
+   * Their page's cover from the shell's Cover photo row: a picture, "sky" for
+   * the drawn sky, or null for none; and the pictures kept as tiles.
+   */
+  cover: { url: string | null; images: string[] }
   /** The zone saved in My settings; null until the dashboard first saves the browser's. */
   savedZone: string | null
   /** The zone every "today" here is counted in, and today in it. */
@@ -135,6 +142,8 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
       statusOrder: projectSiteAdminPrefs.statusOrder,
       notes: projectSiteAdminPrefs.notes,
       notesLocked: projectSiteAdminPrefs.notesLocked,
+      coverUrl: projectSiteAdminPrefs.coverUrl,
+      coverImages: projectSiteAdminPrefs.coverImages,
     })
     .from(projectSiteAdminPrefs)
     .where(eq(projectSiteAdminPrefs.userId, userId))
@@ -169,6 +178,8 @@ export async function loadAdminDashboard(userId: string, database = db, at = new
     me: { id: userId, name: me.name, email: me.email, avatarUrl: me.avatarUrl ?? "" },
     page: prefs?.notes ?? "",
     pageLocked: prefs?.notesLocked ?? false,
+    // A site admin with no saved prefs yet starts on the drawn sky, as every one did before 0180.
+    cover: prefs ? { url: prefs.coverUrl, images: readCoverImages(prefs.coverImages) } : { url: SKY_COVER, images: [] },
     savedZone: prefs?.timeZone ?? null,
     zone,
     today,
@@ -485,6 +496,36 @@ export async function setAdminPage(userId: string, notes: string, database = db)
     .insert(projectSiteAdminPrefs)
     .values({ userId, notes: kept, updatedAt: at })
     .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { notes: kept, updatedAt: at } })
+}
+
+/**
+ * Their page's cover as its Cover photo row saves it (Tyler, 11 Nov 2026:
+ * "Shell row exactly", in place of the Daily card's Sky row): the pick, ""
+ * for none, "sky" for the drawn sky or a picture, and the pictures kept as
+ * tiles. A picture new to the page must be one they uploaded, as a team's.
+ */
+export async function setAdminPageCover(
+  userId: string,
+  { coverUrl, coverImages }: { coverUrl: string; coverImages: string[] },
+  database = db
+) {
+  await requireSiteAdmin(userId, database)
+  const [prefs] = await database
+    .select({ coverUrl: projectSiteAdminPrefs.coverUrl, coverImages: projectSiteAdminPrefs.coverImages })
+    .from(projectSiteAdminPrefs)
+    .where(eq(projectSiteAdminPrefs.userId, userId))
+  await checkCoverPictures(
+    userId,
+    { url: coverUrl, images: coverImages },
+    { url: prefs?.coverUrl ?? null, images: readCoverImages(prefs?.coverImages) },
+    database
+  )
+  const at = now()
+  const cover = { coverUrl: coverUrl || null, coverImages }
+  await database
+    .insert(projectSiteAdminPrefs)
+    .values({ userId, ...cover, updatedAt: at })
+    .onConflictDoUpdate({ target: projectSiteAdminPrefs.userId, set: { ...cover, updatedAt: at } })
 }
 
 /**

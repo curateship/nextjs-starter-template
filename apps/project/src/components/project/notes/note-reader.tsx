@@ -5,6 +5,8 @@ import {
   ProjectDrawing,
   RatingMonthDrawing,
   RatingTrendDrawing,
+  InboxDrawing,
+  LookBackDrawing,
 } from "@/components/project/notes/dashboard-blocks"
 import {
   AttentionDrawing,
@@ -31,8 +33,11 @@ import {
 import { hiddenByFolds, useFoldsVersion } from "@/components/project/notes/note-folds"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import {
+  DASHBOARD_ATOM_TYPES,
   NOTE_ATOM_TYPES,
   NOTE_HOLDER_TYPES,
+  PROJECT_PAGE_ATOM_TYPES,
+  TEAM_ATOM_TYPES,
   type CalloutKind,
   type NoteImageAttrs,
   type NoteLink,
@@ -51,6 +56,16 @@ const READING: BlockEditing = { editable: false, remove: () => undefined }
 const BLOCK_TYPES = new Set<string>([...NOTE_ATOM_TYPES, ...NOTE_HOLDER_TYPES])
 /** The reader's frame for a block: the editor's, less the editor's own gap above and below. */
 const READER_FRAME = "group/block relative [&_a]:text-inherit! [&_a]:no-underline! [&_a:hover]:text-foreground!"
+/**
+ * Project's own live blocks, which reach the panel's edges with Settings →
+ * Styling → Blocks → "Advanced blocks reach the panel's edges" on, as they do
+ * in the editor (`ADVANCED_BLOCK_FRAME`). A locked page is read here, so
+ * without this a block such as the Daily card sat 15px in while locked and
+ * reached the edges unlocked (Tyler, 11 Nov 2026: "the daily card is not full
+ * width", then "it changes depending on lock or unlock thats why").
+ */
+const ADVANCED_TYPES = new Set<string>([...DASHBOARD_ATOM_TYPES, ...TEAM_ATOM_TYPES, ...PROJECT_PAGE_ATOM_TYPES])
+const ADVANCED_READER_FRAME = `${READER_FRAME} mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)]`
 
 function holdsBlocks(node: NoteNode): boolean {
   return BLOCK_TYPES.has(node.type) || (node.content ?? []).some(holdsBlocks)
@@ -91,6 +106,10 @@ function Block({ node }: { node: NoteNode }) {
       return <RatingMonthDrawing editing={READING} />
     case "noteRatingTrend":
       return <RatingTrendDrawing editing={READING} />
+    case "noteInbox":
+      return <InboxDrawing editing={READING} />
+    case "noteLookBack":
+      return <LookBackDrawing editing={READING} />
     // A team's page, as every member but the site admin reads it.
     case "noteTeamCheckins":
       return <CheckinsDrawing editing={READING} />
@@ -169,7 +188,7 @@ function NoteChildren({ nodes, hidden }: { nodes: NoteNode[]; hidden?: boolean[]
     flush()
     parts.push(
       BLOCK_TYPES.has(node.type) ? (
-        <div key={index} data-note-block="" className={READER_FRAME}>
+        <div key={index} data-note-block="" className={ADVANCED_TYPES.has(node.type) ? ADVANCED_READER_FRAME : READER_FRAME}>
           <Block node={node} />
         </div>
       ) : (

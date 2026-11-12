@@ -10,6 +10,7 @@ import {
   FINISHED_DAYS,
   loadAdminDashboard,
   setAdminPage,
+  setAdminPageCover,
   setAdminPageLock,
   setAdminStatusOrder,
   setAdminTimeZone,
@@ -169,6 +170,20 @@ describe("the middle", () => {
     expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toContain("Ship the redesign")
     await setAdminPage(tyler.id, adminPageSchema.parse({ notes: { type: "doc", content: [{ type: "paragraph" }] } }).notes, database)
     expect((await loadAdminDashboard(tyler.id, database, NOON)).page).toBe("")
+  })
+
+  it("keeps his page's cover from the Cover photo row: the sky at first, then none, never someone else's picture", async () => {
+    // Before anything is saved, the drawn sky he always had.
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).cover).toEqual({ url: "sky", images: [] })
+    await setAdminPageCover(tyler.id, { coverUrl: "", coverImages: [] }, database)
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).cover).toEqual({ url: null, images: [] })
+    await setAdminPageCover(tyler.id, { coverUrl: "sky", coverImages: [] }, database)
+    expect((await loadAdminDashboard(tyler.id, database, NOON)).cover.url).toBe("sky")
+    // A picture he never uploaded is refused, and only the site admin has a page.
+    await expect(
+      setAdminPageCover(tyler.id, { coverUrl: "https://elsewhere.example/x.jpg", coverImages: ["https://elsewhere.example/x.jpg"] }, database)
+    ).rejects.toThrow()
+    await expect(setAdminPageCover(ben.id, { coverUrl: "sky", coverImages: [] }, database)).rejects.toThrow()
   })
 
   it("refuses changes to his page while it is locked, until he unlocks it", async () => {

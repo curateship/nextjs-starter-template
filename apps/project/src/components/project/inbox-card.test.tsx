@@ -72,7 +72,7 @@ async function pressNotice(item: NotificationItem, name: string) {
   await act(async () =>
     root.render(
       <TooltipProvider>
-        <InboxCard bare inbox={{ notifications: [item], nextCursor: null }} />
+        <InboxCard inbox={{ notifications: [item], nextCursor: null }} />
       </TooltipProvider>
     )
   )

@@ -19,10 +19,9 @@ import {
 } from "@dnd-kit/sortable"
 import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, ClockIcon, EllipsisIcon, GripVerticalIcon, PencilIcon, PlusIcon } from "lucide-react"
 
-import { PickMenuRow, PickRow } from "@/components/project/pick-rows"
+import { PickRow } from "@/components/project/pick-rows"
 import { SaveLine } from "@/components/project/save-line"
 import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
-import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -40,7 +39,6 @@ import {
   saveMyHiddenSections,
   saveMyHours,
   saveMySectionOrder,
-  saveMySky,
   type DailyCard,
   type DailyHabit,
 } from "@/lib/api/project/daily-card"
@@ -52,13 +50,10 @@ import {
   DAY_PART_LABEL,
   DAY_PARTS,
   hoursInOrder,
-  SKY_KINDS,
-  SKY_LABEL,
   WEEKDAY_SHORT,
   type DailySection,
   type DayHours,
   type DayPart,
-  type SkyKind,
 } from "@/lib/project/daily-card"
 import { clockLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -233,44 +228,6 @@ export function DailyHoursRow({ hours }: { hours: DayHours }) {
         </div>
       ))}
     </PickRow>
-  )
-}
-
-/**
- * The sky behind the greeting, rows in My settings → General (Tyler, 6 Nov
- * 2026: "general should have the same grouping ui design too"): its kinds in
- * one press, and with "My own photos" a row for a photo per part of the day.
- */
-export function DailySkyRows({ daily }: { daily: DailyCard }) {
-  const reload = useReload()
-  const [run] = useAsyncAction(getProjectErrorMessage)
-  const { sky, ownSkies } = daily.settings
-  async function save(next: { sky: SkyKind; own: Record<DayPart, string> }) {
-    if (await run(() => saveMySky(next))) await reload()
-  }
-  const photos = DAY_PARTS.filter((part) => ownSkies[part]).length
-  return (
-    <>
-      <PickMenuRow
-        label="Sky"
-        value={SKY_LABEL[sky]}
-        selected={sky}
-        onPick={(value) => void save({ sky: value as SkyKind, own: ownSkies })}
-        options={SKY_KINDS.map((kind) => ({ value: kind, label: SKY_LABEL[kind] }))}
-      />
-      {sky === "own" ? (
-        <PickRow label="Photos" empty={photos === 0} value={photos ? `${photos} of 3` : "None"}>
-          {DAY_PARTS.map((part) => (
-            <ImageUpload
-              key={part}
-              label={DAY_PART_LABEL[part]}
-              value={ownSkies[part]}
-              onChange={(value) => void save({ sky, own: { ...ownSkies, [part]: value } })}
-            />
-          ))}
-        </PickRow>
-      ) : null}
-    </>
   )
 }
 

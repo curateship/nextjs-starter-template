@@ -109,6 +109,7 @@ function dashboard(extra: Partial<Pick<AdminDashboard, "attention" | "projects" 
     me: { id: "tyler", name: "Tyler", email: "tyler@example.test", avatarUrl: "" },
     page: "",
     pageLocked: false,
+    cover: { url: "sky", images: [] },
     savedZone: "UTC",
     zone: "UTC",
     today: "2099-03-02",
@@ -147,8 +148,6 @@ const DAILY: DailyCard = {
   settings: {
     hours: { morning: "05:00", afternoon: "12:00", night: "18:00" },
     city: null,
-    sky: "drawn",
-    ownSkies: { morning: "", afternoon: "", night: "" },
     reminders: { morning: "10:00", afternoon: "15:00", night: "21:00" },
     sections: ["meeting", "routine", "tomorrow"],
     hidden: [],
@@ -261,6 +260,8 @@ describe("the \"/\" list", () => {
       "Daily card",
       "Rating calendar",
       "Rating trend",
+      "Inbox",
+      "Look back",
     ])
     // The arrow keys walk the list as it shows: every basic block before any advanced one.
     const groups = list.map((block) => block.group)
@@ -273,7 +274,7 @@ describe("the \"/\" list", () => {
     ])
   })
 
-  it("keeps the four blocks only in his page's saves", () => {
+  it("keeps the six blocks only in his page's saves", () => {
     const body = {
       type: "doc",
       content: [
@@ -282,6 +283,8 @@ describe("the \"/\" list", () => {
         { type: "noteHabit", attrs: { habitId: "h1" } },
         { type: "noteRatingMonth" },
         { type: "noteRatingTrend" },
+        { type: "noteInbox" },
+        { type: "noteLookBack" },
         { type: "paragraph", content: [{ type: "text", text: "Hi" }] },
       ],
     }
@@ -290,6 +293,8 @@ describe("the \"/\" list", () => {
       "noteHabit",
       "noteRatingMonth",
       "noteRatingTrend",
+      "noteInbox",
+      "noteLookBack",
       "paragraph",
     ])
     expect(cleanDashboardBody(body).content?.[1]).toEqual({ type: "noteHabit" })
@@ -308,6 +313,7 @@ describe("the blocks", () => {
     onPick: () => undefined,
     daily: DAILY,
     now: { nowMs: 0, local: { day: "2099-03-02", time: "09:00" }, part: "morning", weather: null } as unknown as DashboardBlocks["now"],
+    inbox: { notifications: [], nextCursor: null },
     ...extra,
   })
   const draw = (node: React.ReactNode, value = blocks()) =>

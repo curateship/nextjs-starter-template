@@ -20,7 +20,6 @@ import {
   type DayPart,
   type JournalField,
   type RoutineReminders,
-  type SkyKind,
   type Streak,
   type StreakDay,
   type WeatherKind,
@@ -71,8 +70,6 @@ export type DailySettings = {
   hours: DayHours
   /** The city in My settings, as the weather service named it. */
   city: string | null
-  sky: SkyKind
-  ownSkies: Record<DayPart, string>
   reminders: RoutineReminders
   /** The panel's sections in the site admin's order, every one named once. */
   sections: DailySection[]
@@ -161,8 +158,6 @@ export type DailyCard = {
 const DEFAULT_SETTINGS: DailySettings = {
   hours: DEFAULT_HOURS,
   city: null,
-  sky: "drawn",
-  ownSkies: { morning: "", afternoon: "", night: "" },
   reminders: DEFAULT_REMINDERS,
   sections: [...DAILY_SECTIONS],
   hidden: [],
@@ -180,8 +175,6 @@ function settingsOf(row: SettingsRow | undefined): DailySettings {
   return {
     hours: { morning: row.morningAt, afternoon: row.afternoonAt, night: row.nightAt },
     city: row.city,
-    sky: row.sky,
-    ownSkies: { morning: row.ownSkyMorning, afternoon: row.ownSkyAfternoon, night: row.ownSkyNight },
     reminders: { morning: row.reminderMorning, afternoon: row.reminderAfternoon, night: row.reminderNight },
     sections: sectionsInOrder(row.sectionOrder),
     hidden: knownSections(row.hiddenSections),
@@ -706,19 +699,6 @@ export async function saveDailyCity(userId: string, city: string, database: Proj
   if (!place) throw new Error(PROJECT_ERRORS.cityNotFound)
   await saveSettings(userId, { city: place.label, latitude: place.latitude, longitude: place.longitude }, database)
   return { city: place.label }
-}
-
-export async function saveDailySky(
-  userId: string,
-  input: { sky: SkyKind; own: Record<DayPart, string> },
-  database: ProjectDb = db
-) {
-  await requireSiteAdmin(userId, database)
-  await saveSettings(
-    userId,
-    { sky: input.sky, ownSkyMorning: input.own.morning, ownSkyAfternoon: input.own.afternoon, ownSkyNight: input.own.night },
-    database
-  )
 }
 
 export async function saveRoutineReminders(userId: string, reminders: RoutineReminders, database: ProjectDb = db) {

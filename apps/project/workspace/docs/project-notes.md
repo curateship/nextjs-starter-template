@@ -24,7 +24,7 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
 
 - **The icon** is Lucide's NotebookPen. It bends into an × while the notes
   show and back when they close, with the same motion as the inbox and Look
-  back icons (`NotesMorphIcon` in `src/components/project/inbox-morph-icon.tsx`).
+  back icons (`NotesMorphIcon` in `src/components/project/notes-morph-icon.tsx`).
 - **The notes take the panel's place.** The page, Lead, Client, Time and
   Milestones come back when the notes close. The header keeps the project's
   name, its dot and its back arrow.

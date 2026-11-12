@@ -13,7 +13,7 @@ import { DueDayPicker } from "@/components/project/due-day-picker"
 import type { Change } from "@/components/project/task-body"
 import { ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelNotice } from "@/components/project/panel-notice"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   DropdownMenu,
@@ -259,19 +259,17 @@ export function MoveTaskCard({ detail, onDone }: { detail: TaskDetail; onDone: (
   }
 
   return (
-    <Card size="sm" ref={frame}>
-      <CardHeader>
-        <CardTitle>Move to project</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+    <PanelNotice ref={frame} title="Move to project">
         <p className="text-sm text-muted-foreground">
           Its chat, files and history go with it.
         </p>
-        <div className="grid gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
           <Label htmlFor={MOVE_PICKER_ID}>Project</Label>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          {/* Stacked: the right panel is narrow at any screen size, so the
+              buttons beside the picker would sit past its edge. */}
+          <div className="flex flex-col gap-2">
             <Select value={target} onValueChange={setTarget}>
-              <SelectTrigger id={MOVE_PICKER_ID} className="w-full sm:w-fit">
+              <SelectTrigger id={MOVE_PICKER_ID} className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -299,8 +297,7 @@ export function MoveTaskCard({ detail, onDone }: { detail: TaskDetail; onDone: (
             </p>
           ) : null}
         </div>
-      </CardContent>
-    </Card>
+    </PanelNotice>
   )
 }
 
@@ -325,11 +322,7 @@ export function ReminderCard({
   }, [])
 
   return (
-    <Card size="sm" ref={frame}>
-      <CardHeader>
-        <CardTitle>Remind me</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+    <PanelNotice ref={frame} title="Remind me">
         <ReminderDay detail={detail} change={change} defaultOpen onPicked={onDone} after={
           <div className="flex shrink-0 gap-2">
             <Button type="button" variant="outline" onClick={onDone}>
@@ -337,8 +330,7 @@ export function ReminderCard({
             </Button>
           </div>
         } />
-      </CardContent>
-    </Card>
+    </PanelNotice>
   )
 }
 
@@ -370,7 +362,7 @@ function ReminderDay({
       </p>
       <div className="grid gap-2">
         <Label htmlFor="task-reminder-day">Day</Label>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-wrap items-center gap-2">
           <DueDayPicker
             id="task-reminder-day"
             value={detail.myReminder}
@@ -430,11 +422,7 @@ export function AskTimeCard({
   }
 
   return (
-    <Card size="sm" ref={frame}>
-      <CardHeader>
-        <CardTitle>Ask for more time</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+    <PanelNotice ref={frame} title="Ask for more time">
         <p className="text-sm text-muted-foreground">
           {task.dueDate ? `It's due ${shortDayLabel(task.dueDate)}. ` : ""}
           {answerer === "the site admin" ? "The site admin" : answerer} gets a notice and says yes or no. The date
@@ -479,7 +467,6 @@ export function AskTimeCard({
             Cancel
           </Button>
         </div>
-      </CardContent>
-    </Card>
+    </PanelNotice>
   )
 }

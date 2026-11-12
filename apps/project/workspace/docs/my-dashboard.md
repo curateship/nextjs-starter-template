@@ -10,11 +10,15 @@ off doesn't load again. Tyler redrew all three panels on 13 Oct 2026
 version.
 
 The left and right panels share one inside spacing, 15px from the panel's
-edges to its cards and between one card and the next, set in one place
-(`PANEL_GUTTER`, `src/lib/project/panel-gutter.ts`). Tyler, 30 Oct 2026:
-"all panels gutter needs to follow this size". The right panel is the same
-task panel the project and team pages open, so it has the spacing there too,
-and its footer uses the same padding so its edge lines up.
+sides and bottom to its cards, set in one place (`PANEL_GUTTER`, the shell's,
+in `src/lib/layout/panel-gutter.ts`). Tyler, 30 Oct 2026: "all
+panels gutter needs to follow this size". Since 11 Nov 2026 the cards sit
+one under the next with no space between, the first straight under the
+header, as on the shell's dashboards. The right panel is the same task panel
+the project and team pages open, so it has the spacing there too, and its
+footer uses the same padding so its edge lines up. How wide the panels open
+and how their cards look come from Settings → Styling, as
+[Side panels and Settings → Styling](side-panel-styling.md) says.
 
 The site admin has a My dashboard of their own at the same address, with no
 check-in. It is described in
@@ -76,10 +80,11 @@ check-in. It is described in
   off in [The morning check-in](morning-check-in.md#time-off).
 - **My settings** opens from the ⋮ in the header (Tyler, 6 Nov 2026: "it needs
   to be replaced with a 3 vertical icon ... It uses tabs"). It is a dropdown
-  22.7rem wide at most, with underlined tabs from the left, 32px apart, and
-  each tab scrolling inside it. It opens on General every time. There is no
-  email line ("Remove email and dividers"). The frame is
-  `my-settings-menu.tsx`, shared with the site admin's.
+  20.4rem wide at most, as the shell's left panel ⋮ is, with underlined tabs
+  from the left, 32px apart, and each tab scrolling inside it. It opens on
+  General every time. There is no email line ("Remove email and dividers").
+  The frame is the shell's `TabbedMenu` (`shared/notes/tabbed-menu.tsx`),
+  through `my-settings-menu.tsx`, shared with the site admin's.
   - **Every list in it is light grey,** with a row going a shade darker while
     it is pointed at (Tyler, 6 Nov 2026: "The project app settings white bg
     needs to be change to light gray too"). That is General's rows, each
@@ -326,10 +331,9 @@ show the first task and then it remembers what task I'm on afterwards."
 - **The sky carries on behind the task's header** (the shell's look since
   9 Nov 2026; Tyler, 8 Nov 2026, of the shell: "make it an extension of the
   left panel. Meaning that we don't have the sun and moon on the right").
-  The site admin's own photo for this part of the day shows there when they
-  picked their own; otherwise the drawn sky with no sun or moon. A scene
-  (beach, city and the rest) is drawn on the left only, and the right shows
-  the plain sky (`rightSkyCover` in `daily-card.tsx`).
+  An employee's shows the drawn sky with no sun or moon. The site admin's
+  shows their page's cover, the sky, a picture or none, from its Cover photo
+  row.
 - **Its header ends with the button that hides it.** A hidden task panel
   comes back from the button at the end of the middle's header.
 - **The open task's row in the List** has the shell's small dark bar before
@@ -343,11 +347,8 @@ A card at the bottom of the left panel since 23 Oct 2026 (it was the right
 panel's when no task was open, and Tyler picked a left card over dropping it
 or a tab beside the task). It folds like the others. Its heading reads
 "Inbox · 5 unread", with a double-tick **Mark all read** button beside the
-arrow, then tabs: All,
-Unread, Tasks (Project's own notices), Flows (an automation waiting for
-approval or one that failed) and News (product updates and announcements).
-A notice of any other kind, such as feedback, shows under All and Unread
-only. The same notices the bell holds, newest first. It shows **6**, and
+arrow, then two tabs: All and Unread. Tasks, Flows and News went on 11 Nov
+2026 (Tyler: "remove this 3 tabs"). The same notices the bell holds, newest first. It shows **6**, and
 **Load more** shows 6 more, fetching the next 30 from the server once the
 loaded ones run out (Tyler, 23 Oct 2026: "the inbox should have 6 open and a
 button to load more"); a tab starts again at 6. Clicking
@@ -370,12 +371,20 @@ the site admin to Teams, and My dashboard is first in the admins' left menu
 again (a menu pass marked `:admin-my-dashboard`). His answers are in
 `workspace/tasks/Admin/03-admin-dashboard.md`.
 
-- **Three panels, the same frame.** Left: the site admin, their page (or the
-  Inbox or Look back in its place), with no footer.
+- **Three panels, the same frame.** Left: the site admin and their page,
+  with no footer. The Inbox and Look back are blocks on that page.
   Middle: their tasks, with the Need your attention tab. Right: the open task,
   with no cross. Below 1280px wide one panel at a time, with Me, My tasks and
   Task tabs. Pressing a Projects block switches to My tasks.
-- **Their page, under the sky.** Under the header the whole panel is a page of
+- **Their page, under its cover.** The page's cover lies behind the header
+  and the top of the panel: the drawn sky unless changed, a picture, or none,
+  picked in My settings → General → Page → **Cover photo**, the shell's row,
+  as a team's and a project's page have it (Tyler, 11 Nov 2026: "this is
+  not using standard", then "Shell row exactly"). The pictures picked stay
+  as tiles to pick again. It replaced the Daily card's Sky row, and with it
+  went the Beach, City, Mountains and Forest scenes and the own photo per
+  part of the day (`drizzle/0180_project_admin_page_cover.sql` keeps the
+  cover and drops those settings). Under the header the whole panel is a page of
   their own, written in place with the same "/" blocks as a project's page:
   links, a callout and the rest (Tyler, 6 Nov 2026: "add the tiptap editor
   with blocks ability under the banner"; he picked one page that stays, not a
@@ -406,34 +415,24 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   Milestones this month, Done today and Invites not taken left My dashboard
   with it (Tyler picked "Goes entirely"). The order the Pinned projects card
   was dragged into went with the card (`drizzle/0154_project_drop_project_order.sql`).
-- **The inbox icon** in the header, left of the ⋮, swaps their page for the
-  Inbox, and pressed again brings the page back (Tyler, 25 Oct 2026: "add an
-  inbox icon here with red bubble notification. the inbox open in that tab
-  instead of card it currantly does"). A red bubble on it counts unread
-  notices, "9+" past nine, and drops as they are read here. The Inbox there
-  has no card or heading around it: All, Unread (with its count), Tasks,
-  Flows and News are underlined tabs on the right of a low row under the
-  header, with Mark all read right of them, and the rows scroll under it
-  ("fix the inbox tabs too", "put the mark all as read icons on the right of
-  the tabs", 30 Oct 2026; the same row as Look back's, `panel-tabs-row.tsx`).
-  The Daily card's sky stays behind the header while it shows. The panel opens on their page. While the Inbox
-  shows, the icon morphs into a cross (Tyler, 25 Oct 2026: "make the inbox
-  morphed into an x when its in the inbox tab", then "make it morph"): the
-  tray's outline folds flat into one stroke and its dip straightens into the
-  other, over about a quarter of a second, and back again on the way out
-  (`inbox-morph-icon.tsx`). The bubble hides while it is a cross; the cross
-  brings the page back.
-- **The header** shows their photo, name and "Site admin", then Look back,
-  the inbox and the ⋮ for My settings. There is no cog and no pencil since 6
+- **The Inbox and Look back are blocks on their page** since 11 Nov 2026
+  (Tyler: "turn look back and inbox tabs into blocks"), under
+  [Their page's blocks](#their-pages-blocks). Before that a tray and a graph
+  in the header swapped the page for each, with a red bubble counting unread
+  notices on the tray. Both buttons and the bubble are gone. Migration
+  `0179_project_admin_page_inbox_look_back_blocks.sql` put both blocks at
+  the end of every site admin's page, so neither went missing.
+- **The header** shows their photo, name and "Site admin", then the ⋮ for
+  My settings. There is no cog and no pencil since 6
   Nov 2026. My settings is the employee's frame with three tabs:
-  - **General:** grouped rows. **Location:** Time zone, which opens
-    straight onto the zones with a search box over them, and City for the
-    weather. **Daily card:** Sky, whose kinds open straight away, and with My
-    own photos a Photos row for a photo per part of the day. Under the
-    groups, **Lock the notes** (Unlock the notes while locked), drawn as the
-    task's ⋮ draws its own: a plain row with the lock icon (Tyler, 6 Nov 2026:
-    "lock the notes option is missing", then "match ui",
-    `assets/pasted-image-1794010759503376000.png`). It says "Notes locked.
+  - **General:** grouped rows. **Page:** Cover photo, the shell's row of
+    tiles (None, Sky, the page's pictures and +). **Location:** Time zone,
+    which opens straight onto the zones with a search box over them, and
+    City for the weather. Under the
+    groups, in the tab's footer under a line, **Lock blocks** (Unlock blocks
+    while locked), the shell's `LockRow`, as on the shell's left page ⋮
+    (Tyler, 6 Nov 2026: "lock the notes option is missing"; since 11 Nov 2026
+    drawn as the shell's). It says "Notes locked.
     Nobody can change them until they're unlocked." Locked, their page reads
     only: no "/", no bins, and the server refuses any save until
     it is unlocked, as a project's locked page does. Its blocks still show
@@ -558,8 +557,9 @@ your attention card in the left panel's footer the same day.
 
 ### Their page's blocks
 
-Four "/" blocks only the site admin's own page offers (task
-`workspace/tasks/My dashboard/left-panel-blocks.md`, Tyler, 6 Nov 2026). A
+Six "/" blocks only the site admin's own page offers (task
+`workspace/tasks/My dashboard/left-panel-blocks.md`, Tyler, 6 Nov 2026, and
+Inbox and Look back on 11 Nov 2026). A
 project's page, a project's notes, a task's notes and New task never offer
 them, and the server drops them from any of those saves. Each is the
 shell's block card with its ⋮ (see [Notes and blocks](notes-and-blocks.md)),
@@ -651,6 +651,23 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
   leaves a gap in the line, and with none rated it says "No day rated in the
   last 30 days. Rate your day at night." It is the shell's chart, drawn as
   the Team dashboard's trends are (`RatingTrend` in `daily-look-back.tsx`).
+- **Inbox** (Tyler, 11 Nov 2026: "turn look back and inbox tabs into
+  blocks"). Their notices, six at a time with Load more: All and Unread as
+  tabs drawn as the middle panel's List, Board and
+  Calendar are, in a 57px header at the top of the block with the line under
+  the tab picked on its divider (Tyler, 11 Nov 2026: "fix the tabs ui. it
+  needs to be consistent with ui standard", then "no it needs to look like
+  this" of My tasks' tabs). The header stays put while the rows scroll
+  (`BlockTabs` in `project-block-card.tsx`). An employee's Inbox card has
+  the same header.
+  The unread count sits by the title and Mark all read in the heading, shown
+  while the block is pointed at. A row opens what it is about, as the bell
+  does. One per page (`InboxCard` with `block`, `inbox-card.tsx`).
+- **Look back** (the same day). Month, Year and Search, as described in
+  [The Daily card](daily-card.md), as tabs in the same header as the Inbox
+  block's.
+  A long tab scrolls inside the block. One per page (`LookBackTabs`,
+  `daily-look-back.tsx`).
 - **Ideas he passed on,** 6 Nov 2026: Meetings today, Team, Saved view,
   Milestones, Done today, Who's away, Check-ins today, Invites waiting,
   Finished chart, Person, Quick add, Project note, Mini calendar, Team

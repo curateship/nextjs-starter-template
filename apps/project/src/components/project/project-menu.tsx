@@ -1,4 +1,4 @@
-import { ArchiveIcon, ArchiveRestoreIcon, LockIcon, LockOpenIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
 
 import { ProjectMembersList } from "@/components/project/project-members-card"
 import { CoverRow } from "@/components/shared/notes/page-rows"
@@ -11,10 +11,11 @@ import {
   ProjectWholeTeamField,
 } from "@/components/project/project-settings-fields"
 import { useArchiveProject, useSaveProject } from "@/components/project/use-save-project"
-import { TabbedMenu } from "@/components/project/my-settings-menu"
+import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { PickDayRow, PickGroup, PickMenuRow, PickRow } from "@/components/project/pick-rows"
 import { ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
+import { LockRow } from "@/components/shared/notes/page-rows"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import { dayLabel } from "@/lib/project/days"
 import { PROJECT_COLOR_LABEL, PROJECT_COLORS, type ProjectColor } from "@/lib/project/rules"
@@ -123,20 +124,6 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
         </PickRow>
       </PickGroup>
       <div className="-mx-2 grid gap-1 [&_[data-slot=button]]:font-normal">
-        <Button
-          type="button"
-          variant="ghost"
-          className={row}
-          disabled={off || lock.busy}
-          onClick={() =>
-            void lock.save(
-              { notesLocked: !project.notesLocked }
-            )
-          }
-        >
-          {project.notesLocked ? <LockOpenIcon className="size-4" /> : <LockIcon className="size-4" />}
-          {project.notesLocked ? "Unlock page" : "Lock page"}
-        </Button>
         <Button type="button" variant="ghost" className={row} disabled={archive.busy} onClick={() => void archive.toggle()}>
           {project.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
           {project.archived ? "Bring back" : "Archive project"}
@@ -151,7 +138,19 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
       align="start"
       width="20.4rem"
       tabs={[
-        { value: "general", label: "General", content: general },
+        {
+          value: "general",
+          label: "General",
+          content: general,
+          // Lock blocks is the tab's footer, as on the shell's left page ⋮. An archived project's page can't change.
+          footer: off ? undefined : (
+            <LockRow
+              locked={project.notesLocked}
+              busy={lock.busy}
+              onLock={(notesLocked) => void lock.save({ notesLocked })}
+            />
+          ),
+        },
         {
           value: "members",
           label: "Members",

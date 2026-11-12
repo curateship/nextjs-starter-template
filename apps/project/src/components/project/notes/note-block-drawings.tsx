@@ -85,6 +85,16 @@ const BLOCK_TOOLS =
 
 /** The frame every block sits in. The note's own link style is for its writing, not a block's small print. */
 export const BLOCK_FRAME = "group/block relative my-2 [&_a]:text-inherit! [&_a]:no-underline! [&_a:hover]:text-foreground!"
+/**
+ * The frame of Project's own live blocks: Projects, Daily card, Rating
+ * calendar and trend, the team blocks and Milestones. With Settings →
+ * Styling → Blocks → "Advanced blocks reach the panel's edges" on, they reach
+ * past the side panel's 15px to its edges, as the shell's app blocks do
+ * (`BlockFrame` in `shared/notes/block-card.tsx`). Basic blocks keep
+ * `BLOCK_FRAME` and the space. Outside a panel that sets `--panel-gutter`
+ * nothing moves.
+ */
+export const ADVANCED_BLOCK_FRAME = `${BLOCK_FRAME} mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)]`
 
 /** Whether the note can be written in, and how to change or remove the block, from the editor. */
 export type BlockEditing = { editable: boolean; remove: () => void }

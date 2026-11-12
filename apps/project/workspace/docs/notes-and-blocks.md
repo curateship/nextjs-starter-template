@@ -62,8 +62,8 @@ tasks templates feature too").
     Video, Checklist, Callout, Divider, Fold section, Web page and Links.
   - **Advanced blocks:** blocks that show something live from the app. Task
     card, File, Comments and Video or Promo where the box offers them, and on
-    the site admin's own page Projects, Daily card, Rating calendar and
-    Rating trend, on a team's page Check-ins, Workload, Attention, This
+    the site admin's own page Projects, Daily card, Rating calendar,
+    Rating trend, Inbox and Look back, on a team's page Check-ins, Workload, Attention, This
     week and Members, and on a project's own page Milestones.
   - The arrow keys walk the list as it shows, through the basic blocks and
     on into the advanced ones. Narrowing it by typing keeps only the headings
@@ -86,9 +86,10 @@ tasks templates feature too").
   `src/lib/project/note-blocks.ts`). What it shows is in
   [Projects and tasks](projects-and-tasks.md#milestones).
 - **The site admin's own page** offers what a project's page does but
-  Milestones, plus four
-  blocks no other note has: Projects, Daily card, Rating calendar and Rating trend
-  (Tyler, 6 Nov 2026: "Your My dashboard page only"). Their habits and
+  Milestones, plus six
+  blocks no other note has: Projects, Daily card, Rating calendar, Rating
+  trend, Inbox and Look back (Tyler, 6 Nov 2026: "Your My dashboard page
+  only"; Inbox and Look back on 11 Nov 2026). Their habits and
   ratings are theirs alone, and a Projects block filters My tasks, which only
   that page sits beside. The Daily card block, like Comments, goes in once. Every other save drops the four, on the server too
   (`DASHBOARD_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). What each one
@@ -101,11 +102,13 @@ tasks templates feature too").
   the server as well (`TEAM_ATOM_TYPES` in `src/lib/project/note-blocks.ts`).
   What each one shows is in
   [Teams and invites](teams-and-invites.md#the-team-dashboard).
-- **Blocks on a left panel's page stand 15px apart**, on My dashboard and a
-  team's page, the same as the panel's own edge on either side (Tyler, 7 Nov
-  2026: "Make the gutter equal to the left and right"), while writing and
-  while reading (`BLOCK_GAP_WRITING` and `BLOCK_GAP_READING` in
-  `project-page-notes.tsx`). A project's page keeps the usual space.
+- **Two blocks in a row sit flush**, one straight under the other, on My
+  dashboard's, a team's and a project's page, while writing and while
+  reading, as the shell's pages do (Tyler, 11 Nov 2026: "therees still this
+  gap"). A block stands 15px from written text, the panel's own edge (Tyler,
+  7 Nov 2026: "Make the gutter equal to the left and right"), and a block
+  that opens the page sits straight under the panel's header
+  (`PAGE_BLOCK_STYLES` in `project-page-notes.tsx`).
 - **Words already on the line** stay where they are. Checklist, Callout and
   Fold section start on the next line.
 - **After a block with no writing in it** (a picture, a divider, a card),
@@ -222,8 +225,21 @@ tasks templates feature too").
   - A ⋮ at the heading's right, shown while the heading is pointed at
     (always on a phone): the block's own rows, then Delete block. A page
     that reads only shows no Delete block.
-  - What it shows sits on one white tile 3px inside the grey, up to 28rem
-    tall, scrolling inside past that.
+  - What it shows sits on one white tile 3px inside the grey, in a scroll
+    area, as Trade's blocks are (Tyler, 11 Nov 2026: "it needs area scroll
+    and it needs to have the height automatic adjustment like how trade
+    blocks does it"). A block stops at 28rem and its list scrolls inside, so
+    one long block never pushes the rest of the page away.
+  - **The height adjusts itself to the panel.** When the panel has room to
+    spare, a cut-off block grows into it, page order first, only as far as
+    its own rows need. What is still spare goes to the last block on the
+    page, which reaches the panel's bottom, as long as that leaves it at
+    least 240px. A block that grew keeps its height when one under it gets
+    taller, and the panel scrolls instead. On a page longer than the panel,
+    nothing grows. `block-heights.ts` is copied from Trade's, and
+    `BlockBody` in `project-block-card.tsx` sets the height on the shell's
+    tile, so the shell's card is unchanged. It works on a page read only
+    too.
   - `ProjectBlockCard` in `src/components/project/notes/project-block-card.tsx`
     puts Project's drawings into the shell's `BlockCard`.
 - **Removing a block:** a card block's ⋮ has Delete block. Every other block
@@ -270,7 +286,7 @@ the refusals come first (`src/server/project/page-preview.ts`).
   ticked. The menu hides Delete the notes and offers Unlock the notes. The
   Versions tab still lists earlier versions, but bringing one back is refused
   while they're locked.
-- **A project's page** locks from the project's ⋮ with Lock page, which only
+- **A project's page** locks from the project's ⋮ with Lock blocks, which only
   the site admin has (see "The project's page" in
   [projects-and-tasks.md](projects-and-tasks.md)).
 - **The server holds the lock:** a save to locked notes or a locked page is

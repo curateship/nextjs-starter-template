@@ -4,7 +4,8 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 
 import { CheckinDialog, StatusLine } from "@/components/project/checkin-dialog"
 import { CheckoutDialog } from "@/components/project/checkout-dialog"
-import { DailyCard, DailySkyBanner, rightSkyCover, useDailyNow } from "@/components/project/daily-card"
+import { DailyCard, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
+import { SKY_COVER } from "@/lib/notes/page-cover"
 import { CityRow } from "@/components/project/daily-city-field"
 import { DailyHoursRow } from "@/components/project/daily-settings"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
@@ -41,11 +42,10 @@ import { todaysPicks } from "@/lib/project/todays-picks"
 import { useSaveLine } from "@/lib/project/use-save-line"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
-import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
-import { useNow } from "@/lib/project/use-now"
 
 export type MyDashboardSearch = Omit<TaskFilters, "person"> & {
   /** The task open in the right panel. */
@@ -94,7 +94,6 @@ function Dashboard({
   const navigate = useNavigate()
   const router = useRouter()
   const taskAddress = useTaskAddress()
-  const nowMs = useNow(daily.loadedAt)
   // Opening a task reads its chat, so its row's "3 new" goes once it has loaded.
   const tasksRef = React.useRef(dashboard.tasks)
   React.useEffect(() => {
@@ -186,7 +185,7 @@ function Dashboard({
           showLabel: "Show the task",
           content: (
             // The sky of my page carried on behind the task's header.
-            <RightCoverProvider value={rightSkyCover(daily, nowMs)}>
+            <RightCoverProvider value={SKY_COVER}>
               <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
             </RightCoverProvider>
           ),
@@ -246,7 +245,7 @@ function MePanel({
   const now = useDailyNow(daily)
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <DailySkyBanner daily={daily} now={now} />
+      <DailySkyBanner now={now} />
       {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
       {/* Wrapped in its own div, so the shell's table line under a header never matches it. */}
       <div className="relative shrink-0">
@@ -263,7 +262,7 @@ function MePanel({
       </DashboardCardHeader>
       </div>
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid", PANEL_GUTTER)}>
+        <div data-side-panel-body="" className={cn("grid", PANEL_GUTTER)}>
           <DailyCard
             daily={daily}
             now={now}

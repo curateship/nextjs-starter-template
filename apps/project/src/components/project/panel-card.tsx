@@ -21,6 +21,7 @@ export function PanelCard({
   meta,
   badge,
   action,
+  top,
   children,
 }: {
   /** Plain characters only; it names the card's remembered open or shut state. */
@@ -33,6 +34,8 @@ export function PanelCard({
   badge?: React.ReactNode
   /** A button of the card's own, at the heading's right end. */
   action?: React.ReactNode
+  /** Edge to edge at the top of the tile, over the padded rows: a row of tabs. */
+  top?: React.ReactNode
   children?: React.ReactNode
 }) {
   return (
@@ -45,6 +48,7 @@ export function PanelCard({
           {action}
         </BlockHeadingActions>
       ) : null}
+      {top}
       {/* Fields sit on the tile's white, so a box to type in never looks like part of the grey. */}
       <div className="grid min-h-0 gap-4 overflow-y-auto p-3 [scrollbar-width:thin]">{children}</div>
     </BlockCard>

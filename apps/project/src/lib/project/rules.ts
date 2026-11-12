@@ -402,6 +402,8 @@ export const adminTimeZoneSchema = z.object({ timeZone: timeZoneSchema })
 
 /** The site admin's own page locked or unlocked, from My settings. */
 export const adminPageLockSchema = z.object({ locked: z.boolean() })
+/** The site admin's page cover as its Cover photo row saves it: the pick ("" for none, or "sky") and its pictures. */
+export const adminPageCoverSchema = z.object({ coverUrl: z.string().trim().max(2048), coverImages: coverImagesSchema })
 
 /** A person's own check-in time and zone. Null goes back to the team's. */
 export const myCheckinTimeSchema = z.object({

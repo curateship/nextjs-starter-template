@@ -92,7 +92,8 @@ describe("a block with buttons of its own", () => {
     const labels = [...heading().querySelectorAll("button")].map((b) => b.getAttribute("aria-label") ?? b.textContent)
     expect(labels.indexOf("New task in Website")).toBeGreaterThan(-1)
     expect(labels.indexOf("Open Website")).toBeLessThan(labels.indexOf("More for Website"))
-    expect(tile().textContent).toBe("On track")
+    // What it shows scrolls in a scroll area filling the tile, as Trade's blocks do.
+    expect(tile().querySelector('[data-slot="scroll-area-viewport"]')?.textContent).toContain("On track")
     expect(removed).toBe(false)
   })
 })

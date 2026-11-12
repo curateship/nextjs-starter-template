@@ -33,6 +33,8 @@ export const NOTE_ATOM_TYPES = [
   "noteHabit",
   "noteRatingMonth",
   "noteRatingTrend",
+  "noteInbox",
+  "noteLookBack",
   "noteTeamCheckins",
   "noteTeamWorkload",
   "noteTeamAttention",
@@ -48,7 +50,15 @@ export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
  * only"): a project, their Daily card, and their day ratings, which are
  * theirs alone. Every other note drops them (`cleanNoteBody`).
  */
-export const DASHBOARD_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteProject", "noteHabit", "noteRatingMonth", "noteRatingTrend"])
+export const DASHBOARD_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
+  "noteProject",
+  "noteHabit",
+  "noteRatingMonth",
+  "noteRatingTrend",
+  // Their inbox and Look back (Tyler, 11 Nov 2026: "turn look back and inbox tabs into blocks").
+  "noteInbox",
+  "noteLookBack",
+])
 
 /**
  * Blocks only a team's own page on the Team dashboard may hold (task "Team
@@ -226,6 +236,9 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   // Both read the site admin's own ratings when drawn, so they hold nothing.
   noteRatingMonth: () => ({}),
   noteRatingTrend: () => ({}),
+  // Both read the site admin's own inbox and journal when drawn, so they hold nothing.
+  noteInbox: () => ({}),
+  noteLookBack: () => ({}),
   // Each reads the team when drawn, so they hold nothing.
   noteTeamCheckins: () => ({}),
   noteTeamWorkload: () => ({}),

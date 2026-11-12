@@ -490,7 +490,7 @@ it is left. A refused save says why.
 
 - **General:** Team (Name, Cover photo), then Schedule (Time zone, opening
   straight onto the zones with a search box; Check-in time; Work days, each
-  a tick, at least one), then **Lock the notes** (below).
+  a tick, at least one), then **Lock blocks** in the tab's footer (below).
 - **Check-ins:** Check-in box names: one row per box everyone fills in at
   their morning check-in, named by its usual word (Yesterday, Today,
   Blocker) with the team's own word on the right, or "Not renamed" (Tyler,
@@ -505,10 +505,11 @@ it is left. A refused save says why.
   me" tasks, each with its ×, and "+ Add starter task" as the last line. The
   site admin sees whether they're done in each person's Just me list on
   Projects. Then the Join link (below).
-- **Lock the notes** makes the team's page read only, blocks and all, even
-  for the site admin, until **Unlock the notes** (Tyler, 7 Nov 2026: "the
-  lock blocks button is missing"), the same row as My settings' on My
-  dashboard. The server refuses a save while it is locked
+- **Lock blocks** makes the team's page read only, blocks and all, even
+  for the site admin, until **Unlock blocks** (Tyler, 7 Nov 2026: "the
+  lock blocks button is missing"), the shell's `LockRow` in the General
+  tab's footer, as on My dashboard. The menu is 20.4rem wide, as the shell's
+  left panel ⋮ is. The server refuses a save while it is locked
   (`project_teams.notes_locked`, `drizzle/0159_project_team_page_lock.sql`).
 - **The Teams dashboard's cog** still opens the same settings as a window,
   as the Projects table does for a project, kept in the address

@@ -35,6 +35,10 @@ export function useRememberedTask({
   // A move waiting on its microtask, so a second pass doesn't open twice.
   const openingRef = React.useRef(false)
   const [quiet, setQuiet] = React.useState<string | null>(null)
+  // Once another task is open, the one opened by itself is forgotten, so
+  // pressing it again later shows it on a narrow screen, as the shell's
+  // dashboards do (`ThreePanels`' quiet record).
+  if (quiet !== null && taskId !== undefined && taskId !== quiet) setQuiet(null)
   const idsJson = ids ? JSON.stringify(ids) : null
 
   React.useEffect(() => {

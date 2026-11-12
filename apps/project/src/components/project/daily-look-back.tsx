@@ -3,14 +3,13 @@ import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "l
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { HabitIconGlyph } from "@/components/project/habit-icons"
-import { PanelTabsRow } from "@/components/project/panel-tabs-row"
+import { BlockTabs } from "@/components/project/notes/project-block-card"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   findInJournal,
@@ -53,19 +52,17 @@ function useLoaded<T>(key: string, load: () => Promise<T>) {
 
 /**
  * The site admin's look back (Tyler, 29 Oct 2026): a month of ticks, a year
- * of ratings, and a search through the journal. Only they can open it. It
- * opens in the left panel in place of the cards, like the inbox, from the
- * graph in the panel's header (Tyler, 30 Oct 2026: "Dont put the look back
- * into modal but instead put it inline in the left panel like inbox"), with
- * its tabs in a header under the panel's own and its own scrolling below. It
- * is mounted only while shown, so each opening loads fresh.
+ * of ratings, and a search through the journal. Only they can see it. Since
+ * 11 Nov 2026 it is a "/" block on their own page (Tyler: "turn look back and
+ * inbox tabs into blocks"); before, a graph in the panel's header swapped the
+ * page for it. The block holds its tabs and the tab showing, and the block's
+ * tile scrolls a long tab, as every block's does.
  */
-export function DailyLookBack() {
+export function LookBackTabs() {
   const [tab, setTab] = React.useState<"month" | "year" | "search">("month")
   return (
     <>
-      {/* Underlined, on the right, as List and Board sit over My tasks. */}
-      <PanelTabsRow
+      <BlockTabs
         value={tab}
         onValueChange={(value) => setTab(value as typeof tab)}
         tabs={[
@@ -74,12 +71,10 @@ export function DailyLookBack() {
           { value: "search", label: "Search" },
         ]}
       />
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        {/* minmax(0, 1fr): nothing here widens the panel. */}
-        <div className="grid grid-cols-[minmax(0,1fr)] p-4">
-          {tab === "month" ? <MonthTab /> : tab === "year" ? <YearTab /> : <SearchTab />}
-        </div>
-      </ScrollArea>
+      {/* minmax(0, 1fr): nothing here widens the panel. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] p-3">
+        {tab === "month" ? <MonthTab /> : tab === "year" ? <YearTab /> : <SearchTab />}
+      </div>
     </>
   )
 }

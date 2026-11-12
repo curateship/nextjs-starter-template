@@ -13,14 +13,52 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
- * On a left panel's page (My dashboard's and a team's, both `small`), the
- * space between two blocks is the panel's own 15px edge, so the cards stand
- * as far from each other as from the panel's sides (Tyler, 7 Nov 2026: "Make
- * the gutter equal to the left and right"). Writing takes the blocks' margins,
- * which meet in one 15px gap; reading, the reader's grid gap.
+ * Blocks on a page, as the shell's pages place them (`saving-document.tsx`):
+ * a block stands 15px from written text, the panel's own edge (Tyler, 7 Nov
+ * 2026: "Make the gutter equal to the left and right"), and two blocks in a
+ * row sit flush, one straight under the other (Tyler, 11 Nov 2026, of the
+ * shell's: "remove the spacing here", then "the same for left panels too";
+ * and of Project's page, the same day: "therees still this gap"). A block
+ * that opens the page sits straight under the panel's header. Plain CSS
+ * rather than classes, so it wins over a block frame's own `my-2`. Writing,
+ * the editor's blocks carry the margins; reading, the reader's grid has no
+ * gap and a block takes 15px beside written text.
  */
-const BLOCK_GAP_WRITING = "[&_.tiptap_[data-note-block]]:my-3.75"
-const BLOCK_GAP_READING = "[&>.grid]:gap-3.75"
+const PAGE_BLOCK_STYLES = `
+  [data-page-notes] .tiptap [data-note-block] { margin-top: 15px; margin-bottom: 15px; }
+  [data-page-notes] .tiptap > .react-renderer:first-child [data-note-block] { margin-top: 0; }
+  [data-page-notes] .tiptap > .react-renderer:has(+ .react-renderer) [data-note-block] { margin-bottom: 0; }
+  [data-page-notes] .tiptap > .react-renderer + .react-renderer [data-note-block] { margin-top: 0; }
+  [data-page-notes] > .grid { gap: 0; }
+  [data-page-notes] > .grid > :not([data-note-block]) + [data-note-block],
+  [data-page-notes] > .grid > [data-note-block] + :not([data-note-block]) { margin-top: 15px; }
+  /* The last block reaching the panel's bottom (block-heights.ts), as on
+     Trade's page: no margin under it, and the editor's empty last line
+     takes no room. */
+  [data-page-notes] .tiptap [data-note-block]:has(.project-block-fills) { margin-bottom: 0; }
+  [data-page-notes] .tiptap:has(.project-block-fills) > p:last-child:has(> br.ProseMirror-trailingBreak:only-child) { height: 0; margin: 0; overflow: hidden; }
+  [data-page-notes] .tiptap:has(.project-block-fills) { padding-bottom: 0 !important; }
+  /* Panel cards -> Opacity on a page read rather than written (locked, or
+     not the reader's to change): theme.css finds the first block inside the
+     editor only, so the reader's first block gets the same rule. */
+  [data-side-panel-body] [data-page-notes] > .grid > [data-note-block]:first-child [data-block-card] {
+    background: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--muted) var(--shell-block-shade, 50%), var(--card))
+        calc(0.6 * var(--shell-panel-first-opacity, 100%)),
+      transparent
+    );
+    backdrop-filter: blur(var(--shell-panel-first-blur, 12px));
+  }
+  [data-side-panel-body] [data-page-notes] > .grid > [data-note-block]:first-child [data-block-card] [data-block-tile] {
+    --block-body: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--muted) var(--shell-block-body-shade, 0%), var(--card))
+        var(--shell-panel-first-opacity, 100%),
+      transparent
+    );
+  }
+`
 
 /** A pause in typing this long saves (UI standard, "Settings"). */
 const TYPING_SAVE_MS = 700
@@ -223,7 +261,8 @@ export function PageNoteEditor({
     const read = readTaskNotes(stored, rules)
     if (taskNotesAreEmpty(read)) return null
     return (
-      <div className={small ? BLOCK_GAP_READING : undefined}>
+      <div data-page-notes="">
+        <style>{PAGE_BLOCK_STYLES}</style>
         <NoteView setup={setup} body={notesForEditor(read)} />
       </div>
     )
@@ -233,6 +272,7 @@ export function PageNoteEditor({
     <div
       ref={box}
       data-notes-editor=""
+      data-page-notes=""
       className={cn(
         "relative",
         // The panel's edge above the page, 12px, takes a click too (see `lineAbove`).
@@ -241,7 +281,7 @@ export function PageNoteEditor({
         "[&_[data-note-box]>div:first-of-type]:rounded-none [&_[data-note-box]>div:first-of-type]:border-0 [&_[data-note-box]>div:first-of-type]:bg-transparent",
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!pt-0 [&_.page-rte_.tiptap]:!pb-2",
         small
-          ? cn("[&_.page-rte_.tiptap]:!text-sm [&_.page-rte_.tiptap]:!leading-[1.6]", BLOCK_GAP_WRITING)
+          ? "[&_.page-rte_.tiptap]:!text-sm [&_.page-rte_.tiptap]:!leading-[1.6]"
           : "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]"
       )}
       onMouseDown={lineAbove}
@@ -254,6 +294,7 @@ export function PageNoteEditor({
         flush()
       }}
     >
+      <style>{PAGE_BLOCK_STYLES}</style>
       <NoteEditor
         setup={setup}
         value={start}

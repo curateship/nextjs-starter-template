@@ -20,9 +20,9 @@ import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { TabbedMenu } from "@/components/project/my-settings-menu"
+import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
 import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 
@@ -134,9 +134,10 @@ function SidePanel({
         {side ? (
           <div className="flex min-w-0 flex-1 items-start gap-1">
             <div className="min-w-0 flex-1">{side.title}</div>
-            {/* Follow as a bell beside the ⋮ (Tyler, 6 Nov 2026: "move the bell follow here
-                ... just add the icon only"); it was at the right of the menu's tabs. */}
-            {side.followButton}
+            {/* The ⋮ and Hide the task stay together on the title's first line, so a
+                title that wraps onto two never leaves one higher than the other
+                (Tyler, 11 Nov 2026: "fix icon aligment"). */}
+            <div className="flex shrink-0 items-center gap-2">
             <TaskMenu
               side={side}
               notes={notes}
@@ -168,14 +169,18 @@ function SidePanel({
                 if (card === "ask") document.getElementById(ASK_TIME_DAY_ID)?.focus()
               }}
             />
+            <SidePanelCollapseButton side="right" label="Hide the task" />
+            </div>
           </div>
         ) : (
-          <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{parts.title}</h2>
+          <>
+            <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{parts.title}</h2>
+            <SidePanelCollapseButton side="right" label="Hide the task" />
+          </>
         )}
-        <SidePanelCollapseButton side="right" label="Hide the task" />
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid", PANEL_GUTTER)}>
+        <div data-side-panel-body="" className={cn("grid", PANEL_GUTTER)}>
           {side ? <SideBody side={side} notes={notes} /> : parts.body}
         </div>
       </ScrollArea>
@@ -266,6 +271,7 @@ function TaskMenu({
       <div className="px-4 py-3">{side.settings}</div>
       <div className="grid gap-1 px-2 pb-2 empty:hidden [&_[data-slot=button]]:font-normal">
         {side.review}
+        {side.followRow}
         {side.readOnly || side.notes.empty || side.notesLock?.locked ? null : (
           <Button
             type="button"

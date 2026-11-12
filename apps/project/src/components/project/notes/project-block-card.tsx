@@ -5,8 +5,13 @@ import {
   BlockHeadingActions,
   useBlockCount,
   useBlockMenu,
+  useBlockOpen,
   type BlockMenuItem,
 } from "@/components/shared/notes/block-card"
+import { useBlockHeight } from "@/components/project/notes/block-heights"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs, type DashboardTab } from "@/components/shared/dashboard-tabs"
 import type { BlockEditing } from "@/components/project/notes/note-block-drawings"
 import { cn } from "@/lib/utils"
 
@@ -53,13 +58,84 @@ export function ProjectBlockCard({
       icon={icon}
     >
       <HeadingExtras count={count} menu={menu} />
-      {/* The tile stops at 28rem and a longer block scrolls inside it, so one
-          long block never pushes the rest of the page away (the design's rule). */}
-      <div className="grid min-h-0 grid-cols-[minmax(0,1fr)] overflow-y-auto [scrollbar-width:thin]">{children}</div>
+      <BlockBody>{children}</BlockBody>
     </BlockCard>
     </div>
   )
 }
+
+/**
+ * What a block shows, in a scroll area filling its tile, as Trade's blocks
+ * are (Tyler, 11 Nov 2026: "it needs area scroll and it needs to have the
+ * height automatic adjustment like how trade blocks does it"). The tile stops
+ * at 28rem and a longer list scrolls inside it, so one long block never
+ * pushes the rest of the page away. When the panel has room to spare, a
+ * cut-off block grows into it, and the last block on the page reaches the
+ * panel's bottom (`block-heights.ts`). The tile is the shell's
+ * (`shared/notes/block-card.tsx`), so its height is set on it from here
+ * rather than by changing the shell's card.
+ */
+function BlockBody({ children }: { children: React.ReactNode }) {
+  const open = useBlockOpen()
+  // Held twice: the state lets the measurer start once the tile is there, and
+  // the ref is what the height is written on.
+  const [tile, setTile] = React.useState<HTMLElement | null>(null)
+  const tileRef = React.useRef<HTMLElement | null>(null)
+  const share = useBlockHeight(tile, open)
+  const findTile = React.useCallback((node: HTMLDivElement | null) => {
+    const found = node?.closest<HTMLElement>("[data-block-tile]") ?? null
+    tileRef.current = found
+    setTile(found)
+  }, [])
+  React.useLayoutEffect(() => {
+    const tile = tileRef.current
+    if (!tile) return
+    tile.style.height = share.height !== null ? `${share.height}px` : ""
+    tile.style.maxHeight = share.height !== null ? "none" : ""
+    // While this block fills, the page drops what sits under it (`project-page-notes.tsx`).
+    tile.classList.toggle(BLOCK_FILLS, share.fills)
+  }, [tile, share])
+  return (
+    <ScrollArea
+      ref={findTile}
+      // A column, so the scrolling box takes the tile's height whether the
+      // tile is capped at 28rem or given a height. A plain "full height"
+      // resolves against nothing under a cap alone, and the box grew to its
+      // rows with nothing to scroll.
+      className="flex min-h-0 flex-1 flex-col"
+      viewportClassName="h-auto min-h-0 flex-1"
+    >
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)]">{children}</div>
+    </ScrollArea>
+  )
+}
+
+/**
+ * A block's tabs, drawn as the middle panel's List, Board and Calendar are
+ * (Tyler, 11 Nov 2026: "fix the tabs ui. it needs to be consistent with ui
+ * standard", then "no it needs to look like this", of My tasks' tabs): the
+ * shell's panel header with `DashboardTabs` in it, so they follow Settings →
+ * Styling → Dashboard tabs and an underline sits on the header's line. It
+ * stays at the top of the tile while the rows under it scroll.
+ */
+export function BlockTabs({
+  value,
+  onValueChange,
+  tabs,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  tabs: DashboardTab[]
+}) {
+  return (
+    <DashboardCardHeader className="sticky top-0 z-10 bg-[var(--block-body)]">
+      <DashboardTabs value={value} onValueChange={onValueChange} tabs={tabs} />
+    </DashboardCardHeader>
+  )
+}
+
+/** On a block's tile while it reaches the panel's bottom. */
+export const BLOCK_FILLS = "project-block-fills"
 
 /**
  * A block's title on one line, cut short with "…" in a narrow panel, so the

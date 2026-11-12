@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { cardDayOf, dailySkySchema, greetingOf, partOfDay, skyPhase, streakOf, DEFAULT_HOURS, type StreakDay } from "@/lib/project/daily-card"
+import { cardDayOf, greetingOf, partOfDay, skyPhase, streakOf, DEFAULT_HOURS, type StreakDay } from "@/lib/project/daily-card"
 import { noticeKindFromWords, routineReminderHeading } from "@/lib/project/notices"
 import { PERSONAL_PROJECT_ID } from "@/lib/project/rules"
 import type { CustomShellDb } from "@/server/db"
@@ -131,14 +131,6 @@ describe("the rules", () => {
     expect(streakOf("2099-03-02", "2099-03-03", (day) => (day === "2099-03-02" ? "done" : "missed")).current).toBe(1)
   })
 
-  it("takes only a web or site address for an own sky photo", () => {
-    const sky = (morning: string) => dailySkySchema.safeParse({ sky: "own", own: { morning, afternoon: "", night: "" } }).success
-    expect(sky("")).toBe(true)
-    expect(sky("https://cdn.example.test/sky.jpg")).toBe(true)
-    expect(sky("/uploads/sky.jpg")).toBe(true)
-    expect(sky("javascript:alert(1)")).toBe(false)
-    expect(sky("data:image/svg+xml,<svg/>")).toBe(false)
-  })
 })
 
 describe("everyone's card", () => {

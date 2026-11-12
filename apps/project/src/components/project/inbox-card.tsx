@@ -4,12 +4,11 @@ import { CheckCheckIcon, InboxIcon, ListChecksIcon, Loader2Icon } from "lucide-r
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/project/panel-card"
-import { PanelTabsRow } from "@/components/project/panel-tabs-row"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { useShellRuntime } from "@/components/shell/shell-layout"
+import type { BlockEditing } from "@/components/project/notes/note-block-drawings"
+import { BlockTabs, ProjectBlockCard, QuietHeadingButtons, TILE_BODY } from "@/components/project/notes/project-block-card"
 import { Button } from "@/components/ui/button"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   listNotificationPage,
@@ -27,21 +26,13 @@ const INBOX_ROWS = 6
 /** Notices fetched per page once the loaded ones run out. */
 const INBOX_PAGE = 30
 
-type InboxTab = "all" | "unread" | "tasks" | "flows" | "news"
-
-/** Which inbox tab a notice belongs to, beside All and Unread. */
-function inboxTabOf(item: NotificationItem, categoryId: string | undefined): InboxTab | null {
-  if (categoryId === "tasks") return "tasks"
-  if (item.type === "automation_approval" || item.type === "automation_failed") return "flows"
-  if (item.type === "announcement") return "news"
-  return null
-}
+type InboxTab = "all" | "unread"
 
 /**
  * My notices, the same ones the bell holds, with the newest first, as Tyler
  * drew them on 13 Oct 2026: "Inbox · 5 unread" with Mark all read, then
- * All, Unread, Tasks (Project's own notices), Flows (automations waiting or
- * failed) and News (announcements). Clicking one goes where the
+ * All and Unread. Tasks, Flows and News went on 11 Nov 2026 (Tyler: "remove
+ * this 3 tabs"). Clicking one goes where the
  * bell would take it and marks it read. A card on the left since 23 Oct 2026,
  * when the right panel became the open task's alone; on the site admin's, behind
  * an inbox icon instead (25 Oct 2026). It shows 6, and Load
@@ -52,23 +43,21 @@ function inboxTabOf(item: NotificationItem, categoryId: string | undefined): Inb
 const INBOX_TABS: { value: InboxTab; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
-  { value: "tasks", label: "Tasks" },
-  { value: "flows", label: "Flows" },
-  { value: "news", label: "News" },
 ]
 
 export type InboxPage = { notifications: NotificationItem[]; nextCursor: string | null }
 
 export function InboxCard({
   inbox,
-  bare = false,
-  onUnread,
+  block,
 }: {
   inbox: InboxPage
-  /** Drawn straight into the panel, with no card around it: the site admin's inbox tab. */
-  bare?: boolean
-  /** Told the unread count whenever it changes, for the site admin's red bubble. */
-  onUnread?: (unread: number) => void
+  /**
+   * Drawn as a "/" block on the site admin's own page (Tyler, 11 Nov 2026:
+   * "turn look back and inbox tabs into blocks"), with Delete block in its ⋮
+   * while the page can be written in.
+   */
+  block?: BlockEditing
 }) {
   const { notifications: firstPage, nextCursor } = inbox
   const navigate = useNavigate()
@@ -90,9 +79,8 @@ export function InboxCard({
   const [markingAll, setMarkingAll] = React.useState(false)
   const isUnread = (item: NotificationItem) => !item.read_at && !readHere[item.id]
   const unread = notifications.filter(isUnread).length
-  React.useEffect(() => onUnread?.(unread), [unread, onUnread])
   const shown = notifications.filter((item) =>
-    tab === "all" ? true : tab === "unread" ? isUnread(item) : inboxTabOf(item, details[item.id]?.categoryId) === tab
+    tab === "all" ? true : isUnread(item)
   )
 
   /** Six more, from what is loaded, or from the next page once those run out. */
@@ -225,43 +213,29 @@ export function InboxCard({
       ) : null}
     </>
   )
-  if (bare) {
-    // The site admin's inbox in place of the panel's cards: its tabs underlined
-    // on the right of a low row, as Look back's are, with Mark all read right of
-    // them, and the list scrolling under them (Tyler, 30 Oct 2026: "fix the
-    // inbox tabs too"). Unread carries its count.
+  // All and Unread drawn as the middle panel's tabs are
+  // (Tyler, 11 Nov 2026: "it needs to be consistent with ui standard").
+  const tabs = (
+    <BlockTabs
+      value={tab}
+      onValueChange={changeTab}
+      tabs={INBOX_TABS.map((item) => (item.value === "unread" && unread ? { ...item, count: unread } : item))}
+    />
+  )
+  if (block) {
     return (
-      <section className="flex min-h-0 flex-1 flex-col" aria-label="Inbox">
-        <PanelTabsRow
-          value={tab}
-          onValueChange={changeTab}
-          after={markAllButton}
-          tight
-          tabs={INBOX_TABS.map((item) => (item.value === "unread" && unread ? { ...item, count: unread } : item))}
-        />
-        <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-          <div className="grid min-w-0 gap-3 p-4">{list}</div>
-        </ScrollArea>
-      </section>
+      <ProjectBlockCard editing={block} kind="inbox" title="Inbox" icon={<InboxIcon className="size-4" />} count={unread || undefined}>
+        {markAllButton ? <QuietHeadingButtons>{markAllButton}</QuietHeadingButtons> : null}
+        {tabs}
+        <div className={TILE_BODY}>
+          {list}
+        </div>
+      </ProjectBlockCard>
     )
   }
   const meta = unread ? `${unread} unread` : undefined
   return (
-    <PanelCard storageId="project-my-inbox" icon={<InboxIcon className="size-4" />} title="Inbox" meta={meta} action={markAllButton}>
-      <Tabs value={tab} onValueChange={changeTab}>
-        <ScrollArea>
-          <div className="pb-1">
-            <TabsList className="justify-start">
-              {INBOX_TABS.map((item) => (
-                <TabsTrigger key={item.value} value={item.value}>
-                  {item.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </Tabs>
+    <PanelCard storageId="project-my-inbox" icon={<InboxIcon className="size-4" />} title="Inbox" meta={meta} action={markAllButton} top={tabs}>
       {list}
     </PanelCard>
   )

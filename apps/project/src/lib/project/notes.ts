@@ -29,10 +29,15 @@ export type PlainNotes =
   | { kind: "doc"; body: WrittenPageNode }
   | { kind: "text"; text: string }
 
-const DOC_START = '{"type":"doc"'
+/**
+ * A page saved as a block document. The database's own JSON writes it with a
+ * space after each colon (migrations 0174 and 0179 add blocks that way), so
+ * the space is allowed, as it is in those migrations' own check.
+ */
+const DOC_START = /^\{\s*"type"\s*:\s*"doc"/
 
 function readStored<Body>(stored: string, clean: (value: unknown) => Body): { kind: "doc"; body: Body } | { kind: "text"; text: string } {
-  if (stored.startsWith(DOC_START)) {
+  if (DOC_START.test(stored)) {
     try {
       return { kind: "doc", body: clean(JSON.parse(stored)) }
     } catch {

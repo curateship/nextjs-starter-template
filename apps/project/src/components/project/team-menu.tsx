@@ -1,13 +1,14 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { LockIcon, LockOpenIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
+import { PlusIcon, Trash2Icon, XIcon } from "lucide-react"
 
 import { JoinLinkCard } from "@/components/project/join-link-card"
-import { TabbedMenu } from "@/components/project/my-settings-menu"
+import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { PickChoicesRow, PickGroup, PickRow } from "@/components/project/pick-rows"
 import { ZoneChoices } from "@/components/project/time-zone-select"
 import { CoverRow } from "@/components/shared/notes/page-rows"
 import { Button } from "@/components/ui/button"
+import { LockRow } from "@/components/shared/notes/page-rows"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
@@ -69,9 +70,6 @@ export function TeamMenu({ data }: { data: TeamDashboard }) {
           <WorkDaysField team={team} save={save} />
         </PickRow>
       </PickGroup>
-      <div className="-mx-2 grid gap-1">
-        <PageLockButton locked={data.pageLocked} />
-      </div>
     </div>
   )
 
@@ -121,8 +119,10 @@ export function TeamMenu({ data }: { data: TeamDashboard }) {
     <TabbedMenu
       label="Team settings"
       align="start"
+      width="20.4rem"
       tabs={[
-        { value: "general", label: "General", content: general },
+        // Lock blocks is the General tab's footer, as on the shell's left page ⋮.
+        { value: "general", label: "General", content: general, footer: <PageLockButton locked={data.pageLocked} /> },
         { value: "checkins", label: "Check-ins", content: checkins },
         { value: "joining", label: "Joining", content: joining },
       ]}
@@ -340,12 +340,7 @@ function PageLockButton({ locked }: { locked: boolean }) {
     )
     if (ok) await router.invalidate()
   }
-  return (
-    <Button type="button" variant="ghost" className="w-full justify-start font-normal" disabled={busy} onClick={() => void toggle()}>
-      {locked ? <LockOpenIcon className="size-4" /> : <LockIcon className="size-4" />}
-      {locked ? "Unlock the notes" : "Lock the notes"}
-    </Button>
-  )
+  return <LockRow locked={locked} busy={busy} onLock={() => void toggle()} />
 }
 
 /** A list's last line, "+ Add …", which turns into its own small form. */
