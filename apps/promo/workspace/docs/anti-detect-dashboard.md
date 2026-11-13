@@ -173,12 +173,11 @@ Where the Bans screen was ([bans](bans.md)).
 
 ## Old addresses
 
-`/admin/profiles`, `/admin/proxies` and `/admin/bans` redirect to their
-sections, keeping the open row and the filters, because bell notices are
-stored with them. `/admin/racks`, a rack's old page `/admin/racks/<id>` and
-`/admin/phones?open=<id>` open Phones, filtered to that rack or with that
-phone open. Every link in Promo names the
-new address.
+`/admin/profiles`, `/admin/proxies`, `/admin/bans`, `/admin/racks`,
+`/admin/racks/<id>` and `/admin/phones` are gone since 13 Nov 2026. Bell
+notices that held them now hold the section's address, keeping the open row
+and the filters, and every link in Promo names the new address
+([Old addresses](old-addresses.md)).
 
 ## Where the code is
 

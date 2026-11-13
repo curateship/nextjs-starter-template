@@ -1,14 +1,26 @@
 // @vitest-environment jsdom
 
+import * as React from "react"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ActiveTradesDropdown } from "@/components/trade/active-trades-dropdown"
 import type { ActiveTradesSnapshot } from "@/lib/trade/dashboard/overview"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import type { HiddenTradeColumns } from "@/lib/trade/trades-popover-columns"
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
+}))
+
+const tabStyle = vi.hoisted(() => ({ value: "pills" as "pills" | "underline" }))
+
+// What Settings → Styling → Dashboard tabs picked, as the shell hands it down.
+vi.mock("@/components/shell/shell-layout", () => ({
+  useOptionalShellRuntime: () => ({
+    config: { styling: { dashboardTabs: tabStyle.value } },
+  }),
 }))
 
 Object.assign(globalThis, {
@@ -71,13 +83,35 @@ const snapshot: ActiveTradesSnapshot = {
 
 let host: HTMLDivElement
 let root: Root
+const saved: { kind: string; columns: string[] }[] = []
+
+/** The header's part: holds the hidden columns and notes every save. */
+function Dropdown() {
+  const [hidden, setHidden] = React.useState<HiddenTradeColumns>({})
+  return (
+    <ActiveTradesDropdown
+      snapshot={snapshot}
+      hidden={hidden}
+      onHiddenChange={(kind, columns) => {
+        saved.push({ kind, columns })
+        setHidden((was) => ({ ...was, [kind]: columns }))
+      }}
+    />
+  )
+}
 
 beforeEach(async () => {
+  tabStyle.value = "pills"
   host = document.createElement("div")
   document.body.append(host)
   root = createRoot(host)
+  saved.length = 0
   await act(async () =>
-    root.render(<ActiveTradesDropdown snapshot={snapshot} />)
+    root.render(
+      <TooltipProvider>
+        <Dropdown />
+      </TooltipProvider>
+    )
   )
 })
 
@@ -156,5 +190,46 @@ describe("the active-trades dropdown", () => {
     expect(button("Filter (1)")).toBeTruthy()
     expect(host.querySelector("tbody")?.textContent).toContain("BTC")
     expect(host.querySelector("tbody")?.textContent).not.toContain("SOLUSDT")
+  })
+
+  it("hides a column from the ⋮, in the rows and the Total row alike", async () => {
+    await act(async () => {
+      const more = host.querySelector<HTMLButtonElement>('button[aria-label="Columns"]')
+      if (!more) throw new Error("No ⋮")
+      more.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      const row = document.querySelector<HTMLElement>('[aria-label="Hide Value"]')
+      if (!row) throw new Error("No Value row")
+      row.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(saved).toEqual([{ kind: "active", columns: ["value"] }])
+    expect(headings()).toEqual(["Ticker", "Type", "Order", "P/L"])
+    expect(host.querySelectorAll("tbody tr:first-child td")).toHaveLength(4)
+    expect(host.querySelectorAll("tfoot td")).toHaveLength(4)
+    expect(host.querySelector("tfoot")?.textContent).toContain("+$42.00")
+  })
+
+  it("draws its tabs the way the Dashboard tabs setting says", async () => {
+    expect(host.querySelectorAll('[data-slot="dashboard-tab"]')).toHaveLength(0)
+    expect(host.querySelectorAll('[data-slot="tabs-trigger"]')).toHaveLength(2)
+
+    tabStyle.value = "underline"
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <Dropdown />
+        </TooltipProvider>
+      )
+    )
+
+    const tabs = host.querySelectorAll('[data-slot="dashboard-tab"]')
+    expect(Array.from(tabs).map((tab) => tab.textContent)).toEqual([
+      "Active trades1",
+      "Watching2",
+    ])
   })
 })

@@ -25,6 +25,7 @@ const preview = {
   previewing: null,
   playing: false,
   failed: false,
+  muted: false,
   toggle: vi.fn(),
   stop: vi.fn(),
 }

@@ -248,6 +248,12 @@ Nobody but Tyler's Promo can drive the phones.
   or an answer without the right signature is refused. The rule is
   `src/server/phones/signing.ts` and the same lines in `rack/promo_rack.py`,
   and both are tested against one fixed example so the two cannot drift.
+- **A message has a size limit, checked as it arrives.** Promo stops reading
+  a message from the rack once it passes 10 MB, and a pairing request once it
+  passes 4 KB, and refuses it. Promo counts what actually arrives, not the
+  size the sender claims, so a stranger cannot fill the server's memory by
+  sending without a stated size (`src/server/social/capped-body.ts`, also used
+  by the Video and Viral addresses).
 - **Disconnect**, in the Racks block's ⋮ with the rack picked, cancels the key at
   once. Every message after that is refused, waiting checks are cancelled,
   the rack's phones show offline, and nothing reaches them until it is

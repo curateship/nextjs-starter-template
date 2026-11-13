@@ -40,9 +40,9 @@ the Reddit accounts page left the left menu on 14 Oct 2026
   always shows what the address says. **Manage accounts**, the last item in
   the **Comment as** dropdown above a project's comment box, comes here that
   way. A platform Promo does not offer is ignored.
-- **The old addresses** `/admin/accounts` and `/admin/reddit-accounts`, which
-  bell notices stored before 12 Nov 2026 use, open this section with the same
-  `?platform=` and `?open=`; the second always filters to Reddit.
+- **The old addresses** `/admin/accounts` and `/admin/reddit-accounts` are gone
+  since 13 Nov 2026. Bell notices that held them now open this section with
+  the same `?platform=` and `?open=` ([Old addresses](../old-addresses.md)).
 - **The Projects block** on the dashboard's left page narrows the list to one
   project's accounts.
 - **Windows that stay:** Add account, from New account; Help-only posts, from

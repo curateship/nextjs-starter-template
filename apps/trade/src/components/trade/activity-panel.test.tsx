@@ -12,6 +12,14 @@ import type { LiveFill } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 
 const marks = vi.hoisted(() => new Map<string, number>())
+const navigate = vi.hoisted(() => vi.fn())
+const everywhere = vi.hoisted(() => ({
+  read: vi.fn(),
+}))
+
+vi.mock("@/lib/api/trade/all-positions", () => ({
+  loadAllPositions: everywhere.read,
+}))
 
 vi.mock("@/lib/trade/live-market", () => ({
   useLiveMarks: () => marks,
@@ -20,7 +28,7 @@ vi.mock("@/lib/trade/live-market", () => ({
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   getRouteApi: () => ({ useLoaderData: () => ({ user: { id: "user" } }) }),
-  useNavigate: () => () => {},
+  useNavigate: () => navigate,
 }))
 
 vi.mock("@/components/trade/positions-table", () => ({
@@ -150,6 +158,8 @@ async function drawActivity(
     root.render(
       <TooltipProvider>
         <ActivityPanel
+          protocol="hyperliquid"
+          network="mainnet"
           trading={state}
           tab={tab}
           onTabChange={() => {}}
@@ -173,6 +183,8 @@ async function drawActivity(
 beforeEach(() => {
   vi.useFakeTimers()
   marks.clear()
+  navigate.mockReset()
+  everywhere.read.mockReset()
   marks.set(market.key, 110)
   host = document.createElement("div")
   document.body.append(host)
@@ -331,21 +343,146 @@ describe("the Positions tab glance", () => {
     expect(rows().map((row) => row.children[1].textContent)).toEqual(["Short 1×", "Long 1×"])
   })
 
-  it("does not open an empty position summary", async () => {
-    await drawActivity([])
+  it("waits long enough after the pointer leaves the tab for it to reach the popover", async () => {
+    await drawActivity([position])
+    const trigger = host.querySelector("[data-positions-glance-trigger]")!
+    await act(async () => {
+      enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    await act(async () => {
+      trigger.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }))
+      trigger.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false, pointerType: "mouse" }))
+      vi.advanceTimersByTime(400)
+    })
+    expect(document.body.querySelector('[data-slot="popover-content"]')).not.toBeNull()
+    await act(async () => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull()
+  })
 
-    const trigger = Array.from(host.querySelectorAll('[role="tab"]')).find(
-      (tab) => tab.textContent?.includes("Positions")
-    )
+  it("sums the rows showing in a Total row under the list", async () => {
+    const eth: TradePosition = { ...position, id: "position-2", marketKey: "hyperliquid:mainnet:ETH", szi: 1 }
+    marks.set(eth.marketKey, 90)
+    await drawActivity([position, eth])
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
     await act(async () => {
       if (trigger) enterWithMouse(trigger)
-      vi.advanceTimersByTime(300)
+      vi.advanceTimersByTime(150)
+    })
+    const popover = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!
+    const rows = Array.from(popover.querySelectorAll<HTMLElement>('button[aria-label^="Open "]'))
+    const total = popover.querySelector<HTMLElement>("[data-positions-glance-total]")
+    expect(rows).toHaveLength(2)
+    // $220 + $90 and +$20 - $10.
+    expect(total?.textContent).toBe("Total$310.00+$10.00")
+  })
+
+  it("draws no Total row when there is nothing to add up", async () => {
+    await drawActivity([])
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
+    await act(async () => {
+      if (trigger) enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    expect(document.body.querySelector("[data-positions-glance-total]")).toBeNull()
+  })
+
+  it("opens with an empty line when this exchange holds nothing", async () => {
+    await drawActivity([])
+
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
+    await act(async () => {
+      if (trigger) enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
     })
 
-    expect(host.querySelector("[data-positions-glance-trigger]")).toBeNull()
-    expect(
-      document.body.querySelector('[data-slot="popover-content"]')
-    ).toBeNull()
+    const popover = document.body.querySelector('[data-slot="popover-content"]')
+    expect(popover?.textContent).toContain("No open positions on Hyperliquid.")
+    expect(everywhere.read).not.toHaveBeenCalled()
+  })
+
+  it("lists every exchange on the All protocols tab and opens another exchange's chart", async () => {
+    const aster: TradePosition = {
+      ...position,
+      id: "aster-1",
+      marketKey: "aster:mainnet:SOLUSDT",
+      szi: 2,
+    }
+    everywhere.read.mockResolvedValue({
+      // The page's own exchange comes back too, and is not listed twice.
+      positions: [position, aster],
+      marks: { [aster.marketKey]: 150 },
+      unavailable: [],
+    })
+    const onSelectMarket = vi.fn()
+    await drawActivity([position], onSelectMarket)
+
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
+    await act(async () => {
+      if (trigger) enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    const popover = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!
+    const tab = (name: string) =>
+      Array.from(popover.querySelectorAll('[role="tab"]')).find((one) =>
+        one.textContent?.startsWith(name)
+      )
+    expect(tab("Hyperliquid")?.getAttribute("data-state")).toBe("active")
+
+    await act(async () => {
+      tab("All protocols")?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, button: 0 })
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(everywhere.read).toHaveBeenCalledTimes(1)
+    const rows = Array.from(popover.querySelectorAll('button[aria-label^="Open "]'))
+    expect(rows).toHaveLength(2)
+    expect(popover.textContent).toContain("Aster")
+    expect(popover.textContent).toContain("$300.00")
+
+    await act(async () => {
+      popover.querySelector<HTMLButtonElement>('[aria-label^="Open SOLUSDT market on Aster"]')?.click()
+    })
+    expect(onSelectMarket).not.toHaveBeenCalled()
+    expect(navigate).toHaveBeenCalledTimes(1)
+  })
+
+  it("says so when the other exchanges cannot be read, and tries again", async () => {
+    everywhere.read.mockRejectedValueOnce(new Error("down"))
+    await drawActivity([position])
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
+    await act(async () => {
+      if (trigger) enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    const popover = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!
+    await act(async () => {
+      Array.from(popover.querySelectorAll('[role="tab"]'))
+        .find((one) => one.textContent?.startsWith("All protocols"))
+        ?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(popover.textContent).toContain("The other exchanges could not be read.")
+
+    everywhere.read.mockResolvedValue({ positions: [], marks: {}, unavailable: [] })
+    await act(async () => {
+      Array.from(popover.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Try again"))
+        ?.click()
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(everywhere.read).toHaveBeenCalledTimes(2)
+    expect(popover.textContent).not.toContain("could not be read")
   })
 })
 

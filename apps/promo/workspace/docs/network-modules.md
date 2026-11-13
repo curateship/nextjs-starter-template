@@ -159,20 +159,17 @@ the tables scroll sideways inside their own frame.
 
 ## Old addresses
 
-A folder name is ours to change and an address is not, so each old screen's
-address sends on. Bell notices written before the move still carry these, and
-the reply and removal notices still write `/admin/comments`, because the
-address is worked out when it is pressed and so follows the account if it
-moves to another project.
+Only `/admin/comments` still sends on. The reply and removal notices still
+write it, because the address is worked out when it is pressed and so follows
+the account if it moves to another project. `/admin/today`, `/admin/jobs` and
+`/admin/reddit-accounts` are gone since 13 Nov 2026
+([Old addresses](old-addresses.md)).
 
 | Address | Lands on |
 | --- | --- |
 | `/admin/comments?replies=<id>` or `?comment=<id>` | Reddit's Sent tab on Commenting, in the project the comment's account is in now, with that Replies window or comment open |
 | `/admin/comments`, `?tab=failed` | Reddit's Sent tab on the only project, and that list, or the Projects dashboard |
 | `/admin/comments?tab=posts` | Reddit's Posts on the only project, or the Projects dashboard |
-| `/admin/today` | Reddit's Today on Commenting, on the only project, or the Projects dashboard |
-| `/admin/reddit-accounts` | The Projects dashboard's Accounts, filtered to Reddit |
-| `/admin/jobs` | The Jobs window on the first project's Reddit Commenting, since it lists every job |
 
 The project page's own old commenting addresses (`?view=today` and the like)
 are in [Commenting inside a project](commenting.md#old-addresses).
@@ -189,7 +186,7 @@ It is still stored, and shows again once its account is put in a project.
 - **The list of built networks** is `src/lib/social/networks.ts`, read by both
   the screen and the server.
 - **The server**: `addProjectNetwork`, `removeProjectNetwork` and
-  `projectForOldScreen` in `src/server/social/projects.ts`.
+  `projectForOldComments` in `src/server/social/projects.ts`.
 - **The page**: `src/components/social/projects/workspace.tsx` picks the
   network, `project-columns.tsx` is the three columns any network fills, and
   `src/components/social/reddit/reddit-posts-module.tsx` is Reddit's posts.
@@ -197,5 +194,5 @@ It is still stored, and shows again once its account is put in a project.
   `project-networks-block.tsx` beside `project-panel.tsx`. The Jobs window is `jobs-window.tsx` and the dropdown
   `account-picker.tsx`, beside it. Instagram's and TikTok's module is
   `src/components/social/phone-apps/app-module.tsx`.
-- **The old addresses** are the four route files they always were, now only
-  sending on.
+- **The old address** `/admin/comments` is
+  `src/routes/_authenticated/admin/comments.tsx`, which only sends on.

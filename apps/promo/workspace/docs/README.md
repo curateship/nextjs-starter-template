@@ -285,4 +285,8 @@ the repo's `docs/`, and is never copied here.
 
 - [What promo changes about the shell](shell-integration.md) — the options it
   sets, the tables it owns, and the fact that it forks no shell file.
+- [Old addresses](old-addresses.md): the pages that only sent an old address
+  on are gone since 13 Nov 2026, apart from `/admin/comments`; bell notices
+  that held one were moved to the new place, and every link to a phone names
+  the Anti Detect dashboard.
 - [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, Undo bars included.

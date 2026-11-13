@@ -361,6 +361,20 @@ describe("the remembered trade panel choices", () => {
     )
   })
 
+  it("keeps the header Active trades panel's hidden columns per tab, and never hides its Ticker", async () => {
+    const { id } = await insertUser(database)
+    await saveHiddenTradeColumns(id, "active", ["profit", "type"], database)
+    await saveHiddenTradeColumns(id, "watching", ["wallet"], database)
+
+    expect((await loadTradePanelLayouts(id, database)).hiddenTradeColumns).toEqual({
+      active: ["type", "profit"],
+      watching: ["wallet"],
+    })
+    await expect(saveHiddenTradeColumns(id, "active", ["market"], database)).rejects.toThrow(
+      "PANEL_LAYOUT_INVALID"
+    )
+  })
+
   it("keeps the drawing rail and the open folder row on the account", async () => {
     const { id } = await insertUser(database)
     const scope = { protocol: "hyperliquid", network: "mainnet" } as const

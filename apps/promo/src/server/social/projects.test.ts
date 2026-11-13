@@ -26,7 +26,7 @@ const {
   deleteProject,
   deleteProjects,
   listProjectRows,
-  projectForOldScreen,
+  projectForOldComments,
   readProjectView,
   removeAccountFromProject,
   removeProjectNetwork,
@@ -460,19 +460,15 @@ describe("projects", () => {
     expect((await readProjectView(userId, projectId, db)).project.networks).toEqual(["reddit"])
   })
 
-  it("sends the old screens' addresses to the right project", async () => {
-    expect(await projectForOldScreen(userId, "today", null, db)).toBeNull()
-    expect(await projectForOldScreen(userId, "jobs", null, db)).toBeNull()
+  it("sends the old Comments address to the right project", async () => {
+    expect(await projectForOldComments(userId, null, db)).toBeNull()
 
     const first = await createProject(userId, "First", db, ["reddit"])
-    expect(await projectForOldScreen(userId, "today", null, db)).toBe(first)
+    expect(await projectForOldComments(userId, null, db)).toBe(first)
 
     const second = await createProject(userId, "Second", db, ["reddit"])
-    // With two to pick from, Today and Comments go to the Projects table;
-    // Jobs is the same list from any project, so the first.
-    expect(await projectForOldScreen(userId, "today", null, db)).toBeNull()
-    expect(await projectForOldScreen(userId, "comments", null, db)).toBeNull()
-    expect(await projectForOldScreen(userId, "jobs", null, db)).toBe(first)
+    // With two to pick from, it goes to the Projects table.
+    expect(await projectForOldComments(userId, null, db)).toBeNull()
 
     // A comment opens in the project its account is in now.
     const { id: accountId } = await account({ projectId: second })
@@ -487,9 +483,9 @@ describe("projects", () => {
       status: "posted",
       postedAt: NOW,
     })
-    expect(await projectForOldScreen(userId, "comments", commentId, db)).toBe(second)
+    expect(await projectForOldComments(userId, commentId, db)).toBe(second)
     // Another person's comment id says nothing about where it is.
     const stranger = (await insertUser(db, { role: "admin" })).id
-    expect(await projectForOldScreen(stranger, "comments", commentId, db)).toBeNull()
+    expect(await projectForOldComments(stranger, commentId, db)).toBeNull()
   })
 })

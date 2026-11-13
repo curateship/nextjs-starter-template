@@ -3,12 +3,10 @@ import { orderDistance } from "@/lib/trade/order-distance"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { ListChecksIcon, RadarIcon } from "lucide-react"
 
-import {
-  DashboardCardTab,
-  DashboardCardTabsHeader,
-} from "@/components/shared/dashboard-card-header"
+import { TradeColumnsMenu } from "@/components/bots/trade-columns-menu"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { ActiveTradesTable } from "@/components/trade/active-trades-widget"
 import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { MarketIcon } from "@/components/trade/market-icon"
@@ -17,7 +15,6 @@ import {
   TradeTableContent,
   type ColumnSpec,
 } from "@/components/trade/trade-table"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { TableCell, TableRow, TableSurface } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -27,6 +24,10 @@ import type {
   TradingOverviewWatchingOrder,
 } from "@/lib/trade/dashboard/overview"
 import { orderKindLabel } from "@/lib/trade/dashboard/order-kind"
+import type {
+  HiddenTradeColumns,
+  TradesPopoverKind,
+} from "@/lib/trade/trades-popover-columns"
 import { cn } from "@/lib/utils"
 
 type DropdownTab = "active" | "watching"
@@ -48,12 +49,25 @@ function defaultWatchingDirection(): "asc" {
   return "asc"
 }
 
+const NONE_HIDDEN: readonly never[] = []
+
+/**
+ * The header button's panel: Active trades and Watching as tabs drawn the way
+ * Settings → Styling → Dashboard tabs says (Tyler, 13 Nov 2026: "Wire these
+ * tabs into the tabs setting"), with the Filter and a ⋮ that hides the
+ * showing tab's columns.
+ */
 export function ActiveTradesDropdown({
   snapshot,
+  hidden,
+  onHiddenChange,
   className,
   onTradeOpen,
 }: {
   snapshot: ActiveTradesSnapshot
+  /** Each tab's hidden columns, saved on the account. */
+  hidden: HiddenTradeColumns
+  onHiddenChange: (kind: TradesPopoverKind, columns: string[]) => void
   className?: string
   onTradeOpen?: () => void
 }) {
@@ -92,92 +106,87 @@ export function ActiveTradesDropdown({
         className
       )}
     >
-      <Tabs
-        value={tab}
-        onValueChange={(value) => setTab(value as DropdownTab)}
-        className="max-h-full min-h-0 gap-0"
-      >
-        <DashboardCardTabsHeader
-          action={
-            <>
-              <CountedFilterPopover
-                items={filterItems}
-                groups={[
-                  {
-                    label: "Exchange",
-                    value: protocols,
-                    valueOf: (order) => order.protocol,
-                    onChange:
-                      tab === "active"
-                        ? setActiveProtocols
-                        : setWatchingProtocols,
-                  },
-                  {
-                    label: "Wallet",
-                    value: wallets,
-                    valueOf: (order) => order.walletId,
-                    labelOf: (order) => order.walletLabel,
-                    onChange:
-                      tab === "active" ? setActiveWallets : setWatchingWallets,
-                  },
-                ]}
-                onClear={() => {
-                  if (tab === "active") {
-                    setActiveProtocols(null)
-                    setActiveWallets(null)
-                  } else {
-                    setWatchingProtocols(null)
-                    setWatchingWallets(null)
-                  }
-                }}
-              />
-            </>
+      <DashboardCardHeader>
+        <DashboardTabs
+          value={tab}
+          onValueChange={(value) => setTab(value as DropdownTab)}
+          tabs={[
+            {
+              value: "active",
+              label: "Active trades",
+              count: snapshot.activeTrades.length,
+            },
+            {
+              value: "watching",
+              label: "Watching",
+              count: snapshot.watchingOrders.length,
+            },
+          ]}
+        />
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <CountedFilterPopover
+            items={filterItems}
+            groups={[
+              {
+                label: "Exchange",
+                value: protocols,
+                valueOf: (order) => order.protocol,
+                onChange:
+                  tab === "active" ? setActiveProtocols : setWatchingProtocols,
+              },
+              {
+                label: "Wallet",
+                value: wallets,
+                valueOf: (order) => order.walletId,
+                labelOf: (order) => order.walletLabel,
+                onChange:
+                  tab === "active" ? setActiveWallets : setWatchingWallets,
+              },
+            ]}
+            onClear={() => {
+              if (tab === "active") {
+                setActiveProtocols(null)
+                setActiveWallets(null)
+              } else {
+                setWatchingProtocols(null)
+                setWatchingWallets(null)
+              }
+            }}
+          />
+          <span data-more-button className="flex">
+            <TradeColumnsMenu
+              kind={tab}
+              hidden={hidden[tab] ?? NONE_HIDDEN}
+              onChange={(columns) => onHiddenChange(tab, columns)}
+            />
+          </span>
+        </div>
+      </DashboardCardHeader>
+      {tab === "active" ? (
+        <ActiveTradesTable
+          trades={activeTrades}
+          hidden={hidden.active}
+          emptyWords={
+            activeProtocols || activeWallets
+              ? "No active trades match these filters."
+              : snapshot.activeTradesUnavailable.length
+                ? "No active trades found in the wallets that answered."
+                : "No active trades across your wallets."
           }
-        >
-          <DashboardCardTab
-            value="active"
-            icon={<ListChecksIcon />}
-            label="Active trades"
-            count={snapshot.activeTrades.length}
-          />
-          <DashboardCardTab
-            value="watching"
-            icon={<RadarIcon />}
-            label="Watching"
-            count={snapshot.watchingOrders.length}
-          />
-        </DashboardCardTabsHeader>
-        <TabsContent
-          value="active"
-          className="flex min-h-0 flex-1 overflow-hidden"
-        >
-          <ActiveTradesTable
-            trades={activeTrades}
-            emptyWords={
-              activeProtocols || activeWallets
-                ? "No active trades match these filters."
-                : snapshot.activeTradesUnavailable.length
-                  ? "No active trades found in the wallets that answered."
-                  : "No active trades across your wallets."
-            }
-            onTradeOpen={onTradeOpen}
-          />
-        </TabsContent>
-        <TabsContent
-          value="watching"
-          className="flex min-h-0 flex-1 overflow-hidden"
-        >
-          <WatchingOrdersTable
-            orders={watchingOrders}
-            emptyWords={
-              watchingProtocols || watchingWallets
-                ? "No watched orders match these filters."
-                : "Nothing is being watched across your wallets."
-            }
-            onTradeOpen={onTradeOpen}
-          />
-        </TabsContent>
-      </Tabs>
+          onTradeOpen={onTradeOpen}
+        />
+      ) : (
+        <WatchingOrdersTable
+          orders={watchingOrders}
+          hidden={hidden.watching ?? NONE_HIDDEN}
+          emptyWords={
+            watchingProtocols || watchingWallets
+              ? "No watched orders match these filters."
+              : "Nothing is being watched across your wallets."
+          }
+          onTradeOpen={onTradeOpen}
+        />
+      )}
     </TableSurface>
   )
 }
@@ -196,18 +205,30 @@ function filterOrders<Order extends FilterableOrder>(
 
 function WatchingOrdersTable({
   orders: unsorted,
+  hidden,
   emptyWords,
   onTradeOpen,
 }: {
   orders: readonly TradingOverviewWatchingOrder[]
+  hidden: readonly WatchingColumn[]
   emptyWords: string
   onTradeOpen?: () => void
 }) {
   const navigate = useNavigate()
-  const { sort, direction, toggleSort } = useTableSort<WatchingColumn>(
+  const sorted = useTableSort<WatchingColumn>(
     "market",
     "asc",
     defaultWatchingDirection
+  )
+  const { toggleSort } = sorted
+  const shows = (column: WatchingColumn) => !hidden.includes(column)
+  // A hidden column cannot stay the sort; the rows go to A to Z by ticker.
+  const kept = shows(sorted.sort)
+  const sort = kept ? sorted.sort : "market"
+  const direction = kept ? sorted.direction : "asc"
+  const columns = React.useMemo(
+    () => WATCHING_COLUMNS.filter((column) => !hidden.includes(column.key)),
+    [hidden]
   )
   const marks = useLiveMarks(unsorted.map((order) => order.marketKey))
   const distances = React.useMemo(() => new Map(unsorted.map((order) => {
@@ -240,7 +261,7 @@ function WatchingOrdersTable({
 
   return (
     <TradeTableContent
-      columns={WATCHING_COLUMNS}
+      columns={columns}
       rows={orders}
       loading={false}
       failed={false}
@@ -289,21 +310,27 @@ function WatchingOrdersTable({
                 )}
               </span>
             </TableCell>
-            <TableCell
-              column="meta"
-              className="py-2.5 text-xs text-muted-foreground"
-            >
-              {orderKindLabel(order.orderKind)}
-            </TableCell>
-            <TableCell
-              column="meta"
-              className="py-2.5 text-xs text-muted-foreground"
-            >
-              {order.walletLabel}
-            </TableCell>
-            <TableCell column="meta" className="py-2.5 text-xs whitespace-nowrap">
-              <OrderDistanceBadge distance={distances.get(order.id) ?? null} />
-            </TableCell>
+            {shows("order") ? (
+              <TableCell
+                column="meta"
+                className="py-2.5 text-xs text-muted-foreground"
+              >
+                {orderKindLabel(order.orderKind)}
+              </TableCell>
+            ) : null}
+            {shows("wallet") ? (
+              <TableCell
+                column="meta"
+                className="py-2.5 text-xs text-muted-foreground"
+              >
+                {order.walletLabel}
+              </TableCell>
+            ) : null}
+            {shows("distance") ? (
+              <TableCell column="meta" className="py-2.5 text-xs whitespace-nowrap">
+                <OrderDistanceBadge distance={distances.get(order.id) ?? null} />
+              </TableCell>
+            ) : null}
           </TableRow>
         )
       }}

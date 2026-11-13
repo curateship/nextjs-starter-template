@@ -1,8 +1,10 @@
 import { PositionSideBadge } from "@/components/trade/position-side-badge"
 import * as React from "react"
 import { createPortal } from "react-dom"
+import { useNavigate } from "@tanstack/react-router"
 import {
   ListChecksIcon,
+  Loader2Icon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -44,13 +46,20 @@ import {
   dashboardCardTabClassName,
 } from "@/components/shared/dashboard-card-header"
 import {
+  DashboardTabs,
   UnderlineTabsTrack,
   underlineTabClassName,
   useDashboardTabStyle,
 } from "@/components/shared/dashboard-tabs"
+import { ErrorRow } from "@/components/ui/error-row"
+import {
+  loadAllPositions,
+  type AllOpenPositions,
+} from "@/lib/api/trade/all-positions"
 import { Tabs as TabsPrimitive } from "radix-ui"
 import { Button } from "@/components/ui/button"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Popover,
@@ -61,9 +70,14 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  marketChartHref,
   marketSymbol,
+  parseMarketKey,
+  protocolLabel,
   type MarketCatalog,
   type MarketRow,
+  type NetworkId,
+  type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -78,7 +92,7 @@ import {
   type RemovableTradeHistory,
 } from "@/lib/trade/live-trades"
 import { laddersAndGridsYouPlaced } from "@/lib/trade/smart-plan"
-import type { TradeWallet } from "@/lib/trade/wallets"
+import { venueLabel, type TradeWallet } from "@/lib/trade/wallets"
 import {
   positionProfit,
   positionValue,
@@ -238,6 +252,8 @@ function dropStrayHighlightAfter(): void {
  * drawings never reload when a table is looked at.
  */
 export function ActivityPanel({
+  protocol,
+  network,
   trading,
   tab,
   onTabChange,
@@ -264,6 +280,9 @@ export function ActivityPanel({
   journalView,
   onJournalViewChange,
 }: {
+  /** The page's exchange and network, the first tab of the Positions glance. */
+  protocol: ProtocolId
+  network: NetworkId
   /**
    * Where the right panel draws, the Trade dashboard's third panel (Tyler,
    * 10 Nov 2026). Null on Overview and before the panel is on screen.
@@ -825,6 +844,8 @@ export function ActivityPanel({
           />
         ) : null}
         <PositionsGlance
+          protocol={protocol}
+          network={network}
           positions={visible}
           markets={markets}
           onSelectMarket={onSelectMarket}
@@ -1178,38 +1199,123 @@ export function ActivityPanel({
  * scroll to answer. Hovering the Positions tab answers it: the coin, what the
  * stake is worth at today's price, and what it is up or down.
  *
- * Prices come from the same live feed the table uses, so the two never
- * disagree. Each row chooses its market, so the glance is a popover rather
- * than a tooltip. With nothing held there is nothing to say and nothing opens.
+ * Two tabs (Tyler, 13 Nov 2026: "[Hyperliquid][All protocols]"): this
+ * exchange's positions, the ones the Positions tab lists, and every exchange's
+ * at once. This exchange's rows come from the same live feed the table uses,
+ * so the two never disagree; the other exchanges' rows are read from the
+ * server when the All protocols tab opens (see `useEveryPosition`). Each row
+ * opens its market, so the glance is a popover rather than a tooltip.
  */
+type GlanceTab = "here" | "all"
+
+type GlanceRow = {
+  position: TradePosition
+  symbol: string
+  /** The exchange's name, shown after the ticker on the All protocols tab. */
+  venue: string | null
+  type: string
+  value: number
+  valueLabel: string
+  profit: number
+  profitLabel: string
+}
+
+/** How long the glance waits after the pointer leaves before it shuts. */
+const GLANCE_CLOSE_MS = 450
+
+/** How long one read of every exchange is reused, as the header button's. */
+const EVERYWHERE_FRESH_MS = 15_000
+
+/**
+ * Every exchange's positions, read when the All protocols tab is showing. An
+ * answer younger than fifteen seconds is reused, so hovering the tab again
+ * does not ask every exchange again, and only one read is ever on its way.
+ * The last answer stays on screen while a new one is read.
+ */
+function useEveryPosition(wanted: boolean) {
+  const [answer, setAnswer] = React.useState<AllOpenPositions | null>(null)
+  const [failed, setFailed] = React.useState(false)
+  const [attempt, setAttempt] = React.useState(0)
+  const readAt = React.useRef(0)
+  const reading = React.useRef(false)
+  React.useEffect(() => {
+    if (!wanted || reading.current) return
+    if (Date.now() - readAt.current < EVERYWHERE_FRESH_MS) return
+    reading.current = true
+    loadAllPositions()
+      .then((next) => {
+        readAt.current = Date.now()
+        setAnswer(next)
+        setFailed(false)
+      })
+      .catch(() => setFailed(true))
+      .finally(() => {
+        reading.current = false
+      })
+  }, [wanted, attempt])
+  const retry = () => {
+    setFailed(false)
+    setAttempt((count) => count + 1)
+  }
+  return { answer, failed, retry }
+}
+
 function PositionsGlance({
+  protocol,
+  network,
   positions,
   markets,
   onSelectMarket,
   children,
 }: {
+  protocol: ProtocolId
+  network: NetworkId
   positions: TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
   onSelectMarket: (marketKey: string) => void
   children: React.ReactNode
 }) {
-  const marks = useLiveMarks(positions.map((one) => one.marketKey))
+  const navigate = useNavigate()
+  const [open, setOpen] = React.useState(false)
+  const [tab, setTab] = React.useState<GlanceTab>("here")
+  const everywhere = useEveryPosition(open && tab === "all")
+  // The page's own exchange and network are the first tab's live rows, so the
+  // server's copy of them is left out rather than listed twice.
+  const onThisPage = React.useCallback(
+    (marketKey: string) => {
+      const ref = parseMarketKey(marketKey)
+      return ref?.protocol === protocol && ref.network === network
+    },
+    [protocol, network]
+  )
+  const elsewhere = React.useMemo(
+    () =>
+      (everywhere.answer?.positions ?? []).filter(
+        (position) => !onThisPage(position.marketKey)
+      ),
+    [everywhere.answer, onThisPage]
+  )
+  const shown = tab === "here" ? positions : [...positions, ...elsewhere]
+  const marks = useLiveMarks(shown.map((one) => one.marketKey))
   const { sort, direction, toggleSort } = useTableSort<PositionGlanceColumn>(
     "profit",
     "desc",
     positionGlanceDefaultDirection
   )
-  const rows = positions
+  const rows: GlanceRow[] = shown
     .map((position) => {
       const mark =
         marks.get(position.marketKey) ??
         markets.get(position.marketKey)?.price ??
+        everywhere.answer?.marks[position.marketKey] ??
         position.entryPx
       const profit = positionProfit(position, mark)
       const value = positionValue(position, mark)
+      const ref = parseMarketKey(position.marketKey)
       return {
         position,
         symbol: marketSymbol(position.marketKey),
+        venue: tab === "all" && ref ? venueLabel(ref.protocol, ref.network) : null,
         type: position.szi > 0 ? "Long" : "Short",
         value,
         valueLabel: formatUsd(value),
@@ -1228,10 +1334,9 @@ function PositionsGlance({
               : a.profit - b.profit
       return direction === "asc" ? compared : -compared
     })
-  const positionIds = positions.map((position) => position.id).join("\u0000")
-  const [openFor, setOpenFor] = React.useState<string | null>(null)
+  const totalValue = rows.reduce((sum, row) => sum + row.value, 0)
+  const totalProfit = rows.reduce((sum, row) => sum + row.profit, 0)
   const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const open = positions.length > 0 && openFor === positionIds
 
   const clearHover = React.useCallback(() => {
     if (hoverTimer.current !== null) clearTimeout(hoverTimer.current)
@@ -1241,35 +1346,53 @@ function PositionsGlance({
     (event: React.PointerEvent) => {
       if (event.pointerType !== "mouse") return
       clearHover()
-      hoverTimer.current = setTimeout(() => setOpenFor(positionIds), 120)
+      hoverTimer.current = setTimeout(() => setOpen(true), 120)
     },
-    [clearHover, positionIds]
+    [clearHover]
   )
   const closeSoon = React.useCallback(
     (event: React.PointerEvent) => {
       if (event.pointerType !== "mouse") return
       clearHover()
-      hoverTimer.current = setTimeout(() => setOpenFor(null), 220)
+      // Long enough to reach the popover on a slow or slanting path from a
+      // tab much narrower than it (Tyler, 13 Nov 2026: "it sometimes
+      // dispeared before I get to it").
+      hoverTimer.current = setTimeout(() => setOpen(false), GLANCE_CLOSE_MS)
     },
     [clearHover]
   )
   React.useEffect(() => clearHover, [clearHover])
 
-  if (positions.length === 0) return <>{children}</>
+  const pick = (position: TradePosition) => {
+    clearHover()
+    setOpen(false)
+    // A coin on this exchange opens on this page; one on another exchange
+    // opens that exchange's chart.
+    if (onThisPage(position.marketKey)) {
+      onSelectMarket(position.marketKey)
+      return
+    }
+    const href = marketChartHref(position.marketKey)
+    if (href) void navigate({ href })
+  }
+
+  const here = protocolLabel(protocol)
+  const reading = tab === "all" && !everywhere.answer && !everywhere.failed
+  const short = tab === "all" && (everywhere.answer?.unavailable.length ?? 0) > 0
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         clearHover()
-        setOpenFor(next ? positionIds : null)
+        setOpen(next)
       }}
     >
-      {/* A wrapper, NOT `asChild`. The popover's trigger writes its own
-          `data-state` (open/closed) onto whatever element it becomes — and
+      {/* A wrapper, NOT `asChild` on the tab. The popover's trigger writes its
+          own `data-state` (open/closed) onto whatever element it becomes, and
           handed the tab itself, that overwrote the tab's own
-          `data-state="active"`, so the pill behind the selected tab
-          stopped being drawn. Wrapping keeps the two states on two elements. */}
+          `data-state="active"`, so the pill behind the selected tab stopped
+          being drawn. Wrapping keeps the two states on two elements. */}
       <PopoverTrigger asChild>
         <span
           data-positions-glance-trigger
@@ -1280,14 +1403,30 @@ function PositionsGlance({
           {children}
         </span>
       </PopoverTrigger>
+      {/* Flush with the header's bottom line, so there is no gap to cross
+          between the tab and the popover. */}
       <PopoverContent
         align="start"
-        sideOffset={8}
-        className="w-104 max-w-[calc(100vw-1rem)] gap-0 p-0"
+        sideOffset={0}
+        className="w-104 max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onPointerEnter={clearHover}
         onPointerLeave={closeSoon}
       >
+        <DashboardCardHeader>
+          <DashboardTabs
+            value={tab}
+            onValueChange={(value) => setTab(value as GlanceTab)}
+            tabs={[
+              { value: "here", label: here, count: positions.length },
+              {
+                value: "all",
+                label: "All protocols",
+                count: everywhere.answer ? positions.length + elsewhere.length : undefined,
+              },
+            ]}
+          />
+        </DashboardCardHeader>
         <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
           <TableSortButton
             active={sort === "market"}
@@ -1322,34 +1461,80 @@ function PositionsGlance({
             Current P&amp;L
           </TableSortButton>
         </div>
-        <ScrollArea viewportClassName="max-h-[calc(var(--radix-popover-content-available-height)-2.5rem)]">
-          {rows.map(({ position, symbol, type, valueLabel, profit, profitLabel }) => {
-            return (
-              <button
-                key={position.id}
-                type="button"
-                aria-label={`Open ${symbol} market, ${type}, ${valueLabel} value, ${profitLabel} current profit and loss`}
-                className={cn("grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted", focusRing)}
-                onClick={() => {
-                  clearHover()
-                  setOpenFor(null)
-                  onSelectMarket(position.marketKey)
-                }}
+        <ScrollArea viewportClassName="max-h-[calc(var(--radix-popover-content-available-height)-8.5rem)]">
+          {rows.map(({ position, symbol, venue, type, valueLabel, profit, profitLabel }) => (
+            <button
+              key={position.id}
+              type="button"
+              aria-label={`Open ${symbol} market${venue ? ` on ${venue}` : ""}, ${type}, ${valueLabel} value, ${profitLabel} current profit and loss`}
+              className={cn("grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] items-center gap-3 px-3 py-2 text-left text-xs tabular-nums transition-colors hover:bg-muted focus-visible:bg-muted", focusRing)}
+              onClick={() => pick(position)}
+            >
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span className="truncate font-medium">{symbol}</span>
+                {venue ? (
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{venue}</span>
+                ) : null}
+              </span>
+              <span className="whitespace-nowrap">
+                <PositionSideBadge position={position} />
+              </span>
+              <span className="text-right">{valueLabel}</span>
+              <PnlAmount
+                className={cn("text-right font-medium", moneyTone(profit))}
               >
-                <span className="min-w-0 truncate font-medium">{symbol}</span>
-                <span className="whitespace-nowrap">
-                  <PositionSideBadge position={position} />
-                </span>
-                <span className="text-right">{valueLabel}</span>
-                <PnlAmount
-                  className={cn("text-right font-medium", moneyTone(profit))}
-                >
-                  {profitLabel}
-                </PnlAmount>
-              </button>
-            )
-          })}
+                {profitLabel}
+              </PnlAmount>
+            </button>
+          ))}
+          {reading ? (
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+              <Loader2Icon className="size-3.5 animate-spin" />
+              Reading the other exchanges
+            </div>
+          ) : tab === "all" && everywhere.failed ? (
+            <ErrorRow
+              message="The other exchanges could not be read."
+              onRetry={everywhere.retry}
+              className="px-3 py-2 text-xs"
+            />
+          ) : rows.length === 0 ? (
+            <p className="px-3 py-3 text-xs text-muted-foreground">
+              {tab === "here"
+                ? `No open positions on ${here}.`
+                : "No open positions on any exchange."}
+            </p>
+          ) : null}
+          {short ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              Some wallets did not answer, so this list may be short.
+            </p>
+          ) : null}
         </ScrollArea>
+        {/* The sums of the rows on the tab showing, outside the scrolling
+            list so they stay in view (Tyler, 13 Nov 2026: "add total to the
+            footer"). */}
+        {rows.length > 0 ? (
+          <div
+            data-positions-glance-total
+            className={cn(
+              "grid grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] items-center gap-3 px-3 py-2 text-xs tabular-nums",
+              // The panel's own footer fill; only the line above it, since the
+              // popover's edge is the line below.
+              stickyPanelSectionBarClassName,
+              "border-b-0"
+            )}
+          >
+            <span className="font-medium text-muted-foreground">Total</span>
+            <span aria-hidden />
+            <span className="text-right font-semibold">{formatUsd(totalValue)}</span>
+            <PnlAmount
+              className={cn("text-right font-semibold", moneyTone(totalProfit))}
+            >
+              {formatSignedUsd(totalProfit)}
+            </PnlAmount>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )

@@ -11,24 +11,46 @@ threw a panel of trades over the page. Tyler's call, 4 October 2026: click to
 open, click or Escape to close. The panel stays put while the pointer is
 anywhere else, which is what makes it readable.
 
-## The panel is 576px, and the table fits it exactly
+## The panel is as wide as the table it shows
 
-Every column in that table is sized to its content and none of them wrap, so
-the table does not shrink when the panel does — it simply hangs over the edge
-and gets clipped. At the page's own cell padding it came to 621px inside a
-576px panel, and the percentage fell off the end of the P/L column.
+The panel sizes itself to the table on screen (Tyler, 13 Nov 2026: "make the
+width of the trades dropdown auto adjust"). It grows or shrinks when a column
+is hidden or the tab changes, and it never gets wider than the window.
 
-Two things make it fit, and both are set where the header renders the panel
-rather than on the table itself, because the same table has all the room it
-needs on the dashboard:
+- **It has a floor of 384px, or the window's width on a phone**, so the tabs, Filter and ⋮ stay on one line when
+  the table is narrow or says it is empty.
+- **The cells are tighter than on the dashboard**, `px-2.5` instead of `px-5`,
+  set where the header draws the panel, so the Overview widget keeps its own.
+- **A ticker longer than 144px is cut short**, and nothing else ever is.
+  MARSCOINUSDTM once held the panel 4px past its edge. A clipped ticker is
+  still readable and the full name is on the chart one click away. A clipped
+  figure is money with a digit missing, so the P/L column never gives.
 
-- **Tighter cells**, `px-2.5` instead of `px-5`. Five columns of padding is
-  200px at the page's figure and 100px here.
-- **The ticker gives way, and nothing else does.** Padding alone cannot make
-  the table fit, because the longest coin name sets a floor under it —
-  MARSCOINUSDTM held the panel 4px open after the padding came off. A clipped
-  ticker is still readable and the full name is on the chart one click away. A
-  clipped figure is money with a digit missing, so the P/L column never gives.
+## Its tabs follow the Dashboard tabs setting
+
+Active trades and Watching are drawn the way Settings → Styling → Dashboard
+tabs says, as grey pills or as words over a sliding line (Tyler, 13 Nov 2026:
+"Wire these tabs into the tabs setting"). They are the shell's `DashboardTabs`,
+the same tabs every dashboard uses, so they are words and a count with no icon.
+
+## The ⋮ hides columns
+
+A ⋮ sits after the Filter (Tyler, 13 Nov 2026: "Add a 3 vertical dot icon here
+for a drop down for me to hide/unhide cols"). It lists the showing tab's
+columns, each with an open eye while it shows and an eye with a slash while it
+is hidden. One press swaps it and the menu stays open for the next.
+
+- **Each tab keeps its own choice.** Active trades can hide Type, Order, Value
+  and P/L. Watching can hide Order, Wallet and Distance.
+- **The Ticker always shows**, so a row always says which coin it is.
+- **The Total row drops the same columns as the rows**, so a total never sits
+  under the wrong heading.
+- **A hidden column stops being the sort.** The rows go A to Z by ticker,
+  because an order nothing on screen explains is no use.
+- **The choice is saved on the account**, in `trade_prefs.panel_layouts`
+  beside the Bots trades popover's, never in the browser. It is read once when
+  the header loads. Until it lands every column shows, and a failed read leaves
+  them all showing. A failed save says so in an error toast.
 
 ## It shows the last figures it knew while it reads fresh ones
 

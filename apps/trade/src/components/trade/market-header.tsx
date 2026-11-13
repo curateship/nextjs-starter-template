@@ -3,8 +3,8 @@ import { formatCompactUsd } from "@/lib/trade/format"
 import { minimumOrderLabel } from "@/lib/trade/market-info"
 
 /**
- * The market on the chart. Its facts are a tooltip on its name in the right
- * panel's header (the Admin 3 panel design, 7 Nov 2026).
+ * The market on the chart. Its facts open from the "i" after its name in the
+ * chart tab, on a click (Tyler, 13 Nov 2026).
  */
 export type MarketSelection = {
   kind: "market"
@@ -15,10 +15,10 @@ export type MarketSelection = {
 }
 
 /**
- * The market's facts as name and value rows, in the tooltip on the market's
- * name in the right panel's header (Tyler, 7 Nov 2026: "move the market info
- * into a tool top in the header"). Drawn for the tooltip's dark ground: names
- * at 70% strength, values at full.
+ * The market's facts as name and value rows, in the popover on the chart
+ * tab's "i" (Tyler, 7 Nov 2026: "move the market info into a tool top in the
+ * header"). Drawn for the popover's dark ground: names at 70% strength,
+ * values at full.
  */
 export function MarketInfoFacts({
   selection,
@@ -47,7 +47,7 @@ export function MarketInfoFacts({
     ["Top leverage", leverage],
   ]
   return (
-    // Fills the tooltip, so each value ends at its right edge with no empty
+    // Fills the popover, so each value ends at its right edge with no empty
     // space after it (Tyler, 7 Nov 2026: "empty space").
     <dl className="grid w-full min-w-56 grid-cols-[minmax(0,1fr)] py-1 text-xs">
       {rows.map(([name, value]) => (

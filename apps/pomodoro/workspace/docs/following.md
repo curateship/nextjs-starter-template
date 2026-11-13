@@ -159,6 +159,9 @@ Twitter tags at it.
   `card.png` as a year.
 - Held five minutes, the same window the response says it may be cached for,
   so a link pasted into a busy channel is one read rather than one per reader.
+  Whatever clears the profile's held page (its owner saving, an admin hiding
+  or editing it, a block) drops the held card with it (`forgetPublicProfile`
+  calls `forgetShareCard`), so a switched-off profile's card stops at once.
 - Every value a person typed goes through the streak badge's own `escapeXml`.
   The picture is served from our address, so an unescaped `<` in a display
   name would put markup on a page we serve.

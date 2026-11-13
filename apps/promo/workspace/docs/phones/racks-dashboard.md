@@ -262,15 +262,15 @@ never disagree with what the rack last said.
 - **Busy:** a check is running on it.
 - **Connected:** none of the above.
 
-## The old addresses
+## A phone's address
 
-`/admin/phones?open=<id>` opens the phone in Phones; its bell notices and the
-Accounts and Bans screens link there. `/admin/racks` opens Phones,
-`/admin/racks?loose=1` its No rack, and a rack's old page
-`/admin/racks/<id>` opens Phones filtered to that rack, keeping the open
-phone, the tab and the filters (its `kind` becomes `phoneKind`). A rack's own
+`/admin/anti-detect?section=phones&open=<id>` opens the phone in Phones. Its
+bell notices, its Copy link, and the Accounts and Bans screens link there. It
+names no rack, so it stays right when the phone moves rack. A rack's own
 notices, "Rack not checking in" and the iPhone tool's signature, open Phones
-filtered to that rack; the pause notice opens Phones.
+filtered to that rack; the pause notice opens Phones. The old `/admin/phones`,
+`/admin/racks` and `/admin/racks/<id>` are gone since 13 Nov 2026
+([Old addresses](../old-addresses.md)).
 
 ## The bell
 
@@ -307,8 +307,6 @@ account per phone is a unique index, the same rule as profiles.
   and `rack-settings-dialog.tsx`, with `new-rack-dialog.tsx`,
   `rack-pairing.tsx`, `rack-shelf.tsx`, `rack-log.tsx`, `rack-notes.tsx` and
   the `rack-note-*` files (a rack's "/" notes) in `src/components/phones/`.
-- The old addresses: `src/routes/_authenticated/admin/racks.tsx`,
-  `racks_.$rackId.tsx` and `phones.tsx`, which only redirect.
 - The endpoints: `src/lib/api/phones/phones.ts`, where `loadPhonesPage`
   reads every phone and rack at once. The server:
   `src/server/phones/rack.ts` (making, pairing, listing, deleting racks, and

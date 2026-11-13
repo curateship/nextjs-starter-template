@@ -14,8 +14,10 @@ the old app's Pro).
 - **One module answers every can-do question:**
   `src/server/pomodoro/entitlements.ts`. Endpoints gate with
   `requirePomodoroPerk(userId, perk)`, which throws
-  `UPGRADE_REQUIRED:<perk>`; screens read `loadMyEntitlements()` from
-  `src/lib/api/pomodoro/entitlements.ts` to lock controls.
+  `UPGRADE_REQUIRED:<perk>`. Screens get what they need to lock a control
+  from the data their page already loads (the uploads list carries
+  `canUploadMedia` and the space limit, for example) and turn a refused
+  `UPGRADE_REQUIRED` into the upgrade prompt.
 - **The rule per perk:** an explicit value in the plan's feature record wins
   (a perk can be gifted on a free plan or withheld from a paid one), and a
   missing key falls back to the old contract — paid unlocks everything,

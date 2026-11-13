@@ -24,7 +24,7 @@ import {
   type TradeWallet,
 } from "@/lib/trade/wallets"
 import { gridRoundTrips, type LiveFill } from "@/lib/trade/live-trades"
-import type { TradeSide } from "@/lib/trade/paper"
+import type { TradePosition, TradeSide } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { stampGridFills } from "@/server/trade/grid-fills"
 import { tradeLiveFills } from "@/server/trade/schema"
@@ -327,6 +327,43 @@ export async function loadActiveTradesSnapshot(
       walletRead.credentials
     )),
   }
+}
+
+/**
+ * Every open position on every exchange, with the last price of each coin,
+ * for the All protocols tab of the Positions glance on the Trade dashboard
+ * (Tyler, 13 Nov 2026). Practice and real wallets both count, as in Active
+ * trades. A wallet that did not answer is named in `unavailable`, so the tab
+ * can say its list may be short rather than pass it off as whole.
+ */
+export async function loadAllOpenPositions(userId: string): Promise<{
+  positions: TradePosition[]
+  marks: Record<string, number>
+  unavailable: string[]
+}> {
+  const { wallets, credentials } = await listWalletsWithCredentials(userId)
+  const [paper, live] = await Promise.all([
+    loadPaperPortfolio(userId, wallets).catch((error) => {
+      recordEngineError("trading-overview", "Practice positions could not be read", error)
+      return null
+    }),
+    loadLivePortfolio(userId, wallets, { credentials }).catch((error) => {
+      recordEngineError("trading-overview", "Live positions could not be read", error)
+      return null
+    }),
+  ])
+  if (!paper && !live) throw new Error("POSITIONS_UNREADABLE")
+  const positions = [...(paper?.positions ?? []), ...(live?.positions ?? [])]
+  const marks = await marksForKeys([
+    ...new Set(positions.map((position) => position.marketKey)),
+  ])
+  const unavailable = new Set(live?.unreachable ?? [])
+  for (const wallet of wallets) {
+    if ((wallet.kind === "paper" && !paper) || (wallet.kind === "live" && !live)) {
+      unavailable.add(wallet.id)
+    }
+  }
+  return { positions, marks: Object.fromEntries(marks), unavailable: [...unavailable] }
 }
 
 /**

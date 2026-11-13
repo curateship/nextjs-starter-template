@@ -288,7 +288,7 @@ const hideProfilesFn = createServerFn({ method: "POST" })
     })
     // A hide has to take effect on the very next request, not when the held
     // page expires.
-    forgetHiddenProfiles(result.handles ?? [])
+    forgetHiddenProfiles(result.profiles ?? [])
     return { changed: result.changed, skipped: result.skipped }
   })
 

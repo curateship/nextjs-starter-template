@@ -26,8 +26,8 @@ posts and the right col shows the post and comment box"
 ## Tyler's rules
 
 - **Projects replaces the Reddit dashboard.** The Reddit entry in the left menu
-  is gone, and `/admin/reddit` sends to `/admin/projects`, so an old bookmark
-  still lands.
+  is gone, and so is `/admin/reddit` since 13 Nov 2026
+  ([Old addresses](old-addresses.md)).
 - **Keywords belong to the project.** Every account in the project sees the same
   keywords and posts. Clicking an account only changes who comments.
 - **An account belongs to one project only.**
@@ -143,11 +143,10 @@ accounts or keywords, saying what each one holds.
 - **The address holds the place:** `?section=` (none is Projects), `?project=`,
   `?open=` and each section's filters, read by
   `src/lib/social/projects-dashboard-search.ts`.
-- **The old addresses still land**, because bell notices are stored with them
-  and Video's Open in Promo uses one: `/admin/voices`, `/admin/accounts`,
-  `/admin/reddit-accounts` (Accounts filtered to Reddit), `/admin/messages`
-  and `/admin/archive` each open their section with the same `?open=`,
-  `?platform=`, `?project=` and filters.
+- **The old addresses are gone** since 13 Nov 2026: `/admin/voices`,
+  `/admin/accounts`, `/admin/reddit-accounts`, `/admin/messages` and
+  `/admin/archive`. Bell notices that held them now hold the section's
+  address ([Old addresses](old-addresses.md)).
 - **The left menu** has Projects alone. Migration 0157 took Voices, Accounts,
   Archive and Messages out of every saved left menu.
 

@@ -40,8 +40,9 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
   - **Right:** the open item.
   - **The address** holds the project, the open item, the tab and the filters
     (`?section=archive&project=<id>&open=<id>&kind=video&posted=no&sort=views&group=source`).
-    The old `/admin/archive` address, which bell notices and Video's Open in
-    Promo use, opens the section with the same project, item and filters.
+    The old `/admin/archive` address is gone since 13 Nov 2026, so Video's
+    Open in Promo on items sent before 12 Nov 2026 shows "not found"
+    ([Old addresses](old-addresses.md)).
   - **Storage:** Overview's Archive room widget shows each project's items and
     the room they take with what that costs, "12.4 GB, about $0.19 a month",
     as Tyler's rule says.
@@ -55,7 +56,10 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
 - **Tabs:** All, Videos, Carousels, Pictures and Bin with its count (a dropdown
   when the middle is narrow).
 - **The header, left to right:** the search, Select, Filter, Views, Add, and a
-  ⋮ with Download everything as a zip while a project is picked.
+  ⋮ with Download everything as a zip while a project is picked. A name in
+    the zip loses any dots at its start, so a title such as ".." can never
+    become a folder outside the zip's own (`zipName` in
+    `src/server/archive/zip.ts`).
   - **Search** looks in titles, captions and descriptions.
   - **Filter** has three choices: Posted (Not posted yet), Sort (Most viewed) and
     Group (By Video project).
@@ -131,6 +135,17 @@ the two apps on one computer.
 
 Promo fetches files only from the Video address that pressed Test with the key. A
 key holder can't point Promo at any other server.
+
+On the live server that address must also be on the public internet. Test
+refuses one that points inside the server's own network ("Video's address
+points inside the server's own network, so Promo will not call it."), and the
+same check runs again before every call to Video and every file Promo copies.
+Without it, whoever held the key could make Promo fetch from a server inside
+its own network, and send its key along. Away from the live server the check
+is off, because Video and Promo on one computer talk over localhost. The check
+is `isPublicCallbackUrl` in `src/server/browser/proxy-probe.ts`. The call
+itself looks the name up again, so a name that changes its answer in that
+moment is not caught.
 
 ## The key
 

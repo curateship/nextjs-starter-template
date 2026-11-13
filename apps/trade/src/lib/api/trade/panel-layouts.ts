@@ -9,9 +9,14 @@ import type {
   MarketPanelScope,
 } from "@/lib/trade/panel-layout"
 import { TRADE_MAKERS } from "@/lib/trade/trade-maker"
-import type { TradesPopoverKind } from "@/lib/trade/trades-popover-columns"
-import { userPost } from "@/server/guards"
 import {
+  TRADES_POPOVER_KINDS,
+  type HiddenTradeColumns,
+  type TradesPopoverKind,
+} from "@/lib/trade/trades-popover-columns"
+import { userGet, userPost } from "@/server/guards"
+import {
+  loadTradePanelLayouts,
   saveHiddenTradeColumns as saveHiddenTradeColumnsForUser,
   saveChartToolbarPosition as saveChartToolbarPositionForUser,
   saveOpenMarketRow as saveOpenMarketRowForUser,
@@ -63,7 +68,7 @@ const saveHiddenTradeColumnsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
     z.object({
-      kind: z.enum(["backtest", "bot"]),
+      kind: z.enum(TRADES_POPOVER_KINDS),
       columns: z.array(z.string().min(1).max(20)).max(10),
     })
   )
@@ -74,6 +79,22 @@ const saveHiddenTradeColumnsFn = createServerFn({ method: "POST" })
 
 export function saveHiddenTradeColumns(kind: TradesPopoverKind, columns: readonly string[]) {
   return saveHiddenTradeColumnsFn({ data: { kind, columns: [...columns] } })
+}
+
+/**
+ * Every table's hidden columns, for a place outside the Trade dashboard that
+ * has not loaded the account's panel choices, such as the header's Active
+ * trades button.
+ */
+const loadHiddenTradeColumnsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<HiddenTradeColumns> => {
+    const layouts = await loadTradePanelLayouts(context.user.id)
+    return layouts.hiddenTradeColumns
+  })
+
+export function loadHiddenTradeColumns() {
+  return loadHiddenTradeColumnsFn()
 }
 
 const saveJournalViewFn = createServerFn({ method: "POST" })

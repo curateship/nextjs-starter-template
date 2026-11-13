@@ -153,12 +153,3 @@ export function antiDetectSectionOf(search: AntiDetectSearch): AntiDetectSection
 export function antiDetectSectionSearch(section: AntiDetectSection, keep: Partial<AntiDetectSearch> = {}): AntiDetectSearch {
   return { section, ...keep }
 }
-
-/**
- * The address of one section, for links from elsewhere in Promo and the old
- * addresses' redirects, which hand over whatever their address held: read
- * the same safe way, so anything unknown is dropped.
- */
-export function antiDetectSearch(section: AntiDetectSection, rest: Record<string, unknown> = {}): AntiDetectSearch {
-  return readAntiDetectSearch({ ...rest, section })
-}

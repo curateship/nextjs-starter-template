@@ -188,7 +188,7 @@ with a shell key.
 admin sidebar is saved settings, edited in Settings → Navigation, not a list in a
 file. A route file on its own is not a reachable screen. The entry points at
 `/admin/projects` and is admin-only. It used to be a Reddit entry pointing at
-`/admin/reddit`, which now sends to `/admin/projects`.
+`/admin/reddit`, an address gone since 13 Nov 2026 ([Old addresses](old-addresses.md)).
 
 `drizzle/0105_promo_comment_checks.sql` writes into those saved settings once:
 it puts Comments (`/admin/comments`) under the Reddit link, or adds a Reddit

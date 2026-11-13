@@ -672,6 +672,34 @@ export async function countScheduledRoomsHostedBy(
   return row?.total ?? 0
 }
 
+/** One host's rooms may email at most this many invitations a day (Tyler, 13 Nov 2026). */
+const ROOM_INVITES_PER_DAY = 50
+
+/**
+ * Refuses a booking made by hand whose invitations would take the host past
+ * the day's 50, counting what this host's rooms queued in the last 24 hours.
+ * Cancelled rooms count: their invitations may already have gone out, and
+ * booking, cancelling and booking again is the loop the cap stops. The weekly
+ * worker's own invitations count too but are never refused, so a weekly room
+ * never goes out to half its list.
+ */
+export async function assertInviteAllowance(
+  userId: string,
+  adding: number,
+  database: CustomShellDb = db,
+  timestamp = new Date()
+) {
+  if (!adding) return
+  const since = new Date(timestamp.getTime() - 24 * 60 * 60_000)
+  const [row] = await database
+    .select({ total: sql<number>`count(*)::int` })
+    .from(roomInvites)
+    .innerJoin(rooms, eq(rooms.id, roomInvites.roomId))
+    .where(and(eq(rooms.hostUserId, userId), sql`${roomInvites.createdAt} > ${since}`))
+  if ((row?.total ?? 0) + adding > ROOM_INVITES_PER_DAY)
+    throw new Error("SCHEDULE_REJECTED: You've sent today's invites, try again tomorrow.")
+}
+
 /* ------------------------------------------------------------------------ */
 /* Weekly rooms                                                              */
 /* ------------------------------------------------------------------------ */

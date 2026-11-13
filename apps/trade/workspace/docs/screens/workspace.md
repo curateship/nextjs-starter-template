@@ -212,16 +212,43 @@ Close all's Positions row always agree. Clicking a row opens it in the right
 panel (`trade-details-panel.md`).
 
 Hovering over the Positions tab opens a small popover with the ticker, Type
-(the same Long/Short and leverage badge as the table), current value and current profit or loss for every position in
-this list. The figures
-use the same live prices as the table. Each row is a button that changes the
-chart to that market and closes the popover. No popover opens when this list has
-no positions. Ticker, Type, Value and Current P&L are sort buttons. Ticker and
-Type start alphabetically, while the two money columns start with the largest
-figure;
-pressing the same heading again reverses its order.
-The popover grows with its position rows. It only scrolls when the rows exceed
-the space available on screen, leaving room for the column headings.
+(the same Long/Short and leverage badge as the table), current value and
+current profit or loss. Each row is a button that opens that market's chart
+and closes the popover. The popover sits flush under the panel header's line, with
+no gap to cross, and waits 450ms after the pointer leaves the tab before it
+shuts, so a slow or slanting move from the narrow tab still reaches it (Tyler,
+13 Nov 2026: "it sometimes dispeared before I get to it"). Ticker, Type, Value and Current P&L are sort buttons.
+Ticker and Type start alphabetically, while the two money columns start with
+the largest figure; pressing the same heading again reverses its order. The
+popover grows with its rows and only scrolls when they run past the space on
+screen. A Total row sits under the list, outside the scrolling part, with
+the sum of Value and of Current P&L for the rows on the tab showing (Tyler, 13
+Nov 2026: "add total to the footer"). With no rows there is no Total row.
+
+The popover has two tabs, `[Hyperliquid] [All protocols]`, drawn as Settings →
+Styling → Dashboard tabs says (Tyler, 13 Nov 2026: "One for trades within the
+currant protocol only and the other for all protocols").
+
+- **The first tab is the page's exchange**, named after it, and lists the
+  same positions as the Positions tab, at the same live prices. It is the tab
+  that shows first.
+- **All protocols adds every other exchange's positions**, practice and real,
+  each with its exchange's name after the ticker, priced at the last price
+  the server has. They are read from the server when the tab opens, and a
+  read younger than fifteen seconds is reused, so hovering again does not ask
+  every exchange again. While the first read is on its way the tab says
+  "Reading the other exchanges".
+- **The page's own exchange is never listed twice.** Its rows on All
+  protocols are the first tab's live rows; the same exchange on the other
+  network (testnet beside mainnet) comes from the server like any other.
+- **A row on another exchange opens that exchange's chart**; a row on this
+  exchange changes the chart here, as before.
+- **A failed read says so**, "The other exchanges could not be read.", with
+  Try again. A wallet that did not answer adds a line saying the list may be
+  short.
+- **The popover opens even when this exchange holds nothing**, saying "No
+  open positions on Hyperliquid.", so All protocols is still one tab away.
+  Until 13 Nov 2026 nothing opened when this list was empty.
 
 ### Close all, and the list it opens
 

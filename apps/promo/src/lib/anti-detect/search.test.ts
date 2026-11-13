@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { projectReach } from "@/lib/anti-detect/project-reach"
-import { antiDetectSearch, antiDetectSectionOf, antiDetectSectionSearch, readAntiDetectSearch } from "@/lib/anti-detect/search"
+import { antiDetectSectionOf, antiDetectSectionSearch, readAntiDetectSearch } from "@/lib/anti-detect/search"
 
 /** The Anti Detect dashboard's address and what a project picked narrows to (Tyler, 12 Nov 2026). */
 describe("the Anti Detect dashboard's address", () => {
@@ -32,15 +32,9 @@ describe("the Anti Detect dashboard's address", () => {
     expect(readAntiDetectSearch({ section: "racks" })).toEqual({})
   })
 
-  it("starts a section afresh, keeping only the project, and turns an old address into its section", () => {
+  it("starts a section afresh, keeping only the project", () => {
     expect(antiDetectSectionSearch("profiles", { project: "p1" })).toEqual({ section: "profiles", project: "p1" })
     expect(antiDetectSectionSearch("bans")).toEqual({ section: "bans" })
-    // The old /admin/bans?open=… and /admin/proxies?open=… a bell notice stored.
-    expect(antiDetectSearch("bans", { open: "b1", app: "reddit" })).toEqual({ section: "bans", open: "b1", app: "reddit" })
-    expect(antiDetectSearch("proxies", { open: "x1" })).toEqual({ section: "proxies", open: "x1" })
-    // Profiles is named too, so the old /admin/profiles never lands wherever the dashboard was left.
-    expect(antiDetectSearch("profiles", {})).toEqual({ section: "profiles" })
-    expect(antiDetectSearch("profiles", { open: "f1" })).toEqual({ section: "profiles", open: "f1" })
   })
 })
 
