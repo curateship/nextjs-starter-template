@@ -18,8 +18,6 @@ const STORAGE_KEY = "promo-rack-note-folds"
 const MAX_KEPT = 500
 
 let folded: string[] | null = null
-/** Goes up by one on every fold, so a reader drawing redraws what's under its headings. */
-let version = 0
 const listeners = new Set<() => void>()
 
 function read(): string[] {
@@ -45,7 +43,6 @@ export function toggleFold(id: string) {
   } catch {
     // A browser that won't store it still folds until the page is closed.
   }
-  version += 1
   for (const listener of listeners) listener()
 }
 
@@ -60,15 +57,6 @@ export function useFolded(id: string) {
     subscribe,
     () => isFolded(id),
     () => false
-  )
-}
-
-/** Redraws the caller whenever this reader folds or opens any section. */
-export function useFoldsVersion() {
-  return React.useSyncExternalStore(
-    subscribe,
-    () => version,
-    () => 0
   )
 }
 

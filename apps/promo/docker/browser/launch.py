@@ -23,6 +23,7 @@ to get wrong.
 """
 
 import hashlib
+import hmac
 import json
 import os
 import queue
@@ -144,7 +145,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _authorised(self):
-        if self.headers.get("x-promo-token", "") == COMMAND_TOKEN:
+        # compare_digest takes as long whatever matches, so the time an answer
+        # takes says nothing about how much of the token was right.
+        given = self.headers.get("x-promo-token", "").encode()
+        if hmac.compare_digest(given, COMMAND_TOKEN.encode()):
             return True
         self._reply(401, {"error": "bad token"})
         return False

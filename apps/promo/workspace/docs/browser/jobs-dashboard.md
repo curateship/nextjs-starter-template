@@ -16,8 +16,8 @@ Settings tab, and the same day he asked for it to be "its own route and put it
 under projects". The menu link was added by `drizzle/0113_promo_jobs_menu.sql`.
 On 14 Oct 2026 Tyler moved it inside the project: "Jobs can be a button in
 middle header panel that opens up a modal". `drizzle/0118_promo_project_networks.sql`
-took the menu link out, and `/admin/jobs` now opens the window on the first
-project. The list is read when the window opens, then again every five seconds
+took the menu link out. The old `/admin/jobs` is gone since 13 Nov 2026
+([Old addresses](../old-addresses.md)). The list is read when the window opens, then again every five seconds
 while it is open.
 
 ## Why there is a program to watch
@@ -88,8 +88,7 @@ deleted post does the same.
 ## Where the code is
 
 - `src/components/social/reddit/jobs-window.tsx`: the window, which reads
-  the list as it opens. `src/routes/_authenticated/admin/jobs.tsx` only sends
-  the old address on.
+  the list as it opens.
 - `src/components/social/jobs/jobs-dashboard.tsx`: the card and the table.
 - `src/server/social/job-list.ts`: the list, Cancel and Try again.
 - `src/server/social/browser-program.ts`: check-in, check-out and the reading.

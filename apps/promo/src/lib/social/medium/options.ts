@@ -179,19 +179,9 @@ export function mediumStoryUrl(storyId: string): string {
   return `https://medium.com/p/${storyId}`
 }
 
-/** A writer's page on Medium. */
-export function mediumWriterUrl(handle: string): string {
-  return `https://medium.com/@${handle}`
-}
-
 /** A publication's page on Medium. */
 export function mediumPublicationUrl(slug: string): string {
   return `https://medium.com/${slug}`
-}
-
-/** A tag's newest stories on Medium. */
-export function mediumTagUrl(tag: string): string {
-  return `https://medium.com/tag/${tag}`
 }
 
 /**

@@ -43,7 +43,7 @@ const ADDRESS_TIMEOUT_MS = 90_000
 type PhoneRow = typeof promoPhones.$inferSelect
 
 function phoneHref(phoneId: string): string {
-  return `/admin/phones?open=${encodeURIComponent(phoneId)}`
+  return `/admin/anti-detect?section=phones&open=${encodeURIComponent(phoneId)}`
 }
 
 /** Asks the rack for a setup check, from Check now in the phone's window. */

@@ -28,7 +28,3 @@ export function followErrorMessage(cause: unknown) {
 /** The line a Following board shows somebody who follows nobody yet. */
 export const FOLLOWING_EMPTY_MESSAGE =
   "You are not following anybody yet. Open somebody's profile and press Follow, and they will appear here."
-
-/** The line on a board row for somebody who publishes no figures. */
-export const FOLLOWING_NO_FIGURES =
-  "publishes no figures"

@@ -19,8 +19,6 @@ import { isLikelyEmail, MAX_ROOM_INVITES } from "@/lib/pomodoro/scheduled-rooms"
 
 /** How long before each occurrence its room is made and its invitations go out. */
 export const ROOM_REPEAT_LEAD_HOURS = 24
-/** How many weekly rooms one person may run at once. */
-export const MAX_ROOM_REPEATS_PER_HOST = 5
 
 export type RoomRepeatProblem =
   | "no_days"

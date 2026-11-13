@@ -182,12 +182,6 @@ export function catalogTags(items: { tags: string[]; locked: boolean }[]) {
     .sort((a, b) => a.tag.localeCompare(b.tag))
 }
 
-/** "rain or nature", for the line that says what the tags will play. */
-export function describeTags(tags: string[]) {
-  if (tags.length <= 1) return tags[0] ?? ""
-  return `${tags.slice(0, -1).join(", ")} or ${tags.at(-1)}`
-}
-
 /**
  * The cards with any ticked tag, or every card when every tag is ticked (null).
  * A ticked tag no card carries is one of the member's own (see

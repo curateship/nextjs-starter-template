@@ -218,7 +218,11 @@ address sitting on a Moscow clock is an obvious mismatch.
 
 A proxy host that resolves to an address inside the network is refused outright.
 Otherwise a proxy row would be a way to make the server fetch its own
-neighbours.
+neighbours. The proxy test connects to the very address it checked, whatever
+the name answers a moment later, so a name cannot answer public for the check
+and private for the test. The browser in its container still looks the name
+up itself each time it connects. Proxy companies change what their names
+point to, so saving the address once would go stale.
 
 The password is encrypted where it is stored and never comes back out to a
 browser. The only things that ever decrypt it are the code starting the
@@ -332,6 +336,10 @@ A raised limit is used within fifteen seconds, without a restart.
 
 **It is the only program that opens, drives or closes a browser.** The command
 key a browser is started with lives in that program's memory and nowhere else.
+Inside the container, `docker/browser/launch.py` checks that key with
+`hmac.compare_digest`, which takes as long whatever the guess, so timing an
+answer says nothing about how much of the key was right. A container already
+running keeps the older check until the browser image is built again.
 When Settings opened browsers from the site, the site and the browser program
 each held keys the other did not, and each closed any browser it had no key
 for. Signing in from Settings and then pressing Search closed the browser that

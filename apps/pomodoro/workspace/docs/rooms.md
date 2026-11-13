@@ -376,14 +376,33 @@ room"".
   The sequence guard is unchanged: any manual host action bumps the
   sequence and a stale claim no-ops. Phases advance with every browser
   tab closed.
-- **Live updates by SSE** (`/api/pomodoro/rooms/$slug/events`): the server
-  LISTENs on the room's pg_notify channel and sends a full snapshot on
-  every change; the client reconnects on drop and recomputes the
+- **Live updates by SSE** (`/api/pomodoro/rooms/$slug/events`): every change
+  to a room NOTIFYs its pg_notify channel, and the server sends each open page
+  of that room a full snapshot; the client reconnects on drop and recomputes the
   countdown locally from server timestamps, so the clock's up-to-15s
   advance lag never shows on the ring. Snapshots carry display names,
   roles, chat bodies and the room's sound and background — never emails or user
   ids. A host changing the pair sends a snapshot like any other change. A viewer whose
   membership ends gets `room_gone`.
+- **One database connection serves every open room page.** Each server
+  process keeps one listening connection outside the shared pool
+  (`src/server/pomodoro/room-events.ts`). It listens to a room's channel while
+  at least one page has that room open and stops when the last page closes. A
+  dropped connection reconnects and every open page reads its room again.
+  Before 13 Nov 2026 each open page held a connection of its own, so 100
+  people watching rooms held 100 database connections.
+- **At most three open room pages per account.** A fourth answers 429
+  (`ROOM_STREAM_LIMIT`). A tab only holds its page while it is on screen, so
+  this is only reached with several windows side by side. The refused window
+  shows "Reconnecting…", because a browser's live connection cannot read the
+  refusal's words, and connects again once it is hidden and shown.
+- **A closed room's stream answers only people who were in it.** The host or
+  anyone with a membership row, even one that ended, gets one closed snapshot
+  and the stream ends, so a tab hidden while the host closed the room comes
+  back to "the room has ended". Anyone else gets 404 rather than the room's
+  settings. A plain 404 to a former member would have left their tab saying
+  "Reconnecting…" for good, because a browser never retries a refused
+  connection.
 - **A host leaving closes the room for everyone**; a member leaving only
   ends their own membership.
 - **A host has one button, Close room**, which asks first. It and the old

@@ -113,15 +113,3 @@ export function sectionOf(search: ProjectsSearch): ProjectsSection {
 export function sectionSearch(section: ProjectsSection, keep: Partial<ProjectsSearch> = {}): ProjectsSearch {
   return { ...(section === "projects" ? {} : { section }), ...keep }
 }
-
-/**
- * The address of one section, for links from elsewhere in Promo and the old
- * addresses' redirects, which hand over whatever their address held: it is
- * read the same safe way, so anything unknown is dropped.
- */
-export function projectsDashboardSearch(
-  section: Exclude<ProjectsSection, "projects">,
-  rest: Record<string, unknown> = {}
-): ProjectsSearch {
-  return readProjectsSearch({ ...rest, section })
-}

@@ -721,29 +721,21 @@ export async function projectDescription(
   return row ? projectDescriptionText(row.description) : ""
 }
 
-/** The screens that were in the left menu before Reddit moved inside the project. */
-export type OldScreen = "today" | "comments" | "jobs"
-
 /**
- * Which project an old address now opens: `/admin/today`, `/admin/comments`
- * and `/admin/jobs` were screens of their own until Tyler moved them inside
- * the project's Reddit module on 14 Oct 2026. Bell
- * notices already sent, and bookmarks, still carry those addresses.
+ * Which project `/admin/comments` now opens. Comments was a screen of its own
+ * until Tyler moved it inside the project's Reddit module on 14 Oct 2026, and
+ * Reddit's reply and removal notices still open that address.
  *
  * A comment opens in the project its account is in now, the rule its
- * Comments tab lists it by. A failure with no comment named opens the project
- * of the newest one. Jobs is the same list from any project, so it opens in
- * the first. Anything else opens the only
- * project when there is one. Null means the Projects table, which is where a
- * person picks one.
+ * Comments tab lists it by. Anything else opens the only project when there
+ * is one. Null means the Projects table, which is where a person picks one.
  */
-export async function projectForOldScreen(
+export async function projectForOldComments(
   userId: string,
-  screen: OldScreen,
   commentId: string | null,
   db: CustomShellDb = defaultDb
 ): Promise<string | null> {
-  if (screen === "comments" && commentId) {
+  if (commentId) {
     const [row] = await db
       .select({ projectId: promoAccounts.projectId })
       .from(promoComments)
@@ -757,6 +749,5 @@ export async function projectForOldScreen(
     .from(promoProjects)
     .where(eq(promoProjects.userId, userId))
     .orderBy(asc(promoProjects.createdAt), asc(promoProjects.id))
-  if (screen === "jobs") return projects[0]?.id ?? null
   return projects.length === 1 ? projects[0].id : null
 }

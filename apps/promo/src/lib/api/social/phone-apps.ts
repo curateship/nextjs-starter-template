@@ -6,7 +6,6 @@ import { editorGet, editorPost } from "@/server/social/editor-guards"
 import { actorFor, actorForInbox, guestProjectView } from "@/server/social/project-guests"
 import { draftCaption } from "@/server/social/phone-apps/captions"
 import {
-  checkInboxNow,
   draftInboxReply,
   listInbox,
   sendInboxReply,
@@ -14,10 +13,10 @@ import {
   type InboxRow,
 } from "@/server/social/phone-apps/inbox"
 import { readAppModuleView, type AppAccount, type AppModuleView } from "@/server/social/phone-apps/module"
-import { cancelAppPosts, queueAppPost, type AppPostRow } from "@/server/social/phone-apps/posts"
+import { cancelAppPosts, type AppPostRow } from "@/server/social/phone-apps/posts"
 import { queueProfileEdit, readProfileEdits, type ProfileEditView } from "@/server/social/phone-apps/profile"
 import { PHONE_ONLY_NETWORKS, type PhoneAppNetwork } from "@/lib/social/networks"
-import { ABOUT_MAX, CAROUSEL_SLIDES } from "@/lib/social/phone-apps"
+import { ABOUT_MAX } from "@/lib/social/phone-apps"
 import { readerWrittenRefusal } from "@/lib/social/refusal-words"
 
 import { createErrorMessage } from "../error-message"
@@ -113,28 +112,6 @@ export function writeCaption(data: { accountId: string; about: string; kind: "ph
   return captionFn({ data })
 }
 
-const postFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(
-    z.object({
-      accountId: id,
-      mediaUrl: z.string().min(1).max(2048),
-      // A carousel's pictures in order (part 40); the server checks there are 2 to 20.
-      mediaUrls: z.array(z.string().min(1).max(2048)).max(CAROUSEL_SLIDES.max).optional(),
-      caption: z.string().max(10_000),
-      draftCaption: z.string().max(10_000),
-    })
-  )
-  .handler(async ({ context, data }): Promise<{ id: string }> => queueAppPost(context.user.id, data))
-
-/**
- * Sends one photo or video to the account's phone to post, or with
- * `mediaUrls` several pictures as one carousel. Tried once, never again.
- */
-export function sendAppPost(data: { accountId: string; mediaUrl: string; mediaUrls?: string[]; caption: string; draftCaption: string }) {
-  return postFn({ data })
-}
-
 const cancelFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ ids: z.array(id).min(1).max(200) }))
@@ -186,18 +163,6 @@ const skipFn = createServerFn({ method: "POST" })
 /** Skips conversations (deleted, words and all) or comments (marked skipped). */
 export function skipInboxItems(ids: string[]) {
   return skipFn({ data: { ids } })
-}
-
-const checkFn = createServerFn({ method: "POST" })
-  .middleware([adminPost])
-  .inputValidator(z.object({ accountId: id }))
-  .handler(async ({ context, data }): Promise<{ queued: boolean }> => ({
-    queued: await checkInboxNow(context.user.id, data.accountId),
-  }))
-
-/** Asks the account's phone to read its messages now, through the app's inbox. */
-export function checkMessagesNow(accountId: string) {
-  return checkFn({ data: { accountId } })
 }
 
 const profileReadFn = createServerFn({ method: "GET" })

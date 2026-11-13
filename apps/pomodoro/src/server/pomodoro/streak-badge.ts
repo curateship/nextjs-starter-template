@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto"
-import { eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 
 import { STREAK_BADGE_MAX_AGE_SECONDS } from "@/lib/pomodoro/streak-badge"
 import { db } from "@/server/db"
@@ -66,7 +66,14 @@ export async function readStreakBadge(token: string) {
       timezone: pomodoroProfiles.timezone,
     })
     .from(pomodoroProfiles)
-    .where(eq(pomodoroProfiles.streakBadgeToken, token))
+    // A profile an admin hid answers like a revoked badge, so its name stops
+    // showing on outside sites too.
+    .where(
+      and(
+        eq(pomodoroProfiles.streakBadgeToken, token),
+        isNull(pomodoroProfiles.hiddenAt)
+      )
+    )
     .limit(1)
   if (!profile) return null
   const { currentStreak } = await loadFocusStreaks(

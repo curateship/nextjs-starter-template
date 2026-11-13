@@ -89,14 +89,6 @@ const CLAIM_TIMEOUT_MS = 15 * 60 * 1000
 /** How many times a re-encode is tried before the upload is called failed. */
 const MAX_ATTEMPTS = 3
 
-export type UploadRefusal =
-  | "PRO_REQUIRED"
-  | "FILE_TOO_LARGE"
-  | "INVALID_FILE_CONTENT"
-  | "WRONG_KIND_FOR_PURPOSE"
-  | "STORAGE_QUOTA_EXCEEDED"
-  | "CONTENT_LENGTH_REQUIRED"
-
 /**
  * What the first bytes say this file really is.
  *
@@ -316,6 +308,7 @@ export async function storePomodoroUpload({
   detected,
   alreadyProcessed = false,
   labels,
+  storageLimitBytes,
 }: {
   userId: string
   purpose: PomodoroUploadPurpose
@@ -335,6 +328,13 @@ export async function storePomodoroUpload({
    * over the same file and hand the member a second wait.
    */
   alreadyProcessed?: boolean
+  /**
+   * The member's space limit, when this upload must fit inside it. The early
+   * check in the upload endpoint reads the space used with no lock, so twenty
+   * uploads started at once would all pass it; this one runs again under a
+   * per-member lock just before the row is written.
+   */
+  storageLimitBytes?: number
 }): Promise<StoredUpload> {
   const originalName = cleanOriginalName(file.name)
   const name = labels?.name ?? originalName.slice(0, UPLOAD_NAME_MAX)
@@ -367,6 +367,14 @@ export async function storePomodoroUpload({
 
   try {
     await db.transaction(async (tx) => {
+      if (storageLimitBytes !== undefined) {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`pomodoro-space:${userId}`}))`
+        )
+        const used = await loadAccountStorage(userId, tx)
+        if (used.bytes + bytes.byteLength > storageLimitBytes)
+          throw new Error("STORAGE_QUOTA_EXCEEDED")
+      }
       await tx.insert(customShellMedia).values({
         id: mediaId,
         workspaceId,

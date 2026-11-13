@@ -152,8 +152,8 @@ function RedditAccountSettings() {
             {chosenPhone ? (
               <>
                 <Link
-                  to="/admin/phones"
-                  search={{ open: chosenPhone.id }}
+                  to="/admin/anti-detect"
+                  search={{ section: "phones", open: chosenPhone.id }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
                   Open {chosenPhone.name}

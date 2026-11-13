@@ -236,7 +236,7 @@ export function BanCard({
                 {cleanUpHeldBack && phoneId ? (
                   // Its words wrap in a narrow right panel rather than running past its edge.
                   <Button type="button" variant="outline" className="h-auto min-h-8 max-w-full bg-background whitespace-normal" asChild>
-                    <Link to="/admin/phones" search={{ open: phoneId }}>
+                    <Link to="/admin/anti-detect" search={{ section: "phones", open: phoneId }}>
                       Check iCloud on its phone
                     </Link>
                   </Button>

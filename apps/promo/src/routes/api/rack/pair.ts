@@ -5,6 +5,7 @@ import { requestIp } from "@/server/auth/origin"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { pairRack, RackRefusal } from "@/server/phones/rack"
 import { refuse } from "@/server/phones/rack-http"
+import { readCappedText } from "@/server/social/capped-body"
 
 const pairShape = z.object({
   code: z.string().min(1).max(40),
@@ -32,10 +33,11 @@ export const Route = createFileRoute("/api/rack/pair")({
           throw error
         }
         // A pairing request is a few hundred characters.
-        if (Number(request.headers.get("content-length") ?? 0) > 4_096) return refuse(413, "This is not a pairing request.")
+        const body = await readCappedText(request, 4_096)
+        if (body === null) return refuse(413, "This is not a pairing request.")
         let input: z.infer<typeof pairShape>
         try {
-          input = pairShape.parse(await request.json())
+          input = pairShape.parse(JSON.parse(body))
         } catch {
           return refuse(400, "This is not a pairing request.")
         }

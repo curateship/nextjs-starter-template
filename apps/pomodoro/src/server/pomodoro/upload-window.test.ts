@@ -120,6 +120,32 @@ describe("storing the window's fields", () => {
   })
 })
 
+describe("the space limit at the moment of saving", () => {
+  // Two files of 3 bytes each against a limit of 5: either fits alone, both
+  // together do not.
+  const fitting = (userId: string) =>
+    storePomodoroUpload({
+      userId,
+      purpose: "background",
+      file: { name: "rain.mp4" },
+      bytes: new Uint8Array([1, 2, 3]),
+      detected: VIDEO,
+      storageLimitBytes: 5,
+    })
+
+  it("lets one of two uploads started together in and refuses the other", async () => {
+    const userId = (await insertUser(db)).id
+    vi.mocked(deleteFromR2).mockClear()
+    const results = await Promise.allSettled([fitting(userId), fitting(userId)])
+    expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"])
+    const refused = results.find((result) => result.status === "rejected")
+    expect((refused as PromiseRejectedResult).reason).toEqual(new Error("STORAGE_QUOTA_EXCEEDED"))
+    expect((await loadAccountStorage(userId)).bytes).toBe(3)
+    // The refused file's bytes were already in the bucket, so they come out.
+    expect(deleteFromR2).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe("validateUploadLabels", () => {
   it("refuses a trim on a picture and a trim under a second", () => {
     expect(() => validateUploadLabels(LABELS, "image")).toThrow("INVALID_TRIM")

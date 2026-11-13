@@ -41,8 +41,6 @@ export type NoteVideoAttrs = { url: string }
 /** One line of a Links block: its words, or "" to show the address, and an `https://` address. */
 export type NoteLink = { label: string; url: string }
 export type NoteLinksAttrs = { links: NoteLink[] }
-export type NoteCalloutAttrs = { kind: CalloutKind }
-export type NoteFoldAttrs = { id: string }
 
 /** The most lines one Links block holds, and the longest a line's words may be. */
 export const LINKS_BLOCK_MAX = 30

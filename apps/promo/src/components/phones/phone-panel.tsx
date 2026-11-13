@@ -333,8 +333,8 @@ function PhoneMenu({
   }
 
   async function copyLink() {
-    // The phone's own address, which lands on whatever rack it is on when opened.
-    const link = `${window.location.origin}/admin/phones?open=${encodeURIComponent(phone.id)}`
+    // The phone's own address on the Anti Detect dashboard's Phones. It names no rack, so it stays right when the phone moves.
+    const link = `${window.location.origin}/admin/anti-detect?section=phones&open=${encodeURIComponent(phone.id)}`
     try {
       await navigator.clipboard.writeText(link)
     } catch {

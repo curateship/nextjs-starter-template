@@ -262,7 +262,6 @@ needs no key, and never opens or drives one.
   `browser/`. A table is renamed for a very good reason and this is not one.
   `promo_accounts` already carries a `platform` column, which is how a second
   network shares them.
-- **The old route `/admin/reddit` still answers,** by sending to
-  `/admin/projects`. A folder name is ours to change and an address is not.
-  `/admin/today`, `/admin/comments`, `/admin/jobs` and `/admin/reddit-accounts`
-  send on the same way, each to its tab or window in a project.
+- **Old addresses that only sent on are gone** since 13 Nov 2026, apart from
+  `/admin/comments`, which Reddit's notices still write
+  ([Old addresses](old-addresses.md)).

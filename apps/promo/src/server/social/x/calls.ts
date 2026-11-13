@@ -172,8 +172,6 @@ const messageShape = z.object({
   sentSeconds: z.number().nullable(),
 })
 
-export type XMessageRead = z.infer<typeof messageShape>
-
 const inboxShape = z.object({ messages: z.array(messageShape) })
 
 /** Who the browser is signed in to X as, after going to X's home. Only for a `check` a person asked for. */

@@ -57,6 +57,7 @@ import {
   roomPairProblemMessage,
 } from "@/lib/pomodoro/media-pair"
 import {
+  assertInviteAllowance,
   cancelRoomRepeat,
   cancelScheduledRoom,
   countScheduledRoomsHostedBy,
@@ -343,6 +344,7 @@ const scheduleRoomFn = createServerFn({ method: "POST" })
         `SCHEDULE_REJECTED: You already have ${MAX_SCHEDULED_ROOMS_PER_HOST} rooms booked. Cancel one to book another.`
       )
     }
+    await assertInviteAllowance(context.user.id, invites.length)
 
     const slug = randomBytes(18).toString("base64url")
     const room = await scheduleRoomWithInvites(context.user.id, slug, {
@@ -391,6 +393,7 @@ const repeatRoomFn = createServerFn({ method: "POST" })
     if (!validTimezone(settings.timezone)) {
       throw new Error("SCHEDULE_REJECTED: This device's timezone is not one we recognise. Set a timezone in Settings and try again.")
     }
+    await assertInviteAllowance(context.user.id, invites.length)
 
     try {
       const { rule, next } = await createRoomRepeat(context.user.id, {
