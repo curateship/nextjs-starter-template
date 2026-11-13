@@ -498,6 +498,15 @@ still drags. The rule lives in `useSortableChip` in
 `nav-editor-shared.test.tsx` holds both halves: a space in the window is left
 alone, and a space on the chip still lifts it.
 
+**A chip's own buttons answer the keyboard.** A key lifts a chip only when the
+chip itself has focus. Enter or Space on a button inside it, such as "Edit
+settings for Pricing" or the bin, presses that button, the same as a click.
+Before, dnd-kit read Enter or Space anywhere in the chip as "lift", so tabbing
+to the edit button and pressing Enter picked the chip up instead of opening its
+popover. The pointer still drags from anywhere on the chip. Same rule, same
+file, and the test checks both: Enter on the inner button is left to it, and
+Enter on the chip still lifts the chip.
+
 **A dropped chip slides into its new place.** The public menu chips, the public
 footer links and the footer's social accounts settle the way the action items
 and the top-right chips already did, instead of snapping to the new order the

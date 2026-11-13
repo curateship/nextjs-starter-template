@@ -43,8 +43,11 @@ refusal names which one and why.
   front of a file name and handed to every visitor's browser, so it has to be an
   address and nothing else.
 
-An empty box is always allowed. Empty means "fall back to the server's own
-setting", not "use nothing".
+The server still accepts an empty box, and stores it as "fall back to the
+server's own setting", not "use nothing". The screen no longer sends one for
+the account ID, access key ID or bucket name, because the test refuses a set
+with any of them empty (see the next section). The public address can still be
+emptied from the screen.
 
 ## What is stored, and how
 
@@ -78,14 +81,47 @@ if the server has them. If it does not, uploads stop and pictures already
 uploaded stop loading, until a bucket is saved again. Nothing inside the bucket
 itself is touched.
 
+## New details are tested before they are kept
+
+The card saves itself, like every Settings card, with no Save button. Unlike
+the others it has no timer, and nothing typed goes live until it passes the
+test (`check` in `src/components/settings/storage-settings.tsx`):
+
+- **Typing changes nothing.** Where files go stays the same while a box is
+  being filled in.
+- **Leaving a box, or Enter, with something changed** tests the five values on
+  screen together. A pass saves them. A save the server refuses says so in the
+  error toast.
+- **A fail is not saved.** The boxes keep what was typed and turn red, and a red
+  line under them says "Not saved, so the bucket in use stays in use." with the
+  reason. An incomplete set (an empty bucket name, say) is a fail too, with the
+  box it is missing.
+- **Leaving a box that changed nothing does nothing.** Tabbing through the card
+  tests and saves nothing. A trailing slash on the public address is not a
+  change, because it is stored stripped.
+- **A pass shows a tick** beside "It works. Cloudflare opened the bucket and
+  listed it.", so a pass and a fail differ by more than colour.
+- **The test does not check the public address.** It proves the account, the
+  key and the bucket, and the public address is never sent to Cloudflare. A
+  mistyped public address that starts with `https://` passes, is saved on
+  leaving the box, and breaks every picture's address until it is put right.
+
+Until 13 Nov 2026 the card saved all five values 1.2 seconds after typing
+stopped, untested. A half-typed account ID went live at once and broke uploads,
+and every picture already uploaded, before Test was ever pressed. Emptying the account ID, access key ID or bucket name to hand that one value
+back to the server's `CUSTOM_SHELL_R2_` setting fails the test, so it is never
+saved. The only way back to the server's settings is **Remove these settings**,
+which removes all five saved values at once.
+
 ## Test this bucket
 
 The Test button asks R2 to list one object. That proves the account, both key
-halves and the bucket name together, and it changes nothing in the bucket.
+halves and the bucket name together, and it changes nothing in the bucket. It
+runs the same check as leaving a box, so changed details that pass are saved
+by it too.
 
-It tests the values on screen, not the saved ones, so a bucket can be checked
-before it is saved. A secret box that has not been touched falls back to the
-saved secret.
+It tests the values on screen, not the saved ones. A secret box that has not
+been touched falls back to the saved secret.
 
 Cloudflare's own wording comes back on a failure rather than one invented
 sentence. "No such bucket" and "signature does not match" are different problems

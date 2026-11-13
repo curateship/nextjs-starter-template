@@ -22,6 +22,11 @@ closes the picker and leaves the window underneath it open. It used to draw
 itself inside that window instead, which stretched a 96px picture field across
 the form and ran off the bottom of the screen.
 
+Exactly one tile in the picker has a ring: the file Select will insert. When
+the window opens, that is the file the field already uses. Clicking another
+file moves the ring to it, and the file in use keeps its "Current" badge, so
+the ring always means "this one" and the badge always means "in use now".
+
 ## Upload checks
 
 Uploads pass several checks:

@@ -43,7 +43,7 @@ import { FrontPageEditor } from "@/components/pages/front-page-editor"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { createDefaultShellConfig, type ShellConfig } from "@/lib/custom-shell"
 import type { FrontPageRow } from "@/lib/pages/front-page"
-import type { PublicPageRow } from "@/lib/api/content/pages"
+import type { PublicPageRow, WrittenPage } from "@/lib/api/content/pages"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -163,28 +163,34 @@ function addKind(label: string) {
   return button
 }
 
-async function open(config: ShellConfig = createDefaultShellConfig()) {
+async function open(
+  config: ShellConfig = createDefaultShellConfig(),
+  writtenPage: WrittenPage | null = null
+) {
   saved.length = 0
   const host = document.createElement("div")
   document.body.appendChild(host)
   const root = createRoot(host)
 
-  await act(async () => {
-    root.render(
-      <TooltipProvider>
-        <FrontPageEditor
-          page={page}
-          writtenPage={null}
-          initialBlocks={[]}
-          pageChoices={[]}
-          config={config}
-          onConfigChange={() => undefined}
-        />
-      </TooltipProvider>
-    )
-  })
+  /** Draws the editor again, the way a reload after a Save hands it a page. */
+  const draw = (nextWrittenPage: WrittenPage | null) =>
+    act(async () => {
+      root.render(
+        <TooltipProvider>
+          <FrontPageEditor
+            page={page}
+            writtenPage={nextWrittenPage}
+            initialBlocks={[]}
+            pageChoices={[]}
+            config={config}
+            onConfigChange={() => undefined}
+          />
+        </TooltipProvider>
+      )
+    })
+  await draw(writtenPage)
 
-  return { saved }
+  return { saved, draw }
 }
 
 describe("FrontPageEditor", () => {
@@ -388,6 +394,99 @@ describe("FrontPageEditor", () => {
     expect(saved).toHaveLength(0)
     // Still standing, which is the point.
     expect(document.body.textContent).toContain("Front page")
+  })
+
+  /**
+   * A dropdown or window on top takes Escape first, the way Radix does: a
+   * listener on the document marks the key used before React sees it. The
+   * block panel must then stay open; with nothing on top, Escape closes it.
+   */
+  it("leaves the block open when something on top already used Escape", async () => {
+    await open()
+    await act(async () => click(named("button", "Add")))
+    await act(async () => click(addKind("Plain text")))
+    await settle()
+
+    const heading = () => document.querySelector("#front-page-row-heading")
+    const escape = () =>
+      heading()?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+      )
+
+    const takenOnTop = (event: KeyboardEvent) => event.preventDefault()
+    document.addEventListener("keydown", takenOnTop, true)
+    await act(async () => escape())
+    document.removeEventListener("keydown", takenOnTop, true)
+    expect(heading()).not.toBeNull()
+
+    await act(async () => escape())
+    expect(heading()).toBeNull()
+    expect(document.body.textContent).toContain("Space between blocks")
+  })
+
+  it("says why a block has stopped saving, and the line goes once it can", async () => {
+    await open()
+    await act(async () => click(named("button", "Add")))
+    await act(async () => click(addKind("Plain text")))
+    await settle()
+
+    const problem = () => document.querySelector("#front-page-block-problem")
+    const heading = () =>
+      document.querySelector<HTMLInputElement>("#front-page-row-heading")
+    expect(problem()).toBeNull()
+
+    await type("#front-page-row-heading", "")
+    expect(problem()?.textContent).toBe("Not saved. Give the row a heading.")
+    expect(problem()?.getAttribute("role")).toBe("alert")
+    expect(heading()?.getAttribute("aria-describedby")).toBe("front-page-block-problem")
+    expect(heading()?.getAttribute("aria-invalid")).toBe("true")
+
+    await type("#front-page-row-heading", "What we do")
+    expect(problem()).toBeNull()
+    expect(heading()?.hasAttribute("aria-describedby")).toBe(false)
+  })
+
+  it("keeps typed page settings through opening and closing a block", async () => {
+    const about: WrittenPage = {
+      id: "page-about",
+      path: "/about",
+      title: "About",
+      hiddenFromSearch: false,
+      canonicalUrl: "",
+      image: "",
+      imageAlt: "",
+      description: "",
+      createdAt: new Date("2026-11-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-11-01T00:00:00.000Z"),
+    }
+    const { draw } = await open(createDefaultShellConfig(), about)
+    const name = () =>
+      document.querySelector<HTMLInputElement>("#written-page-settings-title")
+
+    // Phone width: the page's settings are on their own tab.
+    await act(async () => click(named("button", "Page")))
+    await type("#written-page-settings-title", "About us")
+    // Switching tabs unmounts the panel too, and must not lose the typing.
+    await act(async () => click(named("button", "Blocks")))
+    await act(async () => click(named("button", "Page")))
+    expect(name()?.value).toBe("About us")
+    await act(async () => click(named("button", "Add")))
+    await act(async () => click(addKind("Plain text")))
+    expect(name()).toBeNull()
+
+    const close = document.querySelector(
+      'button[aria-label="Close the block\'s settings"]'
+    )
+    if (!close) throw new Error("the way out of the panel was not drawn")
+    await act(async () => click(close))
+    expect(name()?.value).toBe("About us")
+
+    // A reload bringing back the same saved page leaves the typing alone…
+    await draw({ ...about })
+    expect(name()?.value).toBe("About us")
+    // …and one bringing back a saved change shows what was saved.
+    await draw({ ...about, title: "About the team" })
+    expect(name()?.value).toBe("About the team")
   })
 
   it("has no Save or Cancel left in the panel, and closes from the header", async () => {

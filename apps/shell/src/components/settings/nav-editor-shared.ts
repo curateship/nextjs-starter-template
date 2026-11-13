@@ -106,6 +106,13 @@ export function useSortableRow(id: string, translateOnly = false) {
  * that place is inside the chip. The window is outside the chip, so its typing
  * is its own again, and the whole chip still drags because every part of the
  * chip is inside it.
+ *
+ * Keys are stricter: only a key pressed on the chip itself picks it up. The
+ * chip holds its own edit and bin buttons, and dnd-kit reads Enter or Space
+ * anywhere in the chip as "pick up" and cancels the key, so Enter on "Edit
+ * settings for Pricing" lifted the chip instead of opening its window. A key
+ * on one of those buttons is now the button's. The pointer still drags from
+ * anywhere on the chip.
  */
 function listenersOnTheChipOnly(listeners: DraggableSyntheticListeners) {
   const onTheChip: Record<string, (event: React.SyntheticEvent) => void> = {}
@@ -120,6 +127,7 @@ function listenersOnTheChipOnly(listeners: DraggableSyntheticListeners) {
       const where = event.target
       if (!(chip instanceof Node) || !(where instanceof Node)) return
       if (!chip.contains(where)) return
+      if (event.nativeEvent instanceof KeyboardEvent && where !== chip) return
       handler(event)
     }
   }

@@ -59,6 +59,22 @@ counts are in the footer").
 - **A template** opens on the right read only, with "New newsletter from it"
   in its footer and Make default and Delete in its ⋮.
 
+## The Review and send window
+
+The window is the last step before real inboxes, so two rules guard it
+(`src/components/broadcasts/send-broadcast-dialog.tsx`):
+
+- **Only the footer button sends.** Enter in "Your address" sends the test
+  copy, the same as the Send test button beside it. Enter in any other box
+  (Tags, Send at, the pace fields) does nothing. A browser would otherwise treat
+  Enter in a box as pressing "Send it now".
+- **Nothing goes out without a count.** While the window is counting the
+  audience it says "Counting…". A count that fails says "We could not count who
+  gets this." with Try again. Pressing "Send it now" or "Schedule it" before a
+  number has arrived sends nothing and says "Wait for the count, or press Try
+  again." The buttons stay pressable, because a greyed-out button gives no
+  reason.
+
 The old addresses `/admin/newsletter` and `/admin/newsletter/<id>` forward
 into the Broadcasts tab, the second with that newsletter open.
 

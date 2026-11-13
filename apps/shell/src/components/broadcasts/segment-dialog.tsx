@@ -70,6 +70,16 @@ const LIVE_COUNT_DELAY_MS = 1200
  * Mounted fresh per segment by its key on the Contacts dashboard, so the draft starts
  * from the right one without an effect resetting it after the first render.
  */
+/** Who joined and who left between two lists of people. */
+function changesSince(before: string[], after: string[]) {
+  const had = new Set(before)
+  const has = new Set(after)
+  return {
+    addIds: after.filter((id) => !had.has(id)),
+    removeIds: before.filter((id) => !has.has(id)),
+  }
+}
+
 export function SegmentDialog({
   open,
   segment,
@@ -114,9 +124,8 @@ export function SegmentDialog({
   const [knownEmails, setKnownEmails] = React.useState<Record<string, string>>(
     {}
   )
-  // Whether the segment's existing people have arrived. A save sends the whole
-  // list and the server replaces the segment with it, so saving before they
-  // land would write an empty segment over a full one. It starts at "loading"
+  // Whether the segment's existing people have arrived. A save sends who joined
+  // and who left, worked out against them, so Save waits until they land. It starts at "loading"
   // rather than being set to it by the effect below, so there is no first
   // render where the list is empty and Save is open.
   const [members, setMembers] = React.useState<MembersState>(
@@ -215,7 +224,13 @@ export function SegmentDialog({
           ...(kind === "rules" && match === "any" ? { match } : {}),
           conditions: kind === "rules" ? conditions : [],
         },
-        contactIds: kind === "static" ? chosen : [],
+        // A saved segment sends only who joined and who left, so one of any
+        // size can be renamed. A new one sends everybody picked.
+        ...(kind !== "static"
+          ? {}
+          : segment
+            ? changesSince(openedWith, chosen)
+            : { contactIds: chosen }),
       })
       await onSaved(saved.id)
     } catch (error) {
@@ -376,8 +391,8 @@ export function SegmentDialog({
               <DisabledReason
                 reason={
                   members.status === "failed"
-                    ? "Who is already in this segment could not be loaded, and saving now would empty it. Try again first."
-                    : "Waiting for the people already in this segment, so saving cannot empty it."
+                    ? "Who is already in this segment could not be loaded. Try again first, so you can see who you are saving."
+                    : "Waiting for the people already in this segment."
                 }
                 disabled={waitingForMembers}
               >

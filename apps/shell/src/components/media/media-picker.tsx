@@ -480,10 +480,10 @@ function MediaPickerSession({
                         <MediaTile
                           key={item.id}
                           item={item}
-                          selected={
-                            activeSelectedMedia?.id === item.id ||
-                            currentMediaUrl === item.url
-                          }
+                          // One ring, on the file Select would use. The file in
+                          // use now keeps its "Current" badge instead, so two
+                          // rings never leave Select's pick a guess.
+                          selected={activeSelectedMedia?.id === item.id}
                           isCurrent={currentMediaUrl === item.url}
                           playing={playingId === item.id}
                           onSelect={() => setSelectedMedia(item)}

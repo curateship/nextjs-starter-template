@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { CheckIcon, Loader2Icon } from "lucide-react"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SecretKeyField } from "@/components/settings/secret-key-field"
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -21,8 +22,9 @@ import {
   type StorageTestResult,
 } from "@/lib/api/storage"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useLoad } from "@/lib/hooks/use-load"
-import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast } from "@/lib/toast/error-toast"
 
 type PlainField = "accountId" | "accessKeyId" | "bucketName" | "publicUrl"
 
@@ -60,8 +62,13 @@ const FIELDS: { id: PlainField; label: string; placeholder: string; hint: string
  * scrambled before it is stored and the browser only ever sees its last four
  * characters.
  *
- * Saving is automatic and reports through the sticky header's Saving…/Saved
- * indicator, like every other auto-save in the app.
+ * It saves itself like every other settings card, with one difference: new
+ * details are tested before they are kept. Leaving a box or pressing Enter,
+ * with something changed, asks Cloudflare whether the details open the
+ * bucket. Only a pass is saved.
+ * A fail is kept on screen with the reason, and the bucket in use stays in
+ * use. Saving every keystroke put a half-typed account ID live, which broke
+ * uploads and every picture already uploaded before Test was ever pressed.
  */
 export function StorageSettings() {
   // The four plain fields as typed; null until the load fills them in.
@@ -84,55 +91,90 @@ export function StorageSettings() {
   // The secret as typed, empty when it has not been touched this visit.
   const [secret, setSecret] = React.useState("")
   const [testing, setTesting] = React.useState(false)
-  const [testMessage, setTestMessage] = React.useState<string | null>(null)
+  const [verdict, setVerdict] = React.useState<Verdict | null>(null)
   const [confirmingClear, setConfirmingClear] = React.useState(false)
   const [runClear, clearBusy] = useAsyncAction(getStorageErrorMessage)
 
   // Clear the box only if it still holds what was saved — a newer edit must
-  // survive and will save itself in turn.
+  // survive and will be tested and saved in turn.
   const clearSecret = (nextSecret: string) => () =>
     setSecret((prev) => (prev === nextSecret ? "" : prev))
 
-  // The five values save together, under one timer. They only mean anything
-  // as a set: an account ID saved without its bucket names nothing the app
-  // can write to.
-  const schedule = (next: Record<PlainField, string>, nextSecret: string) =>
-    autoSave.schedule(
-      "bucket",
-      saveBucket(next, nextSecret),
-      clearSecret(nextSecret)
-    )
-  const flush = () => {
-    if (!values) return
-    autoSave.flush("bucket", saveBucket(values, secret), clearSecret(secret))
+  // What is on screen against what is saved. Leaving a box that changed
+  // nothing tests and saves nothing.
+  const changed = Boolean(values && status && hasChanges(values, secret, status))
+
+  // A check reads the newest values when it starts, not the ones from the
+  // render that asked for it, so a check queued behind another tests what is
+  // on screen by then.
+  const latest = React.useRef({ values, secret, status })
+  useEffectBeforePaint(() => {
+    latest.current = { values, secret, status }
+  })
+  const checkRunning = React.useRef(false)
+  const checkAgain = React.useRef(false)
+
+  /**
+   * Tests the details on screen and keeps them only if they pass.
+   *
+   * The five values are tested and saved together. They only mean anything as
+   * a set: an account ID saved without its bucket names nothing the app can
+   * write to. A check asked for while one runs (tabbing from one box to the
+   * next) waits and runs once that one ends, never dropped.
+   */
+  const check = async () => {
+    if (checkRunning.current) {
+      checkAgain.current = true
+      return
+    }
+    const { values: next, secret: nextSecret, status: saved } = latest.current
+    if (!next || !saved) return
+    const unsaved = hasChanges(next, nextSecret, saved)
+
+    checkRunning.current = true
+    setTesting(true)
+    setVerdict(null)
+    dismissErrorToast()
+    try {
+      const result = await testStorage({
+        accountId: next.accountId,
+        accessKeyId: next.accessKeyId,
+        bucketName: next.bucketName,
+        secretAccessKey: nextSecret,
+      })
+      if (result.result !== "ok") {
+        setVerdict({ passed: false, unsaved, message: testVerdictMessage(result) })
+        return
+      }
+      setVerdict({ passed: true, unsaved: false, message: testVerdictMessage(result) })
+      if (unsaved) {
+        await autoSave.run(
+          "bucket",
+          saveBucket(next, nextSecret),
+          clearSecret(nextSecret)
+        )
+      }
+    } catch (error) {
+      setVerdict({ passed: false, unsaved, message: getStorageErrorMessage(error) })
+    } finally {
+      checkRunning.current = false
+      setTesting(false)
+      if (checkAgain.current) {
+        checkAgain.current = false
+        void check()
+      }
+    }
+  }
+
+  /** Leaving a box, or Enter in one: test and keep, if anything changed. */
+  const commit = () => {
+    if (changed) void check()
   }
 
   const edit = (field: PlainField, value: string) => {
     if (!values) return
-    setTestMessage(null)
-    const next = { ...values, [field]: value }
-    setValues(next)
-    schedule(next, secret)
-  }
-
-  const runTest = async () => {
-    if (!values) return
-    setTesting(true)
-    setTestMessage(null)
-    dismissErrorToast()
-    try {
-      const verdict = await testStorage({
-        accountId: values.accountId,
-        accessKeyId: values.accessKeyId,
-        bucketName: values.bucketName,
-        secretAccessKey: secret,
-      })
-      setTestMessage(testVerdictMessage(verdict))
-    } catch (error) {
-      showErrorToast(getStorageErrorMessage(error))
-    } finally {
-      setTesting(false)
-    }
+    setVerdict(null)
+    setValues({ ...values, [field]: value })
   }
 
   const clear = async () => {
@@ -141,7 +183,7 @@ export function StorageSettings() {
       setStatus(fresh)
       setValues(pickFields(fresh))
       setSecret("")
-      setTestMessage(null)
+      setVerdict(null)
       setConfirmingClear(false)
     })
   }
@@ -189,10 +231,12 @@ export function StorageSettings() {
                   autoComplete="off"
                   placeholder={placeholder}
                   value={values[id]}
+                  aria-invalid={(verdict && !verdict.passed) || undefined}
+                  aria-describedby={verdict ? "storage-verdict" : undefined}
                   onChange={(event) => edit(id, event.target.value)}
-                  onBlur={flush}
+                  onBlur={commit}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter") flush()
+                    if (event.key === "Enter") commit()
                   }}
                 />
               </div>
@@ -212,22 +256,22 @@ export function StorageSettings() {
               placeholder="Paste the secret access key"
               value={secret}
               onChange={(value) => {
-                setTestMessage(null)
+                setVerdict(null)
                 setSecret(value)
-                if (values) schedule(values, value)
               }}
-              onCommit={flush}
+              onCommit={commit}
             />
 
             {/* Never disabled while idle — a disabled button fades to
                 near-invisible and cannot say why. Clicked with a field
-                missing, it explains itself in a toast. */}
+                missing, it says so in the line below. It runs the same check
+                leaving a box does, so changed details that pass are kept. */}
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 disabled={testing}
-                onClick={() => void runTest()}
+                onClick={() => void check()}
               >
                 {testing ? (
                   <Loader2Icon className="size-4 animate-spin" />
@@ -235,12 +279,12 @@ export function StorageSettings() {
                 Test this bucket
               </Button>
               {status.anySaved ? (
-                // Unlike Test, this waits out an in-flight save: a delete
+                // Unlike Test, this waits out a check and its save: a delete
                 // racing the save could resurrect what was just removed.
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={clearBusy || autoSave.saving !== null}
+                  disabled={clearBusy || testing || autoSave.saving !== null}
                   onClick={() => setConfirmingClear(true)}
                 >
                   Remove these settings
@@ -248,10 +292,21 @@ export function StorageSettings() {
               ) : null}
             </div>
 
-            {testMessage ? (
-              <p role="status" className="text-sm text-muted-foreground">
-                {testMessage}
+            {verdict?.passed ? (
+              <p
+                id="storage-verdict"
+                role="status"
+                className="flex items-start gap-2 text-sm"
+              >
+                <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {verdict.message}
               </p>
+            ) : verdict ? (
+              <InlineError id="storage-verdict">
+                {verdict.unsaved
+                  ? `Not saved, so the bucket in use stays in use. ${verdict.message}`
+                  : verdict.message}
+              </InlineError>
             ) : null}
           </>
         )}
@@ -272,11 +327,37 @@ export function StorageSettings() {
   )
 }
 
+/**
+ * How the last check went. `unsaved` marks a fail that held back changed
+ * details, so the line can say they were not kept.
+ */
+type Verdict = { passed: boolean; unsaved: boolean; message: string }
+
+/**
+ * Whether the boxes differ from what is saved. Compared the way the server
+ * stores them: trimmed, and the public address without a trailing slash.
+ */
+function hasChanges(
+  values: Record<PlainField, string>,
+  secret: string,
+  status: StorageSettingsStatus
+) {
+  const stored = (field: PlainField, value: string) => {
+    const trimmed = value.trim()
+    return field === "publicUrl" ? trimmed.replace(/\/+$/, "") : trimmed
+  }
+  const saved = pickFields(status)
+  return (
+    Boolean(secret.trim()) ||
+    FIELDS.some(({ id }) => stored(id, values[id]) !== stored(id, saved[id]))
+  )
+}
+
 /** The test verdict in plain words, each outcome clearly its own message. */
 function testVerdictMessage(verdict: StorageTestResult) {
   switch (verdict.result) {
     case "ok":
-      return "It works — Cloudflare opened the bucket and listed it."
+      return "It works. Cloudflare opened the bucket and listed it."
     case "unreachable":
       return "Cloudflare could not be reached at that address. The account ID is the usual cause; check it against the R2 page in your Cloudflare dashboard."
     case "rejected":

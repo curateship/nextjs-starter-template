@@ -153,7 +153,7 @@ describe("SegmentDialog waits for a hand-picked segment's people", () => {
     await act(async () => root.unmount())
   })
 
-  it("saves the people it loaded when only the name changed", async () => {
+  it("sends nobody joining or leaving when only the name changed", async () => {
     api.loadMembers.mockResolvedValue({ members: [ADA] })
     const root = await openDialog()
     await settleSearch()
@@ -170,7 +170,25 @@ describe("SegmentDialog waits for a hand-picked segment's people", () => {
     await act(async () => buttonNamed("Save changes").click())
     expect(api.save).toHaveBeenCalledWith(
       "s1",
-      expect.objectContaining({ name: "VIPs renamed", contactIds: [ADA.id] })
+      expect.objectContaining({ name: "VIPs renamed", addIds: [], removeIds: [] })
+    )
+    expect(api.save.mock.calls[0][1]).not.toHaveProperty("contactIds")
+
+    await act(async () => root.unmount())
+  })
+
+  it("sends exactly who was ticked and who was unticked", async () => {
+    api.loadMembers.mockResolvedValue({ members: [ADA] })
+    const root = await openDialog()
+    await settleSearch()
+
+    await act(async () => checkbox(GRACE.id).click())
+    await act(async () => checkbox(ADA.id).click())
+    await act(async () => buttonNamed("Save changes").click())
+
+    expect(api.save).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ addIds: [GRACE.id], removeIds: [ADA.id] })
     )
 
     await act(async () => root.unmount())
@@ -188,8 +206,10 @@ describe("SegmentDialog waits for a hand-picked segment's people", () => {
     })
 
     await act(async () => buttonNamed("Save changes").click())
-    const [, saved] = api.save.mock.calls[0]
-    expect([...saved.contactIds].sort()).toEqual([ADA.id, GRACE.id])
+    expect(api.save).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ addIds: [GRACE.id], removeIds: [] })
+    )
 
     await act(async () => root.unmount())
   })
@@ -219,7 +239,7 @@ describe("SegmentDialog waits for a hand-picked segment's people", () => {
     await act(async () => buttonNamed("Save changes").click())
     expect(api.save).toHaveBeenCalledWith(
       "s1",
-      expect.objectContaining({ contactIds: [ADA.id] })
+      expect.objectContaining({ addIds: [], removeIds: [] })
     )
 
     await act(async () => root.unmount())

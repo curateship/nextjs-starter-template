@@ -19,6 +19,11 @@ saving indicator from the top navigation", of "Saved").
   open, so pressing Done again does not add a second copy of the link.
 - **Saves run one after another**, on a queue, so two quick edits reach the
   database in the order they were made.
+- **The Cloudflare R2 card is the one exception.** It has its own row, no
+  timer, and saves only when a box is left or Enter is pressed, and only once
+  the new details pass a test against the bucket. A half-typed account ID going
+  live would break every upload and every picture already uploaded.
+  `apps/shell/workspace/docs/media/storage-settings.md` has the rules.
 
 ## Two rules that keep edits from eating each other
 

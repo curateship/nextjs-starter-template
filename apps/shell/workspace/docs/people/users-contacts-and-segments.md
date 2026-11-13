@@ -110,6 +110,11 @@ section, as any unknown section does.
   open a dropdown to give me 2 options to add new contact"): Add a contact
   turns the dropdown into the form, and Upload a CSV file opens the import
   window. There is no ⋮.
+- **Adding everybody who matches asks first.** After "Pick all N who match",
+  Add to segment opens a confirm naming the count and the segment ("Add 12,400
+  people to Newsletter readers?"), because one click there can add thousands.
+  Ticked rows on the page still join with one click. Either way the list
+  redraws afterwards, so a list filtered by that segment shows the change.
 - **The view dropdown:** All, On the list, Opted out, then each saved
   segment. On the list and Opted out are the rules Filter writes, so one
   shows as picked when Filter matches it.
@@ -233,18 +238,21 @@ ScrollArea and Badge already in the app rather than from a new dependency.
 
 A hand-picked segment's people live in their own table, so the edit window asks
 the server for them after it opens rather than being handed them with the list.
-A save sends the whole list of people and the server replaces the segment with
-it, so a save that went out before the people arrived would write an empty
-segment over a full one. Renaming a segment would have deleted everybody in it.
-
-The window therefore tracks whether those people have arrived:
+Saving a segment that already exists sends only who joined and who left since
+the window opened (`addIds` and `removeIds`, up to 1,000 each). The server
+applies both, with the new name, in one transaction
+(`updateWorkspaceSegment` in `src/server/people/contact-segments.ts`). A new
+segment still sends everybody picked. Until 13 Nov 2026 every save sent the
+whole list, and the server refuses a list over 1,000, so a segment that "Add to
+segment" had grown past 1,000 could not even be renamed. Joiners and leavers
+are worked out against the people loaded, so Save still waits for them:
 
 - **While they are loading**, the people card shows a loading line where the
   already-chosen people will appear, the live count says it is counting, and
   Save is switched off with the reason in a tooltip.
 - **If the load fails**, the card shows the failure in place with a Try again
-  button, and Save stays off. The reason on Save says that saving now would
-  empty the segment.
+  button, and Save stays off until they load, so nobody saves a segment
+  without seeing who is in it.
 - **Anyone ticked while the list is still in the air is kept.** The arriving
   list is merged with those ticks, never written over the top of them.
 - **Save is only held for a hand-picked segment.** A segment being turned into a
