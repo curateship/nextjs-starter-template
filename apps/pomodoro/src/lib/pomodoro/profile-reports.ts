@@ -43,12 +43,6 @@ export const PROFILE_REPORT_REASON_IDS = PROFILE_REPORT_REASONS.map(
   (reason) => reason.id
 ) as [ProfileReportReasonId, ...ProfileReportReasonId[]]
 
-export function profileReportReasonLabel(id: string) {
-  return (
-    PROFILE_REPORT_REASONS.find((reason) => reason.id === id)?.label ?? id
-  )
-}
-
 /**
  * How many reports one address may file an hour.
  *
@@ -58,8 +52,6 @@ export function profileReportReasonLabel(id: string) {
  */
 export const PROFILE_REPORTS_PER_HOUR = 6
 
-export const PROFILE_REPORT_THANKS =
-  "Thanks. Someone on our team will look at this profile."
 export const PROFILE_REPORT_RATE_LIMITED =
   "That is a lot of reports from one place. Try again in an hour."
 

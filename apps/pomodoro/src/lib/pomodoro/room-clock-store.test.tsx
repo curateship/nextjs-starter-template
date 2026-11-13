@@ -73,6 +73,7 @@ function snapshotOf(phase: string, slug = "room-one-slug") {
   return {
     room: { slug, name: "Rainy Berlin study", phase, sound: null, background: null, files: undefined },
     you: { role: "member" },
+    members: [],
   }
 }
 
