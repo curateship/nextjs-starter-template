@@ -164,13 +164,13 @@ function RedditAccountSettings() {
             ) : chosen ? (
               <>
                 <Link
-                  to="/admin/profiles"
-                  search={{ open: chosen.id }}
+                  to="/admin/anti-detect"
+                  search={{ section: "profiles", open: chosen.id }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
                   Open {chosen.name}
                 </Link>{" "}
-                on the Browser profiles dashboard to sign in or clear a captcha.
+                in the Anti Detect dashboard&apos;s Profiles to sign in or clear a captcha.
               </>
             ) : (
               <>
@@ -178,11 +178,11 @@ function RedditAccountSettings() {
                 that already holds a Reddit account is not offered. Make a new
                 one on the{" "}
                 <Link
-                  to="/admin/profiles"
-                  search={{ open: undefined }}
+                  to="/admin/anti-detect"
+                  search={{ section: "profiles" }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
-                  Browser profiles dashboard
+                  Anti Detect dashboard&apos;s Profiles
                 </Link>
                 .
               </>

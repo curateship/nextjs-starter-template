@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
-import { PanelCard } from "@/components/shared/panel-card"
+import { PhoneSectionCard } from "@/components/phones/phone-section-card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { getPhoneHealthErrorMessage, loadPhoneHistory, type PhoneEventView } from "@/lib/api/phones/health"
@@ -46,7 +46,7 @@ export function PhoneHistoryPanel({ phoneId }: { phoneId: string }) {
     <div className="grid min-w-0 gap-3">
       <PhoneAccountsCard phoneId={phoneId} />
       {state.entries.length ? (
-        <PanelCard storageId="promo-phone-history-what-happened" title="What happened">
+        <PhoneSectionCard storageId="promo-phone-history-what-happened" title="What happened">
           <div className="-mx-4 -mb-4 grid divide-y border-t">
             {state.entries.map((entry) => (
               <div key={entry.id} className="grid gap-1 px-4 py-3 text-sm">
@@ -58,7 +58,7 @@ export function PhoneHistoryPanel({ phoneId }: { phoneId: string }) {
               </div>
             ))}
           </div>
-        </PanelCard>
+        </PhoneSectionCard>
       ) : (
         <p className="py-6 text-center text-sm text-muted-foreground">Nothing has happened to this phone yet.</p>
       )}
@@ -96,7 +96,7 @@ function PhoneAccountsCard({ phoneId }: { phoneId: string }) {
   }, [phoneId, attempt])
 
   return (
-    <PanelCard storageId="promo-phone-history-accounts" title="Accounts">
+    <PhoneSectionCard storageId="promo-phone-history-accounts" title="Accounts">
       <div className="-mx-4 -mb-4 border-t">
         {error ? (
           <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
@@ -130,6 +130,6 @@ function PhoneAccountsCard({ phoneId }: { phoneId: string }) {
           </div>
         )}
       </div>
-    </PanelCard>
+    </PhoneSectionCard>
   )
 }

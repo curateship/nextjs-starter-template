@@ -236,9 +236,9 @@ export async function sweepPhoneHealth(db: CustomShellDb = defaultDb, now: Date 
 
 const HEALTH_KINDS: PromoNoticeKind[] = ["phone_offline", "phone_hot", "phone_signal", "phone_storage", "rack_silent", "rack_wda"]
 
-/** A rack's own page, where a rack notice leads (Racks dashboard, part 87). */
+/** The rack's phones on the Anti Detect dashboard's Phones, where a rack notice leads (Racks dashboard, part 87; a rack has no page of its own since 12 Nov 2026). */
 function rackHref(rackId: string): string {
-  return `/admin/racks/${encodeURIComponent(rackId)}`
+  return `/admin/anti-detect?section=phones&rack=${encodeURIComponent(rackId)}`
 }
 
 /** The bell warns this long before the rack's WebDriverAgent signature runs out. */
@@ -583,9 +583,9 @@ export async function stopForBanScreen(
           detail: [
             `${appName} showed: "${words}".`,
             `Promo stopped the account${droppedWords} to be safe.`,
-            "Press It's a ban or Not a ban on the Bans dashboard. Not a ban lets it run again, and that screen never stops it again.",
+            "Press It's a ban or Not a ban in Waiting on you, on the Anti Detect dashboard's Overview. Not a ban lets it run again, and that screen never stops it again.",
           ].join(" "),
-          href: "/admin/bans",
+          href: "/admin/anti-detect?section=overview",
         },
         db,
         now
@@ -604,9 +604,9 @@ export async function stopForBanScreen(
         detail: [
           `${appName} showed it ${BAN_KIND_WORDS[kind] ?? "stopped"}: "${words}".`,
           `Promo stopped the account${droppedWords}.`,
-          "The picture is on the Bans dashboard. Appeal it in the app first if you want to, then let it run again or press Clean up from its settings on the Accounts dashboard.",
+          "The picture is in the Anti Detect dashboard's Bans. Appeal it in the app first if you want to, then let it run again or press Clean up there.",
         ].join(" "),
-        href: "/admin/bans",
+        href: "/admin/anti-detect?section=bans",
       },
       db,
       now

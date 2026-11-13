@@ -132,23 +132,17 @@ describe("iPhone windows", () => {
       (one) => one.textContent?.trim() === name || one.getAttribute("aria-label") === name
     )
 
-  it("shows Check iCloud on an iPhone's Setup tab, the last read in words, and refuses the wipe with the reason", async () => {
+  it("shows Check iCloud on an iPhone's Setup, and the last read in words", async () => {
     healthApi.loadIcloudState.mockResolvedValue({ signedOut: false, appleId: "tyler@example.com", checkedAt: new Date() })
     healthApi.checkIcloud.mockResolvedValue("act1")
-    api.wipePhone.mockRejectedValue(new Error("Sign out of iCloud on its screen first (Settings, your name, Sign Out), then press Check iCloud. An iPhone erased while signed in is locked to that Apple ID."))
     await render(<PhoneSetupPanel phone={phone({})} onChanged={async () => {}} />)
     expect(text()).toContain("Read as signed in to an Apple ID (tyler@example.com)")
     expect(text()).toContain("App Store setting")
     await act(async () => button("Check iCloud")!.click())
     expect(healthApi.checkIcloud).toHaveBeenCalledWith("i1")
 
-    await act(async () => button("Wipe the phone")!.click())
-    expect(text()).toContain("Erase All Content and Settings")
-    expect(text()).toContain("tap Trust this computer")
-    const confirm = Array.from(document.querySelectorAll("button")).filter((one) => one.textContent?.trim() === "Wipe the phone").at(-1)!
-    await act(async () => confirm.click())
-    expect(api.wipePhone).toHaveBeenCalledWith("i1")
-    expect(toasts.errors.at(-1)).toContain("Sign out of iCloud on its screen first")
+    // Wipe the phone is in the phone's ⋮ now, tested with the panel; Setup has no wipe button.
+    expect(button("Wipe the phone")).toBeUndefined()
 
     // An Android's tab has no iCloud to check.
     await render(<PhoneSetupPanel phone={phone({ id: "a1", kind: "android", name: "Pixel 8a" })} onChanged={async () => {}} />)
@@ -156,13 +150,14 @@ describe("iPhone windows", () => {
     expect(text()).toContain("Play Store setting")
   })
 
-  it("names an iPhone's keys as swipes and says the code is read off Messages", async () => {
+  it("names an iPhone's keys as swipes, and shows no Sign-in codes card with no code", async () => {
     screenApi.loadScreen.mockResolvedValue({ frame: null, controlUntil: null, codes: [], texted: null })
     await render(<PhoneScreenDialog phone={phone({})} onClose={() => {}} onChanged={async () => {}} />)
     expect(button("Back (swipe)")).toBeDefined()
     expect(button("App switcher (swipe)")).toBeDefined()
     expect(button("Recent apps")).toBeUndefined()
-    expect(text()).toContain("reads the newest code off the Messages app while the screen is open with control on")
+    // The card shows only while there is a code (Tyler, 12 Nov 2026: "it should appear when it needs to be").
+    expect(text()).not.toContain("Sign-in codes")
 
     await render(<PhoneScreenDialog phone={phone({ id: "a1", kind: "android" })} onClose={() => {}} onChanged={async () => {}} />)
     expect(button("Back")).toBeDefined()

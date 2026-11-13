@@ -62,7 +62,7 @@ a page made later read the same screen, card and fonts.
   them: a new volume is a new machine, which is why a duplicate profile gets its
   own on its first launch.
 - **What the app keeps.** The identity's id, so it can tell the machine changed,
-  and what a page read through it, so the Browser profiles dashboard shows the
+  and what a page read through it, so the Anti Detect dashboard's Profiles shows the
   machine without asking a browser.
 - **What follows the proxy.** The clock and the language follow the proxy's
   country at every launch. The screen, graphics card, fonts and operating system
@@ -171,12 +171,12 @@ steady, so it is the fallback, and a search says which of the two answered.
 
 ## Signing in happens once
 
-Open the profile's browser on the Browser profiles dashboard and the browser
+Open the profile's browser in the Anti Detect dashboard's Profiles and the browser
 shows inside the app, in a large window over the list. Turn on the switch under
 the picture to take control, sign in to Reddit, and the cookies land in the
 profile's own storage, which outlives every restart of the container. It is not
 asked again. Then press **Check who is signed in**, so the Projects dashboard
-knows the name. [The Browser profiles dashboard](profiles-dashboard.md) has the
+knows the name. [The Anti Detect dashboard's Profiles](profiles-dashboard.md) has the
 details.
 
 **Pressing Open does not open anything itself.** It writes an `open` job, and the
@@ -197,14 +197,14 @@ ready when it answers, not when Reddit has finished loading.
 
 The same window is where a captcha gets cleared. When Reddit shows one mid-search
 the job stops, the post keeps the status it had, and the Projects dashboard links
-to the profile on the Browser profiles dashboard rather than retrying.
+to the profile in the Anti Detect dashboard's Profiles rather than retrying.
 
 ## The proxy
 
 Optional, and the thing to set before posting regularly. Without one, Reddit sees
 this computer's own address. A profile picks its proxy on the Browser profiles
 dashboard, and proxies are added, tested and deleted on the
-[Proxies dashboard](proxies-dashboard.md).
+[Anti Detect dashboard's Proxies](proxies-dashboard.md).
 
 **A browser never opens behind a dead proxy.** When a profile's proxy failed its
 last test, opening is refused at once with the proxy's name: "The proxy
@@ -275,7 +275,7 @@ browsers may be open at once: 3 by default, from 1 to 20. The tab saves itself
 the top bar; there is no Save button. It counts every
 person's, because the memory is the machine's. Opening one more is refused at
 once, in words, never queued: "2 browsers are open, which is the limit. Stop
-one on the Browser profiles dashboard, or raise the limit in Settings." Before
+one in the Anti Detect dashboard's Profiles, or raise the limit in Settings." Before
 the limit, the only ceiling was the forty ports the code tries, about 60GB.
 
 The count and the opening happen as one step under a database lock every copy

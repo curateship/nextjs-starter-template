@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import {
   ArrowLeftIcon,
   CopyIcon,
@@ -10,6 +11,7 @@ import {
   SquareStackIcon,
 } from "lucide-react"
 
+import { PhoneGraphic, PhoneLogo } from "@/components/phones/phone-graphic"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
@@ -40,6 +42,8 @@ import { formatTimeAgo } from "@/lib/format/format-time"
 import type { PhoneKind } from "@/lib/phones/options"
 import { useOnScreen } from "@/lib/phones/use-on-screen"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+import { PickGroup } from "@/components/shared/notes/pick-rows"
 
 /**
  * How often the window asks for a newer picture. The rack sends about three a
@@ -130,11 +134,32 @@ export function PhoneScreen({
   phone,
   onChanged,
   wide = false,
+  footer = null,
+  controlSlot = null,
+  onControl,
+  frame: frameScreen,
 }: {
   phone: PhoneRecord
   onChanged: () => Promise<void>
   /** The window's two columns, picture beside the controls; a panel stacks them. */
   wide?: boolean
+  /**
+   * The right panel's footer: the typing goes there, with the keys under it,
+   * rather than in the Control card (Tyler, 12 Nov 2026: "The icon controls
+   * goes into the footer bottom and the phone chat goes a row above it").
+   */
+  footer?: HTMLElement | null
+  /**
+   * On the right panel, where the control switch goes: the Control row of the
+   * phone's ⋮, drawn flat (Tyler, 12 Nov 2026: "control, setup, actions and
+   * history can go back into the 3 dot dropdown but flatten the data"). Null
+   * while the ⋮ is shut; control stays as it was.
+   */
+  controlSlot?: HTMLElement | null
+  /** Told whether control is on, for the ⋮'s Control row. */
+  onControl?: (on: boolean) => void
+  /** On the right panel, the phone box the picture is drawn in, under the panel's tabs. */
+  frame?: (screen: React.ReactNode) => React.ReactNode
 }) {
   const phoneId = phone.id
   const [box, { drawn, front }] = useOnScreen<HTMLDivElement>()
@@ -145,8 +170,10 @@ export function PhoneScreen({
   const seq = React.useRef(0)
   const press = React.useRef<{ x: number; y: number } | null>(null)
   const control = Boolean(view?.controlUntil)
-  const iphone = phone.kind === "iphone"
   const keys = keysFor(phone.kind)
+  React.useEffect(() => {
+    onControl?.(control)
+  }, [control, onControl])
   const onChangedRef = React.useRef(onChanged)
   React.useEffect(() => {
     onChangedRef.current = onChanged
@@ -241,133 +268,218 @@ export function PhoneScreen({
       ? `${phone.name} is offline: ${phone.offlineReason || "not seen by the rack"}. The picture comes back once it is plugged in.`
       : "Waiting for the first picture. The rack starts sending within a few seconds when the phone is plugged in and the rack is connected."
 
-  return (
-    <div ref={box} className={wide ? "grid gap-6 md:grid-cols-[minmax(0,1fr)_18rem]" : "grid gap-3"}>
-      <div className="flex min-h-80 items-center justify-center rounded-lg border bg-muted/50 p-2">
-        {frame ? (
-          <img
-            src={frame.src}
-            alt={`${phone.name}'s screen`}
-            draggable={false}
-            className={`max-h-[65vh] w-auto max-w-full touch-none rounded-md select-none ${control ? "cursor-pointer" : "cursor-default"}`}
-            onPointerDown={(event) => {
-              if (!control) return
-              event.currentTarget.setPointerCapture(event.pointerId)
-              press.current = at(event)
-            }}
-            onPointerUp={(event) => {
-              const start = press.current
-              press.current = null
-              if (!control || !start) return
-              const end = at(event)
-              const moved = Math.hypot(end.x - start.x, end.y - start.y)
-              void send(
-                moved < TAP_SLOP
-                  ? { kind: "tap", x: start.x, y: start.y }
-                  : { kind: "swipe", x1: start.x, y1: start.y, x2: end.x, y2: end.y }
-              )
-            }}
-          />
-        ) : (
-          <div role="status" className="flex flex-col items-center gap-3 p-6 text-center text-sm text-muted-foreground">
-            {phone.status === "offline" ? null : <Loader2Icon className="size-5 animate-spin" />}
-            <p className="max-w-xs">{waitingWords}</p>
-          </div>
-        )}
+  // The keys and the typing: in the Control card in the window; on the right panel, the typing in the
+  // footer with the keys under it.
+  // The switch and what it means: in the window's Control card, or the ⋮'s Control row on the right panel.
+  const controlRow = (
+    <>
+      <div className="flex items-center gap-2">
+        <Switch
+          id={`phone-screen-control-${phoneId}`}
+          checked={control}
+          disabled={switching}
+          onCheckedChange={(on) => void switchControl(on)}
+        />
+        <Label htmlFor={`phone-screen-control-${phoneId}`} className="font-normal">
+          {control ? "Control is on" : "Control is off"}
+        </Label>
       </div>
+      <p className="text-xs text-muted-foreground">
+        {control
+          ? "Taps and typing reach the phone, and its jobs wait."
+          : "Looking only. Nothing reaches the phone."}
+        {frame ? ` Picture from ${formatTimeAgo(frame.at)}.` : ""}
+      </p>
+    </>
+  )
+  const keysRow = (
+      <div className="flex flex-wrap gap-1">
+        {keys.map((key) => (
+          <Hint key={key.key} label={key.label}>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={key.label}
+              onClick={() => void send({ kind: "key", key: key.key })}
+            >
+              {key.icon}
+            </Button>
+          </Hint>
+        ))}
+      </div>
+  )
+  const typingForm = (
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!typing) {
+            showErrorToast("Type something first.")
+            return
+          }
+          void send({ kind: "text", text: typing }).then(() => setTyping(""))
+        }}
+      >
+        <Label htmlFor={`phone-screen-typing-${phoneId}`} className="sr-only">
+          Type on the phone
+        </Label>
+        <Input
+          id={`phone-screen-typing-${phoneId}`}
+          value={typing}
+          placeholder="Type on the phone"
+          onChange={(event) => setTyping(event.target.value)}
+        />
+        <Hint label="Send the typing">
+          <Button type="submit" variant="outline" size="icon" aria-label="Send the typing">
+            <SendIcon />
+          </Button>
+        </Hint>
+      </form>
+  )
 
-      <div className={wide ? "grid content-start gap-6" : "grid content-start gap-3"}>
-        <ScreenCard wide={wide} storageId="promo-phone-screen-control" title="Control">
-          <div className="flex items-center gap-2">
-            <Switch
-              id={`phone-screen-control-${phoneId}`}
-              checked={control}
-              disabled={switching}
-              onCheckedChange={(on) => void switchControl(on)}
-            />
-            <Label htmlFor={`phone-screen-control-${phoneId}`} className="font-normal">
-              {control ? "Control is on" : "Control is off"}
-            </Label>
+  // The picture, or what it is waiting for. On the right panel it sits in the panel's phone box under its
+  // tabs, with no frame of its own (Tyler, 12 Nov 2026: the tabs drawn on top of the phone's box).
+  const picture = (
+    // On the right panel the grey screen has a phone's own shape (Tyler, 12 Nov 2026: "this gray area here
+    // should be the same dimesion as the phone"), the panel's box being the phone. The window keeps its frame.
+    <div
+      className={cn(
+        "flex items-center justify-center bg-muted/50",
+        frameScreen ? "aspect-[96/176] overflow-hidden" : "min-h-80 rounded-lg border p-2"
+      )}
+    >
+      {frame ? (
+        <img
+          src={frame.src}
+          alt={`${phone.name}'s screen`}
+          draggable={false}
+          // Within the phone's screen on the panel, never past it; the picture's own box, so a tap lands where it shows.
+          className={cn(
+            "w-auto max-w-full touch-none select-none",
+            frameScreen ? "max-h-full" : "max-h-[65vh] rounded-md",
+            control ? "cursor-pointer" : "cursor-default"
+          )}
+          onPointerDown={(event) => {
+            if (!control) return
+            event.currentTarget.setPointerCapture(event.pointerId)
+            press.current = at(event)
+          }}
+          onPointerUp={(event) => {
+            const start = press.current
+            press.current = null
+            if (!control || !start) return
+            const end = at(event)
+            const moved = Math.hypot(end.x - start.x, end.y - start.y)
+            void send(
+              moved < TAP_SLOP
+                ? { kind: "tap", x: start.x, y: start.y }
+                : { kind: "swipe", x1: start.x, y1: start.y, x2: end.x, y2: end.y }
+            )
+          }}
+        />
+      ) : (
+        frameScreen ? (
+          // The box is the phone, so its screen says why there is no picture, under the logo.
+          <div role="status" className="flex flex-col items-center gap-3 px-6 text-center text-sm text-muted-foreground">
+            <svg viewBox="0 0 24 24" aria-label={phone.kind === "iphone" ? "An iPhone" : "An Android phone"} role="img" className="size-12 fill-muted-foreground/70">
+              <PhoneLogo kind={phone.kind} />
+            </svg>
+            {phone.status === "offline" ? null : <Loader2Icon className="size-5 animate-spin" />}
+            <p>{waitingWords}</p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {control
-              ? "Taps and typing reach the phone, and its jobs wait."
-              : "Looking only. Nothing reaches the phone."}
-            {frame ? ` Picture from ${formatTimeAgo(frame.at)}.` : ""}
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {keys.map((key) => (
-              <Hint key={key.key} label={key.label}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label={key.label}
-                  onClick={() => void send({ kind: "key", key: key.key })}
+        ) : (
+          // The window draws the phone, saying on its own screen why there is no picture.
+          <div role="status" className="flex items-center justify-center text-xs text-muted-foreground">
+            <PhoneGraphic kind={phone.kind} className="h-[19rem]">
+              {phone.status === "offline" ? null : <Loader2Icon className="size-4 shrink-0 animate-spin" />}
+              <p>{waitingWords}</p>
+            </PhoneGraphic>
+          </div>
+        )
+      )}
+    </div>
+  )
+
+  return (
+    // On the right panel the cards stack edge to edge under the picture, as every record's cards do.
+    <div ref={box} className={wide ? "grid gap-6 md:grid-cols-[minmax(0,1fr)_18rem]" : "grid"}>
+      {footer
+        ? createPortal(
+            <div className="grid w-full min-w-0 gap-2">
+              {typingForm}
+              {keysRow}
+            </div>,
+            footer
+          )
+        : null}
+      {frameScreen ? frameScreen(picture) : picture}
+
+      <div className={wide ? "grid content-start gap-6" : "grid content-start"}>
+        {footer ? (
+          controlSlot
+            ? createPortal(
+                // The ⋮'s settings look: one row, the switch on its right (Tyler, 12 Nov 2026: "all toggles").
+                <PickGroup
+                  title="Screen"
+                  after={
+                    <p className="px-0.5 text-xs text-muted-foreground">
+                      {control
+                        ? "Taps and typing reach the phone, and its jobs wait."
+                        : "Looking only. Nothing reaches the phone."}
+                      {frame ? ` Picture from ${formatTimeAgo(frame.at)}.` : ""}
+                    </p>
+                  }
                 >
-                  {key.icon}
-                </Button>
-              </Hint>
-            ))}
-          </div>
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!typing) {
-                showErrorToast("Type something first.")
-                return
-              }
-              void send({ kind: "text", text: typing }).then(() => setTyping(""))
-            }}
-          >
-            <Label htmlFor={`phone-screen-typing-${phoneId}`} className="sr-only">
-              Type on the phone
-            </Label>
-            <Input
-              id={`phone-screen-typing-${phoneId}`}
-              value={typing}
-              placeholder="Type on the phone"
-              onChange={(event) => setTyping(event.target.value)}
-            />
-            <Hint label="Send the typing">
-              <Button type="submit" variant="outline" size="icon" aria-label="Send the typing">
-                <SendIcon />
-              </Button>
-            </Hint>
-          </form>
-        </ScreenCard>
+                  <div className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+                    <Label htmlFor={`phone-screen-control-${phoneId}`} className="flex-1 font-normal text-muted-foreground">
+                      Control
+                    </Label>
+                    <span>{control ? "On" : "Off"}</span>
+                    <Switch
+                      id={`phone-screen-control-${phoneId}`}
+                      checked={control}
+                      disabled={switching}
+                      onCheckedChange={(on) => void switchControl(on)}
+                    />
+                  </div>
+                </PickGroup>,
+                controlSlot
+              )
+            : null
+        ) : (
+          <ScreenCard wide={wide} storageId="promo-phone-screen-control" title="Control">
+            {controlRow}
+            {keysRow}
+            {typingForm}
+          </ScreenCard>
+        )}
 
-        <ScreenCard wide={wide} storageId="promo-phone-screen-codes" title="Sign-in codes">
-          <div className="grid gap-3 text-sm">
-            {view?.codes.map((code) => (
-              <CodeRow
-                key={code.accountId}
-                label={code.handle ? `u/${code.handle}` : "Authenticator"}
-                detail={`${code.secondsLeft}s left`}
-                code={code.code}
-                onCopy={() => void copy(code.code)}
-              />
-            ))}
-            {view?.texted ? (
-              <CodeRow
-                label={`Texted${view.texted.from ? ` by ${view.texted.from}` : ""}`}
-                detail={formatTimeAgo(view.texted.at)}
-                code={view.texted.code}
-                onCopy={() => void copy(view.texted!.code)}
-              />
-            ) : null}
-            {view && !view.codes.length && !view.texted ? (
-              <p className="text-muted-foreground">
-                No codes. An account&apos;s authenticator secret is saved from its settings on
-                the Reddit accounts dashboard;{" "}
-                {iphone
-                  ? "the rack reads the newest code off the Messages app while the screen is open with control on, and shows it here."
-                  : "a code texted to this phone shows here while the screen is open."}
-              </p>
-            ) : null}
-          </div>
-        </ScreenCard>
+        {/* Only while there is a code to show (Tyler, 12 Nov 2026, of the empty card: "this doesnt need to be
+            here. it should appear when it needs to be"). */}
+        {view && (view.codes.length || view.texted) ? (
+          <ScreenCard wide={wide} storageId="promo-phone-screen-codes" title="Sign-in codes">
+            <div className="grid gap-3 text-sm">
+              {view.codes.map((code) => (
+                <CodeRow
+                  key={code.accountId}
+                  label={code.handle ? `u/${code.handle}` : "Authenticator"}
+                  detail={`${code.secondsLeft}s left`}
+                  code={code.code}
+                  onCopy={() => void copy(code.code)}
+                />
+              ))}
+              {view.texted ? (
+                <CodeRow
+                  label={`Texted${view.texted.from ? ` by ${view.texted.from}` : ""}`}
+                  detail={formatTimeAgo(view.texted.at)}
+                  code={view.texted.code}
+                  onCopy={() => void copy(view.texted!.code)}
+                />
+              ) : null}
+            </div>
+          </ScreenCard>
+        ) : null}
       </div>
     </div>
   )

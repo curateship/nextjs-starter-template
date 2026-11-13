@@ -26,7 +26,7 @@ and it is added at once.
 Promo refuses a profile that holds an account of any network, the reader
 profile, and a profile that already searches X, because one profile is one
 person to a website. Sign the profile in to the spare LinkedIn account in its
-browser window on the Browser profiles dashboard.
+browser window in the Anti Detect dashboard's Profiles.
 
 ## The views it may spend a day
 

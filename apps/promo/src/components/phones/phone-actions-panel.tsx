@@ -1,5 +1,5 @@
 import * as React from "react"
-import { HeartPulseIcon, ImagesIcon, Loader2Icon, SmartphoneIcon, Trash2Icon } from "lucide-react"
+import { ImagesIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { PanelCard } from "@/components/shared/panel-card"
+import { PhoneSectionCard } from "@/components/phones/phone-section-card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -23,12 +23,11 @@ import {
 import {
   getPhoneErrorMessage,
   loadPhoneActions,
-  runPhoneAction,
   type PhoneActionView,
   type PhoneRecord,
 } from "@/lib/api/phones/phones"
 import { formatDateTime } from "@/lib/format/format-time"
-import { actionWords, MANUAL_PHONE_ACTIONS } from "@/lib/phones/options"
+import { actionWords } from "@/lib/phones/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** How often the list is read again while an action is waiting or running. */
@@ -47,12 +46,11 @@ const RECOVERED_WORDS: Record<string, string> = {
   phone: "The phone stopped answering, so the rack restarted it.",
 }
 
-type ManualAction = (typeof MANUAL_PHONE_ACTIONS)[number]
-
 /**
- * The phone's actions: ask the rack to read the system version off the
- * phone's own Settings screen, or take a health reading, and see the last
- * twenty actions, including a job's Reddit steps and the daily self-test.
+ * The phone's last twenty actions, including a job's Reddit steps and the
+ * daily self-test. Read the version and Health check, which ask for one, are
+ * at the foot of the phone's ⋮ (Tyler, 12 Nov 2026: "move these 2 function
+ * down here").
  *
  * Each action keeps a picture of every step (part 17 of the phone farm). A
  * failed one says the step it stopped at; its pictures stay until cleared
@@ -63,7 +61,6 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
   const [actions, setActions] = React.useState<PhoneActionView[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [attempt, setAttempt] = React.useState(0)
-  const [asking, setAsking] = React.useState<ManualAction | null>(null)
 
   React.useEffect(() => {
     let live = true
@@ -96,47 +93,9 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
     wasWaiting.current = waiting
   }, [waiting, onChanged])
 
-  async function ask(action: ManualAction) {
-    setAsking(action)
-    try {
-      await runPhoneAction(phone.id, action)
-      setAttempt((count) => count + 1)
-    } catch (askError) {
-      showErrorToast(getPhoneErrorMessage(askError))
-    } finally {
-      setAsking(null)
-    }
-  }
-
   return (
     <div className="grid min-w-0 gap-3">
-      <PanelCard storageId="promo-phone-actions-ask-the-phone" title="Ask the phone">
-        {/* One column the card's own width, so a long line wraps rather than widening the card. */}
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
-          <p className="text-sm text-muted-foreground">
-            The rack runs each check on the phone and sends back the answer. Reading the
-            version opens Settings on the phone, reads the screen and goes back home.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={asking !== null}
-              onClick={() => void ask("phone/android-version")}
-            >
-              {asking === "phone/android-version" ? <Loader2Icon className="animate-spin" /> : <SmartphoneIcon />}
-              {/* Short, so it fits the phone's ⋮ (Tyler, 6 Nov 2026: "reduce text so it doesnt break width"). */}
-              Read the version
-            </Button>
-            <Button type="button" variant="outline" disabled={asking !== null} onClick={() => void ask("phone/health")}>
-              {asking === "phone/health" ? <Loader2Icon className="animate-spin" /> : <HeartPulseIcon />}
-              Health check
-            </Button>
-          </div>
-        </div>
-      </PanelCard>
-
-      <PanelCard storageId="promo-phone-actions-last-actions" title="Last actions">
+      <PhoneSectionCard storageId="promo-phone-actions-last-actions" title="Last actions">
         <div className="-mx-4 -mb-4 border-t">
           {error ? (
             <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
@@ -152,7 +111,7 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
             </div>
           )}
         </div>
-      </PanelCard>
+      </PhoneSectionCard>
     </div>
   )
 }

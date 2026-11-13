@@ -81,8 +81,16 @@ export const getPhoneErrorMessage = passReaderWritten(createErrorMessage(
   "That did not work. Please try again."
 ))
 
-/** What the Racks dashboard draws: every rack, and every phone for the counts, the warnings and the search. */
-export type RacksPage = {
+/**
+ * Every phone on every rack, and every rack, for the Anti Detect dashboard's
+ * Phones (Tyler, 12 Nov 2026: "I dont think a rack needs its own dashboard.
+ * The racks dashboard should list all the phones and the phones can just be
+ * filtered by rack"). The left page's rack blocks and the phone panel read
+ * the same: the folders, labels and proxies a phone is sorted and sent out
+ * by, the shelf's size, the projects with an account on each phone, and the
+ * jobs waiting on each rack's phones and on every phone.
+ */
+export type PhonesPage = {
   racks: RackView[]
   phones: PhoneRecord[]
   /** The version Promo serves, so a rack on an older one can say so. */
@@ -92,30 +100,6 @@ export type RacksPage = {
   /** The spare phones the daily self-test runs on, or null when none is picked. */
   testPhoneId: string | null
   testPhoneIphoneId: string | null
-}
-
-const racksFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .handler(async ({ context }): Promise<RacksPage> => {
-    const userId = context.user.id
-    const [racks, phones, settings] = await Promise.all([listRacks(userId), listPhones(userId), readPhoneSettings()])
-    return {
-      racks,
-      phones,
-      rackVersion: RACK_VERSION,
-      pausedAt: settings.pausedAt,
-      testPhoneId: settings.testPhoneId,
-      testPhoneIphoneId: settings.testPhoneIphoneId,
-    }
-  })
-
-export function loadRacksPage() {
-  return racksFn()
-}
-
-/** What one rack's page draws: the rack, its phones, and what a phone's settings pick from. */
-export type RackPage = RacksPage & {
-  rack: RackView
   folders: FolderView[]
   labels: LabelView[]
   /** The proxies a phone on Wi-Fi can go out through, never a password. */
@@ -123,56 +107,47 @@ export type RackPage = RacksPage & {
   /** The shelf's rows and columns from Settings → Phones, for the shelf map. */
   shelfRows: number
   shelfColumns: number
-  /** The projects with an account on one of this rack's phones, for the Project filter. */
+  /** The projects with an account on a phone, and which phones. */
   projects: PhoneProject[]
-  /** The jobs waiting for this rack's phones, for the counts card (part 91). */
-  jobsWaiting: number
+  /** The jobs waiting for every phone, and for each rack's phones by rack id (part 91). */
+  jobsWaiting: { all: number; byRack: Record<string, number> }
 }
 
-/** A rack page, or `missing` when the rack is not there (part 86). */
-export type RackPageAnswer = { missing: false; page: RackPage } | { missing: true }
-
-const rackPageFn = createServerFn({ method: "GET" })
+const phonesPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .inputValidator(z.object({ rackId: z.string().min(1).max(36) }))
-  .handler(async ({ context, data }): Promise<RackPageAnswer> => {
+  .handler(async ({ context }): Promise<PhonesPage> => {
     const userId = context.user.id
-    const rack = await readRack(userId, data.rackId)
-    if (!rack) return { missing: true }
-    const [phones, groups, proxies, settings, projects] = await Promise.all([
+    const [racks, phones, groups, proxies, settings, projects] = await Promise.all([
+      listRacks(userId),
       listPhones(userId),
       listFoldersAndLabels(userId),
       listProxies(userId),
       readPhoneSettings(),
       phoneProjects(userId),
     ])
-    const here = phones.filter((phone) => phone.rackId === rack.id)
-    const hereIds = new Set(here.map((phone) => phone.id))
-    const jobsWaiting = await countWaitingJobs(userId, here.map((phone) => phoneLane(phone.id)))
+    const lanesOf = (list: PhoneRecord[]) => list.map((phone) => phoneLane(phone.id))
+    const [all, ...perRack] = await Promise.all([
+      countWaitingJobs(userId, lanesOf(phones)),
+      ...racks.map((rack) => countWaitingJobs(userId, lanesOf(phones.filter((phone) => phone.rackId === rack.id)))),
+    ])
     return {
-      missing: false,
-      page: {
-        rack,
-        racks: [rack],
-        phones: here,
-        rackVersion: RACK_VERSION,
-        pausedAt: settings.pausedAt,
-        testPhoneId: settings.testPhoneId,
-        testPhoneIphoneId: settings.testPhoneIphoneId,
-        ...groups,
-        proxies: proxies.map(({ id, label, host }) => ({ id, label, host })),
-        shelfRows: settings.shelfRows,
-        shelfColumns: settings.shelfColumns,
-        projects: projects
-          .map((project) => ({ ...project, phoneIds: project.phoneIds.filter((id) => hereIds.has(id)) }))
-          .filter((project) => project.phoneIds.length),
-        jobsWaiting,
-      },
+      racks,
+      phones,
+      rackVersion: RACK_VERSION,
+      pausedAt: settings.pausedAt,
+      testPhoneId: settings.testPhoneId,
+      testPhoneIphoneId: settings.testPhoneIphoneId,
+      ...groups,
+      proxies: proxies.map(({ id, label, host }) => ({ id, label, host })),
+      shelfRows: settings.shelfRows,
+      shelfColumns: settings.shelfColumns,
+      projects,
+      jobsWaiting: { all, byRack: Object.fromEntries(racks.map((rack, at) => [rack.id, perRack[at]])) },
     }
   })
 
-export function loadRackPage(rackId: string) {
-  return rackPageFn({ data: { rackId } })
+export function loadPhonesPage() {
+  return phonesPageFn()
 }
 
 const oneRackFn = createServerFn({ method: "GET" })
@@ -187,23 +162,6 @@ const oneRackFn = createServerFn({ method: "GET" })
 /** One rack as it is now, which the New rack window reads while it waits for the program to pair. */
 export function loadRack(rackId: string) {
   return oneRackFn({ data: { rackId } })
-}
-
-const phoneRackFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(z.object({ phoneId: z.string().min(1).max(36) }))
-  .handler(async ({ context, data }): Promise<{ found: boolean; rackId: string | null }> => {
-    const phone = (await listPhones(context.user.id)).find((one) => one.id === data.phoneId)
-    return { found: Boolean(phone), rackId: phone?.rackId ?? null }
-  })
-
-/**
- * Which rack a phone is on now, for `/admin/phones?open=<id>`, the one
- * address that opens a phone (part 87). A bell notice or another dashboard
- * links there and lands on the phone's rack, wherever it was plugged in last.
- */
-export function findPhoneRack(phoneId: string) {
-  return phoneRackFn({ data: { phoneId } })
 }
 
 const rackInput = z.object({

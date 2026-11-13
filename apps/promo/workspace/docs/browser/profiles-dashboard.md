@@ -1,30 +1,32 @@
-# The Browser profiles dashboard
+# Profiles, on the Anti Detect dashboard
 
-Every isolated browser in one table at `/admin/profiles`, reached from **Browser
-profiles** in the left menu: which proxy it uses, whether it is open, who is
-signed in inside it, and when it last ran. Opening a profile's browser, signing
+Every isolated browser in one table, the Profiles section of [the Anti Detect
+dashboard](../anti-detect-dashboard.md) (`/admin/anti-detect?section=profiles`;
+the old `/admin/profiles` redirects there): which proxy it uses, whether it is
+open, who is signed in inside it, and when it last ran. Opening a profile's browser, signing
 in and clearing a captcha all start here. Tyler, 5 Oct 2026: "proxy and browser
 isolation is an app wide feature, not just a reddit feature."
 
-The behaviour is copied from anti-detect's profiles dashboard and rebuilt from
-the shell's own table and windows, split by what each piece does:
-`profiles-dashboard.tsx` for the table, `profile-dialog.tsx` for a profile's
-window, `browser-window-dialog.tsx` for the browser itself, and
-`profile-groups-dialog.tsx` for folders and labels, all in
+The behaviour is copied from anti-detect's profiles dashboard. Since 12 Nov
+2026 the table is `src/components/anti-detect/profiles-section.tsx` and a
+profile opens on the right (`profile-record.tsx`); `profile-dialog.tsx` holds
+the settings form and the New profile window, `browser-window-dialog.tsx` the
+browser itself, and `profile-groups-dialog.tsx` folders and labels, in
 `src/components/browser/`. [Browser profiles](profiles.md) explains the record.
 
 ## The table
 
 - **Profile.** Its name, its label, its folder and its tags.
 - **Proxy.** The proxy's name and its last test as a badge, the same badge the
-  Proxies dashboard draws.
+  Anti Detect dashboard's Proxies draws.
 - **Browser.** Open, Opening, Stopping or Stopped, from the session row and the
   job queue. "On its old proxy" when the open browser went out through a proxy
   the profile no longer uses.
 - **Signed in.** "Reddit: u/name", read from what the browser program saved after
   its last job. The dashboard never asks a browser.
 - **Last ran.** When its newest browser run started.
-- **Actions.** Open or show the browser, stop it, duplicate, settings, delete.
+- **Actions.** Open the browser, or show it while it runs, and delete. Stop
+  and Duplicate are in the row's right-click menu and the profile's ⋮.
 
 The list reads itself again every two seconds while a browser is opening,
 closing, being checked or being backed up, and stops when nothing is changing.
@@ -47,10 +49,14 @@ the next time it is opened.
 The stream is published on this computer only. Reaching it from the server is
 file 05's part 20, and only the address the window is handed has to change.
 
-## A profile's own window
+## A profile on the right
 
-Clicking a profile opens it over the list, with `?open=<id>` in the address.
-Four tabs:
+Clicking a profile opens it in the right panel, with `?open=<id>` in the
+address, drawn as the shell's records are. What can be changed is in its ⋮,
+each row saving itself; the body is grey cards (Browser, Signed in, This
+profile's machine, What a site sees, Backups, History); the footer opens or
+shows the browser ([the Anti Detect dashboard](../anti-detect-dashboard.md)).
+What each part holds:
 
 - **Settings.** Name and notes; the proxy, with its test badge, the warning
   about a change of country, and the restart offer for an open browser; the
@@ -118,5 +124,5 @@ holds a Reddit account is not offered.
 
 Every message on the Projects dashboard about the browser names the profile and
 the dashboard to find it on: "The browser is not signed in to Reddit. Open the
-profile Main on the Browser profiles dashboard and sign in once." It shows in
+profile Main in the Anti Detect dashboard's Profiles and sign in once." It shows in
 the tooltip on the greyed-out Post comment button.

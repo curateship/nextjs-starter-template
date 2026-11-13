@@ -7,8 +7,8 @@ the start, so a LinkedIn account runs in a browser profile or on a rack phone,
 picked when it is added. An important account runs on a phone only. A
 profile that is the reader, or that searches X or LinkedIn, is never offered.
 
-Sign it in once, in its browser window on the Browser profiles dashboard, or
-in the LinkedIn app through the phone's screen on its rack's page. Check now on the
+Sign it in once, in its browser window in the Anti Detect dashboard's Profiles, or
+in the LinkedIn app through the phone's screen in the Anti Detect dashboard's Phones. Check now on the
 Projects dashboard's Accounts reads who a browser account is signed in as, and takes the
 weekly comments look. An account is named by its own page's address,
 `in/sam-lee`. A look that sees nobody signed in, such as the code page or a

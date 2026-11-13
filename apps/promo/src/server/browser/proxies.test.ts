@@ -285,7 +285,7 @@ describe("the Proxies dashboard's records", () => {
         lastTestResult: fails,
       })
       expect(message).toBe(
-        "The proxy US-residential-3 failed its last test at 14:02. Test it on the Proxies dashboard."
+        "The proxy US-residential-3 failed its last test at 14:02. Test it in the Anti Detect dashboard's Proxies."
       )
     })
 

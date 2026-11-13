@@ -286,7 +286,7 @@ first. The reasons:
 - **The account's phone is offline, held, or stopped** for showing the wrong
   address. The tooltip names the phone and its shelf slot and says why.
 - **The browser is not signed in to Reddit.** Open it in Settings and sign in
-  once. On a phone, sign in through its screen on its rack's page.
+  once. On a phone, sign in through its screen in the Anti Detect dashboard's Phones.
 - **Reddit is showing a challenge or a captcha.** Open the browser window and
   clear it by hand.
 - **The account is still warming up.** The tooltip says when its first comment

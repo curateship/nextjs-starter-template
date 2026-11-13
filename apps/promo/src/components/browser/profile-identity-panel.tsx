@@ -1,8 +1,9 @@
 import * as React from "react"
-import { CheckIcon, InfoIcon, Loader2Icon, ScanEyeIcon, XIcon } from "lucide-react"
+import { CheckIcon, FingerprintIcon, InfoIcon, Loader2Icon, ScanEyeIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DetailRow, DetailRows } from "@/components/dashboard-page/detail-rows"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Hint } from "@/components/social/hint"
 import {
   askForNewIdentity,
@@ -30,11 +31,13 @@ export function ProfileIdentityPanel({
   profile: ProfileRow
   onChanged: () => Promise<void>
 }) {
+  // Straight in the right panel's body, with no box of their own: the shell draws the first card of a
+  // box at Panel cards → Opacity, so a box here made This profile's machine look like the panel's first.
   return (
-    <div className="grid gap-6">
+    <>
       <IdentityCard profile={profile} onChanged={onChanged} />
       <SiteCheckCard profile={profile} onChanged={onChanged} />
-    </div>
+    </>
   )
 }
 
@@ -59,26 +62,24 @@ function IdentityCard({ profile, onChanged }: { profile: ProfileRow; onChanged: 
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>This profile&apos;s machine</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 text-sm">
+    <PanelCard icon={<FingerprintIcon />} storageId="promo-profile-machine" title="This profile's machine">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 text-sm">
         {seen ? (
           <>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+            <DetailRows>
               {identityRows(seen).map((row) => (
-                <React.Fragment key={row.label}>
-                  <dt className="text-muted-foreground">{row.label}</dt>
-                  <dd className="min-w-0">
-                    {/* The full value on hover, for one cut short. */}
+                <DetailRow
+                  key={row.label}
+                  label={row.label}
+                  // The full value on hover, for one cut short.
+                  value={
                     <Hint label={row.value}>
-                      <span className="block truncate">{row.value}</span>
+                      <span>{row.value}</span>
                     </Hint>
-                  </dd>
-                </React.Fragment>
+                  }
+                />
               ))}
-            </dl>
+            </DetailRows>
             <p className="text-xs text-muted-foreground">
               Read from inside its browser {profile.identity?.seenAt ? formatDateTime(profile.identity.seenAt) : ""}.
               The same on every launch. The clock and the language follow the proxy&apos;s country.
@@ -96,7 +97,7 @@ function IdentityCard({ profile, onChanged }: { profile: ProfileRow; onChanged: 
             {profile.browser !== "stopped" ? " Its browser is open, so stop it and open it again." : ""}
           </p>
         ) : confirming ? (
-          <div role="alert" className="grid gap-3 rounded-lg border p-3">
+          <div role="alert" className="grid gap-3 rounded-lg border bg-background p-3">
             <p>
               Every site this profile is signed in to will see a different machine: a new screen,
               graphics card and fonts. Sites notice that, and some sign the account out or ask
@@ -114,13 +115,13 @@ function IdentityCard({ profile, onChanged }: { profile: ProfileRow; onChanged: 
           </div>
         ) : seen ? (
           <div>
-            <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(true)}>
+            <Button type="button" variant="outline" size="sm" className="bg-background" onClick={() => setConfirming(true)}>
               Make a new identity
             </Button>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </PanelCard>
   )
 }
 
@@ -154,11 +155,8 @@ function SiteCheckCard({ profile, onChanged }: { profile: ProfileRow; onChanged:
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>What a site sees</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 text-sm">
+    <PanelCard icon={<ScanEyeIcon />} storageId="promo-profile-site-check" title="What a site sees">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 text-sm">
         <p className="text-muted-foreground">
           The proxy test proves the proxy works from the server. This reads what a website sees
           from inside the browser, and compares it with a proxy test taken at the same moment.
@@ -189,12 +187,12 @@ function SiteCheckCard({ profile, onChanged }: { profile: ProfileRow; onChanged:
         )}
 
         <div>
-          <Button type="button" variant="outline" size="sm" disabled={checking} onClick={() => void run()}>
+          <Button type="button" variant="outline" size="sm" className="bg-background" disabled={checking} onClick={() => void run()}>
             {checking ? <Loader2Icon className="animate-spin" /> : <ScanEyeIcon />}
             {checking ? "Checking" : "Check what a site sees"}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </PanelCard>
   )
 }

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 
-import { PanelCard } from "@/components/shared/panel-card"
+import { PhoneSectionCard } from "@/components/phones/phone-section-card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -69,7 +69,7 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
   return (
     // Sized by the panel it sits in, not the window (Racks dashboard, part 113).
     <div className="@container grid min-w-0 gap-3">
-      <PanelCard storageId="promo-phone-health-now" title="Now">
+      <PhoneSectionCard storageId="promo-phone-health-now" title="Now">
           {vitals.at ? (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm @lg:grid-cols-4">
               <Figure label="Battery" value={vitals.batteryPercent === null ? "Not read" : `${vitals.batteryPercent} out of 100`} />
@@ -97,9 +97,9 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
           {vitals.at ? (
             <p className="text-xs text-muted-foreground">Read {formatTimeAgo(vitals.at).toLowerCase()}.</p>
           ) : null}
-        </PanelCard>
+        </PhoneSectionCard>
 
-      <PanelCard storageId="promo-phone-health-battery-and-heat-last-four-weeks" title="Battery and heat" meta="4 weeks">
+      <PhoneSectionCard storageId="promo-phone-health-battery-and-heat-last-four-weeks" title="Battery and heat" meta="4 weeks">
           {error ? (
             <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
           ) : !readings ? (
@@ -195,9 +195,9 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
               </div>
             </>
           )}
-        </PanelCard>
+        </PhoneSectionCard>
 
-      <PanelCard storageId="promo-phone-health-apps" title="Apps">
+      <PhoneSectionCard storageId="promo-phone-health-apps" title="Apps">
           <dl className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3 text-sm">
             {TRACKED_APPS.map((app) => (
               <Figure key={app} label={APP_WORDS[app]} value={phone.apps[app] ?? "Not installed"} />
@@ -207,7 +207,7 @@ export function PhoneHealthPanel({ phone }: { phone: PhoneRecord }) {
             Read every ten minutes. New versions go onto the self-test phone first, from Self-test on
             the Racks dashboard.
           </p>
-        </PanelCard>
+        </PhoneSectionCard>
     </div>
   )
 }

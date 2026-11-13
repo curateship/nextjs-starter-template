@@ -435,11 +435,3 @@ export const READING_KEEP_DAYS = 28
 
 /** The self-test and the Play Store look run once a day. */
 export const SELF_TEST_GAP_MS = 24 * 60 * 60_000
-
-/**
- * The rack mix warning (part 27): more than half the phones sharing one
- * model, carrier or Android version, once the rack has four phones or more
- * (Tyler, 14 Oct 2026). A rack of two or three never warns.
- */
-export const MIX_WARN_SHARE = 0.5
-export const MIX_MIN_PHONES = 4

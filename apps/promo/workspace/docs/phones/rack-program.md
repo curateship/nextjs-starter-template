@@ -58,7 +58,7 @@ home and nothing changes on the Hetzner server.
   to 2000 characters, signed like every call, on a thread of its own so the
   action poll is not held up. Only the end of the file is ever read, one
   post runs at a time, and a rack with no log file (Linux keeps it in the
-  journal) sends an empty list. The Log card on the rack's page shows them.
+  journal) sends an empty list. The Log block on the Anti Detect dashboard's left page shows them.
 - **The answer** goes to `/api/rack/result`, with a picture of each step,
   shrunk to 540 pixels wide ([a picture of every step](step-pictures.md)),
   any ban screen found after an app action, and what was done about a freeze.
@@ -226,10 +226,10 @@ button stops with a picture of the screen.
 
 Nobody but Tyler's Promo can drive the phones.
 
-- **A rack first, then a code for it.** New rack on the Racks dashboard makes
+- **A rack first, then a code for it.** New rack in the Anti Detect dashboard's Phones makes
   the rack with its name and description, and shows a code such as
-  `ABCD-EFGH` and the whole install command with it; a rack's page makes one
-  too, from Make a code ([the Racks dashboard](racks-dashboard.md)). The code
+  `ABCD-EFGH` and the whole install command with it; a rack's Rack program block makes one
+  too, from Make a code ([the Anti Detect dashboard's Phones](racks-dashboard.md)). The code
   works once, for 15 minutes, for that rack only. Promo keeps only its hash.
   Only a rack that is not connected gets one, so a second computer can never
   take a working rack's key.
@@ -248,12 +248,12 @@ Nobody but Tyler's Promo can drive the phones.
   or an answer without the right signature is refused. The rule is
   `src/server/phones/signing.ts` and the same lines in `rack/promo_rack.py`,
   and both are tested against one fixed example so the two cannot drift.
-- **Disconnect this rack**, in the ⋮ on the rack's page, cancels the key at
+- **Disconnect**, in the Racks block's ⋮ with the rack picked, cancels the key at
   once. Every message after that is refused, waiting checks are cancelled,
   the rack's phones show offline, and nothing reaches them until it is
   installed again with a new code made on its page. The phone records and the
   accounts on them stay. A disconnected rack can then be deleted, and its
-  phones move to Not on a rack.
+  phones move to No rack.
 
 ## Installing
 
@@ -298,7 +298,7 @@ The computer never needs a terminal after the first command.
 
 - **The version is one line**, `VERSION = "..."` at the top of
   `rack/promo_rack.py`. Promo builds that file into itself and serves it, so
-  a deploy with a raised version is a new release. The Rack program card on the rack's page shows the
+  a deploy with a raised version is a new release. The Rack program block shows the
   version each rack runs.
 - **Every check-in's answer** names the version Promo serves. A rack on another
   one downloads it from `/api/rack/release`, an answer signed with its own key

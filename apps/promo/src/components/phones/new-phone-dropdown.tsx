@@ -19,7 +19,9 @@ const SERIAL_CHECK_MS = 400
  * dropdown in the UI standard's New shape, not a window: the name first, then
  * the serial and kind, then the shelf slot and how it goes online, with
  * Create phone at the bottom right and Enter in any field pressing it. The
- * phone is made on this rack and opens on the right; the rest of its fields
+ * phone is made on the rack picked in the Rack filter, or, with none picked,
+ * on the rack chosen in its Rack field (the first, until another is chosen),
+ * and opens on the right; the rest of its fields
  * are on its Settings tab.
  *
  * The serial is checked as it is typed, so one another phone has says so
@@ -27,13 +29,18 @@ const SERIAL_CHECK_MS = 400
  * Clicking away keeps what was typed for the next opening.
  */
 export function NewPhoneDropdown({
+  racks,
   rackId,
   onCreated,
 }: {
-  rackId: string
+  racks: { id: string; name: string }[]
+  /** The rack the Rack filter picked, or null to choose one here. */
+  rackId: string | null
   onCreated: (phoneId: string) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
+  const [chosenRack, setChosenRack] = React.useState("")
+  const onRack = rackId ?? (racks.some((rack) => rack.id === chosenRack) ? chosenRack : (racks[0]?.id ?? ""))
   const [name, setName] = React.useState("")
   const [serial, setSerial] = React.useState("")
   const [kind, setKind] = React.useState<PhoneKind>("android")
@@ -69,9 +76,13 @@ export function NewPhoneDropdown({
       showErrorToast("Give the phone a name first.")
       return
     }
+    if (!onRack) {
+      showErrorToast("Make a rack first, with New rack in the Racks block's ⋮. A phone is added on a rack.")
+      return
+    }
     setBusy(true)
     try {
-      const { id } = await addPhone(rackId, {
+      const { id } = await addPhone(onRack, {
         name: name.trim(),
         kind,
         serial,
@@ -127,6 +138,23 @@ export function NewPhoneDropdown({
           }}
         />
       </div>
+      {rackId || racks.length < 2 ? null : (
+        <div className="grid gap-2">
+          <Label htmlFor="new-phone-rack">Rack</Label>
+          <Select value={onRack} onValueChange={setChosenRack}>
+            <SelectTrigger id="new-phone-rack" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {racks.map((rack) => (
+                <SelectItem key={rack.id} value={rack.id}>
+                  {rack.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-2">
           <Label htmlFor="new-phone-serial">{kind === "iphone" ? "UDID" : "Serial"}</Label>

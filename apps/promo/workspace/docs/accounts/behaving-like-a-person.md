@@ -33,7 +33,7 @@ runs on browser profiles only.
 
 The account Reddit sees commenting never searches. A browser profile signed in
 to nobody, the reader, does it instead, picked once in Settings → Behaviour.
-Make it on the Browser profiles dashboard with a proxy of its own and leave it
+Make it in the Anti Detect dashboard's Profiles with a proxy of its own and leave it
 signed out.
 
 - **What runs in the reader:** keyword searches and subreddit watches, reading a

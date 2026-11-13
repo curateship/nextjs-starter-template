@@ -247,8 +247,8 @@ export function XBehaviourCard({
             X shows nothing to a visitor who is not signed in, so X is read by a browser profile signed in to a throwaway X account that only ever reads.
             It is never offered as an account that replies or posts. Profiles that hold an account, and the reader, are not offered. Make a new one, with a
             proxy of its own, on the{" "}
-            <Link to="/admin/profiles" search={{ open: undefined }} className="font-medium text-foreground underline underline-offset-2">
-              Browser profiles dashboard
+            <Link to="/admin/anti-detect" search={{ section: "profiles" }} className="font-medium text-foreground underline underline-offset-2">
+              Anti Detect dashboard&apos;s Profiles
             </Link>
             , and sign it in to X there. With two or more, each read goes to the one with the most views left. A search account X has stopped for the day is skipped until tomorrow.
           </p>

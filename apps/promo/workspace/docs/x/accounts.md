@@ -14,11 +14,11 @@ A profile that searches X is never offered ([Search accounts](search-accounts.md
 ## Signing in
 
 - **In a browser**: sign in by hand in the profile's browser window on the
-  Browser profiles dashboard, then press Check now.
+  Anti Detect dashboard's Profiles, then press Check now.
 - **The sign-in code** (part 6): an account with its authenticator secret saved
   has Send sign-in code, which types X's six-digit code into its browser when
   X asks. The code is worked out the moment it is typed and never stored.
-- **On a phone**: sign in in the X app through the phone's screen on its rack's page.
+- **On a phone**: sign in in the X app through the phone's screen in the Anti Detect dashboard's Phones.
 - **Who is signed in** is read after every X job, with followers and when X
   says it joined. Its 7-day warm-up counts from that date, or from when Promo
   first saw it signed in.

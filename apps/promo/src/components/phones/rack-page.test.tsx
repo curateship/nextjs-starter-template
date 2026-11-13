@@ -4,7 +4,7 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { PhoneRecord, RackPage, RacksPage, RackView } from "@/lib/api/phones/phones"
+import type { PhoneRecord, PhonesPage, RackView } from "@/lib/api/phones/phones"
 import type { RackSearch } from "@/lib/phones/rack-search"
 
 const navigation = vi.hoisted(() => ({ navigate: vi.fn(), invalidate: vi.fn(async () => {}) }))
@@ -12,6 +12,8 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   useNavigate: () => navigation.navigate,
   useRouter: () => ({ invalidate: navigation.invalidate }),
+  // The three-panel frame's place reader, which the Racks section's header buttons load with.
+  getRouteApi: () => ({ useLoaderData: () => ({}) }),
 }))
 vi.mock("@/components/shell/shell-layout", () => {
   const runtime = { config: { dashboardRowsPerPage: 25, styling: { dashboardTabs: "pills" } } }
@@ -37,6 +39,7 @@ const api = vi.hoisted(() => ({
   loadRack: vi.fn(),
   loadRackJobs: vi.fn(),
   loadRackLog: vi.fn(),
+  loadPhonesPage: vi.fn(),
   loadWaitingPhoneJobs: vi.fn(),
   makePairingCode: vi.fn(),
   makeRack: vi.fn(),
@@ -44,6 +47,8 @@ const api = vi.hoisted(() => ({
   removeRacks: vi.fn(),
   resumeRack: vi.fn(),
   runPhoneAction: vi.fn(),
+  runSetupCheck: vi.fn(),
+  wipePhone: vi.fn(),
   savePhoneFields: vi.fn(),
   saveRack: vi.fn(),
 }))
@@ -53,7 +58,7 @@ vi.mock("@/lib/api/phones/phones", () => ({
 }))
 const settingsApi = vi.hoisted(() => ({ saveTestPhone: vi.fn() }))
 vi.mock("@/lib/api/phones/settings", () => settingsApi)
-vi.mock("@/lib/api/saved-views", () => ({ deleteView: vi.fn(), saveView: vi.fn(), updateView: vi.fn() }))
+vi.mock("@/lib/api/saved-views", () => ({ deleteView: vi.fn(), saveView: vi.fn(), updateView: vi.fn(), loadSavedViews: vi.fn(async () => []) }))
 // A phone's accounts over time, on its History tab (Bans task, part 2).
 const bansApi = vi.hoisted(() => ({ loadPhoneTenancies: vi.fn() }))
 vi.mock("@/lib/api/bans", () => ({ ...bansApi, getBansErrorMessage: () => "failed" }))
@@ -90,13 +95,15 @@ vi.mock("@/lib/api/social/jobs", () => ({
   getJobsErrorMessage: (error: unknown) => (error instanceof Error ? error.message : "failed"),
 }))
 
+import { PhonesSection } from "@/components/anti-detect/phones-section"
+import { PhoneCountsBlock, RackBlocksProvider, RackProgramPanel, RacksBlock, type RackBlocks } from "@/components/anti-detect/rack-blocks"
+import { BlockHeadingContext, type BlockMenuItem } from "@/components/shared/notes/block-card"
+import type { CrmFrame } from "@/components/crm/crm-frame"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import { NewRackDialog } from "./new-rack-dialog"
 import { PhonePanel } from "./phone-panel"
-import { RackPanel } from "./rack-panel"
 import { RackPhonesPanel } from "./rack-phones-panel"
-import { RacksDashboard } from "./racks-dashboard"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -180,8 +187,7 @@ const IPHONE = phone({
   needsWipeAt: new Date(),
 })
 
-const PAGE: RackPage = {
-  rack: RACK,
+const PAGE: PhonesPage = {
   racks: [RACK],
   phones: [PIXEL, GALAXY],
   rackVersion: "2026.10.13.1",
@@ -194,7 +200,7 @@ const PAGE: RackPage = {
   shelfRows: 2,
   shelfColumns: 5,
   projects: [],
-  jobsWaiting: 3,
+  jobsWaiting: { all: 3, byRack: { r1: 3 } },
 }
 
 const JOB_LIST = {
@@ -221,11 +227,12 @@ const JOB_LIST = {
 }
 
 /**
- * The Racks dashboard and a rack's page (`workspace/tasks/Phone farm/12-racks-dashboard.md`),
- * rendered from the real components with the server faked. Every behaviour
- * the Phones dashboard's test covered is here, on the panel it moved to:
- * the rows, the filters, the rack program and its log, a phone's tabs and
- * screen, the shelf, the wall, the jobs, Pause and Self-test.
+ * The phones and racks of the Anti Detect dashboard (`workspace/tasks/Phone
+ * farm/12-racks-dashboard.md`; since 12 Nov 2026 a rack has no page of its
+ * own, Tyler: "I dont think a rack needs its own dashboard"), rendered from
+ * the real components with the server faked: the phones list, the open
+ * phone, the rack blocks on the left page (the rack program and its log,
+ * the counts, the shelf), and the Phones section with Pause and Self-test.
  */
 describe("racks", () => {
   let container: HTMLDivElement
@@ -282,11 +289,13 @@ describe("racks", () => {
     })
   }
 
-  describe("the middle panel: the rack's phones", () => {
+  describe("the phones list", () => {
     const onSearch = vi.fn()
     const onOpen = vi.fn()
-    const phones = (page: RackPage, search: RackSearch = {}) =>
-      draw(<RackPhonesPanel page={page} search={search} views={[]} onSearch={onSearch} onOpen={onOpen} onChanged={async () => {}} />)
+    const phones = (page: PhonesPage, search: RackSearch = {}, rackId: string | null = "r1") =>
+      draw(
+        <RackPhonesPanel page={page} rackId={rackId} search={search} views={[]} onSearch={onSearch} onOpen={onOpen} onChanged={async () => {}} />
+      )
     const rowNames = () =>
       Array.from(container.querySelectorAll("tbody tr"))
         .map((row) => row.querySelector("td button")?.textContent ?? "")
@@ -341,7 +350,31 @@ describe("racks", () => {
 
     it("says how to start when the rack has no phones", async () => {
       await phones({ ...PAGE, phones: [] })
-      expect(text()).toContain("No phones on this rack yet. Plug a phone into this rack, or add one with New phone.")
+      expect(text()).toContain("No phones on this rack yet. Plug a phone into it, or add one with New phone.")
+    })
+
+    it("with no rack picked, has no Wall or Jobs tab, and New phone asks which rack", async () => {
+      const second: RackView = { ...RACK, id: "r2", name: "Garage rack" }
+      api.addPhone.mockResolvedValue({ id: "p9" })
+      await phones({ ...PAGE, racks: [RACK, second] }, {}, null)
+      expect(Array.from(document.querySelectorAll('[role="tab"]')).map((tab) => tab.textContent)).toEqual([expect.stringContaining("Phones")])
+      await click("New phone")
+      expect(document.getElementById("new-phone-rack")).not.toBeNull()
+      await type(document.getElementById("new-phone-name") as HTMLInputElement, "Spare")
+      await click("Create phone")
+      // The first rack, until another is chosen.
+      expect(api.addPhone).toHaveBeenCalledWith("r1", expect.objectContaining({ name: "Spare" }))
+    })
+
+    it("puts the ticked phones on a rack from the N selected menu", async () => {
+      api.changePhones.mockResolvedValue({ done: ["p1"], skipped: [] })
+      await phones(PAGE, {}, null)
+      await click("Mass select")
+      await click("Select Pixel 8a")
+      await click("1 selected")
+      await click("Put on a rack")
+      await click("Tyler's Mac")
+      expect(api.changePhones).toHaveBeenCalledWith({ action: "rack", ids: ["p1"], rackId: "r1" })
     })
 
     it("holds the ticked phones from the N selected menu, in one request", async () => {
@@ -375,6 +408,38 @@ describe("racks", () => {
       expect(onOpen).toHaveBeenCalledWith("p1")
     })
 
+    it("draws the rack's shelf on the Shelf tab: a phone with no slot listed, a phone opened, one put in an empty slot", async () => {
+      api.savePhoneFields.mockResolvedValue(undefined)
+      await phones({ ...PAGE, phones: [IPHONE, GALAXY, PIXEL] }, { list: "shelf" })
+      expect(document.querySelectorAll('ol[aria-label="The shelf, 2 rows of 5"] > li')).toHaveLength(10)
+      expect(document.querySelector('[data-slot="7"]')!.textContent).toContain("iPhone 15")
+      expect(text()).toContain("Not on the shelf")
+      await click("Open Galaxy A15, slot 4, Offline")
+      expect(onOpen).toHaveBeenCalledWith("p2")
+      await click("Put a phone in slot 3")
+      await act(async () => {
+        Array.from(document.querySelectorAll<HTMLButtonElement>("[data-slot=popover-content] button")).find((one) => one.textContent === "Pixel 8a")!.click()
+      })
+      expect(api.savePhoneFields).toHaveBeenCalledWith("p1", { shelfSlot: "3" })
+    })
+
+    it("asks the rack for its program's log on the Log tab, and says when it is not checking in", async () => {
+      api.askRackLog.mockResolvedValue(undefined)
+      // The tab reads what Promo holds before it asks (nothing yet), then polls.
+      api.loadRackLog.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValue({
+        lines: ["12:00 started", "12:01 reddit/comment on A1 failed: Could not find the reply box"],
+        at: new Date(),
+      })
+      await phones(PAGE, { list: "log" })
+      await settle()
+      expect(api.askRackLog).toHaveBeenCalledWith("r1")
+      await settle(3_000)
+      expect(document.querySelector("pre")?.textContent).toBe("12:00 started\n12:01 reddit/comment on A1 failed: Could not find the reply box")
+      api.askRackLog.mockClear()
+      await phones({ ...PAGE, racks: [{ ...RACK, live: false, state: "silent", seenAt: new Date(Date.now() - 600_000) }] }, { list: "log" })
+      expect(text()).toContain("The rack is not checking in, so it cannot send its log.")
+    })
+
     it("lists every job on the rack's phones on the Jobs tab", async () => {
       api.loadRackJobs.mockResolvedValue(JOB_LIST)
       await phones(PAGE, { list: "jobs" })
@@ -401,29 +466,51 @@ describe("racks", () => {
 
   describe("the right panel: the open phone", () => {
     const onDeleted = vi.fn()
-    const SECTION_WORDS = { settings: "Settings", setup: "Setup", health: "Health", actions: "Actions", jobs: "Jobs", history: "History" }
+    const SECTION_WORDS = { control: "Control", settings: "Settings", setup: "Setup", health: "Health", actions: "Actions", jobs: "Jobs", history: "History" }
+    /** Health, Jobs and History are tabs in the phone's box; the rest open from the ⋮. */
+    const IN_THE_MENU = new Set(["control", "settings", "setup", "actions"])
+    const TABS = new Set(["health", "jobs", "history"])
+    /** Picks a tab the way a pointer does: Radix's tabs change on the press, not the click. */
+    const pickTab = async (label: string) => {
+      const found = Array.from(document.querySelectorAll("[role=tab]")).find((one) => one.textContent?.trim() === label)
+      if (!found) throw new Error(`No ${label} tab`)
+      await act(async () => {
+        found.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+      })
+    }
+    /** Opens one of the ⋮'s sections the way a person does. */
+    const openSection = async (section: keyof typeof SECTION_WORDS, name = "Pixel 8a") => {
+      if (!document.querySelector("[data-slot=popover-content]")) await click(`More for ${name}`)
+      // The ⋮'s tabs: Settings (Control's switch at its head), Setup, Actions.
+      const label = section === "control" ? "Settings" : SECTION_WORDS[section]
+      const found = Array.from(document.querySelectorAll("[data-slot=popover-content] [role=tab]")).find(
+        (one) => one.textContent?.trim() === label
+      )
+      if (!found) throw new Error(`No ${label} tab in the menu`)
+      await act(async () => {
+        found.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+      })
+    }
     /**
-     * Draws the phone, its screen always showing; a section is opened the way
-     * a person does, from the ⋮ (Tyler, 6 Nov 2026: "All these options should
-     * go into the 3 vertical dots dropdown").
+     * Draws the phone, its screen always showing, and opens a section: Health
+     * and Jobs are cards in the panel, the rest are in the ⋮ (Tyler, 12 Nov
+     * 2026: "control, setup, actions and history can go back into the 3 dot
+     * dropdown but flatten the data").
      */
     const panel = async (section?: keyof typeof SECTION_WORDS, open: PhoneRecord | null = PIXEL) => {
       await draw(<PhonePanel phone={open} page={PAGE} onChanged={async () => {}} onDeleted={onDeleted} />)
-      if (!section || !open) return
-      if (!document.querySelector("[data-slot=popover-content]")) await click(`More for ${open.name}`)
-      const row = Array.from(document.querySelectorAll("[data-slot=popover-content] button")).find(
-        (one) => one.querySelector("span")?.textContent === SECTION_WORDS[section]
-      )
-      if (!row) throw new Error(`No ${section} row in the menu`)
-      if (row.getAttribute("aria-expanded") !== "true") {
-        await act(async () => {
-          ;(row as HTMLButtonElement).click()
-        })
-      }
+      if (section && open && IN_THE_MENU.has(section)) await openSection(section, open.name)
+      if (section && open && TABS.has(section)) await pickTab(SECTION_WORDS[section])
     }
 
     beforeEach(() => {
       screenApi.loadScreen.mockResolvedValue({ frame: null, controlUntil: null, codes: [], texted: null })
+      // Every card reads as the panel opens; a test sets the one it is about.
+      api.loadPhoneActions.mockResolvedValue([])
+      api.loadPhoneJobs.mockResolvedValue({ ...JOB_LIST, jobs: [] })
+      healthApi.loadPhoneReadings.mockResolvedValue([])
+      healthApi.loadPhoneHistory.mockResolvedValue([])
+      bansApi.loadPhoneTenancies.mockResolvedValue([])
     })
 
     it("asks the rack to read the system version, and opens a step's picture full size", async () => {
@@ -444,8 +531,12 @@ describe("racks", () => {
           steps: ["Opened About phone", "Read Android 16"],
         },
       ])
+      // Asked from the foot of the ⋮'s Settings, which shuts it; the answer shows in Actions.
+      await openSection("settings")
       await click("Read the version")
       expect(api.runPhoneAction).toHaveBeenCalledWith("p1", "phone/android-version")
+      await openSection("actions")
+      await settle()
       expect(text()).toContain("Settings says Android 16, the same as Android itself reports.")
       healthApi.loadStepPictures.mockResolvedValue([
         { id: "s1", step: "Opened About phone", src: "data:image/jpeg;base64,/9j/AAAA" },
@@ -522,6 +613,8 @@ describe("racks", () => {
       expect(toasts.errors).toContain("Control is off. Switch it on under the screen first.")
 
       screenApi.setScreenControl.mockResolvedValue({ controlUntil: new Date(Date.now() + 900_000) })
+      // The switch is the ⋮'s Control row; the keys stay in the panel's footer.
+      await openSection("control")
       await act(async () => {
         ;(document.getElementById("phone-screen-control-p1") as HTMLButtonElement).click()
       })
@@ -545,7 +638,7 @@ describe("racks", () => {
       })
 
       // A section open in the ⋮ leaves the screen showing beside it, so control stays.
-      await panel("settings")
+      await openSection("settings")
       await settle()
       expect(screenApi.closeScreenWindow).not.toHaveBeenCalled()
       expect(document.querySelector('img[alt="Pixel 8a\'s screen"]')).not.toBeNull()
@@ -555,20 +648,36 @@ describe("racks", () => {
       expect(screenApi.closeScreenWindow).toHaveBeenCalledWith("p1")
     })
 
-    it("saves only the field typed in, 700ms after the last letter, and refuses an empty name keeping it", async () => {
+    it("saves only the field typed in when it is left, and refuses an empty name keeping it", async () => {
       api.savePhoneFields.mockResolvedValue(undefined)
+      // A row's button reads its name then its value, "NotesNone".
+      const row = async (label: string) => {
+        const found = Array.from(document.querySelectorAll("button")).find((one) => one.firstElementChild?.textContent === label)
+        if (!found) throw new Error(`No ${label} row`)
+        await act(async () => {
+          found.click()
+        })
+      }
       await panel("settings")
-      await type(document.getElementById("phone-notes-p1") as HTMLTextAreaElement, "Top shelf")
+      await row("Notes")
+      const notes = document.getElementById("phone-notes-p1") as HTMLTextAreaElement
+      await type(notes, "Top shelf")
       expect(api.savePhoneFields).not.toHaveBeenCalled()
-      await settle(800)
+      await act(async () => {
+        notes.blur()
+      })
+      await settle()
       expect(api.savePhoneFields).toHaveBeenCalledWith("p1", { notes: "Top shelf" })
 
+      await row("Name")
       const name = document.getElementById("phone-name-p1") as HTMLInputElement
       await type(name, "")
-      await settle(800)
+      await act(async () => {
+        name.blur()
+      })
+      await settle()
       expect(api.savePhoneFields).toHaveBeenCalledTimes(1)
       expect(toasts.errors.at(-1)).toContain("A phone needs a name")
-      expect(name.getAttribute("aria-invalid")).toBe("true")
       expect(name.value).toBe("")
     })
 
@@ -584,6 +693,24 @@ describe("racks", () => {
       expect(api.loadPhoneJobs).toHaveBeenCalledTimes(2)
     })
 
+    it("checks the setup, and wipes only after the confirm, from the foot of the ⋮", async () => {
+      api.runSetupCheck.mockResolvedValue(undefined)
+      api.wipePhone.mockRejectedValue(new Error("Sign out of iCloud on its screen first."))
+      await panel()
+      await click("More for Pixel 8a")
+      await click("Check the setup")
+      expect(api.runSetupCheck).toHaveBeenCalledWith("p1")
+
+      await click("More for Pixel 8a")
+      await click("Wipe the phone")
+      expect(api.wipePhone).not.toHaveBeenCalled()
+      expect(text()).toContain("factory-resets it")
+      const confirm = Array.from(document.querySelectorAll("button")).filter((one) => one.textContent?.trim() === "Wipe the phone").at(-1)!
+      await act(async () => confirm.click())
+      expect(api.wipePhone).toHaveBeenCalledWith("p1")
+      expect(toasts.errors.at(-1)).toContain("Sign out of iCloud on its screen first")
+    })
+
     it("holds the phone from its header, and makes it the self-test phone from its menu", async () => {
       api.changePhones.mockResolvedValue({ done: ["p1"], skipped: [] })
       settingsApi.saveTestPhone.mockResolvedValue(undefined)
@@ -597,56 +724,76 @@ describe("racks", () => {
 
     it("tells how to get a phone when the rack has none", async () => {
       await panel(undefined, null)
-      expect(text()).toContain("A phone opens here once this rack has one.")
+      expect(text()).toContain("A phone opens here once there is one.")
     })
   })
 
-  describe("the left panel: the rack", () => {
-    const onSearch = vi.fn()
+  describe("the rack blocks on the left page", () => {
+    const onPickRack = vi.fn()
+    const onPhonesFilter = vi.fn()
     const onOpenPhone = vi.fn()
-    const onDisconnect = vi.fn()
-    const rackPanel = (page: RackPage, search: RackSearch = {}) =>
+    const windows = { newRack: vi.fn(), settings: vi.fn(), disconnect: vi.fn(), remove: vi.fn() }
+    let menu: BlockMenuItem[] | undefined
+    const heading = { actions: null, setCount: () => {}, setMenu: (items: BlockMenuItem[] | undefined) => (menu = items), setReorder: () => {}, open: true }
+    const value = (patch: Partial<RackBlocks> = {}): RackBlocks => ({
+      page: PAGE,
+      rack: "r1",
+      onPickRack,
+      phones: PAGE.phones,
+      status: undefined,
+      jobsOpen: false,
+      onPhonesFilter,
+      openPhoneId: undefined,
+      onOpenPhone,
+      onChanged: async () => {},
+      windows,
+      ...patch,
+    })
+    const block = (node: React.ReactNode, patch: Partial<RackBlocks> = {}) =>
       draw(
-        <RackPanel
-          page={page}
-          search={search}
-          onSearch={onSearch}
-          onOpenPhone={onOpenPhone}
-          onChanged={async () => {}}
-          onDisconnect={onDisconnect}
-          onDelete={() => {}}
-        />
+        <BlockHeadingContext.Provider value={heading}>
+          <RackBlocksProvider value={value(patch)}>{node}</RackBlocksProvider>
+        </BlockHeadingContext.Provider>
       )
+    /** The Rack program tab of the left page's ⋮. */
+    const program = (patch: Partial<RackBlocks> = {}) => draw(<RackProgramPanel blocks={value(patch)} />)
+
+    /** A block's row, whose words run on into its count. */
+    const pressRow = async (name: string) => {
+      await act(async () => {
+        Array.from(document.querySelectorAll("button")).find((one) => one.textContent?.trim().startsWith(name))!.click()
+      })
+    }
 
     beforeEach(() => {
-      onSearch.mockReset()
-      onOpenPhone.mockReset()
+      for (const fn of [onPickRack, onPhonesFilter, onOpenPhone, ...Object.values(windows)]) fn.mockReset()
+      menu = undefined
     })
 
-    it("shows the rack program, asks for its log, and says when the iPhone tool's signature has run out", async () => {
-      api.askRackLog.mockResolvedValue(undefined)
-      // The card reads what Promo holds before it asks (nothing yet), then polls.
-      api.loadRackLog.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValue({
-        lines: ["12:00 started", "12:01 reddit/comment on A1 failed: Could not find the reply box"],
-        at: new Date(),
-      })
-      await rackPanel({ ...PAGE, rack: { ...RACK, wdaExpiresAt: new Date("2026-10-01T10:00:00Z") } })
-      await settle()
+    it("lists every rack and No rack, picks one, and offers New rack, the picked rack's settings and Disconnect in its ⋮", async () => {
+      await block(<RacksBlock />, { page: { ...PAGE, phones: [PIXEL, GALAXY, phone({ id: "p4", name: "Loose One", rackId: null })] } })
+      expect(text()).toContain("Tyler's Mac")
+      expect(text()).toContain("No rack")
+      await pressRow("No rack")
+      expect(onPickRack).toHaveBeenCalledWith("none")
+      expect(menu?.map((item) => item.label)).toEqual(["New rack", "Tyler's Mac: settings", "Disconnect Tyler's Mac"])
+      menu?.[2].onSelect()
+      expect(windows.disconnect).toHaveBeenCalledWith("r1")
+    })
+
+    it("shows the picked rack's program in the Rack program tab, and says when the iPhone tool's signature has run out", async () => {
+      await program({ page: { ...PAGE, racks: [{ ...RACK, wdaExpiresAt: new Date("2026-10-01T10:00:00Z") }] } })
       expect(text()).toContain("macOS 26.0")
       expect(text()).toContain("2026.10.13.1, the newest")
       expect(text()).toContain("Went back to 2026.10.13.1")
       expect(text()).toContain(", which has passed")
-      expect(api.askRackLog).toHaveBeenCalledWith("r1")
-      expect(text()).toContain("The rack has not answered yet.")
-      await settle(3_000)
-      expect(text()).toContain("The rack's last 2 lines")
-      expect(document.querySelector("pre")?.textContent).toBe("12:00 started\n12:01 reddit/comment on A1 failed: Could not find the reply box")
     })
 
-    it("says the rack is not checking in on its Log card when it is not", async () => {
-      await rackPanel({ ...PAGE, rack: { ...RACK, live: false, state: "silent", seenAt: new Date(Date.now() - 600_000) } })
-      expect(api.askRackLog).not.toHaveBeenCalled()
-      expect(text()).toContain("The rack is not checking in, so it cannot send its log.")
+    it("with no rack picked, lists each rack's check-in in Rack program, a press picking it", async () => {
+      await program({ rack: "" })
+      expect(text()).toContain("Checking in")
+      await pressRow("Tyler's Mac")
+      expect(onPickRack).toHaveBeenCalledWith("r1")
     })
 
     it("installs a rack that never paired with a code made for it, and says Paired once the program joins", async () => {
@@ -656,92 +803,79 @@ describe("racks", () => {
         command: "curl -fsSL http://localhost:3018/api/rack/install.sh | bash -s -- ABCD-EFGH",
       })
       api.loadRack.mockResolvedValue({ ...RACK, state: "silent" })
-      await rackPanel({ ...PAGE, rack: { ...RACK, state: "unpaired", live: false, pairedAt: null, seenAt: null } })
+      await program({ page: { ...PAGE, racks: [{ ...RACK, state: "unpaired", live: false, pairedAt: null, seenAt: null }] } })
       expect(text()).toContain("Waiting for the rack program.")
       await click("Make a code")
       expect(api.makePairingCode).toHaveBeenCalledWith("r1")
-      expect(text()).toContain("curl -fsSL http://localhost:3018/api/rack/install.sh | bash -s -- ABCD-EFGH")
       expect(text()).toContain("for 15 more minutes")
       await settle(3_100)
       expect(api.loadRack).toHaveBeenCalledWith("r1")
       expect(text()).toContain("Paired. The rack program is installed")
     })
 
-    it("filters the list to a status from the counts, and opens the Jobs tab from the jobs waiting", async () => {
-      await rackPanel(PAGE)
+    it("sets a status in Phones from the counts, and opens a picked rack's Jobs tab from the jobs waiting", async () => {
+      await block(<PhoneCountsBlock />)
       expect(text()).toContain("Jobs waiting3")
       await act(async () => {
         Array.from(document.querySelectorAll("button")).find((one) => one.textContent?.startsWith("Offline"))!.click()
       })
-      expect(onSearch).toHaveBeenCalledWith({ status: "offline", list: undefined })
+      expect(onPhonesFilter).toHaveBeenCalledWith({ status: "offline" })
       await act(async () => {
         Array.from(document.querySelectorAll("button")).find((one) => one.textContent?.startsWith("Jobs waiting"))!.click()
       })
-      expect(onSearch).toHaveBeenCalledWith({ list: "jobs" })
-    })
-
-    it("draws the shelf by slot, lists a phone with no slot, opens a phone, and puts one in an empty slot", async () => {
-      api.savePhoneFields.mockResolvedValue(undefined)
-      await rackPanel({ ...PAGE, phones: [IPHONE, GALAXY, PIXEL] })
-      expect(document.querySelectorAll('ol[aria-label="The shelf, 2 rows of 5"] > li')).toHaveLength(10)
-      const seven = document.querySelector('[data-slot="7"]')!
-      expect(seven.getAttribute("data-row")).toBe("2")
-      expect(seven.getAttribute("data-column")).toBe("2")
-      expect(seven.textContent).toContain("iPhone 15")
-      expect(document.querySelector('[data-slot="4"]')!.textContent).toContain("Galaxy A15")
-      expect(text()).toContain("Not on the shelf")
-      expect(text()).toContain("no slot typed")
-      await click("Open Galaxy A15, slot 4, Offline")
-      expect(onOpenPhone).toHaveBeenCalledWith("p2")
-      await click("Put a phone in slot 3")
-      await act(async () => {
-        Array.from(document.querySelectorAll<HTMLButtonElement>("[data-slot=popover-content] button")).find((one) => one.textContent === "Pixel 8a")!.click()
-      })
-      expect(api.savePhoneFields).toHaveBeenCalledWith("p1", { shelfSlot: "3" })
-    })
-
-    it("offers Disconnect for a connected rack in its menu", async () => {
-      await rackPanel(PAGE)
-      await click("Rack settings")
-      await click("Disconnect this rack")
-      expect(onDisconnect).toHaveBeenCalled()
+      expect(onPhonesFilter).toHaveBeenCalledWith({ list: "jobs" })
     })
   })
 
-  describe("the Racks dashboard", () => {
-    const RACKS: RacksPage = {
+  describe("the Anti Detect dashboard's Phones", () => {
+    // The dashboard's frame, drawn plainly: the list, the phone on the right and the windows.
+    const frame: CrmFrame = (panels) => (
+      <>
+        {panels.middle}
+        {panels.right?.content}
+        {panels.windows}
+      </>
+    )
+    const windows = { newRack: vi.fn(), settings: vi.fn(), disconnect: vi.fn(), remove: vi.fn() }
+    const LOOSE = phone({ id: "p4", name: "Loose One", serial: "Z9", rackId: null, status: "offline", offlineReason: "Never seen by the rack" })
+    const ALL: PhonesPage = {
+      ...PAGE,
       racks: [RACK, { ...RACK, id: "r2", name: "Garage rack", descriptionText: "", state: "unpaired", live: false, pairedAt: null, seenAt: null }],
-      phones: [PIXEL, GALAXY, phone({ id: "p4", name: "Loose One", serial: "Z9", rackId: null, status: "offline", offlineReason: "Never seen by the rack" })],
-      rackVersion: "2026.10.13.1",
-      pausedAt: null,
-      testPhoneId: null,
-      testPhoneIphoneId: null,
+      phones: [PIXEL, GALAXY, LOOSE],
     }
+    const section = (search: Record<string, unknown> = {}, projectPhones: ReadonlySet<string> | null = null, page: PhonesPage = ALL) =>
+      draw(<PhonesSection initial={page} search={{ section: "phones", ...search }} projectPhones={projectPhones} rackWindows={windows} frame={frame} />)
+    const names = () =>
+      Array.from(container.querySelectorAll("tbody tr"))
+        .map((row) => row.querySelector("td button")?.textContent ?? "")
+        .filter(Boolean)
 
-    it("counts each rack's phones online and needing a look, says whether it checks in, and gathers phones on no rack", async () => {
-      await draw(<RacksDashboard initial={RACKS} search={{}} />)
-      const rows = Array.from(container.querySelectorAll("tbody tr")).map((row) => row.textContent ?? "")
-      expect(rows.find((row) => row.includes("Tyler's Mac"))).toContain("1 of 2")
-      expect(rows.find((row) => row.includes("Tyler's Mac"))).toContain("1 phone")
-      expect(rows.find((row) => row.includes("Tyler's Mac"))).toContain("Checking in")
-      expect(rows.find((row) => row.includes("Garage rack"))).toContain("Waiting for the rack program")
-      expect(rows.find((row) => row.includes("Not on a rack"))).toContain("1 phone")
+    it("lists every phone on every rack, and one rack's, or the ones on no rack, from the Rack filter", async () => {
+      await section()
+      expect(names()).toEqual(expect.arrayContaining(["Pixel 8a", "Galaxy A15", "Loose One"]))
+      await section({ rack: "r1" })
+      expect(names()).toEqual(expect.arrayContaining(["Pixel 8a", "Galaxy A15"]))
+      expect(names()).not.toContain("Loose One")
+      await section({ rack: "none" })
+      expect(names()).toEqual(["Loose One"])
     })
 
-    it("finds a phone by its serial from the search box, under the racks", async () => {
-      await draw(<RacksDashboard initial={RACKS} search={{ q: "Z9" }} />)
-      expect(text()).toContain("Phones")
-      expect(text()).toContain("Loose One")
-      expect(text()).toContain("Not on a rack · Z9")
+    it("narrows to the phones a picked project's accounts are on", async () => {
+      await section({}, new Set(["p2"]))
+      expect(names()).toEqual(["Galaxy A15"])
     })
 
-    it("pauses every rack, and asks which waiting jobs to drop before resuming", async () => {
+    it("reads the phone kind from phoneKind, and writes it back there", async () => {
+      await section({ phoneKind: "iphone" }, null, { ...ALL, phones: [PIXEL, IPHONE] })
+      expect(names()).toEqual(["iPhone 15"])
+    })
+
+    it("pauses every rack from the ⋮, and asks which waiting jobs to drop before resuming", async () => {
       api.pauseRack.mockResolvedValue(undefined)
-      await draw(<RacksDashboard initial={RACKS} search={{}} />)
-      expect(document.querySelector('label[for="racks-paused"]')?.textContent).toBe("Pause every rack")
-      await act(async () => {
-        ;(document.getElementById("racks-paused") as HTMLButtonElement).click()
-      })
+      api.loadPhonesPage.mockResolvedValue(ALL)
+      await section()
+      await click("More for phones")
+      await click("Pause every rack")
       expect(api.pauseRack).toHaveBeenCalled()
 
       api.loadWaitingPhoneJobs.mockResolvedValue([
@@ -749,17 +883,23 @@ describe("racks", () => {
         { id: "j2", kind: "health", phoneName: "Pixel 8a", createdAt: new Date() },
       ])
       api.resumeRack.mockResolvedValue({ dropped: 1 })
-      await draw(<RacksDashboard initial={{ ...RACKS, pausedAt: new Date() }} search={{}} />)
-      expect(document.querySelector('label[for="racks-paused"]')?.textContent).toBe("Every rack paused")
-      await act(async () => {
-        ;(document.getElementById("racks-paused") as HTMLButtonElement).click()
-      })
+      await section({}, null, { ...ALL, pausedAt: new Date() })
+      expect(text()).toContain("Every rack is paused.")
+      await click("More for phones")
+      await click("Resume every rack")
       expect(text()).toContain("Resume the rack?")
       await act(async () => {
         ;(document.querySelector('[role="checkbox"][id="drop-j1"]') as HTMLButtonElement).click()
       })
       await click("Drop 1 and resume")
       expect(api.resumeRack).toHaveBeenCalledWith(["j1"])
+    })
+
+    it("opens New rack from the ⋮", async () => {
+      await section()
+      await click("More for phones")
+      await click("New rack")
+      expect(windows.newRack).toHaveBeenCalled()
     })
 
     it("opens Self-test, which keeps the other phones' update pressable but refused until the test passes", async () => {
@@ -773,7 +913,8 @@ describe("racks", () => {
         iphone: { testPhone: null, lastAskedAt: null, checks: [], rollouts: [] },
       })
       healthApi.updateApp.mockRejectedValue(new Error("The test phone has to pass the self-test on the new version before the other phones update."))
-      await draw(<RacksDashboard initial={RACKS} search={{}} />)
+      await section()
+      await click("More for phones")
       await click("Self-test and app updates")
       await settle()
       expect(text()).toContain("Post a Reddit comment: broken")

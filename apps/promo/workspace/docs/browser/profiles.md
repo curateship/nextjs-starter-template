@@ -7,8 +7,8 @@ profile, and so will an Instagram account when there is one.
 Tyler, 5 Oct 2026: "Proxy and isolation profile should have its own dashboard
 and not lives in the reddit settings as proxy and browser isolation is an app
 wide feature, not just a reddit feature." This file covers the record. The
-[Browser profiles dashboard](profiles-dashboard.md) and the
-[Proxies dashboard](proxies-dashboard.md) are where a person works with it.
+[Anti Detect dashboard's Profiles](profiles-dashboard.md) and the
+[Anti Detect dashboard's Proxies](proxies-dashboard.md) are where a person works with it.
 
 ## What a profile holds
 
@@ -69,7 +69,7 @@ A profile made from now on gets a volume named after itself,
 A Reddit account picks its profile on the Reddit account tab in Settings. A
 profile that already holds a Reddit account is not offered there, and saving
 one anyway is refused with the profile's name. New profiles are made on the
-[Browser profiles dashboard](profiles-dashboard.md).
+[Anti Detect dashboard's Profiles](profiles-dashboard.md).
 
 ## The columns that stayed behind
 

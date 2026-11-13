@@ -34,7 +34,7 @@ import { customShellUsers } from "@/server/schema"
 
 /**
  * One rack: the computer the phones plug into, with the program on it. A
- * person makes it on the Racks dashboard with a name and a description, and
+ * person makes it with New rack in the Anti Detect dashboard's Racks block with a name and a description, and
  * it has no key until the program spends a code made for it
  * (`drizzle/0139_promo_racks_dashboard.sql`). Its key then signs every message
  * both ways and is stored encrypted with the server's key. A disconnected

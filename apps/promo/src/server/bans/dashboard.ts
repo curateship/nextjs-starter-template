@@ -186,7 +186,7 @@ export async function banDetail(userId: string, banId: string, db: CustomShellDb
   }
 }
 
-/** An unknown screen's kept picture (part 9), for the question on the Bans dashboard. */
+/** An unknown screen's kept picture (part 9), for the question in Waiting on you, on the Anti Detect dashboard's Overview. */
 export async function unknownScreenPicture(userId: string, phraseId: string, db: CustomShellDb = defaultDb): Promise<string | null> {
   const [phrase] = await db
     .select({ pictureKey: promoBanPhrases.pictureKey })

@@ -1,10 +1,9 @@
 /**
- * The values the folder, label and tag filters share, on the Browser profiles
- * dashboard and the racks' pages, which sort with the same folders, labels and tags.
+ * The values the folder, label and tag pickers share, on the Anti Detect
+ * dashboard's Profiles and the racks' pages, which sort with the same
+ * folders, labels and tags.
  */
 
-/** The filter value for "any". */
-export const ALL = "all"
 /** The value a Select uses for "none", since an item cannot be empty. */
 export const NONE = "none"
 

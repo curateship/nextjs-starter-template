@@ -64,7 +64,7 @@ const DESCRIPTION: WrittenPageNode = {
  * pairs, the program joins that rack, a disconnected rack can be deleted,
  * and phones move between racks with a line in their history.
  */
-describe("racks made on the Racks dashboard", () => {
+describe("racks made in the Anti Detect dashboard's Racks", () => {
   let client: PGlite
   let db: TestDatabase
   let userId: string

@@ -218,7 +218,7 @@ function BansWidget({ data, inProject }: { data: ProjectsDashboardData; inProjec
           title={project.name}
           line={project.bannedRecently ? `${project.bannedRecently} ${plural(project.bannedRecently, "account", "accounts")} banned` : "No bans"}
           value={project.bannedRecently.toLocaleString()}
-          onPress={() => void navigate({ to: "/admin/bans", search: { project: project.id, since: 30 } })}
+          onPress={() => void navigate({ to: "/admin/anti-detect", search: { section: "bans", project: project.id, since: 30 } })}
         />
       ))}
     </Scroll>

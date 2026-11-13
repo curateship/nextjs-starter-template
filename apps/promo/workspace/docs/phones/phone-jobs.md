@@ -61,7 +61,7 @@ pressing Post, and a comment is never tried twice.
   there, and a comment is never tried again.
 - **A held phone's jobs wait,** untouched, until it is released. That includes
   a phone a person controls from its screen.
-- **A paused rack's jobs wait.** The switch on the Racks dashboard pauses every
+- **A paused rack's jobs wait.** The switch in the Anti Detect dashboard's Phones pauses every
   phone job; jobs already running finish. The bell says "The rack is paused"
   until it is resumed. Resuming lists the phone jobs that waited, oldest
   first, with a tick to drop each; only ticked ones are dropped.
@@ -105,8 +105,8 @@ Save button:
 - **Self-test phone:** the spare phone the daily self-test runs on, or none.
   A phone that runs an account is refused.
 
-A value outside those is refused saying what is allowed. The pause switch is on
-the rack's page, where the phones are. Waking hours and the warm-up apply
+A value outside those is refused saying what is allowed. The pause switch is in
+the ⋮ of the Anti Detect dashboard's Phones, where the phones are. Waking hours and the warm-up apply
 to every account, so they stay in Settings → Behaviour.
 
 ## Where it is

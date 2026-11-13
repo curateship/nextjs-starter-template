@@ -2,7 +2,7 @@ import * as React from "react"
 import { ArchiveRestoreIcon, CloudUploadIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -115,20 +115,20 @@ export function ProfileBackupsPanel({
     void ask("restore", () => restoreProfileBackup(profile.id, backupId, replace))
   }
 
-  if (state.error) {
-    return <ErrorRow message={state.error} onRetry={() => setAttempt((count) => count + 1)} />
-  }
-  if (!state.data) return <LoadingRow label="Reading the backups" className="min-h-48" />
+  // The card stays while its backups are read, or could not be, as the right panel's other cards do.
+  const frame = (children: React.ReactNode, meta?: number) => (
+    <PanelCard icon={<CloudUploadIcon />} storageId="promo-profile-backups" title="Backups" meta={meta}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 text-sm">{children}</div>
+    </PanelCard>
+  )
+  if (state.error) return frame(<ErrorRow message={state.error} onRetry={() => setAttempt((count) => count + 1)} />)
+  if (!state.data) return frame(<LoadingRow label="Reading the backups" />)
 
   const { backups } = state.data
   const refusedHere = last?.kind === "restore" && last.status === "failed" && last.lastError?.includes(ALREADY_HERE)
 
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Backups</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 text-sm">
+  return frame(
+    <>
         <p className="text-muted-foreground">
           A backup is this profile&apos;s cookies and identity, encrypted with the server&apos;s key
           and kept in R2, so its sign-ins survive a lost machine and can move to another one. The
@@ -161,14 +161,14 @@ export function ProfileBackupsPanel({
         ) : null}
 
         <div>
-          <Button type="button" variant="outline" size="sm" disabled={Boolean(asking) || working} onClick={backUp}>
+          <Button type="button" variant="outline" size="sm" className="bg-background" disabled={Boolean(asking) || working} onClick={backUp}>
             {asking === "backup" ? <Loader2Icon className="animate-spin" /> : <CloudUploadIcon />}
             Back up now
           </Button>
         </div>
 
         {backups.length ? (
-          <ul className="grid divide-y rounded-lg border">
+          <ul className="grid divide-y rounded-lg border bg-background">
             {backups.map((backup) => (
               <li key={backup.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <span className="min-w-0">
@@ -191,8 +191,8 @@ export function ProfileBackupsPanel({
         ) : (
           <p className="text-muted-foreground">No backups yet.</p>
         )}
-      </CardContent>
-    </Card>
+    </>,
+    backups.length
   )
 }
 

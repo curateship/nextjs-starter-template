@@ -1,23 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { BansDashboard } from "@/components/bans/bans-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { getBansErrorMessage, loadBansPage } from "@/lib/api/bans"
-import { readBansSearch } from "@/lib/bans/bans-search"
+import { antiDetectSearch } from "@/lib/anti-detect/search"
 
 /**
- * Every ban in one list, under Anti Detect in the left menu after Phones
- * (Bans task, part 12). The filters and the open ban live in the address
- * (`?app=instagram&since=30&open=<id>`), so a bell notice or a project's
- * "banned in the last 30 days" link opens the same view.
+ * The old Bans address, which bell notices and a project's "banned in the
+ * last 30 days" link use. Bans is a section of the Anti Detect dashboard now
+ * (Tyler, 12 Nov 2026), so this opens it with the same open row and filters.
  */
 export const Route = createFileRoute("/_authenticated/admin/bans")({
-  validateSearch: (search: Record<string, unknown>) => readBansSearch(search),
-  loader: () => loadBansPage(),
-  component: BansRoute,
-  errorComponent: routeErrorComponent(getBansErrorMessage),
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/anti-detect", search: antiDetectSearch("bans", search), replace: true })
+  },
 })
-
-function BansRoute() {
-  return <BansDashboard initial={Route.useLoaderData()} filters={Route.useSearch()} />
-}

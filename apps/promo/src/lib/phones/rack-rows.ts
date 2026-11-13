@@ -1,4 +1,4 @@
-import type { PhoneRecord, RackPage } from "@/lib/api/phones/phones"
+import type { PhoneRecord, PhonesPage } from "@/lib/api/phones/phones"
 import { PHONE_KIND_WORDS, PHONE_KINDS, PHONE_STATUS_WORDS } from "@/lib/phones/options"
 import { NO_GROUP, PHONE_STATUS_FILTERS, type RackSearch } from "@/lib/phones/rack-search"
 
@@ -15,7 +15,7 @@ function bySlot(a: PhoneRecord, b: PhoneRecord): number {
 }
 
 /** The phones this rack's list shows, in order, under their group headings when the list is grouped. */
-export function rackRows(page: RackPage, search: RackSearch): Array<{ group: string; phones: PhoneRecord[] }> {
+export function rackRows(page: Pick<PhonesPage, "phones" | "projects">, search: RackSearch): Array<{ group: string; phones: PhoneRecord[] }> {
   const query = (search.q ?? "").trim().toLowerCase()
   const projectPhoneIds = new Set(page.projects.find((project) => project.id === search.project)?.phoneIds ?? [])
   const shown = page.phones

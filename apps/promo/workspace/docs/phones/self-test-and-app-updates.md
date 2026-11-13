@@ -2,7 +2,7 @@
 
 A broken action is found by a test, not by a failed comment, and an app update
 never breaks the whole rack in one night. Parts 20 and 21 of the phone farm,
-behind **Self-test** on the Racks dashboard.
+behind **Self-test** in the Anti Detect dashboard's Phones.
 
 ## The test phones, one per kind
 
@@ -83,7 +83,7 @@ per kind of phone: a spare Android and a spare iPhone
 ## App updates, one phone first
 
 - **Promo knows each phone's versions** of Reddit, Instagram, TikTok and Medium, read
-  every ten minutes. Each phone's row on its rack's page lists them, the Health
+  every ten minutes. Each phone's row in the Anti Detect dashboard's Phones lists them, the Health
   tab shows them, and the Self-test window has every phone's.
 - **Once a day the rack looks in the store** on each test phone (Tyler's
   choice, 14 Oct 2026): the Play Store on the Android, the App Store on the

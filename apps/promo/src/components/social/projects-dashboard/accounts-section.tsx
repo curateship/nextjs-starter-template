@@ -11,13 +11,13 @@ import {
   UsersIcon,
 } from "lucide-react"
 
-import { FilterRow } from "@/components/admin-dashboard/list-parts"
 import type { CrmFrame } from "@/components/crm/crm-frame"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
 import { Chip, CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { FilterPick } from "@/components/dashboard-page/filter-pick"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { SelectedMenu, SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
 import { PanelReopenButton } from "@/components/shared/three-panels"
@@ -29,7 +29,6 @@ import { HelpPostsDialog } from "@/components/social/accounts/help-posts-dialog"
 import { RetireDialog } from "@/components/social/accounts/retire-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableCell } from "@/components/ui/table"
 import {
   checkRedditAccounts,
@@ -667,39 +666,4 @@ export function AccountsSection({
       </>
     ),
   })
-}
-
-/** One of Filter's rows: a label, then a select whose first choice is "any". */
-function FilterPick<T extends string>({
-  id,
-  label,
-  value,
-  any,
-  options,
-  onChange,
-}: {
-  id: string
-  label: string
-  value: T | undefined
-  any: string
-  options: [string, string][]
-  onChange: (value: T | undefined) => void
-}) {
-  return (
-    <FilterRow id={id} label={label}>
-      <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? undefined : (next as T))}>
-        <SelectTrigger id={id} className="h-8 w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>{any}</SelectItem>
-          {options.map(([optionValue, optionLabel]) => (
-            <SelectItem key={optionValue} value={optionValue}>
-              {optionLabel}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterRow>
-  )
 }

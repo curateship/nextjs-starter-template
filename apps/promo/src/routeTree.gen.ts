@@ -42,6 +42,7 @@ import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
+import { Route as AuthenticatedAdminAntiDetectRouteImport } from './routes/_authenticated/admin/anti-detect'
 import { Route as AuthenticatedAdminArchiveRouteImport } from './routes/_authenticated/admin/archive'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBansRouteImport } from './routes/_authenticated/admin/bans'
@@ -282,6 +283,12 @@ const AuthenticatedAdminAnnouncementsRoute =
   AuthenticatedAdminAnnouncementsRouteImport.update({
     id: '/announcements',
     path: '/announcements',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAntiDetectRoute =
+  AuthenticatedAdminAntiDetectRouteImport.update({
+    id: '/anti-detect',
+    path: '/anti-detect',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminArchiveRoute =
@@ -718,6 +725,7 @@ export interface FileRoutesByFullPath {
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/anti-detect': typeof AuthenticatedAdminAntiDetectRoute
   '/admin/archive': typeof AuthenticatedAdminArchiveRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/bans': typeof AuthenticatedAdminBansRoute
@@ -824,6 +832,7 @@ export interface FileRoutesByTo {
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/anti-detect': typeof AuthenticatedAdminAntiDetectRoute
   '/admin/archive': typeof AuthenticatedAdminArchiveRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/bans': typeof AuthenticatedAdminBansRoute
@@ -933,6 +942,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/_authenticated/admin/anti-detect': typeof AuthenticatedAdminAntiDetectRoute
   '/_authenticated/admin/archive': typeof AuthenticatedAdminArchiveRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/bans': typeof AuthenticatedAdminBansRoute
@@ -1042,6 +1052,7 @@ export interface FileRouteTypes {
     | '/admin/ai-usage'
     | '/admin/analytics'
     | '/admin/announcements'
+    | '/admin/anti-detect'
     | '/admin/archive'
     | '/admin/automations'
     | '/admin/bans'
@@ -1148,6 +1159,7 @@ export interface FileRouteTypes {
     | '/admin/ai-usage'
     | '/admin/analytics'
     | '/admin/announcements'
+    | '/admin/anti-detect'
     | '/admin/archive'
     | '/admin/automations'
     | '/admin/bans'
@@ -1256,6 +1268,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ai-usage'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/announcements'
+    | '/_authenticated/admin/anti-detect'
     | '/_authenticated/admin/archive'
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/bans'
@@ -1621,6 +1634,13 @@ declare module '@tanstack/react-router' {
       path: '/announcements'
       fullPath: '/admin/announcements'
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/anti-detect': {
+      id: '/_authenticated/admin/anti-detect'
+      path: '/anti-detect'
+      fullPath: '/admin/anti-detect'
+      preLoaderRoute: typeof AuthenticatedAdminAntiDetectRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/archive': {
@@ -2169,6 +2189,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
+  AuthenticatedAdminAntiDetectRoute: typeof AuthenticatedAdminAntiDetectRoute
   AuthenticatedAdminArchiveRoute: typeof AuthenticatedAdminArchiveRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminBansRoute: typeof AuthenticatedAdminBansRoute
@@ -2215,6 +2236,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
+  AuthenticatedAdminAntiDetectRoute: AuthenticatedAdminAntiDetectRoute,
   AuthenticatedAdminArchiveRoute: AuthenticatedAdminArchiveRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminBansRoute: AuthenticatedAdminBansRoute,

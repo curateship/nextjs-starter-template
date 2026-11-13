@@ -71,5 +71,5 @@ export function limitMessage(open: number, max: number): string {
   const browsers = open === 1 ? "1 browser is open" : `${open} browsers are open`
   // More open than the limit happens when the limit was lowered under them.
   const limit = open === max ? "which is the limit" : `and the limit is ${max}`
-  return `${browsers}, ${limit}. Stop one on the Browser profiles dashboard, or raise the limit in Settings.`
+  return `${browsers}, ${limit}. Stop one in the Anti Detect dashboard's Profiles, or raise the limit in Settings.`
 }

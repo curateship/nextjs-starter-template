@@ -164,10 +164,10 @@ export async function recordAccountHealth(
     const onPhone = "phone" in target
     throw new Refusal(
       reading.blocked
-        ? `Reddit put something in front of the ${onPhone ? "phone" : "browser"} (${reading.reason}), so nothing could be read. Clear it ${onPhone ? "through the phone's screen on its rack's page" : "on the Browser profiles dashboard"}.`
+        ? `Reddit put something in front of the ${onPhone ? "phone" : "browser"} (${reading.reason}), so nothing could be read. Clear it ${onPhone ? "through the phone's screen on its rack's page" : "in the Anti Detect dashboard's Profiles"}.`
         : onPhone
           ? "The Reddit app on the phone is not signed in, so there is no profile to look at. Sign in through the phone's screen on its rack's page."
-          : "The browser is not signed in to Reddit, so there is no profile to look at. Sign in on the Browser profiles dashboard."
+          : "The browser is not signed in to Reddit, so there is no profile to look at. Sign in in the Anti Detect dashboard's Profiles."
     )
   }
 
@@ -269,9 +269,9 @@ async function stopForSuspendedReading(userId: string, accountId: string, handle
       detail: [
         "Reddit marks the account suspended. Nothing it posts will be seen.",
         `Promo stopped it${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}, and counts it as a ban.`,
-        "Appeal it on Reddit first if you want to, then let it run again or press Clean up from its settings on the Accounts dashboard.",
+        "Appeal it on Reddit first if you want to, then let it run again or press Clean up from the ban in the Anti Detect dashboard's Bans.",
       ].join(" "),
-      href: "/admin/bans",
+      href: "/admin/anti-detect?section=bans",
     },
     db,
     now

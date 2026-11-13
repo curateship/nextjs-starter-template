@@ -183,8 +183,8 @@ export function AddAccountDialog({
                     {platformProfiles.length || platformPhones.length ? null : phoneOnly ? (
                       <p className="text-sm text-muted-foreground">
                         Every phone already holds {aNetwork(platform)} account. Add a phone on the{" "}
-                        <Link to="/admin/racks" className="font-medium text-foreground underline underline-offset-2">
-                          Racks dashboard
+                        <Link to="/admin/anti-detect" search={{ section: "phones" }} className="font-medium text-foreground underline underline-offset-2">
+                          Anti Detect dashboard&apos;s Phones
                         </Link>
                         .
                       </p>
@@ -193,15 +193,15 @@ export function AddAccountDialog({
                         Every profile and phone already holds an account, or is the
                         reader. Make a new profile on the{" "}
                         <Link
-                          to="/admin/profiles"
-                          search={{ open: undefined }}
+                          to="/admin/anti-detect"
+                          search={{ section: "profiles" }}
                           className="font-medium text-foreground underline underline-offset-2"
                         >
-                          Browser profiles dashboard
+                          Anti Detect dashboard&apos;s Profiles
                         </Link>{" "}
                         or add a phone on the{" "}
-                        <Link to="/admin/racks" className="font-medium text-foreground underline underline-offset-2">
-                          Racks dashboard
+                        <Link to="/admin/anti-detect" search={{ section: "phones" }} className="font-medium text-foreground underline underline-offset-2">
+                          Anti Detect dashboard&apos;s Phones
                         </Link>
                         .
                       </p>

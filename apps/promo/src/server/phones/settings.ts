@@ -102,7 +102,7 @@ export async function setRackPaused(
       recipientUserId: userId,
       type: "app_activity",
       message: RACK_PAUSED_NOTICE,
-      detail: "No phone job starts until it is resumed on the Racks dashboard. Jobs that were running finished.",
+      detail: "No phone job starts until it is resumed from the ⋮ of the Anti Detect dashboard's Phones. Jobs that were running finished.",
       createdAt: now,
     })
     await publishNotificationCreated(userId, db)

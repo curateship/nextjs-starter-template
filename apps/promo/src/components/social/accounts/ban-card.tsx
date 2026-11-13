@@ -1,9 +1,9 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { BrushCleaningIcon, Loader2Icon, PlayIcon, SendIcon } from "lucide-react"
+import { BanIcon, BrushCleaningIcon, Loader2Icon, PlayIcon, SendIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -105,11 +105,10 @@ export function BanCard({
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{stopped ? "Stopped by a ban" : "The ban"}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+    // The right panel's grey card, as every group on a right panel is (Tyler, 12 Nov 2026: "the right
+    // panel is mostly not using ui standards. Look at how shell does it").
+    <PanelCard icon={<BanIcon />} storageId="promo-ban-card" title={stopped ? "Stopped by a ban" : "The ban"}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
         <p className="text-sm">
           {BAN_KIND_LABELS[ban.kind]} on {formatDateTime(ban.at)}
           {ban.words ? <>: &ldquo;{ban.words}&rdquo;</> : "."}
@@ -135,17 +134,17 @@ export function BanCard({
 
         {/* An account stopped before bans were recorded has no record to hang an appeal on. */}
         {ban.id ? (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
           <span className="text-sm font-medium">Appeal</span>
           {!ban.appealedAt ? (
             <div className="flex flex-wrap items-end gap-2">
-              <div className="grid min-w-48 flex-1 gap-2">
+              <div className="grid min-w-0 flex-1 basis-48 gap-2">
                 <Label htmlFor={`appeal-note-${ban.id}`} className="text-xs text-muted-foreground">
                   A note, if you want one
                 </Label>
-                <Input id={`appeal-note-${ban.id}`} value={note} maxLength={1000} placeholder="Sent from the app's help screen" onChange={(event) => setNote(event.target.value)} />
+                <Input id={`appeal-note-${ban.id}`} value={note} maxLength={1000} placeholder="Sent from the app's help screen" className="bg-background" onChange={(event) => setNote(event.target.value)} />
               </div>
-              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("appeal", () => recordAppeal(ban.id, note))}>
+              <Button type="button" variant="outline" className="bg-background" disabled={busy !== null} onClick={() => void run("appeal", () => recordAppeal(ban.id, note))}>
                 {busy === "appeal" ? <Loader2Icon className="animate-spin" /> : <SendIcon />}
                 I appealed
               </Button>
@@ -159,10 +158,10 @@ export function BanCard({
               </p>
               {!ban.appealAnswer ? (
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "won"))}>
+                  <Button type="button" variant="outline" className="bg-background" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "won"))}>
                     Answer came: won
                   </Button>
-                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "lost"))}>
+                  <Button type="button" variant="outline" className="bg-background" disabled={busy !== null} onClick={() => void run("answer", () => recordAppealAnswer(ban.id, "lost"))}>
                     Answer came: lost
                   </Button>
                 </div>
@@ -174,7 +173,7 @@ export function BanCard({
         ) : null}
 
         {stopped ? (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
             <span className="text-sm font-medium">What next</span>
             <p className="text-sm text-muted-foreground">
               {ban.appealAnswer === "won"
@@ -209,7 +208,7 @@ export function BanCard({
                   {busy === "clean" ? <Loader2Icon className="animate-spin" /> : null}
                   Yes, clean up
                 </Button>
-                <Button type="button" variant="outline" disabled={busy !== null} onClick={() => setConfirming(false)}>
+                <Button type="button" variant="outline" className="bg-background" disabled={busy !== null} onClick={() => setConfirming(false)}>
                   Cancel
                 </Button>
               </div>
@@ -219,6 +218,7 @@ export function BanCard({
                   <Button
                     type="button"
                     variant="outline"
+                    className="bg-background"
                     disabled={busy !== null}
                     onClick={async () => {
                       setBusy("run")
@@ -234,13 +234,14 @@ export function BanCard({
                   </Button>
                 ) : null}
                 {cleanUpHeldBack && phoneId ? (
-                  <Button type="button" variant="outline" asChild>
+                  // Its words wrap in a narrow right panel rather than running past its edge.
+                  <Button type="button" variant="outline" className="h-auto min-h-8 max-w-full bg-background whitespace-normal" asChild>
                     <Link to="/admin/phones" search={{ open: phoneId }}>
                       Check iCloud on its phone
                     </Link>
                   </Button>
                 ) : ban.appealAnswer !== "won" && accountId ? (
-                  <Button type="button" variant="outline" disabled={busy !== null} onClick={() => setConfirming(true)}>
+                  <Button type="button" variant="outline" className="bg-background" disabled={busy !== null} onClick={() => setConfirming(true)}>
                     <BrushCleaningIcon />
                     Clean up
                   </Button>
@@ -251,14 +252,14 @@ export function BanCard({
         ) : null}
 
         {showActionsBefore ? (
-          <div className="grid gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
             <span className="text-sm font-medium">The phone's last actions before it</span>
             {!detail ? (
               detailError ? <p className="text-sm text-destructive">{detailError}</p> : <LoadingRow label="Reading the actions" />
             ) : !detail.actionsBefore.length ? (
               <p className="text-sm text-muted-foreground">{phoneId ? "No actions were kept before it." : "It ran in a browser, which keeps no list of actions here. Its jobs are in the Jobs window."}</p>
             ) : (
-              <div className="divide-y rounded-md border">
+              <div className="divide-y rounded-md border bg-background">
                 {detail.actionsBefore.map((action) => (
                   <div key={action.id} className="grid gap-0.5 px-3 py-2 text-sm">
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -274,7 +275,7 @@ export function BanCard({
             )}
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </PanelCard>
   )
 }

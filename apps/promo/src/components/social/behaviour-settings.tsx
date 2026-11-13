@@ -168,11 +168,11 @@ function BehaviourSettingsPanel() {
           Profiles that hold an account are not offered. Make a new one, with a proxy of its
           own, on the{" "}
           <Link
-            to="/admin/profiles"
-            search={{ open: undefined }}
+            to="/admin/anti-detect"
+            search={{ section: "profiles" }}
             className="font-medium text-foreground underline underline-offset-2"
           >
-            Browser profiles dashboard
+            Anti Detect dashboard&apos;s Profiles
           </Link>
           , and leave it signed out.
         </p>

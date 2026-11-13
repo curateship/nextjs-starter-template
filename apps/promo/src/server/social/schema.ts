@@ -1204,3 +1204,27 @@ export const promoProjectsPages = pgTable("promo_projects_pages", {
   sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * Each person's left page on the Anti Detect dashboard (Tyler, 12 Nov 2026:
+ * "now comebine the 4 antidect dashboard into one 3 panel dashboard like we
+ * did here"), in the same shape as `promoProjectsPages`: what is written
+ * there, its cover and lock, Overview's widget layout, and the Dashboards
+ * block's hidden sections and order. The SQL is
+ * `drizzle/0159_promo_anti_detect_dashboard.sql`.
+ */
+export const promoAntiDetectPages = pgTable("promo_anti_detect_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's sections left out and their dragged order. */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

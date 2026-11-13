@@ -546,7 +546,7 @@ export function deadProxyMessage(
   if (proxy.lastTestResult?.ok !== false) return null
   const name = proxy.label || proxy.host
   const at = proxy.lastTestedAt ? ` at ${clockTime(proxy.lastTestedAt)}` : ""
-  return `The proxy ${name} failed its last test${at}. Test it on the Proxies dashboard.`
+  return `The proxy ${name} failed its last test${at}. Test it in the Anti Detect dashboard's Proxies.`
 }
 
 function clockTime(when: Date): string {

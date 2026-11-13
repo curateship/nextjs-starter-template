@@ -5,7 +5,10 @@ import {
   ArrowUpRightIcon,
   BanIcon,
   EyeIcon,
+  FileTextIcon,
+  FolderArchiveIcon,
   FolderOpenIcon,
+  LayersIcon,
   PauseIcon,
   PinIcon,
   PinOffIcon,
@@ -19,10 +22,11 @@ import { ActionRow } from "@/components/crm/crm-record-menu"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
+import { DetailNote, DetailRow, DetailRows } from "@/components/dashboard-page/detail-rows"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
-import { PickGroup } from "@/components/shared/notes/pick-rows"
 import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { NewProjectDialog } from "@/components/social/projects/project-dialogs"
 import { Button } from "@/components/ui/button"
@@ -453,7 +457,8 @@ function ProjectSummary({
         />
       }
       body={
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 pt-3.75">
+        // Cards straight under one another, as the shell's records stack them.
+        <div className="grid grid-cols-[minmax(0,1fr)]">
           {view.error ? (
             <ErrorRow message={view.error} onRetry={view.retry} />
           ) : !view.data || !project ? (
@@ -462,35 +467,43 @@ function ProjectSummary({
             <>
               {/* A picture cover shows; the drawn sky is the project page's own. */}
               {project.imageUrl && project.imageUrl !== SKY_COVER ? (
-                <img src={project.imageUrl} alt="" className="aspect-[16/9] w-full rounded-xl object-cover" />
+                <img src={project.imageUrl} alt="" className="mt-3.75 mb-3 aspect-[16/9] w-full rounded-xl object-cover" />
               ) : null}
-              {row.description ? (
-                <p className="text-sm whitespace-pre-line">{row.description}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">No description yet. Open the project to write what you make.</p>
-              )}
-              <PickGroup title="Networks">
-                {project.networks.length ? (
-                  project.networks.map((network) => (
-                    <NetworkLine key={network} name={NETWORK_NAMES[network]} view={view.data!} network={network} />
-                  ))
+              {/* Grey cards of facts, as the shell's records are (Tyler, 12 Nov 2026: "the right panel is
+                  mostly not using ui standards. Look at how shell does it"). */}
+              <PanelCard icon={<FileTextIcon />} storageId="promo-project-summary-about" title="What it makes">
+                {row.description ? (
+                  <p className="text-sm whitespace-pre-line">{row.description}</p>
                 ) : (
-                  <p className="px-3 py-2.5 text-sm text-muted-foreground">No networks yet.</p>
+                  <DetailNote>No description yet. Open the project to write what you make.</DetailNote>
                 )}
-              </PickGroup>
-              <PickGroup title="Archive">
-                <FactLine label="Items" value={project.archiveCount.toLocaleString()} />
-              </PickGroup>
-              {project.bannedRecently ? (
-                <Link
-                  to="/admin/bans"
-                  search={{ project: row.id, since: 30 }}
-                  className="flex w-fit items-center gap-1 text-xs text-destructive hover:underline"
-                >
-                  <BanIcon className="size-3" aria-hidden="true" />
-                  {project.bannedRecently} {project.bannedRecently === 1 ? "account" : "accounts"} banned in the last 30 days
-                </Link>
-              ) : null}
+              </PanelCard>
+              <PanelCard icon={<LayersIcon />} storageId="promo-project-summary-networks" title="Networks" meta={project.networks.length}>
+                {project.networks.length ? (
+                  <DetailRows>
+                    {project.networks.map((network) => (
+                      <NetworkLine key={network} name={NETWORK_NAMES[network]} view={view.data!} network={network} />
+                    ))}
+                  </DetailRows>
+                ) : (
+                  <DetailNote>No networks yet.</DetailNote>
+                )}
+              </PanelCard>
+              <PanelCard icon={<FolderArchiveIcon />} storageId="promo-project-summary-archive" title="Archive" meta={project.archiveCount.toLocaleString()}>
+                <DetailRows>
+                  <DetailRow label="Items" value={project.archiveCount.toLocaleString()} />
+                </DetailRows>
+                {project.bannedRecently ? (
+                  <Link
+                    to="/admin/anti-detect"
+                    search={{ section: "bans", project: row.id, since: 30 }}
+                    className="flex w-fit items-center gap-1 text-xs text-destructive hover:underline"
+                  >
+                    <BanIcon className="size-3" aria-hidden="true" />
+                    {project.bannedRecently} {project.bannedRecently === 1 ? "account" : "accounts"} banned in the last 30 days
+                  </Link>
+                ) : null}
+              </PanelCard>
             </>
           )}
         </div>
@@ -518,15 +531,5 @@ function NetworkLine({ name, view, network }: { name: string; view: ProjectView;
   const toAnswer = view.networkCounts?.[network] ?? 0
   const paused = view.project.pausedNetworks.includes(network)
   const words = [needYou ? `${needYou} need you` : "", toAnswer ? `${toAnswer} to answer` : ""].filter(Boolean).join(" · ")
-  return <FactLine label={name} value={paused ? "Paused" : words || "Nothing waiting"} muted={!words || paused} />
-}
-
-/** A name on the left and its value on the right; in a narrow panel the value gives way, never the name. */
-function FactLine({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className={muted ? "ml-auto min-w-0 truncate text-right text-muted-foreground/70" : "ml-auto min-w-0 truncate text-right"}>{value}</span>
-    </div>
-  )
+  return <DetailRow label={name} value={paused ? "Paused" : words || "Nothing waiting"} />
 }

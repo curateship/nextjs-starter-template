@@ -198,25 +198,29 @@ the repo's `docs/`, and is never copied here.
   finished or failed, with Cancel and Try again.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of
   its own, which an account points at, and how the first accounts were adopted.
-- [The Browser profiles dashboard](browser/profiles-dashboard.md) — the table,
+- [The Anti Detect dashboard](anti-detect-dashboard.md) — Browser profiles,
+  Proxies, Racks and Bans as one three-panel dashboard: the Dashboards and
+  Projects blocks, Overview's four widgets, each section and its record on
+  the right, and the old addresses.
+- [The Anti Detect dashboard's Profiles](browser/profiles-dashboard.md) — the table,
   the browser inside the app, a profile's backups and history, folders, labels
   and tags.
 - [Backing a profile up](browser/backups.md) — the volume, encrypted with the
   server's key and kept in R2, restoring it here or on another machine, and the
   newest five kept.
-- [The Proxies dashboard](browser/proxies-dashboard.md) — the table, pasting in
+- [The Anti Detect dashboard's Proxies](browser/proxies-dashboard.md) — the table, pasting in
   a list, the re-test that reaches every proxy, the dead-proxy notice, the
   record of each proxy's outside address, and what each costs and when it renews.
 
 ## Phones
 
-- [The Racks dashboard and a rack's page](phones/racks-dashboard.md): every
-  rack as a row, New rack with its name and description and a code made for
-  it, Not on a rack, and each rack's three-panel page: the rack, its banner,
-  description, "/" notes, counts, program, shelf and log on the left, its
-  phones with Filter, saved views and New phone in the middle, and the open
-  phone's screen and tabs on the right. Also what a phone holds, its status,
-  the one address that opens a phone, and an account that runs on a phone.
+- [Phones and racks](phones/racks-dashboard.md): every phone on every rack
+  in the Anti Detect dashboard's Phones, filtered by the Racks block; the rack
+  blocks on its left page (Racks, Phones), the Rack program tab in its ⋮, New
+  rack with a code made for it, a rack's settings window with its "/" notes,
+  the phones list with Filter, saved views and New phone, and the open phone's
+  screen and ⋮. Also what a phone holds, its status, the old addresses, and an
+  account that runs on a phone.
 - [The rack program](phones/rack-program.md): the program at home that drives
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
@@ -241,7 +245,7 @@ the repo's `docs/`, and is never copied here.
   clearing a failed one's.
 - [Making each phone look like one person's](phones/looking-like-a-real-person.md):
   the setup check, what the platform sees, wiping a phone between accounts,
-  the rack mix warning, and Wi-Fi phones that must show their proxy's address.
+  and Wi-Fi phones that must show their proxy's address.
 - [The daily self-test and app updates](phones/self-test-and-app-updates.md):
   the spare test phone, walking each action to its last button without
   pressing it, broken actions refused, and app updates on the test phone

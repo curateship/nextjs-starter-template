@@ -13,8 +13,9 @@ its button stops with a picture of the screen.
 
 ## The setup check
 
-The **Setup** tab of the open phone on its rack's page. **Check now**
-asks the rack to read the phone; it takes a minute or two, and the tab shows
+The **Setup** section of the open phone's ⋮ in the Anti Detect dashboard's Phones.
+**Check the setup**, at the foot of the same ⋮, asks the rack to read the phone; it
+takes a minute or two, and Setup shows
 each line passing or failing with why. A line that could not be read says so
 rather than guessing.
 
@@ -36,7 +37,7 @@ setting follow the kind ([iPhones on the rack](iphones.md)).
   such as a Play Store setting it did not find on one maker's screens, does
   not hold a phone back; the tab says how many could not be read.
 - **Each check goes in the phone's history**, with the lines that did not pass.
-- **The phone's row** on its rack's page says "Setup check: 2 of 7 lines
+- **The phone's row** in the Anti Detect dashboard's Phones says "Setup check: 2 of 7 lines
   fail" until it passes.
 
 ## What the platform sees
@@ -64,7 +65,7 @@ A new account never inherits an old one's phone.
 - **No account is set onto it** until it is wiped and set up again. The
   account pickers list it as "needs wiping" or "wiped, set it up again", and
   picking it is refused with what to do.
-- **Wipe the phone,** on its Setup tab, asks for a confirmation, then the rack
+- **Wipe the phone,** at the foot of the phone's ⋮, asks for a confirmation, then the rack
   walks Settings to a factory reset (Erase all data on a Pixel, Factory data
   reset on a Samsung, Erase All Content and Settings on an iPhone) and presses
   it. It is refused while an account runs on the phone or is being moved onto
@@ -81,22 +82,6 @@ A new account never inherits an old one's phone.
 - **The self-test never rehearses a wipe.** The rack's erase is pressed
   through the same last-button guard as Post, which a rehearsal can never
   press.
-
-## The rack mix
-
-**Mix**, a card on each rack's left panel. It counts the rack's phones on each model,
-carrier and Android version.
-
-- **It warns when more than half the phones share one,** once the rack has four
-  phones or more (Tyler, 14 Oct 2026), such as "3 of 4 phones are a Pixel 8a".
-  A rack of two or three never warns.
-- **The button turns amber** while there is a warning, and its tooltip says the
-  first one.
-- **The carrier** is the SIM's own name from the setup check, or the one typed
-  on the phone; a Wi-Fi phone counts as "Wi-Fi through" its proxy. Carriers
-  are compared without case.
-- **A value not read yet,** such as a blank model, is counted but never warned
-  about.
 
 ## Phones on Wi-Fi with a proxy
 
@@ -123,15 +108,14 @@ VPN-style proxy app on the phone.
 
 ## Where it is
 
-- The lines: `src/lib/phones/setup-check.ts`. The rack mix: `src/lib/phones/rack-mix.ts`.
+- The lines: `src/lib/phones/setup-check.ts`.
 - Saving a check and the address guard: `src/server/phones/setup.ts`, the guard
   called from `src/server/social/runner.ts` before a phone job.
 - Wiping and the needs-wiping rule: `src/server/phones/wipe.ts`, called from
   `src/server/social/accounts.ts`.
 - The columns on `promo_phones` (`needs_wipe_at`, `wiped_at`, `held_important_at`,
   `setup_check`, `address_stop_at`) are from `drizzle/0117_promo_phone_identity.sql`.
-- The tab: `src/components/phones/phone-setup-panel.tsx`; the Mix window:
-  `src/components/phones/rack-mix-dialog.tsx`.
+- The setup section: `src/components/phones/phone-setup-panel.tsx`.
 - On the rack computer, in `rack/promo_rack.py`: `action_setup_check`,
   `action_outside_address` and `action_wipe`. The saved screens its tests read
   are in `rack/fixtures/setup/`, written by hand from the apps' known layout.

@@ -27,7 +27,7 @@ import { promoXSearchers } from "./x/schema"
  * The Reddit accounts, as records a person picks for.
  *
  * An account owns neither its browser nor its words. It runs on a browser
- * profile, managed on the Browser profiles dashboard, or on a phone, managed
+ * profile, managed in the Anti Detect dashboard's Profiles, or on a phone, managed
  * on its rack's page, never both. It points at a voice, managed on the
  * Voices dashboard. There can be any number of accounts, one per
  * profile, listed on the Reddit accounts dashboard (`account-list.ts`) and
@@ -380,7 +380,7 @@ async function checkPicks(
 
 /**
  * The accounts signed in inside each profile, as the browser program last saw
- * them, for the Browser profiles dashboard. Read from rows; no browser is asked.
+ * them, for the Anti Detect dashboard's Profiles. Read from rows; no browser is asked.
  */
 export async function accountsByProfile(
   userId: string,

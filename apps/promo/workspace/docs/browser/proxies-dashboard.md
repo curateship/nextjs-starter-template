@@ -1,13 +1,16 @@
-# The Proxies dashboard
+# Proxies, on the Anti Detect dashboard
 
-Every proxy the browser profiles can go out through, in one table at
-`/admin/proxies`, reached from **Proxies** in the left menu. A proxy is bought
+Every proxy the browser profiles can go out through, in one table, the
+Proxies section of [the Anti Detect dashboard](../anti-detect-dashboard.md)
+(`/admin/anti-detect?section=proxies`; the old `/admin/proxies` redirects
+there). A proxy is bought
 in a list and dies without warning, so this is where a dead one shows at a
 glance. Tyler, 5 Oct 2026: "Proxies and profiles needs its own dashboard."
 
-The behaviour is copied from anti-detect's proxies dashboard, rebuilt from the
-shell's own table and windows. The code is `src/components/browser/` for the
-screen, `src/lib/api/browser/proxies.ts` for the endpoints and
+The behaviour is copied from anti-detect's proxies dashboard. The code is
+`src/components/anti-detect/proxies-section.tsx` and `proxy-record.tsx` for
+the screen, `src/components/browser/proxy-dialog.tsx` for the form and the New
+proxy window, `src/lib/api/browser/proxies.ts` for the endpoints and
 `src/server/browser/proxies.ts` for the records.
 
 ## The table
@@ -27,15 +30,16 @@ screen, `src/lib/api/browser/proxies.ts` for the endpoints and
   rotating proxy sold as a fixed one gets spotted.
 - **Cost.** What it costs a month and when it renews: "$12.00 a month" over
   "Renews in 5 days". Shows on a window 1024px or wider.
-- **Actions.** Test, settings, delete.
+- **Actions.** Test and delete; the row opens the proxy on the right.
 
-The toolbar has, in order: Delete when rows are ticked, the month's total for
-the proxies with a cost ("$84.00 a month for 7 proxies"), the search,
-**Paste in**, and **Add proxy**.
+The header has the search, Select (ticked rows are tested or deleted),
+Filter (last test, kind) and **New proxy**; its ⋮ holds **Paste in a list**.
+The month's total for the proxies with a cost ("$84.00 a month for 7
+proxies") is on Overview's Browsers and proxies widget.
 
 ## What a proxy costs
 
-The proxy's window has **What it costs**: a month's cost in dollars and the
+The proxy on the right has **What it costs**: a month's cost in dollars and the
 day it renews, both optional and both typed in by a person. A pasted list
 leaves them empty. Three days before the renewal the bell rings once, "Renews
 soon: US residential 3", saying the day and the cost, and opens the proxy.
@@ -47,8 +51,9 @@ and `renews_on`, added by `drizzle/0110_promo_new_features.sql`.
 
 ## Adding, editing and deleting
 
-- **The password never comes back out.** The window's password box starts empty
-  on an edit. Leaving it empty keeps the stored one; typing replaces it.
+- **The password never comes back out.** Its row in the proxy's ⋮ says
+  "Stored" and its box starts empty. Leaving it empty keeps the stored one;
+  typing replaces it.
 - **A host inside the network is refused** on save, on paste and on test. Promo
   had this and anti-detect does not, so it was kept: without it a proxy row is
   a way to make the server fetch its own neighbours.
@@ -91,7 +96,7 @@ repair. At most 500 lines at a time.
 
 ## Changing a profile's proxy
 
-A profile picks its proxy in its own window on the Browser profiles dashboard.
+A profile picks its proxy in its own window in the Anti Detect dashboard's Profiles.
 Two things are said before saving:
 
 - **An open browser keeps the old proxy.** The row says "On its old proxy" and the

@@ -1,25 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { RacksDashboard } from "@/components/phones/racks-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { getPhoneErrorMessage, loadRacksPage } from "@/lib/api/phones/phones"
+import { antiDetectSearch } from "@/lib/anti-detect/search"
 
 /**
- * Every rack as a table, where Racks in the left menu leads (Racks dashboard,
- * part 75). A row opens the rack's own page at `/admin/racks/$rackId`.
- * `?q=` is the search box, over racks and phones alike, and `?loose=1` opens
- * the phones that are on no rack.
+ * The old Racks address, which older bookmarks and notices use. The racks
+ * are the Anti Detect dashboard's Phones now, filtered by the Racks block
+ * (Tyler, 12 Nov 2026), so this opens Phones; `?loose=1` opened the phones
+ * on no rack, which is the Rack filter's No rack.
  */
 export const Route = createFileRoute("/_authenticated/admin/racks")({
-  validateSearch: (search: Record<string, unknown>): { q?: string; loose?: "1" } => ({
-    q: typeof search.q === "string" && search.q.trim() && search.q.length <= 200 ? search.q : undefined,
-    loose: search.loose === "1" || search.loose === 1 ? "1" : undefined,
-  }),
-  loader: () => loadRacksPage(),
-  errorComponent: routeErrorComponent(getPhoneErrorMessage),
-  component: RacksRoute,
+  beforeLoad: ({ search }) => {
+    const { loose, ...rest } = search as Record<string, unknown>
+    throw redirect({
+      to: "/admin/anti-detect",
+      search: antiDetectSearch("phones", { ...rest, ...(loose === "1" || loose === 1 ? { rack: "none" } : {}) }),
+      replace: true,
+    })
+  },
 })
-
-function RacksRoute() {
-  return <RacksDashboard initial={Route.useLoaderData()} search={Route.useSearch()} />
-}

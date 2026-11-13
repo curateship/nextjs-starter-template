@@ -1,55 +1,80 @@
-# The Racks dashboard and a rack's page
+# Phones and racks
 
 A rack is the computer the phones plug into, with the rack program on it.
-Racks in the left menu, under **Anti Detect** after Proxies, opens the Racks
-dashboard at `/admin/racks`: one row per rack. A row opens that rack's own
-page at `/admin/racks/<id>`, with the rack on the left, its phones in the
-middle, and the open phone with its live screen on the right.
-
-Tyler's flow, 5 Nov 2026: "Rack dashboard > create rack > enter name,
-discription > rack name (3 panel dashboard): left panel rack details, middle
-phones (header create new phone), left panel phone detail and screen." On
-6 Nov 2026 he picked Promo's project page as the drawing for the rack's page:
-the back arrow, ⋮ menus that save as you go, and a banner with no avatar.
+Every phone, on every rack, is listed in the Phones section of [the Anti
+Detect dashboard](../anti-detect-dashboard.md) (`/admin/anti-detect?section=phones`),
+and the racks are blocks on that dashboard's left page. A rack has no page of
+its own (Tyler, 12 Nov 2026: "I dont think a rack needs its own dashboard.
+The racks dashboard should list all the phones and the phones can just be
+filtered by rack tags. So rack name on the dashboard can be renamed to
+\"Phones\" and in phones dashboard can be filtered by racks"). Before that,
+"all of these can be blocks", of a rack page's Phones, Rack program, Shelf
+and Mix cards.
 
 Tyler chose real phones for the important Reddit, Instagram and TikTok
 accounts on 9 Oct 2026, with throwaway accounts staying on browser profiles.
 His rule of 5 Oct 2026 holds here: devices are app-wide records with their own
 dashboard, never something tucked into one network's settings.
 
-## The Racks dashboard
+## The Phones section
 
-- **Each row** is a rack: its name, the first words of its description, its
-  phones online out of all of them ("1 of 2"), how many need a look, and
-  whether it checks in. A rack's warnings count its phones that are offline,
-  need wiping, or carry the amber setup line, and turn amber above none.
-- **Whether it checks in** says "Checking in", "Not checking in, last seen 5
-  minutes ago", "Waiting for the rack program" for a rack that never paired,
-  or "Disconnected".
-- **New rack** asks for a name and a description, then the same window shows
-  the one-time code and the install command for that rack (below). Open the
-  rack goes to its page at once; the code keeps working there.
-- **Not on a rack** is one row while any phone has no rack: a phone typed in
-  before a rack existed for it, or one left when its rack was deleted. It
-  opens a window where each phone has Put on a rack. `?loose=1` opens it.
-- **The search box** covers the racks and every phone by name, serial, model
-  or account, so a phone is one search away wherever it sits. Phones that
-  match list under a Phones heading, and each opens on its own rack.
-- **Pause every rack** and **Self-test** sit here, because each is one switch
-  for every rack, not one per rack ([the self-test and app updates](self-test-and-app-updates.md)).
-- **Delete** takes a rack that is not connected: one that never paired, or
-  one that was disconnected. A connected rack is kept, with why. Its phones
-  move to Not on a rack and keep their history, readings and finished
-  actions; its bell notices go with it.
+- **The middle** is every phone on every rack, in the phones list below. The
+  Racks block picks one rack (`?rack=<id>`), or No rack for the phones none
+  has yet (`?rack=none`), and picking it again lets it go. A picked rack adds
+  its Wall and Jobs tabs, since a wall and a job queue are a rack's own.
+- **The Projects block** narrows the list to the phones a project's accounts
+  are on, so the list's own Project filter is not offered here.
+- **The right panel** is the open phone with its live screen, below. A list
+  with phones opens its first on arrival.
+- **The ⋮** after New phone holds New rack, Pause every rack (or Resume), and
+  Self-test and app updates, each one switch for every rack ([the self-test
+  and app updates](self-test-and-app-updates.md)). While every rack is
+  paused, a line under the list says so.
 - The list reads again every 10 seconds while it is in view.
+
+## The rack blocks
+
+On the Anti Detect dashboard's left page, all in the "/" list, a new page
+starting with them: Racks and Phones. Phones shows the rack picked in
+Racks, or every rack together while none is (Tyler's answer: "Every rack
+together"). There is no Mix block, nor any count of how alike the phones are
+(Tyler, 12 Nov 2026: "remove the mix block and its feature").
+
+- **Racks**: every rack with its phones online out of all of them ("1/2"),
+  and No rack while a phone has none. A press shows that rack's phones in
+  Phones, from any section. Its ⋮ holds **New rack**, and for the rack
+  picked, **its settings** (a window with its name, its description and its
+  "/" notes, each saving itself), **Disconnect** for a connected rack, or
+  **Delete** for one that is not. A connected rack can't be deleted; a
+  deleted rack's phones move to No rack and keep their history, readings and
+  finished actions; its bell notices go with it.
+- **Phones**: the phones in view counted as connected, busy, held and
+  offline, and the jobs waiting: the picked rack's, or every phone's with
+  none picked. No rack has no Jobs waiting row, since jobs are counted by
+  rack. A status's row sets that status in
+  the list, and pressing it again takes it away; Jobs waiting opens a picked
+  rack's Jobs tab.
+
+A rack's **program** is the **Rack program** tab of the left page's ⋮ (after
+General and Widgets): for the rack picked, whether it checks in, the
+computer, the program's version, when it paired, the iPhone tool's signature
+date (red once it has passed) and what its last update did; a rack that
+never paired, or was disconnected, shows how to install it, with a code for
+that rack. With none picked, each rack's check-in, a press picking it. A
+rack's **Shelf** and **Log** are tabs of the phones list (Tyler, 12 Nov 2026:
+"Shelf can go in the tabs instead of block. Move the rack program into the
+settings tab. Logs block goes into tabs").
+
+A rack's banner went with its page: nothing draws one now, and saved banners
+stay in the database unused.
 
 ## Making a rack and pairing it
 
 A rack is made by a person first and the program joins it, rather than the
 program making the rack when it pairs (`drizzle/0139_promo_racks_dashboard.sql`).
 
-- **A code belongs to one rack.** It is made on that rack's page, or by the
-  New rack window, works once, for 15 minutes, and its card counts the
+- **A code belongs to one rack.** It is made in the Rack program block for
+  that rack, or by the New rack window, works once, for 15 minutes, and its card counts the
   minutes it has left, with New code beside it.
 - **Only a rack that is not connected gets a code**: one that never paired, or
   one that was disconnected. A code for a connected rack would let a second
@@ -62,54 +87,10 @@ program making the rack when it pairs (`drizzle/0139_promo_racks_dashboard.sql`)
 - **A rack that never paired has no key**, so nothing can sign as it, and it
   never rings the "not checking in" bell.
 
-## A rack's page
+### A rack's notes
 
-The shell's three-column frame. The first phone opens on arrival, and the
-page goes back to where it was, one place per rack, so another rack's filters
-never follow you. Below 1280px one panel shows at a time, with the pills
-Phones, Rack and Phone. The page reads again every 10 seconds while it is in
-view, and the open phone follows the same read.
-
-While Pause is on, a line across the top of every rack's page says "All phone
-jobs are paused, on every rack", with Resume.
-
-A link to a rack that is gone says "That rack is not there any more", with a
-way back to Racks.
-
-### The left panel: the rack
-
-- **The header** is the back arrow to Racks, the rack's name with its check-in
-  dot, the notes icon and the ⋮.
-- **The ⋮** holds Name and Banner as folding rows, each saving itself, then
-  Disconnect this rack for a connected rack, or Delete rack in red for one
-  that is not. It opens to the right, over the phones.
-- **The banner** is a picture from the media library lying faintly behind the
-  top of the panel. There is no avatar (Tyler, 5 Nov 2026: "NO avatar just
-  banner cover").
-- **The description** is written in place in the shell's editor and saves
-  itself 700ms after the last letter, with Saving… and Saved in the page
-  header.
-- **Phones** counts the rack's phones as connected, busy, held and offline,
-  and the jobs waiting for them. A status's number filters the list to it;
-  pressing it again takes the filter away. Jobs waiting opens the Jobs tab.
-- **Rack program** says whether it checks in, the computer, the program's
-  version, when it paired, the iPhone tool's signature date (red once it has
-  passed), and what its last update did. A rack that never paired, or was
-  disconnected, shows how to install it instead, with a code for this rack.
-- **Shelf** draws the shelf by slot ([seeing the rack](seeing-the-rack.md)).
-  Clicking a phone opens it; clicking an empty slot lists the phones with no
-  slot, and picking one puts it there. A shelf too wide for the panel scrolls
-  sideways inside the card.
-- **Mix** counts this rack's phones on each model, carrier and system version,
-  with the warning when more than half of four or more share one
-  ([making each phone look like one person's](looking-like-a-real-person.md)).
-- **Log** shows the rack program's own last lines
-  ([seeing the rack](seeing-the-rack.md)).
-- **The notes icon** swaps the body for the rack's notes, below.
-
-### The rack's notes
-
-The shell's editor with "/" blocks copied from Project (Tyler, 5 Nov 2026:
+In the rack's settings window, from the Racks block's ⋮. The shell's editor
+with "/" blocks copied from Project (Tyler, 5 Nov 2026:
 "Need tiptap editor with blocks ability too"). Typing "/" at the start of a
 line or after a space lists:
 
@@ -122,16 +103,19 @@ line or after a space lists:
   only, kept on this computer.
 - **Links**: labelled web addresses, one a line.
 
-The notes save themselves like the description. Project's Task card, File,
+The notes save themselves, as the description beside them does. Project's Task card, File,
 Video-or-Promo and Web page blocks are left out, because a rack has none of
 those. Checklist is left out too, because it needs Tiptap's list extension,
 which Promo does not carry. The rules for what notes may hold are in
 `src/lib/phones/rack-notes.ts`, checked in the editor and on the server.
 
-### The middle panel: the rack's phones
+## The phones list
 
-- **Tabs**: Phones with its count, Wall and Jobs. Wall is the rack's live
-  pictures and Jobs every job on its phones ([seeing the rack](seeing-the-rack.md)),
+- **Tabs**: Phones with its count, and Shelf, Wall, Jobs and Log while one
+  rack is picked. Shelf draws the rack's shelf by slot: clicking a phone
+  opens it; clicking an empty slot lists the phones with no slot, and picking
+  one puts it there. Log is the rack program's own last lines. Wall is the
+  rack's live pictures and Jobs every job on its phones ([seeing the rack](seeing-the-rack.md)),
   in the shell's table: the job, the account, the status, when, and Cancel or
   Try again (Tyler, 6 Nov 2026: "jobs tab should have normal tables").
 - **The toolbar**, in the UI standard's order: "N selected" while phones are
@@ -141,45 +125,90 @@ which Promo does not carry. The rules for what notes may hold are in
   Clear and Save as view. **Views** lists the views saved here, and the one
   picked shows its name in the moving rainbow edge in place of "Views" (Tyler,
   5 Nov 2026: "Use the ui standard filter and save filter feature with saved
-  filter rainbow button"). A view is per person and per rack.
-- **Every filter lives in the address**, as `?status=offline&kind=iphone`, so
+  filter rainbow button"). A view is per person and per rack picked, or every phone's with none.
+- **Every filter lives in the address**, as `?status=offline&phoneKind=iphone`, so
   a link opens the same list. A value no phone has stays picked rather than
   being dropped.
 - **Mass select** shows tick boxes; the "N selected" menu holds Hold, Release,
-  Move to folder, Set label and Add tag, each one request.
-- **The rows** sort by shelf slot, so the list reads like the shelf: the slot,
-  then the phone with its model, system version, folder, tags, accounts, app
+  Put on a rack, Move to folder, Set label and Add tag, each one request. Put
+  on a rack shows a phone on that rack before it is plugged in; plugging it
+  into another rack still moves it there.
+- **The rows** sort by shelf slot, so the list reads like the shelf: first the
+  phone drawn small with Apple's logo or Android's robot, where the slot
+  number was (Tyler, 12 Nov 2026: "put the phone icon where the slot is"),
+  then the phone with "Slot 3" first on its second line (12px from the
+  drawing; the open phone has the sliding bar beside its name, not a grey
+  shade: "use this slected animation"), its model, system version, folder, tags, accounts, app
   versions, "Self-test phone", the amber setup line and "Banned on", its
   status, carrier and when the rack last saw it. The columns fold by the
   panel's own width, not the window's: under 768px of panel the account moves
   under the name and the carrier goes; last seen shows from 1024px.
 - **New phone** is a dropdown, not a window: the name, then the serial and
   kind, then the shelf slot and how it goes online, with Create phone. The
-  phone is made on this rack and opens on the right. The serial is
+  phone is made on the rack picked, or with none picked on the rack chosen
+  in its Rack field, and opens on the right. The serial is
   checked as it is typed, and one another phone has says so before Create.
 
-### The right panel: the open phone
+## The open phone
 
-- **The header** is the phone's name and status, Hold or Release, and the ⋮.
-  There is no ×.
-- **Under the header is the live screen, always** ([the screen](screen-window.md)):
-  the picture, then the grey Control and Sign-in codes cards, the side
-  panel's own card (Tyler, 6 Nov 2026: "control and signin codes card does
-  not use standard gray card"). There are no tabs.
-- **Everything else is in the ⋮** (Tyler, 6 Nov 2026: "All these options
-  should go into the 3 vertical dots dropdown"). Settings, Setup, Health,
-  Actions, Jobs and History are folding rows, each saying where it stands on
-  the right (the model, "Checked", the battery); then a line, Open the bigger
-  screen, Copy link, Use as the self-test phone, and Delete phone in red. A
-  row's body is drawn only while it is open, so a shut row reads nothing, and
-  the screen stays on beside an open menu, so control is kept while a setting
-  is changed. Every card in them is the grey side-panel card, and everything
-  fits the menu's 294px: the Jobs table folds to the job and its button.
-- **Settings** holds the phone's fields, each saving itself 700ms after the
-  last letter, when it is left, or the moment a pick changes. There is no Save
-  button. Only the field that changed is sent, so a save never writes back an
-  older copy of what the rack fills in. The USB port and last seen are the
-  rack's, shown as words.
+- **The frame** is the shell's record frame, as every right panel's: the
+  header is the phone's name and status, Hold or Release, the ⋮ and the
+  collapse button, with no ×; its cards run edge to edge ("the right cards
+  are not flushed to the edge"); and its footer is the typing box, with the
+  keys (Back, Home, Recent apps, Enter, Delete a letter) under it ("The icon
+  controls goes into the footer bottom and the phone chat goes a row above
+  it"). The bigger screen window keeps them in its Control card.
+- **The Phone tab is the live screen** ([the screen](screen-window.md)). The
+  tabs' box is the phone itself (Tyler's pick, 12 Nov 2026, of "this gray
+  area here should be the same dimesion as the phone"): a phone's rounded
+  corners and outline, and under the tabs a grey screen in a phone's shape,
+  as tall as the box is wide times 176/96. The picture fills it; while there
+  is none, Apple's logo or Android's robot by the phone's kind, with why
+  there is no picture under it. The bigger screen window still draws a phone
+  in outline with the words on its screen.
+  Under the screen, at the bottom of the phone on white, the phone's own
+  details as rows: Name, Kind, Model, the system version, the serial (UDID
+  on an iPhone) and Notes, each saving itself as in Settings (Tyler, 12 Nov
+  2026: "move these info to the bottom of the phone", then "put the details
+  bg to white").
+- **Four tabs under the header**, Phone, Health, Jobs and History (Tyler, 12
+  Nov 2026: "Add 3 tabs here. first tab Phone, Health, Jobs", then "make the
+  tabs as if its part of the phone", with his drawing, then "move history as
+  its 4th tab"): the top of the phone's
+  rounded box, underlined in a white strip with a line under it, and what
+  the tab shows inside the box below. **Phone** is the screen's picture, with
+  Sign-in codes under the box while there is one, and the footer's typing
+  and keys. **Health** is its Now, Battery and heat, and Apps groups, each a
+  heading over a light grey box; **Jobs** is the phone's jobs; **History**
+  is, under **Now**, its state, the accounts on it and any ban ("this belong
+  in history"), then every account it has held and what happened to it.
+  The tabs are 32px apart, as every underlined tab row is; a panel too
+  narrow for all four scrolls the row sideways. Leaving
+  Phone closes the screen, as leaving the panel does, so control goes off,
+  and the ⋮'s Control row shows only on Phone. A new phone opens on Phone.
+- **The header's buttons** (Hold or Release, the ⋮, the collapse button) sit
+  one gap apart.
+- **The ⋮** is tabs, as the profile's ⋮ is (Tyler, 12 Nov 2026: "Instead of
+  toggle, put it as tabs instead with settings and control as the first
+  tab"): **Settings**, **Setup** and **Actions**. Settings starts with
+  Control, one row with the switch on its right, while the Phone tab shows
+  (the screen stays on beside the open menu, so control is kept); then the
+  phone's fields; then what can be asked of the phone: Open the bigger
+  screen, **Read the version**, **Health check**, **Check the setup**, Copy
+  link, Use as the self-test phone; then a line, **Wipe the phone** and
+  Delete phone in red ("move these 2 function down here", of Actions' Read
+  the version and Health check, then "move these 2 function as well", of
+  Setup's Check now and Wipe the phone). The answers land in Actions and
+  Setup; Wipe asks first. An iPhone's Check iCloud stays in Setup, beside the
+  answer it reads. Every group in the tabs is a small heading over a light
+  grey rounded box, never a card ("the settings should use this ui", then
+  "not just settings, all toggles").
+- **Settings** is rows (the phone's own details are at the bottom of the
+  phone instead): a typed field (Shelf slot, SIM carrier and number, Tags) opens in a
+  small box from its row and saves when it is left or Enter is pressed; a
+  choice (Connection, Goes out through, Folder, Label) drops its list
+  from the row and saves when picked. USB port and Last seen are read by the
+  rack and can't be changed.
 - **Setup**, **Health**, **Actions**, **Jobs** and **History** are the phone's
   window's old tabs ([making each phone look like one person's](looking-like-a-real-person.md),
   [a phone's health](phone-health.md), [a picture of every step](step-pictures.md),
@@ -197,10 +226,10 @@ which Promo does not carry. The rules for what notes may hold are in
 - **The rack it is on** is the rack that last saw it. Plugging a phone into
   another rack moves it there on that rack's next check-in, and its History
   says "Moved from Desk rack to Garage rack." A phone added by hand is on the
-  rack it was added on, and a phone put on a rack from Not on a rack says so
+  rack it was added on, and a phone put on a rack with Put on a rack says so
   in its History too.
 - **How it goes online:** its own SIM, or the house Wi-Fi. On Wi-Fi it goes
-  out through one of the proxies on the Proxies dashboard, and before every job
+  out through one of the proxies in the Anti Detect dashboard's Proxies, and before every job
   the rack checks the address apps see is that proxy's
   ([making each phone look like one person's](looking-like-a-real-person.md)).
   A SIM phone never keeps a proxy. A proxy a browser profile uses is refused.
@@ -233,14 +262,15 @@ never disagree with what the rack last said.
 - **Busy:** a check is running on it.
 - **Connected:** none of the above.
 
-## The one address that opens a phone
+## The old addresses
 
-`/admin/phones?open=<id>` lands on the page of the rack the phone is on, with
-the phone open. Its bell notices and the Accounts, Bans and Reddit accounts
-dashboards link there, so a link stays right when the phone moves rack. A
-phone on no rack opens Not on a rack, and the bare `/admin/phones` goes to the
-Racks dashboard. A rack's own notices, "Rack not checking in" and the iPhone
-tool's signature, open that rack's page; the pause notice opens Racks.
+`/admin/phones?open=<id>` opens the phone in Phones; its bell notices and the
+Accounts and Bans screens link there. `/admin/racks` opens Phones,
+`/admin/racks?loose=1` its No rack, and a rack's old page
+`/admin/racks/<id>` opens Phones filtered to that rack, keeping the open
+phone, the tab and the filters (its `kind` becomes `phoneKind`). A rack's own
+notices, "Rack not checking in" and the iPhone tool's signature, open Phones
+filtered to that rack; the pause notice opens Phones.
 
 ## The bell
 
@@ -266,20 +296,21 @@ account per phone is a unique index, the same rule as profiles.
 
 ## Where it is
 
-- The Racks dashboard: `src/components/phones/racks-dashboard.tsx`, with
-  `new-rack-dialog.tsx`, `rack-pairing.tsx` and `loose-phones-dialog.tsx`. The
-  route is `src/routes/_authenticated/admin/racks.tsx`.
-- A rack's page: `rack-workspace.tsx` on the shell's `ThreePanels`, with
-  `rack-panel.tsx` (the left panel), `rack-notes.tsx` and the `rack-note-*`
-  files (the "/" blocks), `rack-shelf.tsx`, `rack-log.tsx`,
-  `rack-phones-panel.tsx` and `new-phone-dropdown.tsx` (the middle),
-  `phone-panel.tsx`, `phone-settings-section.tsx` and the `phone-*-panel.tsx`
-  sections of its ⋮ (the right). The route is
-  `src/routes/_authenticated/admin/racks_.$rackId.tsx`; the address is read by
-  `src/lib/phones/rack-search.ts`, the rows by `src/lib/phones/rack-rows.ts`,
-  and the layout and place keys are in `src/lib/phones/panel-keys.ts`.
-- The phone address: `src/routes/_authenticated/admin/phones.tsx`.
-- The endpoints: `src/lib/api/phones/phones.ts`. The server:
+- Phones: `src/components/anti-detect/phones-section.tsx`, drawing
+  `rack-phones-panel.tsx` (the list) and `phone-panel.tsx` (the open phone)
+  from `src/components/phones/`, with `new-phone-dropdown.tsx`,
+  `phone-settings-section.tsx` and the `phone-*-panel.tsx` sections of the
+  phone's ⋮. The list's filters are read by `src/lib/phones/rack-search.ts`
+  and its rows by `src/lib/phones/rack-rows.ts`; the dashboard's address by
+  `src/lib/anti-detect/search.ts`.
+- The rack blocks and their windows: `src/components/anti-detect/rack-blocks.tsx`
+  and `rack-settings-dialog.tsx`, with `new-rack-dialog.tsx`,
+  `rack-pairing.tsx`, `rack-shelf.tsx`, `rack-log.tsx`, `rack-notes.tsx` and
+  the `rack-note-*` files (a rack's "/" notes) in `src/components/phones/`.
+- The old addresses: `src/routes/_authenticated/admin/racks.tsx`,
+  `racks_.$rackId.tsx` and `phones.tsx`, which only redirect.
+- The endpoints: `src/lib/api/phones/phones.ts`, where `loadPhonesPage`
+  reads every phone and rack at once. The server:
   `src/server/phones/rack.ts` (making, pairing, listing, deleting racks, and
   the check-in that moves a phone), `src/server/phones/phones.ts` (phones,
   `changePhone`, `putPhonesOnRack`) and `src/server/phones/saved-views.ts`

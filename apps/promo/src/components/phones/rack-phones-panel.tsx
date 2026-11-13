@@ -2,6 +2,10 @@ import * as React from "react"
 import { BookmarkPlusIcon } from "lucide-react"
 
 import { NewPhoneDropdown } from "@/components/phones/new-phone-dropdown"
+import { RackLogPanel } from "@/components/phones/rack-log"
+import { RackShelf } from "@/components/phones/rack-shelf"
+import { PhoneGraphic } from "@/components/phones/phone-graphic"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { PhoneJobsPanel } from "@/components/phones/phone-jobs-panel"
 import { PhoneStatusText } from "@/components/phones/phone-status"
 import { RackWall } from "@/components/phones/rack-wall"
@@ -19,7 +23,7 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableGroupRow, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { changePhones, getPhoneErrorMessage, type BulkPhoneAction, type PhoneRecord, type RackPage } from "@/lib/api/phones/phones"
+import { changePhones, getPhoneErrorMessage, savePhoneFields, type BulkPhoneAction, type PhoneRecord, type PhonesPage } from "@/lib/api/phones/phones"
 import type { SavedView } from "@/lib/api/saved-views"
 import { bannedOnWords } from "@/lib/bans/options"
 import { LABEL_DOT } from "@/lib/browser/sorting"
@@ -41,15 +45,17 @@ import { carrierOf, rackRows } from "@/lib/phones/rack-rows"
 import { appVersionWords, connectionWords, setupWarning } from "@/lib/phones/wording"
 import { NETWORK_NAMES, NETWORKS, isNetwork } from "@/lib/social/networks"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 const ANY = "any"
 
 /**
- * The middle panel of a rack's page: the rack's phones (Racks dashboard,
- * parts 95 to 105; Tyler, 5 Nov 2026: "middle phones (header create new
- * phone)"). The header holds the Phones, Wall and Jobs tabs, then, as the UI
- * standard orders them: "N selected" while phones are ticked, Mass select,
+ * The phones list, the middle of the Anti Detect dashboard's Phones (Racks
+ * dashboard, parts 95 to 105; since 12 Nov 2026 every phone on every rack,
+ * Tyler: "The racks dashboard should list all the phones and the phones can
+ * just be filtered by rack"). `phones` is what the Rack filter and the
+ * Projects block leave. The header holds the Phones tab, and Wall and Jobs
+ * while one rack is picked, since a wall and a job queue are a rack's own;
+ * then, as the UI standard orders them: "N selected" while phones are ticked, Mass select,
  * the search, Filter, Views and New phone.
  *
  * Filter is the shell's popover with a row per filter and the Group row, then
@@ -63,13 +69,25 @@ const ANY = "any"
  */
 export function RackPhonesPanel({
   page,
+  rackId,
+  start,
+  menu,
+  end,
   search,
   views,
   onSearch,
   onOpen,
   onChanged,
 }: {
-  page: RackPage
+  page: PhonesPage
+  /** The rack the Rack filter picked, or null for every phone. */
+  rackId: string | null
+  /** Before the tabs: the dashboard's button that brings back the left page. */
+  start?: React.ReactNode
+  /** The dashboard's ⋮ for every rack, after New phone. */
+  menu?: React.ReactNode
+  /** Last: the button that brings back the right panel. */
+  end?: React.ReactNode
   search: RackSearch
   views: SavedView[]
   onSearch: (patch: Partial<RackSearch>) => void
@@ -85,9 +103,11 @@ export function RackPhonesPanel({
   const groups = rackRows(page, search)
   const shownCount = groups.reduce((sum, group) => sum + group.phones.length, 0)
   const list = search.list ?? "phones"
+  const rack = page.racks.find((one) => one.id === rackId) ?? null
 
   const here: SavedViewsScreen = {
-    screen: `${RACK_VIEW_KIND}:${page.rack.id}`,
+    // A rack's views stay its own; with no rack picked, the views are every phone's.
+    screen: `${RACK_VIEW_KIND}:${rackId ?? "all"}`,
     describe: (filters, names) => describeRackFilters(filters, names),
     kept: (filters) => keptRackFilters(filters),
   }
@@ -123,13 +143,20 @@ export function RackPhonesPanel({
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
       <DashboardCardHeader className="group/title">
+        {start}
         <DashboardTabs
           value={list}
           onValueChange={(next) => onSearch({ list: next === "phones" ? undefined : (next as RackSearch["list"]) })}
           tabs={[
             { value: "phones", label: "Phones", count: shownCount },
-            { value: "wall", label: "Wall" },
-            { value: "jobs", label: "Jobs" },
+            ...(rackId
+              ? [
+                  { value: "shelf", label: "Shelf" },
+                  { value: "wall", label: "Wall" },
+                  { value: "jobs", label: "Jobs" },
+                  { value: "log", label: "Log" },
+                ]
+              : []),
           ]}
         />
         <div className="flex shrink-0 items-center gap-1">
@@ -156,6 +183,11 @@ export function RackPhonesPanel({
                   >
                     Release
                   </SelectedMenuRow>
+                  {page.racks.length ? (
+                    <SelectedMenuRow page="rack" onClick={() => menu.step("rack")}>
+                      Put on a rack
+                    </SelectedMenuRow>
+                  ) : null}
                   <SelectedMenuRow page="folder" onClick={() => menu.step("folder")}>
                     Move to folder
                   </SelectedMenuRow>
@@ -168,6 +200,26 @@ export function RackPhonesPanel({
                 </>
               )}
               pages={{
+                // Shows the phone on that rack before it is plugged in; plugging it into another rack still
+                // moves it there (Racks dashboard, part 83, once the Not on a rack window's Put on a rack).
+                rack: {
+                  title: "Put on a rack",
+                  content: (menu) => (
+                    <>
+                      {page.racks.map((rack) => (
+                        <SelectedMenuRow
+                          key={rack.id}
+                          onClick={() => {
+                            menu.close()
+                            void bulk({ action: "rack", ids, rackId: rack.id })
+                          }}
+                        >
+                          {rack.name}
+                        </SelectedMenuRow>
+                      ))}
+                    </>
+                  ),
+                },
                 folder: {
                   title: "Move to folder",
                   content: (menu) => (
@@ -384,28 +436,68 @@ export function RackPhonesPanel({
             onClose={() => onSearch(Object.fromEntries(RACK_FILTER_KEYS.map((key) => [key, undefined])))}
           />
           <NewPhoneDropdown
-            rackId={page.rack.id}
+            racks={page.racks}
+            rackId={rackId}
             onCreated={async (phoneId) => {
               await onChanged()
               onOpen(phoneId)
             }}
           />
+          {menu}
         </div>
+        {end}
       </DashboardCardHeader>
 
-      {list === "wall" ? (
+      {list === "shelf" && rack ? (
+        // The rack's shelf by slot (Tyler, 12 Nov 2026: "Shelf can go in the tabs instead of block").
         <ScrollArea className="min-h-0 flex-1">
-          <div className="p-3">
-            <RackWall rackId={page.rack.id} onOpenScreen={(phoneId) => onOpen(phoneId)} />
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] p-4">
+            <RackShelf
+              phones={page.phones}
+              rows={page.shelfRows}
+              columns={page.shelfColumns}
+              openId={search.open}
+              onOpen={onOpen}
+              onPlace={async (phoneId, slot) => {
+                dismissErrorToast()
+                try {
+                  await savePhoneFields(phoneId, { shelfSlot: String(slot) })
+                  await onChanged()
+                } catch (error) {
+                  showErrorToast(getPhoneErrorMessage(error))
+                }
+              }}
+            />
           </div>
         </ScrollArea>
-      ) : list === "jobs" ? (
+      ) : list === "log" && rack ? (
+        // The rack program's own last lines ("Logs block goes into tabs").
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] p-4">
+            {rack.state === "unpaired" ? (
+              <p className="text-sm text-muted-foreground">Waiting for the rack program. Its log starts once the program runs.</p>
+            ) : (
+              <RackLogPanel rack={rack} />
+            )}
+          </div>
+        </ScrollArea>
+      ) : list === "wall" && rackId ? (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-3">
+            <RackWall rackId={rackId} onOpenScreen={(phoneId) => onOpen(phoneId)} />
+          </div>
+        </ScrollArea>
+      ) : list === "jobs" && rackId ? (
         <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-          <PhoneJobsPanel rackId={page.rack.id} flush />
+          <PhoneJobsPanel rackId={rackId} flush />
         </ScrollArea>
       ) : !page.phones.length ? (
         <p className="p-4 text-sm text-muted-foreground">
-          No phones on this rack yet. Plug a phone into this rack, or add one with New phone.
+          {rackId
+            ? "No phones on this rack yet. Plug a phone into it, or add one with New phone."
+            : page.racks.length
+              ? "No phones here yet. Plug a phone into a rack, or add one with New phone."
+              : "No phones yet. Make a rack with New rack in the Racks block's ⋮, then plug a phone into it."}
         </p>
       ) : (
         <PhoneRows
@@ -441,7 +533,7 @@ function PhoneRows({
   onOpen,
 }: {
   groups: Array<{ group: string; phones: PhoneRecord[] }>
-  page: RackPage
+  page: PhonesPage
   openId: string | undefined
   selecting: boolean
   selected: Set<string>
@@ -476,10 +568,15 @@ function PhoneRows({
                 />
               </TableHead>
             ) : null}
-            <TableHead column="meta" className="w-12">
-              Slot
+            {/* Where the slot number was: the phone drawn with its maker's mark (Tyler, 12 Nov 2026: "put the
+                phone icon where the slot is"). The slot moved to the line under the phone's name. */}
+            {/* As narrow as the drawing, sitting 12px from the name (Tyler, 12 Nov 2026: "fix the spacing"). */}
+            <TableHead column="meta" className="w-px pr-0">
+              <span className="sr-only">Kind</span>
             </TableHead>
-            <TableHead column="main">Phone</TableHead>
+            <TableHead column="main" className="pl-3">
+              Phone
+            </TableHead>
             <TableHead column="meta" className="hidden @3xl:table-cell">
               Account
             </TableHead>
@@ -503,8 +600,10 @@ function PhoneRows({
                 return (
                   <TableRow
                     key={phone.id}
-                    className={cn("group", phone.id === openId && "bg-accent hover:bg-accent")}
-                    aria-selected={phone.id === openId}
+                    // The open phone has the sliding bar beside its name, as every list in the design picks
+                    // a row, not a grey shade (Tyler, 12 Nov 2026: "use this slected animation").
+                    className="group"
+                    aria-current={phone.id === openId ? "true" : undefined}
                     rowAction={() => (selecting ? toggle(phone.id) : onOpen(phone.id))}
                   >
                     {selecting ? (
@@ -512,11 +611,15 @@ function PhoneRows({
                         <Checkbox checked={selected.has(phone.id)} onCheckedChange={() => toggle(phone.id)} aria-label={`Select ${phone.name}`} />
                       </TableCell>
                     ) : null}
-                    <TableCell column="meta" className="text-sm text-muted-foreground tabular-nums">
-                      {phone.shelfSlot.trim() || "–"}
+                    <TableCell column="meta" className="w-px py-2 pr-0">
+                      <PhoneGraphic kind={phone.kind} className="h-[2.625rem]" />
                     </TableCell>
-                    <TableCell column="main" className="max-w-0">
+                    <TableCell column="main" className="max-w-0 pl-3">
                       <div className="flex min-w-0 items-center gap-2">
+                        {/* The open phone's bar sits beside its name (Tyler, 12 Nov 2026: "put the pill selected back to where it was beside the title"). */}
+                        <span className="-mr-2 flex shrink-0 items-center">
+                          <SlideBar on={phone.id === openId} />
+                        </span>
                         <button
                           type="button"
                           className="truncate text-left text-sm font-medium group-hover:underline"
@@ -532,7 +635,13 @@ function PhoneRows({
                         ) : null}
                       </div>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {[phone.model, systemWords(phone.kind, phone.androidVersion), folderName(phone.folderId), ...phone.tags.map((one) => `#${one}`)]
+                        {[
+                          phone.shelfSlot.trim() ? `Slot ${phone.shelfSlot.trim()}` : "",
+                          phone.model,
+                          systemWords(phone.kind, phone.androidVersion),
+                          folderName(phone.folderId),
+                          ...phone.tags.map((one) => `#${one}`),
+                        ]
                           .filter(Boolean)
                           .join(" · ") || "No model read yet"}
                       </span>

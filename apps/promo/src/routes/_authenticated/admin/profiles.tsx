@@ -1,23 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { ProfilesDashboard } from "@/components/browser/profiles-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { getProfileErrorMessage, loadProfilesPage } from "@/lib/api/browser/profiles"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
+import { antiDetectSearch } from "@/lib/anti-detect/search"
 
 /**
- * Every browser profile: its proxy, whether its browser is open, who is signed
- * in inside it. `?open=<id>` opens one in its window, which is where the
- * Reddit accounts dashboard's profile links lead.
+ * The old Browser profiles address, which the Reddit accounts and Projects
+ * dashboards' profile links use. Browser profiles is a section of the Anti
+ * Detect dashboard now (Tyler, 12 Nov 2026), so this opens it with the same
+ * open row and filters.
  */
 export const Route = createFileRoute("/_authenticated/admin/profiles")({
-  validateSearch: readOpenSearch,
-  loader: () => loadProfilesPage(),
-  component: ProfilesRoute,
-  errorComponent: routeErrorComponent(getProfileErrorMessage),
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/anti-detect", search: antiDetectSearch("profiles", search), replace: true })
+  },
 })
-
-function ProfilesRoute() {
-  const { open } = Route.useSearch()
-  return <ProfilesDashboard initial={Route.useLoaderData()} openId={open} />
-}

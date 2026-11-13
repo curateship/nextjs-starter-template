@@ -78,7 +78,7 @@ export function postingBlockedReason(
   if (!status) return { text: PICK_AN_ACCOUNT }
   // Where a person goes to fix what the account's browser or phone shows.
   const device = status.profile
-    ? { kind: "browser", where: `the profile ${status.profile.name} on the Browser profiles dashboard` }
+    ? { kind: "browser", where: `the profile ${status.profile.name} in the Anti Detect dashboard's Profiles` }
     : status.phone
       ? { kind: "phone", where: `the screen of ${status.phone.name} on its rack's page` }
       : null

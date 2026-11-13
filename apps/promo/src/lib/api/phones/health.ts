@@ -25,7 +25,7 @@ export type { IcloudState, PhoneEventView, PhoneReading, SelfTestKindPage, SelfT
 /**
  * A phone's health on its rack's page (history, the battery and heat chart,
  * each action's step pictures, an iPhone's iCloud read) and the Self-test
- * window on the Racks dashboard. Admin-only, scoped to the signed-in person.
+ * window, in the ⋮ of the Anti Detect dashboard's Phones. Admin-only, scoped to the signed-in person.
  */
 
 export const getPhoneHealthErrorMessage = passReaderWritten(createErrorMessage(

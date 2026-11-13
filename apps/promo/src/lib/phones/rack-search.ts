@@ -2,9 +2,10 @@ import { PHONE_KIND_WORDS, PHONE_KINDS, PHONE_STATUS_WORDS, type PhoneKind, type
 import { isNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 
 /**
- * What a rack's page keeps in its address (Racks dashboard, parts 84 and
- * 96): the open phone, the middle panel's tab, the search box and the
- * filters. A link opens the same view, the back button undoes a filter, and
+ * What the phones list reads (Racks dashboard, parts 84 and 96): the open
+ * phone, the Wall or Jobs tab, the search box and the filters. Since 12 Nov
+ * 2026 the list is the Anti Detect dashboard's Phones, whose address holds
+ * them (`src/lib/anti-detect/search.ts`); a saved view keeps the filters. A link opens the same view, the back button undoes a filter, and
  * a saved view is the filters below. Anything unusable
  * is left out rather than guessed at, so a filter's value never changes
  * silently. The filters came from the Phones dashboard (phone farm part 59).
@@ -14,8 +15,6 @@ export type RackSearch = {
   open?: string
   /** The middle panel's tab; the list when left out. */
   list?: RackListTab
-  /** The left panel shows the rack's notes in place of its details. */
-  notes?: "1"
   /** The search box, over the name, serial and the rest of the row. */
   q?: string
 } & RackFilters
@@ -40,7 +39,8 @@ export type RackFilters = {
   group?: RackGroup
 }
 
-export const RACK_LIST_TABS = ["wall", "jobs"] as const
+/** A picked rack's own tabs beside Phones: its shelf, its live wall, its job queue and its program's log. */
+export const RACK_LIST_TABS = ["shelf", "wall", "jobs", "log"] as const
 export type RackListTab = (typeof RACK_LIST_TABS)[number]
 
 export const RACK_GROUPS = ["status", "kind"] as const
@@ -90,15 +90,6 @@ export function readRackFilters(search: Record<string, unknown>): RackFilters & 
     label: idOrNone(search.label),
     tag: word(search.tag, 50),
     group: oneOf(search.group, RACK_GROUPS),
-  }
-}
-
-export function readRackSearch(search: Record<string, unknown>): RackSearch {
-  return {
-    open: typeof search.open === "string" && ID.test(search.open) ? search.open : undefined,
-    list: oneOf(search.list, RACK_LIST_TABS),
-    notes: search.notes === "1" || search.notes === 1 ? "1" : undefined,
-    ...readRackFilters(search),
   }
 }
 

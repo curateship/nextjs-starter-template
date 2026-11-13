@@ -121,7 +121,7 @@ async function enterXCode(account: typeof promoAccounts.$inferSelect, target: Co
   if (state.handle) return
   throw new Refusal(
     state.blocked
-      ? `The code was typed, but X is still in the way: ${state.reason}. Take control of the browser on the Browser profiles dashboard.`
+      ? `The code was typed, but X is still in the way: ${state.reason}. Take control of the browser in the Anti Detect dashboard's Profiles.`
       : "The code was typed, but the browser is not signed in to X. Sign in again in the browser window, then send the code once X asks for it."
   )
 }
@@ -187,7 +187,7 @@ export async function saveXSignIn(
       detail: [
         `X showed: "${banned}".`,
         `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
-        "Sort it out in the browser window on the Browser profiles dashboard, then let it run again from the Accounts dashboard.",
+        "Sort it out in the browser window in the Anti Detect dashboard's Profiles, then let it run again from the Accounts dashboard.",
       ].join(" "),
       href: "/admin/projects?section=accounts&platform=x",
     },

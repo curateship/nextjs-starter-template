@@ -27,7 +27,7 @@ promo created, which has no shell version and so can never conflict.
   and which voice the account uses. "Browsers" holds the machine's limit on
   open browsers and the minutes before an unused one closes.
 - **`notifications.describe`** — a dead-proxy notice in the bell gets a globe
-  tile and opens that proxy on the Proxies dashboard. Worked out from the
+  tile and opens that proxy in the Anti Detect dashboard's Proxies. Worked out from the
   notice's own id and words, so no server is asked. Promo's other notices get
   their icon and colour the same way, from their headings.
 - **`notifications.detailsFor`**: where a reply, removal, suspension, failure

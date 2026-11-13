@@ -1,7 +1,7 @@
 # Seeing the rack
 
 Five ways to see what a rack is doing without opening phones one at a time,
-all on the rack's page ([the Racks dashboard](racks-dashboard.md)): a wall of
+all on the rack's page ([the Anti Detect dashboard's Phones](racks-dashboard.md)): a wall of
 live pictures, the jobs on its phones, filters and a search box over its
 phones, a map of its shelf, and the rack program's own log inside Promo. Ten phones read fine as a table. Twenty, with iPhones
 and Androids on three networks, do not, and Tyler should never need a terminal
@@ -59,7 +59,7 @@ status (Connected, Busy, Held, Offline), kind (Android, iPhone), carrier,
 project, the apps that banned an account on it, wiping, folder, label and
 tag, and groups by status or kind. Save as view keeps the filters as a view
 of this rack, and the view picked shows in the moving rainbow edge on Views
-([the Racks dashboard](racks-dashboard.md)). The search box covers the name,
+([the Anti Detect dashboard's Phones](racks-dashboard.md)). The search box covers the name,
 model, serial, carrier, number, notes, slot, tags and account handles.
 
 - **Every filter lives in the address**, as `?status=offline`, `?kind=iphone`,

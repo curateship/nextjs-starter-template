@@ -66,7 +66,7 @@ did, and a page for each account are not built yet.
 **Add account** asks for the network (Reddit, Instagram or TikTok, starting
 on the one the Platform filter shows), where the account runs, and which voice
 it drafts with. "Runs on" is one list of browser profiles and phones from the
-[Racks dashboard](../phones/racks-dashboard.md); for Instagram and TikTok it
+[Anti Detect dashboard's Phones](../phones/racks-dashboard.md); for Instagram and TikTok it
 lists phones only, since they never run on a browser profile. One account of a
 network per profile and per phone, so one already holding one, and the reader
 browser from Settings → Behaviour, are not offered. A phone may hold a Reddit,
@@ -159,7 +159,7 @@ the middle narrows, the last first.
 ## The account on the right
 
 Pressing a row opens the account on the right with `?open=<id>`, which is
-where a phone's Accounts card, a phone's History tab and the Bans dashboard
+where a phone's Accounts card, a phone's History tab and the Anti Detect dashboard's Bans
 lead. A link to a retired account opens the Retired tab on it. It replaced the
 settings window on 12 Nov 2026.
 

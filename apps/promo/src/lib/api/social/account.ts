@@ -28,7 +28,7 @@ export type { AccountHealth, AccountView }
  * in use signs in inside, and which voice it drafts with. Every other account
  * is on the Reddit accounts dashboard.
  *
- * The browser itself is on the Browser profiles dashboard and the words are on
+ * The browser itself is in the Anti Detect dashboard's Profiles and the words are on
  * the Voices dashboard. Nothing here starts, stops or drives a browser.
  */
 

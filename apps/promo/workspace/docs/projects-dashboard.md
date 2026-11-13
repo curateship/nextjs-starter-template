@@ -114,7 +114,7 @@ dashboard goes back to the section and row it was on.
   Posts that need you lists failed posts and unsent drafts by project and
   network, each opening that network on the project's page. Messages waiting
   opens the conversation in Messages. Accounts by status opens Accounts
-  filtered to that status. Bans opens the Bans dashboard for the project and
+  filtered to that status. Bans opens the Anti Detect dashboard's Bans for the project and
   the last 30 days. Archive room opens the project's Archive.
 - **Projects:** each project's name, accounts, Posts and Last post, pinned
   first, with "3 banned" when a counted ban hit its accounts in the last 30
@@ -158,8 +158,13 @@ with the left page in `projects-page-panel.tsx`, its blocks in
 `projects-blocks.tsx`, Overview in `projects-overview.tsx` and one file per
 section beside them. The records on the right are `account-record.tsx`,
 `voice-record.tsx`, the Archive's `archive-item-panel.tsx`, and the project
-summary and conversation inside their sections. The page's server is
-`src/server/social/projects-dashboard.ts`.
+summary (grey cards: What it makes, Networks, Archive, as the shell's
+records are) and conversation inside their sections. The page's server is
+`src/server/social/projects-dashboard.ts`. The Dashboards and Projects blocks and the left
+page panel are drawn by `src/components/dashboard-page/`, which [the Anti
+Detect dashboard](anti-detect-dashboard.md) shares; `projects-blocks.tsx` and
+`projects-page-panel.tsx` only name the Projects dashboard's sections, blocks
+and endpoints.
 
 ## A project's own page
 

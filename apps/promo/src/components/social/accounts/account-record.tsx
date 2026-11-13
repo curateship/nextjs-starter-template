@@ -293,7 +293,7 @@ export function AccountRecord({
               label="Runs on"
               value={
                 row.profile ? (
-                  <Link to="/admin/profiles" search={{ open: row.profile.id }} className="hover:underline">
+                  <Link to="/admin/anti-detect" search={{ section: "profiles", open: row.profile.id }} className="hover:underline">
                     {row.profile.name}
                   </Link>
                 ) : row.phone ? (

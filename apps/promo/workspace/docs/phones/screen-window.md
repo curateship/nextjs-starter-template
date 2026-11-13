@@ -1,7 +1,7 @@
 # A phone's screen
 
 Any phone's live screen, inside Promo: the **Screen** tab, first of the open
-phone's tabs on its rack's page ([the Racks dashboard](racks-dashboard.md)),
+phone's tabs in the Anti Detect dashboard's Phones ([the Anti Detect dashboard's Phones](racks-dashboard.md)),
 and the bigger window that **Open the bigger screen** in the phone's ⋮ opens.
 Both draw the same screen. It is for watching jobs and tapping through a
 sign-in by hand, with the codes a sign-in asks for beside it.
@@ -9,8 +9,8 @@ sign-in by hand, with the codes a sign-in asks for beside it.
 ## Only while it is on screen
 
 Tyler, 5 Nov 2026 (Racks dashboard, part 108): the screen lives in the right
-panel now, and a rack's page keeps every panel drawn, hiding two below
-1280px.
+panel now, which is the open phone on the Anti Detect dashboard's Phones
+since a rack's own page went on 12 Nov 2026.
 
 - **It asks for pictures only while it is on screen**: in the page, with some
   size, and the browser tab in front. A hidden panel, a shut one, another tab
@@ -61,6 +61,11 @@ Tyler's choice, 14 Oct 2026: pictures a few times a second rather than video.
   command cannot send emoji or accented letters.
 
 ## Sign-in codes
+
+The Sign-in codes card shows only while there is a code to show; with none
+it is not drawn at all, on the right panel or in the bigger window (Tyler,
+12 Nov 2026: "this doesnt need to be here. it should appear when it needs to
+be").
 
 - **Authenticator codes.** Each account on the phone with an authenticator
   secret saved shows its current six digits, the seconds left, and Copy. The

@@ -1,11 +1,10 @@
 import * as React from "react"
-import { CheckIcon, CloudIcon, InfoIcon, Loader2Icon, RefreshCwIcon, Trash2Icon, XIcon } from "lucide-react"
+import { CheckIcon, CloudIcon, InfoIcon, Loader2Icon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { PanelCard } from "@/components/shared/panel-card"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { PhoneSectionCard } from "@/components/phones/phone-section-card"
 import { checkIcloud, getPhoneHealthErrorMessage, loadIcloudState, type IcloudState } from "@/lib/api/phones/health"
-import { getPhoneErrorMessage, runSetupCheck, wipePhone, type PhoneRecord } from "@/lib/api/phones/phones"
+import type { PhoneRecord } from "@/lib/api/phones/phones"
 import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import { storeWords } from "@/lib/phones/options"
 import type { SeenVerdict, SetupVerdict } from "@/lib/phones/setup-check"
@@ -35,8 +34,7 @@ export function PhoneSetupPanel({
   /** The check or the wipe was asked for, so the list is read again. */
   onChanged: () => Promise<void>
 }) {
-  const [busy, setBusy] = React.useState<null | "check" | "wipe" | "icloud">(null)
-  const [confirming, setConfirming] = React.useState(false)
+  const [busy, setBusy] = React.useState<null | "icloud">(null)
   const [icloud, setIcloud] = React.useState<IcloudState | null | undefined>(undefined)
   const check = phone.setupCheck
   const iphone = phone.kind === "iphone"
@@ -58,22 +56,9 @@ export function PhoneSetupPanel({
     }
   }, [iphone, phone.id, phone.setupChecking, phone.wipedAt])
 
-  const checking = busy === "check" || phone.setupChecking
   const setUpSinceWipe = Boolean(
     phone.wipedAt && check?.passed && new Date(check.checkedAt).getTime() > new Date(phone.wipedAt).getTime()
   )
-
-  async function askCheck() {
-    setBusy("check")
-    try {
-      await runSetupCheck(phone.id)
-      await onChanged()
-    } catch (error) {
-      showErrorToast(getPhoneErrorMessage(error))
-    } finally {
-      setBusy(null)
-    }
-  }
 
   async function askIcloud() {
     setBusy("icloud")
@@ -87,23 +72,10 @@ export function PhoneSetupPanel({
     }
   }
 
-  async function wipe() {
-    setBusy("wipe")
-    try {
-      await wipePhone(phone.id)
-      setConfirming(false)
-      await onChanged()
-    } catch (error) {
-      showErrorToast(getPhoneErrorMessage(error))
-    } finally {
-      setBusy(null)
-    }
-  }
-
   return (
     <div className="grid min-w-0 gap-3">
       {phone.addressStop ? (
-        <PanelCard storageId="promo-phone-setup-stopped-for-showing-the-wrong-address" title="Stopped for showing the wrong address" className="border-destructive/50">
+        <PhoneSectionCard storageId="promo-phone-setup-stopped-for-showing-the-wrong-address" title="Stopped for showing the wrong address" className="border-destructive/50">
           <div className="grid gap-2 text-sm">
             <p>{phone.addressStop.words}</p>
             <p className="text-muted-foreground">
@@ -111,10 +83,10 @@ export function PhoneSetupPanel({
               on the phone back on, then check again: the stop lifts once the proxy&apos;s address shows.
             </p>
           </div>
-        </PanelCard>
+        </PhoneSectionCard>
       ) : null}
 
-      <PanelCard storageId="promo-phone-setup-setup-check" title="Setup check">
+      <PhoneSectionCard storageId="promo-phone-setup-setup-check" title="Setup check">
           {check ? (
             <>
               <ul className="grid gap-3">
@@ -135,20 +107,14 @@ export function PhoneSetupPanel({
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Not checked yet. Check now asks the rack to read the phone&apos;s Wi-Fi, location
+              Not checked yet. Check the setup, in the ⋮, asks the rack to read the phone&apos;s Wi-Fi, location
               permissions, clock, language and {storeWords(phone.kind).replace(/^the /, "")} setting,
               and the address apps see.
             </p>
           )}
-          <div>
-            <Button type="button" variant="outline" size="sm" disabled={checking} onClick={() => void askCheck()}>
-              {checking ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-              {checking ? "Checking" : "Check now"}
-            </Button>
-          </div>
-        </PanelCard>
+        </PhoneSectionCard>
 
-      <PanelCard storageId="promo-phone-setup-what-the-platform-sees" title="What the platform sees">
+      <PhoneSectionCard storageId="promo-phone-setup-what-the-platform-sees" title="What the platform sees">
           {check ? (
             <ul className="grid gap-3">
               {check.seen.map((line) => (
@@ -165,9 +131,9 @@ export function PhoneSetupPanel({
           ) : (
             <p className="text-sm text-muted-foreground">Read with the setup check.</p>
           )}
-        </PanelCard>
+        </PhoneSectionCard>
 
-      <PanelCard storageId="promo-phone-setup-wiping" title="Wiping">
+      <PhoneSectionCard storageId="promo-phone-setup-wiping" title="Wiping">
           <p className="text-sm text-muted-foreground">{wipeWords(phone, setUpSinceWipe)}</p>
           {iphone ? (
             <p className="text-sm text-muted-foreground">
@@ -176,33 +142,18 @@ export function PhoneSetupPanel({
               the screen window, then press Check iCloud.
             </p>
           ) : null}
-          <div className="flex flex-wrap gap-2">
-            {iphone ? (
+          {/* Wipe the phone is at the foot of the ⋮ (Tyler, 12 Nov 2026: "move these 2 function as well");
+              an iPhone's Check iCloud stays here, beside the answer it reads. */}
+          {iphone ? (
+            <div>
               <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void askIcloud()}>
                 {busy === "icloud" ? <Loader2Icon className="animate-spin" /> : <CloudIcon />}
                 Check iCloud
               </Button>
-            ) : null}
-            <Button type="button" variant="destructive" disabled={busy !== null} onClick={() => setConfirming(true)}>
-              <Trash2Icon />
-              Wipe the phone
-            </Button>
-          </div>
-        </PanelCard>
+            </div>
+          ) : null}
+        </PhoneSectionCard>
 
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={`Wipe ${phone.name}?`}
-        description={
-          iphone
-            ? "The rack walks Settings to Erase All Content and Settings and presses it: every app, account, photo and setting on it is erased. It goes only if the rack read the phone as signed out of iCloud since its last wipe. Afterwards it is held while you set it up by hand (tap Trust this computer, sign in to an Apple ID, put the apps on from the App Store), then release it and run its setup check. It takes an account again once that check passes."
-            : "The rack factory-resets it: every app, account, photo and setting on it is erased, and USB debugging goes off. Afterwards it is held while you set it up by hand (USB debugging, Google, the apps), then release it and run its setup check. It takes an account again once that check passes."
-        }
-        confirmLabel="Wipe the phone"
-        loading={busy === "wipe"}
-        onConfirm={() => void wipe()}
-      />
     </div>
   )
 }

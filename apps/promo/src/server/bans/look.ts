@@ -107,7 +107,7 @@ export async function finishBanLook(
       targetId: input.accountId,
       message: `Looks back: ${who}. Let it run again?`,
       detail: `${who} looks back. Let it run again? This week's look opened ${app} and found no ban screen. It stays stopped until you press Let it run again in its settings on the Accounts dashboard.`,
-      href: `/admin/bans?open=${encodeURIComponent(input.banId)}`,
+      href: `/admin/anti-detect?section=bans&open=${encodeURIComponent(input.banId)}`,
     },
     db,
     now

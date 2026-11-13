@@ -23,9 +23,12 @@ an app wide feature, not just a reddit feature."
 | `src/server/browser/` | The isolated browser and everything it needs: the proxy, profile and session tables, proxy testing and the guard against inside addresses, making a profile, Docker, the typed command client, opening, closing and watching a browser, the limit on how many are open (`settings.ts`), and backups (`backups.ts`). It knows nothing about any network. |
 | `src/server/social/` | The accounts, saved keywords, the job queue with one lane per profile, the runner that takes a job to its account, its profile and its browser, AI drafting, and the regular upkeep. |
 | `src/lib/social/` | What both halves of the app need at runtime: statuses, job kinds, proxy kinds, the comment length cap, and the wordings. |
-| `src/lib/browser/` | The Proxies and Browser profiles dashboards' wordings, the bounds of the browser settings, and how the bell draws a dead-proxy notice. |
+| `src/lib/browser/` | The browser profiles' and proxies' wordings, the bounds of the browser settings, and how the bell draws a dead-proxy notice. |
 | `src/lib/api/browser/` | The two dashboards' endpoints and the Browsers tab's. Open, close, restart, check, backup and restore never touch a browser; each writes a job. |
-| `src/components/browser/` | The Proxies and Browser profiles dashboards, their windows, the browser window inside the app, and the Browsers tab in Settings. |
+| `src/components/browser/` | The profile and proxy forms, the New profile and New proxy windows, the browser window inside the app, and the Browsers tab in Settings. |
+| `src/components/anti-detect/` | The Anti Detect dashboard: its frame, left page, Overview, the Profiles, Proxies, Racks and Bans sections, and the profile and proxy records on the right ([the Anti Detect dashboard](anti-detect-dashboard.md)). |
+| `src/components/dashboard-page/` | What the Projects and Anti Detect dashboards share: the Dashboards and Projects blocks, the left page panel, Filter's rows and a summary's fact rows. |
+| `src/lib/anti-detect/` | The Anti Detect dashboard's address, page blocks and widgets, what a project reaches, and its rows' wordings. |
 | `src/server/social/voices.ts` | Voices: the words the AI is told, shared by any number of accounts on any network. |
 | `src/lib/api/social/account.ts` | Settings → Reddit account's endpoints, for the oldest account in use. |
 | `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account on every platform as a list, with its status and platform, and the actions on ticked rows: the Projects dashboard's Accounts section. |
@@ -150,9 +153,9 @@ on, belonging to no network.
 | Folder | What is in it |
 | --- | --- |
 | `src/server/phones/` | The phones as records, the rack's side (pairing, signed messages, check-ins, the action queue), sending a job's step to a phone (`dispatch.ts`), health and the bell, the self-test, step pictures, the setup check and the Wi-Fi address guard (`setup.ts`), and wiping (`wipe.ts`). |
-| `src/lib/phones/` | The phone farm's fixed lists and words, the setup check's lines (`setup-check.ts`) and the rack mix (`rack-mix.ts`). |
-| `src/lib/api/phones/` | The Racks dashboard's and each rack's page's endpoints. None of them talks to a phone; each writes an action the rack picks up. |
-| `src/components/phones/` | The Racks dashboard, a rack's three-panel page with its panels, cards and "/" notes, a phone's tabs and screen, and the Self-test window. |
+| `src/lib/phones/` | The phone farm's fixed lists and words, and the setup check's lines (`setup-check.ts`). |
+| `src/lib/api/phones/` | The phones' and racks' endpoints, `loadPhonesPage` reading every one at once. None of them talks to a phone; each writes an action the rack picks up. |
+| `src/components/phones/` | A rack's three-panel page with its panels, cards and "/" notes, a phone's tabs and screen, and the Self-test window. |
 | `rack/` | The program on the computer at home that drives the phones over adb: `promo_rack.py`, with every action, the Reddit app's steps, and the hands that tap, swipe and type like a person. The second file, beside `docker/browser/routines/reddit.py`, that knows how Reddit is put together: this one for the Reddit app. |
 
 What ties an account to a phone, and the rules for important and throwaway

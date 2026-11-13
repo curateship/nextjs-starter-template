@@ -20,7 +20,7 @@ export function describePromoNotice(notice: NoticeToLink): AppNoticeDetail | nul
   if (notice.type !== "app_activity") return null
   if (notice.message === RACK_PAUSED_NOTICE) {
     return {
-      href: "/admin/racks",
+      href: "/admin/anti-detect?section=phones",
       icon: PauseCircleIcon,
       toneClassName: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     }
@@ -30,7 +30,7 @@ export function describePromoNotice(notice: NoticeToLink): AppNoticeDetail | nul
   // open comes from the server, through `detailsFor` in `src/app/options.ts`.
   if (!notice.message?.startsWith(PROXY_NOTICE_PREFIX)) return promoNoticeLook(notice)
   return {
-    href: `/admin/proxies?open=${encodeURIComponent(notice.id)}`,
+    href: `/admin/anti-detect?section=proxies&open=${encodeURIComponent(notice.id)}`,
     icon: GlobeIcon,
     toneClassName: "bg-destructive/10 text-destructive",
   }

@@ -67,7 +67,7 @@ function normaliseCode(code: string): string {
 }
 
 /**
- * A rack, made by a person on the Racks dashboard with a name and a
+ * A rack, made by a person with New rack in the Anti Detect dashboard's Racks block with a name and a
  * description (Tyler, 5 Nov 2026: "Rack dashboard > create rack > enter name,
  * discription"). It has no key until the rack program spends a code made for
  * it, so nothing can sign as it yet.
@@ -285,7 +285,7 @@ export async function verifyRackRequest(
     .from(promoRacks)
     .where(eq(promoRacks.id, rackId))
     .limit(1)
-  // A rack made on the Racks dashboard has no key until it pairs, so nothing can sign as it.
+  // A rack made with New rack in the Anti Detect dashboard's Racks block has no key until it pairs, so nothing can sign as it.
   if (!rack || !rack.keyEncrypted) throw new RackRefusal(401, "This rack is not paired with Promo.")
   if (rack.disconnectedAt) {
     throw new RackRefusal(401, "This rack was disconnected in Promo. Install it again with a new code from the rack's page.")

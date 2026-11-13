@@ -16,7 +16,7 @@ const pairShape = z.object({
 /**
  * The rack program swaps a one-time code, made on a rack's page, for that
  * rack's key, once. The name the program sends is not used: the rack keeps
- * the name a person gave it on the Racks dashboard. Not signed, because the rack has no key yet: the code is
+ * the name a person gave it with New rack in the Anti Detect dashboard's Racks block. Not signed, because the rack has no key yet: the code is
  * the proof, and it works once, for fifteen minutes, with ten tries per
  * address per fifteen minutes. The key goes back over HTTPS in this answer
  * and is never shown again.
