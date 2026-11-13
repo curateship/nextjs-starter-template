@@ -1,5 +1,4 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import {
   DndContext,
   KeyboardSensor,
@@ -18,7 +17,6 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-  ChevronDownIcon,
   EyeIcon,
   EyeOffIcon,
   FilmIcon,
@@ -33,41 +31,28 @@ import {
   PlayIcon,
   PlusIcon,
   SettingsIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import {
-  DashboardToolbarButton,
-  DashboardToolbarSearch,
-  DashboardToolbarSelectTrigger,
-} from "@/components/shared/dashboard-toolbar"
+import { TableCell } from "@/components/ui/table"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
+import { PanelCard } from "@/components/shared/panel-card"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import {
-  AdminListTable,
-  AdminSelectCell,
-  useAdminList,
-} from "@/components/pomodoro/admin-list"
-import {
-  AdminBulkDeleteButton,
-  AdminDeleteConfirm,
-  AdminRowDeleteButton,
-  useAdminDelete,
-} from "@/components/pomodoro/admin-delete"
+import { Chip, MainCell } from "@/components/crm/crm-table"
+import { AdminListTable, AdminRow, useAdminList, useMassSelectOn } from "@/components/pomodoro/admin-list"
+import { AdminDeleteConfirm, useAdminDelete } from "@/components/pomodoro/admin-delete"
+import { DetailRecord, NoRecord } from "@/components/pomodoro/flowfly/detail-record"
+import { FilterPick } from "@/components/pomodoro/flowfly/filter-pick"
 import { AdminCatalogDialog } from "@/components/pomodoro/admin-catalog-dialog"
 import { SoundWave } from "@/components/pomodoro/sound-wave"
 import { AdminCatalogImportDialog } from "@/components/pomodoro/admin-catalog-import-dialog"
@@ -89,13 +74,10 @@ import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
-import {
-  useListSearchNavigate,
-  useListSort,
-  useSearchBoxText,
-} from "@/lib/nav/list-search"
+import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
 import {
   CATALOG_BULK_ACCEPT,
+  CATALOG_LICENCES,
   CATALOG_BULK_MAX,
   DESCRIPTOR_LABELS,
   formatClock,
@@ -112,32 +94,29 @@ import { isYoutubeClipImport } from "@/lib/pomodoro/youtube-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The Themes and Sounds dashboards, one component for both. See
- * `workspace/docs/catalog-admin.md`.
+ * Library → Backgrounds and Library → Sounds on the Flowfly dashboard, one
+ * component for both (Tyler, 13 Nov 2026: "the backgrounds, sound, ai
+ * generations and members upload can be in one dashboard. We just need
+ * filtering and tabs to seperate them"). See `workspace/docs/catalog-admin.md`.
  *
  * A row is one item, Draft or Live, with its picture, whether it is free or
- * Pro, and how many personal rooms and open rooms have it. Its name or its cog
- * opens the window; the bin deletes it. Ticked rows can be made Free, Pro,
- * Draft or Live in one press. Rows drag into the order members see while the
- * list is in that order with every item on one page.
+ * Pro, and how many personal rooms and open rooms have it. It opens on the
+ * right with its picture or sound, its details, files and credits, and Make
+ * live or Back to draft at the foot; Change opens the window that edits
+ * them. Ticked rows can be made Free, Pro, Draft or Live in one press. With
+ * Select on and the list in members' order on one page, rows drag into the
+ * order members see. New, Upload several and the imports are the New
+ * button's dropdown.
  */
 
 const COLUMNS: TableHeaderColumn<CatalogSortColumn>[] = [
   { key: "name", label: "Name", column: "main" },
   { key: "status", label: "Status", column: "meta" },
-  { key: "chosen", label: "Chosen by", column: "meta" },
-  {
-    key: "added",
-    label: "Added",
-    column: "meta",
-    className: "hidden 2xl:table-cell",
-  },
+  { key: "chosen", label: "Chosen by", column: "meta", className: "hidden md:hidden @2xl:table-cell" },
+  { key: "added", label: "Added", column: "meta", className: "hidden md:hidden @4xl:table-cell" },
 ]
 
-const WORDS: Record<
-  CatalogKind,
-  { title: string; one: string; many: string; create: string }
-> = {
+const WORDS: Record<CatalogKind, { title: string; one: string; many: string; create: string }> = {
   theme: { title: "Backgrounds", one: "background", many: "backgrounds", create: "New background" },
   sound: { title: "Sounds", one: "sound", many: "sounds", create: "New sound" },
 }
@@ -166,7 +145,6 @@ export function AdminCatalogDashboard({
   initialTags: string[]
 }) {
   const words = WORDS[kind]
-  const navigate = useNavigate()
   const setListSearch = useListSearchNavigate()
   const query = search.q ?? ""
   const status = search.status ?? "all"
@@ -180,49 +158,16 @@ export function AdminCatalogDashboard({
     (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
     [setListSearch]
   )
-  const setOpen = React.useCallback(
-    (id: string | undefined) => {
-      // Not `replace`: Back closes the window, the way every record window does.
-      void navigate({
-        to: ".",
-        search: (previous: Record<string, unknown>) => {
-          const next = { ...previous }
-          if (id) next.open = id
-          else delete next.open
-          return next
-        },
-      })
-    },
-    [navigate]
-  )
+  // The item window: an item's id, "new", or shut.
+  const [windowFor, setWindowFor] = React.useState<string | undefined>(undefined)
 
   const selection = useSelection()
-  const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
-    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
-  )
 
   const load = React.useCallback(
-    (pageSize: number) =>
-      listCatalogItems({
-        kind,
-        search: query,
-        status,
-        access,
-        tag,
-        sort,
-        direction,
-        page,
-        pageSize,
-      }),
+    (pageSize: number) => listCatalogItems({ kind, search: query, status, access, tag, sort, direction, page, pageSize }),
     [access, direction, kind, page, query, sort, status, tag]
   )
-  const list = useAdminList({
-    initial,
-    initialPageSize,
-    page,
-    onPageChange: setPage,
-    load,
-  })
+  const list = useAdminList({ initial, initialPageSize, page, onPageChange: setPage, load })
   const toggleSort = useListSort<CatalogSortColumn>({ sort, direction }, (column) =>
     column === "chosen" || column === "added" ? "desc" : "asc"
   )
@@ -236,7 +181,6 @@ export function AdminCatalogDashboard({
     return dragOrder.flatMap((id) => byId.get(id) ?? [])
   }, [dragOrder, list.rows])
   const rowIds = React.useMemo(() => rows.map((row) => row.id), [rows])
-  const selectedIds = rowIds.filter((id) => selection.selected.has(id))
 
   const canDrag =
     sort === "position" &&
@@ -260,13 +204,11 @@ export function AdminCatalogDashboard({
   const [bulkBusy, setBulkBusy] = React.useState<BulkAction | "upload" | null>(null)
   // One running action holds every other button on the list until it ends.
   const busy = bulkBusy !== null || del.deleting
-  const runBulk = async (action: BulkAction) => {
+  const runBulk = async (ids: string[], action: BulkAction) => {
     setBulkBusy(action)
     try {
       const result: CatalogBulkResult =
-        action === "free" || action === "pro"
-          ? await setCatalogLocked(selectedIds, action === "pro")
-          : await setCatalogStatus(selectedIds, action)
+        action === "free" || action === "pro" ? await setCatalogLocked(ids, action === "pro") : await setCatalogStatus(ids, action)
       const line = describeBulkResult({
         done: result.changed.length,
         same: result.same.length,
@@ -274,8 +216,7 @@ export function AdminCatalogDashboard({
         one: words.one,
         many: words.many,
         verb: BULK_VERB[action],
-        keptReason:
-          action === "live" ? "missing a picture or a file" : "already gone",
+        keptReason: action === "live" ? "missing a picture or a file" : "already gone",
       })
       if (!result.changed.length && !result.same.length) showErrorToast(line)
       selection.clear()
@@ -341,11 +282,7 @@ export function AdminCatalogDashboard({
   const onDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const next = arrayMove(
-      rowIds,
-      rowIds.indexOf(String(active.id)),
-      rowIds.indexOf(String(over.id))
-    )
+    const next = arrayMove(rowIds, rowIds.indexOf(String(active.id)), rowIds.indexOf(String(over.id)))
     setDragOrder(next)
     try {
       await reorderCatalog(kind, next)
@@ -358,6 +295,7 @@ export function AdminCatalogDashboard({
   }
 
   const preview = usePreviewAudio()
+  const filterCount = (status !== "all" ? 1 : 0) + (access !== "all" ? 1 : 0) + (tag ? 1 : 0)
 
   return (
     // Outside the table: the drag library adds its own hidden notes for screen
@@ -370,123 +308,82 @@ export function AdminCatalogDashboard({
       onDragEnd={(event) => void onDragEnd(event)}
     >
       <AdminListTable
-        title={words.title}
-        icon={kind === "theme" ? <ImageIcon /> : <MusicIcon />}
         noun={words.many}
         columns={COLUMNS}
         sort={sort}
         direction={direction}
         onSort={toggleSort}
-        trailing={<TableHead column="meta">Actions</TableHead>}
         selection={{ noun: words.many, rowIds, state: selection }}
         list={list}
         page={page}
         onPageChange={setPage}
-        controls={
+        search={{
+          name: `${kind}-search`,
+          label: `Search ${words.many}`,
+          placeholder: "Search name",
+          value: query,
+          onChange: (text) => setListSearch({ q: text.trim() ? text : undefined, page: undefined }),
+        }}
+        filter={{
+          count: filterCount,
+          onClear: () => setListSearch({ status: undefined, access: undefined, tag: undefined, page: undefined }),
+          children: (
+            <>
+              <FilterPick
+                id={`${kind}-status`}
+                label="Status"
+                value={status === "all" ? undefined : status}
+                any="Draft and Live"
+                options={[
+                  ["live", "Live"],
+                  ["draft", "Draft"],
+                ]}
+                onChange={(next) => setListSearch({ status: next, page: undefined })}
+              />
+              <FilterPick
+                id={`${kind}-access`}
+                label="Free or Pro"
+                value={access === "all" ? undefined : access}
+                any="Free and Pro"
+                options={[
+                  ["free", "Free"],
+                  ["pro", "Pro"],
+                ]}
+                onChange={(next) => setListSearch({ access: next, page: undefined })}
+              />
+              {tags.length ? (
+                <FilterPick
+                  id={`${kind}-tag`}
+                  label="Tag"
+                  value={tag ?? undefined}
+                  any="Any tag"
+                  options={tags.map((value) => [value, value])}
+                  onChange={(next) => setListSearch({ tag: next, page: undefined })}
+                />
+              ) : null}
+            </>
+          ),
+        }}
+        footnote={
+          canDrag ? undefined : (
+            <>
+              Rows drag into the order members see while the list is in that order, unfiltered and on one page.{" "}
+              {sort !== "position" || direction !== "asc" ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  onClick={() => setListSearch({ sort: undefined, direction: undefined, page: undefined })}
+                >
+                  Show members' order
+                </Button>
+              ) : null}
+            </>
+          )
+        }
+        primary={
           <>
-            {selectedIds.length ? (
-              <>
-                <AdminBulkDeleteButton del={del} ids={selectedIds} busy={busy} />
-                <BulkButton
-                  icon={<LockOpenIcon className="size-4" />}
-                  label="Free"
-                  running={bulkBusy}
-                  disabled={busy}
-                  action="free"
-                  onClick={() => void runBulk("free")}
-                />
-                <BulkButton
-                  icon={<LockIcon className="size-4" />}
-                  label="Pro"
-                  running={bulkBusy}
-                  disabled={busy}
-                  action="pro"
-                  onClick={() => void runBulk("pro")}
-                />
-                <BulkButton
-                  icon={<EyeOffIcon className="size-4" />}
-                  label="Draft"
-                  running={bulkBusy}
-                  disabled={busy}
-                  action="draft"
-                  onClick={() => void runBulk("draft")}
-                />
-                <BulkButton
-                  icon={<EyeIcon className="size-4" />}
-                  label="Live"
-                  running={bulkBusy}
-                  disabled={busy}
-                  action="live"
-                  onClick={() => void runBulk("live")}
-                />
-              </>
-            ) : null}
-            <DashboardToolbarSearch
-              name={`${kind}-search`}
-              aria-label={`Search ${words.many}`}
-              placeholder="Search name…"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-            />
-            <Select
-              value={status}
-              onValueChange={(value) =>
-                setListSearch({
-                  status: value === "all" ? undefined : value,
-                  page: undefined,
-                })
-              }
-            >
-              <DashboardToolbarSelectTrigger aria-label="Filter by Draft or Live">
-                <SelectValue placeholder="Status" />
-              </DashboardToolbarSelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Draft and Live</SelectItem>
-                <SelectItem value="live">Live</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={access}
-              onValueChange={(value) =>
-                setListSearch({
-                  access: value === "all" ? undefined : value,
-                  page: undefined,
-                })
-              }
-            >
-              <DashboardToolbarSelectTrigger aria-label="Filter by Free or Pro">
-                <SelectValue placeholder="Access" />
-              </DashboardToolbarSelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Free and Pro</SelectItem>
-                <SelectItem value="free">Free</SelectItem>
-                <SelectItem value="pro">Pro</SelectItem>
-              </SelectContent>
-            </Select>
-            {tags.length ? (
-              <Select
-                value={tag ?? "all"}
-                onValueChange={(value) =>
-                  setListSearch({
-                    tag: value === "all" ? undefined : value,
-                    page: undefined,
-                  })
-                }
-              >
-                <DashboardToolbarSelectTrigger aria-label="Filter by tag">
-                  <SelectValue placeholder="Tag" />
-                </DashboardToolbarSelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any tag</SelectItem>
-                  {tags.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
             <input
               ref={bulkInputRef}
               type="file"
@@ -500,134 +397,137 @@ export function AdminCatalogDashboard({
                 if (files.length) void uploadSeveral(files)
               }}
             />
-            <DashboardToolbarButton
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={() => bulkInputRef.current?.click()}
-            >
-              {bulkBusy === "upload" ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <UploadIcon className="size-4" />
-              )}
-              Upload several
-            </DashboardToolbarButton>
-            {kind === "theme" ? (
-              // Two ways in share one button so the toolbar still fits on one
-              // line at 1440px. A clip is a film, so Sounds has no menu.
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <DashboardToolbarButton type="button" variant="outline">
-                    <ImportIcon className="size-4" />
-                    Import
-                    <ChevronDownIcon className="size-4" />
-                  </DashboardToolbarButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setImporting(true)}>
-                    <ImportIcon aria-hidden="true" />
-                    Pixabay links
-                  </DropdownMenuItem>
+            {/* The one New button; the other ways in are its dropdown (Tyler's
+                pick: "New, Upload several, Import and Pixabay go in the New
+                button's dropdown"). */}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <DashboardToolbarButton type="button" disabled={busy}>
+                  {bulkBusy === "upload" ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+                  <span className="@max-3xl:sr-only">{words.create}</span>
+                </DashboardToolbarButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52">
+                <DropdownMenuItem onSelect={() => setWindowFor("new")}>
+                  <PlusIcon />
+                  {words.create}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => bulkInputRef.current?.click()}>
+                  <UploadIcon />
+                  Upload several
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setImporting(true)}>
+                  <ImportIcon />
+                  Import Pixabay links
+                </DropdownMenuItem>
+                {kind === "theme" ? (
                   <DropdownMenuItem onSelect={() => setClipping(true)}>
-                    <FilmIcon aria-hidden="true" />
-                    YouTube clip
+                    <FilmIcon />
+                    Import a YouTube clip
                   </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              // "Pixabay" on its face so the toolbar fits on one line at
-              // 1440px; its name for a screen reader says what it does.
-              <DashboardToolbarButton
-                type="button"
-                variant="outline"
-                aria-label="Import from Pixabay"
-                onClick={() => setImporting(true)}
-              >
-                <ImportIcon className="size-4" />
-                Pixabay
-              </DashboardToolbarButton>
-            )}
-            <DashboardToolbarButton type="button" onClick={() => setOpen("new")}>
-              <PlusIcon className="size-4" />
-              {words.create}
-            </DashboardToolbarButton>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+        bulk={(ids, menu) => {
+          const run = (work: () => void) => () => {
+            menu.close()
+            work()
+          }
+          return (
+            <>
+              <SelectedMenuRow onClick={run(() => void runBulk(ids, "live"))}>
+                <EyeIcon className="size-4" />
+                Make live
+              </SelectedMenuRow>
+              <SelectedMenuRow onClick={run(() => void runBulk(ids, "draft"))}>
+                <EyeOffIcon className="size-4" />
+                Back to draft
+              </SelectedMenuRow>
+              <SelectedMenuRow onClick={run(() => void runBulk(ids, "free"))}>
+                <LockOpenIcon className="size-4" />
+                Free
+              </SelectedMenuRow>
+              <SelectedMenuRow onClick={run(() => void runBulk(ids, "pro"))}>
+                <LockIcon className="size-4" />
+                Pro
+              </SelectedMenuRow>
+              <SelectedMenuSeparator />
+              <SelectedMenuRow className="text-destructive" onClick={run(() => del.ask(ids))}>
+                <Trash2Icon className="size-4" />
+                Delete
+              </SelectedMenuRow>
+            </>
+          )
+        }}
+        bulkBusy={busy}
+        rowIds={rowIds}
+        record={{
+          label: kind === "sound" ? "Sound" : "Background",
+          content: (openId) => {
+            const row = rows.find((each) => each.id === openId)
+            if (!row)
+              return (
+                <NoRecord
+                  title={kind === "sound" ? "Sound" : "Background"}
+                  icon={kind === "sound" ? <MusicIcon aria-hidden /> : <ImageIcon aria-hidden />}
+                  line={`No ${words.many} yet. ${words.create} makes one.`}
+                />
+              )
+            return (
+              <CatalogRecord
+                key={row.id}
+                kind={kind}
+                row={row}
+                busy={busy}
+                preview={preview}
+                onChange={() => setWindowFor(row.id)}
+                onStatus={(next) => void runBulk([row.id], next)}
+                onDelete={() => del.ask([row.id])}
+              />
+            )
+          },
+        }}
+        windows={
+          <>
+            <AdminCatalogDialog
+              kind={kind}
+              openId={windowFor}
+              onClose={() => setWindowFor(undefined)}
+              onSaved={async () => {
+                await list.refresh()
+                setTags(await loadCatalogTags(kind).catch(() => tags))
+              }}
+              knownTags={tags}
+              onDelete={(id) => {
+                setWindowFor(undefined)
+                del.ask([id])
+              }}
+            />
+            <AdminCatalogImportDialog kind={kind} open={importing} onClose={() => setImporting(false)} onImported={list.refresh} />
+            {kind === "theme" ? (
+              <AdminCatalogYoutubeDialog open={clipping} onClose={() => setClipping(false)} onImported={list.refresh} />
+            ) : null}
+            <AdminDeleteConfirm
+              del={del}
+              title={
+                asked.length === 1
+                  ? `Delete ${asked[0].label}?`
+                  : `Delete ${del.ids.length} ${plural(del.ids.length, words.one, words.many)}?`
+              }
+              description={describeDeletion(asked, words.one)}
+              confirmLabel={plural(del.ids.length, `Delete ${words.one}`, `Delete ${words.many}`)}
+            />
           </>
         }
       >
         <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
           {rows.map((row) => (
-            <CatalogRow
-              key={row.id}
-              kind={kind}
-              row={row}
-              canDrag={canDrag}
-              selection={selection}
-              onOpen={() => setOpen(row.id)}
-              del={del}
-              busy={busy}
-              preview={preview}
-            />
+            <CatalogRow key={row.id} kind={kind} row={row} canDrag={canDrag} onDelete={() => del.ask([row.id])} preview={preview} />
           ))}
         </SortableContext>
       </AdminListTable>
-      {canDrag ? null : (
-        <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          Rows drag into the order members see while the list is in that order,
-          unfiltered and on one page.
-          {sort !== "position" || direction !== "asc" ? (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="h-auto p-0"
-              onClick={() =>
-                setListSearch({ sort: undefined, direction: undefined, page: undefined })
-              }
-            >
-              Show members' order
-            </Button>
-          ) : null}
-        </p>
-      )}
-      <AdminCatalogDialog
-        kind={kind}
-        openId={search.open}
-        onClose={() => setOpen(undefined)}
-        onSaved={async () => {
-          await list.refresh()
-          setTags(await loadCatalogTags(kind).catch(() => tags))
-        }}
-        knownTags={tags}
-        onDelete={(id) => del.ask([id])}
-      />
-      <AdminCatalogImportDialog
-        kind={kind}
-        open={importing}
-        onClose={() => setImporting(false)}
-        onImported={list.refresh}
-      />
-      {kind === "theme" ? (
-        <AdminCatalogYoutubeDialog
-          open={clipping}
-          onClose={() => setClipping(false)}
-          onImported={list.refresh}
-        />
-      ) : null}
-      <AdminDeleteConfirm
-        del={del}
-        title={
-          asked.length === 1
-            ? `Delete ${asked[0].label}?`
-            : `Delete ${del.ids.length} ${plural(del.ids.length, words.one, words.many)}?`
-        }
-        description={describeDeletion(asked, words.one)}
-        confirmLabel={plural(
-          del.ids.length,
-          `Delete ${words.one}`,
-          `Delete ${words.many}`
-        )}
-      />
     </DndContext>
   )
 }
@@ -643,113 +543,108 @@ function describeDeletion(rows: AdminCatalogRow[], one: string) {
   return `${using} Its uploaded files are removed. This cannot be undone.`
 }
 
+/** The line under an item's name: what it is, its length, Free or Pro, its tags and any file trouble. */
+function rowLine(row: AdminCatalogRow) {
+  return [
+    DESCRIPTOR_LABELS[row.descriptor] ?? row.descriptor,
+    row.durationSeconds ? formatClock(row.durationSeconds) : null,
+    row.locked ? "Pro" : "Free",
+    row.tags.length ? row.tags.join(", ") : null,
+    fileLine(row),
+    row.status === "live" && !row.licence ? "No licence set" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
+/** The small picture at the front of a row, or a sound's drawn wave. */
+function CatalogThumb({ row }: { row: AdminCatalogRow }) {
+  if (row.kind === "sound")
+    return (
+      <span className="h-7 w-11 shrink-0 overflow-hidden rounded-md">
+        <SoundWave seed={row.key} />
+      </span>
+    )
+  return row.pictureUrl ? (
+    <img src={row.pictureUrl} alt="" className="h-7 w-11 shrink-0 rounded-md object-cover" />
+  ) : (
+    <span className="h-7 w-11 shrink-0 rounded-md bg-muted" />
+  )
+}
+
+/**
+ * One item's row. While Select is on and the list can be reordered, a grip
+ * leads it and the row drags into the order members see. The drag library
+ * holds the table row itself, found from the grip, since the shell's row
+ * takes no ref of its own.
+ */
 function CatalogRow({
   kind,
   row,
   canDrag,
-  selection,
-  onOpen,
-  del,
-  busy,
+  onDelete,
   preview,
 }: {
   kind: CatalogKind
   row: AdminCatalogRow
   canDrag: boolean
-  selection: ReturnType<typeof useSelection>
-  onOpen: () => void
-  del: ReturnType<typeof useAdminDelete>
-  /** Any action on the list is running. */
-  busy: boolean
+  onDelete: () => void
   preview: ReturnType<typeof usePreviewAudio>
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: row.id, disabled: !canDrag })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+  const selecting = useMassSelectOn()
+  const draggable = canDrag && selecting
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: row.id, disabled: !draggable })
+  const gripRef = React.useRef<HTMLButtonElement | null>(null)
+  React.useLayoutEffect(() => {
+    const tr = gripRef.current?.closest("tr")
+    if (!tr) return
+    tr.style.transform = CSS.Transform.toString(transform) ?? ""
+    tr.style.transition = transition ?? ""
+  }, [transform, transition])
   const reference: SoundReference | null =
-    kind === "sound" && row.fileUrl
-      ? { type: "curated", key: row.key, url: row.fileUrl }
-      : null
-  const previewing =
-    reference !== null &&
-    preview.previewing?.type === "curated" &&
-    preview.previewing.key === row.key
-  const playing = previewing && preview.playing
+    kind === "sound" && row.fileUrl ? { type: "curated", key: row.key, url: row.fileUrl } : null
+  const playing = reference !== null && preview.playing && preview.previewing?.type === "curated" && preview.previewing.key === row.key
 
   return (
-    <TableRow
-      ref={setNodeRef}
-      style={style}
-      className="group"
-      rowAction={onOpen}
+    <AdminRow
+      id={row.id}
+      label={row.label}
+      onDelete={onDelete}
+      buttons={
+        reference
+          ? [{ label: playing ? `Stop ${row.label}` : `Play ${row.label}`, icon: playing ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />, onPress: () => preview.toggle(reference) }]
+          : []
+      }
     >
-      <AdminSelectCell selection={selection} id={row.id} label={`Select ${row.label}`} />
-      <TableCell column="main">
-        <div className="flex min-w-0 items-center gap-3">
-          {canDrag ? (
-            <button
-              type="button"
-              className="cursor-grab text-muted-foreground active:cursor-grabbing"
-              aria-label={`Drag ${row.label} to a new place`}
-              {...attributes}
-              {...listeners}
-            >
-              <GripVerticalIcon className="size-4" />
-            </button>
-          ) : null}
-          {row.kind === "sound" ? (
-            <span className="h-9 w-14 shrink-0 overflow-hidden rounded-md">
-              <SoundWave seed={row.key} />
-            </span>
-          ) : row.pictureUrl ? (
-            <img
-              src={row.pictureUrl}
-              alt=""
-              className="h-9 w-14 shrink-0 rounded-md object-cover"
-            />
-          ) : (
-            <span className="h-9 w-14 shrink-0 rounded-md bg-muted" />
-          )}
-          <div className="min-w-0">
-            <button
-              type="button"
-              className="block max-w-80 truncate text-left text-sm font-medium group-hover:underline"
-              onClick={onOpen}
-              title={row.label}
-            >
-              {row.label}
-            </button>
-            <span className="block max-w-80 truncate text-xs text-muted-foreground">
-              {[
-                DESCRIPTOR_LABELS[row.descriptor] ?? row.descriptor,
-                row.durationSeconds ? formatClock(row.durationSeconds) : null,
-                row.locked ? "Pro" : "Free",
-                row.tags.length ? row.tags.join(", ") : null,
-                fileLine(row),
-                row.status === "live" && !row.licence ? "No licence set" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-            {waitsForPixabayFile(row) && row.sourceUrl ? (
-              <a
-                href={row.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium underline underline-offset-2"
+      <MainCell
+        name={row.label}
+        lead={
+          <>
+            {draggable ? (
+              <button
+                ref={(element) => {
+                  gripRef.current = element
+                  setNodeRef(element?.closest("tr") ?? null)
+                }}
+                type="button"
+                className="cursor-grab text-muted-foreground active:cursor-grabbing"
+                aria-label={`Drag ${row.label} to a new place`}
+                {...attributes}
+                {...listeners}
               >
-                Open on Pixabay
-              </a>
+                <GripVerticalIcon className="size-4" />
+              </button>
             ) : null}
-          </div>
-        </div>
-      </TableCell>
+            <CatalogThumb row={row} />
+          </>
+        }
+      >
+        <span className="min-w-0 truncate text-xs text-muted-foreground">{rowLine(row)}</span>
+      </MainCell>
       <TableCell column="meta">
-        <Badge variant={row.status === "live" ? "default" : "outline"}>
-          {row.status === "live" ? "Live" : "Draft"}
-        </Badge>
+        <Chip muted={row.status !== "live"}>{row.status === "live" ? "Live" : "Draft"}</Chip>
       </TableCell>
-      <TableCell column="meta">
+      <TableCell column="meta" className="hidden md:hidden @2xl:table-cell">
         {row.personalCount} {plural(row.personalCount, "person", "people")}
         {row.roomCount ? (
           <span className="text-muted-foreground">
@@ -757,34 +652,128 @@ function CatalogRow({
           </span>
         ) : null}
       </TableCell>
-      <TableCell column="mutedMeta" className="hidden 2xl:table-cell">
+      <TableCell column="mutedMeta" className="hidden md:hidden @4xl:table-cell">
         {formatDate(row.createdAt)}
       </TableCell>
-      <TableCell column="actions">
-        {reference ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-pressed={playing}
-            aria-label={playing ? `Stop ${row.label}` : `Play ${row.label}`}
-            onClick={() => preview.toggle(reference)}
-          >
-            {playing ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
+    </AdminRow>
+  )
+}
+
+/**
+ * One item on the right: its picture or its sound to play, its details,
+ * its files and its credits, with Make live or Back to draft at the foot.
+ * Change opens the item's window, which edits all of it (Tyler, 10 Oct
+ * 2026: "click title and settings cog to open modal to add/edit").
+ */
+function CatalogRecord({
+  kind,
+  row,
+  busy,
+  preview,
+  onChange,
+  onStatus,
+  onDelete,
+}: {
+  kind: CatalogKind
+  row: AdminCatalogRow
+  busy: boolean
+  preview: ReturnType<typeof usePreviewAudio>
+  onChange: () => void
+  onStatus: (next: BulkAction) => void
+  onDelete: () => void
+}) {
+  const reference: SoundReference | null =
+    kind === "sound" && row.fileUrl ? { type: "curated", key: row.key, url: row.fileUrl } : null
+  const playing = reference !== null && preview.playing && preview.previewing?.type === "curated" && preview.previewing.key === row.key
+  const live = row.status === "live"
+  return (
+    <DetailRecord
+      icon={kind === "sound" ? <MusicIcon aria-hidden /> : <ImageIcon aria-hidden />}
+      title={row.label}
+      line={rowLine(row)}
+      hideLabel={`Hide the ${kind === "sound" ? "sound" : "background"}`}
+      actions={
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" aria-label={`${row.label} menu`}>
+              <SettingsIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuItem onSelect={onChange}>
+              <SettingsIcon />
+              Change
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onStatus(row.locked ? "free" : "pro")}>
+              {row.locked ? <LockOpenIcon /> : <LockIcon />}
+              {row.locked ? "Make it free" : "Make it Pro"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+              <Trash2Icon />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+      facts={[
+        ["Status", live ? "Live" : "Draft"],
+        ["Free or Pro", row.locked ? "Pro" : "Free"],
+        ["What it is", DESCRIPTOR_LABELS[row.descriptor] ?? row.descriptor],
+        ...(row.durationSeconds ? ([["Length", formatClock(row.durationSeconds)]] as [string, string][]) : []),
+        ["Tags", row.tags.length ? row.tags.join(", ") : "None"],
+        ["Chosen by", `${row.personalCount} ${plural(row.personalCount, "person", "people")}, ${row.roomCount} open ${plural(row.roomCount, "room", "rooms")}`],
+        ["Added", formatDate(row.createdAt)],
+      ]}
+      state={live ? "Live" : "Draft"}
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onChange}>
+            <SettingsIcon />
+            Change
           </Button>
+          <Button type="button" variant={live ? "outline" : "default"} disabled={busy} onClick={() => onStatus(live ? "draft" : "live")}>
+            {live ? <EyeOffIcon /> : <EyeIcon />}
+            {live ? "Back to draft" : "Make live"}
+          </Button>
+        </>
+      }
+    >
+      <PanelCard storageId="pomodoro-flowfly-catalog-preview" icon={<EyeIcon />} title="Preview">
+        {kind === "sound" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            <span className="block h-20 overflow-hidden rounded-lg">
+              <SoundWave seed={row.key} />
+            </span>
+            {reference ? (
+              <Button type="button" variant="outline" className="justify-self-start" onClick={() => preview.toggle(reference)}>
+                {playing ? <PauseIcon /> : <PlayIcon />}
+                {playing ? "Stop" : "Play"}
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">No file yet.</p>
+            )}
+          </div>
+        ) : row.pictureUrl ? (
+          <img src={row.pictureUrl} alt="" className="aspect-video w-full rounded-lg bg-muted object-cover" />
+        ) : (
+          <p className="text-sm text-muted-foreground">No picture yet.</p>
+        )}
+      </PanelCard>
+      <PanelCard storageId="pomodoro-flowfly-catalog-files" icon={<UploadIcon />} title="Files">
+        <p className="text-sm text-muted-foreground">{fileLine(row) ?? (row.fileUrl || row.pictureUrl ? "Ready." : "No file yet.")}</p>
+        {waitsForPixabayFile(row) && row.sourceUrl ? (
+          <a href={row.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline underline-offset-2">
+            Open on Pixabay
+          </a>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`Settings for ${row.label}`}
-          onClick={onOpen}
-        >
-          <SettingsIcon className="size-4" />
-        </Button>
-        <AdminRowDeleteButton del={del} id={row.id} label={`Delete ${row.label}`} busy={busy} />
-      </TableCell>
-    </TableRow>
+      </PanelCard>
+      <PanelCard storageId="pomodoro-flowfly-catalog-credits" icon={<ImportIcon />} title="Credits">
+        <p className="text-sm text-muted-foreground">
+          {row.licence ? (CATALOG_LICENCES.find((licence) => licence.value === row.licence)?.label ?? row.licence) : "No licence set."}
+        </p>
+      </PanelCard>
+    </DetailRecord>
   )
 }
 
@@ -800,33 +789,4 @@ function fileLine(row: AdminCatalogRow) {
     return row.fileError ? `File refused: ${row.fileError}` : "File refused"
   if (waitsForPixabayFile(row)) return "Needs the file from Pixabay"
   return null
-}
-
-function BulkButton({
-  icon,
-  label,
-  action,
-  running,
-  disabled,
-  onClick,
-}: {
-  icon: React.ReactNode
-  label: string
-  action: BulkAction
-  /** The toolbar action waiting on the server; only its own button spins. */
-  running: BulkAction | "upload" | null
-  disabled: boolean
-  onClick: () => void
-}) {
-  return (
-    <DashboardToolbarButton
-      type="button"
-      variant="outline"
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {running === action ? <Loader2Icon className="size-4 animate-spin" /> : icon}
-      {label}
-    </DashboardToolbarButton>
-  )
 }

@@ -516,7 +516,7 @@ export async function markRoomNoticesRead(
 }
 
 /** Where a report notice leads: the queue every report lands in. */
-export const REPORT_QUEUE_PAGE = "/admin/pomodoro-reports"
+export const REPORT_QUEUE_PAGE = "/admin/flowfly?section=safety"
 
 /**
  * The accounts that work the report queue: every active admin.

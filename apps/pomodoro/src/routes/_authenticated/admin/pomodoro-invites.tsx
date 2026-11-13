@@ -1,61 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminInvitesDashboard } from "@/components/pomodoro/admin-invites-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getRoomsAdminErrorMessage,
-  loadPomodoroInvitesPage,
-} from "@/lib/api/pomodoro/admin-rooms"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
-import {
-  INVITE_SORT_COLUMNS,
-  INVITE_STATUS_FILTERS,
-  readMemberSearch,
-} from "@/lib/pomodoro/admin-lists"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
-type InvitesSearch = {
-  /** The member window open over the list (admin task 06). */
-  member?: string
-  q?: string
-  status?: (typeof INVITE_STATUS_FILTERS)[number]
-  sort?: (typeof INVITE_SORT_COLUMNS)[number]
-  direction?: "asc" | "desc"
-  page?: number
-}
-
-function readInvitesSearch(search: Record<string, unknown>): InvitesSearch {
-  return {
-    ...readMemberSearch(search),
-    q: readSearchText(search.q),
-    status: readOneOf(search.status, INVITE_STATUS_FILTERS),
-    sort: readOneOf(search.sort, INVITE_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    page: readPage(search.page),
-  }
-}
-
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-invites")({
-  validateSearch: readInvitesSearch,
-  // The member window is not the list, so opening it never reloads the page.
-  loaderDeps: ({ search: { member: _member, ...list } }) => list,
-  loader: ({ deps }) =>
-    loadPomodoroInvitesPage({
-      search: deps.q ?? "",
-      status: deps.status ?? "all",
-      sort: deps.sort ?? "created",
-      direction: deps.direction ?? "desc",
-      page: deps.page ?? 1,
-    }),
-  component: AdminPomodoroInvitesRoute,
-  errorComponent: routeErrorComponent(getRoomsAdminErrorMessage),
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-invites", location.search as Record<string, unknown>),
+      replace: true,
+    })
+  },
 })
-
-function AdminPomodoroInvitesRoute() {
-  const { list, pageSize } = Route.useLoaderData()
-  return <AdminInvitesDashboard initial={list} initialPageSize={pageSize} />
-}

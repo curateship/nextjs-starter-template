@@ -4,12 +4,9 @@ import { z } from "zod"
 import { createErrorMessage } from "../error-message"
 import { adminGet, adminPost } from "@/server/guards"
 import {
-  countHeldMessages,
   countLiveRooms,
   deleteChatMessages,
   liftRoomBans,
-  listChatMessages,
-  listChatRooms,
   listHiddenProfiles,
   listRoomBans,
   listSuspensions,
@@ -18,8 +15,6 @@ import {
   releaseHeldMessages,
   showHiddenProfiles,
   type AdminChatMessage,
-  type AdminChatRoomRow,
-  type AdminChatSearchRow,
   type AdminHiddenProfileRow,
   type AdminRoomBanRow,
   type AdminRoomChat,
@@ -36,20 +31,16 @@ import {
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import {
   ADMIN_PAGE_SIZE_MAX,
-  CHAT_ROOM_SORT_COLUMNS,
-  CHAT_STATUS_FILTERS,
-  CHAT_TABS,
   SAFETY_TABS,
 } from "@/lib/pomodoro/admin-lists"
 
 /**
- * The Chat dashboard and the safety tools' doors (admin task 05), every one
- * behind `adminGet` or `adminPost`. See `workspace/docs/admin-safety-tools.md`.
+ * The safety tools' and room chat's doors (admin task 05), every one behind
+ * `adminGet` or `adminPost`. The Chat page's lists went with its tab on
+ * 13 Nov 2026 (Tyler: "we dont need this tab"). See `workspace/docs/admin-safety-tools.md`.
  */
 export type {
   AdminChatMessage,
-  AdminChatRoomRow,
-  AdminChatSearchRow,
   AdminHiddenProfileRow,
   AdminRoomBanRow,
   AdminRoomChat,
@@ -63,47 +54,6 @@ export const getSafetyErrorMessage = createErrorMessage(
 
 const idsSchema = z.array(z.string().uuid()).min(1).max(ADMIN_PAGE_SIZE_MAX)
 const userIdsSchema = z.array(z.string().trim().min(1).max(36)).min(1).max(ADMIN_PAGE_SIZE_MAX)
-
-// ---------------------------------------------------------------------------
-// Chat dashboard
-// ---------------------------------------------------------------------------
-
-const chatQuerySchema = z.object({
-  tab: z.enum(CHAT_TABS).default("rooms"),
-  search: z.string().trim().max(120).default(""),
-  status: z.enum(CHAT_STATUS_FILTERS).default("all"),
-  sort: z.enum(CHAT_ROOM_SORT_COLUMNS).default("last"),
-  direction: z.enum(["asc", "desc"]).default("desc"),
-  page: z.number().int().min(1).max(10_000).default(1),
-  pageSize: z.number().int().min(5).max(ADMIN_PAGE_SIZE_MAX).default(25),
-})
-export type ChatQuery = z.input<typeof chatQuerySchema>
-
-async function readChatList(data: z.output<typeof chatQuerySchema>) {
-  if (data.tab === "rooms") return { tab: "rooms" as const, ...(await listChatRooms(data)) }
-  return {
-    tab: data.tab,
-    ...(await listChatMessages({ search: data.search, held: data.tab === "held", page: data.page, pageSize: data.pageSize })),
-  }
-}
-
-const listChatFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(chatQuerySchema)
-  .handler(({ data }) => readChatList(data))
-
-const loadChatPageFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(chatQuerySchema.omit({ pageSize: true }))
-  .handler(async ({ data }) => {
-    const pageSize = await readDashboardRowsPerPage()
-    const [list, liveRooms, held] = await Promise.all([
-      readChatList({ ...data, pageSize }),
-      countLiveRooms(),
-      countHeldMessages(),
-    ])
-    return { list, pageSize, liveRooms, held }
-  })
 
 const loadRoomChatFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -228,8 +178,6 @@ const liftFn = createServerFn({ method: "POST" })
     return result
   })
 
-export const listPomodoroChat = (data: ChatQuery) => listChatFn({ data })
-export const loadPomodoroChatPage = (data: Omit<ChatQuery, "pageSize">) => loadChatPageFn({ data })
 export const loadPomodoroRoomChat = (roomId: string) => loadRoomChatFn({ data: { roomId } })
 export const deletePomodoroMessages = (ids: string[]) => deleteMessagesFn({ data: { ids } })
 export const releasePomodoroMessages = (ids: string[]) => releaseMessagesFn({ data: { ids } })

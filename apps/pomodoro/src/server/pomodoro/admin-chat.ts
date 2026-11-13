@@ -27,16 +27,14 @@ import {
   rooms,
 } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
-import type {
-  CHAT_STATUS_FILTERS,
-  ChatRoomSortColumn,
-} from "@/lib/pomodoro/admin-lists"
 import { PROFILE_RESTORED_MESSAGE } from "@/lib/pomodoro/notices"
 
 /**
- * The Chat dashboard and the bans page (admin task 05): every room's chat,
- * the held lines, a search across all of it, one line to every live room,
- * and the lists of room bans, hidden profiles and suspensions with Lift. See
+ * Room chat moderation and the bans lists (admin task 05): one room's chat
+ * for its record on Flowfly, deleting or letting through lines, one line to
+ * every live room, and the lists of room bans, hidden profiles and
+ * suspensions with Lift. The search across every room's chat went with the
+ * Chat tab on 13 Nov 2026 (Tyler: "we dont need this tab"). See
  * `workspace/docs/admin-safety-tools.md`.
  *
  * Every change writes one `pomodoro_audit_logs` row in the same transaction,
@@ -51,74 +49,6 @@ async function logChatAct(tx: Transaction, actorUserId: string, action: string, 
 }
 
 const authorName = sql<string>`coalesce(${pomodoroProfiles.publicDisplayName}, ${users.name})`
-
-// ---------------------------------------------------------------------------
-// Rooms with chat
-// ---------------------------------------------------------------------------
-
-export async function listChatRooms(query: {
-  search: string
-  status: (typeof CHAT_STATUS_FILTERS)[number]
-  sort: ChatRoomSortColumn
-  direction: "asc" | "desc"
-  page: number
-  pageSize: number
-}) {
-  const stats = db
-    .select({
-      roomId: roomMessages.roomId,
-      messages: sql<number>`count(*)::int`.as("messages"),
-      held: sql<number>`count(*) filter (where ${roomMessages.heldAt} is not null and ${roomMessages.deletedAt} is null)::int`.as("held"),
-      lastAt: sql<Date>`max(${roomMessages.createdAt})`.as("last_at"),
-    })
-    .from(roomMessages)
-    .where(eq(roomMessages.broadcast, false))
-    .groupBy(roomMessages.roomId)
-    .as("stats")
-  const filters: SQL[] = []
-  const search = query.search.trim()
-  if (search) {
-    const match = or(ilike(rooms.name, `%${search}%`), ilike(users.name, `%${search}%`))
-    if (match) filters.push(match)
-  }
-  const closed = sql`(${rooms.closedAt} is not null or ${rooms.phase} = 'closed')`
-  if (query.status === "open") filters.push(sql`not ${closed}`)
-  if (query.status === "closed") filters.push(closed)
-  const where = filters.length ? and(...filters) : undefined
-  const direction = query.direction === "asc" ? asc : desc
-  const sortColumn = { last: stats.lastAt, messages: stats.messages, name: rooms.name }[query.sort]
-
-  const [rows, [totalRow]] = await Promise.all([
-    db
-      .select({
-        id: rooms.id,
-        name: rooms.name,
-        slug: rooms.slug,
-        hostUserId: rooms.hostUserId,
-        hostName: users.name,
-        messages: stats.messages,
-        held: stats.held,
-        lastAt: stats.lastAt,
-        closed: sql<boolean>`${closed}`,
-      })
-      .from(stats)
-      .innerJoin(rooms, eq(rooms.id, stats.roomId))
-      .innerJoin(users, eq(users.id, rooms.hostUserId))
-      .where(where)
-      .orderBy(direction(sortColumn), asc(rooms.id))
-      .limit(query.pageSize)
-      .offset((query.page - 1) * query.pageSize),
-    db
-      .select({ total: count() })
-      .from(stats)
-      .innerJoin(rooms, eq(rooms.id, stats.roomId))
-      .innerJoin(users, eq(users.id, rooms.hostUserId))
-      .where(where),
-  ])
-  return { rows, total: totalRow?.total ?? 0 }
-}
-
-export type AdminChatRoomRow = Awaited<ReturnType<typeof listChatRooms>>["rows"][number]
 
 /** One message as the admin sees it: removed and held lines included, with their words. */
 const messageColumns = {
@@ -166,54 +96,6 @@ export async function loadRoomChat(roomId: string) {
 
 export type AdminRoomChat = Awaited<ReturnType<typeof loadRoomChat>>
 export type AdminChatMessage = AdminRoomChat["messages"][number]
-
-/**
- * Searches every room's lines by word or by person (name or email), or lists
- * the held lines waiting for an admin. Newest first.
- */
-export async function listChatMessages(query: { search: string; held: boolean; page: number; pageSize: number }) {
-  const filters: SQL[] = [eq(roomMessages.broadcast, false)]
-  if (query.held) {
-    filters.push(isNotNull(roomMessages.heldAt), isNull(roomMessages.deletedAt))
-  }
-  const search = query.search.trim()
-  if (search) {
-    const pattern = `%${search}%`
-    const match = or(ilike(roomMessages.body, pattern), ilike(users.name, pattern), ilike(users.email, pattern), ilike(pomodoroProfiles.publicDisplayName, pattern))
-    if (match) filters.push(match)
-  }
-  const where = and(...filters)
-  const [rows, [totalRow]] = await Promise.all([
-    db
-      .select({ ...messageColumns, roomName: rooms.name })
-      .from(roomMessages)
-      .innerJoin(users, eq(users.id, roomMessages.userId))
-      .innerJoin(rooms, eq(rooms.id, roomMessages.roomId))
-      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
-      .where(where)
-      .orderBy(desc(roomMessages.createdAt), asc(roomMessages.id))
-      .limit(query.pageSize)
-      .offset((query.page - 1) * query.pageSize),
-    db
-      .select({ total: count() })
-      .from(roomMessages)
-      .innerJoin(users, eq(users.id, roomMessages.userId))
-      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
-      .where(where),
-  ])
-  return { rows, total: totalRow?.total ?? 0 }
-}
-
-/** How many lines wait for an admin, for the Held tab's count. */
-export async function countHeldMessages() {
-  const [row] = await db
-    .select({ total: count() })
-    .from(roomMessages)
-    .where(and(isNotNull(roomMessages.heldAt), isNull(roomMessages.deletedAt)))
-  return row?.total ?? 0
-}
-
-export type AdminChatSearchRow = Awaited<ReturnType<typeof listChatMessages>>["rows"][number]
 
 /**
  * Removes lines the way a host's Delete does: the room shows "Message

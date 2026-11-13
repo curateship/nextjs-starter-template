@@ -5,7 +5,6 @@ import { createErrorMessage } from "../error-message"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   ADMIN_PAGE_SIZE_MAX,
-  FOCUS_SORT_COLUMNS,
   REPORT_SORT_COLUMNS,
   REPORT_STATUS_FILTERS,
   REPORT_STATUSES,
@@ -23,7 +22,6 @@ import {
   type ReportStatus,
 } from "@/lib/pomodoro/admin-lists"
 import {
-  listAdminFocusUsers,
   listAdminReports,
   listAdminRoomRepeats,
   listAdminRooms,
@@ -31,7 +29,6 @@ import {
   listAdminTaskRepeats,
   listAdminTasks,
   reviewRoomReports,
-  type AdminFocusRow,
   type AdminReportRow,
   type AdminRoomRepeatRow,
   type AdminRoomRow,
@@ -66,7 +63,6 @@ import { readDashboardRowsPerPage } from "@/server/shell-settings"
  */
 export type {
   AdminDeleteResult,
-  AdminFocusRow,
   AdminReportRow,
   AdminRoomRepeatRow,
   AdminRoomRow,
@@ -93,13 +89,6 @@ const pageSchema = {
 
 /** An account id, or nothing. Shaped only — the list is admin-only anyway. */
 const userIdSchema = z.string().trim().min(1).max(36).nullable().default(null)
-
-const focusQuerySchema = z.object({
-  ...pageSchema,
-  sort: z.enum(FOCUS_SORT_COLUMNS).default("focus"),
-  /** "Real members only" (live activity task 05, Part 6). */
-  realOnly: z.boolean().default(false),
-})
 
 const taskQuerySchema = z.object({
   ...pageSchema,
@@ -142,18 +131,12 @@ const taskRepeatQuerySchema = z.object({
   sort: z.enum(TASK_REPEAT_SORT_COLUMNS).default("created"),
 })
 
-export type PomodoroFocusQuery = z.input<typeof focusQuerySchema>
 export type PomodoroTaskQuery = z.input<typeof taskQuerySchema>
 export type PomodoroSessionQuery = z.input<typeof sessionQuerySchema>
 export type PomodoroRoomQuery = z.input<typeof roomQuerySchema>
 export type PomodoroReportQuery = z.input<typeof reportQuerySchema>
 export type PomodoroRoomRepeatQuery = z.input<typeof roomRepeatQuerySchema>
 export type PomodoroTaskRepeatQuery = z.input<typeof taskRepeatQuerySchema>
-
-const listFocusUsersFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(focusQuerySchema)
-  .handler(({ data }) => listAdminFocusUsers(data))
 
 const listTasksFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -193,14 +176,6 @@ const listTaskRepeatsFn = createServerFn({ method: "GET" })
  * what keeps the table and the footer's "1-25 of N" agreeing on first paint,
  * the same way the shell's own admin pages do it.
  */
-const loadFocusPageFn = createServerFn({ method: "GET" })
-  .middleware([adminGet])
-  .inputValidator(focusQuerySchema.omit({ pageSize: true }))
-  .handler(async ({ data }) => {
-    const pageSize = await readDashboardRowsPerPage()
-    return { list: await listAdminFocusUsers({ ...data, pageSize }), pageSize }
-  })
-
 const loadTasksPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(taskQuerySchema.omit({ pageSize: true }))
@@ -373,11 +348,6 @@ const deleteTaskRepeatsFn = createServerFn({ method: "POST" })
     deleteAdminTaskRepeats({ repeatIds: data.ids, actorUserId: context.user.id })
   )
 
-export const listPomodoroFocusUsers = (data: PomodoroFocusQuery) =>
-  listFocusUsersFn({ data })
-export const loadPomodoroFocusPage = (
-  data: Omit<PomodoroFocusQuery, "pageSize">
-) => loadFocusPageFn({ data })
 
 export const listPomodoroTasks = (data: PomodoroTaskQuery) =>
   listTasksFn({ data })

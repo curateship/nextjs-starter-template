@@ -1,50 +1,68 @@
 # Members in the admin
 
-Clicking a member's name on any Pomoder admin list opens one window with
-everything about them (admin task 06, 8 Oct 2026). Around it sit nine pages for
-member data that had no admin view before. This file covers the window and the
-two repair tools inside it. The pages are listed in
-[Admin sections](admin-sections.md).
+Pressing a member's name on any Flowfly list opens everything about them in
+the right panel (admin task 06, 8 Oct 2026, moved out of its window on
+13 Nov 2026 with Tyler's picks "Member on the right", "One record per person"
+and "Member owns-everything tabs"). The lists themselves are in
+[The Flowfly admin dashboard](admin-dashboard.md). This file covers the
+member's record and the two repair tools in it.
 
-## The member window
+## The member's record
 
-- **It opens from a name.** Every Pomoder admin list draws a member's name as a
-  button. Clicking it puts `?member=<userId>` in the address and opens the
-  window over the list. Back closes it, and the address can be handed to
-  another admin.
-- **It loads its own data**, so it reads the same whichever list it opened
-  from. The list behind it does not reload.
-- **One file mounts it for every list.** `admin-list.tsx` draws it under the
-  table, so a new list gets it by drawing names with `MemberName`. Each route
-  keeps `member` in its address checks through `readMemberSearch`.
+- **It opens from a name.** Every Flowfly list draws a member's name as a
+  button (`MemberName`). Pressing it puts `?member=<userId>` in the address
+  and shows them on the right in place of the open row; pressing a row brings
+  the row back. Back undoes it, and the address can be handed to another
+  admin.
+- **Rows that are people open it too:** Members → Profiles and Made-up, and
+  Safety → Blocks' Most blocked. A profile is
+  not a record of its own any more.
+- **It loads its own data**, so it reads the same wherever it opened. The list
+  beside it does not reload. It is `AdminMemberRecord` in
+  `src/components/pomodoro/admin-member-record.tsx`, drawn in the shell's
+  `RecordFrame` the way the shell's Users list draws a person.
 
-What it shows, top to bottom:
+The header: their initials, name, and "Made up" for a made-up member, their
+handle and email. Its ⋮ holds what changes them:
 
-- **Account:** photo, name, handle and email in the heading, then plan, joined
-  date, last day focused, whether the public profile is public, switched off
-  or hidden, whether they are on the leaderboard, and a running room
-  suspension. Buttons: Warn, Suspend (both from
-  [Admin safety tools](admin-safety-tools.md)), Hide profile, and Open in
-  Users, which opens the shell's own account window at `/admin/users`.
-- **Focus:** all-time sessions, focus time and tasks done from the daily
-  totals, the current and best streak, and any days an admin put back.
-- **Last 10 sessions**, newest first, with a link to Focus sessions for them.
-- **Open tasks**, up to ten, with the count and a link to Tasks for them.
+- **Profile:** Handle, Display name and Bio, each a row that opens a small box
+  and saves when left. The owner is told which fields changed, never which
+  admin changed them, as the old profile window told them. A member with no
+  handle shows "No handle yet".
+- Warn, Fix a streak day, Hide profile or Show profile, Open in Users (the
+  shell's Admin → Users with them open), Remove all their follows, and
+  Suspend, red, last.
+
+The body, as folding cards, top to bottom:
+
+- **Account:** plan, joined date, whether the public profile is public,
+  switched off or hidden, and whether they are on the leaderboard.
+- **Focus:** all-time sessions, focus time, tasks done, last day focused, the
+  current and best streak, and any days an admin put back.
+- **Sessions:** the last 10, newest first.
+- **Open tasks:** up to ten, with the count.
 - **Rooms:** how many they hosted and how many other people's rooms they sat
-  in, the latest of each, and a link to the rooms they host.
+  in, the latest of each.
 - **Reports:** how many are about them (and how many still wait), how many
-  they filed (and how many were dismissed), with a link to Room reports for
-  them.
-- **Uploads:** count, total size and the latest files, linking to Member
-  uploads.
-- **Warnings and suspensions**, newest first, linking to Bans.
-- **Follows:** how many people they follow, a link to Follows and cheers, and
-  "Remove all their follows".
-- **Admin notes.**
+  they filed (and how many were dismissed).
+- **Uploads:** count, total size and the latest files.
+- **Badges, groups and projects:** links to their badges, groups, projects,
+  task tags and repeating tasks.
+- **Warnings and suspensions**, newest first.
+- **Follows:** how many people they follow.
+- **Voice** for a made-up member, and **Admin notes**.
 
-Each count in the window comes from the same table its list reads, so the two
-agree. The window's focus totals are the `daily_focus_stats` rollup Focus data
-shows.
+Every card that lists things ends in a link that opens that tab of Flowfly
+narrowed to them, where every row has its Delete: Sessions, Tasks, Rooms they
+host, Reports, Uploads, Badges, Groups, Projects, Tags, Repeating, Bans,
+Follows. The full lists live there rather than inside the record, so one
+member with thousands of sessions never slows the panel.
+
+The footer says when they last focused, or that they are suspended, with
+Warn beside it.
+
+Each count comes from the same table its list reads, so the two agree. The
+focus totals are the `daily_focus_stats` rollup Focus shows.
 
 ## Fixing a broken streak
 
@@ -89,8 +107,9 @@ streak is worked out from that year's focus days alone.
   edited it and when.
 - **Any admin can edit or delete any note.** Every add, edit and delete writes
   one row to `pomodoro_audit_logs` (`add_note`, `edit_note`, `delete_note`).
-- **Typed work is protected.** Closing the window with a half-written note asks
-  first, the way every form window does.
+- **A half-written note lives as long as the record.** Opening another row or
+  member on the right drops it, since the record no longer sits in a window
+  that could ask first.
 
 ## Hide profile and Remove all their follows
 
@@ -105,7 +124,7 @@ streak is worked out from that year's focus days alone.
 
 - `src/components/pomodoro/admin-member-name.tsx`: the clickable name and the
   address change that opens and closes the window.
-- `src/components/pomodoro/admin-member-window.tsx`: the window, the Fix a
+- `src/components/pomodoro/admin-member-record.tsx`: the record, the Fix a
   streak day window and the notes.
 - `src/server/pomodoro/admin-members.ts`: the one read behind the window, the
   streak fix, the notes, hide and remove follows. Tested against a real

@@ -118,8 +118,11 @@ already explains the switch. Somebody on the board sees nothing.
 
 ## When an admin takes you off
 
-An admin can take somebody off the board from `/admin/pomodoro-leaderboard`,
-for a leader whose hours look made up. Tyler's case: someone showing 23 hours
+An admin can take somebody off the board from the member's ⋮ on Flowfly
+("Take off the leaderboard", then "Put back on the leaderboard"), for a leader
+whose hours look made up. The admin's own Leaderboard list went on 13 Nov 2026
+(Tyler: "we dont need the focus and leaderboard tab"); the member record's
+Account card says "Taken off by an admin" while they are off. Tyler's case: someone showing 23 hours
 a day. Taken off means:
 
 - **Gone from the global board and every focus group's board**, from the next

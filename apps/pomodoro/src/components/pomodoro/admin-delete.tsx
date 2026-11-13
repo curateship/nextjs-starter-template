@@ -1,11 +1,8 @@
 import * as React from "react"
-import { Trash2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import type { AdminListSelection } from "@/components/pomodoro/admin-list"
 import {
   getPomodoroAdminErrorMessage,
@@ -94,68 +91,6 @@ export function useAdminDelete({
 }
 
 export type AdminDelete = ReturnType<typeof useAdminDelete>
-
-/** "Delete (3)" in the toolbar, shown only while rows are ticked. */
-export function AdminBulkDeleteButton({
-  del,
-  ids,
-  label = "Delete",
-  icon = <Trash2Icon className="size-4" />,
-  busy = false,
-}: {
-  del: AdminDelete
-  ids: string[]
-  /** Another action on the same list is running, so this one waits for it. */
-  busy?: boolean
-  /** For an action that is not a delete but asks the same way: "Cancel". */
-  label?: string
-  icon?: React.ReactNode
-}) {
-  if (!ids.length) return null
-  return (
-    <DashboardToolbarButton
-      type="button"
-      variant="destructive"
-      disabled={del.deleting || busy}
-      onClick={() => del.ask(ids)}
-    >
-      {icon}
-      {label} ({ids.length})
-    </DashboardToolbarButton>
-  )
-}
-
-/**
- * The bin at the end of a row. No tooltip: it repeats on every row, and the
- * accessible name says which row it belongs to.
- */
-export function AdminRowDeleteButton({
-  del,
-  id,
-  label,
-  icon = <Trash2Icon className="size-4" />,
-  busy = false,
-}: {
-  del: AdminDelete
-  id: string
-  label: string
-  icon?: React.ReactNode
-  /** Another action on the same list is running, so this one waits for it. */
-  busy?: boolean
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      disabled={del.deleting || busy}
-      onClick={() => del.ask([id])}
-      aria-label={label}
-    >
-      {icon}
-    </Button>
-  )
-}
 
 /**
  * The confirm window. `description` says what goes with the rows and what

@@ -1,55 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminBlocksDashboard } from "@/components/pomodoro/admin-blocks-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getAdminSocialErrorMessage,
-  loadPomodoroBlocksPage,
-} from "@/lib/api/pomodoro/admin-social"
-import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
-import {
-  BLOCK_TABS,
-  readMemberSearch,
-  readUserFilter,
-} from "@/lib/pomodoro/admin-lists"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
-type BlocksSearch = {
-  member?: string
-  tab?: (typeof BLOCK_TABS)[number]
-  q?: string
-  user?: string
-  page?: number
-}
-
-/** The list's own state, so Back returns the exact list you left. */
-function readBlocksSearch(search: Record<string, unknown>): BlocksSearch {
-  return {
-    ...readMemberSearch(search),
-    tab: readOneOf(search.tab, BLOCK_TABS),
-    q: readSearchText(search.q),
-    user: readUserFilter(search.user),
-    page: readPage(search.page),
-  }
-}
-
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-blocks")({
-  validateSearch: readBlocksSearch,
-  // Only a tab change is a new list; see pomodoro-follows.tsx.
-  loaderDeps: ({ search }) => ({ tab: search.tab }),
-  loader: ({ location }) => {
-    const search = readBlocksSearch(location.search as Record<string, unknown>)
-    return loadPomodoroBlocksPage({
-      tab: search.tab ?? "blocks",
-      search: search.q ?? "",
-      user: search.user,
-      page: search.page ?? 1,
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-blocks", location.search as Record<string, unknown>),
+      replace: true,
     })
   },
-  component: AdminPomodoroBlocksRoute,
-  errorComponent: routeErrorComponent(getAdminSocialErrorMessage),
 })
-
-function AdminPomodoroBlocksRoute() {
-  const { list, pageSize } = Route.useLoaderData()
-  return <AdminBlocksDashboard initial={list} initialPageSize={pageSize} />
-}

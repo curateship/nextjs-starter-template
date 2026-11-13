@@ -29,9 +29,12 @@ window says what goes "could not be counted" and still lets the admin delete.
 The failure belongs to that one selection, so the next Delete window counts
 again rather than staying blank until a reload.
 
-## The room window
+## A room on the right
 
-A room's name or its cog opens a window, kept in the address as `?open=<id>`.
+A room opens in the right panel of Flowfly → Rooms (`?open=<id>`), with its
+Chat, Reports, Invitations, Room bans and Weekly rule as cards; see
+[The Flowfly admin dashboard](admin-dashboard.md). Its ⋮ → Room settings
+opens the window that changes it:
 
 - **Name and who can find it** (listed on Browse rooms, or link only).
 - **Featured**, see below.
@@ -47,13 +50,13 @@ A room's name or its cog opens a window, kept in the address as `?open=<id>`.
 ## Featured
 
 A featured room sits first on Browse rooms with a FEATURED label above its name.
-Feature and Unfeature are in the room window and over ticked rows on Focus rooms.
+Feature and Unfeature are in a room's ⋮ and in the "N selected" menu on Flowfly → Rooms.
 On Weekly rooms the same two buttons feature the rule, and every room it books
 is featured with it. A closed room drops off Browse rooms by itself.
 
 ## Invites
 
-`/admin/pomodoro-invites` lists every room invitation: who it went to, the room,
+Flowfly → Rooms → Invites lists every room invitation: who it went to, the room,
 its host and start, and where it has got to (waiting to send, sent, failed,
 cancelled). One still waiting can be cancelled, on its row or over ticked rows;
 one already sent, failed or cancelled is left alone and counted as such. An
@@ -64,7 +67,7 @@ the host cancels.
 
 A preset's breaks go up to 90 minutes, the same as a room a host opens.
 
-`/admin/pomodoro-room-presets` keeps named room setups: a rhythm, whether the
+Flowfly → Rooms → Presets keeps named room setups: a rhythm, whether the
 next focus starts by itself, and if wanted a sound and background. Hosts see them
 first in the Rhythm picker when they open a room, as "Pomoder: <name>". Picking
 one fills the timers, and the sound and background when the preset has them. A room

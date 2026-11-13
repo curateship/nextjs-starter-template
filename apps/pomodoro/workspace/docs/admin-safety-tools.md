@@ -7,44 +7,36 @@ to every live room. Every change writes one `pomodoro_audit_logs` row in the
 same transaction. The code is `src/server/pomodoro/admin-chat.ts`, `safety.ts`
 and `room-access.ts`, behind `src/lib/api/pomodoro/admin-safety.ts`.
 
-## Chat (`/admin/pomodoro-chat`)
+## Chat (a room's Chat card)
 
-Three tabs.
+Chat has no list of its own since 13 Nov 2026 (Tyler: "we dont need this
+tab"). A room's chat is the Chat card in its record on Flowfly → Rooms, and
+a held line is in the Waiting on you block on the left page and on the
+Overview's Waiting and Rooms live now widgets. The cross-room message search
+went with the Chat page.
 
-- **Rooms**: every room that has chat, newest message first, with its host,
-  how many messages, when the last one was, how many are held, and whether it
-  is open or has ended.
-- **Search messages**: every line in every room, newest first, found by its
-  words or by the writer's name or email. A result opens its room's window
-  scrolled to that line.
-- **Held**: lines waiting for an admin because of a blocked word, with Let
-  through and Delete, one at a time or over ticked rows. The tab shows how
-  many wait, read again after every Let through or Delete, here or in a room's
-  window, so letting the last one through takes the count away.
-
-A search belongs to the tab it was typed on: changing tabs starts with an
-empty search box, here and on Bans.
-
-A room's name opens its chat in a window (`?open=<roomId>`), oldest at the
-top, the newest 500 lines. Removed lines stay, greyed and struck through, with
-"Removed by the host" or "Removed by an admin". Each line has Delete, Let
-through when held, and a menu with Warn and Suspend for its writer. Ticked
-lines get Delete at the top.
+The Chat card shows the room's newest 500 lines, oldest at the top. Removed
+lines stay, greyed and struck through, with "Removed by the host" or "Removed
+by an admin". A held line has Let through, and each line's menu has Warn and
+Suspend for its writer, then Delete.
 
 - **Deleting a line** works like a host's Delete: the room shows "Message
   removed" in its place within a few seconds, and the words stay on record
   for reports. Its mention and reaction notices go.
-- **Message live rooms** pins one line at the top of every room open right
-  now (members cannot react to it or report it, and a host cannot remove it), signed Pomoder with a STAFF label, until the room ends or an admin
-  deletes it from that room's window. The window says how many rooms it
-  reaches before sending. If that count cannot be loaded, the window says so
-  instead of showing the dashboard's older number, and Send goes to every room
-  open at that moment. With the count at none, Send stays pressable and says in
-  a red message that there is nobody to send it to, rather than greying out.
+- **Message live rooms** is in the ⋮ of Flowfly → Rooms. It pins one line at
+  the top of every room open right now (members cannot react to it or report
+  it, and a host cannot remove it), signed Pomoder with a STAFF label, until
+  the room ends or an admin deletes it from that room's Chat card. The window
+  says how many rooms it reaches before sending. If that count cannot be
+  loaded, the window says so, and Send goes to every room open at that
+  moment. With the count at none, Send stays pressable and says in a red
+  message that there is nobody to send it to, rather than greying out.
 
-## Bans (`/admin/pomodoro-bans`)
+## Bans (Flowfly → Safety → Bans)
 
-Three tabs, each with Lift on its row and over ticked rows.
+Three lists, picked in the header's view dropdown, each with Lift on its row
+and in the "N selected" menu. A row opens on the right with who, why and since
+when.
 
 - **Room bans**: who, which room, who banned them, when. Lifting lets them
   join that room again. Nobody is told.
@@ -57,7 +49,7 @@ Three tabs, each with Lift on its row and over ticked rows.
 
 ## Warn
 
-On a report row (under the reported message) and in the Chat window's menu.
+In a report's record (its ⋮, and under the reported message) and in each line's menu on a room's Chat card.
 The admin edits a ready line, "Please keep room chat friendly. Further
 messages like this will get you suspended.", and sends. The window lists the
 member's earlier warnings. If they cannot be read, it says "Earlier warnings

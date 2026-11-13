@@ -250,7 +250,7 @@ worker, and the models and lengths both requests and the meter read are
 
 ## Every request, for an admin
 
-`/admin/pomodoro-generations` lists every background and soundscape a member
+Flowfly → Library → AI generations lists every background and soundscape a member
 asked for (admin task 06, 8 Oct 2026): a preview once the file exists, who
 asked, the prompt, the provider and model, whether it worked (with the reason
 it failed), and when.

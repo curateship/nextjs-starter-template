@@ -6,8 +6,6 @@ import { type CustomShellDb } from "@/server/db"
 import { listAdminReports } from "@/server/pomodoro/admin"
 import {
   deleteChatMessages,
-  listChatMessages,
-  listChatRooms,
   listHiddenProfiles,
   listSuspensions,
   loadRoomChat,
@@ -84,17 +82,14 @@ async function noticesFor(userId: string) {
     .where(eq(customShellNotifications.recipientUserId, userId))
 }
 
-describe("the Chat dashboard", () => {
-  it("lists rooms with chat, removes a line as an admin, and the room says who", async () => {
+describe("room chat moderation", () => {
+  it("removes a line as an admin, and the room says who", async () => {
     const admin = (await insertUser(db, { role: "admin" })).id
     const [host, sam] = [(await insertUser(db)).id, (await insertUser(db)).id]
     const room = await openRoom(host, "study")
     await joinRoomBySlug(room.slug, sam, db)
     await postRoomMessage(room.slug, sam, "hello there", db)
     await postRoomMessage(room.slug, host, "welcome", db)
-
-    const listed = await listChatRooms({ search: "", status: "all", sort: "last", direction: "desc", page: 1, pageSize: 25 })
-    expect(listed.rows).toMatchObject([{ name: "study", messages: 2, held: 0, closed: false }])
 
     const { messages } = await loadRoomChat(room.id)
     const hello = messages.find((message) => message.body === "hello there")!
@@ -104,9 +99,6 @@ describe("the Chat dashboard", () => {
     expect(seen.messages[0]).toMatchObject({ deleted: true, body: "", removedBy: "admin" })
     // The words stay for the admin.
     expect((await loadRoomChat(room.id)).messages[0]).toMatchObject({ body: "hello there", removedBy: "admin" })
-    // Searching by person finds the line.
-    const found = await listChatMessages({ search: "welcome", held: false, page: 1, pageSize: 25 })
-    expect(found.rows.map((row) => row.body)).toEqual(["welcome"])
   })
 
   it("holds a line with a blocked word for its writer alone until let through", async () => {
@@ -124,10 +116,11 @@ describe("the Chat dashboard", () => {
       ["my class is fun", false],
       ["you ASS", true],
     ])
-    const held = await listChatMessages({ search: "", held: true, page: 1, pageSize: 25 })
-    expect(held.rows.map((row) => row.body)).toEqual(["you ASS"])
+    // The room's record on Flowfly shows the held line to the admin.
+    const held = (await loadRoomChat(room.id)).messages.filter((message) => message.heldAt)
+    expect(held.map((message) => message.body)).toEqual(["you ASS"])
 
-    await releaseHeldMessages({ messageIds: [held.rows[0].id], actorUserId: admin })
+    await releaseHeldMessages({ messageIds: [held[0].id], actorUserId: admin })
     expect((await roomSnapshot(room.id, host, db)).messages.map((message) => message.body)).toEqual(["my class is fun", "you ASS"])
   })
 

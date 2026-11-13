@@ -61,6 +61,7 @@ import {
   type MediaSeason,
 } from "@/lib/pomodoro/app-settings"
 import type { MediaCatalog } from "@/lib/pomodoro/catalog"
+import { flowflyLink } from "@/lib/pomodoro/flowfly-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -1697,8 +1698,8 @@ function MadeUpMembersCard({
       </div>
       <p className="text-sm text-muted-foreground">
         A new account can take up to five minutes to show on /users. What each one did today is on{" "}
-        <Link to="/admin/pomodoro-simulated" className="underline underline-offset-4">
-          the watch page
+        <Link to="/admin/flowfly" search={flowflyLink("madeup")} className="underline underline-offset-4">
+          Flowfly, Members, Made-up
         </Link>
         .
       </p>

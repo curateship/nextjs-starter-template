@@ -229,7 +229,7 @@ appear as buttons while you type. Tyler set the cap at three on 7 Oct 2026.
   task was saved, but its tags could not be" and the window stays open.
 - **Guests have no tags.** The box in the editor is shut with the reason.
 
-- **An admin can delete a member's tag** on `/admin/pomodoro-tags` (admin
+- **An admin can delete a member's tag** on Flowfly → Tasks → Tags (admin
   task 06, 8 Oct 2026), which lists every tag with its owner and how many
   tasks carry it. Deleting it takes the label off those tasks and leaves the
   tasks alone, and History stops offering it as a filter. The member is not

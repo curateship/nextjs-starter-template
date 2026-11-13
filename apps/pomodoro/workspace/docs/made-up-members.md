@@ -603,11 +603,11 @@ sure Tyler is the one person not fooled by it. The code is
 
 ### The watch page
 
-`/admin/pomodoro-simulated`. The task put "Made-up members" under Members in
-the admin menu; the menu has no Members group, so on the local workspace it
-sits under Profiles, beside Leaderboard and Achievements, since 11 Oct 2026.
-The live site's menu needs the link added by hand after a deploy, like
-Projects.
+Flowfly → Members → Made-up, since 13 Nov 2026 one list with a view dropdown:
+Members (every account with its pause switch, opening the member on the
+right), Schedule (today's plan, an hour opening on the right) and Lines (every
+line, opening on the right with the brief behind it). The line under each list
+is the summary that used to sit across the top.
 
 - **The line across the top**: how many focused today, made-up rooms open,
   lines said and what they cost against the chat cap (UTC day), how many are
@@ -671,11 +671,12 @@ tab. Reviewing the report does not unpause it; the watch page does.
 
 ### Real members only
 
-A switch on `/admin/pomodoro-focus` and on the Leaderboard's Board tab,
-remembered in this browser. On, every made-up member is left out of the rows,
-the count, and the Focus page's totals line, which reads like "Real members
-focused 14h in the last 7 days and 312h in all." On the leaderboard, the places become places among real
-members.
+There is no switch any more. It lived on the admin's Focus and Leaderboard
+lists, which went on 13 Nov 2026 (Tyler: "we dont need the focus and
+leaderboard tab"). What it was for is now always on where it matters: the
+Overview's Focus today and Top focusers count real members only. Members →
+Profiles' Focus time column counts everybody, and a made-up member's row
+says "Made up" beside the name.
 
 - **The AI usage page and the shell's admin dashboard cards are shell pages**
   and are not changed. The made-up members' chat calls belong to no account,
@@ -739,14 +740,14 @@ the room clock reads `phase_ends_at` and `starting_at` from the database every
 ## What the admin sees
 
 - **"Made up" beside the name** on every Pomoder admin list that shows a
-  member's name (Focus, Profiles, Leaderboard, Projects, Sessions, Rooms and
+  member's name (Profiles, Projects, Sessions, Rooms and
   the rest, through `MemberName` in `admin-member-name.tsx`) and in the member
   window's title. The list of made-up ids is read once per page and again
   after a minute.
 - **The shell's own admin pages do not carry the mark**: the Users list, the
   admin dashboard's member counts and the AI usage page count them as members.
-  Those are shell pages and are not changed. "Real members only" on the
-  Focus and Leaderboard pages leaves them out (see "Your controls").
+  Those are shell pages and are not changed. Flowfly's Overview leaves them
+  out of Focus today and Top focusers (see "Real members only").
 
 ## What is left and what to watch
 

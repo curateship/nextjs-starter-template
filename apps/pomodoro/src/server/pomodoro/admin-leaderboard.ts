@@ -1,5 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm"
-import { alias } from "drizzle-orm/pg-core"
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { globalBoardRule } from "@/server/pomodoro/leaderboard"
@@ -77,49 +76,6 @@ export async function listAdminBoard(query: {
     start,
   }
 }
-
-export type AdminBoardRow = Awaited<ReturnType<typeof listAdminBoard>>["rows"][number]
-
-const hiddenBy = alias(users, "leaderboard_hidden_by")
-
-/** Everybody an admin took off the board, most recent first. */
-export async function listBoardHidden(query: { search: string; page: number; pageSize: number }) {
-  const filters: SQL[] = [isNotNull(pomodoroProfiles.leaderboardHiddenAt)]
-  const search = query.search.trim()
-  if (search) {
-    const pattern = `%${search}%`
-    const match = or(ilike(users.name, pattern), ilike(users.email, pattern), ilike(pomodoroProfiles.handle, pattern))
-    if (match) filters.push(match)
-  }
-  const where = and(...filters)
-  const [rows, [total]] = await Promise.all([
-    db
-      .select({
-        userId: pomodoroProfiles.userId,
-        name: users.name,
-        email: users.email,
-        publicDisplayName: pomodoroProfiles.publicDisplayName,
-        leaderboardOptIn: pomodoroProfiles.leaderboardOptIn,
-        hiddenAt: sql<Date>`${pomodoroProfiles.leaderboardHiddenAt}`,
-        hiddenByName: hiddenBy.name,
-      })
-      .from(pomodoroProfiles)
-      .innerJoin(users, eq(users.id, pomodoroProfiles.userId))
-      .leftJoin(hiddenBy, eq(hiddenBy.id, pomodoroProfiles.leaderboardHiddenByUserId))
-      .where(where)
-      .orderBy(desc(pomodoroProfiles.leaderboardHiddenAt), asc(pomodoroProfiles.userId))
-      .limit(query.pageSize)
-      .offset((query.page - 1) * query.pageSize),
-    db
-      .select({ total: count() })
-      .from(pomodoroProfiles)
-      .innerJoin(users, eq(users.id, pomodoroProfiles.userId))
-      .where(where),
-  ])
-  return { rows, total: total?.total ?? 0 }
-}
-
-export type AdminBoardHiddenRow = Awaited<ReturnType<typeof listBoardHidden>>["rows"][number]
 
 /**
  * Takes people off the boards, or puts them back. Only a row that actually

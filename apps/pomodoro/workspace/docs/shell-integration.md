@@ -3,8 +3,8 @@
 Pomodoro is a copy of Custom Shell. Accounts, billing, emails, automations,
 media, the admin chrome and every settings screen are the shell's, and this app
 does not edit them: a shell file changed here is a fork that conflicts on every
-future merge. The app's own code is the `_pomodoro` product shell, the six
-`/admin/pomodoro-*` pages, `src/lib/pomodoro/`, `src/server/pomodoro/`,
+future merge. The app's own code is the `_pomodoro` product shell, the Flowfly admin
+dashboard (`/admin/flowfly`, which the old `/admin/pomodoro-*` pages forward to), `src/lib/pomodoro/`, `src/server/pomodoro/`,
 `src/components/pomodoro/` and the three files in `src/app/`.
 
 **The tab icon comes from the app's own `public/`.** The shell writes icon

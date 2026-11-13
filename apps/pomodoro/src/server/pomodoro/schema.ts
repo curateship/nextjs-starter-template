@@ -2525,6 +2525,29 @@ export const pomodoroSimulatedReach = pgTable("pomodoro_simulated_reach", {
   lastCheerAt: timestamp("last_cheer_at", { withTimezone: true }),
 })
 
+/**
+ * Each admin's left page on the Flowfly admin dashboard (Tyler, 13 Nov
+ * 2026), the same shape as Promo's `promo_anti_detect_pages`: the page's
+ * words and blocks, its cover and lock, Overview's widget layout, and the
+ * Dashboards block's hidden and dragged sections. One row per admin, read
+ * and written only by them. See `workspace/docs/admin-dashboard.md`.
+ */
+export const pomodoroAdminPages = pgTable("pomodoro_admin_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's sections left out and their dragged order. */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
 export type Room = typeof rooms.$inferSelect
 export type PomodoroRoomRepeat = typeof pomodoroRoomRepeats.$inferSelect
 export type RoomInvite = typeof roomInvites.$inferSelect

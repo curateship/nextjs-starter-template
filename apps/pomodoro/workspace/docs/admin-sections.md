@@ -1,72 +1,67 @@
 # Admin sections
 
-Twenty-four operator pages inside the shell's `/admin`. They let an operator see
-what members are doing, decide reports, and delete what should not be there.
-Every delete and every report decision is written to `pomodoro_audit_logs`.
+Every Pomodoro admin list is a tab of one dashboard, Flowfly, at
+`/admin/flowfly` since 13 Nov 2026; [The Flowfly admin dashboard](admin-dashboard.md)
+covers the frame, the sections and what opens on the right. This file covers
+what the lists do: focus data, the report queue, deleting, projects and the
+catalogue. Every delete and every report decision is written to
+`pomodoro_audit_logs`.
 
-## The pages
+## The lists
 
-| Address | What it shows |
+| Section → tab | What it shows |
 | --- | --- |
-| `/admin/pomodoro-focus` | Every account with its focus totals |
-| `/admin/pomodoro-tasks` | Everybody's tasks |
-| `/admin/pomodoro-sessions` | Every timer run |
-| `/admin/pomodoro-rooms` | Every focus room, open and closed |
-| `/admin/pomodoro-themes` | Every background, Draft or Live, and who has it |
-| `/admin/pomodoro-sounds` | Every sound, Draft or Live, and who has it |
-| `/admin/pomodoro-reports` | The moderation queue |
-| `/admin/pomodoro-room-repeats` | Every weekly room rule |
-| `/admin/pomodoro-task-repeats` | Every repeating task rule |
-| `/admin/pomodoro-invites` | Every room invitation, and cancelling unsent ones |
-| `/admin/pomodoro-room-presets` | The house presets hosts pick from |
-| `/admin/pomodoro-chat` | Every room's chat, a search across it, held lines |
-| `/admin/pomodoro-bans` | Room bans, hidden profiles and suspensions, with Lift |
-| `/admin/pomodoro-profiles` | Every public profile with a handle, and a window to fix the handle, name or bio, or hide it |
-| `/admin/pomodoro-uploads` | Every background and sound a member uploaded or had AI make, with Delete |
-| `/admin/pomodoro-tags` | Every member task tag and how many tasks carry it, with Delete |
-| `/admin/pomodoro-leaderboard` | The global board as members see it with hours a focus day, and Take off the board |
-| `/admin/pomodoro-follows` | Follows and cheers, two tabs, with Delete |
-| `/admin/pomodoro-blocks` | Who blocked whom, and the most blocked accounts. Read-only |
-| `/admin/pomodoro-achievements` | Who earned which badge, with Revoke |
-| `/admin/pomodoro-simulated` | The made-up members' watch page: today's figures and chat cost, the next 24 hours, a pause switch per account, and every line with its brief. "Made-up members" under Profiles in the menu; see [Made-up members](made-up-members.md) |
-| `/admin/pomodoro-groups` | Every private focus group, its members, and Delete |
-| `/admin/pomodoro-generations` | Every AI background and soundscape request, with Delete for the file |
-| `/admin/pomodoro-projects` | Every member's projects with their tasks, hours and target, a window to rename, retarget or archive one, and Delete |
+| Rooms → Rooms | Every focus room, open and closed; a room's chat, reports, invitations, bans and weekly rule open with it |
+| Rooms → Weekly rooms | Every weekly room rule |
+| Rooms → Invites | Every room invitation, and cancelling unsent ones |
+| Rooms → Presets | The house presets hosts pick from |
+| Members → Profiles | Every public profile with a handle and its all-time Focus time; its handle, name and bio are in the member's ⋮ |
+| Members → Badges | Who earned which badge, with Revoke |
+| Members → Made-up | The made-up members' watch page; see [Made-up members](made-up-members.md) |
+| Safety → Reports | The moderation queue |
+| Safety → Bans | Room bans, hidden profiles and suspensions, with Lift |
+| Safety → Blocks | Who blocked whom, and the most blocked accounts. Read-only |
+| Social → Groups | Every private focus group, its members, and Delete |
+| Social → Follows, Cheers | Follows and cheers, with Delete |
+| Tasks → Tasks | Everybody's tasks |
+| Tasks → Sessions | Every timer run |
+| Tasks → Repeating | Every repeating task rule |
+| Tasks → Projects | Every member's projects with their tasks, hours and target |
+| Tasks → Tags | Every member task tag and how many tasks carry it, with Delete |
+| Library → Backgrounds, Sounds | Every background and sound, Draft or Live, and who has it |
+| Library → Member uploads | Every background and sound a member uploaded or had AI make, with Delete |
+| Library → AI generations | Every AI background and soundscape request, with Delete for the file |
 
-A member's name on any of these lists opens the member window over the page,
-with `?member=<userId>` in the address. What it shows and the two repair tools
-in it, fixing a streak day and the private notes, are in
+A member's name on any of these lists opens the member on the right, with
+`?member=<userId>` in the address. What it shows and the two repair tools in
+it, fixing a streak day and the private notes, are in
 [Members in the admin](admin-members.md).
 
-Each page is its own route file under
-`src/routes/_authenticated/admin/pomodoro-*.tsx`, the way trade and video add
-their admin pages. Nothing registers them in a menu: the admin sidebar is a
-saved setting, so an operator adds the links they want in Settings, and the
-pages work from a typed address before anyone does.
-
-On the local Pomodoro workspace the menu holds them like this. Weekly rooms
-sits under Rooms, beside Sessions and Reports, and Repeating tasks sits under
-Tasks. Profiles, between Focus and Pages, opens Public profiles and has
-Leaderboard and Achievements under it, as Tyler asked on 8 Oct 2026. The live site's menu is its own saved setting and has to be given the
-same two links after a deploy. Projects sits under Tasks, beside Repeating
-tasks, since 8 Oct 2026, and the live menu needs that link too.
+Each list was a page of its own under `/admin/pomodoro-*` until 13 Nov 2026.
+The old addresses forward to their tab. The admin left menu, a saved setting,
+holds one Flowfly link in place of the old ones (migration 0183); the live
+site's menu changes the same way at the next deploy.
 
 ## Finding one member's focus data
 
-Focus data is the page an operator starts on. Each row is one account, with how
-many focus sessions it has finished, how long that adds up to, how many tasks it
-completed and the last day it focused. The timer button at the end of a row
-opens Focus sessions already filtered to that person, and the list then shows
-the "Only <their name>" chip described below.
+Members → Profiles is where to start. Its Focus time column is each person's
+all-time focus in hours ("269h", never "11d 5h", which reads as calendar
+days), and it sorts. It replaced the Focus and Leaderboard lists (Tyler, 13
+Nov 2026: "we dont need the focus and leaderboard tab. instead on profile
+table, add a focus time col instead"). A row opens the member on the right:
+their Focus card has sessions, hours, tasks and the last day they focused,
+and its Show all opens Tasks → Sessions narrowed to them, which then shows the
+"Only <their name>" chip described below. The member's ⋮ holds what those two
+lists did: Take off the leaderboard (or Put back), and Delete focus data,
+which asks for DELETE to be typed first.
 
 ### One member at a time
 
 Every admin list that can be limited to one member shows it the same way
-(Polish 3 task 10, 10 Oct 2026): a grey chip in the strip under the toolbar
+(Polish 3 task 10, 10 Oct 2026): a grey chip in the header, before Filter,
 saying "Only Sam", with a × that takes `?user=` out of the address and shows
-everyone again. It is `AdminPersonFilter` in
-`src/components/pomodoro/admin-person-filter.tsx`, passed to the list's
-`filters` slot, the same chip the shell's own lists use for a filter that is on.
+everyone again. A list hands `AdminListTable` its `person`, and the chip is
+drawn there (`src/components/pomodoro/admin-list.tsx`).
 
 - **The lists that take one member:** Tasks, Focus sessions, Repeating tasks,
   Projects, Groups, Blocks, Follows, Tags, Member uploads, Generations, Badges,
@@ -78,15 +73,14 @@ everyone again. It is `AdminPersonFilter` in
   sessions row, the list was already limited to them with no sign of it. It
   now shows the chip like the rest.
 
-The totals on Focus data come from `daily_focus_stats`, which is the same daily
-rollup the member's own history screen reads, so the two always agree. Focus
-sessions lists the raw `focus_sessions` rows instead. The two counts can differ
+Focus time comes from `daily_focus_stats`, which is the same daily rollup the
+member's own history screen reads, so the two always agree. Tasks → Sessions
+lists the raw `focus_sessions` rows instead. The two counts can differ
 for an account whose history was imported from guest mode, because the import
 carries the daily totals across without inventing a session row for each one.
 
-Accounts that have never run a timer are still listed, on zero. An operator
-searching for somebody should find them, not find an empty table and wonder
-whether the search is broken.
+Profiles lists people with a handle; somebody without one is found from the
+shell's Users list. A profile that has never run a timer shows "0m".
 
 ## Report triage
 
@@ -147,39 +141,31 @@ a profile tells its owner. The full rules are under Notices in
 
 ## The shape of every table
 
-Every list page has the shape every other admin table in the monorepo has: a
-selection checkbox first, sortable data columns, and an actions column last.
+Every list is drawn by `AdminListTable` in `src/components/pomodoro/admin-list.tsx`
+in the shell's CRM header and table shape; the full description is under
+"Middle" in [The Flowfly admin dashboard](admin-dashboard.md).
 
-- **The header checkbox** ticks every row on the page and shows the half-ticked
-  state when only some are ticked. It is dead on an empty table, because there
-  is nothing to tick.
-- **Ticked rows grow a "Delete (N)" button** at the front of the toolbar, on
-  every list that can delete. Room reports also has Resolve, Dismiss and Reopen
-  there.
-- **The actions column ends with the bin.** Before it sits the way to the list
+- **Tick boxes show only while Select is on.** The heading's box ticks every
+  row on the page and shows the half-ticked state when only some are ticked.
+- **Ticked rows gather in one "N selected" menu** in the header: Delete on
+  every list that can delete, and each list's own changes (Resolve, Dismiss
+  and Reopen on Reports, Free, Pro, Draft and Live on Backgrounds and Sounds).
+- **A row's own buttons end with the bin.** Before it sits the way to the list
   that answers the next question:
 
-  - Focus data and Tasks lead to that member's focus sessions.
-  - Focus sessions leads to that member's tasks.
-  - Focus rooms leads to the report queue searched on that room's name, then
-    Close, the cog for the room window, and the bin. See
+  - Focus and Tasks lead to that member's sessions.
+  - Sessions leads to that member's tasks.
+  - Rooms leads to Reports searched on that room's name. See
     [Rooms in the admin](rooms-admin.md).
-  - Room reports has its three decision buttons.
+  - Reports has its decision buttons.
 
-The date column on Tasks, Focus rooms and Room reports shows only on a screen
-1536px wide or more. With the bin added, the row actions ran past the right-hand
-edge of a 1280px screen by 47px, 50px and 216px, measured. With the dates
-hidden, every list fits at 1280. Below that the table scrolls sideways inside
-its box, as it did before.
+- **Columns drop out as the middle narrows**, and below a 448px middle only
+  the name and its buttons stay, so no table runs past its panel at any
+  width. Measured on every tab from 1280 to 2240px in 40px steps, and at
+  390px.
 
-Every list has a selection column and an actions column. Backgrounds and Sounds
-add Free, Pro, Draft and Live to the ticked-row buttons.
-
-One file owns the table. `admin-list.tsx` draws the selection column, the header
-checkbox, the empty row's width and the toolbar's "Clear N selected" chip, so a
-new page gets the lot by passing one `selection` prop. `admin-delete.tsx` owns
-the bin, the toolbar button and the confirm window, so every list that
-delete ask and answer the same way.
+`admin-delete.tsx` owns the bin's confirm window, so every list that deletes
+asks and answers the same way.
 
 ## Deleting
 
@@ -211,9 +197,9 @@ Tyler's Polish 3 task 09, 10 Oct 2026: a button tells the truth while it works.
 - **Red only when nothing changed.** Every multi-row action works out one
   line from `describeBulkResult`. It shows in the red error toast when no row
   changed, and nothing pops up when at least one did. That
-  holds for Delete, Close, Feature and Unfeature on Focus rooms and Weekly
-  rooms, Resolve, Dismiss, Reopen, Hide and Unhide on Room reports, Let through
-  on Chat, Approve on Member uploads, and Free, Pro, Draft and Live on
+  holds for Delete, Close, Feature and Unfeature on Rooms and Weekly
+  rooms, Resolve, Dismiss, Reopen, Hide and Unhide on Reports, Let through
+  on a room's Chat card, Approve on Member uploads, and Free, Pro, Draft and Live on
   Backgrounds and Sounds. On those four the line also counts rows already in
   that state, so a run that only finds them says nothing.
 - **Only the pressed button spins.** Hide and Unhide have their own spinner,
@@ -223,7 +209,7 @@ Tyler's Polish 3 task 09, 10 Oct 2026: a button tells the truth while it works.
   action it can run. While any of them runs, every toolbar button and every
   row button that changes something waits: Delete, Close, the decisions, Hide,
   Feature, Let through, Approve, the sharing menu and the bins. The cog that
-  opens a record's window stays pressable.
+  opens a row's record stays pressable.
 - **Hide and Unhide are toolbar buttons like the rest**, 32px and labelled
   "Hide (N)" and "Unhide (N)", counting the ticked profile reports.
 - **One transaction per press**, with one `pomodoro_audit_logs` row naming every
@@ -277,7 +263,7 @@ confirm." The button is never greyed out while the box is empty.
 
 ## Projects
 
-`/admin/pomodoro-projects` lists every member's projects. Before 8 Oct 2026
+Tasks → Projects lists every member's projects. Before 8 Oct 2026
 projects were the only member records with no admin page. Tyler asked for it
 that day: "there is no admin projects dashboard".
 
@@ -300,34 +286,33 @@ that day: "there is no admin projects dashboard".
   target or not. Every sort column but Tasks and Focused works out the hours
   for the page on screen only. Sorting by Tasks or Focused has to count every
   project the filters let through.
-- **The owner's name opens the member window.** `?user=<id>` narrows the list
-  to one member, with the "Only <name>" chip to clear it.
+- **The owner's name opens the member on the right.** `?user=<id>` narrows the
+  list to one member, with the "Only <name>" chip to clear it.
 
-### The project window
+### A project on the right
 
-The name, the row or the cog opens it, with `?open=<id>` in the address, so Back
-closes it.
+A project opens in the right panel (`?open=<id>`), where its window used to.
 
 - **Figures**: owner, tasks, hours all time, target, this period so far, public
-  or not, live or archived, and when it was made.
-- **Settings**: the Name and Target hours fields of the owner's own settings
-  window, with the same rules. A name is up to 60 characters and unique among
-  the owner's live projects, ignoring case. The database's own index refuses a
-  clash, and the window says "The owner already has a live project with that
-  name." Hours are whole numbers from 1 to 744, or blank for no target.
+  or not, and when it was made.
 - **Newest tasks**: the last 10, carried copies left out, with a link to the
-  owner's tasks on the Tasks page.
-- **The footer**: Delete hard left, then Archive or Bring back, then Cancel and
-  Save changes. Archive and Bring back act at once and keep anything typed.
-  Bringing a project back is refused when the owner has since made a live
-  project with the same name, the same as for the owner.
+  owner's tasks.
+- **The ⋮**: Name and Target, the same fields as the owner's own settings,
+  each a row that opens a small box and saves when it is left, then Delete
+  project in red. A name is up to 60 characters and unique among the owner's
+  live projects, ignoring case. The database's own index refuses a clash, and
+  the error says "The owner already has a live project with that name." Hours
+  are whole numbers from 1 to 744, or blank for no target.
+- **The footer**: Live or when it was archived, and Archive or Bring back,
+  which act at once. Bringing a project back is refused when the owner has
+  since made a live project with the same name, the same as for the owner.
 
 ### What the owner is told
 
 Every change is one transaction with one `pomodoro_audit_logs` row (resource
 `projects`, action `edit`, `archive`, `unarchive` or `delete`) and one notice
 to the owner. None names the admin. An admin changing their own project is not
-told, because nobody is notified about their own action, and the window, the
+told, because nobody is notified about their own action, and the record, the
 toasts and the delete window then leave out "is told in the bell".
 
 - A rename: "The Flowfly team renamed your project Thesis to PhD."
@@ -344,7 +329,7 @@ once.
 
 ### Deleting
 
-On a row, over ticked rows, and in the window. The confirm window says "2
+On a row, over ticked rows, and in the record's ⋮. The confirm window says "2
 projects will be deleted. Their 14 tasks are kept with no project, and the
 focus time stays in each person's History." A single project names itself
 and its owner. The tasks and repeating-task rules stay, with an empty project,
@@ -363,7 +348,7 @@ out the same day, so the record is read from the database when it is needed.
 Two pages, one for each kind, replaced the single read-only Media table on
 8 Oct 2026. An admin adds, edits, orders, prices, hides and deletes every
 background and sound there, and members see the change on their next page load.
-`/admin/pomodoro-media` now forwards to Backgrounds. The rules, the window and the
+The old `/admin/pomodoro-media` forwards to Library → Backgrounds. The rules, the window and the
 worker are in [Backgrounds and sounds in the admin](catalog-admin.md).
 
 ## What these pages will not do
@@ -396,15 +381,19 @@ copy would give an operator two places to look.
 - `src/lib/api/pomodoro/admin.ts` — the server functions, every one behind
   `adminGet` or `adminPost`, so a member calling them by hand is refused
   whatever the sidebar shows them.
-- `src/components/pomodoro/admin-delete.tsx`: the bin, "Delete (N)" and the
-  confirm window, shared by every list that deletes.
-- `src/components/pomodoro/admin-list.tsx` — the shared list plumbing: hold the
-  rows the loader fetched, refetch a quarter of a second after the address
-  changes, and draw the shell's dashboard table.
+- `src/components/pomodoro/admin-delete.tsx`: the delete hook and the confirm
+  window, shared by every list that deletes.
+- `src/components/pomodoro/admin-list.tsx`: the shared list plumbing. It holds
+  the rows the loader fetched, asks again a quarter of a second after the
+  address changes, and draws the list as a Flowfly tab: the shell's CRM
+  header and table, the row (`AdminRow`), and the record or member on the
+  right.
 - `src/server/pomodoro/admin-projects.ts`: the Projects list, window, save,
   archive and delete. Tested against a real database in
   `admin-projects.test.ts`.
-- `src/components/pomodoro/admin-*-dashboard.tsx` — one file per page.
+- `src/components/pomodoro/admin-*-dashboard.tsx`: one file per list, each a
+  tab of Flowfly. The frame, address and records are in
+  `src/components/pomodoro/flowfly/` and `src/lib/pomodoro/flowfly-*.ts`.
 
 Search, filters, sort and page all live in the address, so pressing Back returns
 the exact list you left and a link can be handed to somebody else. Every value

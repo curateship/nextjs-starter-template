@@ -342,7 +342,7 @@ was not live yet (`public-profile-settings-panel.tsx`, `PageAddress`).
 
 ## What an admin can change
 
-An admin fixes a profile from `/admin/pomodoro-profiles` (admin task 06). The
+An admin fixes a profile from Flowfly → Members → Profiles (admin task 06). The
 list shows every profile with a handle: the name, the address, whether the
 page is public, switched off or hidden, whether they are on the leaderboard,
 and how many people follow them. The cog opens a window with three fields and

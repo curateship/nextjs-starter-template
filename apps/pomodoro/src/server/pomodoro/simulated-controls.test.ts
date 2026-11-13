@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { planSimulatedDay, type SimulatedHabits } from "@/lib/pomodoro/simulated-days"
 import { type CustomShellDb } from "@/server/db"
 import { forgetAppSettings, loadAppSettings, saveAppSetting } from "@/server/pomodoro/app-settings"
-import { listAdminFocusUsers } from "@/server/pomodoro/admin"
 import { listAdminBoard } from "@/server/pomodoro/admin-leaderboard"
 import { blockAccount } from "@/server/pomodoro/blocks"
 import { listedProfilePaths, readPublicProfile } from "@/server/pomodoro/public-profile"
@@ -302,18 +301,11 @@ describe("a report", () => {
 })
 
 describe("the admin's own figures", () => {
-  it("leave every made-up member out of the focus list, its totals and the board with Real members only on", async () => {
+  it("leave every made-up member off the board with Real members only on", async () => {
     const [made] = await makeAccounts(1)
     const sam = await realMember("sam_r")
     await focused(sam, "2099-03-03", 2)
     await focused(made.userId, "2099-03-03", 3)
-    const all = await listAdminFocusUsers({ search: "", sort: "focus", direction: "desc", page: 1, pageSize: 25, now: NOON })
-    const real = await listAdminFocusUsers({ search: "", sort: "focus", direction: "desc", page: 1, pageSize: 25, realOnly: true, now: NOON })
-    expect(all.sums.weekSeconds).toBe(5 * 3_600)
-    expect(real.sums.weekSeconds).toBe(2 * 3_600)
-    expect(real.sums.focusSeconds).toBe(2 * 3_600)
-    expect(real.rows.map((row) => row.userId)).not.toContain(made.userId)
-    expect(real.total).toBe(all.total - 1)
     const board = await listAdminBoard({ window: "week", page: 1, pageSize: 25, realOnly: true, now: NOON })
     expect(board.rows.map((row) => row.userId)).toEqual([sam])
     const fullBoard = await listAdminBoard({ window: "week", page: 1, pageSize: 25, now: NOON })

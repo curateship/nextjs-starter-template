@@ -6,17 +6,17 @@ import { loadSimulatedMemberIds } from "@/lib/api/pomodoro/admin-simulated"
 import { cn } from "@/lib/utils"
 
 /**
- * A member's name on any Pomoder admin page, and what clicking it does: open
- * the member window (admin task 06) over the page, with `?member=<userId>` in
- * the address. See `workspace/docs/admin-members.md`.
+ * A member's name on any Flowfly list, and what clicking it does: open the
+ * member in the right panel (admin task 06, on the right since 13 Nov 2026),
+ * with `?member=<userId>` in the address. See `workspace/docs/admin-members.md`.
  */
 
 /**
- * Opens or closes the member window. Each is its own history entry, the way
- * the shell's Users list opens an account, so Back closes the window and the
+ * Opens or closes the member on the right. Each is its own history entry, the
+ * way the shell's Users list opens an account, so Back undoes it and the
  * address can be handed to somebody else.
  */
-export function useMemberWindowLink() {
+function useMemberWindowLink() {
   const navigate = useNavigate()
   return React.useCallback(
     (userId: string | undefined) => {
@@ -88,7 +88,7 @@ export function useIsMadeUp(id: string | null | undefined) {
 }
 
 /** The mark itself, beside a made-up account's name. */
-export function MadeUpMark() {
+function MadeUpMark() {
   return (
     <Badge variant="outline" title="A made-up member. Real members never see this mark.">
       Made up
@@ -96,7 +96,7 @@ export function MadeUpMark() {
   )
 }
 
-/** The name, drawn as the button that opens their window. */
+/** The name, drawn as the button that opens the member on the right (`?member=`). */
 export function MemberName({
   id,
   name,

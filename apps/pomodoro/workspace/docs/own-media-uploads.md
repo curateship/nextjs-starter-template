@@ -484,7 +484,7 @@ up — rather than a row pointing at a file that is gone.
 
 ## Admins can delete a member's file
 
-`/admin/pomodoro-uploads` lists every background and sound members uploaded
+Flowfly → Library → Member uploads lists every background and sound members uploaded
 or had made by AI (admin task 06, 8 Oct 2026). It is "Member uploads" under
 Backgrounds in the admin's left menu, beside "AI generations". The menu is saved
 on the workspace (Settings → Navigation), not in code, so the two links were

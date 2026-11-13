@@ -38,7 +38,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import {
   approvePomodoroShares,
   copyPomodoroUploadToCatalogue,
@@ -53,6 +52,7 @@ import {
   UNSHARE_REASONS,
   type UnshareReasonId,
 } from "@/lib/pomodoro/shared-media-reports"
+import { flowflyLink } from "@/lib/pomodoro/flowfly-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -117,42 +117,6 @@ export function useShareActions({ onDone }: { onDone: () => Promise<void> }) {
 
 export type ShareActions = ReturnType<typeof useShareActions>
 
-/** The toolbar's Approve and Unshare for the ticked rows. */
-export function ShareBulkButtons({
-  actions,
-  ids,
-  busy = false,
-}: {
-  actions: ShareActions
-  ids: string[]
-  /** Another action on the same list is running, so these wait for it. */
-  busy?: boolean
-}) {
-  if (!ids.length) return null
-  return (
-    <>
-      <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        disabled={actions.busy || busy}
-        onClick={() => void actions.approve(ids)}
-      >
-        <CheckIcon className="size-4" />
-        Approve ({ids.length})
-      </DashboardToolbarButton>
-      <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        disabled={actions.busy || busy}
-        onClick={() => actions.setUnsharing(ids)}
-      >
-        <EyeOffIcon className="size-4" />
-        Unshare ({ids.length})
-      </DashboardToolbarButton>
-    </>
-  )
-}
-
 /** One row's sharing menu, before its Delete. */
 export function ShareRowMenu({
   row,
@@ -188,8 +152,8 @@ export function ShareRowMenu({
     try {
       const { id, kind } = await copyPomodoroUploadToCatalogue(row.mediaId)
       await navigate({
-        to: kind === "sound" ? "/admin/pomodoro-sounds" : "/admin/pomodoro-themes",
-        search: { open: id },
+        to: "/admin/flowfly",
+        search: flowflyLink(kind === "sound" ? "sounds" : "backgrounds", { open: id }),
       })
     } catch (cause) {
       showErrorToast(getMemberFilesErrorMessage(cause))

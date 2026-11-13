@@ -1,17 +1,19 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
-import { CalendarClockIcon, MessageSquareTextIcon, PauseIcon, PlayIcon, SettingsIcon, UsersIcon } from "lucide-react"
+import { BotIcon, CalendarClockIcon, MessageSquareTextIcon, PauseIcon, PlayIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DashboardTable } from "@/components/shared/dashboard-table"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
-import { SortableTableHeader, type TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
-import { MemberName, useMemberWindowLink } from "@/components/pomodoro/admin-member-name"
+import { TableCell } from "@/components/ui/table"
+import { SelectedMenuRow } from "@/components/shared/mass-select"
+import { ViewMenu } from "@/components/shared/view-menu"
+import { PanelCard } from "@/components/shared/panel-card"
+import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
+import { MainCell } from "@/components/crm/crm-table"
+import { AdminListTable, AdminRow, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminMemberRecord } from "@/components/pomodoro/admin-member-record"
+import { MemberName } from "@/components/pomodoro/admin-member-name"
+import { DetailRecord, NoRecord } from "@/components/pomodoro/flowfly/detail-record"
+import { FilterPick } from "@/components/pomodoro/flowfly/filter-pick"
+import { useFlowflySearch } from "@/components/pomodoro/flowfly/flowfly-context"
 import {
   getSimulatedErrorMessage,
   listSimulatedLineRows,
@@ -24,21 +26,34 @@ import {
   type SimulatedWatchRow,
 } from "@/lib/api/pomodoro/admin-simulated"
 import { formatClockTime, formatDateTime, formatDuration } from "@/lib/format/format-time"
-import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/nav/list-search"
+import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
 import type { SimulatedSort, SimulatedTab } from "@/lib/pomodoro/admin-lists"
+import type { MadeupPart } from "@/lib/pomodoro/flowfly-search"
+import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The watch page for the made-up members, `/admin/pomodoro-simulated` (live
- * activity task 05, Parts 2 to 4): one line saying what they did today and
- * what the chat cost, today's schedule before it runs, every account with its
- * pause switch, and every line they said with the brief behind it. See "Your
- * controls" in `workspace/docs/made-up-members.md`.
+ * Members → Made-up on the Flowfly dashboard: the watch page for the made-up
+ * members (live activity task 05, Parts 2 to 4). Its three tables became one
+ * list with a view dropdown (a tab's own choices are a dropdown, never a
+ * second row): Members, every account with its pause switch, opening the
+ * member on the right; Schedule, today's plan before it runs; and Lines,
+ * every line they said, opening on the right with the brief behind it. The
+ * line under each list says what they did today and what the chat cost.
+ * Lines only reach a room once Preview has been pressed on the voice card
+ * in Settings (`made-up-members.md`). See "Your controls" there.
  */
 
-const route = getRouteApi("/_authenticated/admin/pomodoro-simulated")
+type MadeupSearch = {
+  part?: MadeupPart
+  tab?: SimulatedTab
+  q?: string
+  sort?: SimulatedSort
+  direction?: "asc" | "desc"
+  page?: number
+  lines?: number
+}
 
 type WatchPage = {
   list: { rows: SimulatedWatchRow[]; total: number }
@@ -51,20 +66,25 @@ type WatchPage = {
 const noSubscription = () => () => {}
 
 /**
- * True once the page is running in the browser. Every time on this page is
- * worked out from the reader's own clock and time zone, which the server does
- * not have, so a time drawn on the server differed from the browser's and
- * React threw away the page (error 418 on pomoder.com, 11 Oct 2026). Until
- * then a time is a dash.
+ * True once the page is running in the browser. Every time here is worked
+ * out from the reader's own clock and time zone, which the server does not
+ * have, so a time drawn on the server differed from the browser's and React
+ * threw away the page (error 418 on pomoder.com, 11 Oct 2026). Until then a
+ * time is a dash.
  */
 function useInBrowser() {
   return React.useSyncExternalStore(noSubscription, () => true, () => false)
 }
 
-/** The summary and the schedule are read again this often while the page is open. */
+/** The summary and the schedule are read again this often while the list is open. */
 const OVERVIEW_REFRESH_MS = 60_000
 
+const PARTS: Record<MadeupPart, string> = { members: "Members", schedule: "Schedule", lines: "Lines" }
+
 export function AdminSimulatedDashboard({ initial }: { initial: WatchPage }) {
+  const search = useFlowflySearch<MadeupSearch>()
+  const setListSearch = useListSearchNavigate()
+  const part: MadeupPart = search.part ?? "members"
   const [overview, setOverview] = React.useState({ summary: initial.summary, schedule: initial.schedule })
   const refreshOverview = React.useCallback(() => {
     loadSimulatedOverview().then(setOverview, () => {
@@ -76,18 +96,20 @@ export function AdminSimulatedDashboard({ initial }: { initial: WatchPage }) {
     return () => clearInterval(timer)
   }, [refreshOverview])
 
-  return (
-    <CardGroup>
-      <ScheduleTable summary={overview.summary} schedule={overview.schedule} />
-      <AccountsTable initial={initial.list} initialPageSize={initial.pageSize} onChanged={refreshOverview} />
-      <LinesTable initial={initial.lines} initialPageSize={initial.pageSize} />
-    </CardGroup>
+  const view = (
+    <ViewMenu
+      label="Which list"
+      value={part}
+      onValueChange={(value) => setListSearch({ part: value === "members" ? undefined : value, open: undefined, page: undefined, lines: undefined, q: undefined })}
+      choices={(Object.keys(PARTS) as MadeupPart[]).map((value) => ({ value, label: PARTS[value] }))}
+    />
   )
-}
+  const footnote = <SummaryLine summary={overview.summary} />
 
-// ---------------------------------------------------------------------------
-// The summary and today's schedule
-// ---------------------------------------------------------------------------
+  if (part === "schedule") return <ScheduleList key="schedule" schedule={overview.schedule} view={view} footnote={footnote} />
+  if (part === "lines") return <LinesList key="lines" initial={initial.lines} initialPageSize={initial.pageSize} view={view} footnote={footnote} />
+  return <AccountsList key="members" initial={initial.list} initialPageSize={initial.pageSize} onChanged={refreshOverview} view={view} footnote={footnote} />
+}
 
 /** Cents with the fractions kept while under one, since a line costs about a twentieth of one. */
 function formatCents(cents: number) {
@@ -95,6 +117,7 @@ function formatCents(cents: number) {
   return cents < 1 ? `${cents.toFixed(2)}¢` : `${Math.round(cents)}¢`
 }
 
+/** What the made-up members did today, under every part's list. */
 function SummaryLine({ summary }: { summary: SimulatedSummary }) {
   const inBrowser = useInBrowser()
   const off = (
@@ -110,115 +133,49 @@ function SummaryLine({ summary }: { summary: SimulatedSummary }) {
     .map(([, label]) => label)
   const lastReal = !summary.lastRealSeenAt ? "never" : inBrowser ? formatDateTime(summary.lastRealSeenAt) : "-"
   return (
-    <div className="grid gap-1 text-sm" aria-live="polite">
-      <p>
+    <span className="grid grid-cols-[minmax(0,1fr)] gap-1">
+      <span>
         {summary.focusedToday} of {summary.total} focused today, {summary.roomsOpen}{" "}
         {plural(summary.roomsOpen, "made-up room", "made-up rooms")} open, {summary.linesToday}{" "}
         {plural(summary.linesToday, "line", "lines")} said for {formatCents(summary.centsToday)} of{" "}
         {formatCents(summary.capCents)} today (UTC)
         {summary.paused ? `, ${summary.paused} paused` : ""}.
-      </p>
-      <p className="text-muted-foreground">
+      </span>
+      <span>
         Somebody real was last on the site: {lastReal}.
         {summary.pausedAll ? " Pause everything is on." : ""}
         {off.length ? ` Switched off: ${off.join(", ")}.` : ""}
-      </p>
-    </div>
+      </span>
+    </span>
   )
 }
 
-function ScheduleTable({ summary, schedule }: { summary: SimulatedSummary; schedule: ScheduleHour[] }) {
-  const inBrowser = useInBrowser()
-  const starts = schedule.reduce((sum, hour) => sum + hour.focusing.length, 0)
-  return (
-    <DashboardTable
-      title="Today's schedule"
-      icon={<CalendarClockIcon />}
-      count={starts}
-      filters={<SummaryLine summary={summary} />}
-      header={
-        <SortableTableHeader<"hour" | "focusing" | "rooms">
-          columns={[
-            { key: "hour", label: "Hour", column: "meta", sortable: false },
-            { key: "focusing", label: "Starting a focus", column: "main", sortable: false },
-            { key: "rooms", label: "Rooms opening", column: "meta", sortable: false },
-          ]}
-          sort="hour"
-          direction="asc"
-          onSort={() => {}}
-        />
-      }
-      isEmpty={schedule.length === 0}
-      emptyText="Nothing is planned in the next 24 hours."
-      emptyColSpan={3}
-      footer={{
-        type: "summary",
-        count: starts,
-        label: `${plural(starts, "focus start", "focus starts")} in the next 24 hours, counting each person once an hour, in your own time. Rooms opened to keep Open to join full are not foreseen.`,
-      }}
-    >
-      {schedule.map((hour) => (
-        <TableRow key={hour.startsAt}>
-          <TableCell column="meta">{inBrowser ? formatClockTime(hour.startsAt) : "-"}</TableCell>
-          <TableCell column="main">
-            <span
-              className="block max-w-xl truncate"
-              title={hour.focusing.map((person) => person.name).join(", ")}
-            >
-              {hour.focusing.length
-                ? `${hour.focusing.length}: ${hour.focusing.map((person) => person.name).join(", ")}`
-                : "-"}
-            </span>
-          </TableCell>
-          <TableCell column="meta">
-            <span
-              className="block max-w-72 truncate"
-              title={hour.rooms.map((room) => `${room.name} (${room.host})`).join(", ")}
-            >
-              {hour.rooms.length
-                ? hour.rooms.map((room) => `${room.name}${room.weekly ? ", weekly" : ""}`).join("; ")
-                : "-"}
-            </span>
-          </TableCell>
-        </TableRow>
-      ))}
-    </DashboardTable>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// The accounts
-// ---------------------------------------------------------------------------
-
-const TAB_LABELS: Record<SimulatedTab, string> = { today: "Today", paused: "Paused", all: "All" }
+const SHOW_LABELS: Record<SimulatedTab, string> = { today: "Today", paused: "Paused", all: "All" }
 
 const ACCOUNT_COLUMNS: TableHeaderColumn<SimulatedSort | "where" | "room" | "paused">[] = [
   { key: "name", label: "Member", column: "main" },
-  { key: "where", label: "Local time", column: "meta", sortable: false, className: "hidden md:table-cell" },
+  { key: "where", label: "Local time", column: "meta", sortable: false, className: "hidden md:hidden @4xl:table-cell" },
   { key: "hours", label: "Today", column: "meta" },
-  { key: "room", label: "Room", column: "meta", sortable: false, className: "hidden lg:table-cell" },
-  { key: "lines", label: "Lines today", column: "meta" },
+  { key: "room", label: "Room", column: "meta", sortable: false, className: "hidden md:hidden @5xl:table-cell" },
+  { key: "lines", label: "Lines today", column: "meta", className: "hidden md:hidden @3xl:table-cell" },
   { key: "paused", label: "Paused", column: "meta", sortable: false },
 ]
 
-function localTime(timezone: string) {
-  try {
-    return new Intl.DateTimeFormat(undefined, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date())
-  } catch {
-    return "-"
-  }
-}
-
-function AccountsTable({
+/** Every made-up account with its pause switch; a row opens the member on the right. */
+function AccountsList({
   initial,
   initialPageSize,
   onChanged,
+  view,
+  footnote,
 }: {
   initial: { rows: SimulatedWatchRow[]; total: number }
   initialPageSize: number
   onChanged: () => void
+  view: React.ReactNode
+  footnote: React.ReactNode
 }) {
-  const search = route.useSearch()
+  const search = useFlowflySearch<MadeupSearch>()
   const setListSearch = useListSearchNavigate()
   const tab: SimulatedTab = search.tab ?? "today"
   const query = search.q ?? ""
@@ -229,9 +186,6 @@ function AccountsTable({
     (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
     [setListSearch]
   )
-  const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
-    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
-  )
   const load = React.useCallback(
     (pageSize: number) => listSimulatedWatchRows({ tab, search: query, sort, direction, page, pageSize }),
     [direction, page, query, sort, tab]
@@ -240,8 +194,6 @@ function AccountsTable({
   const toggleSort = useListSort<SimulatedSort>({ sort, direction }, (column) => (column === "name" ? "asc" : "desc"))
   const selection = useSelection()
   const rowIds = React.useMemo(() => list.rows.map((row) => row.userId), [list.rows])
-  const selectedIds = rowIds.filter((id) => selection.selected.has(id))
-  const openMember = useMemberWindowLink()
   const inBrowser = useInBrowser()
   const [busy, setBusy] = React.useState(false)
 
@@ -261,31 +213,9 @@ function AccountsTable({
 
   return (
     <AdminListTable
-      title="Made-up members"
-      icon={<UsersIcon />}
-      tabs={
-        <Tabs
-          value={tab}
-          onValueChange={(value) =>
-            setListSearch({ tab: value === "today" ? undefined : value, page: undefined })
-          }
-        >
-          <TabsList>
-            {(Object.keys(TAB_LABELS) as SimulatedTab[]).map((value) => (
-              <TabsTrigger key={value} value={value}>
-                {TAB_LABELS[value]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      }
       noun="made-up members"
       emptyText={
-        tab === "today"
-          ? "None of them has focused, talked or sat in a room today yet."
-          : tab === "paused"
-            ? "Nobody is paused."
-            : undefined
+        tab === "today" ? "None of them has focused, talked or sat in a room today yet." : tab === "paused" ? "Nobody is paused." : undefined
       }
       columns={ACCOUNT_COLUMNS}
       sort={sort}
@@ -293,59 +223,84 @@ function AccountsTable({
       onSort={(column) => {
         if (column === "name" || column === "hours" || column === "lines") toggleSort(column)
       }}
-      trailing={<TableHead column="meta">Actions</TableHead>}
       selection={{ noun: "made-up members", rowIds, state: selection }}
       list={list}
       page={page}
       onPageChange={setPage}
-      controls={
-        <>
-          {selectedIds.length ? (
-            <>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void setPaused(selectedIds, true)}>
-                <PauseIcon className="size-4" />
-                Pause
-              </Button>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void setPaused(selectedIds, false)}>
-                <PlayIcon className="size-4" />
-                Unpause
-              </Button>
-            </>
-          ) : null}
-          <DashboardToolbarSearch
-            name="simulated-search"
-            aria-label="Search made-up members"
-            placeholder="Search name or handle…"
-            value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
+      search={{
+        name: "simulated-search",
+        label: "Search made-up members",
+        placeholder: "Search name or handle",
+        value: query,
+        onChange: (text) => setListSearch({ q: text.trim() ? text : undefined, page: undefined }),
+      }}
+      filter={{
+        count: tab !== "today" ? 1 : 0,
+        onClear: () => setListSearch({ tab: undefined, page: undefined }),
+        children: (
+          <FilterPick
+            id="madeup-show"
+            label="Show"
+            value={tab === "today" ? undefined : tab}
+            any="Busy today"
+            options={[
+              ["paused", SHOW_LABELS.paused],
+              ["all", SHOW_LABELS.all],
+            ]}
+            onChange={(next) => setListSearch({ tab: next, page: undefined })}
           />
+        ),
+      }}
+      view={view}
+      footnote={footnote}
+      bulk={(ids, menu) => (
+        <>
+          <SelectedMenuRow
+            onClick={() => {
+              menu.close()
+              void setPaused(ids, true)
+            }}
+          >
+            <PauseIcon className="size-4" />
+            Pause
+          </SelectedMenuRow>
+          <SelectedMenuRow
+            onClick={() => {
+              menu.close()
+              void setPaused(ids, false)
+            }}
+          >
+            <PlayIcon className="size-4" />
+            Unpause
+          </SelectedMenuRow>
         </>
-      }
+      )}
+      bulkBusy={busy}
+      rowIds={rowIds}
+      record={{
+        label: "Member",
+        content: (openId) =>
+          openId ? (
+            <AdminMemberRecord key={openId} userId={openId} />
+          ) : (
+            <NoRecord title="Member" icon={<BotIcon aria-hidden />} line="No made-up member matches." />
+          ),
+      }}
     >
       {list.rows.map((row) => (
-        <TableRow key={row.userId}>
-          <AdminSelectCell selection={selection} id={row.userId} label={`Select ${row.name}`} />
-          <TableCell column="main">
-            <div className="min-w-0">
-              <MemberName id={row.userId} name={row.name} />
-              <span className="block max-w-96 truncate text-xs text-muted-foreground">
-                {row.handle ? `/u/${row.handle}` : "No handle"}
-              </span>
-            </div>
-          </TableCell>
-          <TableCell column="meta" className="hidden md:table-cell">
+        <AdminRow key={row.userId} id={row.userId} label={row.name}>
+          <MainCell name={row.name}>
+            <span className="min-w-0 truncate text-xs text-muted-foreground">{row.handle ? `/u/${row.handle}` : "No handle"}</span>
+          </MainCell>
+          <TableCell column="meta" className="hidden md:hidden @4xl:table-cell">
             <span className="block">{inBrowser ? localTime(row.timezone) : "-"}</span>
-            <span className="block max-w-40 truncate text-xs text-muted-foreground" title={row.timezone}>
-              {row.timezone}
-            </span>
+            <span className="block max-w-40 truncate text-xs text-muted-foreground">{row.timezone}</span>
           </TableCell>
           <TableCell column="meta">{formatDuration(row.todaySeconds * 1000, { zero: "-" })}</TableCell>
-          <TableCell column="meta" className="hidden lg:table-cell">
-            <span className="block max-w-48 truncate" title={row.roomName ?? undefined}>
-              {row.roomName ?? "-"}
-            </span>
+          <TableCell column="meta" className="hidden md:hidden @5xl:table-cell">
+            <span className="block max-w-48 truncate">{row.roomName ?? "-"}</span>
           </TableCell>
-          <TableCell column="meta">
+          <TableCell column="meta" className="hidden md:hidden @3xl:table-cell">
             {row.linesToday ? `${row.linesToday} · ${formatCents(row.centsToday)}` : "-"}
           </TableCell>
           <TableCell column="meta">
@@ -353,29 +308,117 @@ function AccountsTable({
               checked={Boolean(row.pausedAt)}
               disabled={busy}
               aria-label={row.pausedAt ? `Unpause ${row.name}` : `Pause ${row.name}`}
+              onClick={(event) => event.stopPropagation()}
               onCheckedChange={(paused) => void setPaused([row.userId], paused)}
             />
           </TableCell>
-          <TableCell column="actions">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Open ${row.name}`}
-              onClick={() => openMember(row.userId)}
-            >
-              <SettingsIcon className="size-4" />
-            </Button>
-          </TableCell>
-        </TableRow>
+        </AdminRow>
       ))}
     </AdminListTable>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Every line
-// ---------------------------------------------------------------------------
+/**
+ * Today's schedule before it runs: each hour of the next 24, who starts a
+ * focus and which rooms open, in the reader's own time. An hour opens on
+ * the right with everybody in it.
+ */
+function ScheduleList({ schedule, view, footnote }: { schedule: ScheduleHour[]; view: React.ReactNode; footnote: React.ReactNode }) {
+  const inBrowser = useInBrowser()
+  const load = React.useCallback(async () => ({ rows: schedule, total: schedule.length }), [schedule])
+  const list = useAdminList({ initial: { rows: schedule, total: schedule.length }, initialPageSize: 100, page: 1, onPageChange: () => {}, load })
+  const rowIds = list.rows.map((hour) => hour.startsAt)
+  const starts = schedule.reduce((sum, hour) => sum + hour.focusing.length, 0)
+  return (
+    <AdminListTable
+      noun="hours"
+      emptyText="Nothing is planned in the next 24 hours."
+      columns={[
+        { key: "hour", label: "Hour", column: "main", sortable: false },
+        { key: "focusing", label: "Starting a focus", column: "meta", sortable: false },
+        { key: "rooms", label: "Rooms opening", column: "meta", sortable: false, className: "hidden md:hidden @3xl:table-cell" },
+      ]}
+      sort="hour"
+      direction="asc"
+      onSort={() => {}}
+      list={list}
+      page={1}
+      onPageChange={() => {}}
+      search={null}
+      view={view}
+      footnote={
+        <>
+          {footnote}
+          <span className="mt-1 block">
+            {starts} {plural(starts, "focus start", "focus starts")} in the next 24 hours, counting each person once an hour. Rooms opened to keep
+            Open to join full are not foreseen.
+          </span>
+        </>
+      }
+      rowIds={rowIds}
+      record={{
+        label: "Hour",
+        content: (openId) => {
+          const hour = list.rows.find((each) => each.startsAt === openId)
+          if (!hour) return <NoRecord title="Hour" icon={<CalendarClockIcon aria-hidden />} line="Nothing is planned in the next 24 hours." />
+          return (
+            <DetailRecord
+              key={hour.startsAt}
+              icon={<CalendarClockIcon aria-hidden />}
+              title={inBrowser ? formatClockTime(hour.startsAt) : "-"}
+              line={`${hour.focusing.length} ${plural(hour.focusing.length, "focus start", "focus starts")}, ${hour.rooms.length} ${plural(hour.rooms.length, "room", "rooms")}`}
+              hideLabel="Hide the hour"
+              facts={[
+                ["Starting a focus", hour.focusing.length.toLocaleString()],
+                ["Rooms opening", hour.rooms.length.toLocaleString()],
+              ]}
+            >
+              <PanelCard storageId="pomodoro-flowfly-madeup-hour" icon={<BotIcon />} title="Who and where">
+                <ul className="grid gap-1.5 text-sm">
+                  {hour.focusing.map((person) => (
+                    <li key={person.name} className="truncate">
+                      {person.name}
+                    </li>
+                  ))}
+                  {hour.rooms.map((room) => (
+                    <li key={`${room.name}-${room.host}`} className="truncate text-muted-foreground">
+                      {room.name}
+                      {room.weekly ? ", weekly" : ""} ({room.host})
+                    </li>
+                  ))}
+                </ul>
+              </PanelCard>
+            </DetailRecord>
+          )
+        },
+      }}
+    >
+      {list.rows.map((hour) => (
+        <AdminRow key={hour.startsAt} id={hour.startsAt} label={`the hour at ${inBrowser ? formatClockTime(hour.startsAt) : "-"}`}>
+          <MainCell name={inBrowser ? formatClockTime(hour.startsAt) : "-"} />
+          <TableCell column="meta">
+            <span className="block max-w-xl truncate">
+              {hour.focusing.length ? `${hour.focusing.length}: ${hour.focusing.map((person) => person.name).join(", ")}` : "-"}
+            </span>
+          </TableCell>
+          <TableCell column="meta" className="hidden md:hidden @3xl:table-cell">
+            <span className="block max-w-72 truncate">
+              {hour.rooms.length ? hour.rooms.map((room) => `${room.name}${room.weekly ? ", weekly" : ""}`).join("; ") : "-"}
+            </span>
+          </TableCell>
+        </AdminRow>
+      ))}
+    </AdminListTable>
+  )
+}
+
+function localTime(timezone: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date())
+  } catch {
+    return "-"
+  }
+}
 
 const KIND_LABELS: Record<string, string> = {
   open: "Room opens",
@@ -393,130 +436,99 @@ const KIND_LABELS: Record<string, string> = {
 }
 
 /**
- * Every line attempt, newest first, kept 30 days. A row opens to the brief
- * the AI was sent, so a bad line is traced to the setting that produced it.
- * Its own page number in the address (`lines`), apart from the accounts'.
- * Drawn with `DashboardTable` rather than `AdminListTable`, which brings a
- * member window of its own: the page already has one.
+ * Every line attempt, newest first, kept 30 days. A line opens on the right
+ * with the brief the AI was sent, so a bad line is traced to the setting
+ * that produced it. Its own page number in the address (`lines`).
  */
-function LinesTable({
+function LinesList({
   initial,
   initialPageSize,
+  view,
+  footnote,
 }: {
   initial: { rows: SimulatedLineRow[]; total: number }
   initialPageSize: number
+  view: React.ReactNode
+  footnote: React.ReactNode
 }) {
-  const search = route.useSearch()
+  const search = useFlowflySearch<MadeupSearch>()
   const setListSearch = useListSearchNavigate()
   const page = search.lines ?? 1
-  const [rows, setRows] = React.useState(initial.rows)
-  const [total, setTotal] = React.useState(initial.total)
-  const [pageSize, setPageSize] = React.useState(initialPageSize)
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [open, setOpen] = React.useState<string | null>(null)
   const inBrowser = useInBrowser()
-  const shown = React.useRef({ page, pageSize })
-
-  const refresh = React.useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await listSimulatedLineRows({ page, pageSize })
-      setRows(result.rows)
-      setTotal(result.total)
-      setError(null)
-    } catch (failure) {
-      setError(getSimulatedErrorMessage(failure))
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize])
-
-  React.useEffect(() => {
-    if (shown.current.page === page && shown.current.pageSize === pageSize) return
-    shown.current = { page, pageSize }
-    void refresh()
-  }, [page, pageSize, refresh])
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const setPage = (next: number) => setListSearch({ lines: next > 1 ? next : undefined })
+  const setPage = React.useCallback((next: number) => setListSearch({ lines: next > 1 ? next : undefined }), [setListSearch])
+  const load = React.useCallback((pageSize: number) => listSimulatedLineRows({ page, pageSize }), [page])
+  const list = useAdminList({ initial, initialPageSize, page, onPageChange: setPage, load })
+  const rowIds = list.rows.map((row) => row.id)
+  const said = (row: SimulatedLineRow) => row.body ?? (row.source === "ai" ? "No line came back" : "Nothing passed the checks")
 
   return (
-    <DashboardTable
-      title="Lines"
-      icon={<MessageSquareTextIcon />}
-      count={total}
-      busy={loading}
-      error={error ? { message: error, onRetry: () => void refresh() } : null}
-      header={
-        <SortableTableHeader<"when" | "who" | "line" | "source" | "cost">
-          columns={[
-            { key: "when", label: "When", column: "meta", sortable: false },
-            { key: "who", label: "Who", column: "meta", sortable: false },
-            { key: "line", label: "Line", column: "main", sortable: false },
-            { key: "source", label: "Source", column: "meta", sortable: false, className: "hidden md:table-cell" },
-            { key: "cost", label: "Cost", column: "meta", sortable: false },
-          ]}
-          sort="when"
-          direction="desc"
-          onSort={() => {}}
-        />
-      }
-      isEmpty={rows.length === 0}
+    <AdminListTable
+      noun="lines"
       emptyText="No lines yet. The rooms stay quiet until Preview has been pressed on the voice card."
-      emptyColSpan={5}
-      footer={{
-        type: "pagination",
-        page,
-        pageSize,
-        total,
-        totalPages,
-        onPageChange: setPage,
-        onPageSizeChange: (next) => {
-          setPage(1)
-          setPageSize(next)
+      columns={[
+        { key: "line", label: "Line", column: "main", sortable: false },
+        { key: "who", label: "Who", column: "meta", sortable: false, className: "hidden md:hidden @xl:table-cell" },
+        { key: "when", label: "When", column: "meta", sortable: false, className: "hidden md:hidden @3xl:table-cell" },
+        { key: "cost", label: "Cost", column: "meta", sortable: false },
+      ]}
+      sort="when"
+      direction="desc"
+      onSort={() => {}}
+      list={list}
+      page={page}
+      onPageChange={setPage}
+      search={null}
+      view={view}
+      footnote={footnote}
+      rowIds={rowIds}
+      record={{
+        label: "Line",
+        content: (openId) => {
+          const row = list.rows.find((each) => each.id === openId)
+          if (!row) return <NoRecord title="Line" icon={<MessageSquareTextIcon aria-hidden />} line="No lines yet." />
+          return (
+            <DetailRecord
+              key={row.id}
+              icon={<MessageSquareTextIcon aria-hidden />}
+              title={said(row)}
+              line={`${row.name} · ${row.roomName ?? "A closed room"}`}
+              hideLabel="Hide the line"
+              facts={[
+                ["Who", <MemberName key="who" id={row.userId} name={row.name} />],
+                ["Room", row.roomName ?? "A closed room"],
+                ["When", inBrowser ? formatDateTime(row.createdAt) : "-"],
+                ["What for", KIND_LABELS[row.kind] ?? row.kind],
+                ["Source", row.source === "ai" ? (row.model ?? "AI") : "Fixed line"],
+                ["Cost", formatCents(row.costCents)],
+                ["Sent", row.sent ? "Yes" : row.rejectedReason ? `No: ${row.rejectedReason}` : "No"],
+              ]}
+              state={row.sent ? "Sent to the room" : "Not sent"}
+            >
+              <PanelCard storageId="pomodoro-flowfly-madeup-brief" icon={<BotIcon />} title="The brief">
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{row.brief ?? "A fixed line: no brief was sent."}</p>
+              </PanelCard>
+            </DetailRecord>
+          )
         },
       }}
     >
-      {rows.map((row) => (
-        <React.Fragment key={row.id}>
-          <TableRow rowAction={() => setOpen(open === row.id ? null : row.id)}>
-            <TableCell column="meta">{inBrowser ? formatDateTime(row.createdAt) : "-"}</TableCell>
-            <TableCell column="meta">
-              <MemberName id={row.userId} name={row.name} className="max-w-40" />
-              <span className="block max-w-40 truncate text-xs text-muted-foreground" title={row.roomName ?? undefined}>
-                {row.roomName ?? "A closed room"}
-              </span>
-            </TableCell>
-            <TableCell column="main">
-              <button
-                type="button"
-                className="block max-w-xl truncate text-left hover:underline"
-                title={row.body ?? undefined}
-                aria-expanded={open === row.id}
-                onClick={() => setOpen(open === row.id ? null : row.id)}
-              >
-                {row.body ?? (row.source === "ai" ? "No line came back" : "Nothing passed the checks")}
-              </button>
-              <span className="block text-xs text-muted-foreground">
-                {KIND_LABELS[row.kind] ?? row.kind}
-                {row.sent ? "" : row.rejectedReason ? `, not sent: ${row.rejectedReason}` : ", not sent"}
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="hidden md:table-cell">
-              {row.source === "ai" ? (row.model ?? "AI") : "Fixed line"}
-            </TableCell>
-            <TableCell column="meta">{formatCents(row.costCents)}</TableCell>
-          </TableRow>
-          {open === row.id ? (
-            <TableRow>
-              <TableCell colSpan={5} className="whitespace-pre-wrap text-xs text-muted-foreground">
-                {row.brief ?? "A fixed line: no brief was sent."}
-              </TableCell>
-            </TableRow>
-          ) : null}
-        </React.Fragment>
+      {list.rows.map((row) => (
+        <AdminRow key={row.id} id={row.id} label={`the line from ${row.name}`}>
+          <MainCell name={said(row)}>
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {KIND_LABELS[row.kind] ?? row.kind}
+              {row.sent ? "" : row.rejectedReason ? `, not sent: ${row.rejectedReason}` : ", not sent"}
+            </span>
+          </MainCell>
+          <TableCell column="meta" className="hidden md:hidden @xl:table-cell">
+            <MemberName id={row.userId} name={row.name} className="max-w-40" />
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden md:hidden @3xl:table-cell">
+            {inBrowser ? formatDateTime(row.createdAt) : "-"}
+          </TableCell>
+          <TableCell column="meta">{formatCents(row.costCents)}</TableCell>
+        </AdminRow>
       ))}
-    </DashboardTable>
+    </AdminListTable>
   )
 }

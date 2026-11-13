@@ -1,48 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminTagsDashboard } from "@/components/pomodoro/admin-tags-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { getMemberFilesErrorMessage, loadPomodoroTagsPage } from "@/lib/api/pomodoro/admin-uploads-tags"
-import { readDirection, readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
-import { TAG_SORT_COLUMNS, readMemberSearch, readUserFilter } from "@/lib/pomodoro/admin-lists"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
-type TagsSearch = {
-  q?: string
-  user?: string
-  member?: string
-  sort?: (typeof TAG_SORT_COLUMNS)[number]
-  direction?: "asc" | "desc"
-  page?: number
-}
-
-function readTagsSearch(search: Record<string, unknown>): TagsSearch {
-  return {
-    ...readMemberSearch(search),
-    q: readSearchText(search.q),
-    user: readUserFilter(search.user),
-    sort: readOneOf(search.sort, TAG_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    page: readPage(search.page),
-  }
-}
-
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-tags")({
-  validateSearch: readTagsSearch,
-  loader: ({ location }) => {
-    const search = readTagsSearch(location.search as Record<string, unknown>)
-    return loadPomodoroTagsPage({
-      search: search.q ?? "",
-      user: search.user,
-      sort: search.sort ?? "tasks",
-      direction: search.direction ?? "desc",
-      page: search.page ?? 1,
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-tags", location.search as Record<string, unknown>),
+      replace: true,
     })
   },
-  component: AdminPomodoroTagsRoute,
-  errorComponent: routeErrorComponent(getMemberFilesErrorMessage),
 })
-
-function AdminPomodoroTagsRoute() {
-  const { list, pageSize } = Route.useLoaderData()
-  return <AdminTagsDashboard initial={list} initialPageSize={pageSize} />
-}

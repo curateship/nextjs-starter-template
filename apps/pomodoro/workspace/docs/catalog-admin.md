@@ -85,8 +85,8 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
 
 ## The two pages
 
-`/admin/pomodoro-themes` and `/admin/pomodoro-sounds`, one component
-(`admin-catalog-dashboard.tsx`). `/admin/pomodoro-media` forwards to Backgrounds.
+Flowfly → Library → Backgrounds and Sounds, one component
+(`admin-catalog-dashboard.tsx`). The old `/admin/pomodoro-themes`, `/admin/pomodoro-sounds` and `/admin/pomodoro-media` forward there.
 
 - **A row** shows the picture, the name, its kind, a sound's length, Free or
   Pro, a note while a new file is being prepared, or "File refused:" with the

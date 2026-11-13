@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { createErrorMessage } from "../error-message"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   listAdminAchievements,
@@ -17,8 +16,6 @@ import { ACHIEVEMENTS } from "@/lib/pomodoro/achievements"
  * `adminGet` or `adminPost`. See `workspace/docs/achievements.md`.
  */
 export type { AdminAchievementRow }
-
-export const getAdminAchievementErrorMessage = createErrorMessage({}, "That did not work. Please try again.")
 
 const BADGE_IDS = ACHIEVEMENTS.map((badge) => badge.id) as [string, ...string[]]
 

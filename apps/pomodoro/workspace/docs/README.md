@@ -3,6 +3,10 @@
 One line per doc. The repo's `docs/` covers what is true of every app; these
 cover this one.
 
+- [The Flowfly admin dashboard](admin-dashboard.md). Every Pomodoro admin
+  page as one three-panel dashboard at `/admin/flowfly`: seven sections with
+  their lists as tabs, each row's record on the right, Waiting on you, the
+  Overview widgets, and where the old `/admin/pomodoro-*` addresses go.
 - [The product shell](product-shell.md) — the `_pomodoro` layout: the app's
   own sidebar, header and settings page; the admin chrome is never the
   frontend.
@@ -133,10 +137,10 @@ cover this one.
 - [Backgrounds and sounds in the admin](catalog-admin.md) — the catalogue in the
   database, the Backgrounds and Sounds dashboards, the window, the 2-to-5-minute
   rule, uploads and the worker, and what members fall back to.
-- [Admin sections](admin-sections.md) — every Pomoder operator page under
-  `/admin`, from focus data and the report queue to member profiles, uploads,
-  badges, groups and projects, and what each delete takes with it.
-- [Members in the admin](admin-members.md) — the window a member's name opens
+- [Admin sections](admin-sections.md). What each Flowfly list does, from
+  focus data and the report queue to member profiles, uploads, badges, groups
+  and projects, and what each delete takes with it.
+- [Members in the admin](admin-members.md). The record a member's name opens
   on any admin list, fixing a broken streak day without touching hours or the
   leaderboard, and the private admin notes.
 - [Made-up members](made-up-members.md) — the accounts that focus every day
