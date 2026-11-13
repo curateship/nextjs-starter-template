@@ -53,11 +53,12 @@ vi.mock("@/components/trade/activity-panel", () => ({
     lead,
   }: {
     onAddToPosition: (position: unknown) => void
-    chart?: { label: string; content: React.ReactNode }
+    chart?: { label: string; content: React.ReactNode; info?: React.ReactNode }
     lead?: React.ReactNode
   }) => (
     <div data-testid="activity-panel" data-chart-tab={chart?.label}>
       <div data-testid="middle-header-start">{lead}</div>
+      <div data-testid="chart-tab-info">{chart?.info}</div>
       {chart?.content}
       <button
         type="button"
@@ -190,7 +191,7 @@ vi.mock("@/components/trade/market-header", () => ({
   MarketHeader: ({ toolbar }: { toolbar: React.ReactNode }) => (
     <div data-testid="market-header">{toolbar}</div>
   ),
-  MarketInfoFacts: () => null,
+  MarketInfoFacts: () => <dl>Price tick</dl>,
 }))
 vi.mock("@/components/trade/notes/trade-page-panel", () => ({
   TradePageBody: () => <div data-testid="page" />,
@@ -482,6 +483,35 @@ function renderWorkspace(overview: React.ReactNode | null) {
 }
 
 describe("the trade dashboard", () => {
+  it("opens the market's facts from the chart tab's i on a click, never on a hover", async () => {
+    await act(async () => root.render(renderWorkspace(null)))
+    const info = host.querySelector<HTMLElement>("[data-market-info]")
+    expect(info).not.toBeNull()
+    const facts = () =>
+      Array.from(document.body.querySelectorAll('[data-slot="popover-content"], [data-slot="tooltip-content"]'))
+        .some((box) => box.textContent?.includes("Price tick"))
+
+    await act(async () => {
+      info!.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true, pointerType: "mouse" }))
+      info!.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" }))
+      info!.dispatchEvent(new FocusEvent("focus"))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(facts()).toBe(false)
+
+    await act(async () => {
+      info!.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(facts()).toBe(true)
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(facts()).toBe(false)
+  })
+
   it("is three panels whose full screen restores without remounting the chart", async () => {
     await act(async () => root.render(renderWorkspace(null)))
 

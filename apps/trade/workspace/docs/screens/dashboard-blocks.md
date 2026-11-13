@@ -59,8 +59,9 @@ market ticker on the middle tab." The task is
   show its previous trade history"): `trade-details-panel.md`.
 - One left page, started fresh ("Start fresh"): nothing was copied from the
   old page per exchange.
-- The market's facts are a tooltip on an "i" inside the chart tab ("Inside the
-  chart tab").
+- The market's facts open from an "i" inside the chart tab ("Inside the
+  chart tab"), on a click only (13 Nov 2026: "Make this tooltip click to
+  reveal only").
 - A phone shows two pills, Page and the picked row's name ("Page and the
   middle").
 - The left menu has one Trade link ("One trade link"), and the old exchange
@@ -332,10 +333,12 @@ right").
   counts with no icons (Tyler, 8 Nov 2026: "remove the icons in the middle
   tabs"). The chart tab is named after the market. Every tab keeps its name;
   a header too narrow for them all scrolls its tab row sideways. The tab is remembered in this browser.
-- **The "i" inside the chart tab** shows the market's facts on a pointer:
-  exchange, network, price tick, list price, chart bars, daily volume, pool
-  liquidity where the venue gives one, smallest order and top leverage. A
-  press on the "i" stays the "i"'s and never switches tab.
+- **The "i" inside the chart tab** shows the market's facts when it is
+  clicked, and nothing on a hover (Tyler, 13 Nov 2026): exchange, network,
+  price tick, list price, chart bars, daily volume, pool liquidity where the
+  venue gives one, smallest order and top leverage. A second click, Escape or
+  a click anywhere else closes it. It keeps the tooltip's dark look. A press
+  on the "i" stays the "i"'s and never switches tab.
 - **One header:** the tabs, drawn as Settings → Styling → Dashboard tabs
   says, grey pills or words over a sliding line (Tyler, 8 Nov 2026: "wire the
   tabs to the dashboard tab option in settings"), then on the right Browse

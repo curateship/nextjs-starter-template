@@ -1,15 +1,14 @@
 /**
- * The columns the Bots dashboard's trades popover can hide from its ⋮ (Tyler,
- * 10 Nov 2026: "add a 3 dot dropdown here with options to hide certain col").
- * A backtest's trades and a bot's trades are different tables, so each keeps
- * its own choice, saved on the account in `trade_prefs.panel_layouts`.
+ * The columns a trades popover can hide from its ⋮ (Tyler, 10 Nov 2026: "add
+ * a 3 dot dropdown here with options to hide certain col"; 13 Nov 2026, the
+ * same for the header's Active trades button). Each table keeps its own
+ * choice, saved on the account in `trade_prefs.panel_layouts`.
  *
- * The bot's Closed always shows. The backtest's table has no # column (Tyler,
- * 10 Nov 2026: "remove this", pointing at it), so any of its columns can be
- * hidden, but never the last one showing.
+ * The bot's Closed always shows, and so does the Ticker in both of the header
+ * button's tables, so neither is listed here. The backtest's table has no #
+ * column (Tyler, 10 Nov 2026: "remove this", pointing at it), so any of its
+ * columns can be hidden, but never the last one showing.
  */
-
-export type TradesPopoverKind = "backtest" | "bot"
 
 export const TRADES_POPOVER_COLUMNS = {
   backtest: [
@@ -30,15 +29,39 @@ export const TRADES_POPOVER_COLUMNS = {
     { key: "returnPct", label: "Return" },
     { key: "running", label: "Running total" },
   ],
-} as const satisfies Record<TradesPopoverKind, readonly { key: string; label: string }[]>
+  /** The header button's Active trades tab. */
+  active: [
+    { key: "type", label: "Type" },
+    { key: "order", label: "Order" },
+    { key: "value", label: "Value" },
+    { key: "profit", label: "P/L" },
+  ],
+  /** The header button's Watching tab. */
+  watching: [
+    { key: "order", label: "Order" },
+    { key: "wallet", label: "Wallet" },
+    { key: "distance", label: "Distance" },
+  ],
+} as const satisfies Record<string, readonly { key: string; label: string }[]>
+
+export type TradesPopoverKind = keyof typeof TRADES_POPOVER_COLUMNS
+
+export const TRADES_POPOVER_KINDS = Object.keys(TRADES_POPOVER_COLUMNS) as [
+  TradesPopoverKind,
+  ...TradesPopoverKind[],
+]
 
 export type BacktestTradeColumn = (typeof TRADES_POPOVER_COLUMNS.backtest)[number]["key"]
 export type BotTradeColumn = (typeof TRADES_POPOVER_COLUMNS.bot)[number]["key"]
+export type ActiveTradeHideable = (typeof TRADES_POPOVER_COLUMNS.active)[number]["key"]
+export type WatchingHideable = (typeof TRADES_POPOVER_COLUMNS.watching)[number]["key"]
 
 /** Each table's hidden columns. A table left out hides none. */
 export type HiddenTradeColumns = {
   backtest?: BacktestTradeColumn[]
   bot?: BotTradeColumn[]
+  active?: ActiveTradeHideable[]
+  watching?: WatchingHideable[]
 }
 
 /**
@@ -49,7 +72,7 @@ export function readHiddenTradeColumns(value: unknown): HiddenTradeColumns {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {}
   const saved = value as Record<string, unknown>
   const clean: HiddenTradeColumns = {}
-  for (const kind of ["backtest", "bot"] as const) {
+  for (const kind of TRADES_POPOVER_KINDS) {
     const list = saved[kind]
     if (!Array.isArray(list)) continue
     const known = TRADES_POPOVER_COLUMNS[kind].map((column) => column.key as string)

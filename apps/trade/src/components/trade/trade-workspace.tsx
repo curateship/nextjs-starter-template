@@ -68,6 +68,11 @@ import {
 } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   createFolder,
   getMarketFolderErrorMessage,
   loadFolders as reloadFolders,
@@ -1288,31 +1293,38 @@ export function TradeWorkspace({
     </div>
   )
 
-  // The market's facts, in a tooltip on the "i" inside the chart tab, after
+  // The market's facts, in a popover on the "i" inside the chart tab, after
   // the market's name (Tyler, 8 Nov 2026: "for the market info, just add the
-  // tooltip beside market ticker on the middle tab"). A tab is itself a
-  // button, so the "i" is not a second one inside it: pointing at it shows
-  // the facts, and a press on it stays the "i"'s, never the tab's.
+  // tooltip beside market ticker on the middle tab"). It opens on a click
+  // only, never on hover (Tyler, 13 Nov 2026: "Make this tooltip click to
+  // reveal only"). A tab is itself a button, so the "i" is not a second one
+  // inside it: a press or a key on the "i" stays the "i"'s, never the tab's.
   const marketInfo =
     selection.kind === "market" ? (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Popover>
+        <PopoverTrigger asChild>
           <span
-            role="img"
+            role="button"
+            tabIndex={-1}
             aria-label={`About ${selection.row.symbol} market`}
             data-market-info=""
-            className="-mr-1 ml-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="-mr-1 ml-0.5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
             onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
             <InfoIcon className="size-3.5" />
           </span>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" align="start" className="p-0">
+        </PopoverTrigger>
+        {/* Drawn as the tooltip it replaced: dark ground, light words. */}
+        <PopoverContent
+          side="bottom"
+          align="start"
+          className="w-fit max-w-xs gap-0 bg-foreground p-0 text-xs text-background ring-0"
+        >
           <MarketInfoFacts selection={selection} />
-        </TooltipContent>
-      </Tooltip>
+        </PopoverContent>
+      </Popover>
     ) : null
 
   // The middle panel: the chart and the three tables as tabs (Tyler, 7 Nov
@@ -1324,6 +1336,8 @@ export function TradeWorkspace({
     // a width to fill it shrinks to its content.
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
       <ActivityPanel
+          protocol={protocol}
+          network={network}
           trading={trading}
           tab={activityTab}
           onTabChange={setActivityTab}

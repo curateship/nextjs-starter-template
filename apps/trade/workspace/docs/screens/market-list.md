@@ -77,11 +77,11 @@ exchange's page, the dashboard's left panel (`dashboard-blocks.md`).
   crypto, stocks, indices, commodities, forex, other; only kinds actually in
   the list are offered. It narrows the All tab only (stars are stars), is
   remembered per browser, and reads as switched off on the other tabs.
-- **The (i) tooltip ends with the market's ground rules:** the smallest size
+- **The (i) popover ends with the market's ground rules:** the smallest size
   an order may use, the max leverage, and — where it applies — "Isolated
   only", explained in the same line. A rule the exchange does not state
   shows nothing, never a guess.
-- **The market header's (i) tooltip names both kinds of price and the daily
+- **The market header's (i) popover names both kinds of price and the daily
   dollar volume.** The list and every order rule use the exchange's mark price.
   Chart bars show traded prices, so the newest candle may sit above or below
   the number the exchange uses for stops and account value.
