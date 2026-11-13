@@ -136,7 +136,7 @@ export function TripsPagePanel({
       </div>
 
       <ScrollArea className="relative min-h-0 flex-1">
-        <div className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
+        <div data-side-panel-body="" className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
           {page ? (
             <TripsBlocksProvider value={blocks}>
               <LockedPageContext.Provider value={lockedPage}>

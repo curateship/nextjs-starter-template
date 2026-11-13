@@ -14,7 +14,9 @@ const {
   rememberedToolbarPosition,
   layoutSetEvents,
   showErrorToast,
+  wideScreen,
 } = vi.hoisted(() => ({
+  wideScreen: { value: true },
   chartMounts: { count: 0 },
   rememberedLayouts: vi.fn(),
   rememberedToolbarPosition: vi.fn(),
@@ -285,6 +287,7 @@ vi.mock("@/lib/api/trade/market-folders", () => ({
 }))
 vi.mock("@/lib/trade/live-market", () => ({
   startLiveMarketData: () => vi.fn(),
+  useLiveFigures: () => null,
 }))
 vi.mock("@/lib/layout/panel-collapse", () => ({
   useBlankSpaceDoubleClick: () => vi.fn(),
@@ -304,7 +307,9 @@ vi.mock("@/lib/trade/market-volume", () => ({
   catalogMarketRow: (catalog: { rows: { key: string }[] }, key: string) =>
     catalog.rows.find((row) => row.key === key) ?? null,
 }))
-vi.mock("@/lib/layout/wide-screen", () => ({ useWideScreen: () => true }))
+vi.mock("@/lib/layout/wide-screen", () => ({
+  useWideScreen: () => wideScreen.value,
+}))
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }))
 
 function MockPanelGroup(props: {
@@ -459,7 +464,7 @@ function renderWorkspace(overview: React.ReactNode | null) {
           openMarketRows: {},
           headerProfitVisible: true,
           chartToolbarPosition: null,
-          hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
+          hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
         }}
         initialWallets={{
           rows: [],
@@ -604,6 +609,57 @@ describe("the trade dashboard", () => {
     expect(showErrorToast).toHaveBeenCalledWith(
       "Could not open the order window for ETH. Pick the market and try again."
     )
+  })
+
+  it("puts the other panels behind a bar along the bottom under 1280px", async () => {
+    wideScreen.value = false
+    try {
+      await act(async () => root.render(renderWorkspace(null)))
+      const bar = () =>
+        Array.from(
+          host.querySelectorAll<HTMLButtonElement>('nav[aria-label="Dashboard panels"] button')
+        ).map((button) => button.querySelector("span")?.textContent)
+      const sheet = () => host.querySelector<HTMLElement>('[data-slot="narrow-panel"]')!
+      const press = (label: string) =>
+        Array.from(
+          host.querySelectorAll<HTMLButtonElement>('nav[aria-label="Dashboard panels"] button')
+        )
+          .find((button) => button.querySelector("span")?.textContent === label)!
+          .click()
+
+      expect(bar()).toEqual(["Left panel", "Positions", "Browse", "Right panel"])
+      // The chart is what shows, with every panel shut.
+      expect(sheet().hasAttribute("inert")).toBe(true)
+      expect(host.querySelector('[data-testid="activity-panel"] [data-testid="chart"]')).not.toBeNull()
+
+      await act(async () => press("Left panel"))
+      expect(sheet().hasAttribute("inert")).toBe(false)
+      expect(sheet().id).toBe("narrow-panel-left")
+      expect(sheet().querySelector('[data-testid="page"]')).not.toBeNull()
+      expect(
+        host.querySelector('nav[aria-label="Dashboard panels"] button[aria-pressed="true"]')?.textContent
+      ).toBe("Left panel")
+
+      // The same button shuts it again.
+      await act(async () => press("Left panel"))
+      expect(sheet().hasAttribute("inert")).toBe(true)
+
+      // A coin picked in Browse shuts the panel, so its chart is what shows.
+      await act(async () => press("Browse"))
+      expect(sheet().id).toBe("narrow-panel-browse")
+      const row = Array.from(sheet().querySelectorAll("tbody tr")).find((one) =>
+        one.textContent?.includes("BTC")
+      )
+      expect(row).toBeDefined()
+      await act(async () => (row as HTMLElement).click())
+      expect(sheet().hasAttribute("inert")).toBe(true)
+
+      // Overview has no Positions or Right panel.
+      await act(async () => root.render(renderWorkspace(<div data-testid="overview-widgets" />)))
+      expect(bar()).toEqual(["Left panel", "Browse"])
+    } finally {
+      wideScreen.value = true
+    }
   })
 
   it("shows Overview in the middle's place with the chart still mounted under it", async () => {

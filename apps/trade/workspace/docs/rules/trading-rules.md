@@ -42,6 +42,12 @@ add up to.
   that opened days ago and closed just now is the top row, and its Opened
   column still shows when the run began. Clicking a heading still sorts by
   that column.
+- Tyler, 13 Nov 2026: **"The main thing is a way to access the left and right
+  panel. I'm thinking 4 sticky buttons in the bottom. Left panel, positions,
+  browse market, right panel."** Under 1280px the Trade dashboard is the chart
+  with a bar of four buttons along the bottom: Left panel, Positions, Browse
+  and Right panel ("rename browse market to just Browse"). The bar replaces the
+  Page / market / Trade pills, and each panel slides up over the chart.
 
 ## Exchange connections
 

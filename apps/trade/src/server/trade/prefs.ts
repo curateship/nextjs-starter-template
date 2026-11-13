@@ -912,6 +912,23 @@ export async function saveHiddenTradeColumns(
   }))
 }
 
+/**
+ * Remember the chart's zoom and scroll under 1280px. A view this build cannot
+ * read is refused rather than stored.
+ */
+export async function saveNarrowChartView(
+  userId: string,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const view = readChartView(value)
+  if (view === null) throw new Error("PANEL_LAYOUT_INVALID")
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    narrowChartView: view,
+  }))
+}
+
 /** Remember the Journal's filter and its hide-practice switch. */
 export async function saveJournalView(
   userId: string,

@@ -1,7 +1,7 @@
 import { ExternalLinkIcon, EyeOffIcon, Loader2Icon, UserIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -114,7 +114,11 @@ export function CreatorCard({
             </Button>
           </div>
 
-          <InspectorCard
+          {/* The panel's cards, marked as its body, so the first follows Settings
+              -> Styling -> Panel cards -> Opacity; the avatar and buttons above
+              are not cards (UI standard, "A side panel's body"). */}
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3">
+          <PanelCard
             storageId="viral-creator-scores"
             title="Their results here"
           >
@@ -125,7 +129,8 @@ export function CreatorCard({
                   : `${creator.hits} of this project's videos are theirs, with a typical score of ${creator.typicalScore}.`
                 : "None of this project's search results are theirs yet."}
             </p>
-          </InspectorCard>
+          </PanelCard>
+          </div>
         </div>
       </ScrollArea>
     </>

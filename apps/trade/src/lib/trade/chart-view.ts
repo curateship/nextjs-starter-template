@@ -48,6 +48,18 @@ export const chartViewSchema = z.object({
 
 export type ChartView = z.infer<typeof chartViewSchema>
 
+/**
+ * Where a chart under 1280px opens before it has been moved there: the last
+ * sixty candles across the whole width, the newest two candles' room from the
+ * right edge. About five pixels a candle on a phone, wide enough to read.
+ */
+export const NARROW_START_VIEW: ChartView = {
+  bars: 60,
+  gap: -2,
+  marginTop: DEFAULT_MARGIN_TOP,
+  marginBottom: DEFAULT_MARGIN_BOTTOM,
+}
+
 /** A stored view, or null when it cannot be read. */
 export function readChartView(value: unknown): ChartView | null {
   const parsed = chartViewSchema.safeParse(value)

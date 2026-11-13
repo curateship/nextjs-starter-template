@@ -199,15 +199,21 @@ export function ArchiveItemPanel({
                 </Button>
               ) : null}
             </div>
-            {shown.caption ? (
-              <PanelCard storageId="promo-archive-caption" title="Caption from Video">
-                <p className="text-sm whitespace-pre-wrap">{shown.caption}</p>
-              </PanelCard>
-            ) : null}
-            {shown.status === "ready" && !shown.deletedAt ? (
-              <CaptionsCard item={shown} onSaved={(captions) => setItem({ ...shown, captions })} />
-            ) : null}
-            <PostedCard item={shown} />
+            {/* The panel's cards together, marked as its body, so the first of
+                them follows Settings -> Styling -> Panel cards -> Opacity (UI
+                standard, "A side panel's body"). The preview, facts and buttons
+                above are not cards. */}
+            <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3">
+              {shown.caption ? (
+                <PanelCard storageId="promo-archive-caption" title="Caption from Video">
+                  <p className="text-sm whitespace-pre-wrap">{shown.caption}</p>
+                </PanelCard>
+              ) : null}
+              {shown.status === "ready" && !shown.deletedAt ? (
+                <CaptionsCard item={shown} onSaved={(captions) => setItem({ ...shown, captions })} />
+              ) : null}
+              <PostedCard item={shown} />
+            </div>
           </div>
         )}
       </ScrollArea>

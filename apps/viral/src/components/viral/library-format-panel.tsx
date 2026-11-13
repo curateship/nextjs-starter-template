@@ -3,7 +3,7 @@ import { LayoutTemplateIcon, Loader2Icon, PenLineIcon, Trash2Icon } from "lucide
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -164,8 +164,8 @@ export function LibraryFormatPanel({
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-format-parts" title="Parts" description={`About ${total}s in all`}>
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-format-parts" title="Parts" meta={`About ${total}s in all`}>
             <ol className="grid gap-2 text-sm break-words">
               {format.parts.map((part, index) => (
                 <li key={index} className="grid gap-0.5">
@@ -179,9 +179,9 @@ export function LibraryFormatPanel({
             {format.sourceTitle ? (
               <p className="mt-3 text-xs text-muted-foreground">Saved from "{format.sourceTitle}"</p>
             ) : null}
-          </InspectorCard>
+          </PanelCard>
 
-          <InspectorCard storageId="viral-format-write" title="Write a script" description={`About ${priceCents} cent${priceCents === 1 ? "" : "s"}`}>
+          <PanelCard storageId="viral-format-write" title="Write a script" meta={`About ${priceCents} cent${priceCents === 1 ? "" : "s"}`}>
             <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
               <div className="grid gap-2">
                 <Label htmlFor={`format-project-${format.id}`}>Written for</Label>
@@ -220,9 +220,9 @@ export function LibraryFormatPanel({
                 </Button>
               </div>
             </div>
-          </InspectorCard>
+          </PanelCard>
 
-          <InspectorCard storageId="viral-format-scripts" title="Scripts">
+          <PanelCard storageId="viral-format-scripts" title="Scripts">
             {scripts.state === "loading" ? (
               <LoadingRow label="Reading the scripts" />
             ) : scripts.state === "failed" ? (
@@ -236,7 +236,7 @@ export function LibraryFormatPanel({
             ) : (
               <p className="text-sm text-muted-foreground">Nothing written from this format yet.</p>
             )}
-          </InspectorCard>
+          </PanelCard>
         </div>
       </ScrollArea>
       <ConfirmDialog

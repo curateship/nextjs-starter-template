@@ -86,7 +86,7 @@ export function RecipeInspector({
               panel gutter, so a card set to edge to edge reaches the side,
               and no line describing the step under its name (Tyler, 10 Nov
               2026: "all these tooltips are not nesessary"). */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [--panel-gutter:1rem]">
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [--panel-gutter:1rem]">
             {selectedNode ? null : (
               <p className="text-xs text-muted-foreground">
                 Select a node to view and edit its settings.

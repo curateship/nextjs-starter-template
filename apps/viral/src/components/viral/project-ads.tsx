@@ -4,7 +4,7 @@ import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, SearchIcon } fr
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -175,21 +175,21 @@ export function AdPanel({ ad }: { ad: WinningAd | null }) {
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-ad-words" title="The ad">
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-ad-words" title="The ad">
             <div className="grid gap-2 text-sm break-words">
               {ad.title ? <p className="font-medium">{ad.title}</p> : null}
               <p className="whitespace-pre-wrap">{ad.body || "This ad has no words, only a picture or video."}</p>
             </div>
-          </InspectorCard>
-          <InspectorCard storageId="viral-ad-details" title="Details">
+          </PanelCard>
+          <PanelCard storageId="viral-ad-details" title="Details">
             <dl className="grid gap-2 text-sm">
               <Detail label="Running since" value={formatShortDay(ad.startedAt)} />
               <Detail label="Days running" value={String(ad.daysRunning)} />
               <Detail label="Shown on" value={platformNames(ad.platforms) || "-"} />
               <Detail label="Found by" value={ad.keyword ? `"${ad.keyword}"` : "-"} />
             </dl>
-          </InspectorCard>
+          </PanelCard>
         </div>
       </ScrollArea>
       <div className="shrink-0 border-t p-3">

@@ -319,10 +319,16 @@ export function LibraryLeftPanel({
         }
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+        {/* A side panel's body: no space on top, so the first card sits
+            straight under the header, and marked so that card follows Settings
+            -> Styling -> Panel cards -> Opacity (UI standard, "A side panel's
+            body"). The avatar row is a section, not a div, so the first card
+            is still the body's first div. */}
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 px-3 pb-3">
           {avatar ? (
-            // Its middle level with the banner's foot.
-            <div className={cn("flex min-w-0 items-center gap-3 px-1", banner && "mt-6")}>
+            // Its middle level with the banner's foot: the 12px the body's top
+            // edge gave it before that edge went, plus 24px under a banner.
+            <section className={cn("flex min-w-0 items-center gap-3 px-1", banner ? "mt-9" : "mt-3")}>
               <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-card bg-muted shadow-sm">
                 <img
                   src={avatar}
@@ -337,7 +343,7 @@ export function LibraryLeftPanel({
                   {page.counts.all.toLocaleString()} {plural(page.counts.all, "note")}
                 </p>
               </div>
-            </div>
+            </section>
           ) : null}
           <PanelCard
             storageId="note-library-pinned"

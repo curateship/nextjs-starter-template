@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
+import { chartViewSchema, type ChartView } from "@/lib/trade/chart-view"
 import { ALL_ROW } from "@/lib/trade/market-folders"
 import type {
   ChartToolbarPosition,
@@ -21,6 +22,7 @@ import {
   saveChartToolbarPosition as saveChartToolbarPositionForUser,
   saveOpenMarketRow as saveOpenMarketRowForUser,
   saveJournalView as saveJournalViewForUser,
+  saveNarrowChartView as saveNarrowChartViewForUser,
 } from "@/server/trade/prefs"
 
 import { createErrorMessage } from "../error-message"
@@ -112,6 +114,19 @@ const saveJournalViewFn = createServerFn({ method: "POST" })
 
 export function saveJournalView(view: JournalView) {
   return saveJournalViewFn({ data: { hidePractice: view.hidePractice, makers: [...view.makers] } })
+}
+
+const saveNarrowChartViewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ chartView: chartViewSchema }))
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveNarrowChartViewForUser(context.user.id, data.chartView)
+    return { saved: true }
+  })
+
+/** The chart's zoom under 1280px, kept apart from the wide screen's. */
+export function saveNarrowChartView(chartView: ChartView) {
+  return saveNarrowChartViewFn({ data: { chartView } })
 }
 
 export function saveChartToolbarPosition(

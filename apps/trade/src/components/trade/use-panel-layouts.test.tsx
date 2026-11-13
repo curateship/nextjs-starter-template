@@ -25,7 +25,7 @@ const empty: TradePanelLayouts = {
   openMarketRows: {},
   headerProfitVisible: true,
   chartToolbarPosition: null,
-  hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
+  hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
 }
 
 let host: HTMLDivElement

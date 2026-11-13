@@ -77,7 +77,7 @@ export function TripDetailsPanel() {
         <TripNotes key={noteRequest?.at ?? "notes"} startOpen={noteRequest?.noteId ?? null} />
       ) : (
         <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-          <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+          <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
             <TripDescription />
           </div>
         </ScrollArea>
@@ -97,7 +97,10 @@ function TripDescription() {
       <SavingDocument
         // The panel opens narrow, so the description reads at the panel's body size rather than a note's
         // larger one, which left one or two words a line (Travel polish part 6).
-        className="[&_.page-rte_.tiptap_:is(p,li)]:text-[0.8125rem] [&_.page-rte_.tiptap_:is(p,li)]:leading-normal"
+        // The panel's body has no top space, so the writing keeps 15px above
+        // its first line of text, and none when a block opens it, so the block
+        // sits straight under the header.
+        className="[&_.page-rte_.tiptap_:is(p,li)]:text-[0.8125rem] [&_.page-rte_.tiptap_:is(p,li)]:leading-normal [&_.page-rte_.tiptap:not(:has(>.react-renderer:first-child))]:!pt-3.75"
         key={trip.descriptionLocked ? "locked" : "open"}
         value={trip.description}
         placeholder={trip.descriptionLocked ? "" : "Write something about the trip"}

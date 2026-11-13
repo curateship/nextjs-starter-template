@@ -85,7 +85,14 @@ export const GridLayer = React.memo(function GridLayer({
   onMoveExit,
   onRemoveStop,
   onRemoveEnd,
+  compact = false,
 }: {
+  /**
+   * Under 1280px a placed grid's levels are lines only, and a tap on one shows
+   * its money and its × until a tap lands anywhere else (Tyler, 13 Nov 2026:
+   * grid labels moved out of the way on a phone).
+   */
+  compact?: boolean
   surface: ChartSurface
   colors: ChartColors
   marketKey: string | null
@@ -196,6 +203,47 @@ export const GridLayer = React.memo(function GridLayer({
   // wrong by a header's height turns "move the top" into a price nobody
   // pointed at.
   const layerRef = React.useRef<HTMLDivElement | null>(null)
+
+  // Where the last tap landed, as a height on this layer, or null when it
+  // landed off the chart. One listener on the window rather than a strip on
+  // each line: a strip would take the press from the chart, and a finger
+  // starting a pan on a level would move nothing. A press that travels or is
+  // held is a pan or a long press, never a tap.
+  const [tapY, setTapY] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    if (!compact) return
+    let down: { x: number; y: number; at: number } | null = null
+    const onDown = (event: PointerEvent) => {
+      down = event.isPrimary
+        ? { x: event.clientX, y: event.clientY, at: event.timeStamp }
+        : null
+    }
+    const onUp = (event: PointerEvent) => {
+      const from = down
+      down = null
+      if (
+        !from ||
+        Math.hypot(event.clientX - from.x, event.clientY - from.y) > TAP_SLOP_PX ||
+        event.timeStamp - from.at > TAP_MS
+      ) {
+        return
+      }
+      const box = layerRef.current?.getBoundingClientRect()
+      if (!box) return
+      const inside =
+        event.clientX >= box.left &&
+        event.clientX <= box.right &&
+        event.clientY >= box.top &&
+        event.clientY <= box.bottom
+      setTapY(inside ? event.clientY - box.top : null)
+    }
+    window.addEventListener("pointerdown", onDown, true)
+    window.addEventListener("pointerup", onUp, true)
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true)
+      window.removeEventListener("pointerup", onUp, true)
+    }
+  }, [compact])
 
   /**
    * A preview line mid-drag, following the pointer, by its index in the
@@ -498,6 +546,7 @@ export const GridLayer = React.memo(function GridLayer({
             layerRef.current?.getBoundingClientRect().top ?? null
           }
           priceFrom={(clientY, top) => surface.priceAt(clientY - top)}
+          tapY={compact ? tapY : undefined}
         />
       ))}
     </div>
@@ -792,6 +841,13 @@ function BarRow({
  */
 const BAR_WIDTH = "w-28"
 
+/** How far a finger may travel and still be a tap, in pixels. */
+const TAP_SLOP_PX = 8
+/** How long a tap may be held, in milliseconds; longer is a long press. */
+const TAP_MS = 400
+/** How far from a level's line a tap still picks that level, in pixels. */
+const TAP_REACH_PX = 16
+
 function GridLines({
   grid,
   currentPx,
@@ -812,7 +868,13 @@ function GridLines({
   onRemoveEnd,
   measureTop,
   priceFrom,
+  tapY,
 }: {
+  /**
+   * Set under 1280px: the levels hide their money and × except the one
+   * nearest this tap, and null shows none. Undefined shows every level's.
+   */
+  tapY?: number | null
   grid: SmartGrid
   currentPx: number | null
   colors: ChartColors
@@ -1275,6 +1337,22 @@ function GridLines({
         <XIcon className="size-3" />
       </button>
     ) : null
+  // The level a tap picked, when only one shows its money and ×.
+  const tappedKey = (() => {
+    if (tapY === undefined || tapY === null) return null
+    let best: { key: string; off: number } | null = null
+    for (const at of prices) {
+      const y = yFor(at.px)
+      if (y === null) continue
+      const off = Math.abs(y - tapY)
+      if (off <= TAP_REACH_PX && (best === null || off < best.off)) {
+        best = { key: priceKey(at.px), off }
+      }
+    }
+    return best?.key ?? null
+  })()
+  const showsFurniture = (at: AtPrice | null) =>
+    tapY === undefined || (at !== null && priceKey(at.px) === tappedKey)
   const target = gridTakeProfitPx(plan)
   const targetY =
     shownTarget !== null
@@ -1534,7 +1612,7 @@ function GridLines({
               y={y}
               usdSlot={usdSlot}
               nameNode={knobRow === priceKey(at.px) ? optionsBar : undefined}
-              usd={at.usd}
+              usd={showsFurniture(at) ? at.usd : undefined}
               colour={sideColour(
                 holding ? exitSide(direction) : entrySide(direction)
               )}
@@ -1542,7 +1620,7 @@ function GridLines({
               dashed={at.dead}
               faded={at.dead}
               title={levelTitle(direction, at, holding)}
-              cancel={cancelButton(at)}
+              cancel={showsFurniture(at) ? cancelButton(at) : null}
             />
           )
         })}
@@ -1597,7 +1675,7 @@ function GridLines({
         <ChartLine
           y={pinLower.y}
           usdSlot={usdSlot}
-          usd={lowerLevel?.usd}
+          usd={showsFurniture(lowerLevel) ? lowerLevel?.usd : undefined}
           colour={rangeColour}
           name={gridBoundaryName("bottom")}
           dashed={pinLower.off !== null}
@@ -1605,21 +1683,21 @@ function GridLines({
           onGripDown={bottomMovable ? lowerDrag : undefined}
           title={rangeLineTitle(direction, lowerLevel, bottomMovable)}
           action={sharedChips("lower")}
-          cancel={cancelButton(lowerLevel)}
+          cancel={showsFurniture(lowerLevel) ? cancelButton(lowerLevel) : null}
         />
       ) : null}
       {pinUpper ? (
         <ChartLine
           y={pinUpper.y}
           usdSlot={usdSlot}
-          usd={upperLevel?.usd}
+          usd={showsFurniture(upperLevel) ? upperLevel?.usd : undefined}
           colour={rangeColour}
           name={gridBoundaryName("top")}
           dashed={pinUpper.off !== null}
           grip={topMovable && grippable}
           onGripDown={topMovable ? upperDrag : undefined}
           title={rangeLineTitle(direction, upperLevel, topMovable)}
-          cancel={cancelButton(upperLevel)}
+          cancel={showsFurniture(upperLevel) ? cancelButton(upperLevel) : null}
           action={sharedChips("upper")}
         />
       ) : null}

@@ -3,6 +3,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  ChartCandlestickIcon,
   ListChecksIcon,
   Loader2Icon,
   PlusIcon,
@@ -43,6 +44,7 @@ import { useCopyNotes } from "@/components/social/use-copy-notes"
 import type { Trading } from "@/components/trade/use-trading"
 import {
   DashboardCardHeader,
+  dashboardCardHeadingClassName,
   dashboardCardTabClassName,
 } from "@/components/shared/dashboard-card-header"
 import {
@@ -139,11 +141,17 @@ const MiddleTabStyle = React.createContext<"pills" | "underline">("pills")
 function TabsHeader({
   lead,
   action,
+  heading,
   children,
 }: {
   /** At the header's start: the button that reopens a shut left panel. */
   lead?: React.ReactNode
   action?: React.ReactNode
+  /**
+   * A heading in place of the tabs, for a header with only one thing to show:
+   * a lone tab's pill or underline would mark a choice there is none of.
+   */
+  heading?: React.ReactNode
   children: React.ReactNode
 }) {
   const style = useDashboardTabStyle()
@@ -151,7 +159,9 @@ function TabsHeader({
     <DashboardCardHeader>
       {lead}
       <MiddleTabStyle.Provider value={style}>
-        {style === "underline" ? (
+        {heading ? (
+          <div className="flex min-w-0 flex-1 items-center">{heading}</div>
+        ) : style === "underline" ? (
           // Out to the header's top and bottom edges, so the line sits on its divider.
           <div className="-my-3 flex min-w-0 flex-1 self-stretch">
             <UnderlineTabsTrack>{children}</UnderlineTabsTrack>
@@ -286,6 +296,7 @@ export function ActivityPanel({
   onDetailsOpened,
   journalView,
   onJournalViewChange,
+  tablesIn,
 }: {
   /** The page's exchange and network, the first tab of the Positions glance. */
   protocol: ProtocolId
@@ -304,6 +315,13 @@ export function ActivityPanel({
   /** The Journal's filter and its hide-practice switch, kept on the account. */
   journalView?: JournalView
   onJournalViewChange?: (view: JournalView) => void
+  /**
+   * Under 1280px the three tables leave the chart's header and draw in the
+   * bottom bar's Positions panel, `target` (Tyler, 13 Nov 2026), with the
+   * chart left on screen behind them whichever table is picked. Null until
+   * that panel is on the page. Left out on a wide screen.
+   */
+  tablesIn?: { target: HTMLElement | null }
   /**
    * At the header's start, before the tabs: the button that reopens a shut
    * left panel, as the shell's dashboards have it (Tyler, 8 Nov 2026: "put
@@ -718,138 +736,25 @@ export function ActivityPanel({
     else setLanded((count) => count + 1)
   }
 
-  return (
-    <Tabs
-      ref={root}
-      value={tab}
-      onValueChange={(value) => {
-        onTabChange(value as ActivityTab)
-        setLanded((count) => count + 1)
-        clearHighlight()
-      }}
-      // The tab row slides sideways rather than running under Close all on a
-      // phone, where four tabs and their counts are wider than the screen.
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card [&_[data-slot=tabs-list]]:overflow-x-auto"
-    >
-      {/* Out of sight in full screen, without unmounting the chart's tab. */}
-      <div className={chart?.only ? "hidden" : "contents"}>
-      <TabsHeader
-        lead={lead}
-        action={
-          <>
-            {/* Removes every ticked Journal row at once, through the same
-                confirm the bin on one row uses. Only there once something is
-                ticked — a button that could do nothing would just be
-                furniture. */}
-            {tab === "positions" && positionMass && tickedPositions.length > 0 ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={trading.busy}
-                aria-label={`Close ${tickedPositions.length} ticked positions`}
-                onClick={() => setClosingTicked(tickedPositions)}
-              >
-                <XIcon className="size-4" />
-                <span className="max-sm:sr-only">Close </span>(
-                {tickedPositions.length})
-              </Button>
-            ) : null}
-            {(tab === "positions" && positionMass) || (tab === "journal" && journalMass) ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => (tab === "positions" ? togglePositionMass() : toggleJournalMass())}
-              >
-                <ListChecksIcon className="size-4" />
-                <span className="max-sm:sr-only">Hide select</span>
-              </Button>
-            ) : null}
-            {tab === "journal" && onJournalViewChange ? (
-              <CountedFilterPopover
-                items={journalFilterItems}
-                groups={[
-                  {
-                    label: "Placed by",
-                    value: view.makers.length === 0 ? null : view.makers,
-                    valueOf: (maker) => maker,
-                    labelOf: (maker) => TRADE_MAKER_LABELS[maker],
-                    onChange: (value) =>
-                      onJournalViewChange({ ...view, makers: (value ?? []) as TradeMaker[] }),
-                  },
-                ]}
-                extraActive={view.hidePractice ? 1 : 0}
-                extra={
-                  <div className="flex items-center justify-between gap-3 px-2">
-                    <Label htmlFor="journal-hide-practice" className="text-sm font-normal">
-                      Hide practice trades
-                    </Label>
-                    <Switch
-                      id="journal-hide-practice"
-                      checked={view.hidePractice}
-                      onCheckedChange={(on) => onJournalViewChange({ ...view, hidePractice: on })}
-                    />
-                  </div>
-                }
-                onClear={() => onJournalViewChange({ hidePractice: false, makers: [] })}
-              />
-            ) : null}
-            {tab === "journal" && journalMass && tickedTrades.length > 0 ? (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={trading.busy}
-                aria-label={`Remove ${tickedTrades.length} ticked trades`}
-                onClick={() => setRemovingTrades(tickedTrades)}
-              >
-                <Trash2Icon className="size-4" />
-                <span className="max-sm:sr-only">Remove </span>(
-                {tickedTrades.length})
-              </Button>
-            ) : null}
-            {controls?.(narrow)}
-            <MiddleMenu>
-              {wallet
-                ? wallet.menu(
-                    <MenuRow
-                      icon={<WalletIcon />}
-                      label="Wallet"
-                      detail={wallet.name ?? undefined}
-                    />
-                  )
-                : null}
-              {menuRows}
-            {/* The emergency button: one press opens the list of what can go,
-                a second press does it. Positions, watched prices and smart
-                orders all start ticked, and untick whatever should stay —
-                closing what you hold and standing your waiting orders down are
-                two different decisions, and a fast market is exactly when
-                somebody wants one without the other. */}
-            {closable > 0
-              ? closeAllMenu(
-                  <MenuRow
-                    icon={<XIcon />}
-                    label="Close all"
-                    disabled={trading.busy}
-                  />
-                )
-              : null}
-            </MiddleMenu>
-            {detailsSlot ? <PanelReopenButton side="right" label="Show the trade" /> : null}
-          </>
-        }
-      >
-        {chart ? (
-          <MiddleTab
-            value="chart"
-            {...tabProps("chart", chart.label)}
-            label={
-              <>
-                {tabProps("chart", chart.label).label}
-                {chart.info}
-              </>
-            }
-          />
-        ) : null}
+  // Under 1280px the tables live in the bar's Positions panel, so the chart
+  // is never hidden behind one of them.
+  const elsewhere = tablesIn !== undefined
+
+  // The three table tabs. On a wide screen Positions also opens its glance;
+  // in the Positions panel the table it would summarise is already open.
+  const positionsTab = (
+    <MiddleTab
+      value="positions"
+      {...tabProps("positions", "Positions")}
+      count={countOf(visible.length)}
+      onPointerDown={pressTab("positions")}
+    />
+  )
+  const tableTabs = (
+    <>
+      {elsewhere ? (
+        positionsTab
+      ) : (
         <PositionsGlance
           protocol={protocol}
           network={network}
@@ -857,38 +762,102 @@ export function ActivityPanel({
           markets={markets}
           onSelectMarket={onSelectMarket}
         >
-          <MiddleTab
-            value="positions"
-            {...tabProps("positions", "Positions")}
-            count={countOf(visible.length)}
-            onPointerDown={pressTab("positions")}
-          />
+          {positionsTab}
         </PositionsGlance>
-        <MiddleTab
-          value="orders"
-          {...tabProps("orders", "Open orders")}
-          count={countOf(trading.orders.length + trading.watchOrders.length)}
-          onPointerDown={pressTab("orders")}
-        />
-        <MiddleTab
-          value="journal"
-          {...tabProps("journal", "Journal")}
-          count={countOf(journalTrades.length + journalHistory.length)}
-          onPointerDown={pressTab("journal")}
-        />
-      </TabsHeader>
-      </div>
+      )}
+      <MiddleTab
+        value="orders"
+        {...tabProps("orders", "Open orders")}
+        count={countOf(trading.orders.length + trading.watchOrders.length)}
+        onPointerDown={pressTab("orders")}
+      />
+      <MiddleTab
+        value="journal"
+        {...tabProps("journal", "Journal")}
+        count={countOf(journalTrades.length + journalHistory.length)}
+        onPointerDown={pressTab("journal")}
+      />
+    </>
+  )
 
-      {chart ? (
-        <TabsContent
-          value="chart"
-          forceMount
-          className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+  // What the open table offers beside its tabs: closing or removing the
+  // ticked rows, Mass select's off switch, and the Journal's filter.
+  const tableActions = (
+    <>
+      {/* Removes every ticked Journal row at once, through the same
+          confirm the bin on one row uses. Only there once something is
+          ticked — a button that could do nothing would just be
+          furniture. */}
+      {tab === "positions" && positionMass && tickedPositions.length > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={trading.busy}
+          aria-label={`Close ${tickedPositions.length} ticked positions`}
+          onClick={() => setClosingTicked(tickedPositions)}
         >
-          {chart.content}
-        </TabsContent>
+          <XIcon className="size-4" />
+          <span className="max-sm:sr-only">Close </span>(
+          {tickedPositions.length})
+        </Button>
       ) : null}
+      {(tab === "positions" && positionMass) || (tab === "journal" && journalMass) ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => (tab === "positions" ? togglePositionMass() : toggleJournalMass())}
+        >
+          <ListChecksIcon className="size-4" />
+          <span className="max-sm:sr-only">Hide select</span>
+        </Button>
+      ) : null}
+      {tab === "journal" && onJournalViewChange ? (
+        <CountedFilterPopover
+          items={journalFilterItems}
+          groups={[
+            {
+              label: "Placed by",
+              value: view.makers.length === 0 ? null : view.makers,
+              valueOf: (maker) => maker,
+              labelOf: (maker) => TRADE_MAKER_LABELS[maker],
+              onChange: (value) =>
+                onJournalViewChange({ ...view, makers: (value ?? []) as TradeMaker[] }),
+            },
+          ]}
+          extraActive={view.hidePractice ? 1 : 0}
+          extra={
+            <div className="flex items-center justify-between gap-3 px-2">
+              <Label htmlFor="journal-hide-practice" className="text-sm font-normal">
+                Hide practice trades
+              </Label>
+              <Switch
+                id="journal-hide-practice"
+                checked={view.hidePractice}
+                onCheckedChange={(on) => onJournalViewChange({ ...view, hidePractice: on })}
+              />
+            </div>
+          }
+          onClear={() => onJournalViewChange({ hidePractice: false, makers: [] })}
+        />
+      ) : null}
+      {tab === "journal" && journalMass && tickedTrades.length > 0 ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={trading.busy}
+          aria-label={`Remove ${tickedTrades.length} ticked trades`}
+          onClick={() => setRemovingTrades(tickedTrades)}
+        >
+          <Trash2Icon className="size-4" />
+          <span className="max-sm:sr-only">Remove </span>(
+          {tickedTrades.length})
+        </Button>
+      ) : null}
+    </>
+  )
 
+  const tableContents = (
+    <>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full">
           <PositionsTable
@@ -987,6 +956,121 @@ export function ActivityPanel({
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </TabsContent>
+    </>
+  )
+
+  return (
+    <Tabs
+      ref={root}
+      value={tab}
+      onValueChange={(value) => {
+        onTabChange(value as ActivityTab)
+        setLanded((count) => count + 1)
+        clearHighlight()
+      }}
+      // The tab row slides sideways rather than running under Close all on a
+      // phone, where four tabs and their counts are wider than the screen.
+      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card [&_[data-slot=tabs-list]]:overflow-x-auto"
+    >
+      {/* Out of sight in full screen, without unmounting the chart's tab. */}
+      <div className={chart?.only ? "hidden" : "contents"}>
+      <TabsHeader
+        lead={lead}
+        // Under 1280px the chart is the header's only tab, so it is a heading
+        // with no underline (Tyler, 13 Nov 2026: "we dont need this underline
+        // if theres no tab"), with an icon as every tab-less panel header has.
+        heading={
+          elsewhere && chart ? (
+            <span className="flex min-w-0 shrink items-center gap-2">
+              <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
+                <ChartCandlestickIcon />
+              </span>
+              <h2 className={cn("min-w-0 shrink truncate", dashboardCardHeadingClassName)}>
+                {chart.label}
+              </h2>
+              {chart.info}
+            </span>
+          ) : undefined
+        }
+        action={
+          <>
+            {elsewhere ? null : tableActions}
+            {controls?.(narrow)}
+            <MiddleMenu>
+              {wallet
+                ? wallet.menu(
+                    <MenuRow
+                      icon={<WalletIcon />}
+                      label="Wallet"
+                      detail={wallet.name ?? undefined}
+                    />
+                  )
+                : null}
+              {menuRows}
+            {/* The emergency button: one press opens the list of what can go,
+                a second press does it. Positions, watched prices and smart
+                orders all start ticked, and untick whatever should stay —
+                closing what you hold and standing your waiting orders down are
+                two different decisions, and a fast market is exactly when
+                somebody wants one without the other. */}
+            {closable > 0
+              ? closeAllMenu(
+                  <MenuRow
+                    icon={<XIcon />}
+                    label="Close all"
+                    disabled={trading.busy}
+                  />
+                )
+              : null}
+            </MiddleMenu>
+            {detailsSlot ? <PanelReopenButton side="right" label="Show the trade" /> : null}
+          </>
+        }
+      >
+        {chart ? (
+          <MiddleTab
+            value="chart"
+            {...tabProps("chart", chart.label)}
+            label={
+              <>
+                {tabProps("chart", chart.label).label}
+                {chart.info}
+              </>
+            }
+          />
+        ) : null}
+        {elsewhere ? null : tableTabs}
+      </TabsHeader>
+      </div>
+
+      {chart ? (
+        <TabsContent
+          value="chart"
+          forceMount
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            !elsewhere && "data-[state=inactive]:hidden"
+          )}
+        >
+          {chart.content}
+        </TabsContent>
+      ) : null}
+
+      {tablesIn
+        ? tablesIn.target
+          ? createPortal(
+              // The same frame as the chart's: the shell's tab header over the
+              // table, its row sliding sideways when the words run out of room.
+              // Room on top for the panel's knob, which sits over the tabs
+              // otherwise (Tyler, 13 Nov 2026: "add some padding under here").
+              <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card pt-3 [&_[data-slot=tabs-list]]:overflow-x-auto">
+                <TabsHeader action={tableActions}>{tableTabs}</TabsHeader>
+                {tableContents}
+              </div>,
+              tablesIn.target
+            )
+          : null
+        : tableContents}
 
       {positionMenu ? (
         <CrmRowMenu

@@ -101,14 +101,20 @@ export function TradesPopover({
   // to the card itself, scrolling the list beside it carried the popover along
   // (Tyler, 10 Nov 2026: "when i scroll the trades list, the popover also
   // scrolls with it"), and moved it out from under a drag.
-  const anchorRef = React.useRef<HTMLDivElement | null>(null)
+  //
+  // The card is found from a hidden marker just before it, never by wrapping
+  // it: a wrapper made the Trades card the first card in its own box, so
+  // Settings -> Styling -> Panel cards -> Opacity, meant for a side panel's
+  // first card only, turned it see-through as well (Tyler, 13 Nov 2026).
+  const markerRef = React.useRef<HTMLSpanElement | null>(null)
+  const anchorBox = () => markerRef.current?.nextElementSibling ?? null
   const openedAt = React.useRef<DOMRect | null>(null)
   const virtualAnchor = React.useRef({
     getBoundingClientRect: () =>
-      openedAt.current ?? anchorRef.current?.getBoundingClientRect() ?? new DOMRect(),
+      openedAt.current ?? anchorBox()?.getBoundingClientRect() ?? new DOMRect(),
   })
   React.useLayoutEffect(() => {
-    openedAt.current = open ? (anchorRef.current?.getBoundingClientRect() ?? null) : null
+    openedAt.current = open ? (anchorBox()?.getBoundingClientRect() ?? null) : null
   }, [open])
   const [offset, setOffset] = React.useState<Offset>(readOffset)
   const contentRef = React.useRef<HTMLDivElement | null>(null)
@@ -223,9 +229,8 @@ export function TradesPopover({
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverPrimitive.Anchor virtualRef={virtualAnchor} />
-      <div ref={anchorRef} data-trades-anchor="">
-        {anchor}
-      </div>
+      <span ref={markerRef} hidden />
+      {anchor}
       <PopoverContent
         ref={contentRef}
         side="left"
@@ -271,7 +276,13 @@ export function TradesPopover({
           // coin in the Trades card switches what it shows: neither is
           // leaving it.
           const target = event.target instanceof Element ? event.target : null
-          if (pinned || target?.closest('[data-slot="dropdown-menu-content"], [data-trades-anchor]')) event.preventDefault()
+          if (
+            pinned ||
+            target?.closest('[data-slot="dropdown-menu-content"]') ||
+            (target && anchorBox()?.contains(target))
+          ) {
+            event.preventDefault()
+          }
         }}
         onPointerDown={startDrag}
         onPointerMove={moveDrag}

@@ -70,7 +70,7 @@ function OpenActivity({ activity }: { activity: Activity }) {
         action={readOnly ? undefined : <ActivityMenu activity={activity} onNotesChanged={() => setNotesRound((was) => was + 1)} />}
       />
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-        <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+        <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
           <ActivityPhotosRow activity={activity} />
           <BeenHereLine activityId={activity.id} />
           <ActivityNotes key={`${activity.id}:${notesRound}`} activity={activity} />

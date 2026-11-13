@@ -1,6 +1,5 @@
 import * as React from "react"
 
-import { saveRememberedChartView } from "@/lib/api/trade/chart-view"
 import { sameView, type ChartView } from "@/lib/trade/chart-view"
 
 /** How long the chart must sit still before the view is written down. */
@@ -24,8 +23,18 @@ const SETTLE_MS = 800
  * it either: the view is already where it is, so a write that fails loses the
  * memory and nothing else, and a toast about it would interrupt somebody
  * mid-gesture who did not ask for anything.
+ *
+ * `save` says where: the wide screen's view and the one under 1280px are kept
+ * apart, so each opens at its own zoom.
  */
-export function useRememberedChartView(initial: ChartView | null) {
+export function useRememberedChartView(
+  initial: ChartView | null,
+  save: (view: ChartView) => Promise<unknown>
+) {
+  const saveRef = React.useRef(save)
+  React.useEffect(() => {
+    saveRef.current = save
+  }, [save])
   const viewRef = React.useRef(initial)
   const savedRef = React.useRef(initial)
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -33,7 +42,7 @@ export function useRememberedChartView(initial: ChartView | null) {
   const write = React.useCallback((next: ChartView) => {
     if (sameView(savedRef.current, next)) return
     savedRef.current = next
-    saveRememberedChartView(next).catch(() => {
+    saveRef.current(next).catch(() => {
       // The next movement tries again; nothing on screen is wrong meanwhile.
       savedRef.current = null
     })

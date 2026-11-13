@@ -93,6 +93,8 @@ import {
   stitchCandles,
 } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
+import { saveRememberedChartView } from "@/lib/api/trade/chart-view"
+import { saveNarrowChartView } from "@/lib/api/trade/panel-layouts"
 import { protocolDescription } from "@/lib/api/trade/protocols"
 import {
   parseMarketKey,
@@ -107,6 +109,7 @@ import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
   DEFAULT_MARGIN_BOTTOM,
   DEFAULT_MARGIN_TOP,
+  NARROW_START_VIEW,
   type ChartView,
 } from "@/lib/trade/chart-view"
 import {
@@ -472,6 +475,7 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  initialNarrowChartView,
   initialChart,
   chartToolbarPosition,
   onChartToolbarPositionChange,
@@ -519,6 +523,11 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /**
+   * The same under 1280px, kept apart so a phone never opens at the wide
+   * screen's zoom. Null opens it at `NARROW_START_VIEW`.
+   */
+  initialNarrowChartView: ChartView | null
   /** First-paint bars that arrived with the route's opening answer. */
   initialChart: InitialChart
   /** The drawing rail position restored with the current workspace layout. */
@@ -767,8 +776,18 @@ export function ChartPanel({
   }, [options.drawings, setPaintTool, setSelectedDrawing])
 
   // The zoom and scroll, which belong to neither: one view, carried onto
-  // whatever market and timeframe you open next.
-  const chartView = useRememberedChartView(initialChartView)
+  // whatever market and timeframe you open next. A screen under 1280px keeps
+  // its own, so the candles fill a phone instead of sitting at the wide
+  // screen's zoom (Tyler, 13 Nov 2026).
+  const wideChartView = useRememberedChartView(
+    initialChartView,
+    saveRememberedChartView
+  )
+  const narrowChartView = useRememberedChartView(
+    initialNarrowChartView ?? NARROW_START_VIEW,
+    saveNarrowChartView
+  )
+  const chartView = wide ? wideChartView : narrowChartView
 
   // How the order window is set up, held here rather than inside the window —
   // the window is thrown away and rebuilt on every right-click, so it has
@@ -2257,6 +2276,7 @@ export function ChartPanel({
           onReshapeLadder={onReshapeLadder}
         />
         <GridLayer
+          compact={!wide}
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
@@ -2557,9 +2577,12 @@ export function ChartPanel({
             // With a trade picked, its id joins the tag: the chart frames
             // itself once per tag, so picking a row in the Journal is what
             // moves the chart to it.
-            viewKey={
+            // Crossing 1280px joins the tag too, so the chart frames itself
+            // again at the view kept for that width.
+            viewKey={`${
               focusTrade ? `${current.key}#${focusTrade.id}` : current.key
-            }
+            }${wide ? "" : "@narrow"}`}
+            compact={!wide}
             readView={readViewForChart}
             onViewChange={chartView.onViewChange}
             liveBars={liveBars}

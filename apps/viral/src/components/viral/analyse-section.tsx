@@ -4,7 +4,7 @@ import { ArchiveIcon, CheckIcon, Loader2Icon, SendIcon, SparklesIcon } from "luc
 import { toast } from "sonner"
 
 import { FoldingMenu } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -288,7 +288,7 @@ export function AnalyseSection({
             </div>
           ) : null}
           <AnalysisCards pieces={open.pieces} topic={open.topic} />
-          <InspectorCard storageId="viral-analysis-notes" title="Notes">
+          <PanelCard storageId="viral-analysis-notes" title="Notes">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
             <Label htmlFor={`viral-analysis-notes-${open.id}`} className="sr-only">Notes</Label>
             <SavingTextarea
@@ -311,7 +311,7 @@ export function AnalyseSection({
               }}
             />
           </div>
-          </InspectorCard>
+          </PanelCard>
         </>
       ) : null}
 

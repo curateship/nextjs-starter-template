@@ -4,7 +4,6 @@ import { CircleAlertIcon, CopyIcon, ExternalLinkIcon, Loader2Icon, MessagesSquar
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -528,8 +527,8 @@ export function PostThreadPanel({
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-post-words" title="The post">
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-post-words" title="The post">
             <div className="grid gap-2 text-sm break-words">
               {current.title ? <p className="font-medium">{current.title}</p> : null}
               <p className="whitespace-pre-wrap">{current.text || "This post has no words, only a picture or video."}</p>
@@ -539,8 +538,8 @@ export function PostThreadPanel({
                 </a>
               ) : null}
             </div>
-          </InspectorCard>
-          <InspectorCard storageId="viral-post-numbers" title="Numbers">
+          </PanelCard>
+          <PanelCard storageId="viral-post-numbers" title="Numbers">
             <dl className="grid gap-2 text-sm">
               {figures.map((figure) => (
                 <Figure key={figure.label} label={figure.label} value={figure.value === null ? "-" : figure.value.toLocaleString("en-US")} />
@@ -550,8 +549,8 @@ export function PostThreadPanel({
                 value={current.authorFollowers === null ? "-" : current.authorFollowers.toLocaleString("en-US")}
               />
             </dl>
-          </InspectorCard>
-          <InspectorCard storageId="viral-post-replies" title={current.network === "x" ? "Top replies" : "Top comments"}>
+          </PanelCard>
+          <PanelCard storageId="viral-post-replies" title={current.network === "x" ? "Top replies" : "Top comments"}>
             {current.topReplies.length ? (
               <ol className="grid gap-3 text-sm">
                 {current.topReplies.map((reply, index) => (
@@ -576,7 +575,7 @@ export function PostThreadPanel({
             ) : (
               <p className="text-sm text-muted-foreground">No replies yet.</p>
             )}
-          </InspectorCard>
+          </PanelCard>
         </div>
       </ScrollArea>
     </>

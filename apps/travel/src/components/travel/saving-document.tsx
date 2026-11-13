@@ -131,7 +131,11 @@ export function SavingDocument({
       className={cn(
         // A plain writing area, no box: the panel around it is the page.
         "[&>div:first-of-type]:rounded-none [&>div:first-of-type]:border-0 [&>div:first-of-type]:bg-transparent",
+        // Nothing above a block that opens the page, so it sits straight under
+        // the panel's header as on the shell's pages (UI standard, "A side
+        // panel's body").
         "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4",
+        "[&_.page-rte_.tiptap:has(>.react-renderer:first-child)]:!pt-0",
         "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
         locked && !noSignal && "[&>div:first-of-type]:opacity-100",
         className

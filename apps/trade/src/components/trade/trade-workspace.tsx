@@ -56,6 +56,11 @@ import {
 } from "@/components/trade/market-folders-menu"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { TradingRuleEditor } from "@/components/trade/trading-rules-settings"
+import {
+  NarrowPanelBar,
+  NarrowPanelLayer,
+  type NarrowPanel,
+} from "@/components/trade/narrow-panel-bar"
 import { useLineAlerts } from "@/components/trade/use-line-alerts"
 import { usePriceAlerts } from "@/components/trade/use-price-alerts"
 import { useFiredPriceAlerts } from "@/components/trade/price-alerts-panel"
@@ -123,7 +128,6 @@ import {
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { cn } from "@/lib/utils"
 import {
@@ -149,8 +153,8 @@ import {
   InfoIcon,
   PanelLeftCloseIcon,
   PanelLeftDashedIcon,
+  ChartCandlestickIcon,
 } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { ShowLeftPanelProvider, SideTogglesProvider } from "@/components/shared/three-panels"
@@ -291,8 +295,7 @@ export function TradeWorkspace({
   /**
    * The market list is still streaming in with the opening answer. The list
    * shows a loading row, and nothing treats the empty catalogue as the
-   * exchange's answer — a picked market is not "missing" yet, and the
-   * narrow-screen market sheet does not open itself over the page.
+   * exchange's answer: a picked market is not "missing" yet.
    */
   marketsPending: boolean
   /** Which network the whole page is showing — resolved by the route. */
@@ -355,13 +358,10 @@ export function TradeWorkspace({
   // rebuilding itself a beat later.
   const { user } = authenticatedRoute.useLoaderData()
   const desktop = useWideScreen()
-  // A phone: Browse market shows its magnifier alone.
-  const phone = useIsMobile()
-  // Under 1280px the two panels show one at a time behind a pill row: Page,
-  // and the picked row's name (Tyler, 8 Nov 2026: "Page and the middle").
-  const [narrowView, setNarrowView] = React.useState<"blocks" | "chart" | "details">(
-    "chart"
-  )
+  // Under 1280px the chart fills the screen and the bar along the bottom
+  // slides a panel up over it: Left panel, Positions, Browse and Right
+  // panel (Tyler, 13 Nov 2026). Null is the chart with every panel shut.
+  const [narrowPanel, setNarrowPanel] = React.useState<NarrowPanel | null>(null)
   const showingOverview = overview !== null
   // Memoised: the workspace re-renders on every poll and every price tick,
   // and a fresh answer each time made every panel below re-do its own work.
@@ -653,6 +653,8 @@ export function TradeWorkspace({
   const toggleDetailsPanel = usePanelToggle(detailsPanelRef)
   // Where the middle panel draws the open trade, through a portal.
   const [detailsSlot, setDetailsSlot] = React.useState<HTMLElement | null>(null)
+  // Where the three tables draw under 1280px: the bar's Positions panel.
+  const [tablesSlot, setTablesSlot] = React.useState<HTMLElement | null>(null)
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayout = React.useRef<ReturnType<
     typeof horizontalLayout.getLayout
@@ -759,7 +761,7 @@ export function TradeWorkspace({
   // opens its ⋮ at Widgets: opened when shut, or switched to when narrow.
   const showBlocks = React.useCallback(() => {
     if (!desktop) {
-      setNarrowView("blocks")
+      setNarrowPanel("left")
       return
     }
     if (blocksPanelRef.current?.isCollapsed()) toggleBlocks()
@@ -785,10 +787,10 @@ export function TradeWorkspace({
     }),
     [toggleBlocks, toggleDetails, blocksCollapsed, detailsState.collapsed]
   )
-  // A row opened on a phone brings its record to the front, as opening a
-  // record does on every three-panel dashboard.
+  // A row opened under 1280px brings its record up in the Right panel, as
+  // opening a record does on every three-panel dashboard.
   const showDetails = React.useCallback(() => {
-    if (!desktop) setNarrowView("details")
+    if (!desktop) setNarrowPanel("right")
   }, [desktop])
 
   // The finished trade drawn on the chart, picked in the Journal. It lives up
@@ -968,12 +970,12 @@ export function TradeWorkspace({
     [marketsByKey]
   )
 
-  // Picking a market from a block shows the chart on a narrow screen, where
-  // the blocks and the chart are not on screen together.
+  // Picking a market from a block or Browse shuts the panel it was
+  // picked in, so the chart it opens is what shows under 1280px.
   const pickMarket = React.useCallback(
     (key: string) => {
       onSelectMarket(key)
-      setNarrowView("chart")
+      setNarrowPanel(null)
       setActivityTab("chart")
     },
     [onSelectMarket, setActivityTab]
@@ -1144,7 +1146,15 @@ export function TradeWorkspace({
               </TooltipTrigger>
               <TooltipContent>Hide the blocks</TooltipContent>
             </Tooltip>
-          ) : null}
+          ) : (
+            // Under 1280px there is nothing to collapse, so the header shows a
+            // chart icon in the button's place (Tyler, 13 Nov 2026: "need icon
+            // for the left panel header in mobile", then "that should be a
+            // chart icon").
+            <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
+              <ChartCandlestickIcon />
+            </span>
+          )}
           <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
             Trade
           </span>
@@ -1152,7 +1162,9 @@ export function TradeWorkspace({
         </DashboardCardHeader>
       </div>
       <ScrollArea className="relative min-h-0 flex-1">
-        <div className={cn(PANEL_GUTTER, "pt-0")}>
+        {/* A side panel's body, so the first block follows Settings ->
+            Styling -> Panel cards -> Opacity, as on the shell's dashboards. */}
+        <div data-side-panel-body="" className={cn(PANEL_GUTTER, "pt-0")}>
           <TradePageBody page={page} />
         </div>
       </ScrollArea>
@@ -1167,10 +1179,10 @@ export function TradeWorkspace({
     <>
       {/* The primary Browse market button, on the header's right just before
           the timeframes (Tyler, 8 Nov 2026: "move the brwose market button
-          here"; it led the header from 7 Nov). */}
-      {selection.kind === "market" ? (
+          here"; it led the header from 7 Nov). Under 1280px it is the bar's
+          Browse instead. */}
+      {selection.kind === "market" && desktop ? (
         <MarketPicker
-          phone={phone}
           key={protocol}
           rows={marketRows}
           selected={selection.row}
@@ -1223,6 +1235,7 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            initialNarrowChartView={panelLayouts.layouts.narrowChartView}
             initialChart={initialChart}
             chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
             onChartToolbarPositionChange={
@@ -1359,6 +1372,7 @@ export function TradeWorkspace({
             setActivityTab("chart")
           }}
           detailsSlot={showingOverview ? null : detailsSlot}
+          tablesIn={desktop ? undefined : { target: tablesSlot }}
           chartMarketKey={selection.kind === "market" ? selection.row.key : null}
           onDetailsOpened={showDetails}
           journalView={panelLayouts.layouts.journalView}
@@ -1460,45 +1474,78 @@ export function TradeWorkspace({
     </WorkspacePanel>
   )
 
-  // Under 1280px: one panel at a time behind a pill row, opening on the
-  // middle: Page, the picked row's name, and the open trade.
+  // Under 1280px: the chart, with the bar along the bottom sliding the other
+  // panels up over it (Tyler, 13 Nov 2026: "The main thing is a way to access
+  // the left and right panel. I'm thinking 4 sticky buttons in the bottom.
+  // Left panel, positions, browse market, right panel."). The bar replaces
+  // the Page / chart / Trade pills. Overview has no Positions or Right panel,
+  // the same as it had no Trade pill.
+  const narrowPanels: NarrowPanel[] = [
+    "left",
+    ...(showingOverview ? [] : (["positions"] as const)),
+    ...(selection.kind === "market" ? (["browse"] as const) : []),
+    ...(showingOverview ? [] : (["right"] as const)),
+  ]
+  const shownNarrowPanel =
+    narrowPanel !== null && narrowPanels.includes(narrowPanel) && !chartFullscreen
+      ? narrowPanel
+      : null
+  const toggleNarrowPanel = (panel: NarrowPanel) => {
+    if (shownNarrowPanel === panel) {
+      setNarrowPanel(null)
+      return
+    }
+    // Positions opens on a table: the chart's own tab is already on screen.
+    if (panel === "positions" && activityTab === "chart") setActivityTab("positions")
+    setNarrowPanel(panel)
+  }
   const narrow = (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <Tabs
-        value={narrowView}
-        onValueChange={(value) => setNarrowView(value as typeof narrowView)}
-      >
-        <TabsList>
-          <TabsTrigger value="blocks">Page</TabsTrigger>
-          <TabsTrigger value="chart">
-            {showingOverview
-              ? "Overview"
-              : selection.kind === "market"
-                ? selection.row.symbol
-                : "Chart"}
-          </TabsTrigger>
-          {showingOverview ? null : <TabsTrigger value="details">Trade</TabsTrigger>}
-        </TabsList>
-      </Tabs>
-      {(
-        [
-          ["blocks", blocksColumn],
-          ["chart", middleOrOverview],
-          ["details", showingOverview ? null : detailsColumn],
-        ] as const
-      ).map(([side, content]) => (
-        <div
-          key={side}
-          className={
-            narrowView === side || (side === "chart" && chartFullscreen)
-              ? "flex min-h-0 min-w-0 flex-1 flex-col"
-              : "hidden"
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Clips the shut panel, which waits just below this box. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {middleOrOverview}
+        <NarrowPanelLayer
+          open={shownNarrowPanel}
+          onClose={() => setNarrowPanel(null)}
+          panels={{
+            left: blocksColumn,
+            positions: showingOverview ? null : (
+              <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+                <div ref={setTablesSlot} className="flex h-full min-h-0 flex-col" />
+              </WorkspacePanel>
+            ),
+            // Drawn fresh each time it opens, so its search starts empty.
+            browse:
+              selection.kind === "market" && shownNarrowPanel === "browse" ? (
+                <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+                  <MarketPicker
+                    inline
+                    key={protocol}
+                    rows={marketRows}
+                    selected={selection.row}
+                    capabilities={selection.picker}
+                    folders={folders}
+                    folderActions={folderActions}
+                    onSelect={pickMarket}
+                    venueLabel={selection.protocolLabel}
+                    onSearchBeyond={onSearchMarkets}
+                  />
+                </WorkspacePanel>
+              ) : null,
+            right: showingOverview ? null : detailsColumn,
+          }}
+        />
+      </div>
+      {chartFullscreen ? null : (
+        <NarrowPanelBar
+          panels={narrowPanels}
+          open={shownNarrowPanel}
+          onToggle={toggleNarrowPanel}
+          positionsCount={
+            trading.settled && !trading.failed ? trading.positions.length : undefined
           }
-          inert={narrowView !== side && !(side === "chart" && chartFullscreen)}
-        >
-          {content}
-        </div>
-      ))}
+        />
+      )}
     </div>
   )
 

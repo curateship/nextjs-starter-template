@@ -40,6 +40,7 @@ import {
   saveTradingOverviewWidgets,
   loadTradePanelLayouts,
   saveOpenMarketRow,
+  saveNarrowChartView,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -343,7 +344,7 @@ describe("the remembered trade panel choices", () => {
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
+      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
     })
   })
 
@@ -385,6 +386,20 @@ describe("the remembered trade panel choices", () => {
       chartToolbarPosition: { x: 0.2, y: 0.4 },
       openMarketRows: { "hyperliquid:mainnet": null },
     })
+  })
+
+  it("keeps the narrow chart's zoom apart from the wide one's, and refuses a view it cannot read", async () => {
+    const { id } = await insertUser(database)
+    const wide: ChartView = { bars: 300, gap: -120, marginTop: 0.2, marginBottom: 0.1 }
+    const narrow: ChartView = { bars: 60, gap: -2, marginTop: 0.2, marginBottom: 0.1 }
+    await saveChartView(id, wide)
+    await saveNarrowChartView(id, narrow, database)
+
+    expect((await loadTradePanelLayouts(id, database)).narrowChartView).toEqual(narrow)
+    expect(await loadChartView(id)).toEqual(wide)
+    await expect(saveNarrowChartView(id, { bars: 1 }, database)).rejects.toThrow(
+      "PANEL_LAYOUT_INVALID"
+    )
   })
 
   it("keeps the eye choice when the folder row is saved after it", async () => {

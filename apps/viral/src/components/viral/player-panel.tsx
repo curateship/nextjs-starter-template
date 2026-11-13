@@ -12,7 +12,7 @@ import {
   UsersIcon,
 } from "lucide-react"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { Button } from "@/components/ui/button"
@@ -368,14 +368,14 @@ function PlayerBody({
           />
 
           {/* Everything under the player is a card, like the AI's (Tyler, 4 Nov 2026: "all these should be in cards"). */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
           {/* What is said comes first, right under the video, and a click on a line plays from it (Tyler, 4 Nov
               2026: "the what is said card should be under video and clicking on the text takes me to that part of
               the video"). */}
           {saved?.breakdown ? (
             <BreakdownPanel only="words" breakdown={saved.breakdown} onSeek={canSeek ? seek : undefined} atMs={atMs} />
           ) : null}
-          <InspectorCard storageId="viral-video-numbers" title="Numbers">
+          <PanelCard storageId="viral-video-numbers" title="Numbers">
           {/* Label and number on one row, like Details: three across did not fit a narrow panel. */}
           <dl className="grid gap-2 text-sm">
             <Detail label="Views" value={formatCount(video.views)} />
@@ -398,9 +398,9 @@ function PlayerBody({
           </dl>
 
           <ViralScoreBlock score={video.score} postedAt={video.postedAt} />
-          </InspectorCard>
+          </PanelCard>
 
-          <InspectorCard storageId="viral-video-details" title="Details">
+          <PanelCard storageId="viral-video-details" title="Details">
             <dl className="grid gap-2 text-sm">
               <Detail label="Length" value={formatDuration(video.durationSeconds) || "-"} />
               <Detail label="Views a day" value={formatCount(video.score.viewsPerDay)} />
@@ -410,7 +410,7 @@ function PlayerBody({
               ) : null}
               {video.sound ? <Detail label="Sound" value={soundLabel(video.sound)} /> : null}
             </dl>
-          </InspectorCard>
+          </PanelCard>
 
           <CommentsCard video={video} projectId={projectId} />
 

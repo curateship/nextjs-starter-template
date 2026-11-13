@@ -232,6 +232,9 @@ function BlockCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
+      // Found by Panel cards -> Opacity's rule in theme.css, as the shell's
+      // BlockCard is, so the page's first block follows that setting.
+      data-block-card=""
       // The shell's block look, from Settings → Styling → Blocks: its corners,
       // its grey (the Shade) and the white tile's inset, a little see-through
       // and frosted over a cover, as the shell's own blocks are

@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -171,9 +171,11 @@ function BreakdownSection({
 }) {
   return (
     // A card like the AI's (Tyler, 4 Nov 2026: "all these should be in cards"); rows run to its edges.
-    <InspectorCard storageId={storageId} title={`${title} · ${meta}`} description={about}>
+    // The shell's side panel card, so it follows Settings -> Styling -> Panel cards.
+    <PanelCard storageId={storageId} title={title} meta={meta}>
+      <p className="text-sm leading-relaxed text-muted-foreground">{about}</p>
       {rows ? <div className="-mx-4 -mb-4 overflow-hidden rounded-b-lg border-t">{children}</div> : children}
-    </InspectorCard>
+    </PanelCard>
   )
 }
 

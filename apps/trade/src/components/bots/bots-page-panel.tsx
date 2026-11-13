@@ -132,7 +132,9 @@ export function BotsPagePanel({
       </div>
 
       <ScrollArea className="relative min-h-0 flex-1">
-        <div className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
+        {/* A side panel's body, so the first block follows Settings -> Styling
+            -> Panel cards -> Opacity, as the shell's page panels do. */}
+        <div data-side-panel-body="" className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
           {page ? (
             <BotsBlocksProvider value={blocks}>
               <SavingDocument

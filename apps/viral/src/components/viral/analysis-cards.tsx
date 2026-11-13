@@ -1,7 +1,7 @@
 import * as React from "react"
 import { BookmarkPlusIcon, CheckIcon, CopyIcon, Loader2Icon } from "lucide-react"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { saveFormatFn } from "@/lib/api/viral/viral-library"
@@ -13,7 +13,7 @@ import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
 /**
  * The four things Analyse with AI writes (Tyler, 4 Nov 2026: "Why it works",
  * "Script for my topic", "3 to 5 more ideas", "Title + hashtags"), each a
- * folding `InspectorCard` with its own Copy. The right panel and a vault
+ * folding `PanelCard` with its own Copy. The right panel and a vault
  * item both draw them, so a saved idea reads exactly as it did when it was
  * written. Save format under the script keeps its structure for Library →
  * Formats (task part 18).
@@ -31,7 +31,7 @@ export function AnalysisCards({
   const { whyItWorks, script, ideas, title } = pieces
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-      <InspectorCard storageId="viral-analysis-why" title="Why it works">
+      <PanelCard storageId="viral-analysis-why" title="Why it works">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <p>
             <span className="font-medium">The hook. </span>
@@ -58,9 +58,9 @@ export function AnalysisCards({
             ].join("\n")}
           />
         </div>
-      </InspectorCard>
+      </PanelCard>
 
-      <InspectorCard storageId="viral-analysis-script" title="Script" description={topic ? `For ${topic}` : undefined}>
+      <PanelCard storageId="viral-analysis-script" title="Script" meta={topic ? `For ${topic}` : undefined}>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           {script.map((part, index) => (
             <div key={index} className="grid gap-0.5">
@@ -75,9 +75,9 @@ export function AnalysisCards({
             <SaveFormatButton pieces={pieces} sourceTitle={sourceTitle} />
           </div>
         </div>
-      </InspectorCard>
+      </PanelCard>
 
-      <InspectorCard storageId="viral-analysis-ideas" title="More ideas" description={`${ideas.length} in the same style`}>
+      <PanelCard storageId="viral-analysis-ideas" title="More ideas" meta={`${ideas.length} in the same style`}>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <ol className="grid gap-2">
             {ideas.map((one, index) => (
@@ -92,9 +92,9 @@ export function AnalysisCards({
             text={ideas.map((one, index) => `${index + 1}. ${one.idea}\n   Hook: ${one.hook}`).join("\n")}
           />
         </div>
-      </InspectorCard>
+      </PanelCard>
 
-      <InspectorCard storageId="viral-analysis-title" title="Title and hashtags">
+      <PanelCard storageId="viral-analysis-title" title="Title and hashtags">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <p className="font-medium">{title.title}</p>
           <p className="whitespace-pre-wrap">{title.caption}</p>
@@ -104,7 +104,7 @@ export function AnalysisCards({
             text={[title.title, title.caption, title.hashtags.map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)).join(" ")].join("\n\n")}
           />
         </div>
-      </InspectorCard>
+      </PanelCard>
     </div>
   )
 }

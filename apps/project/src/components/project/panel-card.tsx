@@ -39,7 +39,7 @@ export function PanelCard({
   children?: React.ReactNode
 }) {
   return (
-    <div className={ONE_LINE_TITLE}>
+    <div data-project-panel-card="" className={ONE_LINE_TITLE}>
     <BlockCard editable={false} kind={storageId} title={title} icon={icon}>
       {meta || badge || action ? (
         <BlockHeadingActions>
@@ -55,6 +55,35 @@ export function PanelCard({
     </div>
   )
 }
+
+/**
+ * Panel cards -> Opacity for these cards. theme.css finds a side panel's first
+ * block only inside a page's writing area, and these cards sit straight in the
+ * panel, so the first of them gets the same rule here (UI standard, "A side
+ * panel's body"; Tyler, 13 Nov 2026: "the right panel first block not wiring
+ * to the opacity setting is a persistent problem"). "First" is the first card
+ * among the panel's own children, whatever comes before it, such as the
+ * Daily card's greeting. Drawn once by the panel that holds the cards.
+ */
+export const PANEL_CARD_FIRST_STYLES = `
+  [data-side-panel-body] > [data-project-panel-card]:not([data-project-panel-card] ~ [data-project-panel-card]) [data-block-card] {
+    background: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--muted) var(--shell-block-shade, 50%), var(--card))
+        calc(0.6 * var(--shell-panel-first-opacity, 100%)),
+      transparent
+    );
+    backdrop-filter: blur(var(--shell-panel-first-blur, 12px));
+  }
+  [data-side-panel-body] > [data-project-panel-card]:not([data-project-panel-card] ~ [data-project-panel-card]) [data-block-card] [data-block-tile] {
+    --block-body: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--muted) var(--shell-block-body-shade, 0%), var(--card))
+        var(--shell-panel-first-opacity, 100%),
+      transparent
+    );
+  }
+`
 
 /** A row of buttons under what they act on, wrapping in a narrow panel. */
 export function PanelCardFooter({ className, children }: { className?: string; children: React.ReactNode }) {

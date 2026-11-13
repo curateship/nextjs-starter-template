@@ -195,7 +195,11 @@ export function OpenRunPanel({
             (Tyler, 10 Nov 2026: "the outer padding is not wired to the card
             settings"). */}
         <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-          <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>{children}</div>
+          {/* Marked as a side panel's body, so its first card follows Settings
+              -> Styling -> Panel cards -> Opacity, as every side panel's does
+              (Tyler, 13 Nov 2026: "the first block on the right panel ... is
+              not wired to the opacity setting"). */}
+          <div data-side-panel-body="" className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>{children}</div>
         </ScrollArea>
       </InspectorCollapseAllProvider>
       {footer ? (

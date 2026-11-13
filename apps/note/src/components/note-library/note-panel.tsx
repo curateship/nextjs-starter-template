@@ -693,7 +693,10 @@ function OpenNote({
           </p>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3 empty:hidden">
+        {/* Marked as the side panel's cards, so the first follows Settings ->
+            Styling -> Panel cards -> Opacity (UI standard, "A side panel's
+            body"). */}
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3 empty:hidden">
           {isImport ? (
             <SourceCard
               detail={detail}

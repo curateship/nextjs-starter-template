@@ -128,7 +128,18 @@ export function ProgramDashboard({ page, search }: { page: ProgramPage; search: 
       layoutKey={PROGRAM_PANEL_LAYOUT_KEY}
       place={{ key: programPlaceKey(page.program.id), search: place, ids: logging ? [] : current.ids(props) }}
       showRightFor={logging ? search.at : search.open}
-      left={{ label: "Week", showLabel: "Show the week", content: <WeekLeft {...props} /> }}
+      // Each side panel is marked as one, so its first card follows Settings
+      // -> Styling -> Panel cards -> Opacity (UI standard, "A side panel's
+      // body"). `contents` keeps the panel's own layout as it was.
+      left={{
+        label: "Week",
+        showLabel: "Show the week",
+        content: (
+          <div data-side-panel-body="" className="contents">
+            <WeekLeft {...props} />
+          </div>
+        ),
+      }}
       middle={{
         // On a narrow screen the panels are pills. The middle one is "Program"
         // rather than the view's name, because the tabs under it already say
@@ -160,7 +171,15 @@ export function ProgramDashboard({ page, search }: { page: ProgramPage; search: 
           </>
         ),
       }}
-      right={{ label: rightLabel, showLabel: `Show the ${rightLabel.toLowerCase()}`, content: <Right {...props} /> }}
+      right={{
+        label: rightLabel,
+        showLabel: `Show the ${rightLabel.toLowerCase()}`,
+        content: (
+          <div data-side-panel-body="" className="contents">
+            <Right {...props} />
+          </div>
+        ),
+      }}
     />
   )
 }

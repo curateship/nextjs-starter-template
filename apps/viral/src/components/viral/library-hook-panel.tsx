@@ -4,7 +4,7 @@ import { CopyIcon, FilmIcon, PlayIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { CoverImage } from "@/components/viral/cover-image"
@@ -102,8 +102,12 @@ export function LibraryHookPanel({
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <div className="mx-auto aspect-[9/16] w-32 overflow-hidden rounded-md bg-muted">
+        {/* A side panel's body, so its first card follows Settings -> Styling ->
+            Panel cards -> Opacity. The cover is a figure, not a div, so that
+            card is still the body's first div (UI standard, "A side panel's
+            body"). */}
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <figure className="mx-auto aspect-[9/16] w-32 overflow-hidden rounded-md bg-muted">
             <CoverImage
               src={hook.thumbnailUrl}
               className="size-full object-cover"
@@ -113,8 +117,8 @@ export function LibraryHookPanel({
                 </span>
               }
             />
-          </div>
-          <InspectorCard storageId="viral-library-hook" title="Hook">
+          </figure>
+          <PanelCard storageId="viral-library-hook" title="Hook">
             <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
               <p className="font-medium">"{hook.hook.text}"</p>
               <p className="text-xs text-muted-foreground tabular-nums">
@@ -127,16 +131,16 @@ export function LibraryHookPanel({
                 </Button>
               </div>
             </div>
-          </InspectorCard>
-          <InspectorCard storageId="viral-library-hook-tags" title="Tags">
+          </PanelCard>
+          <PanelCard storageId="viral-library-hook-tags" title="Tags">
             <TagField id={`library-hook-tags-${hook.savedVideoId}`} value={hook.tags} known={tags} onChange={saveTags} />
-          </InspectorCard>
-          <InspectorCard storageId="viral-library-hook-details" title="Details">
+          </PanelCard>
+          <PanelCard storageId="viral-library-hook-details" title="Details">
             <dl className="grid gap-2 text-sm">
               <Detail label="Views" value={formatCount(hook.views)} />
               <Detail label="Analysed in" value={hook.projects.map((project) => project.name).join(", ") || "-"} />
             </dl>
-          </InspectorCard>
+          </PanelCard>
         </div>
       </ScrollArea>
       {home ? (

@@ -330,7 +330,9 @@ export function ProjectNotes({
 function PanelBody({ children }: { children: React.ReactNode }) {
   return (
     <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-      <div className="grid gap-3 p-3">{children}</div>
+      {/* A side panel's body, so a first card follows Panel cards -> Opacity
+          (UI standard, "A side panel's body"). */}
+      <div data-side-panel-body="" className="grid gap-3 p-3">{children}</div>
     </ScrollArea>
   )
 }

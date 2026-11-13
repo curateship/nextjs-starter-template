@@ -16,7 +16,7 @@ import { MyWeekSection } from "@/components/project/my-week-card"
 import { MyCheckinTime } from "@/components/project/my-checkin-time"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
 import { SaveLine } from "@/components/project/save-line"
-import { PanelCard } from "@/components/project/panel-card"
+import { PANEL_CARD_FIRST_STYLES, PanelCard } from "@/components/project/panel-card"
 import { PersonPages } from "@/components/project/person-pages"
 import { PersonAvatar, TintChip } from "@/components/project/task-bits"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
@@ -263,6 +263,7 @@ function MePanel({
       </div>
       <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
         <div data-side-panel-body="" className={cn("grid", PANEL_GUTTER)}>
+          <style>{PANEL_CARD_FIRST_STYLES}</style>
           <DailyCard
             daily={daily}
             now={now}

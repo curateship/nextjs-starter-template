@@ -21,6 +21,7 @@ import { heikinAshiBar, toHeikinAshi } from "@/lib/trade/heikin-ashi"
 import { zoneAxisLabel, zoneCrosshairLabel } from "@/lib/trade/chart-timezone"
 import { barOfTime, timeOfBar } from "@/lib/trade/chart-time"
 import { readChartColors, type ChartColors } from "@/lib/trade/chart-theme"
+import { formatAxisPrice } from "@/lib/trade/format"
 import {
   DEFAULT_MARGIN_BOTTOM,
   DEFAULT_MARGIN_TOP,
@@ -260,8 +261,15 @@ export function PriceChart({
   onViewChange,
   liveBars,
   overlay,
+  compact = false,
 }: {
   candles: CandleBar[]
+  /**
+   * Under 1280px the price column is a fifth of a phone's width, so its
+   * prices drop the cents from $1,000 up ("69,012"); see `formatAxisPrice`.
+   * A wide screen keeps the library's own labels.
+   */
+  compact?: boolean
   /** The price shape and supporting chart parts. */
   options: ChartOptions
   /**
@@ -361,6 +369,7 @@ export function PriceChart({
   // the call rather than during it.
   const framingRef = React.useRef(false)
   const optionsRef = React.useRef(options)
+  const compactRef = React.useRef(compact)
   const crosshairModesRef = React.useRef<{
     normal: number
     hidden: number
@@ -398,6 +407,25 @@ export function PriceChart({
     readViewRef.current = readView
     onViewChangeRef.current = onViewChange
   }, [onViewChange, readView])
+
+  // Crossing 1280px with the chart already drawn. The library has no way to
+  // take a formatter back off, so going wide hands the scale back to its own
+  // series' formatter, which is what it used before.
+  React.useEffect(() => {
+    if (compactRef.current === compact) return
+    compactRef.current = compact
+    const chart = chartRef.current
+    if (!chart) return
+    chart.applyOptions({
+      localization: {
+        priceFormatter: compact
+          ? formatAxisPrice
+          : (price: number) =>
+              priceSeriesRef.current?.priceFormatter().format(price) ??
+              String(price),
+      },
+    })
+  }, [compact])
 
   /**
    * Put the chart where it should start: the remembered view if there is one,
@@ -615,6 +643,9 @@ export function PriceChart({
         // the effect above because that effect runs before the library has
         // finished loading, and so cannot have reached this chart.
         chart.applyOptions(clockOptions(optionsRef.current.zone))
+        if (compactRef.current) {
+          chart.applyOptions({ localization: { priceFormatter: formatAxisPrice } })
+        }
 
         const price = chart.addSeries(CandlestickSeries, {
           upColor: "transparent",

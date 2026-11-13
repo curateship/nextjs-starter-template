@@ -76,6 +76,9 @@ export function PanelCard({
     <Collapsible
       open={open}
       onOpenChange={setOpen}
+      // The shell's mark for a panel card, which Settings -> Styling -> Panel
+      // cards -> Opacity finds a side panel's first card by.
+      data-slot="panel-card"
       className={cn(
         "group/card min-w-0 rounded-lg border bg-muted/40 p-4",
         // Fields sit on the page background, so a box to type in never looks

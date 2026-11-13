@@ -33,6 +33,7 @@ import {
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
+import { saveRememberedChartView } from "@/lib/api/trade/chart-view"
 import type { LiveFillMark } from "@/lib/trade/live-trades"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import { buildFlowRunEquity } from "@/lib/trade/flow-run/equity"
@@ -85,7 +86,7 @@ export function FlowRunPage({
 }) {
   // Shared with the trading screen on purpose: panning here carries over
   // there and back, and a ladder's rungs are in the same place on both.
-  const chartView = useRememberedChartView(savedChartView)
+  const chartView = useRememberedChartView(savedChartView, saveRememberedChartView)
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
 
   // The Trades card's two lists, and its popover of one coin's trades.
@@ -341,19 +342,17 @@ export function FlowRunPage({
   const middle = <div className="relative flex min-h-0 flex-1 flex-col">{chartPanel}</div>
 
   const tradesCard = (
-    <div>
-      <PanelCard storageId="bot-trades" icon={<ArrowLeftRightIcon />} title="Trades">
-        <DashboardTabs
-          value={tradesTab}
-          onValueChange={(value) => setTradesTab(value as CoinsTab)}
-          tabs={[
-            { value: "traded", label: "Traded" },
-            { value: "coins", label: "Coins" },
-          ]}
-        />
-        {coinsPanel}
-      </PanelCard>
-    </div>
+    <PanelCard storageId="bot-trades" icon={<ArrowLeftRightIcon />} title="Trades">
+      <DashboardTabs
+        value={tradesTab}
+        onValueChange={(value) => setTradesTab(value as CoinsTab)}
+        tabs={[
+          { value: "traded", label: "Traded" },
+          { value: "coins", label: "Coins" },
+        ]}
+      />
+      {coinsPanel}
+    </PanelCard>
   )
 
   const right = (

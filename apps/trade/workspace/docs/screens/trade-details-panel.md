@@ -53,7 +53,11 @@ gap on each side, so there are 24px between every icon in both headers
 ("the icon spacing of the right panel has to match with the spacing from the
 middle panel"). It opens at the Side
 panels right width, the narrowest it drags to. On a screen under 1280px wide
-the panel is the third pill, Trade, and opening a row moves to it.
+it is the bottom bar's Right panel, and opening a row slides it up
+(`dashboard-on-a-phone.md`). Its first card follows Settings → Styling →
+Panel cards → Opacity, as every side panel's does, through the frame it shares
+with the Bots dashboard's right panels (`OpenRunPanel`). Before 13 Nov 2026
+that frame's body was not marked as a side panel, so the setting missed it.
 
 ## What the panel shows
 

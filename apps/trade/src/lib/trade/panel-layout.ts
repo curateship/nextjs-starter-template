@@ -11,6 +11,7 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
+import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { ALL_ROW } from "@/lib/trade/market-folders"
 import { TRADE_MAKERS, type TradeMaker } from "@/lib/trade/trade-maker"
 import {
@@ -47,6 +48,13 @@ export type TradePanelLayouts = {
   hiddenTradeColumns: HiddenTradeColumns
   /** The Trade dashboard Journal's filter and its hide-practice switch. */
   journalView: JournalView
+  /**
+   * The chart's zoom and scroll under 1280px, kept apart from the wide
+   * screen's `chartView` so neither ever opens at the other's zoom (Tyler,
+   * 13 Nov 2026: candles fill the width when the chart opens on a phone).
+   * Null until a narrow chart has been moved.
+   */
+  narrowChartView: ChartView | null
 }
 
 /**
@@ -75,6 +83,7 @@ export function emptyTradePanelLayouts(): TradePanelLayouts {
     chartToolbarPosition: null,
     hiddenTradeColumns: {},
     journalView: EMPTY_JOURNAL_VIEW,
+    narrowChartView: null,
   }
 }
 
@@ -299,6 +308,7 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
       readChartToolbarPosition(record.chartToolbarPosition) ?? null,
     hiddenTradeColumns: readHiddenTradeColumns(record.hiddenTradeColumns),
     journalView: readJournalView(record.journalView),
+    narrowChartView: readChartView(record.narrowChartView ?? null),
   }
 }
 

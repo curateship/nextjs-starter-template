@@ -227,7 +227,43 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
 - **Under 1280px, one panel at a time.** A pill row of the three panel names
   sits above them; all three stay mounted and the hidden two are `inert`.
   Opening a record switches to the right panel. This row is navigation, not
-  content tabs, so it stays pills whatever the tab rule below says.
+  content tabs, so it stays pills whatever the tab rule below says. Trade's
+  dashboard at `/trade` is the one exception: under 1280px it is the chart with
+  a bar of four buttons along the bottom (Left panel, Positions, Browse, Right
+  panel) sliding each panel up over it (Tyler, 13 Nov 2026), in
+  `apps/trade/workspace/docs/screens/dashboard-on-a-phone.md`.
+- **A side panel's body: first card straight under the header, and wired to
+  Panel cards → Opacity.** Tyler, 13 Nov 2026, after both came back on Trade
+  and Bots: "The blank strip and the right panel first block not wiring to the
+  opacity setting is a persistent problem." Settings → Styling → Panel cards →
+  Opacity reaches a side panel's first card through `theme.css` alone, so a
+  panel that misses one of these marks silently ignores the setting. Every left
+  page panel, right record panel and inspector, in the shell and in every app's
+  own copy of one:
+  - **The box that directly holds the cards carries `data-side-panel-body=""`**,
+    the div under the panel's `ScrollArea` with `PANEL_GUTTER` and `pt-0`
+    (`admin-page-panel.tsx`, `crm/record-frame.tsx`). A right panel built on
+    `RecordFrame` has it already; a panel frame of an app's own does not until
+    it is added.
+  - **Cards are the shell's `PanelCard`** (`data-slot="panel-card"`,
+    `data-panel-card-tile`), and page blocks a `BlockCard` with
+    `data-block-card` and `data-block-tile`. An app's own copy of either must
+    carry the same attributes.
+  - **The cards are siblings, never each in a wrapper.** The rule is
+    `[data-slot="panel-card"]:first-of-type`, so a card wrapped in its own div
+    is "first" too and turns see-through with the real first card. A popover
+    that needs the card's position finds it from a hidden marker just before
+    it (`trades-popover.tsx` in Trade), never by wrapping it.
+  - **No space above the first card.** The body has no top padding, and a
+    page editor drops its own 15px top edge when a block opens the page:
+    `[&_.page-rte_.tiptap:has(>.react-renderer:first-child)]:!pt-0` beside
+    `!pt-3.75` in `saving-document.tsx`. An app's own copy of that file needs
+    the same line, or a blank strip shows under the header.
+  - **Check it by measuring, not by reading.** With Opacity below 100%, the
+    first card's background in each side panel has an alpha below 1 and the
+    second card's does not, and the header's bottom equals the first card's
+    top (`getBoundingClientRect()`). Do this on every side panel the change
+    touches, in the running app, before calling it done.
 - **Every panel starts with `DashboardCardHeader`** (57px). The left panel's is
   `DashboardCardTitleHeader`: a back arrow or an icon, the title, then the pin
   and the cog. Tabs sit inside a header, never in a second row under it.

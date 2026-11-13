@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ArchiveIcon, CopyPlusIcon, ExternalLinkIcon, LinkIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { Button } from "@/components/ui/button"
@@ -172,8 +172,8 @@ export function VaultItemPanel({
           )}
 
           {/* Everything under the player is a card, as on the project page (Tyler, 4 Nov 2026: "all these should be in cards"). */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-vault-idea" title="Idea">
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-vault-idea" title="Idea">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
             <div className="grid gap-2">
               <Label htmlFor={`vault-status-${item.id}`}>Status</Label>
@@ -203,9 +203,9 @@ export function VaultItemPanel({
               />
             </div>
           </div>
-          </InspectorCard>
+          </PanelCard>
 
-          <InspectorCard storageId="viral-vault-numbers" title="Numbers">
+          <PanelCard storageId="viral-vault-numbers" title="Numbers">
             <dl className="grid gap-2 text-sm">
               <Detail label="Views" value={formatCount(item.stats.views)} />
               <Detail label="Likes" value={formatCount(item.stats.likes)} />
@@ -216,7 +216,7 @@ export function VaultItemPanel({
               {/* Your own posts of it, as Promo reported them (features task part 21). */}
               <YourPostRows itemId={item.id} refreshKey={item.status} />
             </dl>
-          </InspectorCard>
+          </PanelCard>
 
           {item.analysis ? (
             <AnalysisCards pieces={item.analysis} topic={item.analysisTopic ?? ""} sourceTitle={item.title} />

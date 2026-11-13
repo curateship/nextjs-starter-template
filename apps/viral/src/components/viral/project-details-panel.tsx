@@ -108,8 +108,12 @@ export function ProjectDetailsPanel({
         </ScrollArea>
       ) : (
         <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-            <div className="grid gap-1">
+          {/* A side panel's body, so its first card follows Settings -> Styling
+              -> Panel cards -> Opacity. The description is a section, not a
+              div, so Socials is still the body's first div (UI standard, "A
+              side panel's body"). */}
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+            <section className="grid gap-1">
               <Label htmlFor="viral-project-description" className="sr-only">
                 Description
               </Label>
@@ -122,7 +126,7 @@ export function ProjectDetailsPanel({
                 placeholder="Write what this niche is about"
                 onSave={(description) => save({ description })}
               />
-            </div>
+            </section>
             <SocialsCard activeSocial={activeSocial} onPickSocial={onPickSocial} promoMissing={promoMissing} />
             <VaultRow open={vaultOpen} count={project.vault_count} onOpen={onOpenVault} />
             {onOpenAds ? <AdsRow open={adsOpen} onOpen={onOpenAds} /> : null}

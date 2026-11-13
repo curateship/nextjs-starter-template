@@ -75,8 +75,9 @@ screen: anything not written there has not been agreed yet.
   with open positions counts, hidden from the ⋮), the trading blocks, Overview
   of widgets in the shell's rows, the chart tab's "i" and the ⋮'s Folders and
   Pin to top, no right panel on Overview, and the one Trade link in the left menu.
-- `dashboard-on-a-phone.md` — the Trade dashboard on a phone: the Page and
-  middle pills, the top row and the tables.
+- `dashboard-on-a-phone.md` — the Trade dashboard under 1280px: the bottom
+  bar's Left panel, Positions, Browse and Right panel sliding up over the
+  chart, the top row and the tables.
 - `workspace.md` — the trading workspace: its panels, the Positions tab (every
   position, Grid and DCA badges), Close all, Long/Short badge columns, and
   where the navigation lives.
@@ -153,6 +154,9 @@ screen: anything not written there has not been agreed yet.
 ## charts/ — the chart itself
 
 - `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.
+- `chart-on-a-narrow-screen.md` — under 1280px: the chart's own remembered
+  zoom that fills a phone, prices without cents from $1,000 up, and grid levels
+  that show their dollars and × only when tapped.
 - `smart-tools.md` — break-then-retest stages, resets and testing steps; custom-day and line-end alert expiry, retry errors and testing steps, grid stop links and alerts carried by drawn lines: Alert on for new lines,
   the remembered on/off choice, the cog, the alert
   window, every way into it without a mouse, naming a line, the bell and the

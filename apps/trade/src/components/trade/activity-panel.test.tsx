@@ -197,6 +197,58 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
+describe("under 1280px", () => {
+  it("draws the three tables in the Positions panel and leaves the chart on screen", async () => {
+    const target = document.createElement("div")
+    document.body.append(target)
+    try {
+      await act(async () => {
+        root.render(
+          <TooltipProvider>
+            <ActivityPanel
+              protocol="hyperliquid"
+              network="mainnet"
+              trading={trading([position])}
+              tab="positions"
+              onTabChange={() => {}}
+              catalogs={[catalog]}
+              wallets={[]}
+              onSelectMarket={() => {}}
+              onAddToPosition={() => {}}
+              canChangeLeverage={false}
+              leverageRefusal={null}
+              canAdjustMargin={false}
+              marginRefusal={null}
+              shownTrade={null}
+              onShowTrade={() => {}}
+              fit={{ grow: () => {}, shrink: () => {}, grown: () => false }}
+              chart={{ label: "BTC chart", content: <div data-testid="the-chart" /> }}
+              tablesIn={{ target }}
+            />
+          </TooltipProvider>
+        )
+      })
+      const tabs = (box: Element) =>
+        Array.from(box.querySelectorAll('[role="tab"]')).map((tab) =>
+          tab.getAttribute("aria-label")
+        )
+      // The chart's header has no tabs left, only the chart's name as a heading.
+      expect(tabs(host)).toEqual([])
+      expect(host.querySelector("h2")?.textContent).toBe("BTC chart")
+      expect(tabs(target)).toEqual(["Positions", "Open orders", "Journal"])
+      // The Positions table's own tab content is in the panel, not under the chart.
+      expect(target.querySelector('[role="tabpanel"][id$="-content-positions"]')).not.toBeNull()
+      expect(host.querySelector('[role="tabpanel"][id$="-content-positions"]')).toBeNull()
+      // With Positions picked, the chart is still drawn behind the panel.
+      const chart = host.querySelector('[data-testid="the-chart"]')
+      expect(chart).not.toBeNull()
+      expect(chart!.closest('[data-state="inactive"]')?.className).not.toContain("hidden")
+    } finally {
+      target.remove()
+    }
+  })
+})
+
 describe("the Journal tab", () => {
   it("passes incomplete fills into the visible table and its count", async () => {
     const fill: LiveFill = {

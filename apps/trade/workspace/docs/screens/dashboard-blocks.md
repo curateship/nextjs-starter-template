@@ -100,6 +100,12 @@ market ticker on the middle tab." The task is
   the media library. A page keeps up to 8 pictures (`cover_images`, migration
   `0235_trade_page_cover_images.sql`). The rules are the shell's,
   `docs/shell/page-blocks.md`.
+- **The first block sits straight under the header**, and it follows Settings
+  → Styling → Panel cards → Opacity like every side panel's first card. Until
+  13 Nov 2026 the writing area kept a 15px top edge that the shell's pages
+  drop, which left a blank strip under "Trade", and the page and its blocks
+  lacked the marks that setting looks for (Tyler: "other dashboard doesnt have
+  this issue"). The rule is the UI standard's, under "A side panel's body".
 - **A page is a writing area with "/" blocks.** Typing "/" at the start of a
   line, or a right-click in the page, opens the list of blocks. Basic blocks
   are the same as every app's: Image, Video, Checklist, Callout, Divider, Fold
@@ -350,8 +356,8 @@ right").
   market modal"). It is 126px wide and 168px on a wide screen, 30% narrower
   than the toolbar search ("reduce the search field by 30%"). A press opens the
   market list with the cursor already in the list's own search box, so typing
-  starts at once. On a phone it is the magnifier alone, and the list opens
-  without raising the keyboard.
+  starts at once. Under 1280px it is not in the header: the same list is the
+  bottom bar's Browse panel (`dashboard-on-a-phone.md`).
 - **The ⋮** holds Wallet, then the market's Folders and Pin to top, then Close
   all while there is something for it to take off. Its rows are 32px high
   (36px before 10 Nov 2026, when Tyler asked to "Reduce the spacing a bit").

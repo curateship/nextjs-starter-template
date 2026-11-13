@@ -98,13 +98,13 @@ fixed in one is fixed in both.
 
 Designed with the wide one, not bolted on.
 
-- **Under 1280px one panel shows at a time** behind a pill row: Blocks, the
-  market's name, Market (the Admin 3 panel design). It opens on the chart.
-- Picking a coin in a block switches to the chart.
-- On a phone the middle panel's tab row slides sideways, and Close all is a
-  row in the header's ⋮, so the four tabs keep their room.
-- Full screen shows the chart alone at any width, and Escape puts the pill row
-  back.
+- **Under 1280px the chart fills the screen** and a bar along the bottom
+  slides the other panels up over it: Left panel, Positions, Browse and Right
+  panel. `dashboard-on-a-phone.md` has the whole of it.
+- Picking a coin in a block or in Browse shuts the panel and shows the chart.
+- Close all is a row in the chart header's ⋮ at every width.
+- Full screen shows the chart alone at any width, and hides the bottom bar
+  until Escape or the button brings it back.
 
 ## Stand-in figures
 

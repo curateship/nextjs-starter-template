@@ -66,7 +66,7 @@ vi.mock("@/components/trade/use-panel-layouts", () => ({
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
+      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
       activeNamedId: null,
       named: [],
     },
@@ -194,7 +194,7 @@ describe("a live run coin's chart", () => {
             openMarketRows: {},
             headerProfitVisible: true,
             chartToolbarPosition: null,
-            hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] },
+            hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
           }}
           heading={null}
           menu={null}
