@@ -66,6 +66,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1220,6 +1227,9 @@ type GlanceRow = {
   profitLabel: string
 }
 
+/** The protocol dropdown's value for every exchange at once. */
+const ALL_VENUES = "all"
+
 /** How long the glance waits after the pointer leaves before it shuts. */
 const GLANCE_CLOSE_MS = 450
 
@@ -1278,7 +1288,15 @@ function PositionsGlance({
   const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [tab, setTab] = React.useState<GlanceTab>("here")
-  const everywhere = useEveryPosition(open && tab === "all")
+  // The protocol dropdown lists every exchange holding a position, so opening
+  // it reads them too, even from the first tab.
+  const [pickerOpen, setPickerOpen] = React.useState(false)
+  // Read by the close timer, which must not shut the glance under an open
+  // dropdown: while its list is open the page reports the pointer as gone
+  // from the glance, and shutting it took the list with it (Tyler, 13 Nov
+  // 2026: "everything is flying everywhere").
+  const pickerOpenRef = React.useRef(false)
+  const everywhere = useEveryPosition(open && (tab === "all" || pickerOpen))
   // The page's own exchange and network are the first tab's live rows, so the
   // server's copy of them is left out rather than listed twice.
   const onThisPage = React.useCallback(
@@ -1295,7 +1313,40 @@ function PositionsGlance({
       ),
     [everywhere.answer, onThisPage]
   )
-  const shown = tab === "here" ? positions : [...positions, ...elsewhere]
+  // Which exchange the All protocols tab lists, picked in the dropdown at the
+  // right of the tabs (Tyler, 13 Nov 2026: "make it a dropdown to select all
+  // or individual protocols"). Null lists every one. The dropdown shows on
+  // both tabs and names what the list holds: the page's exchange is the first
+  // tab, any other pick is the All protocols tab narrowed to it.
+  const [venuePick, setVenuePick] = React.useState<string | null>(null)
+  const venueOf = React.useCallback((position: TradePosition) => {
+    const ref = parseMarketKey(position.marketKey)
+    return ref ? venueLabel(ref.protocol, ref.network) : ""
+  }, [])
+  const everyOpen = React.useMemo(
+    () => [...positions, ...elsewhere],
+    [positions, elsewhere]
+  )
+  const hereVenue = venueLabel(protocol, network)
+  // The page's exchange first, then the others in the order first met.
+  const venueNames = React.useMemo(
+    () =>
+      Array.from(
+        new Set([hereVenue, ...everyOpen.map(venueOf).filter(Boolean)])
+      ),
+    [hereVenue, everyOpen, venueOf]
+  )
+  // A pick whose last position has closed falls back to every exchange.
+  const venue =
+    venuePick && venuePick !== hereVenue && venueNames.includes(venuePick)
+      ? venuePick
+      : null
+  const shown =
+    tab === "here"
+      ? positions
+      : venue
+        ? everyOpen.filter((position) => venueOf(position) === venue)
+        : everyOpen
   const marks = useLiveMarks(shown.map((one) => one.marketKey))
   const { sort, direction, toggleSort } = useTableSort<PositionGlanceColumn>(
     "profit",
@@ -1311,11 +1362,10 @@ function PositionsGlance({
         position.entryPx
       const profit = positionProfit(position, mark)
       const value = positionValue(position, mark)
-      const ref = parseMarketKey(position.marketKey)
       return {
         position,
         symbol: marketSymbol(position.marketKey),
-        venue: tab === "all" && ref ? venueLabel(ref.protocol, ref.network) : null,
+        venue: tab === "all" ? venueOf(position) || null : null,
         type: position.szi > 0 ? "Long" : "Short",
         value,
         valueLabel: formatUsd(value),
@@ -1354,6 +1404,7 @@ function PositionsGlance({
     (event: React.PointerEvent) => {
       if (event.pointerType !== "mouse") return
       clearHover()
+      if (pickerOpenRef.current) return
       // Long enough to reach the popover on a slow or slanting path from a
       // tab much narrower than it (Tyler, 13 Nov 2026: "it sometimes
       // dispeared before I get to it").
@@ -1385,6 +1436,12 @@ function PositionsGlance({
       open={open}
       onOpenChange={(next) => {
         clearHover()
+        // Shut with its dropdown's list still open, the list must not come
+        // back open next time, nor keep the glance from shutting.
+        if (!next) {
+          pickerOpenRef.current = false
+          setPickerOpen(false)
+        }
         setOpen(next)
       }}
     >
@@ -1426,6 +1483,47 @@ function PositionsGlance({
               },
             ]}
           />
+          <Select
+            value={tab === "here" ? hereVenue : (venue ?? ALL_VENUES)}
+            open={pickerOpen}
+            onOpenChange={(next) => {
+              pickerOpenRef.current = next
+              if (next) clearHover()
+              setPickerOpen(next)
+            }}
+            onValueChange={(next) => {
+              if (next === hereVenue) {
+                setTab("here")
+                setVenuePick(null)
+                return
+              }
+              setTab("all")
+              setVenuePick(next === ALL_VENUES ? null : next)
+            }}
+          >
+            {/* One width for every name, so a pick never moves the button. */}
+            <SelectTrigger aria-label="Protocol" className="ml-auto w-32">
+              <SelectValue />
+            </SelectTrigger>
+            {/* Below the button, never over it. Laid over the button the list
+                is placed by hand, which lands far from it under browser zoom
+                and jumps when the other exchanges arrive (Tyler, 13 Nov 2026:
+                "everything is flying everywhere"). */}
+            <SelectContent position="popper" align="end">
+              <SelectItem value={ALL_VENUES}>All protocols</SelectItem>
+              {venueNames.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+              {!everywhere.answer && !everywhere.failed ? (
+                <div className="flex items-center gap-1.5 px-1.5 py-1 text-sm text-muted-foreground">
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                  Reading…
+                </div>
+              ) : null}
+            </SelectContent>
+          </Select>
         </DashboardCardHeader>
         <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem_6rem] gap-3 border-b px-3 text-[11px] text-muted-foreground">
           <TableSortButton

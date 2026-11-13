@@ -238,6 +238,27 @@ currant protocol only and the other for all protocols").
   read younger than fifteen seconds is reused, so hovering again does not ask
   every exchange again. While the first read is on its way the tab says
   "Reading the other exchanges".
+- **A protocol dropdown sits at the right of the tabs, on both tabs**
+  (Tyler, 13 Nov 2026: "add a filter dropdown here to filter by protocols",
+  then "make it a dropdown to select all or individual protocols"). It offers
+  All protocols, then the page's exchange, then each other exchange that holds
+  a position, with "Testnet" after the name for the practice network. It
+  always names what the list holds: the page's exchange on the first tab, All
+  protocols or the exchange picked on the second. Picking the page's exchange
+  moves to the first tab. Picking any other moves to All protocols and lists
+  only that exchange's rows, and the Total sums only those. Opening the
+  dropdown reads the other exchanges, as the All protocols tab does, and the
+  list says "Reading…" until they arrive. The pick lasts until the page
+  reloads, and a picked exchange whose last position closes falls back to All
+  protocols.
+- **The dropdown's list opens below its button, and the button keeps one
+  width.** Laid over the button, the list landed away from it under browser
+  zoom and jumped when the other exchanges arrived, and the button's edge
+  moved with each name (Tyler, 13 Nov 2026: "everything is flying
+  everywhere").
+- **The popover stays open while the dropdown's list is open.** While the
+  list is open the browser reports the pointer as gone from the popover, and
+  the close timer used to shut it, taking the list with it.
 - **The page's own exchange is never listed twice.** Its rows on All
   protocols are the first tab's live rows; the same exchange on the other
   network (testnet beside mainnet) comes from the server like any other.

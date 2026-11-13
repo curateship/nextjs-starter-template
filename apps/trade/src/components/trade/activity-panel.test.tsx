@@ -453,6 +453,94 @@ describe("the Positions tab glance", () => {
     expect(navigate).toHaveBeenCalledTimes(1)
   })
 
+  it("picks all or one protocol from a dropdown on both tabs", async () => {
+    const aster: TradePosition = {
+      ...position,
+      id: "aster-1",
+      marketKey: "aster:mainnet:SOLUSDT",
+      szi: 2,
+    }
+    everywhere.read.mockResolvedValue({
+      positions: [position, aster],
+      marks: { [aster.marketKey]: 150 },
+      unavailable: [],
+    })
+    Object.defineProperties(HTMLElement.prototype, {
+      hasPointerCapture: { configurable: true, value: () => false },
+      setPointerCapture: { configurable: true, value: () => {} },
+      releasePointerCapture: { configurable: true, value: () => {} },
+      scrollIntoView: { configurable: true, value: () => {} },
+    })
+    await drawActivity([position])
+
+    const trigger = host.querySelector("[data-positions-glance-trigger]")
+    await act(async () => {
+      if (trigger) enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    const popover = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!
+    const dropdown = () =>
+      popover.querySelector<HTMLElement>('[role="combobox"][aria-label="Protocol"]')
+    const rows = () => Array.from(popover.querySelectorAll('button[aria-label^="Open "]'))
+    const activeTab = () =>
+      popover.querySelector('[role="tab"][data-state="active"]')?.textContent ?? ""
+    // On the page's own tab the dropdown names that exchange.
+    expect(dropdown()?.textContent).toBe("Hyperliquid")
+
+    const open = async () => {
+      await act(async () => {
+        dropdown()?.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0 }))
+        dropdown()?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+        await Promise.resolve()
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      return Array.from(document.body.querySelectorAll<HTMLElement>("[role=option]"))
+    }
+    // Opening it from the first tab reads the other exchanges.
+    const choices = await open()
+    expect(everywhere.read).toHaveBeenCalledTimes(1)
+    // The page reports the pointer gone from the glance while the list is
+    // open; the glance must not shut under it.
+    await act(async () => {
+      popover.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }))
+      popover.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false, pointerType: "mouse" }))
+      vi.advanceTimersByTime(1000)
+    })
+    expect(popover.isConnected).toBe(true)
+    expect(document.body.querySelector("[role=listbox]")).not.toBeNull()
+    expect(choices.map((choice) => choice.textContent?.trim())).toEqual([
+      "All protocols",
+      "Hyperliquid",
+      "Aster",
+    ])
+    await act(async () => choices[2]?.click())
+    expect(activeTab()).toMatch(/^All protocols/)
+    expect(dropdown()?.textContent).toBe("Aster")
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0]?.getAttribute("aria-label")).toContain("on Aster")
+    expect(
+      popover.querySelector("[data-positions-glance-total]")?.textContent
+    ).toContain("$300.00")
+
+    const again = await open()
+    await act(async () => again[0]?.click())
+    expect(dropdown()?.textContent).toBe("All protocols")
+    expect(rows()).toHaveLength(2)
+
+    // Picking the page's own exchange goes back to the first tab.
+    const last = await open()
+    await act(async () => last[1]?.click())
+    expect(activeTab()).toMatch(/^Hyperliquid/)
+    expect(dropdown()?.textContent).toBe("Hyperliquid")
+    expect(rows()).toHaveLength(1)
+
+    for (const name of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture", "scrollIntoView"]) {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name]
+    }
+  })
+
   it("says so when the other exchanges cannot be read, and tries again", async () => {
     everywhere.read.mockRejectedValueOnce(new Error("down"))
     await drawActivity([position])
