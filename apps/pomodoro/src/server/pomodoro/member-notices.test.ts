@@ -16,7 +16,6 @@ import {
   failGeneration,
   finishGeneration,
   requestGenerations,
-  reserveGenerationCredit,
 } from "@/server/pomodoro/generation"
 import {
   createGroupFor,
@@ -59,6 +58,21 @@ beforeEach(async () => {
 afterEach(async () => {
   await client.close()
 })
+
+/** One AI credit taken the way the prompt box takes it. */
+async function takeOne(
+  userId: string,
+  kind: "background" | "soundscape",
+  limit: number,
+  month?: string
+) {
+  await requestGenerations(
+    userId,
+    [{ kind, prompt: "rain on a window" }],
+    { background: limit, soundscape: limit },
+    month
+  )
+}
 
 async function member(profile: Partial<typeof pomodoroProfiles.$inferInsert> = {}) {
   const user = await insertUser(db)
@@ -296,17 +310,17 @@ describe("AI and upload notices", () => {
   it("warns at one credit left and at none, once each per month", async () => {
     const userId = await member()
     const month = "2026-10-01"
-    await reserveGenerationCredit(userId, "soundscape", 3, month)
+    await takeOne(userId, "soundscape", 3, month)
     expect(await noticesFor(userId)).toEqual([])
-    await reserveGenerationCredit(userId, "soundscape", 3, month)
-    await reserveGenerationCredit(userId, "soundscape", 3, month)
+    await takeOne(userId, "soundscape", 3, month)
+    await takeOne(userId, "soundscape", 3, month)
 
     // A refund lifts the count back to one left; that warning was already sent.
     const { settleGenerationCredit } = await import(
       "@/server/pomodoro/generation"
     )
     await settleGenerationCredit(userId, "soundscape", month, false)
-    await reserveGenerationCredit(userId, "soundscape", 3, month)
+    await takeOne(userId, "soundscape", 3, month)
 
     expect(await noticesFor(userId)).toMatchObject([
       { message: "1 AI soundscape left this month.", href: "/uploads?kind=sound" },
@@ -389,7 +403,7 @@ describe("reading a notice's kind from its words", () => {
       bestStreak: 0,
       roomsHosted: 0,
     })
-    await reserveGenerationCredit(owner, "background", 1)
+    await takeOne(owner, "background", 1)
 
     for (const notice of await noticesFor(owner)) {
       expect(

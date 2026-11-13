@@ -65,10 +65,3 @@ export function buyPackLabel(kind: GenerationKind) {
 export function buySpaceLabel() {
   return `Get 10 GB more for ${formatPrice(PURCHASES.space_10gb.amountCents)}`
 }
-
-/** What the page says once Stripe has confirmed a purchase. */
-export function purchasedMessage(product: PurchaseProduct) {
-  return product === "space_10gb"
-    ? "You have 10 GB more space for the next 12 months."
-    : `${PURCHASES[product].label} added. They never run out at the end of a month.`
-}

@@ -402,7 +402,7 @@ export async function showHiddenProfiles({ userIds, actorUserId }: { userIds: st
       message: PROFILE_RESTORED_MESSAGE,
       href: "/settings?tab=public",
     })))
-    return { changed: ids, skipped: userIds.filter((id) => !ids.includes(id)), handles: shown.map((row) => row.handle) }
+    return { changed: ids, skipped: userIds.filter((id) => !ids.includes(id)), profiles: shown }
   })
 }
 

@@ -34,10 +34,6 @@ export function clearTappedCard(key: string) {
   if (tappedKey === key) setTappedKey(null)
 }
 
-export function isTappedCard(key: string) {
-  return tappedKey === key
-}
-
 /**
  * Whether a tap has this card playing, with the calls to change it. The key
  * must be unique across grids, so it carries what the card shows, for

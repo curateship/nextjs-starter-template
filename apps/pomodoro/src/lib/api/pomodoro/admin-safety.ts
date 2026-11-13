@@ -222,9 +222,9 @@ const liftFn = createServerFn({ method: "POST" })
       throw new Error("INVALID_ID")
     if (data.tab === "bans") return liftRoomBans({ banIds: data.ids, actorUserId })
     if (data.tab === "suspensions") return liftSuspensions({ suspensionIds: data.ids, actorUserId })
-    const { handles, ...result } = await showHiddenProfiles({ userIds: data.ids, actorUserId })
+    const { profiles, ...result } = await showHiddenProfiles({ userIds: data.ids, actorUserId })
     // A shown profile must read on the very next request.
-    forgetHiddenProfiles(handles)
+    forgetHiddenProfiles(profiles)
     return result
   })
 

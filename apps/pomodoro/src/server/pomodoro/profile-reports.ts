@@ -15,6 +15,7 @@ import {
   writeNotices,
 } from "@/server/pomodoro/notices"
 import { forgetPublicProfile } from "@/server/pomodoro/public-profile"
+import { forgetCachedBadges } from "@/server/pomodoro/streak-badge"
 import {
   pomodoroAuditLogs,
   pomodoroProfiles,
@@ -178,12 +179,20 @@ export async function setProfilesHidden({
       skipped: reportIds.filter((id) => !changed.includes(id)),
       // Handed back so the caller can drop the held copies outside the
       // transaction; a hide must take effect on the very next request.
-      handles: updated.map((row) => row.handle),
+      profiles: updated,
     }
   })
 }
 
-/** Drops the held pages for handles a hide or unhide just changed. */
-export function forgetHiddenProfiles(handles: (string | null)[]) {
-  for (const handle of handles) forgetPublicProfile(handle)
+/**
+ * Drops the held pages, share pictures and streak badges for profiles a hide
+ * or unhide just changed.
+ */
+export function forgetHiddenProfiles(
+  profiles: { userId: string; handle: string | null }[]
+) {
+  for (const { userId, handle } of profiles) {
+    forgetPublicProfile(handle)
+    forgetCachedBadges(userId)
+  }
 }

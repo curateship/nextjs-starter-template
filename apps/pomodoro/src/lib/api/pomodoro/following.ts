@@ -8,7 +8,6 @@ import {
   followByHandle,
   forgetFollowingFeed,
   isFollowing as isFollowingRow,
-  listFollowing as listFollowingRows,
   readFollowingFeed,
   sendCheer as sendCheerRow,
   setCheersEnabled as setCheersEnabledRow,
@@ -66,10 +65,6 @@ const feedFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }) => readFollowingFeed(context.user.id))
 
-const listFollowingFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async ({ context }) => listFollowingRows(context.user.id))
-
 const cheerFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(
@@ -116,7 +111,6 @@ export const unfollowProfile = (handle: string) =>
 export const loadIsFollowing = (handle: string) =>
   isFollowingFn({ data: { handle } })
 export const loadFollowingFeed = () => feedFn()
-export const loadFollowing = () => listFollowingFn()
 export const sendCheer = (handle: string, cheerId: string) =>
   // The id is re-checked against the fixed list by the schema above, so the
   // cast is a boundary detail rather than a trusted claim.

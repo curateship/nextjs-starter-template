@@ -23,7 +23,6 @@ import {
   listGenerations,
   monthlyLimitFor,
   requestGenerations,
-  reserveGenerationCredit,
 } from "@/server/pomodoro/generation"
 
 /**
@@ -106,9 +105,23 @@ describe("generationMonth", () => {
   })
 })
 
-describe("reserveGenerationCredit", () => {
+/**
+ * One credit taken the way the prompt box takes it: through
+ * `requestGenerations`, whose transaction locks the month's row so two
+ * requests at once cannot both read "one left".
+ */
+async function takeOne(kind: "background" | "soundscape", limit: number) {
+  const { left } = await requestGenerations(
+    userId,
+    [{ kind, prompt: "rain on a window" }],
+    { background: limit, soundscape: limit }
+  )
+  return { left: left[kind] }
+}
+
+describe("taking a credit", () => {
   it("takes one credit and says how many are left", async () => {
-    const first = await reserveGenerationCredit(userId, "background", 5)
+    const first = await takeOne("background", 5)
     expect(first.left).toBe(4)
     expect((await ledger()).reserved).toBe(1)
     expect(await creditsLeft(userId, "background", 5)).toBe(4)
@@ -116,10 +129,10 @@ describe("reserveGenerationCredit", () => {
 
   it("refuses once the month's allowance is gone", async () => {
     for (let taken = 0; taken < 2; taken += 1) {
-      await reserveGenerationCredit(userId, "background", 2)
+      await takeOne("background", 2)
     }
     await expect(
-      reserveGenerationCredit(userId, "background", 2)
+      takeOne("background", 2)
     ).rejects.toThrow("GENERATION_LIMIT_REACHED")
     // The refusal must not have taken a third one on the way out.
     expect((await ledger()).reserved).toBe(2)
@@ -127,13 +140,13 @@ describe("reserveGenerationCredit", () => {
 
   it("refuses an account with no allowance at all, before touching the row", async () => {
     await expect(
-      reserveGenerationCredit(userId, "background", 0)
+      takeOne("background", 0)
     ).rejects.toThrow("GENERATION_NOT_ALLOWED")
     expect(await ledger()).toBeUndefined()
   })
 
   it("counts the two kinds separately", async () => {
-    await reserveGenerationCredit(userId, "background", 5)
+    await takeOne("background", 5)
     expect(await creditsLeft(userId, "background", 5)).toBe(4)
     expect(await creditsLeft(userId, "soundscape", 20)).toBe(20)
   })

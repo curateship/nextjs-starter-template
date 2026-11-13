@@ -177,7 +177,7 @@ const uploadFn = createServerFn({ method: "POST" })
 
     // The Pro check and the cap come before the bytes are read, so a free
     // account cannot make the server hold 100 MB to be told no.
-    await assertCanUpload(context.user.id, data.file.size)
+    const space = await assertCanUpload(context.user.id, data.file.size)
     await enforceRateLimit(`pomodoro-upload:${context.user.id}`, {
       maxAttempts: 20,
       windowSeconds: 10 * 60,
@@ -202,6 +202,7 @@ const uploadFn = createServerFn({ method: "POST" })
         bytes,
         detected,
         labels,
+        storageLimitBytes: space.limit,
       })
       await checkStorageWarning(context.user.id)
       if (stored.shareState === "waiting") await noteShareWaiting()

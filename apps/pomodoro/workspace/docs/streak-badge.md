@@ -71,6 +71,11 @@ refuses a string carrying a NUL byte outright, so without the check
 Switching off sets the secret back to null, which is what makes the old
 address stop working. There is no "disabled but still resolvable" state.
 
+A profile an admin hid answers exactly like a revoked badge (`readStreakBadge`
+only finds a profile with no `hiddenAt`), and the hide clears the held badge
+at once, so a name hidden for being offensive stops showing on other sites
+too.
+
 Revoking takes effect at our end on the very next request: the in-process
 cache is cleared for that account at the same moment. Caches we do not own
 are a different matter, and this is the honest limit of the feature. The
