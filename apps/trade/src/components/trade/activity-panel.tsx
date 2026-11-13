@@ -1220,6 +1220,9 @@ type GlanceRow = {
   profitLabel: string
 }
 
+/** How long the glance waits after the pointer leaves before it shuts. */
+const GLANCE_CLOSE_MS = 450
+
 /** How long one read of every exchange is reused, as the header button's. */
 const EVERYWHERE_FRESH_MS = 15_000
 
@@ -1351,7 +1354,10 @@ function PositionsGlance({
     (event: React.PointerEvent) => {
       if (event.pointerType !== "mouse") return
       clearHover()
-      hoverTimer.current = setTimeout(() => setOpen(false), 220)
+      // Long enough to reach the popover on a slow or slanting path from a
+      // tab much narrower than it (Tyler, 13 Nov 2026: "it sometimes
+      // dispeared before I get to it").
+      hoverTimer.current = setTimeout(() => setOpen(false), GLANCE_CLOSE_MS)
     },
     [clearHover]
   )
@@ -1397,9 +1403,11 @@ function PositionsGlance({
           {children}
         </span>
       </PopoverTrigger>
+      {/* Flush with the header's bottom line, so there is no gap to cross
+          between the tab and the popover. */}
       <PopoverContent
         align="start"
-        sideOffset={8}
+        sideOffset={0}
         className="w-104 max-w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onPointerEnter={clearHover}

@@ -214,7 +214,10 @@ panel (`trade-details-panel.md`).
 Hovering over the Positions tab opens a small popover with the ticker, Type
 (the same Long/Short and leverage badge as the table), current value and
 current profit or loss. Each row is a button that opens that market's chart
-and closes the popover. Ticker, Type, Value and Current P&L are sort buttons.
+and closes the popover. The popover sits flush under the panel header's line, with
+no gap to cross, and waits 450ms after the pointer leaves the tab before it
+shuts, so a slow or slanting move from the narrow tab still reaches it (Tyler,
+13 Nov 2026: "it sometimes dispeared before I get to it"). Ticker, Type, Value and Current P&L are sort buttons.
 Ticker and Type start alphabetically, while the two money columns start with
 the largest figure; pressing the same heading again reverses its order. The
 popover grows with its rows and only scrolls when they run past the space on

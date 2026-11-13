@@ -343,6 +343,25 @@ describe("the Positions tab glance", () => {
     expect(rows().map((row) => row.children[1].textContent)).toEqual(["Short 1×", "Long 1×"])
   })
 
+  it("waits long enough after the pointer leaves the tab for it to reach the popover", async () => {
+    await drawActivity([position])
+    const trigger = host.querySelector("[data-positions-glance-trigger]")!
+    await act(async () => {
+      enterWithMouse(trigger)
+      vi.advanceTimersByTime(150)
+    })
+    await act(async () => {
+      trigger.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, pointerType: "mouse" }))
+      trigger.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false, pointerType: "mouse" }))
+      vi.advanceTimersByTime(400)
+    })
+    expect(document.body.querySelector('[data-slot="popover-content"]')).not.toBeNull()
+    await act(async () => {
+      vi.advanceTimersByTime(100)
+    })
+    expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull()
+  })
+
   it("sums the rows showing in a Total row under the list", async () => {
     const eth: TradePosition = { ...position, id: "position-2", marketKey: "hyperliquid:mainnet:ETH", szi: 1 }
     marks.set(eth.marketKey, 90)
