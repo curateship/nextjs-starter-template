@@ -65,7 +65,7 @@ screen: anything not written there has not been agreed yet.
   trades in a pinnable popover, admins only, and where the old links went.
 - `no-success-toasts.md` — nothing pops up when something works (Tyler, 10
   Nov 2026); errors and part-done results still do, and which ones those are.
-- [The active trades button](screens/active-trades-button.md) — click to open, the panel sized to its table, tabs that follow the Dashboard tabs setting, the ⋮ that hides columns, and why it never shows two dashes.
+- [The active trades button](screens/active-trades-button.md) — click to open, the panel sized to its table, tabs that follow the Dashboard tabs setting, the ⋮ that hides columns, why it never shows two dashes, and the one read it shares with a phone's Positions panel.
 - `trade-details-panel.md` — the Trade dashboard's right panel (10 Nov 2026):
   what the chart, Positions and Journal tabs open in it, every grid sale read
   from the server, who placed a trade, the footer buttons, right-click and

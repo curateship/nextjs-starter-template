@@ -656,9 +656,14 @@ export function ShellLayout({
   return (
     <ShellRuntimeContext.Provider value={runtime}>
     <AnnouncementRefreshContext.Provider value={refreshAnnouncements}>
-      <div className="shell-canvas min-h-screen" style={rootStyle}>
+      {/* The height of what the browser shows right now (dvh), not the
+          screen's height with a phone browser's bars hidden (vh): on an
+          iPhone, h-screen put the bottom of every page, such as Trade's
+          bottom bar, under Safari's own bottom bar (Tyler, 13 Nov 2026: "It
+          hides the bottom menu"). */}
+      <div className="shell-canvas min-h-dvh" style={rootStyle}>
         <SidebarProvider
-          className="h-screen"
+          className="h-dvh"
           sidebarWidth={config.sidebarWidth}
           onSidebarWidthCommit={handleSidebarWidthCommit}
         >

@@ -296,7 +296,7 @@ export function ActivityPanel({
   onDetailsOpened,
   journalView,
   onJournalViewChange,
-  tablesIn,
+  chartOnly = false,
 }: {
   /** The page's exchange and network, the first tab of the Positions glance. */
   protocol: ProtocolId
@@ -316,12 +316,13 @@ export function ActivityPanel({
   journalView?: JournalView
   onJournalViewChange?: (view: JournalView) => void
   /**
-   * Under 1280px the three tables leave the chart's header and draw in the
-   * bottom bar's Positions panel, `target` (Tyler, 13 Nov 2026), with the
-   * chart left on screen behind them whichever table is picked. Null until
-   * that panel is on the page. Left out on a wide screen.
+   * Under 1280px the panel is the chart alone: the bottom bar's Positions
+   * panel is the header's Active trades panel instead of these tables (Tyler,
+   * 13 Nov 2026: "the positions tab is supposed to use the active trades table
+   * in navigation"), so there are no table tabs and the chart's name is a
+   * heading. The tab remembered for the wide screen is left as it was.
    */
-  tablesIn?: { target: HTMLElement | null }
+  chartOnly?: boolean
   /**
    * At the header's start, before the tabs: the button that reopens a shut
    * left panel, as the shell's dashboards have it (Tyler, 8 Nov 2026: "put
@@ -388,6 +389,8 @@ export function ActivityPanel({
   /** How the panel changes its own height when a tab is pressed. */
   fit: PanelFit
 }) {
+  // What shows: the chart alone under 1280px, whatever the wide screen left.
+  const shownTab: ActivityTab = chartOnly ? "chart" : tab
   const [editing, setEditing] = React.useState<TradePosition | null>(null)
   const [changingMargin, setChangingMargin] =
     React.useState<TradePosition | null>(null)
@@ -469,7 +472,7 @@ export function ActivityPanel({
   // their reasons.
   const copyNotes = useCopyNotes(
     React.useMemo(() => wallets.map((wallet) => wallet.id), [wallets]),
-    tab === "journal",
+    shownTab === "journal",
     trading.trades
   )
 
@@ -533,11 +536,11 @@ export function ActivityPanel({
       ? openJournalId
       : (journalRows[0] ?? null)
   const subject: DetailsSubject | null = (() => {
-    if (tab === "positions") {
+    if (shownTab === "positions") {
       const position = visible.find((one) => one.id === shownPositionId)
       return position ? { kind: "position", position } : null
     }
-    if (tab === "journal") {
+    if (shownTab === "journal") {
       const trade = journalTrades.find((one) => one.id === shownJournalId)
       if (trade) return { kind: "trade", trade }
       const history = journalHistory.find((one) => one.id === shownJournalId)
@@ -736,35 +739,23 @@ export function ActivityPanel({
     else setLanded((count) => count + 1)
   }
 
-  // Under 1280px the tables live in the bar's Positions panel, so the chart
-  // is never hidden behind one of them.
-  const elsewhere = tablesIn !== undefined
-
-  // The three table tabs. On a wide screen Positions also opens its glance;
-  // in the Positions panel the table it would summarise is already open.
-  const positionsTab = (
-    <MiddleTab
-      value="positions"
-      {...tabProps("positions", "Positions")}
-      count={countOf(visible.length)}
-      onPointerDown={pressTab("positions")}
-    />
-  )
+  // The three table tabs, Positions with its glance.
   const tableTabs = (
     <>
-      {elsewhere ? (
-        positionsTab
-      ) : (
-        <PositionsGlance
-          protocol={protocol}
-          network={network}
-          positions={visible}
-          markets={markets}
-          onSelectMarket={onSelectMarket}
-        >
-          {positionsTab}
-        </PositionsGlance>
-      )}
+      <PositionsGlance
+        protocol={protocol}
+        network={network}
+        positions={visible}
+        markets={markets}
+        onSelectMarket={onSelectMarket}
+      >
+        <MiddleTab
+          value="positions"
+          {...tabProps("positions", "Positions")}
+          count={countOf(visible.length)}
+          onPointerDown={pressTab("positions")}
+        />
+      </PositionsGlance>
       <MiddleTab
         value="orders"
         {...tabProps("orders", "Open orders")}
@@ -962,7 +953,7 @@ export function ActivityPanel({
   return (
     <Tabs
       ref={root}
-      value={tab}
+      value={shownTab}
       onValueChange={(value) => {
         onTabChange(value as ActivityTab)
         setLanded((count) => count + 1)
@@ -980,7 +971,7 @@ export function ActivityPanel({
         // with no underline (Tyler, 13 Nov 2026: "we dont need this underline
         // if theres no tab"), with an icon as every tab-less panel header has.
         heading={
-          elsewhere && chart ? (
+          chartOnly && chart ? (
             <span className="flex min-w-0 shrink items-center gap-2">
               <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
                 <ChartCandlestickIcon />
@@ -994,7 +985,7 @@ export function ActivityPanel({
         }
         action={
           <>
-            {elsewhere ? null : tableActions}
+            {chartOnly ? null : tableActions}
             {controls?.(narrow)}
             <MiddleMenu>
               {wallet
@@ -1039,7 +1030,7 @@ export function ActivityPanel({
             }
           />
         ) : null}
-        {elsewhere ? null : tableTabs}
+        {chartOnly ? null : tableTabs}
       </TabsHeader>
       </div>
 
@@ -1047,30 +1038,13 @@ export function ActivityPanel({
         <TabsContent
           value="chart"
           forceMount
-          className={cn(
-            "flex min-h-0 flex-1 flex-col",
-            !elsewhere && "data-[state=inactive]:hidden"
-          )}
+          className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
         >
           {chart.content}
         </TabsContent>
       ) : null}
 
-      {tablesIn
-        ? tablesIn.target
-          ? createPortal(
-              // The same frame as the chart's: the shell's tab header over the
-              // table, its row sliding sideways when the words run out of room.
-              // Room on top for the panel's knob, which sits over the tabs
-              // otherwise (Tyler, 13 Nov 2026: "add some padding under here").
-              <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card pt-3 [&_[data-slot=tabs-list]]:overflow-x-auto">
-                <TabsHeader action={tableActions}>{tableTabs}</TabsHeader>
-                {tableContents}
-              </div>,
-              tablesIn.target
-            )
-          : null
-        : tableContents}
+      {chartOnly ? null : tableContents}
 
       {positionMenu ? (
         <CrmRowMenu

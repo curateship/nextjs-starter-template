@@ -3,6 +3,17 @@
 The button beside the bell says how much money is in open trades and what those
 trades have made. Pressing it opens a panel listing every one of them.
 
+## The same panel is a phone's Positions
+
+Under 1280px the bottom bar's Positions panel draws this panel's body, tabs,
+Filter, ⋮ and all (`dashboard-on-a-phone.md`). The button and that panel share
+one read of the trades every 15 seconds and one saved choice of columns, in
+`src/components/trade/use-active-trades.ts`, so having both on a page asks the
+exchanges once. The read starts with the first of them to appear and stops,
+forgetting what it held, when the last one goes. The panel's body is
+`ActiveTradesPanelBody` in `active-trades-panel.tsx`, with the narrow-place
+cell spacing and ticker cap both use.
+
 ## It opens on a click, not a hover
 
 It used to open the moment the pointer crossed it, and shut itself a fifth of a

@@ -113,6 +113,17 @@ group's row in `sidebar-group-collapsible.tsx`) and in the top bar's links
 (`sticky-header-left-nav.tsx`). Tyler, 8 Nov 2026: "make sidebar and topnav
 selected to light gray", picking the lighter grey over today's full one.
 
+## The page's height
+
+The signed-in page is exactly as tall as what the browser shows right now:
+`h-dvh` on the sidebar frame and `min-h-dvh` on the canvas behind it, in
+`src/components/shell/shell-layout.tsx`. Never `h-screen` or `100vh`, which
+on an iPhone is the height with Safari's bars hidden: the page then ran under
+Safari's own bottom bar and hid whatever sat at its foot, such as Trade's
+bottom bar (Tyler, 13 Nov 2026: "It hides the bottom menu"). Chrome's phone
+mode has no such bars, so a layout that fits there can still be cut off on a
+real phone.
+
 ## Workspace panels
 
 - Every panel header renders through `DashboardCardHeader` in

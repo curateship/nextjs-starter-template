@@ -285,6 +285,17 @@ vi.mock("@/lib/api/trade/market-folders", () => ({
   loadFolders: vi.fn(),
   setFolderMarket: vi.fn(),
 }))
+vi.mock("@/components/trade/active-trades-panel", () => ({
+  ActiveTradesPanelBody: () => <div data-testid="active-trades-panel" />,
+}))
+vi.mock("@/components/trade/use-active-trades", () => ({
+  useActiveTrades: () => ({
+    snapshot: { activeTrades: [{}, {}, {}] },
+    figures: null,
+    failed: false,
+    refresh: vi.fn(),
+  }),
+}))
 vi.mock("@/lib/trade/live-market", () => ({
   startLiveMarketData: () => vi.fn(),
   useLiveFigures: () => null,
@@ -654,9 +665,19 @@ describe("the trade dashboard", () => {
       await act(async () => (row as HTMLElement).click())
       expect(sheet().hasAttribute("inert")).toBe(true)
 
-      // Overview has no Positions or Right panel.
+      // Positions is the header's Active trades panel, counting its trades.
+      await act(async () => press("Positions"))
+      expect(sheet().id).toBe("narrow-panel-positions")
+      expect(sheet().querySelector('[data-testid="active-trades-panel"]')).not.toBeNull()
+      expect(
+        host.querySelector('nav[aria-label="Dashboard panels"] button[aria-pressed="true"]')
+          ?.textContent
+      ).toBe("Positions3")
+      await act(async () => press("Positions"))
+
+      // Overview has no Right panel; its Positions is every exchange's trades.
       await act(async () => root.render(renderWorkspace(<div data-testid="overview-widgets" />)))
-      expect(bar()).toEqual(["Left panel", "Browse"])
+      expect(bar()).toEqual(["Left panel", "Positions", "Browse"])
     } finally {
       wideScreen.value = true
     }

@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { useActiveTrades } from "@/components/trade/use-active-trades"
 import { cn } from "@/lib/utils"
 
 /**
@@ -48,15 +49,16 @@ export function NarrowPanelBar({
   panels,
   open,
   onToggle,
-  positionsCount,
 }: {
-  /** Only the panels this view has: Overview has no Positions or Right panel. */
+  /** Only the panels this view has: Overview has no Right panel. */
   panels: readonly NarrowPanel[]
   open: NarrowPanel | null
   onToggle: (panel: NarrowPanel) => void
-  /** Open positions, or undefined while that number is not known. */
-  positionsCount?: number
 }) {
+  // Positions carries the count of active trades the panel lists, from the
+  // read the header's Active trades button shares, and no number before the
+  // first read lands.
+  const positionsCount = useActiveTrades().snapshot?.activeTrades.length
   if (panels.length === 0) return null
   return (
     <nav

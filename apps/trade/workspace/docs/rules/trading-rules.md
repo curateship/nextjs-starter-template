@@ -48,6 +48,10 @@ add up to.
   with a bar of four buttons along the bottom: Left panel, Positions, Browse
   and Right panel ("rename browse market to just Browse"). The bar replaces the
   Page / market / Trade pills, and each panel slides up over the chart.
+  Tyler, 13 Nov 2026: **"the positions tab is supposed to use the active trades
+  table in navigation (with filter and hide/show col)"**, the header's Active
+  trades panel exactly, so Open orders and the Journal are on a wide screen
+  only.
 
 ## Exchange connections
 

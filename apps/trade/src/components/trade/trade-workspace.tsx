@@ -56,6 +56,7 @@ import {
 } from "@/components/trade/market-folders-menu"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { TradingRuleEditor } from "@/components/trade/trading-rules-settings"
+import { ActiveTradesPanelBody } from "@/components/trade/active-trades-panel"
 import {
   NarrowPanelBar,
   NarrowPanelLayer,
@@ -499,7 +500,9 @@ export function TradeWorkspace({
   const trading = useTrading(
     account.activeWallet,
     protocol,
-    activityTab === "journal"
+    // The Journal is only on a wide screen; under 1280px the middle is the
+    // chart alone, so the trade history is not read for a tab nobody can see.
+    desktop && activityTab === "journal"
   )
   const fallbackMarks = React.useMemo(
     () =>
@@ -653,8 +656,6 @@ export function TradeWorkspace({
   const toggleDetailsPanel = usePanelToggle(detailsPanelRef)
   // Where the middle panel draws the open trade, through a portal.
   const [detailsSlot, setDetailsSlot] = React.useState<HTMLElement | null>(null)
-  // Where the three tables draw under 1280px: the bar's Positions panel.
-  const [tablesSlot, setTablesSlot] = React.useState<HTMLElement | null>(null)
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
   const fullscreenLayout = React.useRef<ReturnType<
     typeof horizontalLayout.getLayout
@@ -1372,7 +1373,7 @@ export function TradeWorkspace({
             setActivityTab("chart")
           }}
           detailsSlot={showingOverview ? null : detailsSlot}
-          tablesIn={desktop ? undefined : { target: tablesSlot }}
+          chartOnly={!desktop}
           chartMarketKey={selection.kind === "market" ? selection.row.key : null}
           onDetailsOpened={showDetails}
           journalView={panelLayouts.layouts.journalView}
@@ -1478,11 +1479,14 @@ export function TradeWorkspace({
   // panels up over it (Tyler, 13 Nov 2026: "The main thing is a way to access
   // the left and right panel. I'm thinking 4 sticky buttons in the bottom.
   // Left panel, positions, browse market, right panel."). The bar replaces
-  // the Page / chart / Trade pills. Overview has no Positions or Right panel,
+  // the Page / chart / Trade pills. Positions is the header's Active trades
+  // panel, every exchange's open trades (Tyler, 13 Nov 2026: "the positions
+  // tab is supposed to use the active trades table in navigation (with filter
+  // and hide/show col)"), so Overview has it too. Overview has no Right panel,
   // the same as it had no Trade pill.
   const narrowPanels: NarrowPanel[] = [
     "left",
-    ...(showingOverview ? [] : (["positions"] as const)),
+    "positions",
     ...(selection.kind === "market" ? (["browse"] as const) : []),
     ...(showingOverview ? [] : (["right"] as const)),
   ]
@@ -1490,15 +1494,8 @@ export function TradeWorkspace({
     narrowPanel !== null && narrowPanels.includes(narrowPanel) && !chartFullscreen
       ? narrowPanel
       : null
-  const toggleNarrowPanel = (panel: NarrowPanel) => {
-    if (shownNarrowPanel === panel) {
-      setNarrowPanel(null)
-      return
-    }
-    // Positions opens on a table: the chart's own tab is already on screen.
-    if (panel === "positions" && activityTab === "chart") setActivityTab("positions")
-    setNarrowPanel(panel)
-  }
+  const toggleNarrowPanel = (panel: NarrowPanel) =>
+    setNarrowPanel(shownNarrowPanel === panel ? null : panel)
   const narrow = (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Clips the shut panel, which waits just below this box. */}
@@ -1509,9 +1506,19 @@ export function TradeWorkspace({
           onClose={() => setNarrowPanel(null)}
           panels={{
             left: blocksColumn,
-            positions: showingOverview ? null : (
+            // The header's Active trades panel, the same table with its
+            // Filter and its ⋮ of columns, read once for both. A trade
+            // pressed opens its chart and shuts the panel.
+            positions: (
               <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-                <div ref={setTablesSlot} className="flex h-full min-h-0 flex-col" />
+                <ActiveTradesPanelBody
+                  // Room under the knob, cells 8px apart with 10px at the
+                  // table's outer edges, and a long ticker cut at 104px rather
+                  // than 144px, so the columns fit a 360px phone without
+                  // sliding sideways. The figures are never the part cut short.
+                  className="h-full pt-3 [&_[data-slot=table-cell]]:!px-2 [&_[data-slot=table-head]]:!px-2 [&_td:first-child]:!pl-2.5 [&_td:last-child]:!pr-2.5 [&_th:first-child]:!pl-2.5 [&_th:last-child]:!pr-2.5 [&_tbody_td:first-child]:!max-w-26"
+                  onTradeOpen={() => setNarrowPanel(null)}
+                />
               </WorkspacePanel>
             ),
             // Drawn fresh each time it opens, so its search starts empty.
@@ -1541,9 +1548,6 @@ export function TradeWorkspace({
           panels={narrowPanels}
           open={shownNarrowPanel}
           onToggle={toggleNarrowPanel}
-          positionsCount={
-            trading.settled && !trading.failed ? trading.positions.length : undefined
-          }
         />
       )}
     </div>

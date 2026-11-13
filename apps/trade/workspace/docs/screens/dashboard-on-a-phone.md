@@ -15,10 +15,17 @@ Left to right: **Left panel**, **Positions**, **Browse** and **Right panel**
 
 - **Left panel** is the dashboard's page: Protocols, Grid trades and the other
   blocks (`dashboard-blocks.md`).
-- **Positions** is the Positions, Open orders and Journal tables, with their
-  tabs on top. It opens on Positions the first time and on whichever table was
-  open after that. Its button carries the count of open positions, and no
-  number while that count is not known yet.
+- **Positions** is the header's Active trades panel (Tyler, 13 Nov 2026: "the
+  positions tab is supposed to use the active trades table in navigation (with
+  filter and hide/show col)"): every exchange's open trades and watched orders
+  as Active trades and Watching tabs, with the Filter and the ⋮ that hides
+  columns (`active-trades-button.md`). It is the same table, read once for
+  both: the button and the panel share one read every 15 seconds and one saved
+  choice of columns (`use-active-trades.ts`). Its button carries the number of
+  active trades, and no number before the first read lands. A ticker pressed
+  opens that coin's chart and shuts the panel. On a phone the cells sit 8px
+  apart and a long ticker is cut at 104px, so the three columns fit a 360px
+  screen; the figures are never the part cut short.
 - **Browse** is the market list the header's search box opens on a wide
   screen, drawn straight into the panel. It cannot be pinned or dragged there,
   and its search starts empty each time.
@@ -40,15 +47,14 @@ How a panel behaves:
   while shut, the same as the three panels side by side on a wide screen.
 - **Picking a coin** in Left panel or Browse shuts the panel and shows that
   coin's chart.
-- **Opening a row** in Positions or the Journal swaps to Right panel with that
-  row open. A widget's Manage widgets opens Left panel.
-- **Overview** has no Positions or Right panel, so its bar is Left panel and
-  Browse. Browse is left out too when no market can be picked.
+- **A widget's Manage widgets** opens Left panel.
+- **Overview** has no Right panel, so its bar is Left panel, Positions and
+  Browse. Browse is left out when no market can be picked.
 - **The full-screen chart** hides the bar, and leaving it brings the bar back.
 - **On an iPhone** the bar sits above the home line.
 
-The tables are drawn into the Positions panel from the same middle panel that
-draws them beside the chart on a wide screen, so nothing is read twice.
+Open orders and the Journal are on a wide screen only: under 1280px the middle
+panel is the chart alone, and the Journal's history is not read there.
 
 768px is the width the shell already calls a phone, in
 `src/hooks/use-mobile.ts`. It is not the 1280px line the side panels fold away
@@ -120,17 +126,6 @@ icon").
 - **Folders and Pin to top are in the chart header's ⋮**, beside Wallet and
   Close all, as on a wide screen.
 
-## The tables
-
-Positions, Open orders and the Journal are tabs at the top of the Positions
-panel, with each table's own buttons (Close or Remove the ticked rows, Hide
-select, the Journal's filter) beside them.
-
-- The tab row slides sideways when it runs out of room, and the tab you open is
-  slid fully into view so its count is never the part hanging off the end.
-- **Remove keeps its count and loses its word** on a phone, so the bin and the
-  number of ticked rows fit beside the tabs.
-
 ## What it does on the way in
 
 The page is built on the server, which cannot measure a window it never sees,
@@ -151,8 +146,10 @@ Open `/trade?view=hyperliquid` at 390×844 and check:
 2. Each button slides its panel up over the chart, and the same button shuts
    it. So do a tap on the dimmed chart and a drag down on the knob.
 3. Picking a coin in Left panel or Browse shows its chart with the panel shut.
-4. A row tapped in Positions opens Right panel on that trade.
-5. `/trade?view=overview` shows only Left panel and Browse.
+4. Positions shows Active trades and Watching with Filter and the ⋮; hiding a
+   column there hides it in the header's panel too, and a ticker pressed opens
+   its chart with the panel shut.
+5. `/trade?view=overview` shows Left panel, Positions and Browse.
 6. The full-screen button in the chart's corner hides the bar.
 7. The top row is the sidebar toggle, the exchange's name, the search
    magnifier if it is switched on, the bell and three dots, with no cog
