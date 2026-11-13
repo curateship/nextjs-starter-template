@@ -351,7 +351,7 @@ export async function recordSelfTest(
         ]
           .filter(Boolean)
           .join(" "),
-        href: `/admin/phones?open=${encodeURIComponent(phoneId)}`,
+        href: `/admin/anti-detect?section=phones&open=${encodeURIComponent(phoneId)}`,
       },
       db,
       now

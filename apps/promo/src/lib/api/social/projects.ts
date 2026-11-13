@@ -11,14 +11,13 @@ import {
   deleteProject,
   deleteProjects,
   listProjectRows,
-  projectForOldScreen,
+  projectForOldComments,
   readProjectView,
   removeAccountFromProject,
   removeProjectNetwork,
   setProjectDescriptionLocked,
   setProjectPinned,
   updateProject,
-  type OldScreen,
   type ProjectAccount,
   type ProjectRow,
   type ProjectView,
@@ -329,23 +328,17 @@ export function takeAccountOutOfProject(accountId: string) {
   return removeAccountFn({ data: { accountId } })
 }
 
-const oldScreenFn = createServerFn({ method: "GET" })
+const oldCommentsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .inputValidator(
-    z.object({
-      screen: z.enum(["today", "comments", "jobs"]),
-      commentId: z.string().min(1).max(40).nullable(),
-    })
-  )
+  .inputValidator(z.object({ commentId: z.string().min(1).max(40).nullable() }))
   .handler(async ({ context, data }): Promise<{ projectId: string | null }> => ({
-    projectId: await projectForOldScreen(context.user.id, data.screen, data.commentId),
+    projectId: await projectForOldComments(context.user.id, data.commentId),
   }))
 
 /**
- * Which project an old screen's address opens now, or null for the Projects
- * table. Used by `/admin/today`, `/admin/comments` and `/admin/jobs`, which
- * only send on.
+ * Which project `/admin/comments` opens now, or null for the Projects table.
+ * That address only sends on.
  */
-export function findProjectForOldScreen(screen: OldScreen, commentId: string | null = null) {
-  return oldScreenFn({ data: { screen, commentId } })
+export function findProjectForOldComments(commentId: string | null = null) {
+  return oldCommentsFn({ data: { commentId } })
 }

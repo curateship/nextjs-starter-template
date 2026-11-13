@@ -297,7 +297,7 @@ export function AccountRecord({
                     {row.profile.name}
                   </Link>
                 ) : row.phone ? (
-                  <Link to="/admin/phones" search={{ open: row.phone.id }} className="hover:underline">
+                  <Link to="/admin/anti-detect" search={{ section: "phones", open: row.phone.id }} className="hover:underline">
                     Phone: {row.phone.name}
                   </Link>
                 ) : (

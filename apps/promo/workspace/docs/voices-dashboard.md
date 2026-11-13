@@ -25,9 +25,8 @@ Since 12 Nov 2026 Voices is a section of the Projects dashboard, in the
 dashboard's one header and table shape (Tyler: "consolidate projects, voices,
 accounts, archive and messages into one cohesive 3 panel design"). Each row
 shows the voice's name, its first line, which accounts draft with it, and when
-it last changed. A voice opens on the right with `?open=<id>` in the address;
-the old `/admin/voices?open=<id>`, which the Reddit account tab's "Open Main
-voice" link used, lands there too.
+it last changed. A voice opens on the right with `?open=<id>` in the address. The
+old `/admin/voices` is gone since 13 Nov 2026 ([Old addresses](old-addresses.md)).
 
 - **The voice on the right saves as it is typed.** Name, How it sounds and
   Lines the AI must not cross each save 700ms after the last letter, and when

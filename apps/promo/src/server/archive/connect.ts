@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import type { Network } from "@/lib/social/networks"
 import { appUrlFor } from "@/server/app-url"
+import { isPublicCallbackUrl } from "@/server/browser/proxy-probe"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { customShellUsers } from "@/server/schema"
 import { promoProjects } from "@/server/social/schema"
@@ -10,7 +11,7 @@ import { promoProjects } from "@/server/social/schema"
 import { acceptArrival, arrivalShape, startCopy, type ArrivalAnswer } from "./arrivals"
 import { archiveItemHref } from "./paths"
 import { promoArchiveItems, type PromoVideoLinkRow } from "./schema"
-import { cleanVideoUrl, rememberVideoUrl, VideoLinkRefusal } from "./video-link"
+import { cleanVideoUrl, INSIDE_VIDEO_ADDRESS, rememberVideoUrl, VideoLinkRefusal } from "./video-link"
 
 /**
  * What each `/api/connect/video/*` address does once the key has been
@@ -37,6 +38,7 @@ export const helloShape = z.object({ videoUrl: z.string().max(500) })
 export async function hello(link: PromoVideoLinkRow, data: z.infer<typeof helloShape>, db: CustomShellDb = defaultDb) {
   const videoUrl = cleanVideoUrl(data.videoUrl)
   if (!videoUrl) throw new VideoLinkRefusal(400, "Video's address must be a web address, and https on the live server.")
+  if (!(await isPublicCallbackUrl(videoUrl))) throw new VideoLinkRefusal(400, INSIDE_VIDEO_ADDRESS)
   await rememberVideoUrl(link.userId, videoUrl, db)
   const [owner] = await db.select({ name: customShellUsers.name }).from(customShellUsers).where(eq(customShellUsers.id, link.userId)).limit(1)
   return { name: owner?.name ?? "", projects: await projectsOf(link.userId, db) }

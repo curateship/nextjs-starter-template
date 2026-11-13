@@ -2,7 +2,7 @@
 
 Every isolated browser in one table, the Profiles section of [the Anti Detect
 dashboard](../anti-detect-dashboard.md) (`/admin/anti-detect?section=profiles`;
-the old `/admin/profiles` redirects there): which proxy it uses, whether it is
+the old `/admin/profiles` is gone, [Old addresses](../old-addresses.md)): which proxy it uses, whether it is
 open, who is signed in inside it, and when it last ran. Opening a profile's browser, signing
 in and clearing a captcha all start here. Tyler, 5 Oct 2026: "proxy and browser
 isolation is an app wide feature, not just a reddit feature."

@@ -11,6 +11,7 @@ import {
 import { NETWORKS } from "@/lib/social/networks"
 import { appUrlFor } from "@/server/app-url"
 import { uuid } from "@/server/auth/security"
+import { isPublicCallbackUrl } from "@/server/browser/proxy-probe"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { ringBell } from "@/server/social/notices"
 import { promoProjects } from "@/server/social/schema"
@@ -18,7 +19,7 @@ import { promoProjects } from "@/server/social/schema"
 import { archivePath, archiveItemHref } from "./paths"
 import { promoArchiveDrafts, promoArchiveItems, promoArchiveSlides, type PromoArchiveItemRow, type PromoVideoLinkRow } from "./schema"
 import { bucketStore, copyIntoStore, type ArchiveStore } from "./store"
-import { callVideo, onVideoAddress, VideoLinkRefusal } from "./video-link"
+import { callVideo, INSIDE_VIDEO_ADDRESS, onVideoAddress, VideoLinkRefusal } from "./video-link"
 
 /**
  * Something sent from Video arriving in the Archive
@@ -228,6 +229,7 @@ export async function copyArrival(itemId: string, deps: CopyDeps = {}): Promise<
   const stored: { file: ArchivePendingFile; path: string; bytes: number }[] = []
   try {
     for (const file of pending.files) {
+      if (!(await isPublicCallbackUrl(file.url))) throw new Error(INSIDE_VIDEO_ADDRESS)
       const path = archivePath(item.userId, item.id, fileName(file))
       const bytes = await copyIntoStore(
         { url: file.url, mimeType: file.mimeType, expectedBytes: file.size },

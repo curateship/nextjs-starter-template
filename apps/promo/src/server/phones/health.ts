@@ -66,7 +66,7 @@ export function phoneWords(phone: { name: string; shelfSlot: string }): string {
 }
 
 function phoneHref(phoneId: string): string {
-  return `/admin/phones?open=${encodeURIComponent(phoneId)}`
+  return `/admin/anti-detect?section=phones&open=${encodeURIComponent(phoneId)}`
 }
 
 /**

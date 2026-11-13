@@ -742,12 +742,3 @@ export async function skipInbox(
   const completed = [...gone, ...marked].map((row) => row.id)
   return { completed, skipped: ids.filter((id) => !completed.includes(id)) }
 }
-
-/** Asks an account's phone to read its messages now, from the Messages dashboard's Check now. */
-export async function checkInboxNow(
-  userId: string,
-  accountId: string,
-  db: CustomShellDb = defaultDb
-): Promise<boolean> {
-  return queueInboxRead(userId, accountId, "message", "inbox", db)
-}

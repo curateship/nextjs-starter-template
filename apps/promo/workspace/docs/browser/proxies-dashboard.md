@@ -2,8 +2,8 @@
 
 Every proxy the browser profiles can go out through, in one table, the
 Proxies section of [the Anti Detect dashboard](../anti-detect-dashboard.md)
-(`/admin/anti-detect?section=proxies`; the old `/admin/proxies` redirects
-there). A proxy is bought
+(`/admin/anti-detect?section=proxies`; the old `/admin/proxies` is gone,
+[Old addresses](../old-addresses.md)). A proxy is bought
 in a list and dies without warning, so this is where a dead one shows at a
 glance. Tyler, 5 Oct 2026: "Proxies and profiles needs its own dashboard."
 

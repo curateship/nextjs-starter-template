@@ -5,8 +5,8 @@ LinkedIn, and every X and LinkedIn account's in a browser, in one list. Since
 12 Nov 2026 it is the Messages section of the
 [Projects dashboard](projects-dashboard.md) (`/admin/projects?section=messages`;
 Tyler: "consolidate projects, voices, accounts, archive and messages into one
-cohesive 3 panel design"). The old `/admin/messages`, which stored bell
-notices use, opens it with the same `?platform=` and `?open=`. Each
+cohesive 3 panel design"). The old `/admin/messages` is gone; bell notices
+that held it now hold this address ([Old addresses](old-addresses.md)). Each
 conversation is read off the phone after the app's notification said a
 message arrived, and answered only when a person presses Send. Phone farm
 file 06, part 38, X task part 41, and LinkedIn task part 42.
@@ -113,8 +113,7 @@ The words pass through two other places, and neither keeps them:
 ## Where it is
 
 - The section: `src/components/social/projects-dashboard/messages-section.tsx`,
-  with the answer box `src/components/social/phone-apps/inbox-answer.tsx`. The
-  old route `src/routes/_authenticated/admin/messages.tsx` only forwards.
+  with the answer box `src/components/social/phone-apps/inbox-answer.tsx`.
 - The server: `src/server/social/phone-apps/inbox.ts`; the endpoints in
   `src/lib/api/social/phone-apps.ts`.
 - The rack: `new_alerts`, `action_app_inbox`, `conversation_from_screen` and

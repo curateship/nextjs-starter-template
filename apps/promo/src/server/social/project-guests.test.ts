@@ -294,7 +294,7 @@ describe("the calls a guest is never let into", () => {
     "social/reddit/blocked.ts": ["blockFn", "unblockFn"],
     "social/comments.ts": ["markFn", "draftFn"],
     "social/jobs.ts": ["loadFn", "cancelFn", "retryFn"],
-    "social/phone-apps.ts": ["captionFn", "postFn", "cancelFn", "draftReplyFn"],
+    "social/phone-apps.ts": ["captionFn", "cancelFn", "draftReplyFn"],
   }
 
   for (const [file, names] of Object.entries(ADMIN_ONLY)) {

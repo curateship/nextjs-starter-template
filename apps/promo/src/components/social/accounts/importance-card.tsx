@@ -99,7 +99,7 @@ export function ImportanceCard({
           <>
             <p className="text-sm">
               Moving to the phone{" "}
-              <Link to="/admin/phones" search={{ open: move.phone.id }} className="font-medium hover:underline">
+              <Link to="/admin/anti-detect" search={{ section: "phones", open: move.phone.id }} className="font-medium hover:underline">
                 {move.phone.name}
               </Link>
               . Open its screen there, sign in to Reddit as {name} by hand, then press Check sign-in.

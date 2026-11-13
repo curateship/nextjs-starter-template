@@ -157,7 +157,7 @@ Instagram twice".
 
 - **Bans** is a section of [the Anti Detect
   dashboard](anti-detect-dashboard.md) (`/admin/anti-detect?section=bans`;
-  the old `/admin/bans` redirects there). Columns: the account, when, the app, the kind, the
+  the old `/admin/bans` is gone, [Old addresses](old-addresses.md)). Columns: the account, when, the app, the kind, the
   phone or profile, the proxy or SIM carrier, how old the account was, its
   posts in the week before, the seller, the appeal, and what happened since
   (stopped, let run again, cleaned up, looks back). Filters by app, kind,

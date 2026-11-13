@@ -1,7 +1,7 @@
 import { lookup } from "node:dns/promises"
 import type { Agent } from "node:http"
 import { request as httpsRequest } from "node:https"
-import { isIP } from "node:net"
+import { isIP, type LookupFunction } from "node:net"
 
 import { HttpsProxyAgent } from "https-proxy-agent"
 import { SocksProxyAgent } from "socks-proxy-agent"
@@ -70,6 +70,27 @@ export async function publicAddresses(host: string): Promise<string[] | null> {
   return addresses
 }
 
+/**
+ * Whether an address another app gave Promo to call back (Video, Viral) is
+ * on the public internet. Without this, whoever holds that app's key could
+ * point Promo at a server inside its own network, and Promo would fetch from
+ * it and send its key along. Checked when the address is kept and again
+ * before every call.
+ *
+ * On the live server only: away from it, two apps on one computer talk over
+ * localhost on purpose. The name is looked up again when the call connects,
+ * so a name that changes its answer in that moment is not refused; the
+ * address a call is sent to is still one the key holder had to set first.
+ */
+export async function isPublicCallbackUrl(url: string): Promise<boolean> {
+  if (process.env.NODE_ENV !== "production") return true
+  try {
+    return (await publicAddresses(new URL(url).hostname)) !== null
+  } catch {
+    return false
+  }
+}
+
 function isBlockedIp(address: string) {
   const mapped = address.toLowerCase().match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
   if (mapped) return isBlockedIpv4(mapped[1])
@@ -117,15 +138,25 @@ function isBlockedIpv6(address: string) {
 /**
  * The agent for this kind of proxy. Credentials are URL-encoded so a password
  * with an @ or a colon in it survives being put in an address.
+ *
+ * The connection to the proxy goes to `address`, the one already checked,
+ * whatever the name answers now, so a name cannot answer public for the
+ * check and private for the connection. The name stays in the address, so an
+ * https proxy's certificate is still checked against it.
  */
-function buildAgent(input: ProxyTestInput): Agent {
+function buildAgent(input: ProxyTestInput, address: string): Agent {
   const auth = input.username
     ? `${encodeURIComponent(input.username)}:${encodeURIComponent(input.password ?? "")}@`
     : ""
   const url = `${input.protocol}://${auth}${input.host}:${input.port}`
+  const family = isIP(address) === 6 ? 6 : 4
+  const lookup: LookupFunction = (_host, options, callback) => {
+    if (options.all) callback(null, [{ address, family }])
+    else callback(null, address, family)
+  }
   return input.protocol === "socks5"
-    ? (new SocksProxyAgent(url) as unknown as Agent)
-    : (new HttpsProxyAgent(url) as unknown as Agent)
+    ? (new SocksProxyAgent(url, { socketOptions: { lookup } }) as unknown as Agent)
+    : (new HttpsProxyAgent(url, { lookup }) as unknown as Agent)
 }
 
 function getThroughAgent(
@@ -185,10 +216,11 @@ export async function testProxyConnection(
 ): Promise<ProxyTestResult> {
   const startedAt = Date.now()
   try {
-    await assertPublicProxyHost(input.host)
+    const addresses = await publicAddresses(input.host)
+    if (!addresses) throw new Error("A proxy host has to resolve to a public address.")
     const { status, body } = await getThroughAgent(
       PROBE_URL,
-      buildAgent(input),
+      buildAgent(input, addresses[0]),
       TIMEOUT_MS
     )
     const latencyMs = Date.now() - startedAt

@@ -5,7 +5,9 @@ import type { z } from "zod"
 
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
+import { isPublicCallbackUrl } from "@/server/browser/proxy-probe"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { readCappedText } from "@/server/social/capped-body"
 
 import { promoViralLinks, type PromoViralLinkRow } from "./schema"
 
@@ -83,6 +85,9 @@ export function cleanViralUrl(raw: string): string | null {
   return `${url.origin}${url.pathname.replace(/\/+$/, "")}`
 }
 
+/** Said when Viral's address points inside the server's own network. */
+export const INSIDE_VIRAL_ADDRESS = "Viral's address points inside the server's own network, so Promo will not call it."
+
 /** Keeps the Viral address that pressed Test, the only one Promo calls back. */
 export async function rememberViralUrl(userId: string, viralUrl: string, db: CustomShellDb = defaultDb, now = new Date()) {
   await db.update(promoViralLinks).set({ viralUrl, lastUsedAt: now }).where(eq(promoViralLinks.userId, userId))
@@ -108,7 +113,7 @@ export class ViralLinkRefusal extends Error {
 }
 
 /** A message from Viral is a post or two of words, never more than this. */
-const MAX_BODY_CHARS = 200_000
+const MAX_BODY_BYTES = 200_000
 
 const NEVER_CACHE = { "cache-control": "no-store" }
 
@@ -127,7 +132,7 @@ export async function answerViral<Shape extends z.ZodType>(
   work: (link: PromoViralLinkRow, data: z.infer<Shape>) => Promise<unknown>,
   db: CustomShellDb = defaultDb
 ): Promise<Response> {
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_CHARS) {
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
     return answer(413, { error: "This message is too large." })
   }
   let link: PromoViralLinkRow | null
@@ -155,8 +160,8 @@ export async function answerViral<Shape extends z.ZodType>(
 
   let parsed: unknown = {}
   if (shape) {
-    const body = await request.text()
-    if (body.length > MAX_BODY_CHARS) return answer(413, { error: "This message is too large." })
+    const body = await readCappedText(request, MAX_BODY_BYTES)
+    if (body === null) return answer(413, { error: "This message is too large." })
     try {
       parsed = body ? JSON.parse(body) : {}
     } catch {
@@ -194,6 +199,7 @@ export async function callViral(
   const [link] = await db.select().from(promoViralLinks).where(eq(promoViralLinks.userId, userId)).limit(1)
   if (!link) throw new Error("Make a key on Settings → Viral and paste it into Viral first.")
   if (!link.viralUrl) throw new Error("Press Test on Viral's Settings → Promo connection first, so Promo knows where Viral is.")
+  if (!(await isPublicCallbackUrl(link.viralUrl))) throw new Error(INSIDE_VIRAL_ADDRESS)
   const response = await fetchImpl(`${link.viralUrl}${path}`, {
     method: "POST",
     headers: { authorization: `Bearer ${decryptSecret(link.keySecret)}`, "content-type": "application/json" },

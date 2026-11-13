@@ -136,8 +136,10 @@ Commenting has also opens it, which is how addresses written before 5 Nov
 | `?network=medium`, `x` or `linkedin` with a commenting `?tab=` | That network's Commenting, on that tab |
 | `?network=x` or `linkedin` with `?open=` and no tab | That found post on Commenting, since your own posts always name their tab |
 | `?keyword=` or `?window=jobs` | Commenting |
-| `/admin/today`, `/admin/jobs` | Reddit's Today, or the Jobs window, on Reddit's Commenting |
 | `/admin/comments` | Reddit's Sent tab; `?tab=posts` Reddit's Posts |
+
+`/admin/today` and `/admin/jobs` are gone since 13 Nov 2026
+([Old addresses](old-addresses.md)).
 
 New notices write the Commenting row's address straight away
 (`commentingHref`): failed comments, responses and replies, found posts on X
