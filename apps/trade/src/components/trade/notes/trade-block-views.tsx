@@ -303,7 +303,12 @@ function BlockCard({
                 : undefined
             }
             className={cn(
-              "flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px))] bg-card text-sm [&_tfoot_td]:!bg-card [&_tfoot_tr]:!bg-card [&_thead_th]:!bg-card [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]",
+              // The shell's BlockCard tile, its white the `--block-body` that
+              // Settings -> Styling -> Blocks shades and that Panel cards ->
+              // Opacity turns see-through on a side panel's first block
+              // (Tyler, 13 Nov 2026: "you forgot the opacity for the body
+              // too"). A plain bg-card ignored both.
+              "flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px)-var(--shell-block-border,0px))] [--block-body:color-mix(in_oklab,var(--muted)_var(--shell-block-body-shade,0%),var(--card))] bg-[var(--block-body)] text-sm [&_tfoot_td]:!bg-[var(--block-body)] [&_tfoot_tr]:!bg-[var(--block-body)] [&_thead_th]:!bg-[var(--block-body)] [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]",
               // While this block fills, the page's writing area takes away
               // what sits under it (`saving-document.tsx`).
               fills && "trade-block-fills"

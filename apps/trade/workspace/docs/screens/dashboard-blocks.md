@@ -105,7 +105,10 @@ market ticker on the middle tab." The task is
   13 Nov 2026 the writing area kept a 15px top edge that the shell's pages
   drop, which left a blank strip under "Trade", and the page and its blocks
   lacked the marks that setting looks for (Tyler: "other dashboard doesnt have
-  this issue"). The rule is the UI standard's, under "A side panel's body".
+  this issue"). The block's white body follows it too, and Settings → Styling →
+  Blocks' body shade, because it is painted from the shell's `--block-body`
+  rather than a plain white ("you forgot the opacity for the body too"). The
+  rule is the UI standard's, under "A side panel's body".
 - **A page is a writing area with "/" blocks.** Typing "/" at the start of a
   line, or a right-click in the page, opens the list of blocks. Basic blocks
   are the same as every app's: Image, Video, Checklist, Callout, Divider, Fold

@@ -249,6 +249,16 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
     `data-panel-card-tile`), and page blocks a `BlockCard` with
     `data-block-card` and `data-block-tile`. An app's own copy of either must
     carry the same attributes.
+  - **The white body inside a card is painted from the shell's variable,
+    never a plain colour.** A block's tile is
+    `[--block-body:color-mix(in_oklab,var(--muted)_var(--shell-block-body-shade,0%),var(--card))] bg-[var(--block-body)]`,
+    with its table heading and totals rows on `var(--block-body)` too, exactly
+    as `shared/notes/block-card.tsx`; a panel card's tile is the shell's
+    `data-panel-card-tile`. The setting turns the first card see-through by
+    changing that variable, so a tile left on `bg-card` stays solid white under
+    a see-through heading (Tyler, 13 Nov 2026: "you forgot the opacity for the
+    body too", then "this change needs to be applied to all the apps and
+    update skill too"). Trade's own block card was the one copy that did this.
   - **The cards are siblings, never each in a wrapper.** The rule is
     `[data-slot="panel-card"]:first-of-type`, so a card wrapped in its own div
     is "first" too and turns see-through with the real first card. A popover
@@ -260,9 +270,10 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
     `!pt-3.75` in `saving-document.tsx`. An app's own copy of that file needs
     the same line, or a blank strip shows under the header.
   - **Check it by measuring, not by reading.** With Opacity below 100%, the
-    first card's background in each side panel has an alpha below 1 and the
-    second card's does not, and the header's bottom equals the first card's
-    top (`getBoundingClientRect()`). Do this on every side panel the change
+    first card's background and its body's (`[data-block-tile]` or
+    `[data-panel-card-tile]`) both have an alpha below 1 and the second card's
+    do not, and the header's bottom equals the first card's top
+    (`getBoundingClientRect()`). Do this on every side panel the change
     touches, in the running app, before calling it done.
 - **Every panel starts with `DashboardCardHeader`** (57px). The left panel's is
   `DashboardCardTitleHeader`: a back arrow or an icon, the title, then the pin
