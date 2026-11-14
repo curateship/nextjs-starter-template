@@ -34,8 +34,16 @@ Left to right: **Left panel**, **Positions**, **Browse** and **Right panel**
 How a panel behaves:
 
 - **It slides up over the chart** and stops a tenth of the way down, so the
-  top of the chart still shows, dimmed. The panel has no frame of its own: its
-  card runs edge to edge, and the knob that shuts it sits on the card's own
+  top of the chart still shows, dimmed. The panel runs the screen's full
+  width. With Settings → Styling → Content spacing on phones at 0 the page has
+  no gutter and its cards are drawn flat, so the chart and every panel meet
+  the screen's edges with no strip of page beside them (Tyler, 13 Nov 2026:
+  "the spacing here is really ugly", "why not just remove the gutter?"; the
+  setting is the shell's, in the repo's `docs/shell/user-interface.md`). The
+  bar then keeps 8px round its buttons itself. The panel rounds its own top
+  corners, the dim runs the full width above it down to just under them, and
+  it slides up from behind the bar, which stays on top. The top bar is never
+  dimmed. The knob that shuts it sits on the card's own
   header (Tyler, 13 Nov 2026: "remove these paddings ... put the knob right on
   top of the panel header"). Positions and Browse leave room under the knob
   ("add some padding under here"), since their first row is tabs or a search

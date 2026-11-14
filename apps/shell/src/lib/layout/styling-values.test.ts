@@ -35,6 +35,20 @@ describe("sidebarShade", () => {
   })
 })
 
+describe("Content spacing on phones", () => {
+  const base = createDefaultStyling()
+
+  it("is left unset when it was never chosen, so phones follow Content spacing", () => {
+    expect("phoneGutter" in normalizeStyling(base)).toBe(false)
+  })
+
+  it("keeps a chosen value, 0 included, and clamps it like Content spacing", () => {
+    expect(normalizeStyling({ ...base, phoneGutter: 0 }).phoneGutter).toBe(0)
+    expect(normalizeStyling({ ...base, phoneGutter: 12 }).phoneGutter).toBe(12)
+    expect(normalizeStyling({ ...base, phoneGutter: 999 }).phoneGutter).toBe(48)
+  })
+})
+
 describe("pageShade", () => {
   it("reads a row saved before the setting existed as halfway", () => {
     const styling = normalizeStyling(createDefaultStyling())

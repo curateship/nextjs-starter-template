@@ -63,8 +63,12 @@ export function NarrowPanelBar({
   return (
     <nav
       aria-label="Dashboard panels"
+      // Above the panel, which slides up from behind it.
       className={cn(
-        "grid shrink-0 gap-2 pt-2 pb-[max(0px,env(safe-area-inset-bottom))]",
+        // An iPhone's home line below the buttons. On a page drawn flat, edge
+        // to edge (Settings → Styling → Content spacing on phones at 0), the
+        // page has no gutter, so the bar keeps 8px round its buttons.
+        "relative z-50 grid shrink-0 gap-2 bg-[color-mix(in_oklab,var(--muted)_60%,var(--background))] pt-2 pb-[max(0px,env(safe-area-inset-bottom))] in-data-[flat=true]:px-2 in-data-[flat=true]:pb-[max(0.5rem,env(safe-area-inset-bottom))]",
         COLUMNS[panels.length]
       )}
     >
@@ -94,6 +98,9 @@ export function NarrowPanelBar({
     </nav>
   )
 }
+
+/** How far the dim runs under the panel's top edge, past its rounded corners. */
+const DIM_UNDER_CORNERS_PX = 24
 
 /** How far a drag on the handle has to travel before letting go shuts it. */
 const SWIPE_CLOSE_PX = 64
@@ -169,6 +176,31 @@ export function NarrowPanelLayer({
     return () => sheet.removeEventListener("keydown", onKey)
   }, [open])
 
+  // Where the panel sits: the full width of the screen, from a tenth of the
+  // way down the chart's box to the box's foot, just above the bar. Measured
+  // from the box rather than the panel, which slides.
+  const frameRef = React.useRef<HTMLDivElement | null>(null)
+  const [frame, setFrame] = React.useState<{ top: number; bottom: number } | null>(
+    null
+  )
+  React.useLayoutEffect(() => {
+    const box = frameRef.current
+    if (!box) return
+    const measure = () => {
+      const rect = box.getBoundingClientRect()
+      setFrame({ top: rect.top + rect.height * 0.1, bottom: rect.bottom })
+    }
+    measure()
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure)
+    observer?.observe(box)
+    window.addEventListener("resize", measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener("resize", measure)
+    }
+  }, [])
+
   const release = (by: number) => {
     setDrag(null)
     if (by > SWIPE_CLOSE_PX) onClose()
@@ -176,18 +208,22 @@ export function NarrowPanelLayer({
 
   return (
     <>
+      <div ref={frameRef} aria-hidden="true" className="pointer-events-none absolute inset-0" />
       <button
         type="button"
         tabIndex={-1}
         aria-hidden={open === null}
         aria-label="Close the panel"
-        // Over the strip of chart the panel leaves showing, running just under
-        // the card's rounded top corners. Never behind the rest of the card:
-        // dim there showed as a grey wedge in its bottom corners.
+        // The whole width of the screen above the panel, down to just under
+        // the card's rounded top corners (Tyler, 13 Nov 2026: "the spacing
+        // here is really ugly"). Never behind the rest of the card: dim there
+        // showed as a grey wedge in its bottom corners. Under the top bar,
+        // which stays as it is, and the panel and anything opened from it.
         className={cn(
-          "absolute inset-x-0 top-0 z-30 h-[calc(10%+1.5rem)] bg-black/30 transition-opacity duration-200 motion-reduce:transition-none",
+          "fixed inset-x-0 top-0 z-30 bg-black/30 transition-opacity duration-200 motion-reduce:transition-none",
           open === null ? "pointer-events-none opacity-0" : "opacity-100"
         )}
+        style={frame === null ? undefined : { height: frame.top + DIM_UNDER_CORNERS_PX }}
         onClick={onClose}
       />
       <section
@@ -198,19 +234,26 @@ export function NarrowPanelLayer({
         tabIndex={-1}
         inert={open === null}
         className={cn(
-          // No surface, corner or shadow of its own: the panel's card is the
-          // surface, so its own corners are the only ones drawn (Tyler, 13 Nov
-          // 2026, pointing at a grey wedge under the card's bottom corner).
-          "absolute inset-x-0 top-[10%] bottom-0 z-40 flex flex-col outline-none",
+          // The screen's full width, so no strip of page shows beside it
+          // (Tyler, 13 Nov 2026: "the spacing here is really ugly"). Its only
+          // corners are its own top two, under the dim, since the card inside
+          // is drawn flat when the page runs edge to edge; no surface or
+          // shadow of its own. Shut, it waits below the screen; it slides up
+          // from behind the bar.
+          "fixed inset-x-0 z-40 flex flex-col overflow-hidden rounded-t-2xl outline-none",
           drag === null &&
             "transition-transform duration-200 motion-reduce:transition-none",
-          open === null && "translate-y-[calc(100%+1rem)]"
+          (open === null || frame === null) && "translate-y-[100dvh]",
+          frame === null && "invisible"
         )}
-        style={
-          drag !== null && open !== null
+        style={{
+          ...(frame === null
+            ? undefined
+            : { top: frame.top, height: frame.bottom - frame.top }),
+          ...(drag !== null && open !== null
             ? { transform: `translateY(${drag.by}px)` }
-            : undefined
-        }
+            : undefined),
+        }}
       >
         {/* The handle, sitting on the panel's own header with no strip of its
             own (Tyler, 13 Nov 2026: "remove these paddings ... put the knob

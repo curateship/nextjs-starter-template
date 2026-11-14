@@ -124,6 +124,25 @@ bottom bar (Tyler, 13 Nov 2026: "It hides the bottom menu"). Chrome's phone
 mode has no such bars, so a layout that fits there can still be cut off on a
 real phone.
 
+## Content spacing on phones
+
+Settings → Styling → Spacing & borders has two sliders: **Content spacing**,
+the gutter round and between a dashboard's cards, and **Content spacing on
+phones**, the same thing under 1280px, where a dashboard shows one panel at a
+time. It applies to every dashboard; no page opts in or out (Tyler, 13 Nov
+2026: "why isnt this a setting in styling setting that effects all
+dashboard?", "its gonna be the same problem for all dashboards").
+
+- **Unset** follows Content spacing, so a site that never touches it looks as
+  it did. The slider then reads "Same as above".
+- **At 0** every dashboard on a phone is the flat mode: no gutter, and cards
+  and panels with no border or rounded corners, running to the screen's
+  edges. A computer keeps the Content spacing above.
+- **Where it is read:** `DashboardContent` picks the gutter with
+  `useWideScreen`, which knows the width before the first paint from a cookie,
+  so a phone never draws the computer's gutter first. It is stored as
+  `phoneGutter` on the shell's styling, 0 to 48.
+
 ## Workspace panels
 
 - Every panel header renders through `DashboardCardHeader` in

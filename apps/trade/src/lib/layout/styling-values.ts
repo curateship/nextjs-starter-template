@@ -26,6 +26,14 @@ export type ShellBackground = {
 export type ShellStyling = {
   /** Outer padding + gap between cards, in px (0–48). 0 = flat mode. */
   gutter: number
+  /**
+   * The same under 1280px, where a dashboard shows one panel at a time; unset
+   * is `gutter`. 0 runs every dashboard edge to edge with flat panels on a
+   * phone, while a computer keeps its gutter (Tyler, 13 Nov 2026: "why isnt
+   * this a setting in styling setting that effects all dashboard?", "its
+   * gonna be the same problem for all dashboards").
+   */
+  phoneGutter?: number
   /** Card border width in px (0 = off). */
   cardBorderWidth: number
   /** Card + table border color. */
@@ -594,6 +602,7 @@ export function normalizeStyling(value: unknown): ShellStyling {
   const styling = value as Partial<ShellStyling>
   return {
     gutter: clampGutter(styling.gutter ?? fallback.gutter),
+    ...(styling.phoneGutter === undefined ? {} : { phoneGutter: clampGutter(styling.phoneGutter) }),
     darkShade: isDarkShadeId(styling.darkShade)
       ? styling.darkShade
       : fallback.darkShade,

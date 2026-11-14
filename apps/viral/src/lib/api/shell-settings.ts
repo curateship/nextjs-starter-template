@@ -250,6 +250,7 @@ const shellModalStylingSchema = z.object({
 
 const shellStylingSchema = z.object({
   gutter: z.number().int().min(0).max(48),
+  phoneGutter: z.number().int().min(0).max(48).optional(),
   // Defaulted so a Styling tab opened before dark shades existed still saves,
   // and saves the near-black dark mode it was already showing.
   darkShade: z.enum(DARK_SHADE_IDS).default(DEFAULT_DARK_SHADE),

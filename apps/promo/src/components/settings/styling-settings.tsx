@@ -173,6 +173,20 @@ export function StylingSettings({
         />
 
         <SliderRow
+          label="Content spacing on phones"
+          value={styling.phoneGutter ?? styling.gutter}
+          min={MIN_CONTENT_GUTTER}
+          max={MAX_CONTENT_GUTTER}
+          valueLabel={
+            styling.phoneGutter === undefined
+              ? `${styling.gutter}px · Same as above`
+              : `${styling.phoneGutter}px`
+          }
+          onChange={(phoneGutter) => update({ phoneGutter })}
+          help="The same spacing on screens under 1280px wide, where a dashboard shows one panel at a time. Set to 0 to run every dashboard edge to edge on a phone, with flat panels, while computers keep the spacing above."
+        />
+
+        <SliderRow
           label="Card border"
           value={styling.cardBorderWidth}
           min={0}
