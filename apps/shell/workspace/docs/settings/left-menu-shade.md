@@ -60,3 +60,25 @@ navigation" and put the border shade there").
   set as `--sidebar-border` both on the page and on the shell's own wrapper,
   so Divider lines no longer reaches the edge.
 - It is stored with the workspace's styling, so no migration is needed.
+
+## One shade
+
+The same card has a Style choice at the top (Tyler, 14 Nov 2026: "add an
+option in styling settings to choose between the currant sidebar/topnav
+styling to this (the bg and the side and top as one gray shade)").
+
+- **Own shade** is the look described above, and what a
+  workspace that never chose shows.
+- **Same grey as the page** paints the left menu, the top bar
+  and the page behind the cards one grey, set by
+  [the gutter shade](page-shade.md). The cards stay white on it.
+- One shade drops the line down the left menu's edge and under the top bar.
+  The thin lines between the left menu's groups stay.
+- While one shade is picked, the Shade and Border shade sliders are hidden.
+  Their saved numbers are kept, so switching back restores the old look.
+- It is `sidebarStyle` on `ShellStyling` (`"separate"` or `"one-shade"`).
+  `getSidebarShadeVars` sets the rail's share to 0% in one shade, and
+  `useSidebarStyleAttribute` in `shell-layout.tsx` puts
+  `data-shell-sidebar="one-shade"` on `<html>`. A rule at the end of
+  `src/theme.css` then clears the two edge lines.
+- It is stored with the workspace's styling, so no migration is needed.
