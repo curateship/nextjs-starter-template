@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  ChartColumnIcon,
   PinIcon,
   Trash2Icon,
   WorkflowIcon,
@@ -473,18 +472,16 @@ export function BacktestsSection({
                 }
               : null
           }
-          // A line is picked, its Result on the right; Open chart there opens
-          // its chart and graph in the middle.
-          onOpen={() => go({ ...search, open: run.id, full: undefined, coin: undefined })}
-          // A chart in place of the cog opens the run's chart, and beside it
-          // the recipe's own icon opens the recipe on its canvas (Tyler, 11
-          // Nov 2026: "replace this icon to a chart icon and clicking on it
-          // goes to the chart page. Beside it add another icon that links to
-          // the canvas recipe").
+          // A press opens the run's chart and graph in the middle; the cog
+          // shows its Result on the right (Tyler, 14 Nov 2026: "clicking on
+          // the table item should always lead to another dashboard (if there
+          // is one) and the cog icon should always open up the right panel",
+          // then picked "Swap both", the chart icon becoming the cog). Beside
+          // it the recipe's own icon still opens the recipe on its canvas.
+          onOpen={() => go({ ...search, open: run.id, full: true, coin: undefined }, { push: true })}
           cog={{
-            label: `Open the chart of ${rowName(run)}`,
-            icon: <ChartColumnIcon className="size-4" />,
-            onPress: () => go({ ...search, open: run.id, full: true, coin: undefined }, { push: true }),
+            label: `Show ${rowName(run)} on the right`,
+            onPress: () => go({ ...search, open: run.id, full: undefined, coin: undefined }),
           }}
           buttons={[
             {

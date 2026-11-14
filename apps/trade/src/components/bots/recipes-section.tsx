@@ -470,14 +470,15 @@ export function RecipesSection({
                 }
               : null
           }
-          // A line is picked, its Last result and Parameters on the right;
-          // Open canvas there, or the cog, opens its canvas (Tyler, 11 Nov
-          // 2026: "In the footer add a button to go to canvas. ANd in the
-          // middle panel, link the cog to the canvas editor").
-          onOpen={() => go({ view: "recipes", open: recipe.id, q: search.q })}
+          // A press opens the recipe on its canvas; the cog shows its Last
+          // result and Parameters on the right (Tyler, 14 Nov 2026: "clicking
+          // on the table item should always lead to another dashboard (if
+          // there is one) and the cog icon should always open up the right
+          // panel"). Until then the cog opened the canvas (11 Nov 2026).
+          onOpen={() => go({ view: "recipes", open: recipe.id, full: true, q: search.q }, { push: true })}
           cog={{
-            label: `Open ${recipe.name} on its canvas`,
-            onPress: () => go({ view: "recipes", open: recipe.id, full: true, q: search.q }, { push: true }),
+            label: `Show ${recipe.name} on the right`,
+            onPress: () => go({ view: "recipes", open: recipe.id, q: search.q }),
           }}
           onDelete={() => setDeleting([recipe])}
           onRightClick={(x, y) => setRowMenu({ id: recipe.id, x, y })}
