@@ -19,12 +19,8 @@ const TAB_GAP = 20
  * filtering and tabs to seperate them"), the shell's `DashboardTabs`, so
  * they follow Settings → Styling → Dashboard tabs. Words only. A tab carries
  * a count only when work waits there (reports to decide, shares to approve).
- *
- * Tabs that do not fit fold into a More tab at the end of the row, the
- * shell's `DashboardTabButton`, never the tab showing: at 1440px wide, Library
- * shows Backgrounds and Sounds with More holding Member uploads and AI
- * generations. Each tab's width is measured once from a hidden copy of the
- * row, and the row is measured again whenever the header's room changes.
+ * At 1440px wide, Library shows Backgrounds and Sounds with More holding
+ * Member uploads and AI generations.
  */
 export function FlowflySectionTabs({
   tabs,
@@ -38,12 +34,34 @@ export function FlowflySectionTabs({
   counts: Partial<Record<FlowflyTab, number>>
   onPick: (tab: FlowflyTab) => void
 }) {
+  const list = tabs.map((tab) => ({ value: tab, label: FLOWFLY_TAB_LABELS[tab], count: counts[tab] ? counts[tab] : undefined }))
+  return <FoldingTabs tabs={list} value={value} onPick={(tab) => onPick(tab as FlowflyTab)} />
+}
+
+/**
+ * `DashboardTabs` whose tabs that do not fit fold into a More tab at the end
+ * of the row, the shell's `DashboardTabButton`, never the tab showing. Used
+ * by Flowfly's section tabs and by the member record's tabbed cards, whose
+ * Activity row is wider than the narrowest right panel. Each tab's width is
+ * measured once from a hidden copy of the row, and the row is measured again
+ * whenever its room changes.
+ */
+export function FoldingTabs({
+  tabs,
+  value,
+  onPick,
+}: {
+  tabs: readonly { value: string; label: string; count?: number }[]
+  value: string
+  onPick: (tab: string) => void
+}) {
   const boxRef = React.useRef<HTMLDivElement>(null)
   const measureRef = React.useRef<HTMLDivElement>(null)
   const [fit, setFit] = React.useState<number>(tabs.length)
-
-  const label = (tab: FlowflyTab) => FLOWFLY_TAB_LABELS[tab]
-  const count = (tab: FlowflyTab) => (counts[tab] ? counts[tab] : undefined)
+  // What the row reads, so a list rebuilt on every draw is measured again
+  // only when a tab, its word or its count changes.
+  const shape = tabs.map((tab) => `${tab.value}:${tab.label}:${tab.count ?? ""}`).join("|")
+  const count = tabs.length
 
   React.useLayoutEffect(() => {
     const box = boxRef.current
@@ -57,7 +75,7 @@ export function FlowflySectionTabs({
       const room = box.getBoundingClientRect().width
       const all = widths.reduce((sum, width) => sum + width, 0) + TAB_GAP * Math.max(0, widths.length - 1)
       if (all <= room) {
-        setFit(tabs.length)
+        setFit(count)
         return
       }
       let used = moreWidth
@@ -73,11 +91,12 @@ export function FlowflySectionTabs({
     const observer = new ResizeObserver(work)
     observer.observe(box)
     return () => observer.disconnect()
-  }, [tabs])
+  }, [shape, count])
 
   // The tab showing always stays in the row: it takes the last place shown.
   let shown = tabs.slice(0, fit)
-  if (!shown.includes(value) && shown.length) shown = [...shown.slice(0, -1), value]
+  const current = tabs.find((tab) => tab.value === value)
+  if (current && !shown.includes(current) && shown.length) shown = [...shown.slice(0, -1), current]
   const folded = tabs.filter((tab) => !shown.includes(tab))
 
   return (
@@ -88,9 +107,9 @@ export function FlowflySectionTabs({
       <div aria-hidden className="pointer-events-none invisible absolute top-0 left-0 size-0 overflow-hidden">
       <div ref={measureRef} className="flex w-max">
         {tabs.map((tab) => (
-          <span key={tab} data-measure-tab="" className={underlineTabClassName}>
-            {label(tab)}
-            {count(tab) !== undefined ? <span className="text-xs">{count(tab)}</span> : null}
+          <span key={tab.value} data-measure-tab="" className={underlineTabClassName}>
+            {tab.label}
+            {tab.count !== undefined ? <span className="text-xs">{tab.count}</span> : null}
           </span>
         ))}
         <span data-measure-more="" className={cn(underlineTabClassName, "gap-1")}>
@@ -101,8 +120,8 @@ export function FlowflySectionTabs({
       </div>
       <DashboardTabs
         value={value}
-        onValueChange={(next) => onPick(next as FlowflyTab)}
-        tabs={shown.map((tab) => ({ value: tab, label: label(tab), count: count(tab) }))}
+        onValueChange={onPick}
+        tabs={shown.map((tab) => ({ value: tab.value, label: tab.label, count: tab.count }))}
         after={
           folded.length ? (
             <DropdownMenu>
@@ -114,10 +133,10 @@ export function FlowflySectionTabs({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-40">
                 {folded.map((tab) => (
-                  <DropdownMenuItem key={tab} onSelect={() => onPick(tab)}>
-                    {label(tab)}
-                    {count(tab) !== undefined ? (
-                      <span className="ml-auto text-xs text-muted-foreground">{count(tab)}</span>
+                  <DropdownMenuItem key={tab.value} onSelect={() => onPick(tab.value)}>
+                    {tab.label}
+                    {tab.count !== undefined ? (
+                      <span className="ml-auto text-xs text-muted-foreground">{tab.count}</span>
                     ) : null}
                   </DropdownMenuItem>
                 ))}

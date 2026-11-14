@@ -2,36 +2,30 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   ArrowUpRightIcon,
-  BotIcon,
-  DoorOpenIcon,
   EyeIcon,
   EyeOffIcon,
-  FlagIcon,
   FlameIcon,
-  FolderIcon,
-  ListChecksIcon,
   Loader2Icon,
   NotebookPenIcon,
   PlusIcon,
   SettingsIcon,
   ShieldAlertIcon,
-  TargetIcon,
   TimerIcon,
   TrophyIcon,
   Trash2Icon,
   TriangleAlertIcon,
-  UploadIcon,
   UserIcon,
   UserMinusIcon,
-  UserPlusIcon,
 } from "lucide-react"
 
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { AdminDeleteConfirm, useAdminDelete } from "@/components/pomodoro/admin-delete"
+import { FoldingTabs } from "@/components/pomodoro/flowfly/flowfly-section-tabs"
 import { useIsMadeUp } from "@/components/pomodoro/admin-member-name"
 import { useSafetyActions } from "@/components/pomodoro/admin-safety-dialogs"
 import { PickGroup, PickRow } from "@/components/shared/notes/pick-rows"
 import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -531,185 +525,251 @@ function ProfileRows({ userId, hasHandle, onSaved }: { userId: string; hasHandle
   )
 }
 
-/** The record's body, in the order a support question asks it. */
+/**
+ * A card's tabs, drawn as Project's Daily habits block draws Today and History
+ * (Tyler, 14 Nov 2026: "we need to organizie the right panel better because
+ * right now theres too many blocks", then picked "4 cards with tabs"): the
+ * shell's panel header with `DashboardTabs` in it, so they follow Settings →
+ * Styling → Dashboard tabs. It reaches past the tile's 16px on each side so
+ * its line runs the card's full width. Tabs that do not fit a narrow panel
+ * fold into More, as Flowfly's section tabs do.
+ */
+function CardTabs({
+  value,
+  onValueChange,
+  tabs,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  tabs: { value: string; label: string; count?: number }[]
+}) {
+  return (
+    // min-w-0, or the tile's grid widens to the whole tab row and a narrow
+    // panel cuts the card's right side off rather than scrolling the tabs.
+    // The negative top margin takes back the tile's top padding (Settings →
+    // Styling → Panel cards), so the tabs start at the tile's edge with no
+    // gap above them (Tyler, 14 Nov 2026: "there is a gap here").
+    <DashboardCardHeader className="-mx-4 -mt-[var(--shell-panel-card-tile-top,0px)] min-w-0">
+      <FoldingTabs value={value} onPick={onValueChange} tabs={tabs} />
+    </DashboardCardHeader>
+  )
+}
+
+/** A tab's count, left off at 0 so an empty tab reads as a plain word. */
+function tabCount(count: number) {
+  return count ? count : undefined
+}
+
+/**
+ * The record's body: four cards, three of them tabbed (Tyler's pick "4 cards
+ * with tabs", 14 Nov 2026). Each opens on its first tab for every member
+ * ("Always the first tab"); the record is drawn fresh for each person, so a
+ * tab picked for one never carries to the next.
+ */
 function MemberSections({ data, notes }: { data: MemberWindow; notes: NotesState }) {
   const { person, totals } = data
+  const madeUp = useIsMadeUp(person.id)
+  const [profileTab, setProfileTab] = React.useState("account")
+  const [activityTab, setActivityTab] = React.useState("sessions")
+  const [safetyTab, setSafetyTab] = React.useState("warnings")
+  const shownProfileTab = profileTab === "voice" && !madeUp ? "account" : profileTab
+  const safetyRows = [
+    ...data.warnings.map((row) => ({
+      id: row.id,
+      at: new Date(row.createdAt).getTime(),
+      main: row.message,
+      meta: `Warning · ${formatDateTime(row.createdAt)}`,
+    })),
+    ...data.suspensions.map((row) => ({
+      id: row.id,
+      at: new Date(row.createdAt).getTime(),
+      main: row.reason,
+      meta: `Suspension · ${formatDateTime(row.createdAt)} · ${
+        row.running ? (row.endsAt ? `until ${formatDate(row.endsAt)}` : "until lifted") : row.liftedAt ? "lifted" : "ended"
+      }`,
+    })),
+  ].sort((left, right) => right.at - left.at)
+
   return (
     <>
-      <PanelCard storageId="pomodoro-member-account" icon={<UserIcon />} title="Account">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <DetailRow label="Plan" value={person.planName} />
-          <DetailRow label="Joined" value={formatDate(person.joinedAt)} />
-          <DetailRow
-            label="Public profile"
-            value={
-              person.profileHidden ? (
-                <Badge variant="destructive">Hidden by an admin</Badge>
-              ) : person.handle && person.profilePublic ? (
-                "Public"
-              ) : person.handle ? (
-                "Switched off"
-              ) : (
-                "No handle yet"
-              )
-            }
-          />
-          <DetailRow
-            label="Leaderboard"
-            value={person.leaderboardHidden ? "Taken off by an admin" : person.leaderboardOptIn ? "Shown" : "Not opted in"}
-          />
-        </div>
-      </PanelCard>
-
-      <PanelCard storageId="pomodoro-member-focus" icon={<TargetIcon />} title="Focus" meta="All time">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <DetailRow label="Focus sessions" value={totals.focusSessions.toLocaleString()} />
-          <DetailRow label="Focus time" value={formatFocusHours(totals.focusSeconds)} />
-          <DetailRow label="Tasks done" value={totals.tasksCompleted.toLocaleString()} />
-          <DetailRow
-            label="Last focused"
-            value={totals.lastFocusedOn ? formatLongDay(totals.lastFocusedOn) : "Never"}
-          />
-          <DetailRow
-            label="Streak"
-            value={`${totals.currentStreak} ${plural(totals.currentStreak, "day", "days")} now, best ${totals.bestStreak}`}
-          />
-          {data.fixes.length ? (
-            <DetailRow label="Days put back" value={data.fixes.map((fix) => formatShortDay(fix.localDate)).join(", ")} />
-          ) : null}
-        </div>
-      </PanelCard>
-
-      <PanelCard storageId="pomodoro-member-sessions" icon={<TimerIcon />} title="Sessions" meta="Last 10">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <ShortList
-            empty="No sessions yet."
-            rows={data.recentSessions.map((row) => ({
-              id: row.id,
-              main: `${MODE_LABEL[row.mode] ?? row.mode} · ${formatDuration(row.accumulatedSeconds * 1000, { zero: "0m" })}${row.roomName ? ` · ${row.roomName}` : ""}`,
-              meta: `${STATUS_LABEL[row.status] ?? row.status} · ${formatDateTime(row.createdAt)}`,
-            }))}
-          />
-          <SeeAll tab="sessions" search={{ user: person.id }} />
-        </div>
-      </PanelCard>
-
-      <PanelCard
-        storageId="pomodoro-member-tasks"
-        icon={<ListChecksIcon />}
-        title="Open tasks"
-        meta={data.openTasks.total.toLocaleString()}
-      >
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <ShortList
-            empty="None open."
-            rows={data.openTasks.rows.map((row) => ({ id: row.id, main: row.title, meta: formatLongDay(row.plannedDate) }))}
-          />
-          <SeeAll tab="tasks" search={{ user: person.id }} label="Show every task" />
-        </div>
-      </PanelCard>
-
-      <PanelCard
-        storageId="pomodoro-member-rooms"
-        icon={<DoorOpenIcon />}
-        title="Rooms"
-        meta={`Hosted ${data.hosted.total.toLocaleString()}, joined ${data.joined.total.toLocaleString()}`}
-      >
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-          <ShortList
-            empty="Has not hosted a room."
-            rows={data.hosted.rows.map((row) => ({ id: row.id, main: row.name, meta: `Hosted · ${formatDate(row.at)}` }))}
-          />
-          {data.joined.rows.length ? (
-            <ShortList
-              empty=""
-              rows={data.joined.rows.map((row) => ({ id: row.id, main: row.name, meta: `Joined · ${formatDate(row.at)}` }))}
+      <PanelCard storageId="pomodoro-member-profile" icon={<UserIcon />} title="Profile">
+        <CardTabs
+          value={shownProfileTab}
+          onValueChange={setProfileTab}
+          tabs={[
+            { value: "account", label: "Account" },
+            { value: "focus", label: "Focus" },
+            ...(madeUp ? [{ value: "voice", label: "Voice" }] : []),
+          ]}
+        />
+        {shownProfileTab === "account" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            <DetailRow label="Plan" value={person.planName} />
+            <DetailRow label="Joined" value={formatDate(person.joinedAt)} />
+            <DetailRow
+              label="Public profile"
+              value={
+                person.profileHidden ? (
+                  <Badge variant="destructive">Hidden by an admin</Badge>
+                ) : person.handle && person.profilePublic ? (
+                  "Public"
+                ) : person.handle ? (
+                  "Switched off"
+                ) : (
+                  "No handle yet"
+                )
+              }
             />
-          ) : null}
-          <SeeAll tab="rooms" search={{ q: person.email }} label="Rooms they host" />
-        </div>
+            <DetailRow
+              label="Leaderboard"
+              value={person.leaderboardHidden ? "Taken off by an admin" : person.leaderboardOptIn ? "Shown" : "Not opted in"}
+            />
+            <DetailRow label="Follows" value={countLine(data.followingCount, "person", "people")} />
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-1 pt-1">
+              <SeeAll tab="badges" search={{ user: person.id }} label="Their badges" />
+              <SeeAll tab="groups" search={{ user: person.id }} label="Their groups" />
+              <SeeAll tab="projects" search={{ user: person.id }} label="Their projects" />
+              <SeeAll tab="tags" search={{ user: person.id }} label="Their task tags" />
+              <SeeAll tab="repeats" search={{ user: person.id }} label="Their repeating tasks" />
+              <SeeAll tab="follows" search={{ user: person.id }} label="Who they follow" />
+            </div>
+          </div>
+        ) : null}
+        {shownProfileTab === "focus" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            <DetailRow label="Focus sessions" value={totals.focusSessions.toLocaleString()} />
+            <DetailRow label="Focus time" value={formatFocusHours(totals.focusSeconds)} />
+            <DetailRow label="Tasks done" value={totals.tasksCompleted.toLocaleString()} />
+            <DetailRow
+              label="Last focused"
+              value={totals.lastFocusedOn ? formatLongDay(totals.lastFocusedOn) : "Never"}
+            />
+            <DetailRow
+              label="Streak"
+              value={`${totals.currentStreak} ${plural(totals.currentStreak, "day", "days")} now, best ${totals.bestStreak}`}
+            />
+            {data.fixes.length ? (
+              <DetailRow label="Days put back" value={data.fixes.map((fix) => formatShortDay(fix.localDate)).join(", ")} />
+            ) : null}
+          </div>
+        ) : null}
+        {/* Kept drawn under the other tabs, so a half-typed voice survives a look at Account. */}
+        {madeUp ? (
+          <div className={shownProfileTab === "voice" ? "contents" : "hidden"}>
+            <VoiceBody userId={person.id} />
+          </div>
+        ) : null}
       </PanelCard>
 
-      <PanelCard storageId="pomodoro-member-reports" icon={<FlagIcon />} title="Reports">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <DetailRow
-            label="About them"
-            value={`${data.reports.about.toLocaleString()}${data.reports.aboutWaiting ? `, ${data.reports.aboutWaiting} waiting` : ""}`}
-          />
-          <DetailRow
-            label="Filed by them"
-            value={`${data.reports.by.toLocaleString()}${data.reports.byDismissed ? `, ${data.reports.byDismissed} dismissed` : ""}`}
-          />
-          <SeeAll tab="reports" search={{ person: person.id }} />
-        </div>
-      </PanelCard>
-
-      <PanelCard
-        storageId="pomodoro-member-uploads"
-        icon={<UploadIcon />}
-        title="Uploads"
-        meta={data.uploads.total ? `${data.uploads.total.toLocaleString()}, ${formatFileSize(data.uploads.bytes)}` : "0"}
-      >
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <ShortList
-            empty="No uploads."
-            rows={data.uploads.rows.map((row) => ({
-              id: row.mediaId,
-              main: row.name,
-              meta: `${row.purpose === "sound" ? "Sound" : "Background"} · ${formatFileSize(row.bytes)} · ${formatDate(row.createdAt)}`,
-            }))}
-          />
-          <SeeAll tab="uploads" search={{ user: person.id }} />
-        </div>
-      </PanelCard>
-
-      <PanelCard storageId="pomodoro-member-owns" icon={<FolderIcon />} title="Badges, groups and projects">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-1">
-          <SeeAll tab="badges" search={{ user: person.id }} label="Their badges" />
-          <SeeAll tab="groups" search={{ user: person.id }} label="Their groups" />
-          <SeeAll tab="projects" search={{ user: person.id }} label="Their projects" />
-          <SeeAll tab="tags" search={{ user: person.id }} label="Their task tags" />
-          <SeeAll tab="repeats" search={{ user: person.id }} label="Their repeating tasks" />
-        </div>
-      </PanelCard>
-
-      <PanelCard storageId="pomodoro-member-warnings" icon={<TriangleAlertIcon />} title="Warnings and suspensions">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <ShortList
-            empty="None."
-            rows={[
-              ...data.warnings.map((row) => ({
+      <PanelCard storageId="pomodoro-member-activity" icon={<TimerIcon />} title="Activity">
+        <CardTabs
+          value={activityTab}
+          onValueChange={setActivityTab}
+          tabs={[
+            { value: "sessions", label: "Sessions" },
+            { value: "tasks", label: "Tasks", count: tabCount(data.openTasks.total) },
+            { value: "rooms", label: "Rooms" },
+            { value: "uploads", label: "Uploads", count: tabCount(data.uploads.total) },
+          ]}
+        />
+        {activityTab === "sessions" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            {data.recentSessions.length ? <p className="text-xs text-muted-foreground">The last 10, newest first.</p> : null}
+            <ShortList
+              empty="No sessions yet."
+              rows={data.recentSessions.map((row) => ({
                 id: row.id,
-                at: new Date(row.createdAt).getTime(),
-                main: row.message,
-                meta: `Warning · ${formatDateTime(row.createdAt)}`,
-              })),
-              ...data.suspensions.map((row) => ({
-                id: row.id,
-                at: new Date(row.createdAt).getTime(),
-                main: row.reason,
-                meta: `Suspension · ${formatDateTime(row.createdAt)} · ${
-                  row.running ? (row.endsAt ? `until ${formatDate(row.endsAt)}` : "until lifted") : row.liftedAt ? "lifted" : "ended"
-                }`,
-              })),
-            ].sort((left, right) => right.at - left.at)}
-          />
-          <SeeAll tab="bans" search={{ tab: "suspensions", q: person.email }} label="Bans" />
-        </div>
+                main: `${MODE_LABEL[row.mode] ?? row.mode} · ${formatDuration(row.accumulatedSeconds * 1000, { zero: "0m" })}${row.roomName ? ` · ${row.roomName}` : ""}`,
+                meta: `${STATUS_LABEL[row.status] ?? row.status} · ${formatDateTime(row.createdAt)}`,
+              }))}
+            />
+            <SeeAll tab="sessions" search={{ user: person.id }} />
+          </div>
+        ) : null}
+        {activityTab === "tasks" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            {data.openTasks.total ? (
+              <p className="text-xs text-muted-foreground">
+                {countLine(data.openTasks.total, "open task", "open tasks")}
+                {data.openTasks.total > data.openTasks.rows.length ? `, the first ${data.openTasks.rows.length} shown` : ""}.
+              </p>
+            ) : null}
+            <ShortList
+              empty="None open."
+              rows={data.openTasks.rows.map((row) => ({ id: row.id, main: row.title, meta: formatLongDay(row.plannedDate) }))}
+            />
+            <SeeAll tab="tasks" search={{ user: person.id }} label="Show every task" />
+          </div>
+        ) : null}
+        {activityTab === "rooms" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+              <DetailRow label="Hosted" value={data.hosted.total.toLocaleString()} />
+              <DetailRow label="Joined" value={data.joined.total.toLocaleString()} />
+            </div>
+            <ShortList
+              empty="Has not hosted a room."
+              rows={data.hosted.rows.map((row) => ({ id: row.id, main: row.name, meta: `Hosted · ${formatDate(row.at)}` }))}
+            />
+            {data.joined.rows.length ? (
+              <ShortList
+                empty=""
+                rows={data.joined.rows.map((row) => ({ id: row.id, main: row.name, meta: `Joined · ${formatDate(row.at)}` }))}
+              />
+            ) : null}
+            <SeeAll tab="rooms" search={{ q: person.email }} label="Rooms they host" />
+          </div>
+        ) : null}
+        {activityTab === "uploads" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            {data.uploads.total ? (
+              <p className="text-xs text-muted-foreground">
+                {countLine(data.uploads.total, "file", "files")}, {formatFileSize(data.uploads.bytes)} in all.
+              </p>
+            ) : null}
+            <ShortList
+              empty="No uploads."
+              rows={data.uploads.rows.map((row) => ({
+                id: row.mediaId,
+                main: row.name,
+                meta: `${row.purpose === "sound" ? "Sound" : "Background"} · ${formatFileSize(row.bytes)} · ${formatDate(row.createdAt)}`,
+              }))}
+            />
+            <SeeAll tab="uploads" search={{ user: person.id }} />
+          </div>
+        ) : null}
       </PanelCard>
 
-      <PanelCard
-        storageId="pomodoro-member-follows"
-        icon={<UserPlusIcon />}
-        title="Follows"
-        meta={`Follows ${countLine(data.followingCount, "person", "people")}`}
-      >
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-          <SeeAll tab="follows" search={{ user: person.id }} />
-        </div>
+      <PanelCard storageId="pomodoro-member-safety" icon={<TriangleAlertIcon />} title="Safety">
+        <CardTabs
+          value={safetyTab}
+          onValueChange={setSafetyTab}
+          tabs={[
+            { value: "warnings", label: "Warnings", count: tabCount(safetyRows.length) },
+            { value: "reports", label: "Reports", count: tabCount(data.reports.aboutWaiting) },
+          ]}
+        />
+        {safetyTab === "warnings" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            <ShortList empty="No warnings or suspensions." rows={safetyRows} />
+            <SeeAll tab="bans" search={{ tab: "suspensions", q: person.email }} label="Bans" />
+          </div>
+        ) : null}
+        {safetyTab === "reports" ? (
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            <DetailRow
+              label="About them"
+              value={`${data.reports.about.toLocaleString()}${data.reports.aboutWaiting ? `, ${data.reports.aboutWaiting} waiting` : ""}`}
+            />
+            <DetailRow
+              label="Filed by them"
+              value={`${data.reports.by.toLocaleString()}${data.reports.byDismissed ? `, ${data.reports.byDismissed} dismissed` : ""}`}
+            />
+            <SeeAll tab="reports" search={{ person: person.id }} />
+          </div>
+        ) : null}
       </PanelCard>
 
-      <VoiceCard userId={person.id} />
       <NotesCard userId={person.id} notes={data.notes} state={notes} />
     </>
   )
@@ -718,10 +778,9 @@ function MemberSections({ data, notes }: { data: MemberWindow; notes: NotesState
 /**
  * A made-up member's personality line (live activity task 03), added to the
  * style brief on Settings → App settings → Made-up members for every line it
- * says. Drawn only for a made-up account.
+ * says. The Profile card's Voice tab, drawn only for a made-up account.
  */
-function VoiceCard({ userId }: { userId: string }) {
-  const madeUp = useIsMadeUp(userId)
+function VoiceBody({ userId }: { userId: string }) {
   const [saved, setSaved] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
@@ -730,7 +789,6 @@ function VoiceCard({ userId }: { userId: string }) {
   const voiceId = React.useId()
 
   React.useEffect(() => {
-    if (!madeUp) return
     let live = true
     loadSimulatedPersonality(userId).then(
       (personality) => {
@@ -746,12 +804,10 @@ function VoiceCard({ userId }: { userId: string }) {
     return () => {
       live = false
     }
-  }, [madeUp, userId, attempt])
+  }, [userId, attempt])
 
-  if (!madeUp) return null
   return (
-    <PanelCard storageId="pomodoro-member-voice" icon={<BotIcon />} title="Voice">
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
         <p className="text-sm text-muted-foreground">How this made-up member comes across in room chat, on top of the style brief.</p>
         {error ? (
           <ErrorRow
@@ -793,8 +849,7 @@ function VoiceCard({ userId }: { userId: string }) {
             </div>
           </form>
         )}
-      </div>
-    </PanelCard>
+    </div>
   )
 }
 

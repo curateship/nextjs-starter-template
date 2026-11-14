@@ -33,26 +33,44 @@ handle and email. Its ⋮ holds what changes them:
   shell's Admin → Users with them open), Remove all their follows, and
   Suspend, red, last.
 
-The body, as folding cards, top to bottom:
+The body is four folding cards, three of them with tabs under the heading
+(Tyler, 14 Nov 2026: "we need to organizie the right panel better because
+right now theres too many blocks", then picked "4 cards with tabs" and
+"Always the first tab"). The tabs are drawn as Project's Daily habits block
+draws Today and History, so they follow Settings → Styling → Dashboard tabs.
+Every card opens on its first tab for every member, because the record is
+drawn fresh for each person.
 
-- **Account:** plan, joined date, whether the public profile is public,
-  switched off or hidden, and whether they are on the leaderboard.
-- **Focus:** all-time sessions, focus time, tasks done, last day focused, the
-  current and best streak, and any days an admin put back.
-- **Sessions:** the last 10, newest first.
-- **Open tasks:** up to ten, with the count.
-- **Rooms:** how many they hosted and how many other people's rooms they sat
-  in, the latest of each.
-- **Reports:** how many are about them (and how many still wait), how many
-  they filed (and how many were dismissed).
-- **Uploads:** count, total size and the latest files.
-- **Badges, groups and projects:** links to their badges, groups, projects,
-  task tags and repeating tasks.
-- **Warnings and suspensions**, newest first.
-- **Follows:** how many people they follow.
-- **Voice** for a made-up member, and **Admin notes**.
+- **Profile**, with three tabs:
+  - **Account:** plan, joined date, whether the public profile is public,
+    switched off or hidden, whether they are on the leaderboard, and how many
+    people they follow. Under that are links to their badges, groups,
+    projects, task tags, repeating tasks and who they follow.
+  - **Focus:** all-time sessions, focus time, tasks done, last day focused,
+    the current and best streak, and any days an admin put back.
+  - **Voice**, for a made-up member only. A real member's card has just
+    Account and Focus. A half-typed voice survives a look at another tab.
+- **Activity**, with four tabs:
+  - **Sessions:** the last 10, newest first.
+  - **Tasks:** up to ten open tasks, with the count on the tab.
+  - **Rooms:** how many they hosted and how many other people's rooms they
+    sat in, and the latest of each.
+  - **Uploads:** the count on the tab, the total size, and the latest files.
+- **Safety**, with two tabs:
+  - **Warnings:** warnings and suspensions together, newest first, with the
+    count on the tab.
+  - **Reports:** how many are about them (and how many still wait, the count
+    on the tab), and how many they filed (and how many were dismissed).
+- **Admin notes**, untabbed.
 
-Every card that lists things ends in a link that opens that tab of Flowfly
+Tabs that do not fit the card fold into a More tab at the end of the row,
+the same `FoldingTabs` Flowfly's section tabs use
+(`src/components/pomodoro/flowfly/flowfly-section-tabs.tsx`). The tab
+showing always stays in the row. All four Activity tabs need a card about
+300px wide. The right panel opens narrower than that on most screens: at
+1440px wide the cards are 194px, and Activity shows Sessions and More.
+
+Every tab that lists things ends in a link that opens that tab of Flowfly
 narrowed to them, where every row has its Delete: Sessions, Tasks, Rooms they
 host, Reports, Uploads, Badges, Groups, Projects, Tags, Repeating, Bans,
 Follows. The full lists live there rather than inside the record, so one
