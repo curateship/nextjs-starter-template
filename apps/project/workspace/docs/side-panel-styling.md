@@ -30,7 +30,7 @@ file says how Project's own panels pick them up.
   `ADVANCED_BLOCK_FRAME` (`notes/note-block-drawings.tsx`), which reads it.
   Those blocks are every advanced one in the "/" list: Task card, File,
   Comments, Video or Promo, Projects, Daily card, Rating calendar and trend,
-  Inbox, Look back, the five team blocks and Milestones (`ADVANCED_ATOM_TYPES`
+  Inbox, the five team blocks and Milestones (`ADVANCED_ATOM_TYPES`
   in `src/lib/project/note-blocks.ts`). In an open task's notes, which sit
   4px further in, they reach 4px further, so they meet the right panel's
   edges too (Tyler, 12 Nov 2026: "edge padding is not applied"). Notes that

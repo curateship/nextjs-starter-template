@@ -63,7 +63,7 @@ tasks templates feature too").
   - **Advanced blocks:** blocks that show something live from the app. Task
     card, File, Comments and Video or Promo where the box offers them, and on
     the site admin's own page Projects, Daily card, Rating calendar,
-    Rating trend, Inbox and Look back, on a team's page Check-ins, Workload, Attention, This
+    Rating trend and Inbox, on a team's page Check-ins, Workload, Attention, This
     week and Members, and on a project's own page Milestones.
   - The arrow keys walk the list as it shows, through the basic blocks and
     on into the advanced ones. Narrowing it by typing keeps only the headings
@@ -86,10 +86,11 @@ tasks templates feature too").
   `src/lib/project/note-blocks.ts`). What it shows is in
   [Projects and tasks](projects-and-tasks.md#milestones).
 - **The site admin's own page** offers what a project's page does but
-  Milestones, plus six
+  Milestones, plus five
   blocks no other note has: Projects, Daily card, Rating calendar, Rating
-  trend, Inbox and Look back (Tyler, 6 Nov 2026: "Your My dashboard page
-  only"; Inbox and Look back on 11 Nov 2026). Their habits and
+  trend and Inbox (Tyler, 6 Nov 2026: "Your My dashboard page only"; Inbox on
+  11 Nov 2026). Look back was a sixth until 13 Nov 2026, when it moved into the
+  Daily habits block's History tab. Their habits and
   ratings are theirs alone, and a Projects block filters My tasks, which only
   that page sits beside. The Daily card block, like Comments, goes in once. Every other save drops the four, on the server too
   (`DASHBOARD_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). What each one

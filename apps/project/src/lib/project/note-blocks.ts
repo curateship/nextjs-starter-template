@@ -34,7 +34,6 @@ export const NOTE_ATOM_TYPES = [
   "noteRatingMonth",
   "noteRatingTrend",
   "noteInbox",
-  "noteLookBack",
   "noteTeamCheckins",
   "noteTeamWorkload",
   "noteTeamAttention",
@@ -55,9 +54,8 @@ export const DASHBOARD_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
   "noteHabit",
   "noteRatingMonth",
   "noteRatingTrend",
-  // Their inbox and Look back (Tyler, 11 Nov 2026: "turn look back and inbox tabs into blocks").
+  // Their inbox (Tyler, 11 Nov 2026: "turn look back and inbox tabs into blocks").
   "noteInbox",
-  "noteLookBack",
 ])
 
 /**
@@ -255,9 +253,8 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   // Both read the site admin's own ratings when drawn, so they hold nothing.
   noteRatingMonth: () => ({}),
   noteRatingTrend: () => ({}),
-  // Both read the site admin's own inbox and journal when drawn, so they hold nothing.
+  // Reads the site admin's own inbox when drawn, so it holds nothing.
   noteInbox: () => ({}),
-  noteLookBack: () => ({}),
   // Each reads the team when drawn, so they hold nothing.
   noteTeamCheckins: () => ({}),
   noteTeamWorkload: () => ({}),

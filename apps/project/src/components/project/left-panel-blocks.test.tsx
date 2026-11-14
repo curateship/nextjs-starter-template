@@ -261,7 +261,6 @@ describe("the \"/\" list", () => {
       "Rating calendar",
       "Rating trend",
       "Inbox",
-      "Look back",
     ])
     // The arrow keys walk the list as it shows: every basic block before any advanced one.
     const groups = list.map((block) => block.group)
@@ -274,7 +273,7 @@ describe("the \"/\" list", () => {
     ])
   })
 
-  it("keeps the six blocks only in his page's saves", () => {
+  it("keeps the five blocks only in his page's saves, and drops Look back", () => {
     const body = {
       type: "doc",
       content: [
@@ -294,7 +293,6 @@ describe("the \"/\" list", () => {
       "noteRatingMonth",
       "noteRatingTrend",
       "noteInbox",
-      "noteLookBack",
       "paragraph",
     ])
     expect(cleanDashboardBody(body).content?.[1]).toEqual({ type: "noteHabit" })

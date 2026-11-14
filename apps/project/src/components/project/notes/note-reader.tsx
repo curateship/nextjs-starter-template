@@ -6,7 +6,6 @@ import {
   RatingMonthDrawing,
   RatingTrendDrawing,
   InboxDrawing,
-  LookBackDrawing,
 } from "@/components/project/notes/dashboard-blocks"
 import {
   AttentionDrawing,
@@ -98,8 +97,6 @@ function Block({ node }: { node: NoteNode }) {
       return <RatingTrendDrawing editing={READING} />
     case "noteInbox":
       return <InboxDrawing editing={READING} />
-    case "noteLookBack":
-      return <LookBackDrawing editing={READING} />
     // A team's page, as every member but the site admin reads it.
     case "noteTeamCheckins":
       return <CheckinsDrawing editing={READING} />

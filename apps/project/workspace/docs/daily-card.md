@@ -262,14 +262,17 @@ follows, the picture wins:
 - **Sunday** shows the week's ratings and wins above the usual card, all day.
 - **The first of the month** shows last month's best habit (done most often
   for the days it was set), the typical rating and the top wins.
-- **Look back** is a "/" block on the site admin's own page since 11 Nov
-  2026 (Tyler: "turn look back and inbox tabs into blocks"). Until then a
-  graph in the panel's header swapped the page for it. The card has no Look
+- **Look back** is the History tab of the site admin's Daily habits block
+  since 13 Nov 2026 (Tyler: "Add 2 tabs here. First tab "Today" second tab
+  "History" move the "look back" block into the history tab", pointing at
+  the block's heading). From 11 Nov it was a "/" block of its own on their
+  page, and before that a graph in the panel's header swapped the page for
+  it. The card has no Look
   back button ("remove the look back button"), and it is never a window
-  ("Dont put the look back into modal"). It has three tabs, Month, Year and
-  Search, in a 57px header at the top of the block, drawn as My tasks' List,
-  Board and Calendar are (`BlockTabs`; `LookBackTabs`,
-  `daily-look-back.tsx`). Month is one calendar, Monday first, each day shaded by how
+  ("Dont put the look back into modal"). It has three views, Month, Year and
+  Search, picked from a dropdown at the top of the History tab (`LookBack`,
+  `daily-look-back.tsx`); until 13 Nov 2026 they were tabs in the block's
+  own header. Month is one calendar, Monday first, each day shaded by how
   many of its habits were done ("If there is 10 habits, its too long"). Under
   it is a folded card for each day of the month so far, newest first, with
   the day on the left and its rating on the right ("replace it with

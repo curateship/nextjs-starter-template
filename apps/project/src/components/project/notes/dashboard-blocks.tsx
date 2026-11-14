@@ -1,13 +1,14 @@
 import * as React from "react"
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react"
-import { CalendarDaysIcon, ChartLineIcon, FolderKanbanIcon, HistoryIcon, SunriseIcon } from "lucide-react"
+import { CalendarDaysIcon, ChartLineIcon, CheckIcon, ChevronDownIcon, FolderKanbanIcon, SunriseIcon } from "lucide-react"
 
 import { ProjectBlock, ProjectBlockButtons } from "@/components/project/admin-project-cards"
 import { DailyCard, type DailyNow } from "@/components/project/daily-card"
-import { LookBackTabs, RatingMonth, RatingTrend } from "@/components/project/daily-look-back"
+import { LookBack, RatingMonth, RatingTrend, type LookBackView } from "@/components/project/daily-look-back"
 import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
 import { ADVANCED_BLOCK_FRAME, BlockLine, type BlockEditing } from "@/components/project/notes/note-block-drawings"
 import {
+  BlockTabs,
   ProjectBlockCard,
   QuietHeadingButtons,
   TILE_BODY,
@@ -15,14 +16,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
+import { cn } from "@/lib/utils"
 
 /**
  * The blocks only the site admin's own page on My dashboard offers (task "My
  * dashboard/left-panel-blocks", Tyler, 6 Nov 2026): Projects, Daily card,
- * Rating calendar and Rating trend, then Inbox and Look back (Tyler, 11 Nov
- * 2026: "turn look back and inbox tabs into blocks"). They draw from what the dashboard already
+ * Rating calendar and Rating trend, then Inbox (Tyler, 11 Nov 2026: "turn
+ * look back and inbox tabs into blocks"). Look back is the Daily habits
+ * block's History tab since 13 Nov 2026. They draw from what the dashboard already
  * loaded, handed down by `DashboardBlocksProvider`, so they follow its live
  * reloads and never ask the server on their own, except the two rating
  * blocks, which read the ratings as Look back does.
@@ -228,8 +233,44 @@ export function DailyCardDrawing({ editing }: { editing: BlockEditing }) {
   return <DailyCardBlock daily={blocks.daily} now={blocks.now} editing={editing} />
 }
 
+/** History's choices, in the dropdown at the top of History. */
+const LOOK_BACK_VIEWS: { value: LookBackView; label: string }[] = [
+  { value: "month", label: "Month" },
+  { value: "year", label: "Year" },
+  { value: "search", label: "Search" },
+]
+
+/**
+ * Month, Year or Search, drawn as the shell's `ViewMenu` is. It is not modal,
+ * as a block's ⋮ is not (`block-card.tsx`): a modal menu opened inside the
+ * page made the editor draw the page again, which threw the block back to Today.
+ */
+function LookBackViewMenu({ view, onPick }: { view: LookBackView; onPick: (view: LookBackView) => void }) {
+  const shown = LOOK_BACK_VIEWS.find((choice) => choice.value === view) ?? LOOK_BACK_VIEWS[0]
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" aria-label={`Look back: ${shown.label}`} className="gap-1.5">
+          {shown.label}
+          <ChevronDownIcon className="size-4 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-40">
+        {LOOK_BACK_VIEWS.map((choice) => (
+          <DropdownMenuItem key={choice.value} onSelect={() => onPick(choice.value)}>
+            <span className="min-w-0 flex-1 truncate">{choice.label}</span>
+            <CheckIcon className={choice.value === view ? "size-4" : "size-4 opacity-0"} aria-hidden />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 /** The Daily card in its block card, for a test to draw without the page around it. */
 export function DailyCardBlock({ daily, now, editing }: { daily: DailyCardData; now: DailyNow; editing: BlockEditing }) {
+  const [tab, setTab] = React.useState<"today" | "history">("today")
+  const [view, setView] = React.useState<LookBackView>("month")
   return (
     <DailyCard
       daily={daily}
@@ -240,11 +281,38 @@ export function DailyCardBlock({ daily, now, editing }: { daily: DailyCardData; 
         // (Tyler, 12 Nov 2026: "rename the header to "Daily habits"", then
         // "revamp daily card ui").
         <ProjectBlockCard editing={editing} kind="daily-card" title="Daily habits" icon={<SunriseIcon className="size-4" />}>
+          {/* Today and History (Tyler, 13 Nov 2026: "Add 2 tabs here. First tab
+              "Today" second tab "History" move the "look back" block into the
+              history tab"), drawn as the Inbox block's tabs. History's Month,
+              Year and Search are a dropdown at the top of History itself: in the
+              header it pushed History out of sight in a narrow panel. */}
+          <BlockTabs
+            value={tab}
+            onValueChange={(value) => setTab(value as typeof tab)}
+            tabs={[
+              { value: "today", label: "Today" },
+              { value: "history", label: "History" },
+            ]}
+          />
           {/* The sections sit straight on the white tile, with no grey box of their own
-              (Tyler, 9 Nov 2026: "remove this gray container"). */}
-          <div className="p-3 pt-2.5 [&_[data-daily-section]]:rounded-none [&_[data-daily-section]]:border-0 [&_[data-daily-section]]:bg-transparent [&_[data-daily-section]]:p-0">
+              (Tyler, 9 Nov 2026: "remove this gray container"). Today stays mounted
+              under History, so its folds keep their place. */}
+          <div
+            className={cn(
+              "p-3 pt-2.5 [&_[data-daily-section]]:rounded-none [&_[data-daily-section]]:border-0 [&_[data-daily-section]]:bg-transparent [&_[data-daily-section]]:p-0",
+              tab !== "today" && "hidden"
+            )}
+          >
             {body}
           </div>
+          {tab === "history" ? (
+            <>
+              <div className="-mb-3 flex px-1.5 pt-1.5">
+                <LookBackViewMenu view={view} onPick={setView} />
+              </div>
+              <LookBack view={view} />
+            </>
+          ) : null}
         </ProjectBlockCard>
       )}
     />
@@ -293,7 +361,7 @@ export function RatingTrendDrawing({ editing }: { editing: BlockEditing }) {
   )
 }
 
-// --- Inbox and Look back --------------------------------------------------------
+// --- Inbox ------------------------------------------------------------------------
 
 /**
  * The site admin's inbox as a block (Tyler, 11 Nov 2026: "turn look back and
@@ -313,26 +381,4 @@ export function InboxDrawing({ editing }: { editing: BlockEditing }) {
   const blocks = useDashboardBlocks()
   if (!blocks) return <NotHere editing={editing} label="Remove inbox" />
   return <InboxCard inbox={blocks.inbox} block={editing} />
-}
-
-/**
- * Look back as a block: Month, Year and Search, as the graph in the panel's
- * header opened until 11 Nov 2026. One per page.
- */
-export function LookBackBlockView(props: NodeViewProps) {
-  return (
-    <Frame selected={props.selected}>
-      <LookBackDrawing editing={editingOf(props)} />
-    </Frame>
-  )
-}
-
-export function LookBackDrawing({ editing }: { editing: BlockEditing }) {
-  const blocks = useDashboardBlocks()
-  if (!blocks) return <NotHere editing={editing} label="Remove look back" />
-  return (
-    <ProjectBlockCard editing={editing} kind="look-back" title="Look back" icon={<HistoryIcon className="size-4" />}>
-      <LookBackTabs />
-    </ProjectBlockCard>
-  )
 }

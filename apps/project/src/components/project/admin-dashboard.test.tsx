@@ -160,6 +160,14 @@ function BoxedCard({ daily }: { daily: DailyCard }) {
   return <DailyCardBlock daily={daily} now={now} editing={{ editable: true, remove: () => undefined }} />
 }
 
+describe("the Daily habits block's tabs", () => {
+  it("opens on Today with History beside it, and Look back nowhere until History is picked", () => {
+    const html = drawCard(DAILY)
+    expect(html).toMatch(/aria-selected="true"[^>]*>Today<(?:(?!<\/div>).)*>History</)
+    expect(html).not.toContain(">Month<")
+  })
+})
+
 function drawCard(daily: DailyCard) {
   return renderToStaticMarkup(
     <TooltipProvider>
@@ -283,17 +291,18 @@ describe("the site admin's My dashboard", () => {
     expect(render(blockPage("noteInbox"), { notifications: notices.slice(0, 3), nextCursor: "c1" })).toContain(">Load more<")
   })
 
-  it("has no inbox or Look back in the header: both are blocks on the page", () => {
+  it("has no inbox or Look back in the header, and a saved Look back block is dropped from the page", () => {
     const notices = Array.from({ length: 12 }, (_, n) => notice(n))
     const html = render(blockPage("noteInbox", "noteLookBack"), { notifications: notices, nextCursor: null })
     const left = html.slice(0, html.indexOf('id="middle"'))
     expect(left).not.toContain('aria-label="Inbox, 12 unread"')
     expect(left).not.toContain('aria-label="Look back"')
-    // Each block's heading, and the inbox's tabs drawn as the dashboard's tabs are.
+    // The Inbox block's heading and its tabs, drawn as the dashboard's tabs are.
     expect(left).toContain(">Inbox<")
-    expect(left).toContain(">Look back<")
     expect(left).toMatch(/>All<(?:(?!id="middle").)*>Unread</)
-    expect(left).toContain(">Month<")
+    // Look back is the Daily habits block's History tab since 13 Nov 2026.
+    expect(left).not.toContain(">Look back<")
+    expect(left).not.toContain(">Month<")
     // Without the blocks, neither shows.
     const bare = render(dashboard(), { notifications: notices, nextCursor: null })
     expect(bare.slice(0, bare.indexOf('id="middle"'))).not.toContain("Notice 0")

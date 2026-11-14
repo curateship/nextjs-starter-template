@@ -372,7 +372,8 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
 `workspace/tasks/Admin/03-admin-dashboard.md`.
 
 - **Three panels, the same frame.** Left: the site admin and their page,
-  with no footer. The Inbox and Look back are blocks on that page.
+  with no footer. The Inbox is a block on that page, and Look back is the
+  Daily habits block's History tab.
   Middle: their tasks, with the Need your attention tab. Right: the open task,
   with no cross. Below 1280px wide one panel at a time, with Me, My tasks and
   Task tabs. Pressing a Projects block switches to My tasks.
@@ -415,13 +416,15 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   Milestones this month, Done today and Invites not taken left My dashboard
   with it (Tyler picked "Goes entirely"). The order the Pinned projects card
   was dragged into went with the card (`drizzle/0154_project_drop_project_order.sql`).
-- **The Inbox and Look back are blocks on their page** since 11 Nov 2026
-  (Tyler: "turn look back and inbox tabs into blocks"), under
+- **The Inbox is a block on their page** since 11 Nov 2026 (Tyler: "turn
+  look back and inbox tabs into blocks"), under
   [Their page's blocks](#their-pages-blocks). Before that a tray and a graph
-  in the header swapped the page for each, with a red bubble counting unread
-  notices on the tray. Both buttons and the bubble are gone. Migration
-  `0179_project_admin_page_inbox_look_back_blocks.sql` put both blocks at
-  the end of every site admin's page, so neither went missing.
+  in the header swapped the page for the inbox and Look back, with a red
+  bubble counting unread notices on the tray. Both buttons and the bubble
+  are gone. Look back was a block too until 13 Nov 2026, when it moved into
+  the Daily habits block's History tab. The "/" menu no longer offers it, a saved one is dropped when the
+  page is read, and `0181_project_admin_page_look_back_to_history_tab.sql`
+  deletes it from every saved page.
 - **The header** shows their photo, name and "Site admin", then the ⋮ for
   My settings. There is no cog and no pencil since 6
   Nov 2026. My settings is the employee's frame with three tabs:
@@ -557,9 +560,9 @@ your attention card in the left panel's footer the same day.
 
 ### Their page's blocks
 
-Six "/" blocks only the site admin's own page offers (task
+Five "/" blocks only the site admin's own page offers (task
 `workspace/tasks/My dashboard/left-panel-blocks.md`, Tyler, 6 Nov 2026, and
-Inbox and Look back on 11 Nov 2026). A
+Inbox on 11 Nov 2026). A
 project's page, a project's notes, a task's notes and New task never offer
 them, and the server drops them from any of those saves. Each is the
 shell's block card with its ⋮ (see [Notes and blocks](notes-and-blocks.md)),
@@ -625,6 +628,21 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
     straight on the white tile, with no grey box round each section (Tyler,
     9 Nov 2026: "remove this gray container",
     `assets/pasted-image-1794255604469198000.png`).
+  - **Today and History**, two tabs under the heading (Tyler, 13 Nov 2026:
+    "Add 2 tabs here. First tab "Today" second tab "History" move the "look
+    back" block into the history tab", `assets/pasted-image-1794630128670793000.png`).
+    They are drawn as the Inbox block's All and Unread are, in a 57px header
+    that stays put while the tile scrolls (`BlockTabs`). Today is the card
+    as above. History is Look back, with Month, Year and Search in a
+    dropdown at the top of the tab, not in the tab header: there it pushed
+    History out of sight in a narrow panel. The dropdown looks like the
+    shell's `ViewMenu` but is not modal, as a block's ⋮ is not: the modal
+    one made the page's editor draw the page again, which threw the block
+    back to Today. The
+    block opens on Today and Month each time. Today stays loaded under
+    History, so its folds keep their place, and History loads its month
+    only when it is first opened (`DailyCardBlock` in
+    `notes/dashboard-blocks.tsx`, `LookBack` in `daily-look-back.tsx`).
   - **The greeting folds it** to the heading alone, and the fold is
     remembered in this browser, as every block's is. Until 9 Nov 2026 it
     was always open ("it doesnt need to be a toggle", 6 Nov). Its own
@@ -666,11 +684,8 @@ already loaded, so they follow its live reloads (`dashboard-blocks.tsx`).
   The unread count sits by the title and Mark all read in the heading, shown
   while the block is pointed at. A row opens what it is about, as the bell
   does. One per page (`InboxCard` with `block`, `inbox-card.tsx`).
-- **Look back** (the same day). Month, Year and Search, as described in
-  [The Daily card](daily-card.md), as tabs in the same header as the Inbox
-  block's.
-  A long tab scrolls inside the block. One per page (`LookBackTabs`,
-  `daily-look-back.tsx`).
+- **Look back** was a block here from 11 to 13 Nov 2026. It is the Daily
+  habits block's History tab now; see Daily card above.
 - **Ideas he passed on,** 6 Nov 2026: Meetings today, Team, Saved view,
   Milestones, Done today, Who's away, Check-ins today, Invites waiting,
   Finished chart, Person, Quick add, Project note, Mini calendar, Team

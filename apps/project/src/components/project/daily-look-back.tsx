@@ -3,7 +3,6 @@ import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "l
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { HabitIconGlyph } from "@/components/project/habit-icons"
-import { BlockTabs } from "@/components/project/notes/project-block-card"
 import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -53,29 +52,20 @@ function useLoaded<T>(key: string, load: () => Promise<T>) {
 /**
  * The site admin's look back (Tyler, 29 Oct 2026): a month of ticks, a year
  * of ratings, and a search through the journal. Only they can see it. Since
- * 11 Nov 2026 it is a "/" block on their own page (Tyler: "turn look back and
- * inbox tabs into blocks"); before, a graph in the panel's header swapped the
- * page for it. The block holds its tabs and the tab showing, and the block's
- * tile scrolls a long tab, as every block's does.
+ * 13 Nov 2026 it is the History tab of their Daily habits block (Tyler: "Add
+ * 2 tabs here. First tab "Today" second tab "History" move the "look back"
+ * block into the history tab"), with Month, Year and Search in a dropdown at
+ * the top of the tab. It was a "/" block of its own from 11 Nov, and
+ * before that a graph in the panel's header swapped the page for it.
  */
-export function LookBackTabs() {
-  const [tab, setTab] = React.useState<"month" | "year" | "search">("month")
+export type LookBackView = "month" | "year" | "search"
+
+export function LookBack({ view }: { view: LookBackView }) {
   return (
-    <>
-      <BlockTabs
-        value={tab}
-        onValueChange={(value) => setTab(value as typeof tab)}
-        tabs={[
-          { value: "month", label: "Month" },
-          { value: "year", label: "Year" },
-          { value: "search", label: "Search" },
-        ]}
-      />
-      {/* minmax(0, 1fr): nothing here widens the panel. */}
-      <div className="grid grid-cols-[minmax(0,1fr)] p-3">
-        {tab === "month" ? <MonthTab /> : tab === "year" ? <YearTab /> : <SearchTab />}
-      </div>
-    </>
+    // minmax(0, 1fr): nothing here widens the panel.
+    <div className="grid grid-cols-[minmax(0,1fr)] p-3">
+      {view === "month" ? <MonthTab /> : view === "year" ? <YearTab /> : <SearchTab />}
+    </div>
   )
 }
 
