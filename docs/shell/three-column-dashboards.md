@@ -86,8 +86,15 @@ All of them are in `src/components/shared/`.
   Note's library dashboard is the one that does.
 - **`crm-table.tsx`, `CrmTableRow`'s buttons.** A row ends in a cog, which
   opens the row, and a bin when the app passes `onDelete`. `cog` gives the
-  cog another job and name (Pages opens the builder) and, with `icon`,
-  another picture. `buttons` adds icon buttons between the cog and the bin.
+  cog another job and name and, with `icon`, another picture.
+- **A row press goes to the record's own dashboard; the cog opens the right
+  panel** (Tyler, 14 Nov 2026: "clicking on the table item should always
+  lead to another dashboard (if there is one) and the cog icon should always
+  open up the right panel"). A row whose record has a dashboard of its own (a
+  page's builder, a flow's canvas, a backtest's chart) opens it on a press,
+  and its cog shows the record on the right. A row with no dashboard of its
+  own opens on the right either way. Pages, Video's Flows, and Trade's
+  Recipes and Backtests follow it. `buttons` adds icon buttons between the cog and the bin.
   Trade's Backtests rows use both: a chart that opens the run's chart and a
   recipe icon that opens its recipe (Tyler, 11 Nov 2026).
   A long name in `MainCell` is cut short rather than widening the table, so

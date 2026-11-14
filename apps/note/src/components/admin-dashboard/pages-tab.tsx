@@ -51,7 +51,9 @@ const TAB_LABELS: Record<PageGroup, string> = { yours: "Your pages", system: PAG
  *
  * - **Middle:** every public page in the CRM's one header and table shape.
  *   The header has the tabs Your pages and System pages (`page-groups.ts`
- *   says which is which), the search box, and New page, a dropdown form.
+ *   says which is which), the search box, and New page, a dropdown form. A
+ *   press on a row opens a page built from blocks in the builder; the cog
+ *   shows the page on the right.
  * - **Right:** the page picked (`PagePanel`): who can see it, its address,
  *   visits, Open, and Edit page, which opens the page builder.
  *
@@ -230,17 +232,17 @@ export function PagesTab({
               key={row.path}
               open={row.path === openId}
               label={row.name}
-              onOpen={() => setOpen(row.path)}
-              // A page built from blocks opens in the builder from its cog;
-              // any other page has none, and its cog opens it on the right.
-              cog={
+              // A press opens a page built from blocks in its builder, and any
+              // other page on the right; the cog always shows the page on the
+              // right (Tyler, 14 Nov 2026: "clicking on the table item should
+              // always lead to another dashboard (if there is one) and the cog
+              // icon should always open up the right panel").
+              onOpen={() =>
                 row.blocks
-                  ? {
-                      label: `Edit ${row.name}`,
-                      onPress: () => void router.navigate({ to: "/admin/dashboard", search: pageEditSearch(row.path) }),
-                    }
-                  : undefined
+                  ? void router.navigate({ to: "/admin/dashboard", search: pageEditSearch(row.path) })
+                  : setOpen(row.path)
               }
+              cog={{ label: `Settings for ${row.name}`, onPress: () => setOpen(row.path) }}
               onDelete={row.writtenPageId ? () => setDeleting(row) : undefined}
               onRightClick={(x, y) => setRightClick({ id: row.path, x, y })}
             >

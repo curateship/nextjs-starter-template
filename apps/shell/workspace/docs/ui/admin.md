@@ -143,10 +143,12 @@ The `/admin/pages` screen until 9 Nov 2026.
   blocks a page built from blocks holds), Address, Who can see it and
   Visits over the last 30 days, the most visited first. The header has the
   tabs Your pages and System pages with their counts (`lib/pages/page-groups.ts`
-  says which is which), the search box and New page. A row's cog opens a
-  page built from blocks in the builder (Tyler, 9 Nov 2026: "in pages table
-  clicking on the cog should go to the editor"); any other page's cog opens
-  it on the right, as pressing the row does. A row's right-click
+  says which is which), the search box and New page. A press on a row
+  opens a page built from blocks in the builder, and its cog shows the page
+  on the right (Tyler, 14 Nov 2026: "clicking on the table item should always
+  lead to another dashboard (if there is one) and the cog icon should always
+  open up the right panel"). This replaced the cog opening the builder (9 Nov
+  2026). Any other page opens on the right either way. A row's right-click
   has Open in a new tab, Edit page and, for a page an admin wrote, Delete
   page.
 - **New page** is a dropdown form under the button: name, address,

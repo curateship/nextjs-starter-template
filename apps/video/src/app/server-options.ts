@@ -100,6 +100,13 @@ export const appServerOptions: AppServerOptions = {
           import("@/server/video/briefs").then((briefs) => briefs.briefTick()),
       },
       {
+        // Makes the queued AI steps of Flow runs, one after another, so a run
+        // goes on with the tab closed (workspace/docs/flow.md).
+        name: "video-flow",
+        tick: () =>
+          import("@/server/video/flow/tick").then((flow) => flow.flowTick()),
+      },
+      {
         // Downloads the viral video an editor video copies and has Gemini
         // break it down, when Try again on the Copy panel put it back in the
         // queue. A restart puts an interrupted job back.

@@ -254,6 +254,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   script box, scene breaks and picture notes, references and their
   breakdowns, music, languages, the cap, To review, and redoing only the
   scenes whose words changed.
+- [flow.md](flow.md) — the Flow dashboard: a template of AI nodes on a
+  canvas, each following only its prompt and holding the boxes it asks you
+  for, lines carrying one node's result into the next, Wait for my OK, a run
+  as a stepped guide that ends by saving into a project, the worker, what
+  each node does, and what it costs.
 - [say-what-ai-made.md](say-what-ai-made.md) — the Made by AI card in an
   export's window: which parts are listed, how the render works them out from
   the timeline it draws, the Edited by hand tick, the one-paragraph copy for

@@ -360,6 +360,15 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   - The Filter frame is the shell's `FilterPopover`
     (`src/components/shared/filter-popover.tsx`); Project's
     `TaskFilterPopover` is the drawing it was taken from.
+- **A row press goes to the record's own dashboard; the cog opens the right
+  panel.** Tyler, 14 Nov 2026: "clicking on the table item should always lead
+  to another dashboard (if there is one) and the cog icon should always open
+  up the right panel". A row whose record has a dashboard of its own (a page's
+  builder, a flow's canvas, a recipe's canvas, a backtest's chart, a project's
+  page) opens it on a press, and the row's cog (`CrmTableRow`'s `cog`) shows
+  the record on the right. A row with no dashboard of its own opens on the
+  right either way. Never the other way round. Admin's Pages, Video's Flows,
+  and Trade's Recipes and Backtests are the references.
 - **A middle list whose rows can change together has mass select** (Tyler,
   19 Oct 2026: "the mass select function as well"). It replaces the Tables
   rule's always-shown tick box column on these screens.
