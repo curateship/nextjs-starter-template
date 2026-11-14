@@ -21,9 +21,10 @@ adjust to rounded corner, the gray shade bg and this padding."
   was the grey alone at the shade set). What shows through is blurred 12px,
   like frosted glass ("how about we make it gassuan blur like a glass
   effect"); over the drawn sky, a smooth gradient, the blur barely shows, and
-  over a picture it does. The white tile stays solid, unless Panel cards →
-  Opacity is lowered and the block opens a side panel. On a plain panel the
-  grey reads a shade lighter than the setting alone gives.
+  over a picture it does. The white tile stays solid. A block that opens a
+  side panel is not drawn at 60%: Panel cards → Opacity sets how solid it is,
+  heading and tile, and at 100% it is fully solid. On a plain panel the grey
+  reads a shade lighter than the setting alone gives.
 - **Edge around the tile**, 0 to 16px, 3px unless changed: how much grey shows
   between the block's edge and its white tile, at the sides and the bottom.
 - **Body shade**, 0 to 100%, 0% unless changed: how much of the theme's light
@@ -128,7 +129,12 @@ as a block is: its heading on the card's grey, its rows in a tile under it.
   card so that the image in the background can see through". 0% is wholly
   clear with no blur at all ("when its 0, its completely see through in that
   theres no blur at all"); the blur grows with it, to 12px at 100%. 100% is
-  the look they had. A panel body marks itself `data-side-panel-body`, and
+  fully solid. The setting is the whole of a top block's solidity, not a share
+  of the 60% every other block's heading is drawn at (Tyler, 14 Nov 2026,
+  after 100% still showed the cover through the Dashboards block: "if we
+  already have the opacity setting then it makes no sense to have a fixed
+  opacity for one block"). A first panel card on the right never had the 60%,
+  so it is unchanged. A panel body marks itself `data-side-panel-body`, and
   the rules in theme.css read `--shell-panel-first-opacity` and
   `--shell-panel-first-blur`; only the first card reaches up into the cover,
   so only it changes.

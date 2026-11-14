@@ -1090,15 +1090,17 @@ body:has(
  * rows (Tyler, 11 Nov 2026: "adjust the whole card so that the image in the
  * background can see through"). 0% is wholly clear with no blur at all ("when
  * its 0, its completely see through in that theres no blur at all"); the
- * blur grows with it to a block's 12px. At 100%, unless changed, each card
- * looks as it always did. Outside layers, so it wins over the cards' own
- * classes.
+ * blur grows with it to a block's 12px. At 100%, unless changed, the card is
+ * solid. The setting is the top block's whole solidity, not a share of the
+ * 60% every other block is drawn at (Tyler, 14 Nov 2026: "if we already have
+ * the opacity setting then it makes no sense to have a fixed opacity for one
+ * block"). Outside layers, so it wins over the cards' own classes.
  */
 [data-side-panel-body] .tiptap > .react-renderer:first-child [data-block-card] {
   background: color-mix(
     in oklab,
     color-mix(in oklab, var(--muted) var(--shell-block-shade, 50%), var(--card))
-      calc(0.6 * var(--shell-panel-first-opacity, 100%)),
+      var(--shell-panel-first-opacity, 100%),
     transparent
   );
   backdrop-filter: blur(var(--shell-panel-first-blur, 12px));

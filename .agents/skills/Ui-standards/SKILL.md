@@ -273,8 +273,12 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
     first card's background and its body's (`[data-block-tile]` or
     `[data-panel-card-tile]`) both have an alpha below 1 and the second card's
     do not, and the header's bottom equals the first card's top
-    (`getBoundingClientRect()`). Do this on every side panel the change
-    touches, in the running app, before calling it done.
+    (`getBoundingClientRect()`). At 100% the first card's background has an
+    alpha of exactly 1, a top block included: the setting is its whole
+    solidity, never a share of the 60% other blocks are drawn at (Tyler,
+    14 Nov 2026: "if we already have the opacity setting then it makes no
+    sense to have a fixed opacity for one block"). Do this on every side
+    panel the change touches, in the running app, before calling it done.
 - **Every panel starts with `DashboardCardHeader`** (57px). The left panel's is
   `DashboardCardTitleHeader`: a back arrow or an icon, the title, then the pin
   and the cog. Tabs sit inside a header, never in a second row under it.

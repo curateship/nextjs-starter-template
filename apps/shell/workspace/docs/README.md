@@ -83,7 +83,7 @@ local setup docs.
 
 - [Administration and personalization](settings/administration-and-personalization.md)
 - [The dark mode shade](settings/dark-mode-shade.md)
-- [The left menu shade](settings/left-menu-shade.md)
+- [The left menu shade](settings/left-menu-shade.md), and the one-shade style that paints the left menu, top bar and page one grey
 - [The gutter shade](settings/page-shade.md)
 - [Block, widget and panel card styling](settings/block-styling.md)
 - [Side panel widths](settings/side-panel-widths.md)
