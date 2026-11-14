@@ -246,30 +246,54 @@ in the right panel".
   above it (`projectDescriptionPage` in
   `src/lib/social/project-description.ts`).
 - **The Networks block** is one list in the block's white tile. Each
-  network is a toggle (Tyler, 12 Nov 2026: "each network its a toggle", then
+  network with both a Posts and a Commenting row (Reddit, Medium, X,
+  LinkedIn) is a toggle (Tyler, 12 Nov 2026: "each network its a toggle", then
   his drawing, "style it like this"): its mark and its name in dark, with an
   arrow at the end pointing down while open and right while shut, its rows
   hanging from a thin line under the mark, grey and regular until picked,
   then dark and bold with the bar;
   pressing it folds its rows away and back, each project remembering its own
-  folds in this browser, and folded, its name carries what waits in a pill.
+  folds in this browser, and folded, its name carries its Posts count in a pill.
   The picked network opens by itself. Under it, indented to line up with the
   name, its **Posts** row with how many need you (failed posts and drafts,
-  `readPostCounts`) and, where it comments, its **Commenting** row with how
-  many wait to be answered. The picked row has the sliding bar. The picked
-  Commenting row's keywords are listed under it. Pointing at a Commenting
-  row shows its Pause commenting button.
-  Like the Dashboards block, it is never in the "/" list, can't be deleted,
-  is put back at the top of a page saved without it, and moves with Move up
-  and Move down in its ⋮.
+  `readPostCounts`) and its **Commenting** row, with no count since
+  14 Nov 2026, and Paused after its name while its commenting is paused. Pause
+  commenting is in that network's keywords dropdown
+  ([Pause commenting](commenting.md#pause-commenting)).
+- **A network with Posts alone** (Instagram, TikTok) is one line with no
+  arrow and no rows under it, and pressing it opens its posts (Tyler,
+  14 Nov 2026: "Only the network that have both post and commenting link
+  should have the toggle, if not then just link the network straight to its
+  posts"). Its pill is the posts that need you.
+- **The picked row or line has the sliding bar.** Each network draws the
+  project's columns afresh, so a press on another network brings a new
+  Networks block. A row drawn within 1.5 seconds of its own press starts its
+  bar empty and grows it over 220ms, as the shell's slide does (Tyler,
+  14 Nov 2026: "the pill is missing the sliding animation";
+  `useSlideIn` in `project-networks-block.tsx`).
+- **The block's ⋮ lists every network**, each with a grip and an eye, above
+  Move up and Move down (Tyler, 14 Nov 2026: "i should be able to hide and
+  drag and drop networks here"). Dragging a network by its row reorders the
+  block. Pressing a row hides that network from the block, or shows it
+  again, and the menu stays open for the next press. A hidden network stays
+  on the project and keeps running: its posts, comments and readings go on,
+  and only its line is left out. While picked, a hidden network still shows
+  its line. With no network named in the address, the project opens on the
+  first network the block shows. A guest has no ⋮ rows. The order is the
+  project's `networks` list and the hidden ones are `hidden_networks`, added
+  by `drizzle/0161_promo_hidden_networks.sql`, both saved by
+  `arrangeProjectNetworks` in `src/server/social/projects.ts`. The block's
+  count is the networks it shows.
+- **Like the Dashboards block**, the Networks block is never in the "/"
+  list, can't be deleted, is put back at the top of a page saved without it,
+  and moves with Move up and Move down in its ⋮.
 - **The Archive block** sits under the Networks block (Tyler, 12 Nov 2026:
   "move the archive to its own block"), its count on its heading and one row,
   All items, that opens the project's Archive in the middle and right panels.
   It is fixed as the Networks block is: a page saved without it gets it back
   under the Networks block.
 - **Lock description** makes the page read only for everyone, a guest
-  included, at full strength; the Networks block and its keywords still
-  work. The server refuses any change while it is locked.
+  included, at full strength; the Networks block still works. The server refuses any change while it is locked.
 - **A guest** sent from Project writes the words but gets no "/" list and no
   right-click list of blocks, since blocks upload pictures and read web pages,
   which a guest can't. "/" is not typed at all on a guest's page. A guest
@@ -311,7 +335,7 @@ because searching is the reader's work, not an account's.
 - **Post is off** for its accounts and says "This account's project is paused.
   Resume the project on its dashboard to post from it again."
 - **Pause in a network card's ⋮** pauses that network alone, its posts and its
-  comments. **Pause commenting**, on the card's Commenting row, holds back only
+  comments. **Pause commenting**, at the foot of the network's keywords dropdown, holds back only
   the comments ([Commenting inside a project](commenting.md#pause-commenting)).
 - **A comment pressed before the pause waits** and can still be cancelled. The
   browser program looks again every ten minutes and sends it once the

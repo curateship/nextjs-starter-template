@@ -1,4 +1,5 @@
 import * as React from "react"
+import { HeaderActions } from "@/components/social/header-actions"
 import {
   AlertTriangleIcon,
   ClockIcon,
@@ -177,7 +178,7 @@ export function LinkedinPostsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+      <HeaderActions>
         {posted.length ? (
           <Hint label="Read the numbers of the 50 newest posted ones again now">
             <Button
@@ -202,10 +203,9 @@ export function LinkedinPostsList({
             </Button>
           </Hint>
         ) : null}
-        <span className="flex-1" />
         <PostIdeasButton projectId={projectId} onCreated={created} />
         <NewPostButton projectId={projectId} accounts={accounts} sources={data?.sources ?? []} onCreated={created} />
-      </div>
+      </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
           <XListError what="posts" error={error} onRetry={onRetry} />

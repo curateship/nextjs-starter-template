@@ -1,7 +1,6 @@
 import * as React from "react"
 import { BadgeCheckIcon, EyeOffIcon, Loader2Icon, MessageCircleIcon, RadarIcon, RssIcon, TagIcon, ThumbsUpIcon } from "lucide-react"
 
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -295,21 +294,5 @@ function PostLine({
         </Hint>
       )}
     </div>
-  )
-}
-
-/** The box that searches the posts by their words, the writer or their job title (part 20). */
-export function LinkedinFindSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <DashboardToolbarSearch
-      name="linkedin-post-search"
-      aria-label="Search these posts by their words, the writer or their job title"
-      placeholder="Search"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      // Keeps room to type on a phone, where the keywords dropdown shares its row.
-      className="min-w-28"
-      inputClassName="sm:w-40 lg:w-40"
-    />
   )
 }

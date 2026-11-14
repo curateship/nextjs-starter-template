@@ -43,7 +43,7 @@ an app wide feature, not just a reddit feature."
 | `src/components/social/voices/` | A voice on the Projects dashboard's right panel, with Try it (`voice-record.tsx`). |
 | `src/server/social/pause.ts` | Pausing an account, a whole project, one network of it, or only its commenting on one network. |
 | `src/lib/social/sides.ts`, `src/lib/social/project-address.ts` | The two rows of each network's card, Posts and Commenting: which networks comment, the project's address, which row it opens, and where an old address goes. |
-| `src/components/social/keyword-picker.tsx`, `keyword-list-slot.ts` | Every network's keywords, drawn as a list in the project's left column, under Commenting. |
+| `src/components/social/keyword-picker.tsx` | Every network's keywords, a dropdown in Commenting's middle header. |
 | `src/server/social/post-counts.ts` | The posts of yours that need you on each network's row, and each project's Posts and Last post on the Projects dashboard. |
 | `src/server/social/notices.ts`, `src/lib/social/notice-words.ts`, `src/lib/social/notices.ts`, `src/lib/api/social/notices.ts` | Promo's bell notices: writing them, their headings, their icons, and where each opens. |
 | `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Failed lists beside Sent and beside your Reddit posts, and the notice each failure rings, with the address it opens. |

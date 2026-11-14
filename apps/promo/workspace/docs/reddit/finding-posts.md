@@ -228,14 +228,15 @@ They were the Reddit dashboard's left and middle columns until 12 Oct 2026,
 and a project's Reddit module until 5 Nov 2026. Every list below is one
 project's.
 
-- **Keywords**, as a list in the project's left column, under Commenting since 5 Nov 2026 (a
-  dropdown in the middle column's header from 21 Oct, chips from Tyler's
-  design of 13 Oct 2026 before that).
+- **Keywords**, a dropdown in Commenting's middle header beside Select since
+  14 Nov 2026 (a list in the project's left column from 5 Nov, a dropdown in
+  the header from 21 Oct, chips from Tyler's design of 13 Oct 2026 before
+  that).
   Each keyword's row is its name, its post count, when it last searched and
   what it searches ("Past week · All of Reddit", or "Watching · Newest first"),
-  a timer switch, an arrow to search again and a "⋮" with Remove. **Add
-  keyword**, last in the list, opens the box that adds one
-  ([The keywords list](../commenting.md#the-keywords-list)).
+  a timer switch, an arrow to search again and a "⋮" with Remove. The **+**
+  beside "Keywords · 1" at the top of the dropdown opens the box that adds one
+  ([The keywords](../commenting.md#the-keywords)).
 - **Every keyword's posts together** is All keywords, first in the list and
   what shows when the screen opens. Picking a keyword lists its posts alone. See
   "Every keyword together" below.

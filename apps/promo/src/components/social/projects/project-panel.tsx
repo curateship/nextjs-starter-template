@@ -71,12 +71,11 @@ export function ProjectPanel({
   view,
   selectedNetwork,
   selectedSide,
-  keywordSlot,
   onSelect,
   onAddNetwork,
+  onArrangeNetworks,
   onRemoveNetwork,
   onToggleNetworkPause,
-  onToggleCommentingPause,
   onNewProject,
   onDeleteProject,
   onTogglePause,
@@ -89,15 +88,13 @@ export function ProjectPanel({
   selectedNetwork: Network | null
   /** Which of its two rows: your own posts, or commenting on other people's. */
   selectedSide: Side
-  /** Where the picked network's keywords are drawn, under its Commenting row. */
-  keywordSlot: (element: HTMLDivElement | null) => void
   onSelect: (network: Network, side: Side) => void
   onAddNetwork: (network: Network) => Promise<void>
+  /** The Networks block's order and the networks it leaves out, from its ⋮. */
+  onArrangeNetworks: (arranged: { order: Network[]; hidden: Network[] }) => Promise<void>
   onRemoveNetwork: (network: Network) => Promise<void>
   /** Pauses one network of the project, or resumes it, while the rest runs. */
   onToggleNetworkPause: (network: Network, paused: boolean) => Promise<void>
-  /** Pauses commenting alone on one network, or resumes it; its own posts carry on. */
-  onToggleCommentingPause: (network: Network, paused: boolean) => Promise<void>
   onNewProject: () => void
   onDeleteProject: () => void
   /** Pauses the project, or resumes it when it is paused. */
@@ -115,18 +112,17 @@ export function ProjectPanel({
   const networks: ProjectNetworksBlock = {
     projectId: project.id,
     networks: project.networks,
+    hidden: project.hiddenNetworks,
     paused: project.pausedNetworks,
     pausedCommenting: project.pausedCommenting,
     postCounts: view.postCounts ?? {},
-    commentCounts: view.networkCounts ?? {},
     selected: archiveSelected ? null : selectedNetwork,
     selectedSide,
     archiveSelected,
     archiveCount: project.archiveCount,
-    keywordSlot,
     onSelect,
     onSelectArchive,
-    onToggleCommentingPause: guest ? null : onToggleCommentingPause,
+    onArrange: guest ? null : onArrangeNetworks,
     emptyLine: guest
       ? "This project uses no network yet."
       : "No network yet. Add one from the ⋮, under Networks, to post and comment from this project.",

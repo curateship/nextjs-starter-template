@@ -1,11 +1,10 @@
 import * as React from "react"
-import { AlertTriangleIcon, ListChecksIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
+import { ListChecksIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
 
 import { MenuAction } from "@/components/shared/folding-menu"
 import { CrmListHeader } from "@/components/crm/crm-row"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -30,18 +29,19 @@ import type { KeywordRow } from "@/server/social/keywords"
 import { KeywordPicker, type KeywordPickerItem } from "../keyword-picker"
 import { KeywordIdeasDialog } from "./keyword-ideas-dialog"
 import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { StalledJobs } from "../stalled-jobs"
 
 /**
- * The posts column's header: Reddit's name, then on the right the search box,
- * the keywords dropdown and the column's buttons (Tyler, 21 Oct 2026). The dropdown is the shared `KeywordPicker`
- * (Tyler, 21 Oct 2026); the chips Tyler sent on 13 Oct 2026 took two lines
- * once there were three keywords.
+ * The posts column's header: the tabs, then on the right the search box,
+ * Select, the keywords dropdown and the column's buttons. The dropdown is the
+ * shared `KeywordPicker`, beside Select since 14 Nov 2026; the chips Tyler
+ * sent on 13 Oct 2026 took two lines once there were three keywords.
  *
  * Picking a keyword lists its posts alone; All keywords lists every keyword's
  * posts in one ranked list. Each keyword in the list carries its post count,
- * when it last searched, the timer, search again and Remove. Add keyword turns
- * the list into Reddit's add box, and the dropdown opens on it when nothing is
- * saved, because then it is the only thing on the screen worth pressing.
+ * when it last searched, the timer, search again and Remove. The + turns the
+ * list into Reddit's add box; with nothing saved the button says Add keyword
+ * and opens straight on the box.
  */
 
 /** Plain words for each of Reddit's sorts, with the measured one first. */
@@ -160,9 +160,9 @@ export function KeywordsBar({
   })
 
   // The one middle header every list in the design has (`CrmListHeader`):
-  // the tabs, the "N selected" menu, the search box, Select, and a ⋮ with
-  // Jobs, Ideas and the self-promotion threads. The keyword list itself is
-  // drawn under the Commenting row on the left (`KeywordPicker`).
+  // the tabs, the "N selected" menu, the search box, Select, the keywords
+  // dropdown (`KeywordPicker`), the jobs warning, and a ⋮ with Jobs, Ideas
+  // and the self-promotion threads.
   return (
     <>
       <CrmListHeader
@@ -185,7 +185,6 @@ export function KeywordsBar({
         }}
         view={
           <>
-          {stalledJobs ? <StalledJobs queued={stalledJobs.queued} onOpen={stalledJobs.onOpen} /> : null}
           <KeywordPicker
             items={items}
             loading={loading}
@@ -215,6 +214,7 @@ export function KeywordsBar({
               />
             )}
           />
+          {stalledJobs ? <StalledJobs queued={stalledJobs.queued} onOpen={stalledJobs.onOpen} /> : null}
           </>
         }
         menuLabel={guest ? "Self-promotion threads" : "Jobs, ideas and self-promotion threads"}
@@ -356,33 +356,5 @@ function AddKeywordForm({
         </Button>
       </div>
     </form>
-  )
-}
-
-/**
- * The browser program not running, as a small amber warning in the header:
- * the triangle and how many jobs wait, the whole sentence on hover, and the
- * Jobs window on a press.
- */
-function StalledJobs({ queued, onOpen }: { queued: number; onOpen: (() => void) | null }) {
-  const words = `The browser program is not running, so ${queued} ${queued === 1 ? "job is" : "jobs are"} waiting and nothing is searched.${onOpen ? " Press to see the jobs." : ""}`
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          aria-label={words}
-          aria-disabled={onOpen ? undefined : true}
-          className="shrink-0 gap-1 px-2 text-amber-700 hover:text-amber-800 dark:text-amber-400"
-          onClick={onOpen ?? undefined}
-        >
-          <AlertTriangleIcon className="size-4" aria-hidden />
-          <span className="tabular-nums">{queued}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-64">{words}</TooltipContent>
-    </Tooltip>
   )
 }

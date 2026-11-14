@@ -1,4 +1,5 @@
 import * as React from "react"
+import { HeaderActions } from "@/components/social/header-actions"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import {
   AlertTriangleIcon,
@@ -140,7 +141,7 @@ export function MediumArticlesList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+      <HeaderActions>
         <Button
           type="button"
           size="sm"
@@ -184,9 +185,8 @@ export function MediumArticlesList({
             </Button>
           </Hint>
         ) : null}
-        <span className="flex-1" />
         <NewArticleButton projectId={projectId} accounts={accounts} onCreate={start} />
-      </div>
+      </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
           <div className="grid justify-items-start gap-3 p-4">

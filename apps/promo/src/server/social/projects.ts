@@ -161,6 +161,30 @@ export async function addProjectNetwork(
 }
 
 /**
+ * The Networks block's order and which networks it leaves out, from its ⋮.
+ * The order must name the project's networks, each once; a network the
+ * project does not use cannot be hidden.
+ */
+export async function arrangeProjectNetworks(
+  userId: string,
+  projectId: string,
+  input: { order: Network[]; hidden: Network[] },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const project = await ownedProject(userId, projectId, db)
+  const networks = usedNetworks(project)
+  const order = [...new Set(input.order)]
+  if (order.length !== networks.length || order.some((network) => !networks.includes(network))) {
+    throw new Error("The project's networks changed. Reload the page and try again.")
+  }
+  const hidden = [...new Set(input.hidden)].filter((network) => networks.includes(network))
+  await db
+    .update(promoProjects)
+    .set({ networks: order, hiddenNetworks: hidden, updatedAt: new Date() })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+}
+
+/**
  * Takes a network off a project. Refused, with how many of each, while the
  * project still holds that network's accounts or keywords, worded like
  * deleting a project. Reddit, Medium, X and LinkedIn have keywords; the phone
@@ -466,11 +490,13 @@ export type ProjectView = {
     /** The pictures the cover has had, to pick again. */
     coverImages: string[]
     pausedAt: Date | null
-    /** The networks it uses, each a row in its left column, in the order they were added. */
+    /** The networks it uses, each a line in its Networks block, in the order dragged there (added last by default). */
     networks: Network[]
+    /** The networks left out of the Networks block; they stay on the project. */
+    hiddenNetworks: Network[]
     /** The networks paused on their own while the rest of the project runs. */
     pausedNetworks: Network[]
-    /** The networks whose commenting is paused, from a network's Commenting row; their own posts still go out. */
+    /** The networks whose commenting is paused, from the network's keywords dropdown; their own posts still go out. */
     pausedCommenting: Network[]
     /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
     bannedRecently: number
@@ -565,6 +591,7 @@ export async function readProjectView(
       coverImages: readCoverImages(project.coverImages),
       pausedAt: project.pausedAt,
       networks: usedNetworks(project),
+      hiddenNetworks: project.hiddenNetworks.filter((network) => usedNetworks(project).includes(network)),
       pausedNetworks: project.pausedNetworks.filter(isNetwork),
       pausedCommenting: project.pausedCommenting.filter(isNetwork),
       bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,

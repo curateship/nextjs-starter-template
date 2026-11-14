@@ -40,10 +40,11 @@ column fills the middle and right columns with X's panels. It came from
 - **Two rows of X's card since 5 Nov 2026**
   ([Commenting inside a project](../commenting.md)). The Posts row has
   Posts, Replies (`mentions`, the posts naming the accounts, which is where
-  people answer your posts) and Communities. The Commenting row has the
-  keywords under it in the left column, then in the middle the
-  keyword row's header, the notices and five tabs: To look at, Replied,
-  Skipped, Today and Sent (`replies`, the replies the accounts sent). The tab
+  people answer your posts) and Communities. The Commenting row has in the middle one
+  header, as Reddit's, holding five tabs (To look at, Replied,
+  Skipped, Today and Sent (`replies`, the replies the accounts sent)), the
+  search box, the keywords dropdown, the amber jobs warning and More with Jobs,
+  then the notices. The tab
   is in the address as `?tab=` (none is To look at on Commenting, Posts on
   Posts), Sent's Failed list as `?list=failed`, and whatever is open in
   the right column as `?open=<id>`.

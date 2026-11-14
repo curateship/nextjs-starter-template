@@ -7,6 +7,7 @@ import { actorFor, guestOnlyDescription, guestProjectView } from "@/server/socia
 import {
   addAccountToProject,
   addProjectNetwork,
+  arrangeProjectNetworks,
   createProject,
   deleteProject,
   deleteProjects,
@@ -163,6 +164,24 @@ const networkFn = createServerFn({ method: "POST" })
       : removeProjectNetwork(context.user.id, data.projectId, data.network)
   )
 
+const arrangeNetworksFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      projectId: z.string().min(1),
+      order: z.array(z.enum(NETWORKS)).max(NETWORKS.length),
+      hidden: z.array(z.enum(NETWORKS)).max(NETWORKS.length),
+    })
+  )
+  .handler(async ({ context, data: { projectId, ...input } }): Promise<void> =>
+    arrangeProjectNetworks(context.user.id, projectId, input)
+  )
+
+/** Saves the Networks block's order and the networks it leaves out, from its ⋮. */
+export function arrangeNetworks(projectId: string, input: { order: Network[]; hidden: Network[] }) {
+  return arrangeNetworksFn({ data: { projectId, ...input } })
+}
+
 /** Adds a network to a project, or with `use` false takes it off. */
 export function setProjectNetwork(projectId: string, network: Network, use: boolean) {
   return networkFn({ data: { projectId, network, use } })
@@ -275,7 +294,7 @@ const pauseCommentingFn = createServerFn({ method: "POST" })
 
 /**
  * Pauses commenting on one network of a project, or with `paused` false
- * resumes it, from a network's Commenting row. Comments, answers and
+ * resumes it, from the foot of a network's keywords dropdown on Commenting. Comments, answers and
  * connection requests wait; the project's own posts keep going out.
  */
 export function pauseProjectCommenting(projectId: string, network: Network, paused: boolean) {

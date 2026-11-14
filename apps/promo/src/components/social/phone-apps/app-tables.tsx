@@ -30,6 +30,19 @@ import { cn } from "@/lib/utils"
 import { Hint } from "../hint"
 import { IN_COLUMN_TABLE } from "../projects/project-columns"
 
+/**
+ * The table's own toolbar drawn as the middle header every network has, as
+ * Reddit's: 57px tall with the line under it, 12px above and below and
+ * 20px at the sides as the middle column gives its headers, so the
+ * underlined tabs reach the line (Tyler, 14 Nov 2026: "fix all the tabs. the
+ * only thing that looks right is the reddit tabs"). The toolbar is the
+ * shell's, so this reaches it from outside rather than editing it.
+ */
+const APP_TABLE = cn(
+  IN_COLUMN_TABLE,
+  "[&>:first-child]:min-h-[57px] [&>:first-child]:border-b [&>:first-child]:p-3 [&>:first-child]:px-5 sm:[&>:first-child]:items-stretch sm:[&>:first-child]:gap-2 sm:[&>:first-child>:first-child]:gap-2"
+)
+
 type PostColumn = "post" | "account" | "status" | "views" | "likes" | "comments" | "posted"
 
 const POST_COLUMNS: TableHeaderColumn<PostColumn>[] = [
@@ -116,7 +129,7 @@ export function AppPostsTable({
     <DashboardTable
       title="Posts"
       fillHeight
-      className={IN_COLUMN_TABLE}
+      className={APP_TABLE}
       tabs={tabs}
       count={rows.length}
       selectedCount={selection.selected.size}
@@ -313,7 +326,7 @@ export function AppCommentsTable({
     <DashboardTable
       title="Comments"
       fillHeight
-      className={IN_COLUMN_TABLE}
+      className={APP_TABLE}
       tabs={tabs}
       count={rows.length}
       selectedCount={selection.selected.size}

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { EyeOffIcon, HandIcon, Loader2Icon, LockIcon, MessageSquareIcon, MessageSquareTextIcon, RefreshCwIcon, TagIcon } from "lucide-react"
 
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -287,21 +286,5 @@ function StoryLine({
         </DropdownMenu>
       )}
     </div>
-  )
-}
-
-/** The box that searches the stories by title or writer (part 11). */
-export function MediumStorySearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <DashboardToolbarSearch
-      name="medium-story-search"
-      aria-label="Search these stories by title or writer"
-      placeholder="Search"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      // Keeps room to type on a phone, where the keywords dropdown shares its row.
-      className="min-w-28"
-      inputClassName="sm:w-40 lg:w-40"
-    />
   )
 }
