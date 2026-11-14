@@ -253,6 +253,12 @@ function readViewport(
   }
 }
 
+/**
+ * How long after a hand last touched the chart a moving view is still its
+ * doing: long enough for a flick to glide to a stop.
+ */
+const GESTURE_REPORT_MS = 1500
+
 export function PriceChart({
   candles,
   options,
@@ -424,6 +430,7 @@ export function PriceChart({
               priceSeriesRef.current?.priceFormatter().format(price) ??
               String(price),
       },
+      handleScroll: { vertTouchDrag: !compact },
     })
   }, [compact])
 
@@ -436,10 +443,13 @@ export function PriceChart({
    * candles, which the library keeps applying for itself as the price moves —
    * so the squash survives the next tick as well as the next market.
    */
+  // When this component last framed the chart itself; see the candles effect.
+  const framedAtRef = React.useRef(0)
   const frameChart = React.useCallback(() => {
     const chart = chartRef.current
     const series = priceSeriesRef.current
     if (!chart || !series) return
+    framedAtRef.current = performance.now()
     const remembered = readViewRef.current?.() ?? null
     const frame = remembered
       ? frameOf(remembered, timesRef.current.length)
@@ -534,9 +544,23 @@ export function PriceChart({
     currentViewRef.current = currentView
   }, [currentView])
 
-  /** Tell the app the view moved, unless it was this component that moved it. */
+  // When a hand last pressed, dragged or scrolled the chart. Only a view
+  // moved by one is somebody's to remember: the chart also changes its view
+  // when its box changes size, and on a phone that is all the time (turning
+  // it, the keyboard, Safari's bar showing and hiding), which nobody chose
+  // (Tyler, 13 Nov 2026: "on mobile the chart looks squished").
+  const lastGestureRef = React.useRef(0)
+  const markGesture = React.useCallback(() => {
+    lastGestureRef.current = performance.now()
+  }, [])
+
+  /**
+   * Tell the app the view moved, unless it was this component that moved it,
+   * or nobody moved it at all.
+   */
   const reportView = React.useCallback(() => {
     if (framingRef.current) return
+    if (performance.now() - lastGestureRef.current > GESTURE_REPORT_MS) return
     const next = currentView()
     if (!next || sameView(next, reportedViewRef.current)) return
     reportedViewRef.current = next
@@ -644,7 +668,16 @@ export function PriceChart({
         // finished loading, and so cannot have reached this chart.
         chart.applyOptions(clockOptions(optionsRef.current.zone))
         if (compactRef.current) {
-          chart.applyOptions({ localization: { priceFormatter: formatAxisPrice } })
+          chart.applyOptions({
+            localization: { priceFormatter: formatAxisPrice },
+            // A finger sliding up or down a phone's chart is somebody
+            // scrolling, not asking to move the prices: the library's
+            // default slid the candles down and switched automatic scaling
+            // off, which squashed every chart after it (Tyler, 13 Nov 2026:
+            // "on mobile the chart looks squished"). Sideways and pinching
+            // still move and zoom the chart.
+            handleScroll: { vertTouchDrag: false },
+          })
         }
 
         const price = chart.addSeries(CandlestickSeries, {
@@ -816,6 +849,9 @@ export function PriceChart({
   }, [engineAttempt, frameChart, refreshSurface])
 
   React.useEffect(() => {
+    // The oldest candle drawn before these, to tell older history arriving
+    // behind the chart from a fresh read of the same span.
+    const firstBefore = timesRef.current[0]
     candlesRef.current = candles
     // Asked before anything else, because the chart may not exist yet on the
     // first run and the answer still has to be recorded: the very first series
@@ -844,8 +880,18 @@ export function PriceChart({
     // set, so the working bar starts over with them.
     liveBarRef.current = null
     // More candles for the chart already on screen leave the view exactly
-    // where it was — zoom, scroll and all.
-    if (newSeries) frameChart()
+    // where it was — zoom, scroll and all. Except older history arriving
+    // behind a chart nobody has touched since it framed itself: the first
+    // frame had only the exchange's last 30 days to fit the remembered view
+    // into, 30 candles on 1d, so it frames again now the rest is there
+    // (Tyler, 13 Nov 2026: "its too zoomed in", "thats on a 1d btw").
+    const olderArrived =
+      !newSeries &&
+      firstBefore !== undefined &&
+      (candles[0]?.openTime ?? firstBefore) < firstBefore
+    if (newSeries || (olderArrived && lastGestureRef.current < framedAtRef.current)) {
+      frameChart()
+    }
     refreshSurface()
   }, [candles, viewKey, frameChart, refreshSurface])
 
@@ -901,6 +947,14 @@ export function PriceChart({
         ref={containerRef}
         className="absolute inset-0"
         onDoubleClick={resetChart}
+        // Caught on the way down, before the chart library sees them, so a
+        // press it keeps to itself still counts as a hand on the chart.
+        onPointerDownCapture={markGesture}
+        onPointerUpCapture={markGesture}
+        onPointerMoveCapture={(event) => {
+          if (event.buttons !== 0) markGesture()
+        }}
+        onWheelCapture={markGesture}
       />
       {engineState === "loading" ? (
         <LoadingRow label="Drawing the chart" className="absolute inset-0" />

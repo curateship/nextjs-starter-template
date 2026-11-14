@@ -1893,7 +1893,16 @@ export function ChartPanel({
    * somebody set by hand, and this only borrows its up-and-down squash.
    */
   const readViewForChart = React.useCallback(() => {
-    const remembered = chartView.readView()
+    const kept = chartView.readView()
+    // Under 1280px the chart always gets the library's own room above and
+    // below the candles: a phone view saved with 90% of the height empty
+    // above them reapplied that squash on every open, and every pinch then
+    // saved it again (Tyler, 13 Nov 2026: "on mobile the chart looks
+    // squished"). The zoom and scroll across are still the phone's own.
+    const remembered =
+      kept && !wide
+        ? { ...kept, marginTop: DEFAULT_MARGIN_TOP, marginBottom: DEFAULT_MARGIN_BOTTOM }
+        : kept
     const candles = current?.candles ?? []
     if (!focusTrade || candles.length < 2) return remembered
 
@@ -1911,7 +1920,7 @@ export function ChartPanel({
       marginTop: remembered?.marginTop ?? DEFAULT_MARGIN_TOP,
       marginBottom: remembered?.marginBottom ?? DEFAULT_MARGIN_BOTTOM,
     }
-  }, [chartView, current?.candles, focusTrade])
+  }, [chartView, current?.candles, focusTrade, wide])
 
   /**
    * What the switched-on indicators want drawn.

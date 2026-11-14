@@ -20,11 +20,36 @@ computer's zoom and the computer never opens at the phone's.
   saved by `saveNarrowChartView` in `src/server/trade/prefs.ts`. No migration
   was needed. A view the build cannot read is refused rather than stored.
 - **Before it has been moved:** a narrow chart opens at `NARROW_START_VIEW` in
-  `src/lib/trade/chart-view.ts`. That is the last 60 candles across the whole
-  width with two candles' room after the newest, about five pixels a candle on
-  a 390px phone.
+  `src/lib/trade/chart-view.ts`. That is the last 120 candles across the whole
+  width with two candles' room after the newest, about two and a half pixels a
+  candle on a 390px phone. It was 60 until Tyler found that too close the same
+  day ("its too zoomed in. can you make it zoom out more").
 - **Crossing 1280px** with the page open, by turning a tablet or resizing a
   window, frames the chart again at the view kept for the new width.
+- **Only a hand saves a view.** The view is written down only when a finger,
+  mouse or wheel moved the chart in the last 1.5 seconds (`price-chart.tsx`,
+  `GESTURE_REPORT_MS`), on a wide screen as well. A chart also changes its view
+  when its box changes size, and on a phone that happens all the time: turning
+  it, the keyboard opening, Safari's bar showing and hiding. None of those is
+  saved.
+- **A vertical swipe does not move the prices.** On a phone a finger sliding
+  up or down the chart is somebody scrolling, so the library's vertical touch
+  drag is switched off under 1280px; sideways and pinching still pan and zoom.
+  Left on, it slid the candles to the bottom and switched automatic scaling
+  off, and that view was saved.
+- **The room above and below the candles is always the library's own** under
+  1280px (20% above, 10% below); only the zoom and scroll across are
+  remembered. A phone view saved with 90% of the height empty above the candles
+  was reapplied on every open, and every pinch saved it again, so every phone
+  chart opened squashed into a strip (Tyler, 13 Nov 2026: "on mobile the chart
+  looks squished"). Ignoring the saved margins mends a view already saved that
+  way.
+- **Older history arriving re-frames an untouched chart.** The first frame
+  only has the exchange's last 30 days, which on 1d is 30 candles, too few for
+  a 120-candle view; the rest arrives a moment later. If no hand has moved the
+  chart since it framed itself, it frames again once the older candles are
+  behind it ("thats on a 1d btw"). A chart somebody has moved is left where it
+  is.
 
 **Why the candles used to bunch up on the left.** The page is first built at
 computer width, then the browser narrows it. The chart library keeps the empty

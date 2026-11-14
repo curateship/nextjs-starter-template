@@ -50,11 +50,13 @@ export type ChartView = z.infer<typeof chartViewSchema>
 
 /**
  * Where a chart under 1280px opens before it has been moved there: the last
- * sixty candles across the whole width, the newest two candles' room from the
- * right edge. About five pixels a candle on a phone, wide enough to read.
+ * 120 candles across the whole width, the newest two candles' room from the
+ * right edge. About two and a half pixels a candle on a 390px phone; sixty
+ * read as too close (Tyler, 13 Nov 2026: "its too zoomed in. can you make it
+ * zoom out more").
  */
 export const NARROW_START_VIEW: ChartView = {
-  bars: 60,
+  bars: 120,
   gap: -2,
   marginTop: DEFAULT_MARGIN_TOP,
   marginBottom: DEFAULT_MARGIN_BOTTOM,
