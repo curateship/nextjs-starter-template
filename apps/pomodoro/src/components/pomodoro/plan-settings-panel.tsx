@@ -15,7 +15,7 @@ import { loadMyPlan, type MyPlan } from "@/lib/api/pomodoro/plan"
 import { formatMoney } from "@/lib/format/money"
 import { formatBytes } from "@/lib/pomodoro/media-limits"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { PRO_SUMMARY } from "@/lib/pomodoro/pro"
+import { proSummary } from "@/lib/pomodoro/pro"
 
 /**
  * Settings → Plan (payments task 04): the plan, the next payment, the month's
@@ -138,7 +138,7 @@ function planLines(plan: MyPlan): { text: string; alert?: boolean }[] {
   if (plan.kind === "free")
     return [
       {
-        text: PRO_SUMMARY,
+        text: proSummary(plan.aiShown),
       },
     ]
   if (plan.kind === "admin")

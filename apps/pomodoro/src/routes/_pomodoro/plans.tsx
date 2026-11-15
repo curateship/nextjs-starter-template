@@ -9,7 +9,8 @@ import {
   loadBillingOverview,
   loadPublicPricing,
 } from "@/lib/api/billing/billing"
-import { PLANS_PAGE_SUMMARY } from "@/lib/pomodoro/pro"
+import { readAiGeneration } from "@/lib/api/pomodoro/ai-generation"
+import { plansPageSummary } from "@/lib/pomodoro/pro"
 
 /**
  * The plans screen, inside the product shell rather than the shell's public
@@ -44,9 +45,10 @@ export const Route = createFileRoute("/_pomodoro/plans")({
     if (user && deps.sessionId) {
       await confirmCheckoutSession(deps.sessionId).catch(() => null)
     }
-    const [pricing, overview] = await Promise.all([
+    const [pricing, overview, ai] = await Promise.all([
       loadPublicPricing(),
       user ? loadBillingOverview() : null,
+      readAiGeneration(),
     ])
 
     return {
@@ -66,14 +68,16 @@ export const Route = createFileRoute("/_pomodoro/plans")({
       // page refreshes briefly if the plan has not caught up yet.
       welcome: deps.welcome === "pro" && Boolean(user),
       isPaid: Boolean(overview?.isPaid),
+      // The admin's switch: off, no line on the page names AI.
+      aiShown: ai.shown,
     }
   },
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
       { title: "Pricing - Flowfly" },
       {
         name: "description",
-        content: PLANS_PAGE_SUMMARY,
+        content: plansPageSummary(loaderData?.aiShown ?? false),
       },
     ],
   }),

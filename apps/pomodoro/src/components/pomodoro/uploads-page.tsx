@@ -41,12 +41,18 @@ export function UploadsPage({
   kind,
   seedPrompt = "",
   purchaseSession = "",
+  aiShown,
 }: {
   kind: UploadView
   /** Words for this tab's generator, from "Make a matching …" (task 06). */
   seedPrompt?: string
   /** Stripe's session id, on the way back from buying more (task 07). */
   purchaseSession?: string
+  /**
+   * The admin's "Show AI backgrounds and soundscapes" switch. Off, the page
+   * has no generator and no Generate with AI button.
+   */
+  aiShown: boolean
 }) {
   const navigate = useNavigate()
   const refreshToken = usePurchaseReturn(kind, purchaseSession)
@@ -56,8 +62,9 @@ export function UploadsPage({
         <div className="title-halo flex flex-col gap-2">
           <h2 className="text-4xl font-bold tracking-tight">My uploads</h2>
           <p className="text-muted-foreground">
-            Your own backgrounds and sounds, uploaded or made with AI. Press +
-            on one to add it to your personal room.
+            {aiShown
+              ? "Your own backgrounds and sounds, uploaded or made with AI. Press + on one to add it to your personal room."
+              : "Your own backgrounds and sounds. Press + on one to add it to your personal room."}
           </p>
         </div>
         <Tabs
@@ -86,9 +93,9 @@ export function UploadsPage({
       {kind === "bin" ? (
         <UploadBinView />
       ) : kind === "sound" ? (
-        <SoundUploads key={refreshToken} seedPrompt={seedPrompt} />
+        <SoundUploads key={refreshToken} seedPrompt={seedPrompt} aiShown={aiShown} />
       ) : (
-        <BackgroundUploads key={refreshToken} seedPrompt={seedPrompt} />
+        <BackgroundUploads key={refreshToken} seedPrompt={seedPrompt} aiShown={aiShown} />
       )}
     </div>
   )
@@ -157,14 +164,17 @@ function usePurchaseReturn(kind: UploadView, sessionId: string) {
 function useSeededGenerator(
   kind: PomodoroUploadPurpose,
   seedPrompt: string,
-  goToGenerator: () => void
+  goToGenerator: () => void,
+  aiShown: boolean
 ) {
   const navigate = useNavigate()
   React.useEffect(() => {
     if (!seedPrompt) return
-    goToGenerator()
+    // No generator to scroll to while AI is hidden; the words still leave
+    // the address.
+    if (aiShown) goToGenerator()
     void navigate({ to: "/uploads", search: { kind }, replace: true })
-  }, [goToGenerator, kind, navigate, seedPrompt])
+  }, [aiShown, goToGenerator, kind, navigate, seedPrompt])
 }
 
 /** An AI file arrives as an ordinary upload, so a finished one reloads the grid. */
@@ -179,11 +189,17 @@ function useUploadsReload() {
   return { reloadToken, reloadUploads }
 }
 
-function BackgroundUploads({ seedPrompt }: { seedPrompt: string }) {
+function BackgroundUploads({
+  seedPrompt,
+  aiShown,
+}: {
+  seedPrompt: string
+  aiShown: boolean
+}) {
   const media = useRoomMedia()
   const { reloadToken, reloadUploads } = useUploadsReload()
   const { generatorRef, goToGenerator } = useGeneratorJump()
-  useSeededGenerator("background", seedPrompt, goToGenerator)
+  useSeededGenerator("background", seedPrompt, goToGenerator, aiShown)
   const inUse = media.room?.background ?? media.personalBackground
 
   return (
@@ -193,7 +209,7 @@ function BackgroundUploads({ seedPrompt }: { seedPrompt: string }) {
         purpose="background"
         title="Your own"
         uploadLabel="Upload clip"
-        onGenerate={goToGenerator}
+        onGenerate={aiShown ? goToGenerator : undefined}
         description="Tap or hover over one to see it play, then press + to add it to your personal room."
         isSelected={(upload) =>
           sameBackgroundReference(inUse, {
@@ -238,23 +254,31 @@ function BackgroundUploads({ seedPrompt }: { seedPrompt: string }) {
           )
         }
       />
-      <div ref={generatorRef} className="scroll-mt-6">
-        <MediaGeneratorSection
-          kind="background"
-          onFinished={reloadUploads}
-          seedPrompt={seedPrompt}
-        />
-      </div>
+      {aiShown ? (
+        <div ref={generatorRef} className="scroll-mt-6">
+          <MediaGeneratorSection
+            kind="background"
+            onFinished={reloadUploads}
+            seedPrompt={seedPrompt}
+          />
+        </div>
+      ) : null}
     </>
   )
 }
 
-function SoundUploads({ seedPrompt }: { seedPrompt: string }) {
+function SoundUploads({
+  seedPrompt,
+  aiShown,
+}: {
+  seedPrompt: string
+  aiShown: boolean
+}) {
   const media = useRoomMedia()
   const preview = usePreviewAudio()
   const { reloadToken, reloadUploads } = useUploadsReload()
   const { generatorRef, goToGenerator } = useGeneratorJump()
-  useSeededGenerator("sound", seedPrompt, goToGenerator)
+  useSeededGenerator("sound", seedPrompt, goToGenerator, aiShown)
 
   return (
     <>
@@ -268,7 +292,7 @@ function SoundUploads({ seedPrompt }: { seedPrompt: string }) {
         purpose="sound"
         title="Your own"
         uploadLabel="Upload sound"
-        onGenerate={goToGenerator}
+        onGenerate={aiShown ? goToGenerator : undefined}
         description="Press one to hear it, then press + to add it to your personal room."
         isSelected={(upload) =>
           sameSoundReference(media.sound, {
@@ -311,13 +335,15 @@ function SoundUploads({ seedPrompt }: { seedPrompt: string }) {
           <SoundWave seed={upload.mediaId} playing={playing} />
         )}
       />
-      <div ref={generatorRef} className="scroll-mt-6">
-        <MediaGeneratorSection
-          kind="soundscape"
-          onFinished={reloadUploads}
-          seedPrompt={seedPrompt}
-        />
-      </div>
+      {aiShown ? (
+        <div ref={generatorRef} className="scroll-mt-6">
+          <MediaGeneratorSection
+            kind="soundscape"
+            onFinished={reloadUploads}
+            seedPrompt={seedPrompt}
+          />
+        </div>
+      ) : null}
     </>
   )
 }

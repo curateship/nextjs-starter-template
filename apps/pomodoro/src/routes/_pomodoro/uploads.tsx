@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { UploadsPage } from "@/components/pomodoro/uploads-page"
+import { readAiGeneration } from "@/lib/api/pomodoro/ai-generation"
 import type { UploadView } from "@/lib/api/pomodoro/media-uploads"
 import { PROMPT_MAX_LENGTH } from "@/lib/pomodoro/generation"
 
@@ -23,17 +24,21 @@ export const Route = createFileRoute("/_pomodoro/uploads")({
       ? { purchase: search.purchase }
       : {}),
   }),
+  // The admin's "Show AI backgrounds and soundscapes" switch.
+  loader: () => readAiGeneration(),
   head: () => ({ meta: [{ title: "My uploads - Flowfly" }] }),
   component: UploadsRoute,
 })
 
 function UploadsRoute() {
   const { kind, prompt, purchase } = Route.useSearch()
+  const { shown } = Route.useLoaderData()
   return (
     <UploadsPage
       kind={kind ?? "background"}
       seedPrompt={prompt ?? ""}
       purchaseSession={purchase ?? ""}
+      aiShown={shown}
     />
   )
 }

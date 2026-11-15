@@ -293,6 +293,11 @@ export const appOptions: AppOptions = {
         panel: () => settingsTab("NotionTimerSettingsTab"),
       },
       {
+        id: POMODORO_SETTINGS_TABS.aiGeneration,
+        label: "AI generation",
+        panel: () => settingsTab("AiGenerationSettingsTab"),
+      },
+      {
         id: POMODORO_SETTINGS_TABS.rooms,
         label: "Rooms",
         panel: () => settingsTab("RoomsSettingsTab"),

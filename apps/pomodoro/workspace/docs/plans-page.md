@@ -16,8 +16,10 @@ Drawn to Tyler's design of 7 Oct 2026
 - **A headline over the hero:** "Focus longer, together." and "The timer,
   tasks and rooms are free. Pro adds every sound and background, AI
   backgrounds and soundscapes, hosting rooms, your own uploads and your full
-  history." That second line is `PLANS_PAGE_SUMMARY` in
-  `src/lib/pomodoro/pro.ts`, which the page's link preview uses too, built on
+  history." That second line is `plansPageSummary` in
+  `src/lib/pomodoro/pro.ts`, which the page's link preview uses too. While
+  the admin has AI generation hidden, the line and the Pro cards leave AI out
+  (see [AI backgrounds and soundscapes](ai-generation.md#hidden-until-it-goes-live)). The line is built on
   the one Pro sentence described in [Pro perks](pro-perks.md). Both lines sit on the left edge, in line
   with the cards, at the same size as every other page's title (36px, with
   the line under it at the body size). The "Paid plans can't be bought just

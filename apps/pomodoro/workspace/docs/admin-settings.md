@@ -1,8 +1,8 @@
 # Admin settings
 
-Pomoder's own admin settings are ten tabs under Settings → App settings, in
+Pomoder's own admin settings are eleven tabs under Settings → App settings, in
 the rail on `/admin/settings`: Emergency switches, Backgrounds and sounds, Seasons,
-Breaks, New accounts, Notion timer, Rooms, Room chat, Pixabay and Made-up members. Each lives at
+Breaks, New accounts, Notion timer, AI generation, Rooms, Room chat, Pixabay and Made-up members. Each lives at
 `/admin/settings/pomodoro-<name>` (the ids are `POMODORO_SETTINGS_TABS` in
 `src/lib/pomodoro/app-settings.ts`), is listed in `settings.tabs` in
 `src/app/options.ts`, and is drawn by `admin-settings-tabs.tsx`. Every save
@@ -77,6 +77,15 @@ One switch, "Show the timer inside Notion", on by default (Tyler, 7 Nov 2026:
 "Add enable and disable notion timer in settings"). Off, `/embed/timer` shows
 "This timer is switched off for now." in place of the timer. See [The timer
 inside Notion](embed-timer.md#switching-it-off).
+
+## AI generation
+
+One switch, "Show AI backgrounds and soundscapes". **It starts off**, unlike
+every other setting here, which starts as the app already behaved. Tyler, 15
+Nov 2026: "I want to hide the ai features for pro users because this feature
+is not ready to go live but it will eventually. I just want to hide it for
+now." What off hides, and what it leaves alone, is in [AI backgrounds and
+soundscapes](ai-generation.md#hidden-until-it-goes-live).
 
 ## Seasons
 

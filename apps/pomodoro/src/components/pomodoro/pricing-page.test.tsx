@@ -70,6 +70,7 @@ async function show() {
         changingPlan={false}
         welcome
         isPaid={false}
+        aiShown={false}
       />
     )
   })

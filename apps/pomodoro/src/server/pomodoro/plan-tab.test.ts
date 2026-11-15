@@ -2,7 +2,9 @@ import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
+import { forgetAppSettings } from "@/server/pomodoro/app-settings"
 import { loadPlanTab, type NextPaymentPreview } from "@/server/pomodoro/plan-tab"
+import { pomodoroSettings } from "@/server/pomodoro/schema"
 import { customShellPlans, customShellSubscriptions } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
@@ -20,12 +22,23 @@ let db: CustomShellDb
 beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   vi.stubEnv("CUSTOM_SHELL_BILLING_ENABLED", "true")
+  await showAi(true)
 })
 
 afterEach(async () => {
   vi.unstubAllEnvs()
+  forgetAppSettings()
   await client.close()
 })
+
+/** The admin's "Show AI backgrounds and soundscapes" switch, which starts off. */
+async function showAi(shown: boolean) {
+  await db
+    .insert(pomodoroSettings)
+    .values({ key: "ai.generation", value: shown })
+    .onConflictDoUpdate({ target: pomodoroSettings.key, set: { value: shown } })
+  forgetAppSettings()
+}
 
 /** A period end far enough ahead that the plan is live whenever this runs. */
 const PERIOD_END = new Date("2099-11-14T12:00:00Z")
@@ -148,6 +161,14 @@ describe("loadPlanTab", () => {
     expect(plan.kind).toBe("admin")
     expect(plan.credits).not.toBeNull()
     expect(plan.canManageBilling).toBe(false)
+  })
+
+  it("has no AI credits card while AI generation is hidden", async () => {
+    await showAi(false)
+    const plan = await loadPlanTab(await member(null, "admin"), preview)
+    expect(plan.aiShown).toBe(false)
+    expect(plan.credits).toBeNull()
+    expect(plan.space).not.toBeNull()
   })
 
   it("reads a plan an admin granted as granted, never billed", async () => {

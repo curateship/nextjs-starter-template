@@ -4,6 +4,40 @@ A Pro member types what they want and gets it a minute or two later: an animated
 background from Google's Veo, or an ambient loop from ElevenLabs. Five
 backgrounds and twenty soundscapes a month.
 
+## Hidden until it goes live
+
+Tyler, 15 Nov 2026: "I want to hide the ai features for pro users because this
+feature is not ready to go live but it will eventually. I just want to hide it
+for now. Can you add a setting to hides it from pricing and dashboards."
+
+The switch is Settings → App settings → AI generation, "Show AI backgrounds
+and soundscapes" (`ai.generation` in `src/lib/pomodoro/app-settings.ts`). It
+starts off. Off, nobody sees the feature, admins included, so switching it on
+is also how an admin tries it out:
+
+- **The plans page** (`/plans`) drops "AI soundscapes, 20 a month" and "AI
+  backgrounds, 5 a month" from the Pro cards. The headline line, the line
+  after paying and the page's link preview say "Pro adds every sound and
+  background, hosting rooms, your own uploads and your full history." That is
+  Tyler's approved sentence with only the AI clause taken out
+  (`proSummary(ai)` in `src/lib/pomodoro/pro.ts`).
+- **Settings → Plan** has no "AI credits this month" card, and a free
+  account's line uses the same shorter sentence.
+- **My uploads** (`/uploads`) has no "Generate your own" card and no
+  "Generate with AI" button, and the line under the title no longer says "or
+  made with AI". A `?prompt=` link still loads the page and the words leave
+  the address, with nothing to scroll to.
+- **The server refuses as well as hides.** A generation request from a tab
+  left open, or sent by hand, is refused with "AI generation is not switched
+  on yet." and takes no credit. A 5-background or 20-soundscape pack cannot be
+  bought, so nobody pays for credits they cannot use. 10 GB more space is still
+  for sale.
+
+What stays the same: files already made keep their "AI" mark and stay in the
+grid, a generation already queued finishes, the admin's AI usage list is
+unchanged, and the shell's own `/pricing` page is untouched (nothing in the
+product links to it, and it is a shell file).
+
 ## What a member sees
 
 "Generate your own" is one card under the uploads on each tab of My uploads

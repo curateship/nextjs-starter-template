@@ -6,6 +6,7 @@ import { enforceRateLimit } from "@/server/auth/rate-limit"
 import { billingEnabled } from "@/server/billing/stripe"
 import { userGet, userPost } from "@/server/guards"
 import { loadAccountStorage } from "@/server/media/library"
+import { aiGenerationShown } from "@/server/pomodoro/app-settings"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import { generationKeysConfigured } from "@/server/pomodoro/generation-providers"
 import {
@@ -115,7 +116,11 @@ const requestFn = createServerFn({ method: "POST" })
       ? [data.kind, otherKind(data.kind)]
       : [data.kind]
 
-    // The key first, so a server with nothing configured says so plainly
+    // The admin's switch first: while AI generation is hidden, a stale tab or
+    // a direct call makes nothing and spends nothing.
+    if (!(await aiGenerationShown())) throw new Error("PROVIDER_NOT_CONFIGURED")
+
+    // The key next, so a server with nothing configured says so plainly
     // instead of taking a credit and failing a minute later.
     const keys = await generationKeysConfigured()
     if (kinds.some((kind) => !keys[kind]))

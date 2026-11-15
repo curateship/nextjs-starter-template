@@ -16,7 +16,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
 import { planCardFeatures } from "@/lib/pomodoro/plan-card-features"
-import { PLANS_PAGE_SUMMARY, PRO_WELCOME } from "@/lib/pomodoro/pro"
+import { plansPageSummary, proWelcome } from "@/lib/pomodoro/pro"
 import { useMediaCatalog } from "@/lib/pomodoro/room-media-store"
 
 /**
@@ -47,6 +47,7 @@ export function PricingPage({
   changingPlan,
   welcome,
   isPaid,
+  aiShown,
 }: {
   plans: PlanOption[]
   signedIn: boolean
@@ -58,6 +59,8 @@ export function PricingPage({
   /** Just back from a paid checkout. */
   welcome: boolean
   isPaid: boolean
+  /** The admin's "Show AI backgrounds and soundscapes" switch. */
+  aiShown: boolean
 }) {
   const navigate = useNavigate()
   const router = useRouter()
@@ -138,6 +141,7 @@ export function PricingPage({
     trialUsed,
     changingPlan,
     confirming,
+    aiShown,
     onSelect: select,
   }
   const sellsMonthly = proPlan ? proPlan.priceMonthlyCents > 0 : false
@@ -153,12 +157,12 @@ export function PricingPage({
           Focus longer, together.
         </h2>
         <p className="title-halo max-w-xl text-muted-foreground">
-          {PLANS_PAGE_SUMMARY}
+          {plansPageSummary(aiShown)}
         </p>
         {welcome ? (
           <p role="status" className="max-w-xl text-sm">
             {isPaid ? (
-              PRO_WELCOME
+              proWelcome(aiShown)
             ) : late ? (
               <>
                 Your payment is still being confirmed. Check again in a
@@ -291,6 +295,7 @@ function PriceCard({
   trialUsed,
   changingPlan,
   confirming,
+  aiShown,
   busy,
   onSelect,
 }: {
@@ -306,6 +311,7 @@ function PriceCard({
   changingPlan: boolean
   /** A payment just made is not on the account yet, so a paid card waits. */
   confirming: Confirming
+  aiShown: boolean
   busy: boolean
   onSelect: (plan: PlanOption, interval: BillingInterval | null) => void
 }) {
@@ -320,7 +326,7 @@ function PriceCard({
     billingEnabled &&
     (interval === "yearly" ? plan.canCheckoutYearly : plan.canCheckoutMonthly)
   const catalog = useMediaCatalog()
-  const features = planCardFeatures(catalog, plan.features, free)
+  const features = planCardFeatures(catalog, plan.features, free, aiShown)
 
   const yearlyCents = plan.priceYearlyCents
   const monthlyCents = plan.priceMonthlyCents

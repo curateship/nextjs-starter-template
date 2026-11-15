@@ -49,11 +49,15 @@ the old app's Pro).
 - **Pro is described in one sentence everywhere.** "Pro adds every sound and
   background, AI backgrounds and soundscapes, hosting rooms, your own uploads
   and your full history." Tyler approved the wording on 12 Oct 2026. It is
-  `PRO_SUMMARY` in `src/lib/pomodoro/pro.ts`, and the plans page's headline
+  `proSummary` in `src/lib/pomodoro/pro.ts`, and the plans page's headline
   line, its link preview and Settings → Plan for a free account all read it.
   The three used to disagree: the plans page said "AI mixes" and left out
   uploads, and the link preview said a paid plan adds focus rooms, while
   joining rooms is free.
+- **AI generation is hidden until it goes live.** The admin's "Show AI
+  backgrounds and soundscapes" switch starts off, and off, the sentence drops
+  its AI clause, the Pro cards drop the AI lines and AI packs are not sold.
+  See [AI backgrounds and soundscapes](ai-generation.md#hidden-until-it-goes-live).
 
 ## Prices
 

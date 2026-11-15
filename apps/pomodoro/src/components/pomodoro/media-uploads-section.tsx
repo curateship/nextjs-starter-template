@@ -82,8 +82,11 @@ export function MediaUploadsSection({
   uploadLabel: string
   /** Said after the file limits, under the buttons. */
   description: string
-  /** Generate with AI: takes the reader to the generator on the same page. */
-  onGenerate: () => void
+  /**
+   * Generate with AI: takes the reader to the generator on the same page.
+   * Left out while the admin has AI generation hidden, and so is the button.
+   */
+  onGenerate?: () => void
   /**
    * Bump this to make the strip read its list again. The generator below uses
    * it: an AI file lands as an ordinary upload, so it belongs in this grid, and
@@ -434,7 +437,7 @@ function UploadActions({
   /** "Get 10 GB more", once the space is nearly full (task 07). */
   buySpace: React.ReactNode
   onUpload: () => void
-  onGenerate: () => void
+  onGenerate?: () => void
 }) {
   const { openPlans } = useOpenPlans()
   const [fullNotice, setFullNotice] = React.useState(false)
@@ -489,15 +492,17 @@ function UploadActions({
             {label}
           </Button>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          className="rounded-full"
-          onClick={onGenerate}
-        >
-          <SparklesIcon aria-hidden="true" />
-          Generate with AI
-        </Button>
+        {onGenerate ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full"
+            onClick={onGenerate}
+          >
+            <SparklesIcon aria-hidden="true" />
+            Generate with AI
+          </Button>
+        ) : null}
         {buySpace}
       </div>
       <p className="text-sm text-muted-foreground">{reason ?? hint}</p>

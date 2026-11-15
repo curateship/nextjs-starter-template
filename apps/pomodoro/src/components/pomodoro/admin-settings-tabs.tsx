@@ -179,6 +179,14 @@ export function NotionTimerSettingsTab() {
   )
 }
 
+export function AiGenerationSettingsTab() {
+  return (
+    <SettingsTab>
+      {({ settings }) => <AiGenerationCard initial={settings["ai.generation"]} />}
+    </SettingsTab>
+  )
+}
+
 export function RoomsSettingsTab() {
   return (
     <SettingsTab>
@@ -600,6 +608,35 @@ function NotionTimerCard({ initial }: { initial: boolean }) {
         }}
         label="Show the timer inside Notion"
         hint="Off, every Notion page holding it shows one line saying the timer is switched off, with a link to the full site. It always runs as a guest, so its focuses never reach anybody's Stats."
+      />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
+ * The switch that shows or hides AI backgrounds and soundscapes for every
+ * member. Tyler, 15 Nov 2026: "I just want to hide it for now."
+ */
+function AiGenerationCard({ initial }: { initial: boolean }) {
+  const [on, setOn] = React.useState(initial)
+  const save = useSettingSave()
+  const switchId = React.useId()
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-ai-generation"
+      title="AI generation"
+      description="AI backgrounds and soundscapes, the Pro perk on My uploads."
+      contentClassName="grid gap-4"
+    >
+      <SettingsSwitchRow
+        id={switchId}
+        checked={on}
+        onCheckedChange={(checked) => {
+          setOn(checked)
+          void save.now("ai.generation", checked)
+        }}
+        label="Show AI backgrounds and soundscapes"
+        hint="Off, nobody sees them, admins included. The plans page and Settings → Plan leave them out, My uploads has no generator, and nobody can make one or buy AI credits. Files already made stay where they are."
       />
     </CollapsibleSettingsCard>
   )

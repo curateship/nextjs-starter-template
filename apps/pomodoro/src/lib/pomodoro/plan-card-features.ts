@@ -56,10 +56,15 @@ const COVERED_KEYS = new Set<string>([
   SHARED_MEDIA_FEATURE,
 ])
 
+/**
+ * `aiShown` is the admin's "Show AI backgrounds and soundscapes" switch. Off,
+ * no card names AI at all, whatever the plan hands out.
+ */
 export function planCardFeatures(
   catalog: MediaCatalog,
   features: PlanFeatures,
-  free: boolean
+  free: boolean,
+  aiShown: boolean
 ): string[] {
   const extra = describePlanFeatures(
     Object.fromEntries(
@@ -80,9 +85,10 @@ export function planCardFeatures(
     lines.push(
       `All ${catalog.sounds.length} sounds and ${catalog.themes.length} backgrounds, including the Pro ones`
     )
-  if (allowed("aiCredits") && soundscapes > 0)
+  const ai = aiShown && allowed("aiCredits")
+  if (ai && soundscapes > 0)
     lines.push(`AI soundscapes, ${soundscapes} a month`)
-  if (allowed("aiCredits") && backgrounds > 0)
+  if (ai && backgrounds > 0)
     lines.push(`AI backgrounds, ${backgrounds} a month`)
   if (allowed("uploadMedia") && storage > 0)
     // "2 GB" rather than the uploads card's "2.0 GB": a round limit reads

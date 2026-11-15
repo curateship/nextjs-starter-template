@@ -52,6 +52,14 @@ export async function loadAppSettings(
 }
 
 /**
+ * Whether members see AI backgrounds and soundscapes: the admin's switch in
+ * Settings → AI generation, off until the feature goes live.
+ */
+export async function aiGenerationShown(database: CustomShellDb = db) {
+  return (await loadAppSettings(database))["ai.generation"]
+}
+
+/**
  * Saves one setting after checking its shape, and writes the audit row in the
  * same transaction. Returns what is now stored. `action` and `resource` name
  * the audit row when a save means more than "a setting changed", such as

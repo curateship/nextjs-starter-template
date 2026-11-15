@@ -5,6 +5,7 @@ import { appUrlFor } from "@/server/app-url"
 import { findSubscription } from "@/server/billing/entitlements"
 import { requireBilling, stripe } from "@/server/billing/stripe"
 import { db } from "@/server/db"
+import { aiGenerationShown } from "@/server/pomodoro/app-settings"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import { boughtCredits, monthlyLimitFor } from "@/server/pomodoro/generation"
 import {
@@ -74,9 +75,10 @@ const stripeApi: PurchaseStripeApi = {
 async function assertCanBuy(userId: string, product: PurchaseProduct) {
   const entitlements = await loadPomodoroEntitlements(userId)
   const item = PURCHASES[product]
+  // An AI pack is never sold while the admin has AI generation hidden.
   const allowed =
     "kind" in item
-      ? monthlyLimitFor(entitlements, item.kind) > 0
+      ? monthlyLimitFor(entitlements, item.kind) > 0 && (await aiGenerationShown())
       : entitlements.canUploadMedia
   if (!allowed) throw new Error("PRO_REQUIRED")
 }

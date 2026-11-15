@@ -52,17 +52,25 @@ export type ProPerk = keyof typeof PRO_PERKS
  * What Pro adds, said the same way on every screen that says it: the plans
  * page, its link preview and Settings → Plan. The three said three different
  * things until 12 Oct 2026, when Tyler approved this wording.
+ *
+ * `ai` is the admin's "Show AI backgrounds and soundscapes" switch. Off, the
+ * sentence only loses that clause (Tyler, 15 Nov 2026: hide the AI features
+ * until they are ready to go live).
  */
-const PRO_ADDS =
-  "every sound and background, AI backgrounds and soundscapes, hosting rooms, your own uploads and your full history"
+const proAdds = (ai: boolean) =>
+  ai
+    ? "every sound and background, AI backgrounds and soundscapes, hosting rooms, your own uploads and your full history"
+    : "every sound and background, hosting rooms, your own uploads and your full history"
 
-export const PRO_SUMMARY = `Pro adds ${PRO_ADDS}.`
+export const proSummary = (ai: boolean) => `Pro adds ${proAdds(ai)}.`
 
 /** The plans page's line once a payment has landed. */
-export const PRO_WELCOME = `You're on Pro, so ${PRO_ADDS} are yours now. Your receipt is in your inbox.`
+export const proWelcome = (ai: boolean) =>
+  `You're on Pro, so ${proAdds(ai)} are yours now. Your receipt is in your inbox.`
 
 /** The plans page's headline line and its link preview. */
-export const PLANS_PAGE_SUMMARY = `The timer, tasks and rooms are free. ${PRO_SUMMARY}`
+export const plansPageSummary = (ai: boolean) =>
+  `The timer, tasks and rooms are free. ${proSummary(ai)}`
 
 /** The old app's Pro numbers, used when a plan does not name its own. */
 export const PAID_DEFAULTS = {

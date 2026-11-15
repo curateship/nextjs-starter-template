@@ -1,5 +1,6 @@
 import { loadAccountStorage } from "@/server/media/library"
 import { billingEnabled, stripe } from "@/server/billing/stripe"
+import { aiGenerationShown } from "@/server/pomodoro/app-settings"
 import { loadPlanStanding } from "@/server/pomodoro/entitlements"
 import {
   creditsLeft,
@@ -42,8 +43,8 @@ export async function loadPlanTab(
   userId: string,
   previewNextPayment: NextPaymentPreview = previewFromStripe
 ) {
-  const { entitlements, subscription, admin, space, perks } =
-    await loadPlanStanding(userId)
+  const [{ entitlements, subscription, admin, space, perks }, aiShown] =
+    await Promise.all([loadPlanStanding(userId), aiGenerationShown()])
 
   const kind = entitlements.paused
     ? ("paused" as const)
@@ -97,16 +98,19 @@ export async function loadPlanTab(
     ])
     return { limit, left, packLeft }
   }
+  // No AI credits card while the admin has AI generation hidden.
   const [backgrounds, soundscapes, storage] = paidPerks
     ? await Promise.all([
-        allowance("background"),
-        allowance("soundscape"),
+        aiShown ? allowance("background") : null,
+        aiShown ? allowance("soundscape") : null,
         loadAccountStorage(userId),
       ])
     : [null, null, null]
 
   return {
     kind,
+    /** The admin's "Show AI backgrounds and soundscapes" switch. */
+    aiShown,
     planName:
       kind === "paused"
         ? (entitlements.pausedPlanName ?? entitlements.planName)

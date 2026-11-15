@@ -129,6 +129,14 @@ export const appSettingSchemas = {
    * settings". Off, the page says the timer is switched off.
    */
   "embed.notionTimer": z.boolean(),
+  /**
+   * Whether members see AI backgrounds and soundscapes at all. Tyler, 15 Nov
+   * 2026: "I want to hide the ai features for pro users because this feature
+   * is not ready to go live but it will eventually." Off, the plans page,
+   * Settings → Plan and My uploads leave them out, and the server refuses a
+   * generation or an AI credit pack. See `workspace/docs/ai-generation.md`.
+   */
+  "ai.generation": z.boolean(),
   /** For a spam wave: no new rooms, or no chat anywhere, until switched off. */
   "safety.pause": z.object({
     newRooms: z.boolean(),
@@ -227,6 +235,9 @@ export const APP_SETTING_DEFAULTS: {
   "safety.pause": { newRooms: false, chat: false },
   // On, because the embed shipped working (7 Nov 2026).
   "embed.notionTimer": true,
+  // Off, unlike every other default here: Tyler asked on 15 Nov 2026 for the
+  // AI features to be hidden until they are ready to go live.
+  "ai.generation": false,
   "sharing.rules": { dailyLimit: 10, approveFirst: true },
   // Tyler, 9 Oct 2026: the busiest never over three hours a day so a real
   // member can reach the top. A hundred, not the forty first asked for,
@@ -339,6 +350,7 @@ export const POMODORO_SETTINGS_TABS = {
   seasons: "pomodoro-seasons",
   newAccounts: "pomodoro-new-accounts",
   notionTimer: "pomodoro-notion-timer",
+  aiGeneration: "pomodoro-ai-generation",
   rooms: "pomodoro-rooms",
   chat: "pomodoro-chat",
   breaks: "pomodoro-breaks",

@@ -4,6 +4,7 @@ import type Stripe from "stripe"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
+import { forgetAppSettings } from "@/server/pomodoro/app-settings"
 import { loadPomodoroEntitlements } from "@/server/pomodoro/entitlements"
 import {
   claimNextGeneration,
@@ -18,7 +19,11 @@ import {
   startPurchase,
   type PurchaseStripeApi,
 } from "@/server/pomodoro/purchases"
-import { pomodoroGenerations, pomodoroPurchases } from "@/server/pomodoro/schema"
+import {
+  pomodoroGenerations,
+  pomodoroPurchases,
+  pomodoroSettings,
+} from "@/server/pomodoro/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
@@ -42,12 +47,23 @@ beforeEach(async () => {
   // An admin reads as paid: Pro's 5 backgrounds a month and 2 GB.
   const user = await insertUser(db, { role: "admin" })
   member = { id: user.id, email: user.email }
+  await showAi(true)
 })
 
 afterEach(async () => {
   vi.unstubAllEnvs()
+  forgetAppSettings()
   await client.close()
 })
+
+/** The admin's "Show AI backgrounds and soundscapes" switch, which starts off. */
+async function showAi(shown: boolean) {
+  await db
+    .insert(pomodoroSettings)
+    .values({ key: "ai.generation", value: shown })
+    .onConflictDoUpdate({ target: pomodoroSettings.key, set: { value: shown } })
+  forgetAppSettings()
+}
 
 /** Stripe as the test wants it: every session paid, nothing refunded. */
 function fakeStripe(overrides: Partial<PurchaseStripeApi> = {}) {
@@ -89,6 +105,19 @@ async function buy(product: "backgrounds_5" | "soundscapes_20" | "space_10gb", a
 const LIMITS = { background: 1, soundscape: 1 }
 
 describe("startPurchase", () => {
+  it("sells no AI pack while AI generation is hidden, but still sells space", async () => {
+    await showAi(false)
+    const { api, created } = fakeStripe()
+    await expect(
+      startPurchase(member, "backgrounds_5", "/uploads?kind=background", api)
+    ).rejects.toThrow("PRO_REQUIRED")
+    await expect(
+      startPurchase(member, "soundscapes_20", "/uploads?kind=sound", api)
+    ).rejects.toThrow("PRO_REQUIRED")
+    await startPurchase(member, "space_10gb", "/uploads?kind=background", api)
+    expect(created).toHaveLength(1)
+  })
+
   it("asks Stripe for the price in code, and returns to the page it came from", async () => {
     const { api, created } = fakeStripe()
     const { url } = await startPurchase(member, "backgrounds_5", "/uploads?kind=background", api)
