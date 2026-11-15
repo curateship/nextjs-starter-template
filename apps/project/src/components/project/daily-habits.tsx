@@ -230,9 +230,10 @@ function HabitRow({ habit, day, count }: { habit: DailyHabit; day: string; count
           </Button>
         </span>
       ) : (
+        // 21.6px, 10% under the drawing's 24px (Tyler, 15 Nov 2026: "reduce the checkbox by 10%").
         <Checkbox
           id={id}
-          className="size-6 shrink-0 rounded-md"
+          className="size-[1.35rem] shrink-0 rounded-md"
           checked={done}
           onCheckedChange={(checked) => void save(checked === true ? habit.target : 0)}
         />

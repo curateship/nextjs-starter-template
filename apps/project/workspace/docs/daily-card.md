@@ -129,7 +129,8 @@ follows, the picture wins:
   name, morning's too.
 - **Each habit** is a row: its icon on a grey tile, its name, and under it
   "6-day streak" or "Start a streak today" (and its time, if it has one),
-  with its tick box on the right.
+  with its tick box on the right. The tick box is 21.6px, 10% under the
+  drawing's 24px (Tyler, 15 Nov 2026: "reduce the checkbox by 10%").
 - **A counted habit** shows a row of dashes under its name, one per count up
   to 10, filling as it counts, then "0/4". On the right are − and +, which
   count down and up; they are never greyed out, and do nothing past 0 or
@@ -259,7 +260,20 @@ follows, the picture wins:
   typed in when the window closes is saved too.
 - **Only today can be written.** A box saves itself when left, with the
   usual Saving…, Saved or Not saved.
-- **Sunday** shows the week's ratings and wins above the usual card, all day.
+- **Sunday** shows Your week above the usual card, all day, drawn from
+  Tyler's picture of 15 Nov 2026 ("revamp the your week part to look like
+  this"):
+  - **The heading:** "YOUR WEEK" alone, with no average (Tyler, 15 Nov
+    2026: "remove all this and average rating").
+  - **The chart:** one bar per day, Monday to Sunday, as tall as its rating
+    out of 10, with the number above it. A 10 is 80px tall and a 1 is 15px.
+    The chart sits on its own faint light grey card (Tyler, 15 Nov 2026:
+    "put the chart inside a faint light gray card").
+  - **A day not rated:** a flat grey stub under a dash. Today, still unrated,
+    is a dashed stub under a "?". Today's name under the chart is bold.
+  - **The wins:** each day's win of the day, as a list under the chart.
+  - **No foot:** there is no "3 of 7 days rated" line and no Rate today
+    button. Rate your day stays at the card's foot at night, as every day.
 - **The first of the month** shows last month's best habit (done most often
   for the days it was set), the typical rating and the top wins.
 - **Look back** is the History tab of the site admin's Daily habits block
