@@ -7,6 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 type CountedFilterGroup<Item> = {
@@ -23,6 +24,7 @@ export function CountedFilterPopover<Item>({
   onClear,
   extra,
   extraActive = 0,
+  icon = false,
 }: {
   items: readonly Item[]
   groups: readonly CountedFilterGroup<Item>[]
@@ -31,18 +33,48 @@ export function CountedFilterPopover<Item>({
   extra?: React.ReactNode
   /** How many of those are set, for the button's count. */
   extraActive?: number
+  /**
+   * Drawn as an icon among the chart header's icons, with its count in a dot
+   * like Indicators' (Tyler, 15 Nov 2026: "for journal, move the filter
+   * button here").
+   */
+  icon?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const active = groups.filter((group) => Boolean(group.value)).length + extraActive
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline">
-          <ListFilterIcon />
-          Filter{active ? ` (${active})` : ""}
-        </Button>
-      </PopoverTrigger>
+      {icon ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={active ? `Filter, ${active} set` : "Filter"}
+                className="relative rounded-lg"
+              >
+                <ListFilterIcon className="size-4" />
+                {active ? (
+                  <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center rounded-full bg-foreground text-[8px] leading-none text-background">
+                    {active}
+                  </span>
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Filter</TooltipContent>
+        </Tooltip>
+      ) : (
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline">
+            <ListFilterIcon />
+            Filter{active ? ` (${active})` : ""}
+          </Button>
+        </PopoverTrigger>
+      )}
       <PopoverContent align="end" className="w-72 gap-2 p-0">
         <CountedFilterGroups items={items} groups={groups} />
         {extra ? <div className="border-t p-2.5">{extra}</div> : null}

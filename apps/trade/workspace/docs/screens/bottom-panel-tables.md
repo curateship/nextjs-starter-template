@@ -33,6 +33,14 @@ Practice mark. Positions keep their close actions. Open orders keep the cancel
 action for the exact order shown. The Journal alone keeps selection and removal
 because finished trades do not disappear while a person is choosing them.
 
+The Journal's columns are Market, Wallet, Side, Opened, Ran for, Value, Made /
+lost, Slippage and How it ended. Value is the dollars the trade went in with:
+its entry price times the most coins it held, so 2 ETH bought at $1,500 reads
+$3,000.00. It is the same figure as Put in on the right panel's Summary. Value
+took the place of In at, Out at and Size (Tyler, 15 Nov 2026: "remove the in
+and out col" and "replace the size col with a Value col. value means the usd
+amount it entered with").
+
 The Journal starts in order of when each trade ended, newest first, so a grid
 run closed just now is the top row even when it opened days ago. The Opened
 column still shows its start. An incomplete row is placed by its last saved
@@ -42,11 +50,12 @@ so a reload brings the starting order back. Tyler's rule, 24 Sep 2026.
 The Journal never drops saved fills because they do not make a complete trade.
 It groups those fills by wallet and market and shows History incomplete in the
 same table, along with the number of saved fills in the group. The row leaves
-figures it cannot know blank instead of inventing an entry, exit, size, or
-result. The Opened column says Unknown and gives the first saved fill time
-separately. When the exchange still holds that wallet and market, the row says
-Open, history incomplete, shows the exchange's side, entry, and size, and cannot
-be selected or removed. Old incomplete history may be removed only with the
+figures it cannot know blank instead of inventing a value or a result. The
+Opened column shows the first saved fill's time as "First saved Nov 13, 2026,
+10:39 AM", with no "Unknown" above it (Tyler, 15 Nov 2026: "remove the unknown
+label"). When the exchange still holds that wallet and market, the row says
+Open, history incomplete, shows the exchange's side and the Value it went in
+with, and cannot be selected or removed. Old incomplete history may be removed only with the
 same explicit confirmation as a finished trade.
 
 ## What the row buttons say

@@ -60,18 +60,26 @@ up the left top header widget tab"):
 - **Manage widgets** opens the left page if it was shut, or switches to it on
   a narrow screen, then opens the left page's ⋮ at its Widgets tab.
 
-The left side starts with All wallets and then lists each real mainnet wallet.
+The wallets are a dropdown at the top right of PnL Graph, level with the made
+or lost figure (Tyler, 15 Nov 2026: "Move the wallets here as a dropdown"). The
+button shows a wallet icon and the wallet the card follows, "All wallets" at
+first, so the chart has the card's whole width. The list opens under the
+button, 320px wide, and scrolls inside itself when it is taller than the space
+below. Picking a row closes it. The list starts with All wallets and then lists
+each real mainnet wallet.
 
 - **A row:** the wallet's name with Made or lost on the right, and the exchange
   with the balance under it in grey. All wallets names how many wallets
   answered, and how many are missing when some did not.
-- **The selected row:** a rounded grey fill. Every row has a hand cursor and
-  can be picked by mouse or keyboard.
+- **The selected row:** the small dark bar before its name, as every block's
+  picked row has. Every row has a hand cursor and can be picked by mouse or
+  keyboard.
 - **Empty wallets:** a wallet whose balance and made or lost both round to
   $0.00 is folded away under "Show 3 empty wallets" at the foot of the list.
   Clicking it shows them and the link then reads "Hide 3 empty wallets". Hiding
   them while one is selected puts the selection back on All wallets. The choice
-  is not remembered after a reload.
+  holds while the dropdown is shut and opened again, and is not remembered
+  after a reload.
 - **Switched-off and failed wallets:** switched-off wallets stay out of PnL
   Graph. A wallet whose exchange did not answer stays named with "did not
   answer" under it. It never becomes a row of zeroes and never counts as empty.

@@ -122,6 +122,19 @@ async function openGraphMenu() {
   return menu!
 }
 
+/**
+ * Opens PnL Graph's wallet dropdown at the header's top right (Tyler, 15 Nov
+ * 2026: "Move the wallets here as a dropdown") and hands back its list.
+ */
+function openWallets() {
+  const trigger = host.querySelector<HTMLButtonElement>('button[aria-label^="Wallet: "]')
+  expect(trigger).not.toBeNull()
+  act(() => trigger?.click())
+  const list = document.querySelector<HTMLElement>('[data-slot="popover-content"] section[aria-label="Wallets"]')
+  expect(list).not.toBeNull()
+  return list!
+}
+
 /** Picks one of the period presets from the ⋮'s dropdown (10 Nov 2026). */
 async function pickPreset(menu: HTMLElement, label: string) {
   const trigger = menu.querySelector<HTMLButtonElement>('[aria-label="Profit date range"]')
@@ -230,8 +243,13 @@ describe("what the widgets say about when they started", () => {
       ...overview,
       wallets: [...overview.wallets, secondWallet],
     })
+    // The list is a dropdown now, not a column beside the chart.
+    expect(host.querySelector('section[aria-label="Wallets"]')).toBeNull()
+    expect(
+      host.querySelector('button[aria-label^="Wallet: "]')?.textContent
+    ).toBe("All wallets")
     const walletButtons = [
-      ...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
+      ...openWallets().querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
     ]
 
     expect(walletButtons).toHaveLength(3)
@@ -246,8 +264,20 @@ describe("what the widgets say about when they started", () => {
     )
     act(() => alpha?.click())
 
-    expect(walletButtons[0].getAttribute("aria-pressed")).toBe("false")
-    expect(alpha?.getAttribute("aria-pressed")).toBe("true")
+    // Picking a wallet closes the dropdown, which now names it.
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull()
+    expect(
+      host.querySelector('button[aria-label^="Wallet: "]')?.textContent
+    ).toBe("Alpha")
+    const reopened = [
+      ...openWallets().querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
+    ]
+    expect(reopened[0].getAttribute("aria-pressed")).toBe("false")
+    expect(
+      reopened
+        .find((button) => button.textContent?.includes("Alpha"))
+        ?.getAttribute("aria-pressed")
+    ).toBe("true")
     expect(host.textContent).toContain("Profit and loss · Alpha")
     expect(host.textContent).toContain("-$20.00-2.00%")
     expect(
@@ -280,14 +310,15 @@ describe("what the widgets say about when they started", () => {
       wallets: [...overview.wallets, emptyWallet],
     })
 
-    expect(host.textContent).toContain("2 connected")
-    expect(host.textContent).not.toContain("Empty one")
-    const toggle = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+    const list = openWallets()
+    expect(list.textContent).toContain("2 connected")
+    expect(list.textContent).not.toContain("Empty one")
+    const toggle = [...list.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent === "Show 1 empty wallet"
     )
     act(() => toggle?.click())
-    expect(host.textContent).toContain("Empty one")
-    expect(host.textContent).toContain("Hide 1 empty wallet")
+    expect(list.textContent).toContain("Empty one")
+    expect(list.textContent).toContain("Hide 1 empty wallet")
   })
 
   it("sorts wallet columns and remembers the choice", () => {
@@ -313,14 +344,15 @@ describe("what the widgets say about when they started", () => {
       wallets: [...overview.wallets, secondWallet],
     })
 
-    const walletHeader = host.querySelector<HTMLButtonElement>(
+    const list = openWallets()
+    const walletHeader = list.querySelector<HTMLButtonElement>(
       'button[aria-label^="Sort wallets by wallet"]'
     )
     expect(walletHeader).not.toBeNull()
     act(() => walletHeader?.click())
 
     const walletRows = [
-      ...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
+      ...list.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
     ]
     expect(walletRows[1].textContent).toContain("Alpha")
     expect(walletRows[2].textContent).toContain("Main")
@@ -372,9 +404,10 @@ describe("what the widgets say about when they started", () => {
     expect(shown).not.toContain("Switched off")
     expect(shown).not.toContain("3 wallets")
     expect(shown).not.toContain("4 wallets")
-    expect(shown).toContain("1 connected · 2 missing")
-    expect(shown).toContain("Phemex did not answer")
-    expect(shown).toContain("2 missing")
+    const listed = openWallets().textContent
+    expect(listed).not.toContain("Off wallet")
+    expect(listed).toContain("1 connected · 2 missing")
+    expect(listed).toContain("Phemex did not answer")
   })
 
   it("keeps the card useful before a real wallet has any trades", () => {
@@ -384,7 +417,7 @@ describe("what the widgets say about when they started", () => {
       profit: [],
     })
 
-    expect(shown).toContain("0 connected")
+    expect(openWallets().textContent).toContain("0 connected")
     expect(shown).not.toContain("0 wallets")
     expect(shown).toContain("No real trades have been recorded yet.")
   })

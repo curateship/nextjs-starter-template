@@ -181,9 +181,7 @@ type TradeColumn =
   | "side"
   | "opened"
   | "held"
-  | "entry"
-  | "exit"
-  | "size"
+  | "value"
   | "pnl"
   | "slippage"
   | "ending"
@@ -200,9 +198,9 @@ const TRADE_COLUMNS: ColumnSpec<TradeColumn>[] = [
   { key: "side", label: "Side" },
   { key: "opened", label: "Opened" },
   { key: "held", label: "Ran for" },
-  { key: "entry", label: "In at" },
-  { key: "exit", label: "Out at" },
-  { key: "size", label: "Size" },
+  // The dollars it went in with (Tyler, 15 Nov 2026: "value means the usd
+  // amount it entered with"), in place of In at, Out at and Size.
+  { key: "value", label: "Value" },
   { key: "pnl", label: "Made / lost" },
   { key: "slippage", label: "Slippage" },
   { key: "ending", label: "How it ended" },
@@ -244,8 +242,6 @@ function CopyNoteRow({
       <Cell className="text-muted-foreground">
         {formatDateTime(new Date(note.at))}
       </Cell>
-      <Cell>&mdash;</Cell>
-      <Cell>&mdash;</Cell>
       <Cell>&mdash;</Cell>
       <Cell>&mdash;</Cell>
       <Cell>&mdash;</Cell>
@@ -1378,6 +1374,20 @@ function endingTone(trade: LiveTrade): TradeBadgeTone {
 }
 
 /**
+ * The dollars an incomplete history went in with: its open position's entry
+ * price times its size. Null when there is no position or no entry price.
+ */
+function historyValue(history: UnmatchedTradeHistory): number | null {
+  const position = history.position
+  if (!position || position.entryPx === null) return null
+  return position.entryPx * Math.abs(position.szi)
+}
+
+function UsdOrDash({ value }: { value: number | null }) {
+  return value === null ? <>&mdash;</> : <>{formatUsd(value)}</>
+}
+
+/**
  * Finished trades, one row each — the Journal.
  *
  * Every other table here is a readout of right now; this one is the only place
@@ -1509,9 +1519,7 @@ export function TradesTable({
           case "ending":
             return "Copy skipped"
           case "held":
-          case "entry":
-          case "exit":
-          case "size":
+          case "value":
           case "pnl":
           case "slippage":
             return 0
@@ -1538,12 +1546,8 @@ export function TradesTable({
           return trade?.direction ?? direction
         case "held":
           return trade?.heldMs ?? 0
-        case "entry":
-          return trade?.entryPx ?? position?.entryPx ?? 0
-        case "exit":
-          return trade?.exitPx ?? 0
-        case "size":
-          return trade?.sz ?? Math.abs(position?.szi ?? 0)
+        case "value":
+          return trade?.amountUsd ?? historyValue(history!) ?? 0
         case "pnl":
           return trade?.pnl ?? 0
         case "slippage":
@@ -1664,9 +1668,7 @@ export function TradesTable({
             <Cell className="text-muted-foreground">
               {formatDuration(row.trade.heldMs)}
             </Cell>
-            <Cell>{formatPrice(row.trade.entryPx)}</Cell>
-            <Cell>{formatPrice(row.trade.exitPx)}</Cell>
-            <Cell>{formatSize(row.trade.sz)}</Cell>
+            <Cell>{formatUsd(row.trade.amountUsd)}</Cell>
             <Cell className={cn(moneyTone(row.trade.pnl), hiddenPnl)}>
               {formatSignedUsd(row.trade.pnl)}
               {/* The dollars are the answer; the percentage is only there to
@@ -1795,30 +1797,16 @@ export function TradesTable({
                 <span className="text-muted-foreground">&mdash;</span>
               )}
             </Cell>
+            {/* When it really opened is not known; the oldest saved fill is
+                the nearest thing to it. */}
             <Cell className="text-muted-foreground">
-              <span className="block">Unknown</span>
-              <span className="block text-xs whitespace-nowrap">
-                First saved {formatDateTime(new Date(row.history.firstAt))}
-              </span>
+              First saved {formatDateTime(new Date(row.history.firstAt))}
             </Cell>
             <Cell className="text-muted-foreground">
               {row.history.open ? "Still open" : <>&mdash;</>}
             </Cell>
             <Cell>
-              {row.history.position?.entryPx === null ||
-              row.history.position?.entryPx === undefined ? (
-                <>&mdash;</>
-              ) : (
-                formatPrice(row.history.position.entryPx)
-              )}
-            </Cell>
-            <Cell>&mdash;</Cell>
-            <Cell>
-              {row.history.position ? (
-                formatSize(Math.abs(row.history.position.szi))
-              ) : (
-                <>&mdash;</>
-              )}
+              <UsdOrDash value={historyValue(row.history)} />
             </Cell>
             <Cell>&mdash;</Cell>
             {/* An incomplete history's fills are not a whole trade. */}

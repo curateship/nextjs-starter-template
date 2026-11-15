@@ -8,7 +8,7 @@ import {
   subMonths,
   subWeeks,
 } from "date-fns"
-import { CalendarIcon, InfoIcon } from "lucide-react"
+import { CalendarIcon, ChevronDownIcon, InfoIcon, WalletIcon } from "lucide-react"
 import {
   Area,
   AreaChart,
@@ -364,6 +364,26 @@ export function PnlGraphWidget({
             )}
           </div>
         </div>
+        {/* The wallets are a dropdown at the header's top right (Tyler, 15 Nov
+            2026: "Move the wallets here as a dropdown"), so the chart has the
+            card's whole width. */}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <WalletPicker
+            overview={overview}
+            answered={answered}
+            selectedWalletId={selectedWallet?.id ?? null}
+            selectedLabel={shown.label}
+            onSelectWallet={setSelectedWalletId}
+          />
+          {bare ? null : (
+            <ProfitRangeControls
+              data={data}
+              range={range}
+              dates={rangeDates}
+              onRange={setRange}
+            />
+          )}
+        </div>
         {bare ? (
           // In the widget card, the period and dates are in its ⋮ (Tyler,
           // 10 Nov 2026: "also move this into the dotted dropdown").
@@ -375,23 +395,10 @@ export function PnlGraphWidget({
               onRange={setRange}
             />
           </WidgetMenuOptions>
-        ) : (
-          <ProfitRangeControls
-            data={data}
-            range={range}
-            dates={rangeDates}
-            onRange={setRange}
-          />
-        )}
+        ) : null}
       </DashboardCardHeader>
 
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(18rem,32%)_1fr] lg:divide-x">
-        <WalletList
-          overview={overview}
-          answered={answered}
-          selectedWalletId={selectedWallet?.id ?? null}
-          onSelectWallet={setSelectedWalletId}
-        />
+      <div className="flex min-h-0 flex-1 flex-col">
         <ProfitChart
           overview={overview}
           shown={shown}
@@ -569,18 +576,75 @@ function ProfitRangeControls({ data, range, dates, onRange }: ProfitRangeProps) 
   )
 }
 
-function WalletList({
+/**
+ * The wallet the card follows, picked from a dropdown: All wallets first,
+ * then each wallet with what it made or lost and its balance, sortable, with
+ * the empty ones folded away. Picking one closes the list.
+ */
+function WalletPicker({
   overview,
   answered,
   selectedWalletId,
+  selectedLabel,
   onSelectWallet,
 }: {
   overview: TradingOverview
   answered: AnsweredWallet[]
   selectedWalletId: string | null
+  selectedLabel: string
   onSelectWallet: (walletId: string | null) => void
 }) {
+  const [open, setOpen] = useState(false)
+  // Kept here, not in the list, so closing the dropdown does not fold the
+  // empty wallets away again.
   const [showEmpty, setShowEmpty] = useState(false)
+  const pick = (walletId: string | null) => {
+    onSelectWallet(walletId)
+    setOpen(false)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label={`Wallet: ${selectedLabel}`}
+          className="max-w-56"
+        >
+          <WalletIcon className="size-4" />
+          <span className="min-w-0 truncate">{selectedLabel}</span>
+          <ChevronDownIcon className="size-4 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="flex max-h-[min(28rem,var(--radix-popover-content-available-height))] w-80 flex-col gap-0 p-0">
+        <WalletList
+          overview={overview}
+          answered={answered}
+          selectedWalletId={selectedWalletId}
+          onSelectWallet={pick}
+          showEmpty={showEmpty}
+          onShowEmpty={setShowEmpty}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function WalletList({
+  overview,
+  answered,
+  selectedWalletId,
+  onSelectWallet,
+  showEmpty,
+  onShowEmpty,
+}: {
+  overview: TradingOverview
+  answered: AnsweredWallet[]
+  selectedWalletId: string | null
+  onSelectWallet: (walletId: string | null) => void
+  showEmpty: boolean
+  onShowEmpty: (show: boolean) => void
+}) {
   const [sort, rememberSort] = useRememberedChoice<WalletSort>(
     WALLET_SORT_STORAGE_KEY,
     "result-desc",
@@ -625,15 +689,12 @@ function WalletList({
     // is no longer in the list.
     const selected = wallets.find((wallet) => wallet.id === selectedWalletId)
     if (showEmpty && selected && isEmptyWallet(selected)) onSelectWallet(null)
-    setShowEmpty(!showEmpty)
+    onShowEmpty(!showEmpty)
   }
 
   return (
-    <section
-      aria-label="Wallets"
-      className="flex min-h-0 flex-col border-b lg:border-b-0"
-    >
-      <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-6 pt-3 pb-1.5 text-sm text-muted-foreground">
+    <section aria-label="Wallets" className="flex min-h-0 flex-col">
+      <div className="grid grid-cols-[1fr_auto] items-center gap-3 px-4.5 pt-3 pb-1.5 text-sm text-muted-foreground">
         <TableSortButton
           active={sortKey === "wallet"}
           direction={sortDirection}
@@ -653,7 +714,7 @@ function WalletList({
         </TableSortButton>
       </div>
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-auto">
-        <div className="grid gap-0.5 px-3 pb-3">
+        <div className="grid gap-0.5 px-1.5 pb-1.5">
           <WalletResultRow
             label="All wallets"
             detail={`${answered.length.toLocaleString()} connected${missing ? ` · ${missing.toLocaleString()} missing` : ""}`}
