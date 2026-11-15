@@ -27,8 +27,8 @@ type FlowSort = "name" | "nodes" | "runs" | "updated"
  * The Flows section: every flow in the CRM's one header and table shape, as
  * Admin → Pages lists pages (`pages-tab.tsx`). A press on a row opens the
  * builder in the middle; its cog shows the flow on the right, with Run and
- * Edit flow at its foot. The right-click menu has Edit
- * flow, Run, Duplicate, then Delete.
+ * Edit flow at its foot, then a copy button duplicates it and the bin deletes
+ * it. The right-click menu has Edit flow, Duplicate, then Delete.
  */
 export function FlowsTab({
   flows,
@@ -176,6 +176,9 @@ export function FlowsTab({
               // opens the right panel").
               onOpen={() => edit(flow.id)}
               cog={{ label: `Settings for ${flow.name}`, onPress: () => setOpen(flow.id) }}
+              // A copy beside the cog, so a flow is a template for the next
+              // (Tyler, 14 Nov 2026: "For flow table, add a duplicate function").
+              buttons={[{ label: `Duplicate ${flow.name}`, icon: <CopyIcon className="size-4" />, onPress: () => copy(flow.id) }]}
               onDelete={() => setDeleting(flow)}
               onRightClick={(x, y) => setRightClick({ id: flow.id, x, y })}
             >

@@ -223,6 +223,13 @@ export function FlowNodePanel({
                           onRename={(label) =>
                             set({ asks: settings.asks.map((one) => (one.id === box.id ? { ...one, label } : one)) })
                           }
+                          onOptional={(optional) =>
+                            set({
+                              asks: settings.asks.map((one) =>
+                                one.id === box.id ? { ...one, optional: optional || undefined } : one
+                              ),
+                            })
+                          }
                           onRemove={() => set({ asks: settings.asks.filter((one) => one.id !== box.id) })}
                         />
                       ))}
@@ -357,7 +364,17 @@ export function FlowSettingsPanel({ flow, errors }: { flow: FlowDetail; errors: 
  * drag and drop this"), and the order is the order the step shows them in.
  * Only the grip picks the row up, so typing in the name never starts a drag.
  */
-function BoxRow({ box, onRename, onRemove }: { box: FlowBox; onRename: (label: string) => void; onRemove: () => void }) {
+function BoxRow({
+  box,
+  onRename,
+  onOptional,
+  onRemove,
+}: {
+  box: FlowBox
+  onRename: (label: string) => void
+  onOptional: (optional: boolean) => void
+  onRemove: () => void
+}) {
   const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(box.id, true)
   const BoxIcon = FLOW_BOX_INFO[box.kind].icon
   const name = box.label || FLOW_BOX_INFO[box.kind].label
@@ -395,6 +412,19 @@ function BoxRow({ box, onRename, onRemove }: { box: FlowBox; onRename: (label: s
           </TooltipTrigger>
           <TooltipContent>Remove the box</TooltipContent>
         </Tooltip>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel
+          htmlFor={`flow-node-box-optional-${box.id}`}
+          hint="The step's button works with this box empty, and the node gets nothing from it."
+        >
+          Can be left empty
+        </FieldLabel>
+        <Switch
+          id={`flow-node-box-optional-${box.id}`}
+          checked={!!box.optional}
+          onCheckedChange={onOptional}
+        />
       </div>
     </div>
   )

@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { VIDEO_MODEL } from "@/lib/video/asset-factories"
-import { MOVING_STILL_BUSY_MESSAGE } from "@/lib/video/moving-still"
+import { MOVING_STILL_BUSY_MESSAGE, MOVING_STILL_LOOP_COMPANY_MESSAGE } from "@/lib/video/moving-still"
 import {
   REMAKE_ACTOR_GONE_MESSAGE,
   REMAKE_BUSY_MESSAGE,
@@ -25,9 +25,11 @@ import {
 } from "@/server/test-support"
 import { videoGenerationTick } from "@/server/video/asset-factories/generations"
 import {
+  createPictureShot,
   createStillShot,
   listStillShots,
   movingStillTick,
+  pictureShotState,
   settleStillShot,
 } from "@/server/video/asset-factories/moving-stills"
 import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
@@ -38,6 +40,8 @@ import {
   videoProjectMedia,
 } from "@/server/video/schema"
 import { saveVideoKey } from "@/server/video/settings"
+import { listFlows } from "@/server/video/flow/flows"
+import { getFlowRun, startFlowRun } from "@/server/video/flow/runs"
 
 vi.mock("@/server/media/storage", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/media/storage")>()),
@@ -628,6 +632,89 @@ describe("making a picture move on Seedance", () => {
     expect(remade).toEqual([
       expect.objectContaining({ model: "seedance-1.5-pro", withSound: false }),
     ])
+  })
+
+  it("ends on the picture it starts on and lands as one looped clip as long as the picture", async () => {
+    const video = await seedProject()
+    await saveVideoKey("seedance", "ark-1234")
+    await createStillShot(user.id, {
+      videoId: video.id,
+      clipId: "seven",
+      prompts: ["Only the lamp flickers"],
+      lengthSeconds: 4,
+      quality: "480p",
+      company: "seedance",
+      sound: false,
+      endOnStart: true,
+    })
+    const [asked] = await database.select().from(videoAiGenerations)
+    expect(asked).toMatchObject({ firstFrameMediaId: "still", endFrameMediaId: "still" })
+
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "cgt-1" })))
+    await videoGenerationTick()
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL) =>
+        String(input).endsWith("/tasks/cgt-1")
+          ? Response.json({
+              status: "succeeded",
+              content: { video_url: "https://ark-content.tos-ap-southeast-1.volces.com/a.mp4" },
+              usage: { completion_tokens: 40000 },
+            })
+          : new Response(MP4_START)
+      )
+    )
+    await videoGenerationTick()
+    await movingStillTick()
+    const seven = (await savedTimeline(video.id)).timeline.tracks[0].clips[1]
+    expect(seven).toMatchObject({ kind: "video", startMs: 5000, durationMs: 4000, loop: true })
+  })
+
+  it("refuses to end on the same picture on Google", async () => {
+    const video = await seedProject()
+    await expect(
+      createStillShot(user.id, {
+        videoId: video.id,
+        clipId: "seven",
+        prompts: ["Waves"],
+        lengthSeconds: 4,
+        quality: "720p",
+        company: "gemini",
+        endOnStart: true,
+      })
+    ).rejects.toThrow(MOVING_STILL_LOOP_COMPANY_MESSAGE)
+  })
+
+  it("makes a picture loop for a Flow step with no project, charged to the step", async () => {
+    await seedProject()
+    await saveVideoKey("seedance", "ark-1234")
+    const flows = await listFlows(user.id, database)
+    const { runId } = await startFlowRun(user.id, { flowId: flows[0].id }, database)
+    const run = await getFlowRun(user.id, runId, database)
+    const { shotId } = await createPictureShot(user.id, {
+      mediaId: "still",
+      prompt: "Only the rain on the glass moves",
+      seconds: 8,
+      company: "seedance",
+      quality: "480p",
+      sound: false,
+      endOnStart: true,
+      aspect: "16:9",
+      projectId: null,
+      videoId: null,
+      flowStepId: run.steps[0].id,
+    })
+    const [asked] = await database.select().from(videoAiGenerations)
+    expect(asked).toMatchObject({
+      projectId: null,
+      videoId: null,
+      flowStepId: run.steps[0].id,
+      clipId: null,
+      endFrameMediaId: "still",
+      durationSeconds: 8,
+      status: "queued",
+    })
+    expect(await pictureShotState(user.id, shotId)).toMatchObject({ status: "queued", mediaId: null })
   })
 
   it("refuses Seedance with no key, saying where it goes", async () => {

@@ -56,10 +56,40 @@ asks for 16 seconds: two pieces, $1.62 at Normal. The two pieces land end to
 end in the picture's place and the second is cut off at 10 seconds. Longer
 runs are not offered, because they would only be cut off.
 
+## End on the same picture
+
+A switch in the window, added on 14 Nov 2026 for study videos (the Pomodoro
+flow). On, the shot is one 4, 6 or 8 second piece that ends on the very
+picture it starts on, so it can loop with no join to see, and it lands as one
+looped clip as long as the picture was (`clip-loop.md`). An 8-second café
+scene can then sit under a three-hour video as a single clip.
+
+- **Only Wan and Seedance** can be sent a last picture; Google can't. With
+  Google picked, the window says so and the server refuses: "Only Wan and
+  Seedance can end on the picture they start on. Pick one of them for a
+  loop."
+- **A picture longer than 32 seconds** can only loop, so the switch is on and
+  can't be turned off for it, and the Make it move card offers it rather
+  than refusing.
+- The last picture is sent as the shot's last frame
+  (`endFrameMediaId` on the piece, read by `sentPicture` in `generations.ts`);
+  no first-frame row or actor is needed. A shot with a last picture lands
+  looped, whether the editor or the worker lands it.
+- The model aims to end on the picture but may still move the camera a
+  little, so how seamless a loop looks depends on the shot; a still camera in
+  the direction helps.
+
+- **For a Flow run** (flow.md, the AI editor), a picture on no clip can be
+  made to loop with `createPictureShot`: one piece, belonging to no project
+  until the run is saved and to the Flow step that asked for it
+  (`flow_step_id`, drizzle/0177), whose cost counts its meter rows. Nothing
+  lands it; the step reads it back and lays it itself.
+
 ## What it refuses
 
-- **A picture over 32 seconds:** "Make it move works on pictures up to 32
-  seconds long. Shorten this one first." Four pieces is the most a shot has.
+- **A picture over 32 seconds,** unless it loops: "Make it move works on
+  pictures up to 32 seconds long. Shorten this one first." Four pieces is the
+  most a shot has.
 - **A picture smaller than the frame** (its Size under 100%, such as a
   sticker): "A moving shot always fills the frame. Set this picture's Size to
   100% first." A video clip is always the whole frame (`clip-frame-fit.md`).

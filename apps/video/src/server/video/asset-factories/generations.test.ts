@@ -880,7 +880,7 @@ describe("shots asked for on Veo", () => {
     expect(failed.errorMessage).toBe(
       "Google switched Veo off before this piece arrived. Press Try again to make it with Omni Flash."
     )
-    const { generations } = await listGenerations(user.id, failed.projectId)
+    const { generations } = await listGenerations(user.id, failed.projectId!)
     expect(generations[0].model_name).toBe("Veo 3.1")
 
     await retryGeneration(user.id, "generation-1")

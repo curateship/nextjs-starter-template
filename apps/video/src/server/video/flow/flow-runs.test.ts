@@ -2,7 +2,12 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { FLOW_CHANGED_MESSAGE, flowInputMessage } from "@/lib/video/flow/flows"
+import {
+  FLOW_CHANGED_MESSAGE,
+  FLOW_RUN_BUSY_MESSAGE,
+  FLOW_RUN_NOT_DONE_MESSAGE,
+  flowInputMessage,
+} from "@/lib/video/flow/flows"
 import { createFlowNode } from "@/lib/video/flow/node-kinds"
 import { timelineSchema } from "@/lib/video/timeline-schema"
 import { now } from "@/server/auth/security"
@@ -11,14 +16,17 @@ import { customShellAiUsageEvents, customShellMedia, customShellNotifications, t
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
 import { getOwnedVideo } from "@/server/video/project-videos"
 import { createOwnedProject } from "@/server/video/projects"
-import { videoFlowRunSteps, videoProjectVideos } from "@/server/video/schema"
+import { videoFlowRuns, videoFlowRunSteps, videoProjectVideos } from "@/server/video/schema"
 
 import { createFlow, deleteFlow, getFlow, listFlows, saveFlowGraph } from "./flows"
 import {
   approveFlowStep,
+  deleteFlowRuns,
   getFlowFiles,
   getFlowRun,
+  listFlowRuns,
   redoFlowStep,
+  renameFlowRun,
   retryFlowStep,
   saveFlowRun,
   startFlowRun,
@@ -44,6 +52,16 @@ vi.mock("@/server/video/writer", () => ({
     // A function is something the person does while the AI is answering.
     if (typeof answer === "function") return await answer()
     return answer
+  },
+}))
+
+// The paid makers, counted: each call is a payment.
+const makers = vi.hoisted(() => ({ music: [] as { mood: string; forMs?: number; spend?: unknown }[], failMusicCall: 0 }))
+vi.mock("@/server/video/ai-music", () => ({
+  makeAiMusic: async (args: { mood: string; forMs?: number; spend?: unknown }) => {
+    makers.music.push(args)
+    if (makers.music.length === makers.failMusicCall) throw new Error("ElevenLabs said no.")
+    return { media: { id: `music-${makers.music.length}` }, lengthMs: args.forMs ?? 60_000, cents: 30 }
   },
 }))
 
@@ -91,7 +109,7 @@ async function insertMedia(id: string, fileType: "image" | "video" | "audio", ow
 
 async function starterFlowId() {
   const flows = await listFlows(user.id, database)
-  return flows.find((flow) => flow.starter)!.id
+  return flows.find((flow) => flow.name === "Transcript to video")!.id
 }
 
 function stepByNode(run: Awaited<ReturnType<typeof getFlowRun>>, nodeId: string) {
@@ -109,6 +127,8 @@ beforeEach(async () => {
   writer.answers = []
   writer.prompts = []
   writer.metadata = []
+  makers.music = []
+  makers.failMusicCall = 0
 })
 
 afterEach(async () => {
@@ -120,16 +140,17 @@ afterEach(async () => {
 })
 
 describe("flows", () => {
-  it("makes the starter once, and a deleted starter stays deleted", async () => {
+  it("puts each starter in the table once, and a deleted one stays deleted", async () => {
     const first = await listFlows(user.id, database)
-    expect(first.map((flow) => flow.name)).toEqual(["Transcript to video"])
-    expect(first[0]).toMatchObject({ nodeCount: 3, problemCount: 0, starter: true })
-    await deleteFlow(user.id, first[0].id, database)
-    expect(await listFlows(user.id, database)).toEqual([])
+    expect(first.map((flow) => flow.name).sort()).toEqual(["Pomodoro study video", "Transcript to video"])
+    expect(first.every((flow) => flow.nodeCount === 3 && flow.problemCount === 0 && flow.starter)).toBe(true)
+    const pomodoro = first.find((flow) => flow.name === "Pomodoro study video")!
+    await deleteFlow(user.id, pomodoro.id, database)
+    expect((await listFlows(user.id, database)).map((flow) => flow.name)).toEqual(["Transcript to video"])
   })
 
   it("refuses a save from an older copy of the canvas", async () => {
-    const flow = await createFlow(user.id, { name: "Mine", start: "blank" }, database)
+    const flow = await createFlow(user.id, { name: "Mine" }, database)
     const node = createFlowNode("ai-text", { id: "a", x: 0, y: 0 })
     const saved = await saveFlowGraph(user.id, { flowId: flow.id, graph: { ...flow.graph, nodes: [node] }, version: flow.version }, database)
     expect(saved.version).toBe(flow.version + 1)
@@ -235,6 +256,7 @@ describe("a run of the starter flow", () => {
     writer.answers.push(new Error("Stop here"))
     await flowTick()
     run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "make-video").error).toBe(null)
     expect(stepByNode(run, "make-video").status).toBe("done")
     expect(writer.prompts[1]).toContain("### Generate a script\nJust the good part.")
     expect(writer.prompts[1]).toContain("[5.0-6.1] the good part")
@@ -242,6 +264,12 @@ describe("a run of the starter flow", () => {
     // Not saved yet: no video anywhere, and the run waits on its last step.
     expect(run.videoId).toBeNull()
     expect(run.status).toBe("waiting")
+    // The last step waits for every step before it, the thumbnail too.
+    await expect(saveFlowRun(user.id, { runId, projectId }, database)).rejects.toThrow(FLOW_RUN_NOT_DONE_MESSAGE)
+    await database
+      .update(videoFlowRunSteps)
+      .set({ status: "done" })
+      .where(eq(videoFlowRunSteps.id, stepByNode(run, "thumbnail").id))
     run = await saveFlowRun(user.id, { runId, projectId }, database)
     // Saved: the video goes into the project with the cut already on it.
     expect(run.projectId).toBe(projectId)
@@ -268,6 +296,23 @@ describe("a run of the starter flow", () => {
       ["clip", "video", "clip.mp4"],
     ])
     expect(files[1].url).toBe(`https://media.test/${user.id}/clip.bin`)
+  })
+
+  it("starts a step with a box that can be left empty, left empty", async () => {
+    const flow = await getFlow(user.id, await starterFlowId(), database)
+    const graph = {
+      ...flow.graph,
+      nodes: flow.graph.nodes.map((node) =>
+        node.id === "script"
+          ? { ...node, settings: { ...node.settings, asks: [{ id: "transcript", kind: "text", label: "Transcript", optional: true }] } }
+          : node
+      ),
+    }
+    await saveFlowGraph(user.id, { flowId: flow.id, graph, version: flow.version }, database)
+    const { runId } = await startFlowRun(user.id, { flowId: flow.id }, database)
+    let run = await getFlowRun(user.id, runId, database)
+    run = await startFlowStep(user.id, { stepId: stepByNode(run, "script").id, inputs: {} }, database, checks)
+    expect(stepByNode(run, "script")).toMatchObject({ status: "queued", input: { transcript: {} } })
   })
 
   it("never takes another person's file as an upload", async () => {
@@ -381,5 +426,112 @@ describe("making steps again", () => {
     expect(run.status).toBe("stopped")
     expect(stepByNode(run, "script").status).toBe("queued")
     expect(writer.prompts).toEqual([])
+  })
+})
+
+describe("the Runs table", () => {
+  it("renames a run, keeping the old name for a blank one", async () => {
+    const { runId } = await startFlowRun(user.id, { flowId: await starterFlowId() }, database)
+    await renameFlowRun(user.id, { runId, name: "  Monday's video  " }, database)
+    expect((await getFlowRun(user.id, runId, database)).flowName).toBe("Monday's video")
+    await renameFlowRun(user.id, { runId, name: "   " }, database)
+    expect((await getFlowRun(user.id, runId, database)).flowName).toBe("Monday's video")
+  })
+
+  it("deletes the person's runs, all or none, and never one being made", async () => {
+    const flowId = await starterFlowId()
+    const first = (await startFlowRun(user.id, { flowId }, database)).runId
+    const second = (await startFlowRun(user.id, { flowId }, database)).runId
+    const kept = (await startFlowRun(user.id, { flowId }, database)).runId
+    const other = await insertUser(database, { email: "other@example.com" })
+    await expect(deleteFlowRuns(other.id, { runIds: [first] }, database)).rejects.toThrow("Run not found")
+    // One step being made holds back the whole batch.
+    await database.update(videoFlowRunSteps).set({ status: "working" }).where(eq(videoFlowRunSteps.runId, second))
+    await expect(deleteFlowRuns(user.id, { runIds: [first, second] }, database)).rejects.toThrow(FLOW_RUN_BUSY_MESSAGE)
+    expect(await listFlowRuns(user.id, database)).toHaveLength(3)
+    await database.update(videoFlowRunSteps).set({ status: "queued" }).where(eq(videoFlowRunSteps.runId, second))
+    expect(await deleteFlowRuns(user.id, { runIds: [first, second] }, database)).toEqual({ deleted: 2 })
+    expect((await listFlowRuns(user.id, database)).map((run) => run.id)).toEqual([kept])
+    expect(await database.select().from(videoFlowRunSteps).where(eq(videoFlowRunSteps.runId, first))).toEqual([])
+  })
+})
+
+describe("the AI editor", () => {
+  /** A flow of one AI editor that asks OK first. */
+  async function editorRun() {
+    const flow = await createFlow(user.id, { name: "Study" }, database)
+    const node = createFlowNode("ai-video", { id: "editor", x: 0, y: 0 })
+    node.settings = { ...node.settings, title: "Make the study video", prompt: "Two rounds of lofi.", waitForOk: true }
+    await saveFlowGraph(user.id, { flowId: flow.id, graph: { ...flow.graph, nodes: [node] }, version: flow.version }, database)
+    const { runId } = await startFlowRun(user.id, { flowId: flow.id }, database)
+    const run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "editor").id, inputs: {} }, database, checks)
+    return runId
+  }
+
+  const plan = {
+    title: "Study",
+    frame: "16:9",
+    actions: [
+      {
+        do: "repeat",
+        times: 2,
+        every: 180,
+        actions: [
+          { do: "make_music", id: "M{n}", mood: "lofi round {n}", seconds: 60 },
+          { do: "place", file: "M{n}", from: 0, to: 120, role: "music", crossfade: 3 },
+          { do: "timer", from: 0, to: 120, above: "FOCUS", below: "Round {n}/2" },
+        ],
+      },
+    ],
+  }
+
+  it("shows its plan and price first and pays for nothing until OK", async () => {
+    const runId = await editorRun()
+    writer.answers.push(plan)
+    await flowTick()
+    let run = await getFlowRun(user.id, runId, database)
+    const step = stepByNode(run, "editor")
+    expect(step).toMatchObject({ status: "needs_ok", planned: true })
+    expect(step.output?.text).toContain("M1: 1:00 of music")
+    expect(makers.music).toEqual([])
+
+    run = await approveFlowStep(user.id, { stepId: step.id }, database)
+    expect(stepByNode(run, "editor").status).toBe("queued")
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "editor").status).toBe("done")
+    expect(makers.music.map((call) => call.mood)).toEqual(["lofi round 1", "lofi round 2"])
+    expect(makers.music[0].spend).toMatchObject({ flowRunId: runId, flowStepId: step.id })
+    // Laid on the run, wide, with its timers and music, nothing ducked.
+    const [saved] = await database.select().from(videoFlowRuns).where(eq(videoFlowRuns.id, runId))
+    expect(saved.timeline?.aspect).toBe("16:9")
+    const clips = saved.timeline!.tracks.flatMap((track) => track.clips)
+    expect(clips.filter((clip) => clip.shape === "timer")).toHaveLength(2)
+    expect(clips.filter((clip) => clip.mediaId === "music-1").length).toBeGreaterThan(1)
+    expect(saved.timeline!.tracks.every((track) => !track.duck)).toBe(true)
+  })
+
+  it("never pays twice: Try again keeps what was made, Make it again starts over", async () => {
+    const runId = await editorRun()
+    writer.answers.push(plan)
+    await flowTick()
+    let run = await getFlowRun(user.id, runId, database)
+    await approveFlowStep(user.id, { stepId: stepByNode(run, "editor").id }, database)
+    makers.failMusicCall = 2
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "editor")).toMatchObject({ status: "failed", error: "ElevenLabs said no." })
+
+    run = await retryFlowStep(user.id, { stepId: stepByNode(run, "editor").id }, database)
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "editor").status).toBe("done")
+    // Round 1's music once, round 2's twice (the refused try and the made one).
+    expect(makers.music.map((call) => call.mood)).toEqual(["lofi round 1", "lofi round 2", "lofi round 2"])
+
+    run = await redoFlowStep(user.id, { stepId: stepByNode(run, "editor").id }, database)
+    const [step] = await database.select().from(videoFlowRunSteps).where(eq(videoFlowRunSteps.id, stepByNode(run, "editor").id))
+    expect(step.state).toBeNull()
   })
 })

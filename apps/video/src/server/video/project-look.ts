@@ -55,8 +55,10 @@ export function chosenProjectLook(
 /** Only the style line, for an AI shot, which is sent no look picture. */
 export async function readProjectStyle(
   userId: string,
-  projectId: string,
+  projectId: string | null,
   database: CustomShellDb = db
 ) {
+  // A loop a Flow run makes before it has a project has no style line.
+  if (!projectId) return null
   return (await readProjectLook(userId, projectId, database)).style
 }

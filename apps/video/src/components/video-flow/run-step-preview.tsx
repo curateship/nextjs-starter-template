@@ -105,7 +105,7 @@ export function StepPreview({
           return (
             <li key={box.id} className="grid gap-2 border-b py-3 text-sm last:border-b-0">
               <span className="font-medium">{box.label}</span>
-              <BoxHeld held={held} />
+              <BoxHeld held={held} optional={!!box.optional} />
             </li>
           )
         })}
@@ -165,14 +165,18 @@ export function StepPreview({
  * link, its files as tiles that play where they are, or that an actor or
  * voice was picked.
  */
-function BoxHeld({ held }: { held: FlowStepInput | undefined }) {
+function BoxHeld({ held, optional }: { held: FlowStepInput | undefined; optional: boolean }) {
   if (held?.mediaIds?.length) return <FlowFiles mediaIds={held.mediaIds} />
   if (held?.text?.trim()) return <p className="line-clamp-3 whitespace-pre-wrap text-muted-foreground">{held.text.trim()}</p>
   if (held?.link) return <p className="truncate text-muted-foreground">{held.link}</p>
   if (held?.actorId || held?.voiceId) {
     return <p className="text-muted-foreground">{held.actorId && held.voiceId ? "An actor and a voice picked" : held.actorId ? "An actor picked" : "A voice picked"}</p>
   }
-  return <p className="text-muted-foreground">Not filled in yet. Fill it in on the right.</p>
+  return (
+    <p className="text-muted-foreground">
+      {optional ? "Empty, which is allowed: the step goes on without it." : "Not filled in yet. Fill it in on the right."}
+    </p>
+  )
 }
 
 /**

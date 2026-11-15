@@ -50,3 +50,13 @@ The ElevenLabs key is the same one AI music and voices use. The model is
 ## Not included
 
 Several versions to pick from.
+
+## Loops, and sounds made for a Flow run
+
+- **A sound that loops:** `makeAiSoundEffect` can ask ElevenLabs for a sound
+  that loops smoothly (its `loop` setting, in their docs on 14 Nov 2026), such
+  as 30 seconds of rain to run under a whole video on a looped clip
+  (clip-loop.md).
+- **For a Flow run** not yet saved into a project there is no video: only the
+  month's allowance holds it, and its meter row carries the run and step, as
+  AI music's does (ai-music.md).

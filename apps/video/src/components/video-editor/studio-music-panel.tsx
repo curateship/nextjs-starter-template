@@ -19,6 +19,7 @@ import {
   type MusicShelfFile,
 } from "@/lib/api/video/music"
 import {
+  layAudioRepeats,
   MUSIC_UNREADABLE_MESSAGE,
   musicRefusal,
   planMusicClips,
@@ -28,6 +29,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -77,6 +79,9 @@ export function MusicPanel() {
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
   const [busyId, setBusyId] = React.useState<string | null>(null)
+  // Blend the repeats: a track shorter than the video fades into its next
+  // copy instead of cutting (background-music.md).
+  const [blend, setBlend] = React.useState(false)
   const [uploading, setUploading] = React.useState(false)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const [making, setMaking] = React.useState(false)
@@ -111,21 +116,23 @@ export function MusicPanel() {
         return
       }
       const tracks = store.getSnapshot().state.tracks
-      const clips = planMusicClips(
-        {
-          mediaId: file.id,
-          name: file.original_name,
-          url: file.url,
-          sourceDurationMs,
-        },
-        timelineDurationMs(tracks)
-      )
+      const source = {
+        mediaId: file.id,
+        name: file.original_name,
+        url: file.url,
+        sourceDurationMs,
+      }
+      const projectMs = timelineDurationMs(tracks)
+      const [clips, blended] =
+        blend && projectMs > sourceDurationMs
+          ? layAudioRepeats(source, { fromMs: 0, toMs: projectMs })
+          : [planMusicClips(source, projectMs), []]
       const refusal = musicRefusal(tracks, clips)
       if (refusal) {
         showErrorToast(refusal)
         return
       }
-      dispatch({ type: "ADD_MUSIC_TRACK", clips })
+      dispatch({ type: "ADD_MUSIC_TRACK", clips, blended })
     } finally {
       setBusyId(null)
     }
@@ -223,7 +230,16 @@ export function MusicPanel() {
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid p-3">
+        <div className="grid gap-3 p-3">
+          <div className="grid gap-1">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="music-blend">Blend the repeats</Label>
+              <Switch id="music-blend" checked={blend} onCheckedChange={setBlend} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A track shorter than the video fades into its next copy instead of cutting, on two lanes.
+            </p>
+          </div>
           {loadFailed ? (
             <ErrorRow
               message="The music shelf could not be loaded."

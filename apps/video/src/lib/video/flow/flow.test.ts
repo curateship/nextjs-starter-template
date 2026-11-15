@@ -15,7 +15,7 @@ import { waitsOn } from "./guide"
 import { createFlowNode, FLOW_KINDS, flowBoxLabel, flowKindOf, readFlowNodeSettings, storedFlowKind } from "./node-kinds"
 import { buildFlowPrompt } from "./prompt"
 import { flowRunStatusFrom } from "./run-shape"
-import { starterFlowGraph } from "./starter"
+import { FLOW_STARTERS, pomodoroFlowGraph, starterFlowGraph } from "./starter"
 import { validateFlow } from "./validate"
 
 const at = (id: string, x: number, y = 0) => ({ id, x, y })
@@ -143,5 +143,18 @@ describe("what a step waits on", () => {
       { nodeId: "make-video", status: "waiting", feeds: ["script"] },
     ] as unknown as FlowRunStep[]
     expect(waitsOn(steps[1], steps).map((step) => step.nodeId)).toEqual(["script"])
+  })
+})
+
+describe("the Pomodoro starter", () => {
+  it("is three nodes that run, its details all in the prompts", () => {
+    const graph = pomodoroFlowGraph()
+    expect(validateFlow(graph)).toEqual([])
+    expect(graph.nodes.map((node) => flowKindOf(node.kind))).toEqual(["ai-picture", "ai-video", "ai-thumbnail"])
+    const editor = readFlowNodeSettings(graph.nodes[1].settings)
+    expect(editor.waitForOk).toBe(true)
+    expect(editor.asks).toEqual([{ id: "scene", kind: "media", label: "Your scene", optional: true }])
+    expect(editor.prompt).toContain("Round {n}/6")
+    expect(FLOW_STARTERS.map((starter) => starter.key)).toEqual(["transcript", "pomodoro"])
   })
 })

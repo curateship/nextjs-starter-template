@@ -3,21 +3,18 @@ import * as React from "react"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PlayIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { createFlow, getFlowErrorMessage, startFlowRun } from "@/lib/api/video/flow"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { FLOW_NAME_MAX, type FlowStart } from "@/lib/video/flow/flows"
-import { STARTER_FLOW_NAME } from "@/lib/video/flow/starter"
-
-const START_LABELS: Record<FlowStart, string> = { blank: "Blank canvas", starter: STARTER_FLOW_NAME }
+import { FLOW_NAME_MAX } from "@/lib/video/flow/flows"
 
 /**
  * New flow, a dropdown under its button as every New on a dashboard is: a
- * name, and what it starts from, an empty canvas or a copy of the starter.
- * The new flow opens in the builder, where it is made.
+ * name, for a blank canvas that opens in the builder. The flows in the table
+ * are the templates (Tyler, 14 Nov 2026: "the flows are the templates"), so
+ * one built from another is a Duplicate of its row.
  */
 export function NewFlowDropdown({
   trigger,
@@ -30,13 +27,11 @@ export function NewFlowDropdown({
 }) {
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
-  const [start, setStart] = React.useState<FlowStart>("blank")
   const [run, busy] = useAsyncAction(getFlowErrorMessage)
   const submit = () =>
     void run(async () => {
-      const flow = await createFlow(name, start)
+      const flow = await createFlow(name)
       setName("")
-      setStart("blank")
       setOpen(false)
       await onCreated(flow.id)
     })
@@ -58,27 +53,10 @@ export function NewFlowDropdown({
           autoFocus
           value={name}
           maxLength={FLOW_NAME_MAX}
-          placeholder={start === "starter" ? STARTER_FLOW_NAME : "Talking head video"}
+          placeholder="Talking head video"
           disabled={busy}
           onChange={(event) => setName(event.target.value)}
         />
-      </div>
-      <div className="grid gap-2">
-        <FieldLabel htmlFor="new-flow-start" hint="A blank canvas, or a copy of the starter flow to change.">
-          Start from
-        </FieldLabel>
-        <Select value={start} onValueChange={(value) => setStart(value as FlowStart)} disabled={busy}>
-          <SelectTrigger id="new-flow-start" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(START_LABELS) as FlowStart[]).map((key) => (
-              <SelectItem key={key} value={key}>
-                {START_LABELS[key]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
     </NewRecordDropdown>
   )

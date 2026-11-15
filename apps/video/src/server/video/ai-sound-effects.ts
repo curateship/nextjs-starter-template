@@ -37,11 +37,24 @@ export async function makeAiSoundEffect({
   videoId,
   words,
   seconds,
+  loop = false,
+  spend,
 }: {
   userId: string
-  videoId: string
+  /**
+   * The video it is made for, whose spend limit holds it. Absent for a Flow
+   * run not yet saved into a project: then only the month's allowance does.
+   */
+  videoId?: string
   words: string
   seconds: number | null
+  /**
+   * A sound that loops smoothly (ElevenLabs' own `loop`), such as rain to
+   * run under a whole video on a looped clip (clip-loop.md).
+   */
+  loop?: boolean
+  /** More for its meter row, such as the Flow run and step it is for (flow.md). */
+  spend?: Record<string, string>
 }) {
   const text = words.trim().slice(0, AI_SOUND_WORDS_MAX)
   if (!text) throw new Error(AI_SOUND_NO_WORDS_MESSAGE)
@@ -51,13 +64,18 @@ export async function makeAiSoundEffect({
 
   const cents = aiSoundCostCents(seconds)
   await requireAllowanceRoom(userId, cents)
-  const video = await requireVideoBudget(userId, videoId, cents)
+  const video = videoId ? await requireVideoBudget(userId, videoId, cents) : null
   const charge = {
     userId,
     company: "elevenlabs" as const,
     feature: "ai_sound_effect",
     model: AI_SOUND_MODEL,
-    metadata: { ...videoSpendMetadata(video), seconds: seconds ?? "auto" },
+    metadata: {
+      ...(video ? videoSpendMetadata(video) : {}),
+      ...spend,
+      seconds: seconds ?? "auto",
+      ...(loop ? { loop: true } : {}),
+    },
   }
 
   let bytes: Uint8Array
@@ -69,6 +87,7 @@ export async function makeAiSoundEffect({
         text,
         model_id: AI_SOUND_MODEL,
         ...(seconds !== null ? { duration_seconds: seconds } : {}),
+        ...(loop ? { loop: true } : {}),
       }),
       signal: AbortSignal.timeout(SOUND_TIMEOUT_MS),
     })

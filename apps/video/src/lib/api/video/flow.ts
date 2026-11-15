@@ -6,14 +6,12 @@ import { getAiToolErrorMessage } from "@/lib/api/video/ai-tools"
 import {
   FLOW_INVALID_MESSAGE_PREFIX,
   FLOW_NAME_MAX,
-  FLOW_STARTS,
   isFlowInputMessage,
   SAFE_FLOW_ERRORS,
   type FlowDetail,
   type FlowListItem,
   type FlowRunDetail,
   type FlowRunListItem,
-  type FlowStart,
 } from "@/lib/video/flow/flows"
 import { flowStepInputsSchema, type FlowStepInput } from "@/lib/video/flow/run-shape"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
@@ -49,7 +47,7 @@ const getFlowFn = createServerFn({ method: "GET" })
 
 const createFlowFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ name: z.string().max(FLOW_NAME_MAX), start: z.enum(FLOW_STARTS) }))
+  .inputValidator(z.object({ name: z.string().max(FLOW_NAME_MAX) }))
   .handler(({ data, context }) => server().then((m) => m.createFlow(context.user.id, data)))
 
 const saveGraphFn = createServerFn({ method: "POST" })
@@ -119,6 +117,16 @@ const stopRunFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ runId: idSchema }))
   .handler(({ data, context }) => runsServer().then((m) => m.stopFlowRun(context.user.id, data.runId)))
 
+const renameRunFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ runId: idSchema, name: z.string().max(FLOW_NAME_MAX) }))
+  .handler(({ data, context }) => runsServer().then((m) => m.renameFlowRun(context.user.id, data)))
+
+const deleteRunsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ runIds: z.array(idSchema).min(1).max(500) }))
+  .handler(({ data, context }) => runsServer().then((m) => m.deleteFlowRuns(context.user.id, data)))
+
 const startStepFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ stepId: idSchema, inputs: flowStepInputsSchema.optional() }))
@@ -152,8 +160,9 @@ export function getFlow(flowId: string) {
   return getFlowFn({ data: { flowId } })
 }
 
-export function createFlow(name: string, start: FlowStart) {
-  return createFlowFn({ data: { name, start } })
+/** A new flow, a blank canvas. */
+export function createFlow(name: string) {
+  return createFlowFn({ data: { name } })
 }
 
 export function saveFlowGraph(flowId: string, graph: AutomationGraph, version: number) {
@@ -192,6 +201,15 @@ export function saveFlowRun(runId: string, projectId: string) {
 
 export function stopFlowRun(runId: string) {
   return stopRunFn({ data: { runId } })
+}
+
+export function renameFlowRun(runId: string, name: string) {
+  return renameRunFn({ data: { runId, name } })
+}
+
+/** Deletes these runs, all or none; one making something right now is refused. */
+export function deleteFlowRuns(runIds: string[]) {
+  return deleteRunsFn({ data: { runIds } })
 }
 
 /** A step's button: what is in its boxes, then the AI makes it. */

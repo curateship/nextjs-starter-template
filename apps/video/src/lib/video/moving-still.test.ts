@@ -106,6 +106,35 @@ describe("the shape a picture's shot is made in", () => {
   })
 })
 
+describe("a shot that ends on its own first picture", () => {
+  it("takes any length of picture as one 4, 6 or 8 second piece", () => {
+    expect(stillShotLengths(3 * 3_600_000, true)).toEqual([4, 6, 8])
+    expect(stillRefusal(clip({ durationMs: 3 * 3_600_000 }))).toBe(MOVING_STILL_TOO_LONG_MESSAGE)
+    expect(stillRefusal(clip({ durationMs: 3 * 3_600_000 }), true)).toBeNull()
+  })
+
+  it("lands as one looped clip as long as the picture was", () => {
+    const tracks = [{ id: "scene", muted: false, clips: [clip({ id: "cafe", durationMs: 1_800_000 })] }]
+    const landed = landMovingShot(tracks, {
+      clipId: "cafe",
+      clipMediaId: "still",
+      pieces: [{ mediaId: "loop-file", url: "https://x/loop.mp4", durationMs: 8000 }],
+      newId: () => "new",
+      loop: true,
+    })
+    expect(landed.outcome).toBe("replaced")
+    expect(landed.tracks[0].clips).toHaveLength(1)
+    expect(landed.tracks[0].clips[0]).toMatchObject({
+      id: "cafe",
+      kind: "video",
+      mediaId: "loop-file",
+      durationMs: 1_800_000,
+      sourceDurationMs: 8000,
+      loop: true,
+    })
+  })
+})
+
 describe("landing a moving shot", () => {
   it("replaces the picture in the same place and moves nothing else", () => {
     const tracks = seededTracks()

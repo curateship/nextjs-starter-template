@@ -46,6 +46,7 @@ import type {
   FlowRunStatus,
   FlowStepInputs,
   FlowStepOutput,
+  FlowStepState,
   FlowStepStatus,
 } from "@/lib/video/flow/run-shape"
 import {
@@ -1477,15 +1478,24 @@ export const videoAiGenerations = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // Null on a loop a Flow run makes before it is saved into a project
+    // (drizzle/0177, flow.md); `flowStepId` then says whose it is.
+    projectId: varchar("project_id", { length: 36 }).references(() => videoProjects.id, {
+      onDelete: "cascade",
+    }),
     // The video that was open when the shot was asked for, which pays for it
     // (drizzle/0145). The shot itself belongs to the whole project. Deleting
     // the video blanks it, and the shot then counts toward no video.
     videoId: varchar("video_id", { length: 36 }).references(
       () => videoProjectVideos.id,
       { onDelete: "set null" }
+    ),
+    // The Flow step that asked for it, so its meter rows count toward that
+    // step's cost (drizzle/0177). Deleting the run deletes the shot's row:
+    // the file it made stays in Media, and its cost stays on the meter.
+    flowStepId: varchar("flow_step_id", { length: 36 }).references(
+      () => videoFlowRunSteps.id,
+      { onDelete: "cascade" }
     ),
     // Null on a shot made from a picture already on the timeline, which
     // names that clip below instead (drizzle/0126).
@@ -1579,7 +1589,7 @@ export const videoAiGenerations = pgTable(
     ),
     check(
       "video_ai_generations_source_check",
-      sql`${table.firstFrameId} is not null or ${table.clipId} is not null`
+      sql`${table.firstFrameId} is not null or ${table.clipId} is not null or ${table.flowStepId} is not null`
     ),
     check(
       "video_ai_generations_clip_outcome_check",
@@ -2297,12 +2307,19 @@ export const videoFlows = pgTable(
 export type VideoFlowRow = typeof videoFlows.$inferSelect
 
 /** When a person's starter flow was made, so deleting it never brings it back. */
-export const videoFlowStarts = pgTable("video_flow_starts", {
-  userId: varchar("user_id", { length: 36 })
-    .primaryKey()
-    .references(() => customShellUsers.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-})
+// Each starter flow put in a person's table, once each (drizzle/0179), so a
+// deleted one never comes back.
+export const videoFlowStarts = pgTable(
+  "video_flow_starts",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    starter: varchar("starter", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.starter] })]
+)
 
 /** One run of a flow into a project, with its own copy of the graph. */
 export const videoFlowRuns = pgTable(
@@ -2356,6 +2373,9 @@ export const videoFlowRunSteps = pgTable(
     // What the step's boxes held, by box (`FlowStepInputs`).
     input: jsonb("input").$type<FlowStepInputs>(),
     output: jsonb("output").$type<FlowStepOutput>(),
+    // What a step making several paid things remembers between the worker's
+    // passes: its plan, whether it was OK'd, and each file made (drizzle/0178).
+    state: jsonb("state").$type<FlowStepState>(),
     promptSent: text("prompt_sent"),
     estimateCents: integer("estimate_cents"),
     costCents: integer("cost_cents"),

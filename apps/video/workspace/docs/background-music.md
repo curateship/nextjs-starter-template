@@ -76,6 +76,26 @@ The music always covers the video from its first moment to its last. How long
 - **Refusals:** a track so short it would need more than 500 pieces, or a
   timeline that already has 50 lanes, gets a message instead of an edit.
 
+## Blend the repeats
+
+A switch at the top of the Music panel, added on 14 Nov 2026 for study videos
+(the Pomodoro flow). Off, a track shorter than the video repeats back to back
+with a cut at each repeat, as above. On, each copy fades into the next
+instead (`layAudioRepeats` in `src/lib/video/background-music.ts`):
+
+- The copies alternate between two lanes, both with duck under voice on,
+  each copy starting 3 seconds before the one before it ends. One fades out
+  while the next fades in over those 3 seconds, using the clips' own Sound
+  fade in and Sound fade out. Sound has no transitions of its own
+  (`clip-transitions.ts`), so a blend is two fades on two lanes, which the
+  preview and the export already play.
+- The blend is never more than a third of the track, so each copy is mostly
+  heard whole.
+- The last copy fades out over 2 seconds where the video ends; a leftover
+  too short to be worth playing is dropped and the copy before it runs on to
+  the end instead.
+- Both lanes go in as one Undo.
+
 ## The fade
 
 The last piece of music arrives with a 2 second sound fade out. It is the same

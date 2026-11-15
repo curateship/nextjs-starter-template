@@ -51,8 +51,8 @@ const FLOW_PAGE_READ = "video-flow-page"
  *   the cover photo and the lock.
  * - **Middle:** the section's table. Edit flow flips it to the builder (the
  *   node kinds, then the canvas) and a run to its steps page, in place.
- * - **Right:** the picked flow, the picked node or the flow's own settings
- *   in the builder, or the picked step of a run. The Runs table has none.
+ * - **Right:** the picked flow or run from a table's cog, the picked node or
+ *   the flow's own settings in the builder, or the picked step of a run.
  *
  * The frame stays while the section changes (`crm-frame.tsx`).
  */
@@ -105,7 +105,9 @@ export function FlowDashboard({ loaded, search }: { loaded: FlowLoaded; search: 
 
   const { place, frame, setRightSpot } = useCrmFrame<FlowTab>(loaded.tab)
   const bareMiddle = place?.bare ?? false
-  const hasRight = place?.hasRight ?? loaded.tab === "flows"
+  // Both tables and both pages have a right panel; until the middle says
+  // what it holds, keep its place.
+  const hasRight = place?.hasRight ?? true
   const rightLabel = place?.rightLabel || "Flow"
   const rightShowLabel = place?.rightShowLabel || "Show the flow"
   const heading = <MiddleHeading icon={SECTION_ICONS[loaded.tab]} label={FLOW_TAB_LABELS[loaded.tab]} />

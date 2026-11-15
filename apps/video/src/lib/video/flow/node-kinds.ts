@@ -76,10 +76,12 @@ export const FLOW_KIND_INFO: Record<FlowKind, KindInfo> = {
     description: "Writes words from your prompt, its boxes and what is connected to it.",
     button: "Write it",
   },
+  // Stored as ai-video, which saved flows name; shown as the AI editor
+  // since it uses the editor's own tools (flow.md, "AI editor").
   "ai-video": {
-    name: "AI video",
+    name: "AI editor",
     icon: ClapperboardIcon,
-    description: "Cuts its videos into the run's video, as your prompt says.",
+    description: "Builds the video with the editor's tools as your prompt says: cuts, moving pictures, music, sounds, timers, text.",
     button: "Make the video",
   },
   "ai-thumbnail": {
@@ -112,8 +114,12 @@ export const FLOW_KIND_INFO: Record<FlowKind, KindInfo> = {
 export const FLOW_BOX_KINDS = ["text", "video", "media", "link", "actor-voice"] as const
 export type FlowBoxKind = (typeof FLOW_BOX_KINDS)[number]
 
-/** One box a node asks you for: its kind, and the name over it on the step. */
-export type FlowBox = { id: string; kind: FlowBoxKind; label: string }
+/**
+ * One box a node asks you for: its kind, the name over it on the step, and
+ * whether it can be left empty (`optional`), such as "Your scene" when the
+ * node falls back on an AI picture without it.
+ */
+export type FlowBox = { id: string; kind: FlowBoxKind; label: string; optional?: boolean }
 
 export const FLOW_BOX_INFO: Record<FlowBoxKind, { name: string; icon: LucideIcon; label: string; description: string }> = {
   text: { name: "Text", icon: FileTextIcon, label: "Text", description: "Words you paste, such as a transcript or notes." },
@@ -168,7 +174,7 @@ function readBoxes(value: AutomationSettingValue | undefined): FlowBox[] {
     const id = item.id
     if (typeof id !== "string" || !id || typeof kind !== "string" || !(FLOW_BOX_KINDS as readonly string[]).includes(kind)) continue
     const label = typeof item.label === "string" ? item.label.slice(0, FLOW_TITLE_MAX) : ""
-    boxes.push({ id: id.slice(0, 64), kind: kind as FlowBoxKind, label })
+    boxes.push({ id: id.slice(0, 64), kind: kind as FlowBoxKind, label, ...(item.optional === true ? { optional: true } : {}) })
   }
   return boxes.slice(0, FLOW_BOXES_MAX)
 }

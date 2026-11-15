@@ -219,7 +219,29 @@ async function makeStep(claimed: VideoFlowRunRow, step: VideoFlowRunStepRow) {
         .where(stillMaking)
       return
     }
-    const waitForOk = readFlowNodeSettings(node.settings).waitForOk
+    if ("confirm" in result) {
+      // The plan and its price, waiting for the person's OK before anything
+      // is paid for (flow.md, "Plan, OK, then make").
+      await db
+        .update(videoFlowRunSteps)
+        .set({
+          status: "needs_ok",
+          output: result.confirm.output,
+          promptSent: result.confirm.promptSent ?? null,
+          estimateCents:
+            result.confirm.estimateCents === undefined ? step.estimateCents : Math.ceil(result.confirm.estimateCents),
+          costCents: await meteredCents(step.id),
+          error: null,
+          wakeAt: null,
+          finishedAt: at,
+          updatedAt: at,
+        })
+        .where(stillMaking)
+      await settleFlowRun(run.id)
+      return
+    }
+    // A step whose plan was OK'd has had its OK; it doesn't wait again.
+    const waitForOk = readFlowNodeSettings(node.settings).waitForOk && !step.state?.approved
     await db
       .update(videoFlowRunSteps)
       .set({

@@ -28,6 +28,13 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  DEFAULT_TIMER_COLOR,
+  DEFAULT_TIMER_FONT,
+  DEFAULT_TIMER_LINE_WIDTH,
+  isTimerClip,
+  TIMER_LABEL_MAX,
+} from "@/lib/video/timer"
+import {
   CLIP_SPEED_STEP,
   CLIP_VOLUME_STEP,
   clipSpeed,
@@ -183,7 +190,7 @@ import {
   DEFAULT_TEXT_STROKE_WIDTH,
   TEXT_STROKE_WIDTH_MAX,
 } from "@/lib/video/text-lines"
-import { formatClock } from "@/lib/video/timeline-utils"
+import { formatClock, MIN_CLIP_MS } from "@/lib/video/timeline-utils"
 import { cn } from "@/lib/utils"
 import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
 import { RemakeCard } from "@/components/video-editor/remake-clips"
@@ -244,7 +251,9 @@ export function StudioInspector() {
               ? "Blur"
               : isSocialClip(clip)
                 ? "Sticker"
-                : CLIP_KIND_LABEL[clip.kind]
+                : isTimerClip(clip)
+                  ? "Timer"
+                  : CLIP_KIND_LABEL[clip.kind]
             : "Inspector"
         }
         meta={clip ? clip.name : undefined}
@@ -272,6 +281,8 @@ export function StudioInspector() {
               <FadesSection clip={clip} />
               <Timing clip={clip} />
             </>
+          ) : isTimerClip(clip) ? (
+            <TimerInspector clip={clip} />
           ) : clip.kind === "shape" ? (
             <ShapeInspector clip={clip} />
           ) : (
@@ -497,6 +508,102 @@ function ShapeInspector({ clip }: { clip: EditorClip }) {
           checked={!!clip.drawOn}
           onChange={(drawOn) => patch({ drawOn: drawOn || undefined })}
         />
+      </InspectorCard>
+
+      <FadesSection clip={clip} />
+
+      <Timing clip={clip} />
+    </>
+  )
+}
+
+/**
+ * A timer (timer.md): it counts down over its own length, so making it
+ * longer on the timeline is what sets its time. Dragged and resized on the
+ * preview like a circle.
+ */
+function TimerInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <>
+      <InspectorCard
+        title="Timer"
+        description="Counts down over its own length on the timeline. Drag it on the preview, or a dot to resize it."
+      >
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="timer-above">Words above the time</FieldLabel>
+          <Textarea
+            id="timer-above"
+            rows={1}
+            maxLength={TIMER_LABEL_MAX}
+            value={clip.timerAbove ?? ""}
+            placeholder="FOCUS"
+            onChange={(event) => patch({ timerAbove: event.target.value || undefined })}
+          />
+        </div>
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="timer-below">Words below the time</FieldLabel>
+          <Textarea
+            id="timer-below"
+            rows={1}
+            maxLength={TIMER_LABEL_MAX}
+            value={clip.timerBelow ?? ""}
+            placeholder="Round 1/6"
+            onChange={(event) => patch({ timerBelow: event.target.value || undefined })}
+          />
+        </div>
+        <SwitchField
+          id="timer-up"
+          label="Count up"
+          description="From 00:00 instead of down to it."
+          checked={!!clip.timerUp}
+          onChange={(on) => patch({ timerUp: on || undefined })}
+        />
+        <SwitchField
+          id="timer-ring"
+          label="Ring"
+          description="A ring round the time that empties as it runs."
+          checked={clip.timerRing !== false}
+          onChange={(on) => patch({ timerRing: on ? undefined : false })}
+        />
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="timer-font">Font</FieldLabel>
+          <Select
+            value={requireTextFont(clip.fontId ?? DEFAULT_TIMER_FONT).id}
+            onValueChange={(fontId) => patch({ fontId: requireTextFont(fontId as TextFontId).id })}
+          >
+            <SelectTrigger id="timer-font" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEXT_FONTS.map((font) => (
+                <SelectItem key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <ColorField
+          label="Colour"
+          value={clip.color ?? DEFAULT_TIMER_COLOR}
+          onChange={(color) => patch({ color }, true)}
+        />
+        {clip.timerRing !== false ? (
+          <SliderField
+            id="timer-line-width"
+            label="Ring thickness"
+            value={clip.lineWidth ?? DEFAULT_TIMER_LINE_WIDTH}
+            min={MIN_SHAPE_LINE_WIDTH}
+            max={MAX_SHAPE_LINE_WIDTH}
+            onChange={(lineWidth) => patch({ lineWidth }, true)}
+          />
+        ) : null}
       </InspectorCard>
 
       <FadesSection clip={clip} />
@@ -951,6 +1058,45 @@ function VoiceCleanField({ clip }: { clip: EditorClip }) {
  * recording and changes how long it takes to play it, so the number people
  * actually want to see is the new length.
  */
+/**
+ * The Loop switch on a video or sound (clip-loop.md). On, the file starts
+ * again from its beginning when it runs out, so the clip can be stretched on
+ * the timeline as long as it is wanted: an 8-second scene under a 3-hour
+ * video, or 30 seconds of rain under all of it. Off again, the clip is cut
+ * back to what is left of its file.
+ */
+function LoopSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if ((clip.kind !== "video" && clip.kind !== "audio") || !clip.sourceDurationMs) return null
+  const sourceMs = clip.sourceDurationMs
+
+  return (
+    <InspectorCard title="Loop" description="Plays the file again from the start when it runs out.">
+      <SwitchField
+        id="clip-loop"
+        label="Loop this clip"
+        description="Drag its right edge out as far as you like; it keeps playing round."
+        checked={!!clip.loop}
+        onChange={(on) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: on
+              ? { loop: true }
+              : {
+                  loop: undefined,
+                  durationMs: Math.min(
+                    clip.durationMs,
+                    Math.max(MIN_CLIP_MS, (sourceMs - clip.trimStartMs) / clipSpeed(clip))
+                  ),
+                },
+          })
+        }
+      />
+    </InspectorCard>
+  )
+}
+
 function SpeedSection({ clip }: { clip: EditorClip }) {
   const { dispatch } = useEditorRuntime()
   if (clip.kind !== "video" && clip.kind !== "audio") return null
@@ -1486,6 +1632,8 @@ function MediaInspector({ clip }: { clip: EditorClip }) {
       <FadesSection clip={clip} />
 
       <SpeedSection clip={clip} />
+
+      <LoopSection clip={clip} />
 
       <TransitionSection clip={clip} />
 

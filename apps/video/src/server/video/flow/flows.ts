@@ -7,46 +7,45 @@ import {
   FLOW_NOT_FOUND_MESSAGE,
   type FlowDetail,
   type FlowListItem,
-  type FlowStart,
 } from "@/lib/video/flow/flows"
-import { STARTER_FLOW_DESCRIPTION, STARTER_FLOW_NAME, starterFlowGraph } from "@/lib/video/flow/starter"
+import { FLOW_STARTERS } from "@/lib/video/flow/starter"
 import { validateFlow } from "@/lib/video/flow/validate"
 import { EMPTY_AUTOMATION_GRAPH } from "@/lib/automations/graph"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { videoFlowRuns, videoFlows, videoFlowStarts, type VideoFlowRow } from "@/server/video/schema"
 
-/** The label on the starter's row; only a label (drizzle/0173). */
-const STARTER_KEY = "transcript-to-video"
-
 function cleanName(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, FLOW_NAME_MAX)
 }
 
 /**
- * Makes the person's starter flow the first time their list is read. A row
- * in `video_flow_starts` says it was made, so deleting it never brings it
- * back (the way templates' starters work, `templates.md`).
+ * Puts each starter flow in the person's table the first time their list is
+ * read after it exists (Tyler, 14 Nov 2026: "the flows are the templates").
+ * A row in `video_flow_starts` says each one was made, so deleting it never
+ * brings it back.
  */
-async function ensureStarter(userId: string, database: CustomShellDb) {
+async function ensureStarters(userId: string, database: CustomShellDb) {
   await database.transaction(async (tx) => {
-    const [started] = await tx
-      .insert(videoFlowStarts)
-      .values({ userId, createdAt: now() })
-      .onConflictDoNothing()
-      .returning({ userId: videoFlowStarts.userId })
-    if (!started) return
-    const at = now()
-    await tx.insert(videoFlows).values({
-      id: uuid(),
-      userId,
-      name: STARTER_FLOW_NAME,
-      description: STARTER_FLOW_DESCRIPTION,
-      graph: starterFlowGraph(),
-      starter: STARTER_KEY,
-      createdAt: at,
-      updatedAt: at,
-    })
+    for (const starter of FLOW_STARTERS) {
+      const [started] = await tx
+        .insert(videoFlowStarts)
+        .values({ userId, starter: starter.key, createdAt: now() })
+        .onConflictDoNothing()
+        .returning({ userId: videoFlowStarts.userId })
+      if (!started) continue
+      const at = now()
+      await tx.insert(videoFlows).values({
+        id: uuid(),
+        userId,
+        name: starter.name,
+        description: starter.description,
+        graph: starter.graph(),
+        starter: starter.key,
+        createdAt: at,
+        updatedAt: at,
+      })
+    }
   })
 }
 
@@ -86,7 +85,7 @@ function listItem(row: VideoFlowRow, facts: { runs: number; lastRunAt: string | 
 
 /** Every flow of the person's, last changed first. */
 export async function listFlows(userId: string, database: CustomShellDb = db): Promise<FlowListItem[]> {
-  await ensureStarter(userId, database)
+  await ensureStarters(userId, database)
   const rows = await database
     .select()
     .from(videoFlows)
@@ -116,13 +115,13 @@ export async function getFlow(userId: string, flowId: string, database: CustomSh
   return { ...listItem(row, facts.get(row.id)), graph: row.graph, version: row.version }
 }
 
-/** A new flow, empty or a copy of the starter. */
+/** A new flow, a blank canvas. One built from another flow is a duplicate of it. */
 export async function createFlow(
   userId: string,
-  payload: { name: string; start: FlowStart },
+  payload: { name: string },
   database: CustomShellDb = db
 ): Promise<FlowDetail> {
-  const name = cleanName(payload.name) || (payload.start === "starter" ? STARTER_FLOW_NAME : "New flow")
+  const name = cleanName(payload.name) || "New flow"
   const at = now()
   const [row] = await database
     .insert(videoFlows)
@@ -130,8 +129,8 @@ export async function createFlow(
       id: uuid(),
       userId,
       name,
-      description: payload.start === "starter" ? STARTER_FLOW_DESCRIPTION : "",
-      graph: payload.start === "starter" ? starterFlowGraph() : EMPTY_AUTOMATION_GRAPH,
+      description: "",
+      graph: EMPTY_AUTOMATION_GRAPH,
       createdAt: at,
       updatedAt: at,
     })

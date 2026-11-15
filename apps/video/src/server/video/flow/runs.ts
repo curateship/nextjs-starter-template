@@ -4,7 +4,10 @@ import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import { flowFeeders, flowStepOrder, flowStepsAfter, readyFlowSteps } from "@/lib/video/flow/advance"
 import {
   FLOW_INVALID_MESSAGE_PREFIX,
+  FLOW_NAME_MAX,
+  FLOW_RUN_BUSY_MESSAGE,
   FLOW_RUN_NOT_FOUND_MESSAGE,
+  FLOW_RUN_NOT_DONE_MESSAGE,
   FLOW_RUN_SAVED_MESSAGE,
   FLOW_RUN_STOPPED_MESSAGE,
   FLOW_STEP_NOT_FOUND_MESSAGE,
@@ -50,7 +53,8 @@ import {
 } from "@/server/video/schema"
 
 import { getOwnedFlowRow } from "./flows"
-import { placeFlowThumbnail } from "./thumbnail"
+import { readThumbnailLayers } from "@/lib/video/thumbnails"
+import { createThumbnail } from "@/server/video/thumbnails"
 
 /** Where the runs a person can open stop. Older ones are still kept. */
 const RUNS_LISTED = 200
@@ -139,6 +143,7 @@ function stepView(
     costCents: row.costCents ?? spent.get(row.id) ?? null,
     error: row.error,
     note: row.note,
+    planned: row.status === "needs_ok" && row.state?.phase === "planned",
     attempts: row.attempts,
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null,
@@ -419,6 +424,14 @@ export async function saveFlowRun(
       .where(and(eq(videoProjects.id, payload.projectId), eq(videoProjects.userId, userId)))
       .limit(1)
     if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+    // The last step: every step before it is done first (Tyler, 14 Nov 2026:
+    // "why am i able to save a project if the steps are not done?").
+    const unfinished = await tx
+      .select({ id: videoFlowRunSteps.id })
+      .from(videoFlowRunSteps)
+      .where(and(eq(videoFlowRunSteps.runId, run.id), sql`${videoFlowRunSteps.status} <> 'done'`))
+      .limit(1)
+    if (unfinished.length) throw new Error(FLOW_RUN_NOT_DONE_MESSAGE)
 
     let videoId = run.videoId
     if (run.timeline && !videoId) {
@@ -441,34 +454,70 @@ export async function saveFlowRun(
     ]
     if (mediaIds.length) await attachPastedMediaToProject(userId, project.id, mediaIds, tx)
 
-    if (videoId && run.timeline) {
-      const shape = run.timeline.aspect === "16:9" || run.timeline.aspect === "4:3" ? "wide" : "tall"
+    // Each AI thumbnail goes on the video's board as the step laid it
+    // (thumbnail-answer.ts).
+    if (videoId) {
       for (const step of steps) {
-        const picture = step.output?.mediaIds?.[0]
-        if (flowKindOf(step.kind) !== "ai-thumbnail" || !picture || step.output?.thumbnailIds?.length) continue
-        const [media] = await tx
-          .select({ id: customShellMedia.id, storagePath: customShellMedia.storagePath, name: customShellMedia.originalName })
-          .from(customShellMedia)
-          .where(and(eq(customShellMedia.id, picture), eq(customShellMedia.userId, userId)))
-          .limit(1)
-        if (!media) continue
-        const thumbnailId = await placeFlowThumbnail(
-          userId,
+        const design = step.output?.thumbnail
+        if (flowKindOf(step.kind) !== "ai-thumbnail" || !design || step.output?.thumbnailIds?.length) continue
+        const thumbnail = await createThumbnail({
+          owner: userId,
           videoId,
-          shape,
-          { mediaId: media.id, storagePath: media.storagePath, name: media.name },
-          step.output?.text ?? "",
-          tx
-        )
+          shape: design.shape,
+          layers: readThumbnailLayers(design.layers),
+          database: tx,
+        })
         await tx
           .update(videoFlowRunSteps)
-          .set({ output: { ...step.output, thumbnailIds: [thumbnailId], videoId } })
+          .set({ output: { ...step.output, thumbnailIds: [thumbnail.id], videoId } })
           .where(eq(videoFlowRunSteps.id, step.id))
       }
     }
     await settleFlowRun(run.id, tx)
   })
   return getFlowRun(userId, payload.runId, database)
+}
+
+/**
+ * Renames the run. A run starts with its flow's name, which is what its bell,
+ * its files and the video it saves are named after, so they take the new one
+ * from here on (Tyler, 14 Nov 2026: "need ability to edit the run like
+ * title").
+ */
+export async function renameFlowRun(userId: string, payload: { runId: string; name: string }, database: Database = db) {
+  const run = await ownedRun(userId, payload.runId, database)
+  const name = payload.name.trim().slice(0, FLOW_NAME_MAX)
+  if (!name) return { name: run.flowName }
+  await database.update(videoFlowRuns).set({ flowName: name, updatedAt: now() }).where(eq(videoFlowRuns.id, run.id))
+  return { name }
+}
+
+/**
+ * Deletes the person's runs, all or none. A run with a step being made right
+ * now is refused, so the worker never writes into a run that is gone. Its
+ * steps and their shot rows go with it (cascade); the files it made stay in
+ * Media, the cost stays on the meter, and a video it saved stays in its
+ * project.
+ */
+export async function deleteFlowRuns(userId: string, payload: { runIds: string[] }, database: Database = db) {
+  const ids = [...new Set(payload.runIds)]
+  if (!ids.length) return { deleted: 0 }
+  return database.transaction(async (tx) => {
+    const owned = await tx
+      .select({ id: videoFlowRuns.id })
+      .from(videoFlowRuns)
+      .where(and(inArray(videoFlowRuns.id, ids), eq(videoFlowRuns.userId, userId)))
+      .for("update")
+    if (owned.length !== ids.length) throw new Error(FLOW_RUN_NOT_FOUND_MESSAGE)
+    const busy = await tx
+      .select({ id: videoFlowRunSteps.id })
+      .from(videoFlowRunSteps)
+      .where(and(inArray(videoFlowRunSteps.runId, ids), eq(videoFlowRunSteps.status, "working")))
+      .limit(1)
+    if (busy.length) throw new Error(FLOW_RUN_BUSY_MESSAGE)
+    await tx.delete(videoFlowRuns).where(and(inArray(videoFlowRuns.id, ids), eq(videoFlowRuns.userId, userId)))
+    return { deleted: ids.length }
+  })
 }
 
 /** Stops the run. A step being made finishes, but nothing after it starts. */
@@ -579,6 +628,8 @@ async function readBox(
   checks: BoxChecks
 ): Promise<FlowStepInputs[string]> {
   const label = flowBoxLabel(box)
+  // A box that can be left empty, left empty, keeps nothing.
+  if (box.optional && !boxHolds(given)) return {}
   switch (box.kind) {
     case "text": {
       const text = given?.text?.trim() ?? ""
@@ -620,6 +671,11 @@ async function readBox(
       return kept
     }
   }
+}
+
+/** Whether anything was put in a box. */
+function boxHolds(given: FlowStepInput | undefined) {
+  return Boolean(given?.text?.trim() || given?.link?.trim() || given?.mediaIds?.length || given?.actorId || given?.voiceId)
 }
 
 async function queueStep(stepId: string, runId: string, tx: Database) {
@@ -672,6 +728,20 @@ export async function approveFlowStep(
   const runId = await database.transaction(async (tx) => {
     const { step, run } = await ownedStepForChange(userId, payload.stepId, tx)
     if (step.status !== "needs_ok") throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
+    // OK on a plan: now it is made, and paid for (flow.md, "Plan, OK, then make").
+    if (step.state?.phase === "planned") {
+      await tx
+        .update(videoFlowRunSteps)
+        .set({
+          status: "queued",
+          state: { ...step.state, phase: "making", approved: true },
+          finishedAt: null,
+          updatedAt: now(),
+        })
+        .where(eq(videoFlowRunSteps.id, step.id))
+      await settleFlowRun(run.id, tx)
+      return run.id
+    }
     const edited = payload.text?.trim()
     const output: FlowStepOutput | null =
       edited && step.output?.text !== undefined ? { ...step.output, text: edited } : step.output
@@ -690,18 +760,25 @@ export async function approveFlowStep(
  * result reached goes back to waiting, keeping what its boxes held so it
  * opens filled in.
  */
-async function sendBack(step: VideoFlowRunStepRow, run: VideoFlowRunRow, tx: Database) {
+async function sendBack(
+  step: VideoFlowRunStepRow,
+  run: VideoFlowRunRow,
+  tx: Database,
+  { keepMade }: { keepMade: boolean }
+) {
   const at = now()
   const after = [...flowStepsAfter(run.graph, step.nodeId)]
   if (after.length) {
     await tx
       .update(videoFlowRunSteps)
-      .set({ status: "waiting", output: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
+      .set({ status: "waiting", output: null, state: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
       .where(and(eq(videoFlowRunSteps.runId, run.id), inArray(videoFlowRunSteps.nodeId, after)))
   }
+  // Try again keeps everything already made and paid for, so it is never
+  // paid for twice; Make it again starts the step from nothing.
   await tx
     .update(videoFlowRunSteps)
-    .set({ status: "queued", output: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
+    .set({ status: "queued", state: keepMade ? step.state : null, output: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
     .where(eq(videoFlowRunSteps.id, step.id))
   await settleFlowRun(run.id, tx)
 }
@@ -713,7 +790,7 @@ export async function redoFlowStep(userId: string, payload: { stepId: string }, 
     const kind = flowKindOf(step.kind)
     const redoable = step.status === "needs_ok" || step.status === "done" || step.status === "failed"
     if (!kind || !redoable || !step.input) throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
-    await sendBack(step, run, tx)
+    await sendBack(step, run, tx, { keepMade: false })
     return run.id
   })
   return getFlowRun(userId, runId, database)
@@ -724,7 +801,7 @@ export async function retryFlowStep(userId: string, payload: { stepId: string },
   const runId = await database.transaction(async (tx) => {
     const { step, run } = await ownedStepForChange(userId, payload.stepId, tx)
     if (step.status !== "failed") throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
-    await sendBack(step, run, tx)
+    await sendBack(step, run, tx, { keepMade: true })
     return run.id
   })
   return getFlowRun(userId, runId, database)

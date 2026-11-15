@@ -11,9 +11,9 @@ import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components
 import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup, WorkspacePanel } from "@/components/ui/resizable"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import { deleteFlow, duplicateFlow, getFlowErrorMessage, saveFlowGraph, type FlowDetail } from "@/lib/api/video/flow"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -202,8 +202,8 @@ export function FlowBuilder({
         <KindsToggle shut label="Show the nodes" onClick={toggleKinds} className="first:-ml-[13px]" />
       ) : null}
       {/* Back to the Flows table (Tyler, 14 Nov 2026: "add a back button here
-          to go back to the table"), as the run's guide has one back to here.
-          Leaving saves any change still waiting. */}
+          to go back to the table"), in this header ("move the arrow back to
+          the middle panel"). Leaving saves any change still waiting. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button asChild variant="ghost" size="icon" className="-ml-1 shrink-0">

@@ -27,6 +27,7 @@ import { TRANSITION_KINDS } from "./clip-transitions"
 import { CAPTION_ANIMATION_IDS } from "./caption-animations"
 import { clipOriginSchema } from "./clip-origin"
 import { progressBarSchema } from "./progress-bar"
+import { TIMER_LABEL_MAX } from "./timer"
 import { MAX_TIMELINE_MARKERS, timelineMarkerSchema } from "./timeline-markers"
 import { MAX_PUNCH_INS, punchInSchema } from "./punch-ins"
 import { MAX_LEVEL_RAISE_DB, MIN_LEVEL_DB } from "./clip-level"
@@ -175,6 +176,10 @@ export const clipSchema = z
     pictureFadeOutMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
     // How long the whole source file runs, so a trim cannot reach past its end.
     sourceDurationMs: z.number().nonnegative().finite().optional(),
+    // On a video or sound: the file starts again from its beginning when it
+    // runs out, so the clip can run for as long as it is stretched
+    // (clip-loop.md). Absent means it plays once, as every clip always did.
+    loop: z.boolean().optional(),
     // Text clips.
     text: z.string().max(5000).optional(),
     fontId: z.enum(TEXT_FONT_IDS).optional(),
@@ -248,6 +253,13 @@ export const clipSchema = z
       .max(MAX_SHAPE_LINE_WIDTH)
       .optional(),
     drawOn: z.boolean().optional(),
+    // Timers (timer.ts): a shape clip whose shape is "timer", counting down
+    // over its own length (up when `timerUp`), with words above and below
+    // the time and a ring that empties unless `timerRing` is false.
+    timerAbove: z.string().max(TIMER_LABEL_MAX).optional(),
+    timerBelow: z.string().max(TIMER_LABEL_MAX).optional(),
+    timerRing: z.boolean().optional(),
+    timerUp: z.boolean().optional(),
     // Blur clips (blur.ts): a shape clip whose shape is "blur", drawn as its
     // box or the oval inside it, this soft, and following the places in
     // `blurTrack` when it follows something.
@@ -296,6 +308,13 @@ export const clipSchema = z
         code: "custom",
         path: ["fontId"],
         message: "Text clips require a font",
+      })
+    }
+    if (clip.loop && (clip.kind === "video" || clip.kind === "audio") && !(clip.sourceDurationMs && clip.sourceDurationMs > 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["loop"],
+        message: "A looped clip needs its file's length",
       })
     }
     if (clip.kind === "shape" && !clip.shape) {

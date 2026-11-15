@@ -59,7 +59,9 @@ more flexibile").
 - **Flows, middle:** a table of flows with a search box and New flow. A press
   on a row opens the builder, and the row's cog shows the flow on the right
   (Tyler, 14 Nov 2026: "clicking the flow in the table goes straight to the
-  canvas. Only clicking on the settings cog opens the right panel").
+  canvas. Only clicking on the settings cog opens the right panel"). Beside
+  the cog, a copy button duplicates the flow ("For flow table, add a
+  duplicate function"), then the bin deletes it.
 - **Flows, right:** the flow's name and description, saved as they are typed,
   how many runs it has had, and how many things stop it running. The footer
   has Run and Edit flow, as a page has Open and Edit page. The ⋮ is the tabbed
@@ -69,10 +71,25 @@ more flexibile").
   such as the place the dashboard remembered from before it was deleted,
   opens the Flows or Runs table and drops it from the address, rather than
   failing with "Flow not found".
-- **Runs, middle:** the shell's table of every run, newest first, with its project, how many steps
-  are done, what it has cost and its state. A press opens the run's steps
-  page. Runs have no right panel and no New button, because a run only comes
-  from Run.
+- **Runs, middle:** the shell's table of every run, newest first, with its
+  project, how many steps are done, what it has cost and its state. A press
+  opens the run's steps page; the row's cog shows the run on the right and
+  its bin deletes it. Select, in the header or the right-click menu, ticks
+  runs to delete together (Tyler, 14 Nov 2026: "add an action col for the
+  runs table with mass select"). There is no New button, because a run only
+  comes from Run.
+- **Runs, right:** the run's name, saved as it is typed ("need ability to
+  edit the run like title"), then its steps done, project, spend and start.
+  A run starts with its flow's name; its bell, its files and the video it
+  saves are named after the run's name, so a new name applies from then on,
+  and a blank one keeps the old. The footer has Open the run; the ⋮ has
+  Delete run.
+- **Deleting a run** takes its steps with it. The files it made stay in
+  Media, its cost stays on the meter, and a video it saved stays in its
+  project. A run with a step being made right now is refused ("Stop it, or
+  wait for that step to finish"), all or none, so the worker never writes
+  into a run that is gone. Its AI picture jobs' rows go with their step
+  (`0177` links them with ON DELETE CASCADE).
 
 ## The builder
 
@@ -92,7 +109,9 @@ Edit flow flips the middle in place, as Edit page does on Admin → Pages.
 - **The canvas header** is shaped as an automation's: an arrow back to the
   Flows table (Tyler, 14 Nov 2026: "add a back button here to go back to the
   table"), the flow's name, whether it is saved, then Run and the ⋮ with
-  Duplicate and Delete. Leaving saves any change still waiting.
+  Duplicate and Delete. Leaving saves any change still waiting. The arrow
+  stays in this header, not in a side panel ("move the arrow back to the
+  middle panel").
 - **Run** shows no spinner and doesn't grey out while the run starts ("remove
   the loading indicator in the run button"). A second press meanwhile is
   ignored, so it never starts two runs.
@@ -107,6 +126,11 @@ Edit flow flips the middle in place, as Edit page does on Admin → Pages.
     14 Nov 2026: "i want to drag and drop this"), and the step shows the
     boxes in that order. Only the grip drags, so typing a name never moves a
     box. A run already going keeps the order it started with.
+    Each box has a **Can be left empty** switch: on, the step's button works
+    with that box empty, the step's card says "Can be left empty", and the
+    node gets nothing from it. The Pomodoro starter's "Your scene" is one:
+    the AI editor animates your own picture when you pick one, and the AI
+    picture when you don't.
   - **Guide:** its step's words: Heading, Short line, Explanation, Tip and
     Button.
   - **Lines:** what the node reads from and hands on to. With no node picked, the right panel shows the
@@ -120,18 +144,42 @@ Edit flow flips the middle in place, as Edit page does on Admin → Pages.
   Run stays pressable and says the first of these when pressed.
 - **On a phone** the nodes panel is a + in the canvas header.
 
-## The starter
+## The starters
 
-"Transcript to video" is Tyler's example in three nodes: AI text "Generate a
-script", which asks for the Transcript and has Wait for my OK on, then AI
-video "Make the video", which asks for the Raw video and reads the script,
-then AI thumbnail. Its guide has three steps and Save to a project, with
-the words of Tyler's picture on Generate a script: "Script", "How the AI reads
-your transcript", the explanation, the tip about speaker names and
-timestamps, and the button "Generate script". It is made for each person the first
-time their Flows list is read. A row in `video_flow_starts` stops it coming
-back once deleted. New flow can also start from a copy of it. Its prompts are
-a start meant to be rewritten.
+The flows in the table are the templates (Tyler, 14 Nov 2026: "the flows are
+the templates"). Each starter (`FLOW_STARTERS` in
+`src/lib/video/flow/starter.ts`) is put in a person's Flows table once, the
+first time it is read after the starter exists, and is an ordinary flow from
+then on: changed, duplicated or deleted. A row per person and starter in
+`video_flow_starts` (drizzle/0179) stops a deleted one coming back. New flow
+makes a blank canvas, with a name and nothing else; a flow built from another
+is a Duplicate of its row. A starter is only nodes and prompts; there is no
+code for any kind of video. Tyler, 14 Nov
+2026: "We shouldnt be building a node for every video type. The parameters,
+data or instructions should just be a prompt Ai can use on existing video
+editors tools".
+
+- **Transcript to video** is Tyler's first example in three nodes: AI text
+  "Generate a script", which asks for the Transcript and has Wait for my OK
+  on, then the AI editor "Make the video", which asks for the Raw video and
+  reads the script, then AI thumbnail. Its guide has three steps and Save to a
+  project, with the words of Tyler's picture on Generate a script: "Script",
+  "How the AI reads your transcript", the explanation, the tip about speaker
+  names and timestamps, and the button "Generate script".
+- **Pomodoro study video** (`workspace/tasks/flow/02-pomodoro-flow.md`) is a
+  three-hour study video like Study Pomodoro's "25/5 Pomodoro Timer | Cozy
+  Coffee Shop with lofi": AI picture "Café window", then the AI editor "Make
+  the study video", then AI thumbnail. His answers are all in the prompts: a
+  ring timer with FOCUS or BREAK and the round, a new lofi track each focus
+  round, rain only in the breaks, rain all the way, a chime at each change,
+  the loop on Seedance at 1080p, nothing on the video but the timer, and the
+  thumbnail like the reference in Fredoka. The AI editor has Wait for my OK on,
+  so it shows its plan and price first, and a "Your scene" box that can be
+  left empty: his own picture when he picks one, the AI café otherwise. The
+  thumbnail comes after the AI editor, which hands on the picture it
+  animated, so the thumbnail uses whichever scene the video used.
+
+Every starter's prompts are a start meant to be rewritten.
 
 ## A run
 
@@ -142,7 +190,11 @@ a start meant to be rewritten.
 - **Before it is saved,** AI video keeps its cut on the run, and AI
   thumbnail makes its picture from a frame of that cut. Uploads and the
   files the AI makes are in your Media, on no project's shelf yet.
-- **Save to a project,** the last step: the middle lists what gets saved
+- **Save to a project,** the last step, opens only once every step before it
+  is done (Tyler, 14 Nov 2026: "why am i able to save a project if the steps
+  are not done?"). Until then its panel says which steps are still to do and
+  has no button, and the server refuses an early save: "Finish every step
+  first; saving into a project is the last step." Once open, the middle lists what gets saved
   (the video, the files, the thumbnail), and the right panel has the Project
   box and Save to project at its foot. Saving makes the project's video from
   the cut, named after the flow, puts every file the run was given or made
@@ -267,8 +319,34 @@ into it brought.
 
 - **AI text:** one ask of whichever AI writes words on Settings → AI
   (`writing-with-ai.md`), metered as `flow_text`.
-- **AI video:** the AI is sent the prompt, every text in its boxes or
-  connected to it, and what is said in each of its videos. The words come as timed lines, a new
+- **AI editor** (stored as `ai-video`, its name until 14 Nov 2026): builds
+  the video with the editor's own tools as its prompt says
+  (`src/lib/video/flow/editor-actions.ts`). Its pictures and sounds are
+  named for the AI (P1…, S1…) and its footage too (F1…). It answers with
+  `actions`: make a picture move (`animate_picture`, a loop when it ends on
+  its start, as Make it move does), make music (`make_music`) or a sound
+  (`make_sound`, looping or not), place a file for a stretch as background,
+  overlay, music, ambience or effects (looping, or blending its repeats),
+  text, a timer, a starter sound, a marker, and `repeat` for rounds and sets,
+  with `{n}` and `{n%K}` in its words. An answer it can't use (a file it
+  doesn't have, a time back to front, an id twice) is sent back to the AI
+  once with what was wrong. Its lanes are laid by role, words and timers on
+  top, and none ducks, so rain never pulls the music down.
+  - **Plan, OK, then make:** with Wait for my OK on, the AI editor stops
+    after planning, before anything is paid for: the step shows "The plan",
+    each thing it makes with its price and what it lays, and its button
+    reads "OK, make it · about $…" (Tyler picked "Show plan, wait for OK").
+    Make it again asks for a new plan. After OK it doesn't wait again.
+  - **One paid thing a pass:** it makes each track, sound and loop on its
+    own pass of the worker and writes each one down on the step as soon as it
+    is paid for (`state`, drizzle/0178), so Try again carries on from where it
+    stopped and never pays twice; Make it again starts from nothing. A moving
+    picture is made by the AI video worker; the step looks again every 20
+    seconds, saying so. The whole plan's price is checked against the
+    month's allowance before the first thing is made.
+  - **Cutting footage** is what AI video did: the AI is sent the prompt,
+    every text in its boxes or connected to it, and what is said in each of
+    its videos. The words come as timed lines, a new
   line at every pause longer than 0.7 seconds. The AI answers with stretches
   of those files, in the order they should play, and whether to add captions.
   The app cuts each stretch at the edges of the words in it, lays them end to
@@ -277,25 +355,25 @@ into it brought.
   there are some (`saved-transcripts.md`), otherwise they are written down
   first. A big upload whose smooth copy isn't made yet makes the step wait and
   look again every minute, saying why (`big-files.md`).
-- **AI picture:** one picture from the prompt, the shape of the run's video
-  (or of the project's last edited video before there is one),
+- **AI picture:** one picture from the prompt, the shape of the run's video;
+  before there is one, the shape its prompt says (16:9, wide, landscape;
+  9:16, tall, portrait; square), else the run's,
   with any connected pictures or actor as references. It lands in Media.
 - **AI voice:** every connected text read aloud, in the picked voice or the
   usual voice from the Read a script with AI window. It lands in Voices and
   Media.
 - **AI music:** the prompt is the mood. The track is as long as the run's
-  video (`ai-music.md`). The music tool makes a track for a video, so AI music
-  goes after AI video.
-- **AI thumbnail:** the AI picks a moment of the run's video and up to five
-  words from the prompt and the captions on it. The thumbnail tools then make
-  one version on the video's Thumbnail board, as an idea does
-  (`thumbnails.md`). It needs a video with something on it, so it goes after
-  AI video.
-
-AI video in this first build only cuts and orders the connected footage, with
-captions. It doesn't yet make AI pictures or voice lines inside the same
-video. Put AI picture or AI voice nodes beside it for those; their files land
-in Media.
+  video, saved or not yet, or a minute when nothing is laid, up to 5 minutes
+  (`ai-music.md`). Before the run is saved only the month's allowance holds
+  it, and its meter row carries the step.
+- **AI thumbnail:** follows its prompt (`thumbnail-answer.ts`). The AI
+  answers with the picture under it (a connected picture by name, or a
+  moment of the run's video), an optional AI change to that picture, a shade
+  at the top or bottom, and the words (font, size, colour, where) and rings
+  over it, laid with the Thumbnail board's own layers, a ring a true circle.
+  A preview is drawn into Media for the step. A saved run's video gets it on
+  its Thumbnail board at once; otherwise saving the run puts it there, as the
+  step laid it (`thumbnails.md`).
 
 ## What it costs
 
@@ -325,7 +403,12 @@ the left page:
   Dashboards block's hidden rows and their order.
 - `video_flow_run_steps`: one row per node of a run, with its state, what you
   gave it, what it made, what the AI was sent, the estimate, the cost, the
-  reason it failed, and a wake time and note for a step waiting on an upload.
+  reason it failed, a wake time and note for a step waiting on an upload,
+  and what a step making several paid things remembers between the worker's
+  passes: its plan, whether it was OK'd, and each file made
+  (`state`, drizzle/0178).
+- `video_ai_generations.flow_step_id` (drizzle/0177): the Flow step a
+  moving picture was made for, before the run has a project.
 
 ## How it is built
 
@@ -350,7 +433,9 @@ the left page:
   its bell and Try again were seen in a real browser. AI text, AI video's cut
   with captions, Wait for my OK with an edited script, Make it again and Try
   again pass in tests with a stand-in AI.
-- **AI picture, AI voice, AI music, AI thumbnail and the Video link box**
-  call the same tools the editor uses, but none has been run end to end in a
-  flow.
+- **AI picture, AI voice, AI music, AI thumbnail, the AI editor's making
+  and the Video link box** call the same tools the editor uses, but none has
+  been run end to end in a flow with real keys. The AI editor's plan, OK,
+  making one thing a pass, Try again never paying twice, and laying a
+  2-round Pomodoro pass in tests with stand-ins for the AI and ElevenLabs.
 - **A real upload through a Video upload box** was not tried in the browser.

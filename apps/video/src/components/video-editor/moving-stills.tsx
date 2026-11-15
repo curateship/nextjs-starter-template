@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -190,11 +191,14 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       if (shot.status !== "ready" || !shot.clip || landing.current.has(shot.id)) continue
       const { id: clipId, media_id: clipMediaId } = shot.clip
       const pieces = readyPieces(shot)
+      // A shot that ends on its own first picture lands looped.
+      const loop = shot.end_frame
       const still = landMovingShot(store.getSnapshot().state.tracks, {
         clipId,
         clipMediaId,
         pieces,
         newId: editorId,
+        loop,
       })
       landing.current.add(shot.id)
       settleStillShot(shot.id, still.outcome)
@@ -207,7 +211,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
             toast("A moving shot arrived after its clip was deleted. It is in Media.")
             return
           }
-          dispatch({ type: "LAND_MOVING_SHOT", clipId, clipMediaId, pieces })
+          dispatch({ type: "LAND_MOVING_SHOT", clipId, clipMediaId, pieces, loop })
         })
         .catch(() => {
           // Asked again on the next answer.
@@ -228,7 +232,8 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
         const again =
           clip?.kind === "video" && clip.origin && isMovingOrigin(clip.origin) ? clip.origin : null
         if (!clip || (clip.kind !== "image" && !again)) return
-        const refusal = stillRefusal(clip)
+        // A picture too long for a shot can still loop one (clip-loop.md).
+        const refusal = stillRefusal(clip, !again)
         if (refusal) {
           reportError(refusal)
           return
@@ -272,6 +277,7 @@ function OwnerMovingStills({ children }: { children: React.ReactNode }) {
       quality: draft.pick.quality,
       company: draft.pick.company,
       sound: draft.pick.sound,
+      endOnStart: draft.endOnStart || undefined,
     })
     // Google's next shot starts on the size just used, as the server saved.
     if (draft.pick.company === "gemini") {
@@ -338,6 +344,8 @@ type StillDraft = {
   prompts: string[]
   lengthSeconds: ShotLengthSeconds
   pick: ShotMakingPick
+  /** End on the picture it starts on, so it lands as one looped clip. */
+  endOnStart: boolean
 }
 
 /**
@@ -372,8 +380,12 @@ function AnimateStillDialog({
   onError: (error: unknown) => void
 }) {
   const { project } = useProjectSettings()
-  const lengths = stillShotLengths(clip.durationMs)
-  const [lengthSeconds, setLengthSeconds] = React.useState<ShotLengthSeconds>(lengths[0])
+  // A picture longer than any shot can only loop.
+  const onlyLoop = !again && !!stillRefusal(clip) && !stillRefusal(clip, true)
+  const [endOnStart, setEndOnStart] = React.useState(onlyLoop)
+  const lengths = stillShotLengths(clip.durationMs, endOnStart)
+  const [pickedLength, setLengthSeconds] = React.useState<ShotLengthSeconds>(lengths[0])
+  const lengthSeconds = lengths.includes(pickedLength) ? pickedLength : lengths[0]
   const [pick, setPick] = React.useState<ShotMakingPick>(() => startPick(choices, again))
   // Every piece starts on the clip's own direction, however long a shot is picked.
   const mostPieces = shotPieces(lengths[lengths.length - 1]).count
@@ -406,7 +418,7 @@ function AnimateStillDialog({
     }
     setBusy(true)
     try {
-      await onMake({ prompts: sent, lengthSeconds, pick })
+      await onMake({ prompts: sent, lengthSeconds, pick, endOnStart })
     } catch (error) {
       onError(error)
     } finally {
@@ -520,6 +532,25 @@ function AnimateStillDialog({
                       </Select>
                     </div>
                   </div>
+                  {again ? null : (
+                    <div className="grid gap-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="still-end-on-start">End on the same picture</Label>
+                        <Switch
+                          id="still-end-on-start"
+                          checked={endOnStart}
+                          disabled={busy || onlyLoop}
+                          onCheckedChange={setEndOnStart}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {onlyLoop
+                          ? "This picture is longer than any shot, so the shot ends on the picture it starts on and loops for as long as the picture runs."
+                          : "The shot ends on the picture it starts on and loops for as long as the picture runs, with no join to see."}
+                        {endOnStart && !model.endFrame ? " Only Wan and Seedance can do this: pick one of them below." : ""}
+                      </p>
+                    </div>
+                  )}
                   <ShotModelFields
                     idPrefix="still"
                     choices={choices}
@@ -529,7 +560,9 @@ function AnimateStillDialog({
                     disabled={busy}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {lengthSeconds * 1000 > clip.durationMs
+                    {endOnStart
+                      ? `Loops for the picture's ${seconds} seconds when it lands. `
+                      : lengthSeconds * 1000 > clip.durationMs
                       ? `Trimmed back to the ${again ? "clip" : "picture"}'s ${seconds} seconds when it lands. `
                       : ""}
                     {makingPriceLine(pick.company, pick.quality, lengthSeconds, sound)}
@@ -573,7 +606,9 @@ export function MakeItMoveCard({ clip }: { clip: EditorClip }) {
   const stills = useMovingStills()
   if (!stills || clip.kind !== "image") return null
   const shot = stills.shotFor(clip.id)
-  const refusal = stillRefusal(clip)
+  // Too long for a shot but not for a loop (clip-loop.md).
+  const refusal = stillRefusal(clip, true)
+  const onlyLoop = !!stillRefusal(clip)
 
   if (shot?.status === "error") {
     return (
@@ -614,7 +649,7 @@ export function MakeItMoveCard({ clip }: { clip: EditorClip }) {
       </InspectorCard>
     )
   }
-  const shortest = stillShotLengths(clip.durationMs)[0]
+  const shortest = stillShotLengths(clip.durationMs, onlyLoop)[0]
   return (
     <InspectorCard
       title="Make it move"

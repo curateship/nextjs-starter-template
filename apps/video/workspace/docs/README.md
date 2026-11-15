@@ -51,9 +51,17 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [thumbnails.md](thumbnails.md) — the Thumbnail section: the board, versions
   and the main one, text and picture looks, every AI tool, titles, the check,
   templates, the download and the export cover.
+- [timer.md](timer.md) — the Timer in Shapes: a countdown over its own
+  length with a ring that empties and words above and below, how it steps
+  once a second in the preview and the export, and why each second is drawn
+  once.
 - [progress-bar.md](progress-bar.md) — the bar that fills along one edge as
   the video plays: one per project, where it sits against the safe box, and
   how its thickness is counted.
+- [clip-loop.md](clip-loop.md) — a video or sound that starts again when
+  its file runs out, so it can be stretched as long as wanted: the Loop
+  switch, how the preview and the export keep the same place, and why a
+  looped sound is decoded to WAV.
 - [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
   make across its time on screen, and why the export draws them with
   `perspective` rather than `zoompan`.

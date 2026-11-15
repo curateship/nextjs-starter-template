@@ -79,6 +79,9 @@ export function SaveStepPanel({
   const [projectId, setProjectId] = React.useState("")
   const [save, busy] = useAsyncAction(getFlowErrorMessage)
   const saved = run.projectId !== null
+  // The last step opens once every step before it is done.
+  const waitingOn = run.steps.filter((step) => step.status !== "done")
+  const ready = waitingOn.length === 0
 
   React.useEffect(() => {
     if (saved) return
@@ -98,7 +101,7 @@ export function SaveStepPanel({
     }
   }, [saved])
 
-  const stateLine = saved ? "Done" : run.status === "stopped" ? "Stopped" : "Pick the project"
+  const stateLine = saved ? "Done" : run.status === "stopped" ? "Stopped" : ready ? "Pick the project" : "Waiting"
 
   return (
     <RecordFrame
@@ -107,7 +110,13 @@ export function SaveStepPanel({
       line={`Step ${index + 1} of ${count} · ${stateLine}`}
       hideLabel="Hide the step"
       body={
-        saved ? (
+        !saved && !ready ? (
+          <PanelCard storageId="video-flow-run-status" icon={<FolderInputIcon />} title="This step">
+            <p className="text-sm text-muted-foreground">
+              This step opens once every step before it is done. Still to do: {waitingOn.map((step) => step.title).join(", ")}.
+            </p>
+          </PanelCard>
+        ) : saved ? (
           <PanelCard storageId="video-flow-run-saved" icon={<FolderInputIcon />} title="Saved">
             <div className="grid gap-3 text-sm">
               <p>Saved in {run.projectName}.</p>
@@ -157,7 +166,7 @@ export function SaveStepPanel({
         )
       }
       footer={
-        saved || run.status === "stopped" ? null : (
+        saved || !ready || run.status === "stopped" ? null : (
           <Button
             type="button"
             size="lg"

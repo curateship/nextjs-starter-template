@@ -100,6 +100,12 @@ import { Hint } from "@/components/video-assets/hint"
 import { usePlatformInset } from "@/components/video-editor/caption-settings-context"
 import { newProgressBar } from "@/lib/video/progress-bar"
 import {
+  DEFAULT_TIMER_COLOR,
+  DEFAULT_TIMER_FONT,
+  DEFAULT_TIMER_LINE_WIDTH,
+  newTimerPlacement,
+} from "@/lib/video/timer"
+import {
   DEFAULT_SHAPE_COLOR,
   DEFAULT_SHAPE_DURATION_MS,
   DEFAULT_SHAPE_LINE_WIDTH,
@@ -1103,6 +1109,29 @@ function TextPanel({
     })
   }
 
+  // A timer lands in the middle at the playhead, square on any shape of
+  // video, counting down five minutes in white Fredoka (timer.md).
+  function addTimer() {
+    const [across, down] = aspect.split(":").map(Number)
+    dispatch({
+      type: "ADD_OVERLAY",
+      clip: {
+        id: editorId(),
+        kind: "shape",
+        name: "Timer",
+        shape: "timer",
+        ...newTimerPlacement(across / down),
+        color: DEFAULT_TIMER_COLOR,
+        fontId: DEFAULT_TIMER_FONT,
+        lineWidth: DEFAULT_TIMER_LINE_WIDTH,
+        trimStartMs: 0,
+        startMs: 0,
+        durationMs: 5 * 60_000,
+      },
+      atMs: clock.getTime(),
+    })
+  }
+
   // A social sticker lands at the playhead with the person's own name and
   // picture. The Subscribe button brings its click with it, on a lane of its
   // own at the moment the cursor presses, and one Undo takes both away.
@@ -1210,6 +1239,7 @@ function TextPanel({
             label: SHAPE_LABELS[kind],
             onClick: () => addShape(kind),
           })),
+          { key: "timer", label: "Timer", onClick: addTimer },
           { key: "blur", label: "Blur", onClick: addBlur },
           { key: "progress", label: "Progress bar", onClick: addProgressBar },
         ].map((item) => (

@@ -5,6 +5,7 @@ import {
   FileTextIcon,
   InfoIcon,
   LightbulbIcon,
+  ListChecksIcon,
   Loader2Icon,
   RefreshCwIcon,
   RotateCcwIcon,
@@ -96,7 +97,13 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
   const boxes = step.boxes.map((box) => {
     const BoxIcon = FLOW_BOX_INFO[box.kind].icon
     return (
-      <PanelCard key={box.id} storageId={`video-flow-run-box-${box.kind}`} icon={<BoxIcon />} title={box.label}>
+      <PanelCard
+        key={box.id}
+        storageId={`video-flow-run-box-${box.kind}`}
+        icon={<BoxIcon />}
+        title={box.label}
+        meta={box.optional ? "Can be left empty" : undefined}
+      >
         {open ? (
           <BoxField box={box} value={draftFor(step, box.id)} onChange={(value) => onDraft(step, box.id, value)} busy={busy} />
         ) : (
@@ -153,6 +160,31 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
       <FooterButton busy icon={<SparklesIcon />} onClick={() => undefined}>
         Being made…
       </FooterButton>
+    )
+  } else if (step.status === "needs_ok" && step.planned) {
+    // The plan and its price, before anything is paid for (flow.md).
+    state = "Check the plan"
+    const priceCents = step.estimateCents
+    body = (
+      <>
+        <PanelCard storageId="video-flow-run-plan" icon={<ListChecksIcon />} title="The plan" meta={priceCents !== null ? `About ${formatAiEstimate(priceCents)}` : undefined}>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{step.output?.text ?? step.output?.summary ?? "Nothing planned."}</p>
+          <p className="text-xs text-muted-foreground">Nothing is paid for until you press OK. Make it again asks the AI for a new plan.</p>
+        </PanelCard>
+        {boxes}
+      </>
+    )
+    footer = (
+      <div className="grid w-full gap-2 @[15rem]:grid-cols-2">
+        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => doing(() => redoFlowStep(step.id))}>
+          <RefreshCwIcon />
+          Make it again
+        </Button>
+        <Button type="button" size="lg" disabled={busy} onClick={() => doing(() => approveFlowStep(step.id))}>
+          {busy ? <Loader2Icon className="animate-spin" /> : <CheckIcon />}
+          {priceCents !== null ? `OK, make it · ${formatAiEstimate(priceCents)}` : "OK, make it"}
+        </Button>
+      </div>
     )
   } else if (step.status === "needs_ok") {
     state = "Check it"

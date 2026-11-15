@@ -50,9 +50,6 @@ export type EditPlanFile = {
   words: FileWord[]
 }
 
-export const EDIT_PLAN_ANSWER =
-  'Reply with JSON only, in this shape: {"title": "short name for the video", "captions": true, "segments": [{"file": "F1", "start": 12.4, "end": 18.9}]}. Each segment is a stretch of one file, in seconds from the start of that file, listed in the order they should play. Set captions to false only if the prompt says no captions.'
-
 function seconds(ms: number) {
   return (ms / 1000).toFixed(1)
 }

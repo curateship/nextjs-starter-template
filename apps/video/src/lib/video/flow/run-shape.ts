@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import type { ThumbnailLayer } from "@/lib/video/thumbnails"
+
 import { FLOW_BOXES_MAX } from "./node-kinds"
 
 /**
@@ -63,6 +65,8 @@ export type FlowStepOutput = {
   mediaIds?: string[]
   videoId?: string
   thumbnailIds?: string[]
+  /** An AI thumbnail's board, laid as it answered (thumbnail-answer.ts). */
+  thumbnail?: { shape: "wide" | "tall"; layers: ThumbnailLayer[] }
   actorId?: string
   voice?: FlowVoice
   summary?: string
@@ -106,4 +110,34 @@ export function flowRunStatusFrom(steps: readonly { status: FlowStepStatus }[]):
   if (steps.some((step) => step.status === "failed")) return "failed"
   if (steps.some((step) => step.status === "queued" || step.status === "working")) return "running"
   return "waiting"
+}
+
+/** One file a step makes over several of the worker's passes, such as a music track. */
+export type FlowMadeFile = {
+  status: "making" | "made" | "failed"
+  mediaId?: string
+  /** An AI video job's id, for a loop being made by the AI video worker. */
+  shotId?: string
+  durationMs?: number
+  error?: string
+}
+
+/**
+ * What a step remembers between the worker's passes (drizzle/0178): a step
+ * that makes several paid things makes one a pass and writes each down here
+ * as soon as it is paid for, so a pass cut short never pays for it twice.
+ *
+ * - `planned`: the AI editor has answered with its plan and price; with Wait
+ *   for my OK on, the step waits on them before anything is paid for.
+ * - `approved`: the person pressed OK on the plan (or there was nothing to
+ *   wait for), so the step makes.
+ */
+export type FlowStepState = {
+  phase: "planned" | "making"
+  approved?: boolean
+  /** The step's own plan, as its executor reads it back. */
+  plan?: unknown
+  priceCents?: number
+  /** Every file it makes, by the plan's name for it. */
+  files?: Record<string, FlowMadeFile>
 }

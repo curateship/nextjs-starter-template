@@ -1224,9 +1224,10 @@ const ClipChip = React.memo(function ClipChip({
     })
     const wanted = snapped.ms - active.origin.startMs
     // What is left of the file after the trim, in timeline room. A still has
-    // no end to run past, so only timed media is capped.
+    // no end to run past, and a looped clip starts its file again
+    // (clip-loop.md), so only timed media played once is capped.
     const longestMs =
-      clip.sourceDurationMs && clip.kind !== "image"
+      clip.sourceDurationMs && clip.kind !== "image" && !clip.loop
         ? (clip.sourceDurationMs - active.origin.trimStartMs) / speed
         : Number.POSITIVE_INFINITY
     const durationMs = Math.max(MIN_CLIP_MS, Math.min(wanted, longestMs))

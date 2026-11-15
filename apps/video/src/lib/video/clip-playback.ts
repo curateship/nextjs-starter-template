@@ -89,6 +89,28 @@ export function sourceMsAt(clip: ClipWindow, clipOffsetMs: number): number {
   return clip.trimStartMs + clipOffsetMs * clipSpeed(clip)
 }
 
+/** A clip that may loop: its file's whole length and whether it starts again. */
+export type LoopWindow = ClipWindow & { loop?: boolean; sourceDurationMs?: number }
+
+/** Whether a clip plays its file round again when it runs out. */
+export function clipLoops(clip: LoopWindow): boolean {
+  return Boolean(clip.loop && clip.sourceDurationMs && clip.sourceDurationMs > 0)
+}
+
+/**
+ * Where the file is this far into the clip, for playing it: a looped clip
+ * starts its file again from 0 each time it runs out (clip-loop.md), which
+ * is what ffmpeg's -stream_loop does too. Every other clip reads as
+ * `sourceMsAt`. Captions, transcripts, beats and ads keep reading
+ * `sourceMsAt`, because none of them has a meaning on a looped clip.
+ */
+export function playbackSourceMsAt(clip: LoopWindow, clipOffsetMs: number): number {
+  const at = sourceMsAt(clip, clipOffsetMs)
+  if (!clipLoops(clip)) return at
+  const length = clip.sourceDurationMs!
+  return ((at % length) + length) % length
+}
+
 /** That far into the file is this far into the clip. */
 export function clipMsAt(clip: ClipWindow, sourceMs: number): number {
   return (sourceMs - clip.trimStartMs) / clipSpeed(clip)

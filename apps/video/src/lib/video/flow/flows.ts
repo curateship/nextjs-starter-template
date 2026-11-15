@@ -12,12 +12,12 @@ export const FLOW_RUN_NOT_FOUND_MESSAGE = "Run not found"
 export const FLOW_STEP_NOT_FOUND_MESSAGE = "Step not found"
 export const FLOW_CHANGED_MESSAGE = "This flow was changed in another window. Reload to see the newest copy."
 export const FLOW_RUN_SAVED_MESSAGE = "This run is already saved into a project."
+export const FLOW_RUN_NOT_DONE_MESSAGE = "Finish every step first; saving into a project is the last step."
 export const FLOW_RUN_STOPPED_MESSAGE = "This run was stopped, so nothing more can happen in it."
+export const FLOW_RUN_BUSY_MESSAGE = "A run is making something right now. Stop it, or wait for that step to finish, then delete it."
 export const FLOW_STEP_NOT_READY_MESSAGE = "This step can't take that now. Reload to see where the run is."
 
 /** New flow: an empty canvas, or a copy of the starter. */
-export const FLOW_STARTS = ["blank", "starter"] as const
-export type FlowStart = (typeof FLOW_STARTS)[number]
 
 export type FlowListItem = {
   id: string
@@ -82,6 +82,11 @@ export type FlowRunStep = {
   costCents: number | null
   error: string | null
   note: string | null
+  /**
+   * Waiting on its plan and price for the person's OK before anything is paid
+   * for (flow.md, "Plan, OK, then make").
+   */
+  planned: boolean
   attempts: number
   startedAt: string | null
   finishedAt: string | null
@@ -132,7 +137,9 @@ export const SAFE_FLOW_ERRORS = new Set<string>([
   FLOW_CHANGED_MESSAGE,
   FLOW_RUN_STOPPED_MESSAGE,
   FLOW_RUN_SAVED_MESSAGE,
+  FLOW_RUN_NOT_DONE_MESSAGE,
   FLOW_STEP_NOT_READY_MESSAGE,
+  FLOW_RUN_BUSY_MESSAGE,
 ])
 
 /** A file a step's box holds, as the guide shows it: its name, its kind and where it plays from. */

@@ -23,10 +23,10 @@ export type ShapeKind = (typeof SHAPE_KINDS)[number]
 
 /**
  * Every shape a shape clip can be. A blur is a shape clip too, placed by the
- * same two points, but it is drawn by blur.ts rather than as lines, and the
- * social stickers are drawn by social-stickers.ts.
+ * same two points, but it is drawn by blur.ts rather than as lines, the
+ * social stickers are drawn by social-stickers.ts, and the timer by timer.ts.
  */
-export const CLIP_SHAPE_KINDS = [...SHAPE_KINDS, "blur", ...SOCIAL_KINDS] as const
+export const CLIP_SHAPE_KINDS = [...SHAPE_KINDS, "blur", ...SOCIAL_KINDS, "timer"] as const
 
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
   arrow: "Arrow",
