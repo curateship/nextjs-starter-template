@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm"
 import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
-import { noteFolders, noteLinks, noteNotes, type NoteRow } from "@/server/note/schema"
+import { noteLinks, noteNotes, type NoteRow } from "@/server/note/schema"
 import { noteBodyFacts } from "@/lib/note/notes/body"
 import {
   LIBRARY_SAYS,
@@ -52,12 +52,10 @@ function analyseInputs(row: NoteRow): AnalyseInputs {
   }
 }
 
-function toCard(row: NoteRow, folderName: string | null): NoteCard {
+export function toCard(row: NoteRow): NoteCard {
   return {
     id: row.id,
     libraryId: row.libraryId,
-    folderId: row.folderId,
-    folderName,
     title: row.title,
     tags: row.tags,
     priority: row.priority,
@@ -78,21 +76,14 @@ function toCard(row: NoteRow, folderName: string | null): NoteCard {
   }
 }
 
-export const withFolderName = { note: noteNotes, folderName: noteFolders.name }
-
-export function joinedCard(row: { note: NoteRow; folderName: string | null }) {
-  return toCard(row.note, row.folderName)
-}
-
 /** The cards for these ids, as they are now. A missing one is gone. */
 export async function cardsFor(ownerId: string, ids: string[]): Promise<NoteCard[]> {
   if (!ids.length) return []
   const rows = await db
-    .select(withFolderName)
+    .select()
     .from(noteNotes)
-    .leftJoin(noteFolders, eq(noteFolders.id, noteNotes.folderId))
     .where(and(eq(noteNotes.ownerId, ownerId), inArray(noteNotes.id, ids)))
-  return rows.map(joinedCard)
+  return rows.map(toCard)
 }
 
 async function address(path: string | null | undefined) {
@@ -115,7 +106,7 @@ async function pictureViews(pictures: PostPicture[] | null | undefined): Promise
   return views.filter((view): view is PictureView => view !== null)
 }
 
-export async function toDetail(row: NoteRow, folderName: string | null): Promise<NoteDetail> {
+export async function toDetail(row: NoteRow): Promise<NoteDetail> {
   const facts = noteBodyFacts(row.body)
   const [media, linkedFrom, linked, merged] = await Promise.all([
     row.videoMediaId
@@ -153,7 +144,7 @@ export async function toDetail(row: NoteRow, folderName: string | null): Promise
   const order = new Map((row.mergedFrom ?? []).map((id, index) => [id, index]))
 
   return {
-    ...toCard(row, folderName),
+    ...toCard(row),
     body: row.body,
     playedSeconds: row.playedSeconds,
     revision: row.revision,
@@ -190,13 +181,12 @@ export async function toDetail(row: NoteRow, folderName: string | null): Promise
   }
 }
 
-/** One note of this person's, with its folder's name, or "Note not found". */
+/** One note of this person's, or "Note not found". */
 export async function detailFor(ownerId: string, id: string): Promise<NoteDetail> {
   const [row] = await db
-    .select(withFolderName)
+    .select()
     .from(noteNotes)
-    .leftJoin(noteFolders, eq(noteFolders.id, noteNotes.folderId))
     .where(and(eq(noteNotes.id, id), eq(noteNotes.ownerId, ownerId)))
   if (!row) throw new Error(LIBRARY_SAYS.noteNotFound)
-  return toDetail(row.note, row.folderName)
+  return toDetail(row)
 }

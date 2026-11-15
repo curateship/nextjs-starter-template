@@ -17,12 +17,10 @@ import {
   listVersions,
   loadNote,
   loadVersion,
-  moveToFolder,
   moveToLibrary,
   noteTitles,
   pinNotes,
   removeTagFromNotes,
-  renameAuthor,
   renameTag,
   restoreNote,
   restoreVersion,
@@ -36,7 +34,8 @@ import {
 import {
   AUTHOR_HANDLE_MAX,
   AUTHOR_NAME_MAX,
-  FIXED_SCOPES,
+  NOTE_SCOPES,
+  type NoteScope,
   LIBRARY_SAYS,
   NOTE_SORT_COLUMNS,
   NOTE_PRIORITIES,
@@ -68,7 +67,7 @@ export function isChangedElsewhere(error: unknown) {
   return error instanceof Error && error.message.includes(LIBRARY_SAYS.changedElsewhere)
 }
 
-const scope = z.union([z.enum(FIXED_SCOPES), idSchema])
+const scope = z.enum(NOTE_SCOPES)
 /** The editor's document. Its shape is checked on the server by `cleanNoteBody`. */
 const body = z.record(z.string(), z.unknown())
 const tag = z.string().min(1).max(TAG_MAX * 2)
@@ -91,7 +90,7 @@ const listFn = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }): Promise<NoteList> => listNotes(context.user.id, data))
 
-export function loadNotes(data: { libraryId: string; scope: string; search?: string; filters?: NoteFilters; sort?: NoteSort }) {
+export function loadNotes(data: { libraryId: string; scope: NoteScope; search?: string; filters?: NoteFilters; sort?: NoteSort }) {
   return listFn({ data })
 }
 
@@ -115,17 +114,14 @@ export function loadLibraryQuotes(libraryId: string) {
   return quotesFn({ data: { libraryId } })
 }
 
-const readFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ id: idSchema, open: z.boolean() }))
-  .handler(async ({ data, context }): Promise<NoteDetail> => loadNote(context.user.id, data.id, { open: data.open }))
+const readFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ id: idSchema }))
+  .handler(async ({ data, context }): Promise<NoteDetail> => loadNote(context.user.id, data.id))
 
-/**
- * Everything the right panel shows about one note. A POST because opening a
- * note marks it as just opened, which is what Recently opened reads.
- */
-export function loadNoteDetail(noteId: string, open = true) {
-  return readFn({ data: { id: noteId, open } })
+/** Everything the right panel shows about one note. */
+export function loadNoteDetail(noteId: string) {
+  return readFn({ data: { id: noteId } })
 }
 
 const titlesFn = createServerFn({ method: "GET" })
@@ -146,7 +142,6 @@ const createFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       libraryId: idSchema,
-      folderId: idSchema.nullable(),
       templateId: idSchema.nullable().optional(),
       title: z.string().max(NOTE_TITLE_MAX * 2).optional(),
       body: body.optional(),
@@ -158,7 +153,6 @@ const createFn = createServerFn({ method: "POST" })
 
 export function createNoteIn(data: {
   libraryId: string
-  folderId: string | null
   templateId?: string | null
   title?: string
   body?: Record<string, unknown>
@@ -251,18 +245,6 @@ export function deleteLibraryTag(libraryId: string, name: string) {
   return deleteTagFn({ data: { libraryId, tag: name } })
 }
 
-const renameAuthorFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    z.object({ libraryId: idSchema, from: z.string().min(1).max(AUTHOR_NAME_MAX * 2), to: z.string().max(AUTHOR_NAME_MAX * 2) })
-  )
-  .handler(async ({ data, context }) => renameAuthor(context.user.id, data.libraryId, data.from, data.to))
-
-/** Renames an author on every note of the library; a name in use merges the two. */
-export function renameLibraryAuthor(libraryId: string, from: string, to: string) {
-  return renameAuthorFn({ data: { libraryId, from, to } })
-}
-
 // ---------------------------------------------------------------------------
 // One change to many notes
 
@@ -276,7 +258,6 @@ const bulkFn = createServerFn({ method: "POST" })
       z.object({ change: z.literal("priority"), ids: idsSchema, priority: z.enum(NOTE_PRIORITIES) }),
       z.object({ change: z.literal("addTag"), ids: idsSchema, tag }),
       z.object({ change: z.literal("removeTag"), ids: idsSchema, tag }),
-      z.object({ change: z.literal("folder"), ids: idsSchema, folderId: idSchema.nullable() }),
     ])
   )
   .handler(async ({ data, context }): Promise<BulkOutcome> => {
@@ -294,8 +275,6 @@ const bulkFn = createServerFn({ method: "POST" })
         return addTagToNotes(owner, data.ids, data.tag)
       case "removeTag":
         return removeTagFromNotes(owner, data.ids, data.tag)
-      case "folder":
-        return moveToFolder(owner, data.ids, data.folderId)
     }
   })
 
@@ -306,7 +285,6 @@ export type NoteChange =
   | { change: "priority"; priority: NotePriority }
   | { change: "addTag"; tag: string }
   | { change: "removeTag"; tag: string }
-  | { change: "folder"; folderId: string | null }
 
 /** One change to one note or many, in one request. */
 export function changeNotes(ids: string[], change: NoteChange) {

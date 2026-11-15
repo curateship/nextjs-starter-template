@@ -13,16 +13,18 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 }))
 vi.mock("@/lib/api/note/library", () => ({
   getLibraryErrorMessage: () => "That did not work.",
-  pinLibraryFolder: vi.fn(async () => undefined),
-  pinLibraryScope: vi.fn(async () => undefined),
   pinLibraryRow: vi.fn(),
-  makeFolder: vi.fn(),
-  renameLibraryFolder: vi.fn(),
-  deleteLibraryFolder: vi.fn(),
   saveView: vi.fn(),
   deleteSavedView: vi.fn(),
   saveLibrary: vi.fn(),
   deleteLibraryTemplate: vi.fn(),
+  makeLibrary: vi.fn(),
+  deleteLibraryRow: vi.fn(),
+}))
+vi.mock("@/lib/api/note/library-page", () => ({
+  lockLibraryLeftPage: vi.fn(),
+  saveLibraryLeftPage: vi.fn(),
+  setLibraryLeftPageCover: vi.fn(),
 }))
 vi.mock("@/lib/api/note/notes", () => ({
   createNoteIn: vi.fn(),
@@ -33,7 +35,6 @@ vi.mock("@/lib/api/note/notes", () => ({
   restoreNoteFromTrash: vi.fn(),
   duplicateLibraryNote: vi.fn(),
   deleteLibraryTag: vi.fn(),
-  renameLibraryAuthor: vi.fn(),
   renameLibraryTag: vi.fn(),
   saveNotePlayed: vi.fn(async () => undefined),
   loadPlanSteps: vi.fn(async () => [
@@ -65,16 +66,16 @@ import { LibraryLeftPanel } from "@/components/note-library/library-left-panel"
 import { NotesListPanel } from "@/components/note-library/notes-list-panel"
 import { usePlayerPlace } from "@/components/note-library/use-player-place"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { pinLibraryFolder, pinLibraryScope } from "@/lib/api/note/library"
+import { readLibrarySearch, scopeOf } from "@/lib/note/library/address"
 import { saveNotePlayed } from "@/lib/api/note/notes"
 import { saveNotePlan } from "@/lib/api/note/imports"
-import type { LibraryPage, NoteCard, NoteDetail } from "@/lib/note/library/notes"
+import type { LibraryPage, LibraryRow, NoteCard, NoteDetail } from "@/lib/note/library/notes"
 
 /**
  * The library screens Tyler's task 02 added, drawn in a browser-like page:
  * the Transcript card and Add to note, where a video starts again, the Plan
- * steps and Quotes lists, the Pinned and LIBRARY cards, and the sortable
- * notes table.
+ * steps and Quotes lists, the left page's Libraries block, the address's
+ * tabs and Show choice, and the sortable notes table.
  */
 
 let host: HTMLDivElement
@@ -128,26 +129,17 @@ const page: LibraryPage = {
   library: {
     id: "l1",
     name: "Content ideas",
-    description: "",
     colour: "blue",
-    avatarUrl: null,
-    bannerUrl: null,
     pinned: false,
     noteCount: 3,
     editedAt: "2026-10-20T10:00:00.000Z",
   },
-  folders: [
-    { id: "f1", name: "Hooks", source: null, position: 0, noteCount: 2, pinnedAt: "2026-10-20T10:00:00.000Z" },
-    { id: "f2", name: "Pricing", source: null, position: 1, noteCount: 1, pinnedAt: null },
-  ],
-  counts: { all: 3, loose: 0, archived: 0, trash: 0, openSteps: 1, quotes: 2 },
+  counts: { all: 3, pinned: 1, archived: 0, trash: 0, openSteps: 1, quotes: 2 },
   authors: [{ key: "patrick", name: "Patrick", pictureUrl: null, count: 1 }],
   tags: [{ tag: "hooks", count: 2 }],
-  recent: [],
   views: [],
   templates: [],
   otherLibraries: [],
-  pinnedRows: [{ row: "trash", pinnedAt: "2026-10-20T09:00:00.000Z" }],
 }
 
 const detail = {
@@ -261,7 +253,7 @@ describe("where a video starts", () => {
 describe("Plan steps and Quotes", () => {
   it("shows open steps, ticks one, and shows done steps only after Show done", async () => {
     const changed = actions()
-    await draw(<PlanStepsPanel page={page} actions={changed} openId={undefined} onOpenedChanged={vi.fn()} />)
+    await draw(<PlanStepsPanel page={page} tabs={null} actions={changed} openId={undefined} onOpenedChanged={vi.fn()} />)
     expect(host.textContent).toContain("Raise the price")
     expect(host.textContent).not.toContain("Write the page")
     await act(async () => button("Show done").click())
@@ -280,7 +272,7 @@ describe("Plan steps and Quotes", () => {
 
   it("lists every quote and opens one at its moment", async () => {
     const open = vi.fn()
-    await draw(<QuotesPanel page={page} onOpen={open} />)
+    await draw(<QuotesPanel page={page} tabs={null} onOpen={open} />)
     expect(host.textContent).toContain("Charge more")
     expect(host.textContent).toContain("Patrick · Pricing talk · 0:04")
     await act(async () => button("“Charge more”Patrick · Pricing talk · 0:04").click())
@@ -289,40 +281,72 @@ describe("Plan steps and Quotes", () => {
 })
 
 describe("the left panel", () => {
-  it("lists pinned folders in Pinned, pins another from its row, and opens Plan steps", async () => {
-    const changed = actions()
-    await draw(<LibraryLeftPanel page={page} search={{}} actions={changed} />)
-    const pinned = host.textContent ?? ""
-    expect(pinned.indexOf("Pinned")).toBeLessThan(pinned.indexOf("Library"))
-    expect(button("Unpin Hooks")).toBeDefined()
-    await act(async () => button("Pin Pricing").click())
-    expect(pinLibraryFolder).toHaveBeenCalledWith("f2", true)
-    await act(async () => button("Plan steps").click())
-    expect(changed.setSearch).toHaveBeenCalledWith({ folder: "steps", author: undefined })
+  const libraries: LibraryRow[] = [
+    page.library,
+    { ...page.library, id: "l2", name: "Course notes", colour: "green", noteCount: 12 },
+  ]
+
+  it("draws the Libraries block on its own while the page is read, and picks another library", async () => {
+    const pick = vi.fn()
+    await draw(
+      <LibraryLeftPanel
+        libraries={libraries}
+        libraryId="l1"
+        page={page}
+        leftPage={null}
+        leftPageError={null}
+        onRetryLeftPage={vi.fn()}
+        onLeftPageChange={vi.fn()}
+        search={{}}
+        actions={actions()}
+        onPickLibrary={pick}
+        onLibrariesChanged={vi.fn(async () => undefined)}
+        onLibraryMade={vi.fn()}
+        onLibraryDeleted={vi.fn(async () => undefined)}
+      />
+    )
+    expect(host.textContent).toContain("Content ideas")
+    expect(host.textContent).toContain("Reading the page…")
+    const picked = host.querySelector('[aria-current="true"]')
+    expect(picked?.textContent).toContain("Content ideas")
+    await act(async () => button("Course notes12").click())
+    expect(pick).toHaveBeenCalledWith("l2")
+    expect(button("Settings for Course notes")).toBeDefined()
   })
 
-  it("pins a LIBRARY row, and lists pinned rows and folders together in the order pinned", async () => {
-    await draw(<LibraryLeftPanel page={page} search={{}} actions={actions()} />)
-    const pinnedCard = host.textContent ?? ""
-    // Trash was pinned before Hooks, so it comes first.
-    expect(pinnedCard.indexOf("Trash")).toBeLessThan(pinnedCard.indexOf("Hooks"))
-    await act(async () => button("Pin All notes").click())
-    expect(pinLibraryScope).toHaveBeenCalledWith("l1", "all", true)
-    const unpins = [...host.querySelectorAll<HTMLButtonElement>('button[aria-label="Unpin Trash"]')]
-    expect(unpins).toHaveLength(2)
-    await act(async () => unpins[0].click())
-    expect(pinLibraryScope).toHaveBeenCalledWith("l1", "trash", false)
+  it("says where the retry is when the page could not be read", async () => {
+    const retry = vi.fn()
+    await draw(
+      <LibraryLeftPanel
+        libraries={libraries}
+        libraryId="l1"
+        page={page}
+        leftPage={null}
+        leftPageError="That did not work."
+        onRetryLeftPage={retry}
+        onLeftPageChange={vi.fn()}
+        search={{}}
+        actions={actions()}
+        onPickLibrary={vi.fn()}
+        onLibrariesChanged={vi.fn(async () => undefined)}
+        onLibraryMade={vi.fn()}
+        onLibraryDeleted={vi.fn(async () => undefined)}
+      />
+    )
+    expect(host.textContent).toContain("That did not work.")
+    await act(async () => button("Try again").click())
+    expect(retry).toHaveBeenCalled()
   })
+})
 
-  it("draws LIBRARY as the same folding card as Authors, from its heading", async () => {
-    await draw(<LibraryLeftPanel page={page} search={{}} actions={actions()} />)
-    const heading = button("Library")
-    const authors = button("Authors · 1")
-    expect(heading.closest("h2")?.className).toBe(authors.closest("h2")?.className)
-    expect(host.textContent).toContain("Loose notes")
-    await act(async () => heading.click())
-    expect(host.textContent).not.toContain("Loose notes")
-    expect(window.localStorage.length).toBeGreaterThan(0)
+describe("the address", () => {
+  it("reads the tabs and Show, and nothing else", () => {
+    expect(readLibrarySearch({ tab: "quotes" })).toMatchObject({ tab: "quotes" })
+    expect(readLibrarySearch({ show: "trash" })).toMatchObject({ show: "trash" })
+    expect(readLibrarySearch({ tab: "loose", show: "loose" })).toMatchObject({ tab: undefined, show: undefined })
+    expect(scopeOf(readLibrarySearch({ tab: "pinned" }))).toBe("pinned")
+    expect(scopeOf(readLibrarySearch({ tab: "steps", show: "archived" }))).toBe("steps")
+    expect(scopeOf(readLibrarySearch({}))).toBe("all")
   })
 })
 

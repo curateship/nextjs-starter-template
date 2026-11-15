@@ -9,7 +9,7 @@ import { db } from "@/server/db"
 import { cardsFor, detailFor } from "@/server/note/library/cards"
 import { removeNoteFiles } from "@/server/note/library/files"
 import { readImportLink } from "@/server/note/library/import-links"
-import { folderForSource, libraryForSaving, requireLibrary } from "@/server/note/library/libraries"
+import { libraryForSaving, requireLibrary } from "@/server/note/library/libraries"
 import { requireNote } from "@/server/note/library/notes"
 import { requireSaveKey } from "@/server/note/library/save-key"
 import { noteLinks, noteNotes, type NoteRow } from "@/server/note/schema"
@@ -61,9 +61,8 @@ export type ImportResult = {
 
 /**
  * Makes the note at once, titled "Importing…" until the worker reads the real
- * title, in the folder for its source, made the first time (Tyler, 20 Oct
- * 2026: "Import files it there"). A link from another source than the one
- * picked is filed under its real one, and the screen says so.
+ * title. A link from another source than the one picked is read as its real
+ * one.
  */
 export async function importLink(ownerId: string, input: { libraryId: string; url: string }): Promise<ImportResult> {
   const link = readImportLink(input.url)
@@ -75,20 +74,17 @@ export async function importLink(ownerId: string, input: { libraryId: string; ur
   const id = uuid()
   try {
     await db.transaction(async (tx) => {
-      const folderId = await folderForSource(input.libraryId, link.source, tx)
       const at = now()
       await tx.insert(noteNotes).values({
         id,
         ownerId,
         libraryId: input.libraryId,
-        folderId,
         title: "Importing…",
         body: EMPTY_BODY,
         source: link.source,
         sourceUrl: link.url,
         platformId: link.platformId,
         importStatus: "waiting",
-        lastOpenedAt: at,
         createdAt: at,
         updatedAt: at,
       })
@@ -133,8 +129,7 @@ async function cardOf(ownerId: string, id: string): Promise<NoteCard> {
 
 /**
  * The Save to Note button, and the iPhone Shortcut that opens the same
- * address: any link the Import menu takes goes into its source's folder in
- * the library opened last. Its key must be this person's own (`save-key.ts`).
+ * address: any link New note imports goes into the library opened last. Its key must be this person's own (`save-key.ts`).
  */
 export async function saveFromLink(ownerId: string, url: string, key: string): Promise<ImportResult> {
   requireSaveKey(ownerId, key)
@@ -368,14 +363,12 @@ export async function mergePlans(ownerId: string, ids: string[]): Promise<NoteCa
     id,
     ownerId,
     libraryId: rows[0].libraryId,
-    folderId: null,
     title: `Plan from ${rows.length} notes`,
     body,
     bodyText: `Made from: ${rows.map((row) => noteTitle(row.title)).join(", ")}`,
     tags,
     analyseStatus: "queued",
     mergedFrom: unique,
-    lastOpenedAt: at,
     createdAt: at,
     updatedAt: at,
   })

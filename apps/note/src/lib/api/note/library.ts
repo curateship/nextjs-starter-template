@@ -4,47 +4,38 @@ import { z } from "zod"
 import { createErrorMessage } from "../error-message"
 import { userGet, userPost } from "@/server/guards"
 import {
-  createFolder,
   createLibrary,
   createTemplate,
   createView,
-  deleteFolder,
   deleteLibrary,
   deleteTemplate,
   deleteView,
   listLibraries,
   loadLibraryPage,
   markLibraryOpened,
-  pinFolder,
   pinLibrary,
-  pinLibraryRowToCard,
-  renameFolder,
   updateLibrary,
 } from "@/server/note/library/libraries"
 import { BODY_SAYS } from "@/lib/note/notes/body"
 import {
   ANALYSED_FILTERS,
-  FOLDER_NAME_MAX,
   LIBRARY_COLOURS,
-  LIBRARY_DESCRIPTION_MAX,
   LIBRARY_NAME_MAX,
   LIBRARY_SAYS,
   NOTE_PRIORITIES,
   NOTE_SOURCES,
-  PINNABLE_ROWS,
   PROGRESS_FILTERS,
   TAG_MAX,
   TEMPLATE_NAME_MAX,
   VIEW_NAME_MAX,
   AUTHOR_NAME_MAX,
-  type LibraryFolder,
   type LibraryPage,
   type LibraryRow,
   type NoteFilters,
 } from "@/lib/note/library/notes"
 
 /**
- * Libraries, their folders, saved views and templates, for the member who
+ * Libraries, their saved views and templates, for the member who
  * owns them. Open to every signed-in member (Tyler, 18 Oct 2026, for Notes),
  * and each function passes on only the id the session resolved to, so every
  * query is that person's own.
@@ -79,7 +70,6 @@ export const filtersSchema = z.object({
   progress: z.enum(PROGRESS_FILTERS).optional(),
 })
 
-const pictureUrl = z.string().max(2000).nullable()
 
 // ---------------------------------------------------------------------------
 // Libraries
@@ -97,13 +87,12 @@ const createFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       name: z.string().max(LIBRARY_NAME_MAX * 2),
-      description: z.string().max(LIBRARY_DESCRIPTION_MAX * 2).optional(),
       colour: z.enum(LIBRARY_COLOURS).optional(),
     })
   )
   .handler(async ({ data, context }): Promise<LibraryRow> => createLibrary(context.user.id, data))
 
-export function makeLibrary(data: { name: string; description?: string; colour?: (typeof LIBRARY_COLOURS)[number] }) {
+export function makeLibrary(data: { name: string; colour?: (typeof LIBRARY_COLOURS)[number] }) {
   return createFn({ data })
 }
 
@@ -113,10 +102,7 @@ const updateFn = createServerFn({ method: "POST" })
     z.object({
       id: idSchema,
       name: z.string().max(LIBRARY_NAME_MAX * 2).optional(),
-      description: z.string().max(LIBRARY_DESCRIPTION_MAX * 2).optional(),
       colour: z.enum(LIBRARY_COLOURS).optional(),
-      avatarUrl: pictureUrl.optional(),
-      bannerUrl: pictureUrl.optional(),
     })
   )
   .handler(async ({ data, context }): Promise<LibraryRow> => {
@@ -126,13 +112,7 @@ const updateFn = createServerFn({ method: "POST" })
 
 export function saveLibrary(
   id: string,
-  changes: {
-    name?: string
-    description?: string
-    colour?: (typeof LIBRARY_COLOURS)[number]
-    avatarUrl?: string | null
-    bannerUrl?: string | null
-  }
+  changes: { name?: string; colour?: (typeof LIBRARY_COLOURS)[number] }
 ) {
   return updateFn({ data: { id, ...changes } })
 }
@@ -173,58 +153,6 @@ const openedFn = createServerFn({ method: "POST" })
 /** The dashboard opened: this library is now the one the Save from x.com button saves into. */
 export function markLibraryOpen(id: string) {
   return openedFn({ data: { id } })
-}
-
-// ---------------------------------------------------------------------------
-// Folders
-
-const createFolderFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ libraryId: idSchema, name: z.string().max(FOLDER_NAME_MAX * 2) }))
-  .handler(
-    async ({ data, context }): Promise<LibraryFolder> => createFolder(context.user.id, data.libraryId, data.name)
-  )
-
-export function makeFolder(libraryId: string, name: string) {
-  return createFolderFn({ data: { libraryId, name } })
-}
-
-const renameFolderFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ id: idSchema, name: z.string().max(FOLDER_NAME_MAX * 2) }))
-  .handler(async ({ data, context }) => renameFolder(context.user.id, data.id, data.name))
-
-export function renameLibraryFolder(id: string, name: string) {
-  return renameFolderFn({ data: { id, name } })
-}
-
-const deleteFolderFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ id: idSchema }))
-  .handler(async ({ data, context }) => deleteFolder(context.user.id, data.id))
-
-export function deleteLibraryFolder(id: string) {
-  return deleteFolderFn({ data: { id } })
-}
-
-const pinFolderFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ id: idSchema, pinned: z.boolean() }))
-  .handler(async ({ data, context }) => pinFolder(context.user.id, data.id, data.pinned))
-
-/** Pins a folder to the Pinned card above LIBRARY, or takes it off. */
-export function pinLibraryFolder(id: string, pinned: boolean) {
-  return pinFolderFn({ data: { id, pinned } })
-}
-
-const pinRowFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ libraryId: idSchema, row: z.enum(PINNABLE_ROWS), pinned: z.boolean() }))
-  .handler(async ({ data, context }) => pinLibraryRowToCard(context.user.id, data.libraryId, data.row, data.pinned))
-
-/** Pins one of the LIBRARY card's own rows (All notes, Trash and the rest) to the Pinned card, or takes it off. */
-export function pinLibraryScope(libraryId: string, row: (typeof PINNABLE_ROWS)[number], pinned: boolean) {
-  return pinRowFn({ data: { libraryId, row, pinned } })
 }
 
 // ---------------------------------------------------------------------------

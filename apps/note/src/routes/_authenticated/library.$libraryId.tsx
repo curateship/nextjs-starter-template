@@ -2,15 +2,16 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { LibraryDashboard } from "@/components/note-library/library-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { getLibraryErrorMessage, loadLibrary } from "@/lib/api/note/library"
+import { getLibraryErrorMessage, loadLibraries, loadLibrary } from "@/lib/api/note/library"
 import { loadNotes } from "@/lib/api/note/notes"
 import { filtersOf, readLibrarySearch, scopeOf, sortOf } from "@/lib/note/library/address"
 
 /**
- * One library's dashboard: folders and authors on the left, its notes in the
- * middle, the open note on the right. The folder, author, search, filters,
- * saved view, sort and open note live in the address, so a reload and a bell notice
- * come back to the same place.
+ * The Library dashboard on one library: the person's page with every library
+ * on the left, this library's notes in the middle, the open note on the
+ * right. The tab, Show choice, folder, author, search, filters, saved view,
+ * sort and open note live in the address, so a reload and a bell notice come
+ * back to the same place.
  */
 export const Route = createFileRoute("/_authenticated/library/$libraryId")({
   validateSearch: readLibrarySearch,
@@ -19,7 +20,8 @@ export const Route = createFileRoute("/_authenticated/library/$libraryId")({
   loaderDeps: () => ({}),
   loader: async ({ params, location }) => {
     const search = readLibrarySearch(location.search as Record<string, unknown>)
-    const [page, list] = await Promise.all([
+    const [libraries, page, list] = await Promise.all([
+      loadLibraries(),
       loadLibrary(params.libraryId),
       loadNotes({
         libraryId: params.libraryId,
@@ -29,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/library/$libraryId")({
         sort: sortOf(search),
       }),
     ])
-    return { page, list }
+    return { libraries, page, list }
   },
   component: LibraryRoute,
   errorComponent: routeErrorComponent(getLibraryErrorMessage),
@@ -38,6 +40,7 @@ export const Route = createFileRoute("/_authenticated/library/$libraryId")({
 function LibraryRoute() {
   const { libraryId } = Route.useParams()
   const initial = Route.useLoaderData()
-  // A new library is a new dashboard, so nothing of the last one carries over.
-  return <LibraryDashboard key={libraryId} libraryId={libraryId} initial={initial} />
+  // Not keyed by the library: one frame for every library, so the left page
+  // stays while another is picked (the Admin 3 panel design).
+  return <LibraryDashboard libraryId={libraryId} initial={initial} />
 }

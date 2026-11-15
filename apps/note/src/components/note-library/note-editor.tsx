@@ -215,17 +215,17 @@ function slashItems(pickImage: () => void, now: number | null): SlashItem[] {
     { id: "numbers", title: "Numbered list", icon: <ListOrderedIcon />, keywords: "ordered steps", run: (e) => e.chain().focus().toggleOrderedList().run() },
     { id: "checklist", title: "Checklist", icon: <ListChecksIcon />, keywords: "todo tasks tick", run: (e) => e.chain().focus().toggleTaskList().run() },
     { id: "toggle", title: "Toggle", icon: <ListCollapseIcon />, keywords: "fold details collapse", run: (e) => e.chain().focus().setDetails().run() },
-    { id: "callout", title: "Callout", hint: "A box for a tip or a warning", icon: <InfoIcon />, keywords: "tip warning note box", run: (e) => e.chain().focus().wrapIn("callout", { tone: "blue" }).run() },
+    { id: "callout", title: "Callout", icon: <InfoIcon />, keywords: "tip warning note box", run: (e) => e.chain().focus().wrapIn("callout", { tone: "blue" }).run() },
     { id: "quote", title: "Quote", icon: <TextQuoteIcon />, keywords: "blockquote", run: (e) => e.chain().focus().toggleBlockquote().run() },
     { id: "code", title: "Code", icon: <CodeIcon />, keywords: "pre monospace", run: (e) => e.chain().focus().toggleCodeBlock().run() },
     { id: "divider", title: "Divider", icon: <MinusIcon />, keywords: "line rule hr", run: (e) => e.chain().focus().setHorizontalRule().run() },
     { id: "table", title: "Table", icon: <TableIcon />, keywords: "grid rows columns", run: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-    { id: "image", title: "Image", hint: "Upload a picture", icon: <ImageIcon />, keywords: "picture photo upload", run: () => pickImage() },
-    { id: "link", title: "Link to a note", hint: "Or type [[", icon: <FileTextIcon />, keywords: "note page reference", run: (e) => e.chain().focus().insertContent("[[").run() },
+    { id: "image", title: "Image", icon: <ImageIcon />, keywords: "picture photo upload", run: () => pickImage() },
+    { id: "link", title: "Link to a note", group: "advanced", icon: <FileTextIcon />, keywords: "note page reference", run: (e) => e.chain().focus().insertContent("[[").run() },
     // Only on a note with a video that can play, at the time it is at now.
     ...(now === null
       ? []
-      : [{ id: "time", title: "Video time", hint: formatTimecode(now), icon: <TimerIcon />, keywords: "moment timestamp clock", run: (e: Editor) => e.chain().focus().insertContent(videoTimeContent(now)).run() }]),
+      : [{ id: "time", title: "Video time", group: "advanced" as const, icon: <TimerIcon />, keywords: "moment timestamp clock", run: (e: Editor) => e.chain().focus().insertContent(videoTimeContent(now)).run() }]),
   ]
 }
 
@@ -250,6 +250,7 @@ function editorExtensions(
       char: "/",
       label: "Blocks",
       emptyText: "No block by that name",
+      fitAll: true,
       items: (query) => {
         const words = query.toLowerCase()
         return slashItems(() => document.getElementById(fileInputId)?.click(), videoTimeNow.current?.() ?? null).filter((item) =>
@@ -273,7 +274,6 @@ function editorExtensions(
           return found.map((note) => ({
             id: note.id,
             title: noteTitle(note.title),
-            hint: note.folderName ?? "Loose note",
           }))
         } catch {
           return []
@@ -475,7 +475,7 @@ export const NoteEditor = React.forwardRef<
     <NoteLinkContext.Provider value={links}>
       <div className={cn("note-rte grid min-w-0", inset && "note-rte-inset", tools && "note-rte-tools")}>
         <style>{NOTE_EDITOR_STYLES}</style>
-        {editor && editable ? <Toolbar editor={editor} onImage={() => document.getElementById(fileInputId)?.click()} /> : null}
+        {editor && editable ? <Toolbar editor={editor} onImage={() => document.getElementById(fileInputId)?.click()} videoTimeNow={timeNow} /> : null}
         {editor && editable ? <TableBar editor={editor} /> : null}
         {editor && editable ? <SelectionMenu editor={editor} /> : null}
         {uploading.length ? (
@@ -545,73 +545,67 @@ function ToolbarDivider() {
   return <div className="mx-1 h-5 w-px bg-border" />
 }
 
-/** The row of blocks above the note. The "/" menu offers the same ones. */
-function Toolbar({ editor, onImage }: { editor: Editor; onImage: () => void }) {
-  const state = useEditorState({
+/** Which blocks each "/" item turns on, for the toolbar's pressed look. */
+const ACTIVE_WHEN: Partial<Record<string, (editor: Editor) => boolean>> = {
+  text: (e) => e.isActive("paragraph") && !e.isActive("bulletList") && !e.isActive("orderedList") && !e.isActive("taskList"),
+  h1: (e) => e.isActive("heading", { level: 1 }),
+  h2: (e) => e.isActive("heading", { level: 2 }),
+  h3: (e) => e.isActive("heading", { level: 3 }),
+  bullets: (e) => e.isActive("bulletList"),
+  numbers: (e) => e.isActive("orderedList"),
+  checklist: (e) => e.isActive("taskList"),
+  callout: (e) => e.isActive("callout"),
+  quote: (e) => e.isActive("blockquote"),
+  code: (e) => e.isActive("codeBlock"),
+}
+
+/** A line after these, so the row reads in groups: text, lists, boxes, the rest. */
+const GROUP_ENDS = new Set(["h3", "checklist", "code"])
+
+/**
+ * The row of blocks above the note, shown from the header's pencil (Tyler,
+ * 15 Nov 2026: the toolbar "should offer the same tools as the "/""). It is
+ * drawn from the "/" menu's own list, so the two can never differ: Text, the
+ * headings, the lists, Toggle, Callout, Quote, Code, Divider, Table, Image,
+ * Link to a note, and Video time on a note whose video can play.
+ */
+function Toolbar({
+  editor,
+  onImage,
+  videoTimeNow,
+}: {
+  editor: Editor
+  onImage: () => void
+  videoTimeNow: React.RefObject<(() => number | null) | undefined>
+}) {
+  const active = useEditorState({
     editor,
-    selector: ({ editor: current }) => ({
-      h1: current.isActive("heading", { level: 1 }),
-      h2: current.isActive("heading", { level: 2 }),
-      h3: current.isActive("heading", { level: 3 }),
-      bullet: current.isActive("bulletList"),
-      ordered: current.isActive("orderedList"),
-      tasks: current.isActive("taskList"),
-      quote: current.isActive("blockquote"),
-      code: current.isActive("codeBlock"),
-      callout: current.isActive("callout"),
-    }),
+    selector: ({ editor: current }) =>
+      Object.fromEntries(Object.entries(ACTIVE_WHEN).map(([id, test]) => [id, test?.(current) ?? false])) as Record<string, boolean>,
   })
+  // Read at each draw for which items show; a press reads the video's time afresh.
+  const items = slashItems(onImage, videoTimeNow.current?.() ?? null)
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b pb-1" role="toolbar" aria-label="Blocks">
-      <ToolbarButton label="Heading 1" active={state?.h1} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
-        <Heading1Icon />
-      </ToolbarButton>
-      <ToolbarButton label="Heading 2" active={state?.h2} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
-        <Heading2Icon />
-      </ToolbarButton>
-      <ToolbarButton label="Heading 3" active={state?.h3} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
-        <Heading3Icon />
-      </ToolbarButton>
-      <ToolbarDivider />
-      <ToolbarButton label="Bulleted list" active={state?.bullet} onClick={() => editor.chain().focus().toggleBulletList().run()}>
-        <ListIcon />
-      </ToolbarButton>
-      <ToolbarButton label="Numbered list" active={state?.ordered} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
-        <ListOrderedIcon />
-      </ToolbarButton>
-      <ToolbarButton label="Checklist" active={state?.tasks} onClick={() => editor.chain().focus().toggleTaskList().run()}>
-        <ListChecksIcon />
-      </ToolbarButton>
-      <ToolbarDivider />
-      <ToolbarButton label="Toggle" onClick={() => editor.chain().focus().setDetails().run()}>
-        <ListCollapseIcon />
-      </ToolbarButton>
-      <ToolbarButton
-        label="Callout"
-        active={state?.callout}
-        onClick={() =>
-          state?.callout
-            ? editor.chain().focus().lift("callout").run()
-            : editor.chain().focus().wrapIn("callout", { tone: "blue" }).run()
-        }
-      >
-        <InfoIcon />
-      </ToolbarButton>
-      <ToolbarButton label="Quote" active={state?.quote} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
-        <TextQuoteIcon />
-      </ToolbarButton>
-      <ToolbarButton label="Code" active={state?.code} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
-        <CodeIcon />
-      </ToolbarButton>
-      <ToolbarButton
-        label="Table"
-        onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-      >
-        <TableIcon />
-      </ToolbarButton>
-      <ToolbarButton label="Image" onClick={onImage}>
-        <ImageIcon />
-      </ToolbarButton>
+      {items.map((item) => (
+        <React.Fragment key={item.id}>
+          <ToolbarButton
+            label={item.title}
+            active={active?.[item.id]}
+            onClick={() => {
+              if (item.id === "callout" && active?.callout) {
+                editor.chain().focus().lift("callout").run()
+                return
+              }
+              const fresh = slashItems(onImage, videoTimeNow.current?.() ?? null).find((each) => each.id === item.id)
+              fresh?.run(editor)
+            }}
+          >
+            {item.icon}
+          </ToolbarButton>
+          {GROUP_ENDS.has(item.id) ? <ToolbarDivider /> : null}
+        </React.Fragment>
+      ))}
     </div>
   )
 }
@@ -818,8 +812,8 @@ function LinkButton({ editor, active }: { editor: Editor; active: boolean }) {
 
 const NOTE_EDITOR_STYLES = `
 .note-rte .tiptap { min-height: 240px; padding: 12px 2px 24px; font-size: 0.9375rem; line-height: 1.65; outline: none; }
-.note-rte.note-rte-inset .tiptap { padding: 12px 20px 24px; }
-.note-rte.note-rte-inset > [role="toolbar"] { padding: 4px 16px; }
+.note-rte.note-rte-inset .tiptap { min-height: 72px; padding: 12px 15px 15px; }
+.note-rte.note-rte-inset > [role="toolbar"] { padding: 4px 11px; }
 .note-rte.note-rte-inset:not(.note-rte-tools) > [aria-label="Blocks"] { display: none; }
 .note-rte .tiptap > * + * { margin-top: 0.6em; }
 .note-rte .tiptap h1 { font-size: 1.6em; font-weight: 700; line-height: 1.25; margin-top: 1em; }

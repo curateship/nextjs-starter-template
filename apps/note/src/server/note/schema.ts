@@ -1,6 +1,7 @@
 import type { JSONContent } from "@tiptap/core"
 import { sql } from "drizzle-orm"
 import {
+  boolean,
   check,
   index,
   integer,
@@ -17,13 +18,11 @@ import { customShellMedia, customShellNotifications, customShellUsers } from "@/
 import type { Highlight } from "@/lib/note/library/highlights"
 import type {
   AnalyseStatus,
-  ImportSource,
   ImportStatus,
   LibraryColour,
   NoteFilters,
   NotePriority,
   NoteSource,
-  PinnedRow,
   PlanStep,
   PostPicture,
   PostVideoStatus,
@@ -58,41 +57,12 @@ export const noteLibraries = pgTable(
     avatarUrl: text("avatar_url"),
     bannerUrl: text("banner_url"),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
-    /** The LIBRARY card's rows pinned to its Pinned card, each with when. */
-    pinnedRows: jsonb("pinned_rows").$type<PinnedRow[]>().notNull().default([]),
     /** When its dashboard was last opened, which the Save to Note button saves into. */
     lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [uniqueIndex("ux_note_libraries_owner_name").on(table.ownerId, sql`lower(${table.name})`)]
-)
-
-/**
- * A library's folders, one level only. An import files its note in the
- * folder made for its source, found by `source` so renaming it keeps it.
- */
-export const noteFolders = pgTable(
-  "note_folders",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    libraryId: varchar("library_id", { length: 36 })
-      .notNull()
-      .references(() => noteLibraries.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 80 }).notNull(),
-    source: varchar("source", { length: 20 }).$type<ImportSource>(),
-    position: integer("position").notNull().default(0),
-    /** Pinned to the Pinned card above LIBRARY. Empty means not pinned. */
-    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("ux_note_folders_library_name").on(table.libraryId, sql`lower(${table.name})`),
-    uniqueIndex("ux_note_folders_library_source")
-      .on(table.libraryId, table.source)
-      .where(sql`${table.source} is not null`),
-  ]
 )
 
 /**
@@ -111,7 +81,6 @@ export const noteNotes = pgTable(
     libraryId: varchar("library_id", { length: 36 })
       .notNull()
       .references(() => noteLibraries.id, { onDelete: "cascade" }),
-    folderId: varchar("folder_id", { length: 36 }).references(() => noteFolders.id, { onDelete: "set null" }),
     title: varchar("title", { length: 200 }).notNull().default(""),
     body: jsonb("body").$type<JSONContent>().notNull(),
     bodyText: text("body_text").notNull().default(""),
@@ -162,7 +131,6 @@ export const noteNotes = pgTable(
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
     /** Where the saved video or sound was stopped, in whole seconds. Empty means from the start. */
     playedSeconds: integer("played_seconds"),
     revision: integer("revision").notNull().default(0),
@@ -274,6 +242,24 @@ export const noteNoticeLinks = pgTable("note_notice_links", {
   noteId: varchar("note_id", { length: 36 })
     .notNull()
     .references(() => noteNotes.id, { onDelete: "cascade" }),
+})
+
+/**
+ * Each person's left page on the Library dashboard (Tyler, 15 Nov 2026: "I
+ * think the library should live as a left panel dashboard block"): what is
+ * written there, its cover and its lock, as the CRM's page is stored. The SQL
+ * is `drizzle/0122_note_library_page.sql`. No row: the starting blocks.
+ */
+export const noteLibraryPages = pgTable("note_library_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull().default([]),
+  locked: boolean("locked").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
 export type NoteLibraryRow = typeof noteLibraries.$inferSelect

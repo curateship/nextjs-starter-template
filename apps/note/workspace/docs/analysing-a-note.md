@@ -1,13 +1,16 @@
 # Analysing a note
 
-The Analyse button on an imported note's Video or Post card has the AI write a
+The Analyse button in the open note's footer, at the bottom of the right panel,
+has the AI write a
 Summary, an Action plan with tick boxes, the best Quotes and the Transcript, as
 cards of their own under the card. Analyse never touches the note's own text;
 only the person's "Add to note" press copies a line into it.
 
 ## Tyler's rules
 
-- The AI runs only when Analyse is pressed, with its price shown first.
+- The AI runs only when Analyse is pressed, with its price shown first. In
+  the footer the price is Analyse's tooltip (Tyler, 15 Nov 2026: "replace it
+  as a tooltip when hover over the analyze button").
   Importing never spends AI money. ("Only on the button", 20 Oct 2026)
 - The Summary, Action plan and Quotes are cards on the right; the note text
   stays his. ("Cards on the right", 20 Oct 2026)
@@ -20,7 +23,7 @@ only the person's "Add to note" press copies a line into it.
 ## Defaults Tyler was offered and did not change
 
 - The about-you line now feeds the plan of every import, not only X posts.
-- One plan from many makes a new plain note in Loose notes, "Plan from 3
+- One plan from many makes a new plain note in the library, "Plan from 3
   notes", holding the merged plan and links to the notes it came from.
 
 ## The price line

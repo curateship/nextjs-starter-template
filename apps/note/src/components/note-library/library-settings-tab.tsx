@@ -140,7 +140,7 @@ export default function LibrarySettingsTab() {
       <CollapsibleSettingsCard
         storageId="note-library-save-from-x"
         title="Save to Note"
-        description="Drag this button to your bookmarks bar once. On a YouTube, Instagram, TikTok, X, LinkedIn, Facebook or Reddit page, click it and the link is imported into its own folder in the library you opened last."
+        description="Drag this button to your bookmarks bar once. On a YouTube, Instagram, TikTok, X, LinkedIn, Facebook or Reddit page, click it and the link is imported into the library you opened last."
       >
         <div className="max-w-60">
           <SaveToNoteButton />

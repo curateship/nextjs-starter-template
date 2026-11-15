@@ -10,13 +10,10 @@ import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-s
 import { removeNoteFiles } from "@/server/note/library/files"
 import { importLink, saveFromLink, saveHighlights } from "@/server/note/library/imports"
 import {
-  createFolder,
   createLibrary,
   createView,
   loadLibraryPage,
   markLibraryOpened,
-  pinFolder,
-  pinLibraryRowToCard,
 } from "@/server/note/library/libraries"
 import {
   createNote,
@@ -26,10 +23,8 @@ import {
   listLibraryQuotes,
   listNotes,
   listPlanSteps,
-  renameAuthor,
   renameTag,
   savePlayedSeconds,
-  setAuthor,
   setPriority,
   setTags,
   trashNotes,
@@ -40,7 +35,7 @@ import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 
 /**
  * The library tools of Tyler's task 02 on a real (in-memory) database:
- * sorting, pinned folders, renaming and merging tags and authors with the
+ * sorting, renaming and merging tags with the
  * saved views that name them, duplicates that share their files, the Plan
  * steps and Quotes lists, where a video was stopped, and the Save to Note
  * button taking every source.
@@ -71,7 +66,7 @@ afterEach(async () => {
 })
 
 async function note(title: string) {
-  return (await createNote(user.id, { libraryId, folderId: null, title })).id
+  return (await createNote(user.id, { libraryId, title })).id
 }
 
 async function rowOf(id: string) {
@@ -146,33 +141,6 @@ describe("sorting the notes table", () => {
   })
 })
 
-describe("pinned folders", () => {
-  it("pins and unpins a folder, and the page says when", async () => {
-    const folder = await createFolder(user.id, libraryId, "Hooks")
-    await pinFolder(user.id, folder.id, true)
-    const pinned = await loadLibraryPage(user.id, libraryId)
-    expect(pinned.folders[0].pinnedAt).not.toBeNull()
-    await pinFolder(user.id, folder.id, false)
-    expect((await loadLibraryPage(user.id, libraryId)).folders[0].pinnedAt).toBeNull()
-  })
-
-  it("pins the LIBRARY card's own rows in the order pinned, once each", async () => {
-    await pinLibraryRowToCard(user.id, libraryId, "trash", true)
-    await pinLibraryRowToCard(user.id, libraryId, "all", true)
-    await pinLibraryRowToCard(user.id, libraryId, "trash", true)
-    const page = await loadLibraryPage(user.id, libraryId)
-    expect(page.pinnedRows.map((each) => each.row)).toEqual(["trash", "all"])
-    await pinLibraryRowToCard(user.id, libraryId, "trash", false)
-    expect((await loadLibraryPage(user.id, libraryId)).pinnedRows.map((each) => each.row)).toEqual(["all"])
-    await expect(pinLibraryRowToCard(other.id, libraryId, "loose", true)).rejects.toThrow(LIBRARY_SAYS.libraryNotFound)
-  })
-
-  it("will not pin another person's folder", async () => {
-    const folder = await createFolder(user.id, libraryId, "Hooks")
-    await expect(pinFolder(other.id, folder.id, true)).rejects.toThrow(LIBRARY_SAYS.folderNotFound)
-  })
-})
-
 describe("renaming tags and authors across a library", () => {
   it("renames a tag on every note and in the views that filter on it", async () => {
     const one = await note("One")
@@ -206,27 +174,6 @@ describe("renaming tags and authors across a library", () => {
     expect(await deleteTag(user.id, libraryId, "hook")).toEqual({ notes: 1 })
     expect((await rowOf(one)).tags).toEqual(["money"])
   })
-
-  it("renames an author on every note, so two names become one row", async () => {
-    const one = await note("One")
-    const two = await note("Two")
-    await setAuthor(user.id, one, { name: "MKBHD", handle: "mkbhd" })
-    await setAuthor(user.id, two, { name: "Marques Brownlee", handle: null })
-    await createView(user.id, libraryId, { name: "His", filters: { author: "mkbhd" } })
-
-    expect(await renameAuthor(user.id, libraryId, "mkbhd", "Marques Brownlee")).toEqual({ notes: 1 })
-    expect((await rowOf(one)).authorName).toBe("Marques Brownlee")
-    expect((await rowOf(one)).authorHandle).toBe("mkbhd")
-    const page = await loadLibraryPage(user.id, libraryId)
-    expect(page.authors).toHaveLength(1)
-    expect(page.authors[0].count).toBe(2)
-    const [view] = await database.select().from(noteViews).where(eq(noteViews.libraryId, libraryId))
-    expect(view.filters).toEqual({ author: "Marques Brownlee" })
-  })
-
-  it("refuses an empty author name", async () => {
-    await expect(renameAuthor(user.id, libraryId, "mkbhd", "  ")).rejects.toThrow(LIBRARY_SAYS.authorEmpty)
-  })
 })
 
 describe("duplicating a note", () => {
@@ -235,7 +182,6 @@ describe("duplicating a note", () => {
     const copy = await duplicateNote(user.id, video.id)
     const row = await rowOf(copy.id)
     expect(copy.title).toBe("Copy of Me at the zoo")
-    expect(copy.folderId).toBe((await rowOf(video.id)).folderId)
     expect(row.videoMediaId).toBe(video.mediaId)
     expect(row.actionPlan).toEqual([
       { text: "Visit the zoo", done: false },
@@ -263,12 +209,11 @@ describe("duplicating a note", () => {
     expect(gone).toBeUndefined()
   })
 
-  it("into another library goes into its source's folder and keeps the site's id there", async () => {
+  it("into another library keeps the site's id there", async () => {
     const video = await savedVideo()
     const elsewhere = (await createLibrary(user.id, { name: "Archive" })).id
     const copy = await duplicateNote(user.id, video.id, elsewhere)
     expect(copy.libraryId).toBe(elsewhere)
-    expect(copy.folderName).toBe("YouTube long")
     expect((await rowOf(copy.id)).platformId).toBe("jNQXAC9IVRw")
   })
 
@@ -323,18 +268,14 @@ describe("where a video was stopped", () => {
 })
 
 describe("Save to Note", () => {
-  it("saves a YouTube, a Reddit and an X link into the library opened last, each in its own folder", async () => {
+  it("saves a YouTube, a Reddit and an X link into the library opened last", async () => {
     process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY ??= "a".repeat(64)
     await markLibraryOpened(user.id, libraryId)
     const key = saveKeyFor(user.id)
     const youtube = await saveFromLink(user.id, "https://youtu.be/jNQXAC9IVRw", key)
     const reddit = await saveFromLink(user.id, "https://www.reddit.com/r/videos/comments/1abc2de/a_title/", key)
     const x = await saveFromLink(user.id, "https://x.com/naval/status/1002103360646823936", key)
-    expect([youtube.note.folderName, reddit.note.folderName, x.note.folderName]).toEqual([
-      "YouTube long",
-      "Reddit",
-      "X/Twitter",
-    ])
+    expect([youtube.note.source, reddit.note.source, x.note.source]).toEqual(["youtube_long", "reddit", "x"])
     expect(reddit.note.libraryId).toBe(libraryId)
   })
 

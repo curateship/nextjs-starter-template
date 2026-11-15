@@ -14,7 +14,11 @@ export type MenuItem = {
   title: string
   hint?: string
   icon?: React.ReactNode
+  /** The "/" list's heading this row sits under: Basic blocks or Advanced blocks. */
+  group?: "basic" | "advanced"
 }
+
+const GROUP_LABEL = { basic: "Basic blocks", advanced: "Advanced blocks" } as const
 
 export type ListHandle = { onKeyDown: (event: KeyboardEvent) => boolean }
 
@@ -23,11 +27,13 @@ export type ListProps = {
   items: MenuItem[]
   loading: boolean
   emptyText: string
+  /** Every row shows with no scroller; otherwise the list scrolls past 18rem. */
+  fitAll?: boolean
   onPick: (item: MenuItem) => void
 }
 
 export const SuggestionList = React.forwardRef<ListHandle, ListProps>(function SuggestionList(
-  { label, items, loading, emptyText, onPick },
+  { label, items, loading, emptyText, fitAll = false, onPick },
   ref
 ) {
   const [active, setActive] = React.useState({ items, index: 0 })
@@ -58,9 +64,13 @@ export const SuggestionList = React.forwardRef<ListHandle, ListProps>(function S
     document.getElementById(`${listId}-${index}`)?.scrollIntoView({ block: "nearest" })
   }, [index, listId])
 
+  if (fitAll) {
+    return <GroupedList label={label} items={items} index={index} listId={listId} emptyText={emptyText} onActive={(at) => setActive({ items, index: at })} onPick={onPick} />
+  }
+
   return (
     <div className="z-50 w-72 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
-      <ScrollArea className="max-h-72">
+      <ListFrame fitAll={false}>
         <div role="listbox" aria-label={label} className="grid p-1">
           {items.length ? (
             items.map((item, at) => (
@@ -97,7 +107,79 @@ export const SuggestionList = React.forwardRef<ListHandle, ListProps>(function S
             </p>
           )}
         </div>
-      </ScrollArea>
+      </ListFrame>
     </div>
   )
 })
+
+/**
+ * The "/" list drawn as the shell's is on every left page
+ * (`shared/notes/note-blocks-menu.tsx`; Tyler, 15 Nov 2026: "it should look
+ * like this"): Basic blocks, then Advanced blocks under one line edge to
+ * edge, each row a bare icon and the name alone, one column, every row shown
+ * with no scroller ("just make it fit all the tools").
+ */
+function GroupedList({
+  label,
+  items,
+  index,
+  listId,
+  emptyText,
+  onActive,
+  onPick,
+}: {
+  label: string
+  items: MenuItem[]
+  index: number
+  listId: string
+  emptyText: string
+  onActive: (index: number) => void
+  onPick: (item: MenuItem) => void
+}) {
+  const groups = (["basic", "advanced"] as const).filter((group) => items.some((item) => (item.group ?? "basic") === group))
+  return (
+    <div className="z-50 w-max min-w-56 rounded-md border bg-popover p-2 text-[13px] text-popover-foreground shadow-md">
+      <div role="listbox" aria-label={label} className="grid">
+        {items.length === 0 ? <p className="px-2.5 py-1.5 text-muted-foreground">{emptyText}</p> : null}
+        {groups.map((group, groupIndex) => {
+          const headingId = `${listId}-${group}`
+          return (
+            <div key={group} role="group" aria-labelledby={headingId} className="grid">
+              {groupIndex > 0 ? <div aria-hidden className="-mx-2 my-1.5 border-t" /> : null}
+              <div id={headingId} className="px-2.5 pt-0.5 pb-1 text-xs font-medium text-muted-foreground">
+                {GROUP_LABEL[group]}
+              </div>
+              {items.map((item, at) =>
+                (item.group ?? "basic") === group ? (
+                  <button
+                    key={item.id}
+                    id={`${listId}-${at}`}
+                    type="button"
+                    role="option"
+                    aria-selected={at === index}
+                    // Keeps the cursor in the note while the pick is made.
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => onActive(at)}
+                    onClick={() => onPick(item)}
+                    className={cn(
+                      "flex min-h-8 items-center gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-accent [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+                      at === index && "bg-accent"
+                    )}
+                  >
+                    {item.icon}
+                    <span>{item.title}</span>
+                  </button>
+                ) : null
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ListFrame({ fitAll, children }: { fitAll: boolean; children: React.ReactNode }) {
+  if (fitAll) return <>{children}</>
+  return <ScrollArea viewportClassName="max-h-72">{children}</ScrollArea>
+}
