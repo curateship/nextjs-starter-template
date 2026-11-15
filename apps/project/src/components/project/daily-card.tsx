@@ -22,6 +22,7 @@ import {
 import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
 import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
 import { useNow } from "@/lib/project/use-now"
+import { cn } from "@/lib/utils"
 
 /** The clock, part of the day, sky and weather, worked out once for the sky behind the panel and the card in it. */
 export type DailyNow = {
@@ -249,24 +250,60 @@ function NextMeeting({ daily, nowMs }: { daily: DailyCardData; nowMs: number }) 
   )
 }
 
-/** All of Sunday: the week's ratings and wins together, above the usual card. */
+/**
+ * All of Sunday: the week's ratings as a bar chart, and the wins under it,
+ * above the usual card (Tyler, 15 Nov 2026: "revamp the your week part to
+ * look like this", with a drawing). Each day, Monday to Sunday, is a bar as
+ * tall as its rating with the number above it. A day not rated is a flat grey
+ * stub under a dash, and today, still unrated, a dashed stub under a "?".
+ * Today's name is bold. No average and no "3 of 7 days rated" or Rate today
+ * at the foot (Tyler, 15 Nov 2026: "remove all this and average rating").
+ */
 function SundayLookBack({ daily }: { daily: DailyCardData }) {
   const days = daily.admin?.lookBack ?? []
-  const rated = days.filter((day) => day.rating)
   const wins = days.filter((day) => day.win)
+  const today = daily.cardDay
   return (
     <DailySection title="Your week" foldId="your-week">
-      <ol className="grid grid-cols-7 gap-1 text-center text-xs" aria-label="This week's ratings">
-        {days.map((day) => (
-          <li key={day.day} className="grid gap-1">
-            <span className="text-muted-foreground">{new Date(`${day.day}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", timeZone: "UTC" })}</span>
-            <span className="font-medium">{day.rating ?? ""}</span>
-          </li>
-        ))}
+      {/* On its own faint grey card, since the Daily habits block takes the
+          section's grey away (Tyler, 15 Nov 2026: "put the chart inside a faint
+          light gray card"). */}
+      <ol className="grid grid-cols-7 gap-1.5 rounded-xl bg-muted/40 p-3 pt-2" aria-label="This week's ratings">
+        {days.map((day) => {
+          const isToday = day.day === today
+          const name = new Date(`${day.day}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", timeZone: "UTC" })
+          return (
+            <li key={day.day} className="grid min-w-0 justify-items-center gap-1.5">
+              {/* The bars stand on one line: 80px is a 10 and 15px a 1, with room for the number above a 10. */}
+              <div className="flex h-26 w-full flex-col items-center justify-end gap-1">
+                <span
+                  className={cn(
+                    "font-mono text-xs tabular-nums",
+                    day.rating ? "font-semibold" : "text-muted-foreground/60"
+                  )}
+                >
+                  {day.rating ?? (isToday ? "?" : "–")}
+                </span>
+                {day.rating ? (
+                  <span
+                    className="w-full rounded-md bg-foreground"
+                    style={{ height: `${8 + (day.rating * 72) / DAY_RATING_TOP}px` }}
+                  />
+                ) : (
+                  <span
+                    className={cn(
+                      "h-2 w-full rounded-full",
+                      isToday ? "border border-dashed border-foreground/60" : "bg-muted"
+                    )}
+                  />
+                )}
+              </div>
+              <span className={cn("text-xs", isToday ? "font-semibold" : "text-muted-foreground")}>{name}</span>
+              <span className="sr-only">{day.rating ? `rated ${day.rating} of ${DAY_RATING_TOP}` : "not rated"}</span>
+            </li>
+          )
+        })}
       </ol>
-      <p className="text-sm text-muted-foreground">
-        {rated.length ? `You rated ${rated.length} of 7 days.` : "No days rated this week."}
-      </p>
       {wins.length ? (
         <ul className="grid list-disc gap-1 pl-5 text-sm">
           {wins.map((day) => (
