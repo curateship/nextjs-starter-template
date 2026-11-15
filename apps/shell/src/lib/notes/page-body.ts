@@ -49,6 +49,27 @@ export function pageWithoutBlock(stored: string, nodeName: string): string {
   }
 }
 
+/**
+ * The stored page with an app block swapped with the line or block above it
+ * (-1) or below it (1). Used for Move up and Move down on a locked page, whose
+ * editor cannot change itself (Tyler, 15 Nov 2026: "Every block should have
+ * this function"). The page comes back unchanged when there is nothing on
+ * that side.
+ */
+export function pageWithBlockMoved(stored: string, nodeName: string, direction: -1 | 1): string {
+  try {
+    const doc = JSON.parse(stored) as { content?: { type?: string }[] }
+    const content = [...(doc.content ?? [])]
+    const index = content.findIndex((node) => node.type === nodeName)
+    const other = index + direction
+    if (index === -1 || other < 0 || other >= content.length) return stored
+    ;[content[index], content[other]] = [content[other], content[index]]
+    return JSON.stringify({ ...doc, content })
+  } catch {
+    return stored
+  }
+}
+
 /** One page as a screen holds it. */
 export type StoredPage = {
   /** The saved document as JSON text, or the starting page when none was saved. */

@@ -26,7 +26,7 @@ import {
   setAdminPageCoverPhoto,
 } from "@/lib/api/admin-dashboard"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { pageWithBlockMoved, pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
 import { LockedPageContext } from "@/components/shared/notes/block-card"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -105,6 +105,21 @@ export function AdminPagePanel({
           await change({ locked: false, body }, async () => {
             await lockAdminPage("left", false)
             await saveAdminPage("left", body)
+          })
+        },
+        // Move up and Move down on the locked page: unlocked just long enough
+        // to save the new order, then locked again (Tyler, 15 Nov 2026:
+        // "Every block should have this function").
+        moveBlock: async (nodeName: string, direction: -1 | 1) => {
+          const body = pageWithBlockMoved(page.body, nodeName, direction)
+          if (body === page.body) return
+          await change({ body }, async () => {
+            await lockAdminPage("left", false)
+            try {
+              await saveAdminPage("left", body)
+            } finally {
+              await lockAdminPage("left", true)
+            }
           })
         },
       }

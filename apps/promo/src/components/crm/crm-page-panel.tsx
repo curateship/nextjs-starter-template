@@ -41,7 +41,7 @@ import {
 } from "@/lib/api/crm/page"
 import { contactFilterOptions, getContactErrorMessage, loadContactsPage } from "@/lib/api/people/contacts"
 import type { SegmentRuleOptions } from "@/lib/contacts/contact-segments"
-import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { pageWithBlockMoved, pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
 import { LockedPageContext } from "@/components/shared/notes/block-card"
 import { dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
@@ -122,6 +122,27 @@ export function CrmPagePanel({
             await lockCrmPage(false)
             await saveCrmPage(body)
             onPageChange({ ...page, locked: false, body })
+          } catch (error) {
+            showErrorToast(getCrmPageErrorMessage(error))
+          } finally {
+            setBusy(false)
+          }
+        },
+        // Move up and Move down on the locked page: unlocked just long enough
+        // to save the new order, then locked again (Tyler, 15 Nov 2026:
+        // "Every block should have this function").
+        moveBlock: async (nodeName: string, direction: -1 | 1) => {
+          const body = pageWithBlockMoved(page.body, nodeName, direction)
+          if (body === page.body) return
+          setBusy(true)
+          try {
+            await lockCrmPage(false)
+            try {
+              await saveCrmPage(body)
+            } finally {
+              await lockCrmPage(true)
+            }
+            onPageChange({ ...page, body })
           } catch (error) {
             showErrorToast(getCrmPageErrorMessage(error))
           } finally {

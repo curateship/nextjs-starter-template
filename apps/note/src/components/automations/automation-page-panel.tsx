@@ -24,7 +24,7 @@ import {
   setAutomationPageCoverPhoto,
 } from "@/lib/api/automations/automation-page"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { pageWithBlockMoved, pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -84,6 +84,21 @@ export function AutomationPagePanel({
           await change({ locked: false, body }, async () => {
             await lockAutomationPage(false)
             await saveAutomationPage(body)
+          })
+        },
+        // Move up and Move down on the locked page: unlocked just long enough
+        // to save the new order, then locked again (Tyler, 15 Nov 2026:
+        // "Every block should have this function").
+        moveBlock: async (nodeName: string, direction: -1 | 1) => {
+          const body = pageWithBlockMoved(page.body, nodeName, direction)
+          if (body === page.body) return
+          await change({ body }, async () => {
+            await lockAutomationPage(false)
+            try {
+              await saveAutomationPage(body)
+            } finally {
+              await lockAutomationPage(true)
+            }
           })
         },
       }

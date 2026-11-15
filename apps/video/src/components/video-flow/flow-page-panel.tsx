@@ -19,7 +19,7 @@ import {
   type FlowPage,
 } from "@/lib/api/video/flow-page"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { pageWithoutBlock } from "@/lib/notes/page-body"
+import { pageWithBlockMoved, pageWithoutBlock } from "@/lib/notes/page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -80,6 +80,21 @@ export function FlowPagePanel({
           await change({ locked: false, body }, async () => {
             await lockFlowPage(false)
             await saveFlowPage(body)
+          })
+        },
+        // Move up and Move down on the locked page: unlocked just long enough
+        // to save the new order, then locked again (Tyler, 15 Nov 2026:
+        // "Every block should have this function").
+        moveBlock: async (nodeName: string, direction: -1 | 1) => {
+          const body = pageWithBlockMoved(page.body, nodeName, direction)
+          if (body === page.body) return
+          await change({ body }, async () => {
+            await lockFlowPage(false)
+            try {
+              await saveFlowPage(body)
+            } finally {
+              await lockFlowPage(true)
+            }
           })
         },
       }

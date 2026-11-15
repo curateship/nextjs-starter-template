@@ -13,7 +13,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { pageWithBlockMoved, pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -97,6 +97,21 @@ export function DashboardPagePanel({
             await api.lock(false)
             await api.save(body)
           }, { ...page, locked: false, body })
+        },
+        // Move up and Move down on the locked page: unlocked just long enough
+        // to save the new order, then locked again (Tyler, 15 Nov 2026:
+        // "Every block should have this function").
+        moveBlock: async (nodeName: string, direction: -1 | 1) => {
+          const body = pageWithBlockMoved(page.body, nodeName, direction)
+          if (body === page.body) return
+          await change(async () => {
+            await api.lock(false)
+            try {
+              await api.save(body)
+            } finally {
+              await api.lock(true)
+            }
+          }, { ...page, body })
         },
       }
     : null

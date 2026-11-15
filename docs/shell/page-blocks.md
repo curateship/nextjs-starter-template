@@ -57,9 +57,18 @@ All of them are in `src/components/shared/notes/`, with their rules in
   locked. Unlock it and delete the … block?"), then the page panel unlocks
   the page and saves it without the block (`LockedPageContext` in
   `block-card.tsx`, `pageWithoutBlock` in `src/lib/notes/page-body.ts`).
-  The Admin and CRM pages provide it. A fixed block (`blockView({ ..., fixed: true })`)
-  has Move up and Move down in place of Delete block, each offered only when
-  there is something on that side. `BlockCard` on
+  The Admin and CRM pages provide it. Every block's ⋮ also has Move up and
+  Move down, between the block's own rows and Delete block, each offered
+  only when there is a line or block on that side (Tyler, 15 Nov 2026:
+  "Every block should have this function"). A move swaps the block with its
+  neighbour in one step. On a locked page it works without asking and the
+  page stays locked: `LockedPageContext.moveBlock` unlocks the page, saves it
+  with the block moved (`pageWithBlockMoved` in `src/lib/notes/page-body.ts`)
+  and locks it again, and `SavingDocument` draws a locked page afresh when its
+  saved document changes. Every page panel that offers a lock provides
+  `moveBlock` beside `removeBlock`. A page with no lock offers the moves only
+  while it can be written on. A fixed block (`blockView({ ..., fixed: true })`)
+  has the moves but no Delete block. `BlockCard` on
   its own draws the same card outside a page, as the CRM's Contact card does.
 - **`use-note-blocks.ts` and `note-blocks-menu.tsx`.** The "/" list. Basic
   blocks come first, then the app's under "Advanced blocks". An app block

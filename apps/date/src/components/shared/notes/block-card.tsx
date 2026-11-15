@@ -154,6 +154,11 @@ export const LockedPageContext = React.createContext<{
   locked: boolean
   /** Unlocks the page and saves it without this block's node. */
   removeBlock: (nodeName: string) => Promise<void>
+  /**
+   * Saves the page with this block's node swapped with the one above (-1) or
+   * below (1), and leaves it locked.
+   */
+  moveBlock: (nodeName: string, direction: -1 | 1) => Promise<void>
 } | null>(null)
 
 /** Whether the block holding this panel is open, or true outside a block. */
@@ -213,8 +218,11 @@ export function BlockCard({
    */
   onRemoveLocked?: () => Promise<void>
   /**
-   * A fixed block's Move up and Move down, worked out as its ⋮ opens, so
-   * only a move that can happen is offered.
+   * The block's Move up and Move down, worked out as its ⋮ opens, so only a
+   * move that can happen is offered. Left out where the block cannot move,
+   * such as a locked page that cannot save one. Every block has them (Tyler, 15 Nov
+   * 2026: "Every block should have this function"); a fixed block has them
+   * in place of Delete block.
    */
   moves?: () => BlockMenuItem[]
   kind: string
@@ -229,6 +237,8 @@ export function BlockCard({
   const [count, setCount] = React.useState<number | undefined>(undefined)
   const [menu, setMenu] = React.useState<BlockMenuItem[] | undefined>(undefined)
   const [reorder, setReorder] = React.useState<((keys: string[]) => void) | undefined>(undefined)
+  // Worked out each time the ⋮ opens, since the block's neighbours change.
+  const [moveRows, setMoveRows] = React.useState<BlockMenuItem[]>([])
   const [askingDelete, setAskingDelete] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   // Delete block shows on every block but a fixed one: straight away while
@@ -288,8 +298,11 @@ export function BlockCard({
               heading is pointed at, never for a row inside the tile ("hover
               over the item should only show the item 3 dot, not the header
               too"). */}
-          {menu?.length || canDelete || (editable && moves) ? (
-            <DropdownMenu modal={false}>
+          {menu?.length || canDelete || moves ? (
+            <DropdownMenu
+              modal={false}
+              onOpenChange={(opening) => setMoveRows(opening && moves ? moves() : [])}
+            >
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
@@ -321,10 +334,20 @@ export function BlockCard({
                     {item.end ? <span className="ml-auto flex text-muted-foreground [&_svg]:size-4">{item.end}</span> : null}
                   </DropdownMenuItem>
                 ))}
-                {editable && moves ? <MoveRows moves={moves} after={Boolean(menu?.length)} /> : null}
-                {canDelete ? (
+                {moveRows.length ? (
                   <>
                     {menu?.length ? <DropdownMenuSeparator /> : null}
+                    {moveRows.map((item) => (
+                      <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
+                        {item.icon}
+                        {item.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                ) : null}
+                {canDelete ? (
+                  <>
+                    {menu?.length || moveRows.length ? <DropdownMenuSeparator /> : null}
                     <DropdownMenuItem
                       variant="destructive"
                       onSelect={() => (editable ? onRemove?.() : setAskingDelete(true))}
@@ -389,7 +412,6 @@ export function BlockCard({
   )
 }
 
-/** A fixed block's moves, under any rows of the block's own. */
 /**
  * Rows of a block's ⋮ that drag into a new order: a grip, the name and its
  * end mark. A press still does the row's own thing; a drag of 6px or more
@@ -483,23 +505,6 @@ function SortableMenuRow({
   )
 }
 
-function MoveRows({ moves, after }: { moves: () => BlockMenuItem[]; after: boolean }) {
-  // Worked out once as the menu opens: the rows are drawn only while it is open.
-  const [rows] = React.useState(moves)
-  if (rows.length === 0) return null
-  return (
-    <>
-      {after ? <DropdownMenuSeparator /> : null}
-      {rows.map((item) => (
-        <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
-          {item.icon}
-          {item.label}
-        </DropdownMenuItem>
-      ))}
-    </>
-  )
-}
-
 type BlockSpec = {
   /** The block's own name, which its fold is remembered under. */
   kind: string
@@ -510,7 +515,7 @@ type BlockSpec = {
   /**
    * A block the page always keeps, such as Admin's Dashboards (Tyler,
    * 8 Nov 2026: "It can be a fixed block but I'd need to be able to move it
-   * too"). Its ⋮ has Move up and Move down in place of Delete block. The
+   * too"). Its ⋮ has Move up and Move down but no Delete block. The
    * node itself refuses to be taken off; see `keepOnPage`.
    */
   fixed?: boolean
@@ -520,7 +525,12 @@ type BlockSpec = {
  * Move up or Move down for the top-level block at `pos`: it swaps places
  * with the line or block beside it. Null when there is nothing on that side.
  */
-function moveBlock(editor: NodeViewProps["editor"], pos: number, direction: -1 | 1) {
+function moveBlock(
+  editor: NodeViewProps["editor"],
+  pos: number,
+  direction: -1 | 1,
+  lockedPage: React.ContextType<typeof LockedPageContext>
+) {
   const { doc } = editor.state
   const $pos = doc.resolve(pos)
   if ($pos.depth !== 0) return null
@@ -529,6 +539,9 @@ function moveBlock(editor: NodeViewProps["editor"], pos: number, direction: -1 |
   const neighbourIndex = index + direction
   if (neighbourIndex < 0 || neighbourIndex >= doc.childCount) return null
   const neighbour = doc.child(neighbourIndex)
+  // A locked page's editor cannot change itself, so the page panel saves the
+  // moved page and draws it afresh, still locked.
+  if (lockedPage?.locked) return () => void lockedPage.moveBlock(node.type.name, direction)
   return () => {
     // One step, so the editor never sees the page without the block.
     const tr = editor.state.tr.delete(pos, pos + node.nodeSize)
@@ -547,8 +560,8 @@ export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec)
     const moves = () => {
       const pos = getPos()
       if (typeof pos !== "number") return []
-      const up = moveBlock(editor, pos, -1)
-      const down = moveBlock(editor, pos, 1)
+      const up = moveBlock(editor, pos, -1, lockedPage)
+      const down = moveBlock(editor, pos, 1, lockedPage)
       return [
         ...(up ? [{ label: "Move up", icon: <ArrowUpIcon className="size-4" />, onSelect: up }] : []),
         ...(down ? [{ label: "Move down", icon: <ArrowDownIcon className="size-4" />, onSelect: down }] : []),
@@ -562,7 +575,7 @@ export function blockView({ kind, title, icon, Draw, fixed = false }: BlockSpec)
           onRemoveLocked={
             !fixed && lockedPage?.locked ? () => lockedPage.removeBlock(node.type.name) : undefined
           }
-          moves={fixed ? moves : undefined}
+          moves={editor.isEditable || lockedPage?.locked ? moves : undefined}
           kind={kind}
           title={title}
           icon={icon}

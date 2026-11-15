@@ -85,7 +85,12 @@ export function SavingDocument({
   appBlocks = NO_APP_BLOCKS,
   className,
 }: {
-  /** The page's document as JSON text, or "". Read once, when it first shows. */
+  /**
+   * The page's document as JSON text, or "". Read once when it first shows,
+   * and again whenever it changes while the page is locked: a locked page's
+   * blocks move by saving the page (`LockedPageContext.moveBlock`), and the
+   * editor cannot change itself.
+   */
   value: string
   onSave: (json: string) => Promise<unknown>
   placeholder?: string
@@ -102,6 +107,10 @@ export function SavingDocument({
   const [appTypes] = React.useState(() => appBlocks.map((block) => block.node))
   const [clean] = React.useState(() => (body: unknown) => cleanNoteBody(body, appTypes))
   const [start] = React.useState(() => readPageBody(value, appTypes))
+  const lockedStart = React.useMemo(
+    () => (readOnly ? readPageBody(value, appTypes) : null),
+    [readOnly, value, appTypes]
+  )
   // What was last saved, so the editor reporting the same words again (as it does when it is
   // locked and unlocked) sends nothing.
   const saved = React.useRef(JSON.stringify(start))
@@ -197,7 +206,9 @@ export function SavingDocument({
     >
       <style>{BLOCK_STYLES}</style>
       <DocumentEditor<NoteNode>
-        value={start}
+        // Drawn afresh when a locked page's saved document changes.
+        key={readOnly ? value : "open"}
+        value={lockedStart ?? start}
         disabled={readOnly}
         placeholder={placeholder}
         extensions={blocks.extensions}

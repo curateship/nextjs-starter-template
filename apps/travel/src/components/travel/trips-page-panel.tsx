@@ -14,7 +14,7 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { lockTripsPage, saveTripsPage, setTripsPageCoverPhoto } from "@/lib/api/travel/trips-dashboard"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
+import { pageWithBlockMoved, pageWithoutBlock, type StoredPage } from "@/lib/notes/page-body"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -76,6 +76,21 @@ export function TripsPagePanel({
             await lockTripsPage(false)
             await saveTripsPage(body)
           }, { ...page, locked: false, body })
+        },
+        // Move up and Move down on the locked page: unlocked just long enough
+        // to save the new order, then locked again (Tyler, 15 Nov 2026:
+        // "Every block should have this function").
+        moveBlock: async (nodeName: string, direction: -1 | 1) => {
+          const body = pageWithBlockMoved(page.body, nodeName, direction)
+          if (body === page.body) return
+          await change(async () => {
+            await lockTripsPage(false)
+            try {
+              await saveTripsPage(body)
+            } finally {
+              await lockTripsPage(true)
+            }
+          }, { ...page, body })
         },
       }
     : null
