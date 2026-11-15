@@ -83,6 +83,15 @@ Each part is his pick, made on 15 Nov 2026 from sketches on a private page.
   still, on a rounded tile in the light canvas colour `#f3efe8`. The tile is
   there because a dark f on a clear background vanishes on a dark tab bar.
   An icon uploaded in Settings → Branding still wins over these two files.
+- **The admin left menu, and the tab icon on every page**: a still picture of
+  the f with the firefly, saved as the logo in Settings → Branding (Tyler,
+  15 Nov 2026: "change the logo in admin to the flowfly logo in public", then
+  "just add a static flowfly logo"). It replaced the tomato. The admin left
+  menu is a shell piece that draws the Branding picture in a small square
+  with the site's name beside it, so it cannot show the moving logo. The
+  picture is `workspace/docs/assets/flowfly-logo-branding.png`, with its dark
+  version, a white f, in `flowfly-logo-branding-dark.png`. Both were drawn
+  from the same shapes as the component.
 
 ## The fireflies on a finished task
 
