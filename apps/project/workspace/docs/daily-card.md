@@ -257,7 +257,11 @@ follows, the picture wins:
   nothing but save it"). There is no chart of the last 30 days' ratings in
   the window (Tyler, 30 Oct 2026: "remove"). The time it was pressed is kept in `bed_at`, the
   column Going to bed used, and isn't shown anywhere. A box still being
-  typed in when the window closes is saved too.
+  typed in when the window closes is saved too. The window lines up with
+  the button's left edge and grows rightwards. Grown leftwards, it ran
+  under Project's left menu, which Personal's frame slides out of sight,
+  and was cut off (Tyler, 15 Nov 2026: "any dropdown for the iframe gets
+  cut off", then "do option 1").
 - **Only today can be written.** A box saves itself when left, with the
   usual Saving…, Saved or Not saved.
 - **Sunday** shows Your week above the usual card, all day, drawn from

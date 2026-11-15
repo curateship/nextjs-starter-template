@@ -88,8 +88,11 @@ export function RateYourDayButton({ daily }: { daily: DailyCard }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {rated ? <div className="min-w-0 flex-1">{trigger}</div> : <RainbowEdge className="min-w-0 flex-1 rounded-lg">{trigger}</RainbowEdge>}
+      {/* Lined up with the button's left edge so it grows rightwards. Grown
+          leftwards it ran under Project's left menu, which Personal's frame
+          slides out of sight, and was cut off (Tyler, 15 Nov 2026). */}
       <PopoverContent
-        align="end"
+        align="start"
         className="grid max-h-[var(--radix-popover-content-available-height)] w-80 grid-cols-[minmax(0,1fr)] gap-3 overflow-y-auto"
       >
         <RateYourDay day={day} rating={admin.today.rating} />
