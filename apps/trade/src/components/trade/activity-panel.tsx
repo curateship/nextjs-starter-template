@@ -60,6 +60,7 @@ import {
 } from "@/lib/api/trade/all-positions"
 import { Tabs as TabsPrimitive } from "radix-ui"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -338,9 +339,10 @@ export function ActivityPanel({
    * The chart's controls in the one middle header (Tyler, 7 Nov 2026: "There
    * should only be one middle header"): the timeframe, Indicators, View
    * options and Browse market. Told whether the panel is narrow, so the
-   * timeframe can draw its short form.
+   * timeframe can draw its short form. `tableIcons` is the open table's
+   * Filter and Mass select, drawn just before Indicators.
    */
-  controls?: (narrow: boolean) => React.ReactNode
+  controls?: (narrow: boolean, tableIcons: React.ReactNode) => React.ReactNode
   /** The wallet menu, opened from its row in the ⋮, and the wallet in use. */
   wallet?: {
     name: string | null
@@ -772,13 +774,10 @@ export function ActivityPanel({
   )
 
   // What the open table offers beside its tabs: closing or removing the
-  // ticked rows, Mass select's off switch, and the Journal's filter.
+  // ticked rows. Each shows only once something is ticked, because a button
+  // that could do nothing would just be furniture.
   const tableActions = (
     <>
-      {/* Removes every ticked Journal row at once, through the same
-          confirm the bin on one row uses. Only there once something is
-          ticked — a button that could do nothing would just be
-          furniture. */}
       {tab === "positions" && positionMass && tickedPositions.length > 0 ? (
         <Button
           type="button"
@@ -792,45 +791,8 @@ export function ActivityPanel({
           {tickedPositions.length})
         </Button>
       ) : null}
-      {(tab === "positions" && positionMass) || (tab === "journal" && journalMass) ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => (tab === "positions" ? togglePositionMass() : toggleJournalMass())}
-        >
-          <ListChecksIcon className="size-4" />
-          <span className="max-sm:sr-only">Hide select</span>
-        </Button>
-      ) : null}
-      {tab === "journal" && onJournalViewChange ? (
-        <CountedFilterPopover
-          items={journalFilterItems}
-          groups={[
-            {
-              label: "Placed by",
-              value: view.makers.length === 0 ? null : view.makers,
-              valueOf: (maker) => maker,
-              labelOf: (maker) => TRADE_MAKER_LABELS[maker],
-              onChange: (value) =>
-                onJournalViewChange({ ...view, makers: (value ?? []) as TradeMaker[] }),
-            },
-          ]}
-          extraActive={view.hidePractice ? 1 : 0}
-          extra={
-            <div className="flex items-center justify-between gap-3 px-2">
-              <Label htmlFor="journal-hide-practice" className="text-sm font-normal">
-                Hide practice trades
-              </Label>
-              <Switch
-                id="journal-hide-practice"
-                checked={view.hidePractice}
-                onCheckedChange={(on) => onJournalViewChange({ ...view, hidePractice: on })}
-              />
-            </div>
-          }
-          onClear={() => onJournalViewChange({ hidePractice: false, makers: [] })}
-        />
-      ) : null}
+      {/* Removes every ticked Journal row at once, through the same confirm
+          the bin on one row uses. */}
       {tab === "journal" && journalMass && tickedTrades.length > 0 ? (
         <Button
           type="button"
@@ -846,6 +808,63 @@ export function ActivityPanel({
       ) : null}
     </>
   )
+
+  // The open table's own icons, drawn first among the chart header's icons,
+  // before Indicators (Tyler, 15 Nov 2026: "for journal, move the filter
+  // button here" and "add mass select here"). Mass select is one press to
+  // show the tick boxes and the same press to hide them and clear the ticks.
+  const massOn = tab === "positions" ? positionMass : tab === "journal" ? journalMass : false
+  const tableIcons =
+    tab === "positions" || tab === "journal" ? (
+      <>
+        {tab === "journal" && onJournalViewChange ? (
+          <CountedFilterPopover
+            icon
+            items={journalFilterItems}
+            groups={[
+              {
+                label: "Placed by",
+                value: view.makers.length === 0 ? null : view.makers,
+                valueOf: (maker) => maker,
+                labelOf: (maker) => TRADE_MAKER_LABELS[maker],
+                onChange: (value) =>
+                  onJournalViewChange({ ...view, makers: (value ?? []) as TradeMaker[] }),
+              },
+            ]}
+            extraActive={view.hidePractice ? 1 : 0}
+            extra={
+              <div className="flex items-center justify-between gap-3 px-2">
+                <Label htmlFor="journal-hide-practice" className="text-sm font-normal">
+                  Hide practice trades
+                </Label>
+                <Switch
+                  id="journal-hide-practice"
+                  checked={view.hidePractice}
+                  onCheckedChange={(on) => onJournalViewChange({ ...view, hidePractice: on })}
+                />
+              </div>
+            }
+            onClear={() => onJournalViewChange({ hidePractice: false, makers: [] })}
+          />
+        ) : null}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant={massOn ? "secondary" : "ghost"}
+              size="icon"
+              aria-pressed={massOn}
+              aria-label={massOn ? "Hide select" : "Mass select"}
+              className="rounded-lg"
+              onClick={() => (tab === "positions" ? togglePositionMass() : toggleJournalMass())}
+            >
+              <ListChecksIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{massOn ? "Hide select" : "Mass select"}</TooltipContent>
+        </Tooltip>
+      </>
+    ) : null
 
   const tableContents = (
     <>
@@ -986,7 +1005,11 @@ export function ActivityPanel({
         action={
           <>
             {chartOnly ? null : tableActions}
-            {controls?.(narrow)}
+            {controls
+              ? controls(narrow, chartOnly ? null : tableIcons)
+              : chartOnly
+                ? null
+                : tableIcons}
             <MiddleMenu>
               {wallet
                 ? wallet.menu(

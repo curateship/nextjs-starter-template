@@ -257,8 +257,13 @@ describe("the bottom panel's tables say what they know", () => {
     expect(html).toContain("Open, history incomplete")
     expect(html).toContain("26 saved fills")
     expect(html).toContain("1 saved fill")
-    expect(html).toContain("Unknown")
+    expect(html).not.toContain("Unknown")
     expect(html).toContain("First saved")
+    // Value is the dollars it went in with: 1 ETH at $100.
+    expect(html).toContain(">Value<")
+    expect(html).toContain("$100.00")
+    expect(html).not.toContain("In at")
+    expect(html).not.toContain("Out at")
     expect(html).toContain('aria-label="About incomplete trade history"')
     expect(html).toContain(
       'aria-label="Remove the incomplete BTC history from the Journal"'

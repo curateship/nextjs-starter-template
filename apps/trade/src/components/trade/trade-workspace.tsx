@@ -1176,7 +1176,7 @@ export function TradeWorkspace({
   // tabs (Tyler, 7 Nov 2026: "There should only be one middle header"): the
   // Browse market, the timeframe, Indicators and View options. The wallet is a row
   // in that header's ⋮. Narrow, the timeframe shows only the one picked.
-  const chartControls = (narrowHeader: boolean) => (
+  const chartControls = (narrowHeader: boolean, tableIcons: React.ReactNode) => (
     <>
       {/* The primary Browse market button, on the header's right just before
           the timeframes (Tyler, 8 Nov 2026: "move the brwose market button
@@ -1200,6 +1200,7 @@ export function TradeWorkspace({
         value={interval}
         onChange={setInterval}
       />
+      {tableIcons}
       <IndicatorsMenu
         indicators={indicators}
         context={{ zone: chartOptions.options.zone, interval }}

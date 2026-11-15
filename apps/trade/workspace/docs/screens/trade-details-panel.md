@@ -150,12 +150,24 @@ to the trader's page.
   target, then Close position in red.
 - **Right-click a Journal row:** Mass select, then Delete in red, which asks
   first. A still-open row offers only Mass select.
-- **Mass select** shows the tick boxes, which are hidden otherwise. A press on
-  a row, or its coin's name, then ticks it. The header shows Close (n) on
-  Positions or Remove (n) on the Journal, and Hide select. Close (n) asks
-  first and closes only the ticked positions, the real ones in one request.
-- **Filter** sits in the Journal's header: Placed by, with a count beside each
-  choice, and a Hide practice trades switch. Both are kept on the account.
+- **Mass select** is also an icon in the middle header on Positions and the
+  Journal (Tyler, 15 Nov 2026: "add mass select here"). One press shows the
+  tick boxes, which are hidden otherwise, and the icon stays pressed. The
+  same press hides them again and clears the ticks. While Mass select is on,
+  a press on a row, or its coin's name, ticks it. With something ticked, the
+  header shows Close (n) on Positions or Remove (n) on the Journal, left of
+  Browse market. Close (n) asks first and closes only the ticked positions,
+  the real ones in one request.
+- **Filter** is an icon in the Journal's middle header, with a dot counting
+  the filters set, as Indicators counts its own (Tyler, 15 Nov 2026: "for
+  journal, move the filter button here"). It opens Placed by, with a count
+  beside each choice, and a Hide practice trades switch. Both are kept on the
+  account.
+- **The header's icons**, left to right after the timeframe: Filter (Journal
+  only), Mass select (Positions and Journal), Indicators, View options, then
+  the ⋮. Open orders shows neither of the first two. These are icons rather
+  than the shell's worded `MassSelectButton` because they sit in a row of
+  icons.
 
 ## Where the code is
 
