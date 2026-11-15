@@ -62,10 +62,13 @@ export function SourceCard({
   onRemove,
   onHighlights,
   onAddTime,
+  analyseInFooter = false,
 }: {
   detail: NoteDetail
   busy: string | null
   readOnly: boolean
+  /** Analyse sits in the note panel's footer instead (Tyler, 15 Nov 2026), so the card leaves it out. */
+  analyseInFooter?: boolean
   playerRef: React.RefObject<HTMLMediaElement | null>
   onAnalyse: () => void
   onRetry: () => void
@@ -197,7 +200,7 @@ export function SourceCard({
           ) : null}
         </div>
       )}
-      <AnalyseBox detail={detail} busy={busy} onAnalyse={onAnalyse} onRetry={onRetry} />
+      {analyseInFooter ? null : <AnalyseBox detail={detail} busy={busy} onAnalyse={onAnalyse} onRetry={onRetry} />}
     </PanelCard>
   )
 }
@@ -332,16 +335,19 @@ function Pictures({ pictures }: { pictures: PictureView[] }) {
  * The Analyse button with its price beside it, as in Tyler's picture. While a
  * job runs it says where it has got to; a failure says why and offers Try again.
  */
-function AnalyseBox({
+export function AnalyseBox({
   detail,
   busy,
   onAnalyse,
   onRetry,
+  priceAsTooltip = false,
 }: {
   detail: NoteDetail
   busy: string | null
   onAnalyse: () => void
   onRetry: () => void
+  /** The price shows when Analyse is pointed at, not beside it (Tyler, 15 Nov 2026, of the note panel's footer). */
+  priceAsTooltip?: boolean
 }) {
   if (isImporting(detail.importStatus)) {
     return (
@@ -377,6 +383,12 @@ function AnalyseBox({
     )
   }
   const again = detail.analysed
+  const analyseButton = (
+    <Button type="button" disabled={busy !== null} onClick={onAnalyse}>
+      {busy === "analyse" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+      {detail.analyseStatus === "failed" ? "Try again" : again ? "Analyse again" : "Analyse"}
+    </Button>
+  )
   return (
     <div className="grid gap-2">
       {detail.analyseStatus === "failed" ? (
@@ -385,11 +397,19 @@ function AnalyseBox({
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Button type="button" disabled={busy !== null} onClick={onAnalyse}>
-          {busy === "analyse" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-          {detail.analyseStatus === "failed" ? "Try again" : again ? "Analyse again" : "Analyse"}
-        </Button>
-        <span className="text-xs text-muted-foreground">{analysePriceLine(detail.analyse, again)}</span>
+        {priceAsTooltip ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {analyseButton}
+            </TooltipTrigger>
+            <TooltipContent>{analysePriceLine(detail.analyse, again)}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <>
+            {analyseButton}
+            <span className="text-xs text-muted-foreground">{analysePriceLine(detail.analyse, again)}</span>
+          </>
+        )}
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ Nothing pops up when something works. Tyler, 10 Nov 2026: "Remove all success
 toast", then "All of trade and shell too", and on 11 Nov 2026 "remove success
 toast across all these active apps".
 
-- **What a person sees is the answer.** A moved, pinned, archived or restored note changes in the list; a new folder or view appears in the left panel.
+- **What a person sees is the answer.** A moved, pinned, archived or restored note changes in the list; a new library, tag or view appears where it belongs.
 - **Errors still pop up.** Anything that failed goes through `showErrorToast`
   (`src/lib/toast/error-toast.ts`) and stays until it is dismissed.
 - **Part of it went, part of it did not: only the part that did not is said**,

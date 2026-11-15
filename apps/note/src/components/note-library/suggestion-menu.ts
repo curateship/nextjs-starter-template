@@ -22,11 +22,32 @@ export type { MenuItem }
  * Builds one typing menu as an editor extension. `items` may be slow (a
  * search on the server), and the menu says "Looking…" until it answers.
  */
+/** The gap kept between a list and the window's edge. */
+const EDGE = 8
+
+/**
+ * Moves a list that would run past the bottom of the window up until it fits,
+ * as far as its top. The "/" list has no scroller (Tyler, 15 Nov 2026: "we
+ * dont need areascroll. just make it fit all the tools"), so a list that ran
+ * off the bottom would hide its last rows. Written here rather than taken
+ * from floating-ui, which is not one of the app's own packages. With the
+ * `fixed` strategy, `y` is measured from the top of the window.
+ */
+const fitOnScreen = {
+  name: "fitOnScreen",
+  fn: ({ y, rects }: { y: number; rects: { floating: { height: number } } }) => {
+    const last = window.innerHeight - EDGE - rects.floating.height
+    return { y: y > last ? Math.max(EDGE, last) : y }
+  },
+}
+
 export function createSuggestionMenu<T extends MenuItem>(options: {
   name: string
   char: string
   label: string
   emptyText: string
+  /** Every row shows with no scrolling, as the "/" list does (Tyler, 15 Nov 2026: "just make it fit all the tools"). */
+  fitAll?: boolean
   startOfLine?: boolean
   debounce?: number
   items: (query: string, editor: Editor) => T[] | Promise<T[]>
@@ -44,6 +65,7 @@ export function createSuggestionMenu<T extends MenuItem>(options: {
           startOfLine: options.startOfLine ?? false,
           allowSpaces: options.char !== "/",
           debounce: options.debounce,
+          ...(options.fitAll ? { floatingUi: { strategy: "fixed" as const, middleware: [fitOnScreen] } } : {}),
           items: ({ query, editor }) => options.items(query, editor),
           command: ({ editor, range, props }) => options.pick(editor, range, props),
           render: () => {
@@ -54,6 +76,7 @@ export function createSuggestionMenu<T extends MenuItem>(options: {
               items: props.items,
               loading: props.loading,
               emptyText: options.emptyText,
+              fitAll: options.fitAll ?? false,
               onPick: (item) => props.command(item as T),
             })
             return {

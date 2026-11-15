@@ -1,10 +1,10 @@
 import * as React from "react"
-import { ListChecksIcon, QuoteIcon } from "lucide-react"
+import { ListChecksIcon } from "lucide-react"
 
+import { CrmListHeader } from "@/components/crm/crm-row"
 import type { DashboardActions } from "@/components/note-library/library-dashboard"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
-import { SearchToggle } from "@/components/shared/search-toggle"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -12,7 +12,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { saveNotePlan } from "@/lib/api/note/imports"
 import { getLibraryErrorMessage } from "@/lib/api/note/library"
 import { loadLibraryQuotes, loadPlanSteps } from "@/lib/api/note/notes"
-import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
 import {
   formatTimecode,
@@ -75,11 +74,14 @@ function useGathered<T>(load: () => Promise<T>, token: string) {
  */
 export function PlanStepsPanel({
   page,
+  tabs,
   actions,
   openId,
   onOpenedChanged,
 }: {
   page: LibraryPage
+  /** The middle header's tabs (`LibraryTabs`). */
+  tabs: React.ReactNode
   actions: DashboardActions
   openId: string | undefined
   /** The open note's plan changed here, so the right panel reads it again. */
@@ -110,20 +112,22 @@ export function PlanStepsPanel({
     })
   }
 
-  const open = (data ?? []).reduce((sum, group) => sum + group.steps.filter((step) => !step.done).length, 0)
   const shown = (data ?? [])
     .map((group) => ({ group, rows: group.steps.map((step, index) => ({ step, index })).filter(({ step }) => showDone || !step.done) }))
     .filter(({ rows }) => rows.length > 0)
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <DashboardCardTitleHeader
-        icon={<ListChecksIcon className="size-4" />}
-        title="Plan steps"
-        meta={`${open.toLocaleString()} open`}
-        action={
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <CrmListHeader
+        tabs={tabs}
+        end={<PanelReopenButton side="right" label="Show the note" />}
+        menuLabel="More for Plan steps"
+        search={null}
+        massSelect={null}
+        view={
           <DashboardToolbarButton type="button" variant="ghost" aria-pressed={showDone} onClick={() => setShowDone(!showDone)}>
-            {showDone ? "Hide done" : "Show done"}
+            <ListChecksIcon className="size-4" />
+            <span className="@max-3xl:sr-only">{showDone ? "Hide done" : "Show done"}</span>
           </DashboardToolbarButton>
         }
       />
@@ -139,7 +143,7 @@ export function PlanStepsPanel({
               : "No plans yet. Analyse a video or a post and its Action plan shows here."}
           </p>
         ) : (
-          <div className="grid gap-4 p-4">
+          <div className="grid gap-4 px-6 py-4">
             {shown.map(({ group, rows }) => (
               <section key={group.noteId} className="grid gap-1.5">
                 <button
@@ -187,9 +191,12 @@ export function PlanStepsPanel({
  */
 export function QuotesPanel({
   page,
+  tabs,
   onOpen,
 }: {
   page: LibraryPage
+  /** The middle header's tabs (`LibraryTabs`). */
+  tabs: React.ReactNode
   onOpen: (quote: LibraryQuote) => void
 }) {
   const { data, error, retry } = useGathered(
@@ -203,14 +210,13 @@ export function QuotesPanel({
   )
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <DashboardCardTitleHeader
-        icon={<QuoteIcon className="size-4" />}
-        title="Quotes"
-        meta={`${shown.length.toLocaleString()} ${plural(shown.length, "quote")}`}
-        action={
-          <SearchToggle name="quote-search" label="Search quotes" placeholder="Search quotes" value={query} onChange={setQuery} />
-        }
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <CrmListHeader
+        tabs={tabs}
+        end={<PanelReopenButton side="right" label="Show the note" />}
+        menuLabel="More for Quotes"
+        search={{ name: "quote-search", label: "Search quotes", placeholder: "Search quotes", value: query, onChange: setQuery }}
+        massSelect={null}
       />
       <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
         {error ? (
@@ -220,11 +226,11 @@ export function QuotesPanel({
         ) : shown.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
             {data.length
-              ? "No quote matches that."
+              ? `No quotes match "${query.trim()}".`
               : "No quotes yet. Analyse a video or a post and its best lines show here."}
           </p>
         ) : (
-          <ul className="grid gap-2 p-4">
+          <ul className="grid gap-2 px-6 py-4">
             {shown.map((quote, index) => (
               <li key={`${quote.noteId}-${index}`}>
                 <button

@@ -49,6 +49,6 @@ export async function noticeLinks(ownerId: string, noticeIds: string[]): Promise
     .where(and(eq(customShellNotifications.recipientUserId, ownerId), inArray(noteNoticeLinks.noticeId, noticeIds)))
   return rows.map((row) => ({
     id: row.id,
-    href: `/library/${encodeURIComponent(row.libraryId)}?folder=all&open=${encodeURIComponent(row.noteId)}`,
+    href: `/library/${encodeURIComponent(row.libraryId)}?open=${encodeURIComponent(row.noteId)}`,
   }))
 }

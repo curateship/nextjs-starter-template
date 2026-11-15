@@ -8,9 +8,7 @@ import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { analyseNote, importLink, removeImport, savePlan } from "@/server/note/library/imports"
 import {
-  createFolder,
   createLibrary,
-  deleteFolder,
   deleteLibrary,
   libraryForSaving,
   loadLibraryPage,
@@ -19,6 +17,7 @@ import {
 import {
   createNote,
   listNotes,
+  pinNotes,
   moveToLibrary,
   purgeOldTrash,
   restoreNote,
@@ -32,8 +31,8 @@ import { noteLinks, noteNotes } from "@/server/note/schema"
 import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 
 /**
- * Libraries on a real (in-memory) database: imports filed in their source's
- * folder, the same link once per library, the fixed fields, moving between
+ * Libraries on a real (in-memory) database: imports made at once, the same
+ * link once per library, the Pinned tab, the fixed fields, moving between
  * libraries, authors grouped by name, Trash, and that one person never sees
  * another's notes.
  */
@@ -57,31 +56,19 @@ afterEach(async () => {
 
 const SHORT = "https://www.youtube.com/shorts/aqz-KE-bpKQ"
 const LONG = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-const POST = "https://x.com/naval/status/1002103360646823936"
 
 async function library(name = "Content ideas") {
   return (await createLibrary(user.id, { name })).id
 }
 
 describe("importing a link", () => {
-  it("makes the note at once in a folder named after its source, made the first time", async () => {
+  it("makes the note at once, waiting for the worker", async () => {
     const id = await library()
     const first = await importLink(user.id, { libraryId: id, url: SHORT })
-    const second = await importLink(user.id, { libraryId: id, url: "https://www.youtube.com/shorts/abcDEF12345" })
     expect(first.note.title).toBe("Importing…")
     expect(first.note.source).toBe("youtube_short")
     expect(first.note.importStatus).toBe("waiting")
-    expect(first.note.folderName).toBe("YouTube short")
-    expect(second.note.folderId).toBe(first.note.folderId)
-    const page = await loadLibraryPage(user.id, id)
-    expect(page.folders.map((folder) => folder.name)).toEqual(["YouTube short"])
-  })
-
-  it("keeps using a source's folder after it is renamed, and takes over one made by hand", async () => {
-    const id = await library()
-    const made = await createFolder(user.id, id, "X/Twitter")
-    const post = await importLink(user.id, { libraryId: id, url: POST })
-    expect(post.note.folderId).toBe(made.id)
+    expect((await loadLibraryPage(user.id, id)).counts.all).toBe(1)
   })
 
   it("hands back the note already there when the same link comes twice", async () => {
@@ -138,7 +125,7 @@ describe("importing a link already in this library", () => {
 describe("One plan from many that failed", () => {
   it("can be written again, where before it was refused as not an import", async () => {
     const id = await library()
-    const merged = await createNote(user.id, { libraryId: id, folderId: null, title: "Plan from 2 notes" })
+    const merged = await createNote(user.id, { libraryId: id, title: "Plan from 2 notes" })
     await database
       .update(noteNotes)
       .set({ mergedFrom: ["a", "b"], analyseStatus: "failed", analyseError: "Gemini was busy" })
@@ -153,7 +140,7 @@ describe("One plan from many that failed", () => {
 describe("a note's fixed fields", () => {
   it("starts Normal with no tags, and keeps tags lowercased and once each", async () => {
     const id = await library()
-    const note = await createNote(user.id, { libraryId: id, folderId: null, title: "Hooks" })
+    const note = await createNote(user.id, { libraryId: id, title: "Hooks" })
     expect(note.priority).toBe("normal")
     expect(note.source).toBe("note")
     const card = await setTags(user.id, note.id, ["Hooks", "hooks", " Reels "])
@@ -165,7 +152,7 @@ describe("a note's fixed fields", () => {
 
   it("refuses a stale save of the text", async () => {
     const id = await library()
-    const note = await createNote(user.id, { libraryId: id, folderId: null })
+    const note = await createNote(user.id, { libraryId: id })
     await saveNote(user.id, { id: note.id, revision: note.revision, title: "First" })
     await expect(saveNote(user.id, { id: note.id, revision: note.revision, title: "Second" })).rejects.toThrow(
       LIBRARY_SAYS.changedElsewhere
@@ -177,9 +164,9 @@ describe("the list", () => {
   it("shows only this library's notes, and finds them by tag, priority, source and author", async () => {
     const id = await library()
     const elsewhere = await library("Elsewhere")
-    const a = await createNote(user.id, { libraryId: id, folderId: null, title: "A", priority: "high", tags: ["hooks"] })
-    await createNote(user.id, { libraryId: id, folderId: null, title: "B" })
-    await createNote(user.id, { libraryId: elsewhere, folderId: null, title: "C" })
+    const a = await createNote(user.id, { libraryId: id, title: "A", priority: "high", tags: ["hooks"] })
+    await createNote(user.id, { libraryId: id, title: "B" })
+    await createNote(user.id, { libraryId: elsewhere, title: "C" })
     await setAuthor(user.id, a.id, { name: "Marques Brownlee", handle: "mkbhd" })
 
     const all = await listNotes(user.id, { libraryId: id, scope: "all" })
@@ -209,8 +196,8 @@ describe("the list", () => {
 describe("authors", () => {
   it("group by name, so two accounts edited to one name are one row", async () => {
     const id = await library()
-    const video = await createNote(user.id, { libraryId: id, folderId: null, title: "Video" })
-    const post = await createNote(user.id, { libraryId: id, folderId: null, title: "Post" })
+    const video = await createNote(user.id, { libraryId: id, title: "Video" })
+    const post = await createNote(user.id, { libraryId: id, title: "Post" })
     await setAuthor(user.id, video.id, { name: "MKBHD", handle: null })
     await setAuthor(user.id, post.id, { name: "Marques Brownlee", handle: "@mkbhd" })
     expect((await loadLibraryPage(user.id, id)).authors.map((author) => author.count)).toEqual([1, 1])
@@ -226,16 +213,16 @@ describe("authors", () => {
 })
 
 describe("moving to another library", () => {
-  it("files an import in that library's folder for its source and leaves a plain note loose", async () => {
+  it("moves an import and a plain note into the other library", async () => {
     const from = await library("From")
     const to = await library("To")
     const { note: imported } = await importLink(user.id, { libraryId: from, url: SHORT })
-    const plain = await createNote(user.id, { libraryId: from, folderId: null, title: "Plain" })
+    const plain = await createNote(user.id, { libraryId: from, title: "Plain" })
     const moved = await moveToLibrary(user.id, [imported.id, plain.id], to)
     expect(moved.done.sort()).toEqual([imported.id, plain.id].sort())
     const there = await listNotes(user.id, { libraryId: to, scope: "all" })
-    expect(there.notes.find((note) => note.id === imported.id)?.folderName).toBe("YouTube short")
-    expect(there.notes.find((note) => note.id === plain.id)?.folderId).toBeNull()
+    expect(there.notes.map((note) => note.id).sort()).toEqual([imported.id, plain.id].sort())
+    expect(there.notes.every((note) => note.libraryId === to)).toBe(true)
   })
 
   it("skips a link the other library already has", async () => {
@@ -251,12 +238,12 @@ describe("moving to another library", () => {
   it("turns a [[ link to a note left behind into plain text", async () => {
     const from = await library("From")
     const to = await library("To")
-    const target = await createNote(user.id, { libraryId: from, folderId: null, title: "Stays" })
+    const target = await createNote(user.id, { libraryId: from, title: "Stays" })
     const body = {
       type: "doc",
       content: [{ type: "paragraph", content: [{ type: "noteLink", attrs: { id: target.id, label: "Stays" } }] }],
     }
-    const mover = await createNote(user.id, { libraryId: from, folderId: null, title: "Moves", body })
+    const mover = await createNote(user.id, { libraryId: from, title: "Moves", body })
     expect(await database.select().from(noteLinks).where(eq(noteLinks.fromNoteId, mover.id))).toHaveLength(1)
     await moveToLibrary(user.id, [mover.id], to)
     const [row] = await database.select().from(noteNotes).where(eq(noteNotes.id, mover.id))
@@ -274,7 +261,7 @@ describe("moving to another library", () => {
       type: "doc",
       content: [{ type: "paragraph", content: [{ type: "noteLink", attrs: { id: skipped.id, label: "The zoo" } }] }],
     }
-    const mover = await createNote(user.id, { libraryId: from, folderId: null, title: "Moves", body })
+    const mover = await createNote(user.id, { libraryId: from, title: "Moves", body })
     const moved = await moveToLibrary(user.id, [mover.id, skipped.id], to)
     expect(moved).toMatchObject({ done: [mover.id], alreadyThere: 1 })
     const [row] = await database.select().from(noteNotes).where(eq(noteNotes.id, mover.id))
@@ -287,22 +274,30 @@ describe("moving to another library", () => {
   })
 })
 
-describe("folders, Trash and libraries", () => {
-  it("sends a deleted folder's notes to Trash, and restores them loose", async () => {
+describe("the Pinned tab, Trash and libraries", () => {
+  it("lists only pinned notes on the Pinned tab, and counts them", async () => {
     const id = await library()
-    const folder = await createFolder(user.id, id, "Hooks")
-    const note = await createNote(user.id, { libraryId: id, folderId: folder.id, title: "In it" })
-    expect((await deleteFolder(user.id, folder.id)).notes).toBe(1)
+    const kept = await createNote(user.id, { libraryId: id, title: "Kept" })
+    await createNote(user.id, { libraryId: id, title: "Other" })
+    await pinNotes(user.id, [kept.id], true)
+    const pinned = await listNotes(user.id, { libraryId: id, scope: "pinned" })
+    expect(pinned.notes.map((note) => note.id)).toEqual([kept.id])
+    expect((await loadLibraryPage(user.id, id)).counts.pinned).toBe(1)
+  })
+
+  it("restores a note from Trash", async () => {
+    const id = await library()
+    const note = await createNote(user.id, { libraryId: id, title: "In it" })
+    await trashNotes(user.id, [note.id])
     expect((await listNotes(user.id, { libraryId: id, scope: "trash" })).notes.map((each) => each.id)).toEqual([note.id])
     const back = await restoreNote(user.id, note.id)
     expect(back.deletedAt).toBeNull()
-    expect(back.folderId).toBeNull()
   })
 
   it("clears Trash over 30 days old and keeps what is newer", async () => {
     const id = await library()
-    const old = await createNote(user.id, { libraryId: id, folderId: null, title: "Old" })
-    const fresh = await createNote(user.id, { libraryId: id, folderId: null, title: "Fresh" })
+    const old = await createNote(user.id, { libraryId: id, title: "Old" })
+    const fresh = await createNote(user.id, { libraryId: id, title: "Fresh" })
     await trashNotes(user.id, [old.id, fresh.id])
     await database
       .update(noteNotes)
@@ -315,7 +310,7 @@ describe("folders, Trash and libraries", () => {
 
   it("deletes a library with its notes, and refuses another person", async () => {
     const id = await library()
-    await createNote(user.id, { libraryId: id, folderId: null, title: "Gone" })
+    await createNote(user.id, { libraryId: id, title: "Gone" })
     await expect(deleteLibrary(other.id, id)).rejects.toThrow(LIBRARY_SAYS.libraryNotFound)
     expect((await deleteLibrary(user.id, id)).notes).toBe(1)
     expect(await database.select().from(noteNotes)).toHaveLength(0)

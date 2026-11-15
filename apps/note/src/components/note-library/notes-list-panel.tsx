@@ -1,57 +1,44 @@
 import * as React from "react"
 import {
   ArchiveIcon,
+  ArchiveRestoreIcon,
   ArrowDownIcon,
   ArrowUpIcon,
-  FolderIcon,
-  LibraryIcon,
+  CopyIcon,
   Loader2Icon,
   PinIcon,
+  PinOffIcon,
   Trash2Icon,
   Undo2Icon,
-  UserRoundIcon,
 } from "lucide-react"
 
+import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
 import type { DashboardActions } from "@/components/note-library/library-dashboard"
 import { SourceMark } from "@/components/note-library/library-dot"
-import { ImportDropdown } from "@/components/note-library/import-dropdown"
 import { NewNoteDropdown } from "@/components/note-library/new-note-dropdown"
 import { NoteBulkMenu } from "@/components/note-library/note-bulk-menu"
 import { NoteFilterMenu, ViewsMenu } from "@/components/note-library/note-filter-menu"
-import { NoteRowMenu } from "@/components/note-library/note-row-menu"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
-import { MassSelectChip } from "@/components/shared/mass-select"
-import { SearchToggle } from "@/components/shared/search-toggle"
-import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableGroupRow,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+import { TableCell, TableSortButton } from "@/components/ui/table"
+import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { getLibraryErrorMessage } from "@/lib/api/note/library"
-import { changeNotes, deleteNoteNow, emptyLibraryTrash, restoreNoteFromTrash } from "@/lib/api/note/notes"
+import { changeNotes, deleteNoteNow, duplicateLibraryNote, emptyLibraryTrash, restoreNoteFromTrash } from "@/lib/api/note/notes"
 import { formatShortTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
-import { useSearchBoxText } from "@/lib/nav/list-search"
-import { filtersOf, sortOf, sortParam, type LibrarySearch } from "@/lib/note/library/address"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { filtersOf, sortOf, sortParam, type LibrarySearch, type LibraryTab } from "@/lib/note/library/address"
 import {
   FILTER_KEYS,
-  isImporting,
   isAnalysing,
+  isImporting,
   NOTES_LIST_MAX,
   noteTitle,
   PRIORITY_LABEL,
@@ -63,16 +50,13 @@ import {
   type NoteSort,
   type NoteSortColumn,
 } from "@/lib/note/library/notes"
-import { useSelection } from "@/lib/hooks/use-selection"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 /** The way a column sorts on its first click: names A to Z, High first, newest first. */
 const FIRST_CLICK_DESCENDING: Record<NoteSortColumn, boolean> = {
   title: false,
   source: false,
   priority: true,
-  folder: false,
   edited: true,
 }
 
@@ -80,13 +64,47 @@ const FIRST_CLICK_DESCENDING: Record<NoteSortColumn, boolean> = {
 const DEFAULT_SORT: NoteSort = { column: "edited", descending: true }
 
 /**
- * The middle panel, as Tyler drew it on 20 Oct 2026: what is showing and how
- * many, then the toolbar (the "N selected" button while rows are ticked,
- * search, Filter, Views, Import, New note), then the notes as one table,
- * Pinned first and the rest under Notes. A column heading sorts the table,
- * and a second click turns it round (task 02, part 10). Its columns are the fixed fields:
- * Note (the title and tags), Source, Priority, Folder and Edited, then the
- * row's cog and bin. Pressing a row opens the note on the right.
+ * The start of the middle's one header on every tab (Tyler, 15 Nov 2026: "All
+ * notes, Plan steps and Quotes are tabs in the middle's one header"): the
+ * button that brings a shut left panel back, then the three tabs with their
+ * counts. A header with tabs has no icon (the Admin 3 panel design).
+ */
+export function LibraryTabs({ page, search, actions }: { page: LibraryPage; search: LibrarySearch; actions: DashboardActions }) {
+  return (
+    <>
+      <PanelReopenButton side="left" label="Show the page" />
+      <DashboardTabs
+        // At least 112px: on a phone the header's buttons took every pixel and
+        // squeezed the tabs to nothing, leaving Plan steps and Quotes out of
+        // reach. With this the row scrolls sideways instead.
+        className="min-w-28"
+        value={search.tab ?? "all"}
+        onValueChange={(value) => actions.setSearch({ tab: value === "all" ? undefined : (value as LibraryTab) })}
+        tabs={[
+          { value: "all", label: "All notes", count: page.counts.all },
+          { value: "pinned", label: "Pinned", count: page.counts.pinned },
+          { value: "steps", label: "Plan steps", count: page.counts.openSteps },
+          { value: "quotes", label: "Quotes", count: page.counts.quotes },
+        ]}
+      />
+    </>
+  )
+}
+
+/**
+ * The All notes and Pinned tabs, on the shell's middle panel (the Admin 3 panel design,
+ * "Middle panel"): one header with the tabs, the "N selected" menu while rows
+ * are ticked, the search box, Select, Filter (with Show: Loose notes,
+ * Archived, Trash), Views and New note, whose first step also imports a
+ * link, then a ⋮ on Trash with Empty trash. Under it the notes as the shell's
+ * table, Pinned first and the rest under Notes, each folding. A column
+ * heading sorts the table, and a second click turns it round.
+ *
+ * Every row has the shell's cog, which opens the note, its bin, which moves
+ * it to Trash, and a right-click menu: Mass select, Pin, Archive, Duplicate,
+ * then Move to Trash under a line (Tyler, 15 Nov 2026: "shell has icons and
+ * right click", "its not either or, its both"). In Trash the row restores or
+ * deletes for good instead.
  */
 export function NotesListPanel({
   page,
@@ -111,27 +129,30 @@ export function NotesListPanel({
   /** The open note changed from a row, so the right panel reads it again. */
   onOpenedElsewhere: () => void
 }) {
-  const scope = search.folder ?? "all"
-  const trash = scope === "trash"
-  const archived = scope === "archived"
+  const trash = search.show === "trash"
+  const archived = search.show === "archived"
   const filters = filtersOf(search)
-  const [searchText, setSearchText] = useSearchBoxText(search.q ?? "", (text) =>
-    actions.setSearch({ q: text.trim() ? text : undefined })
-  )
 
   const [massSelect, setMassSelect] = React.useState(false)
   const selection = useSelection()
-  useClearSelectionOnListChange(selection.setSelected, JSON.stringify({ scope, q: search.q, filters }))
+  useClearSelectionOnListChange(
+    selection.setSelected,
+    JSON.stringify({ tab: search.tab, show: search.show, q: search.q, filters })
+  )
   const visibleIds = list.notes.map((note) => note.id)
   const picked = list.notes.filter((note) => selection.selected.has(note.id))
-  const toggleMassSelect = () => {
+  /** Turned on from a row's right-click, that row starts ticked. */
+  const toggleMassSelect = (tickId?: string) => {
     if (massSelect) selection.clear()
+    else if (tickId) selection.setSelected(new Set([tickId]))
     setMassSelect(!massSelect)
   }
 
   const [busy, setBusy] = React.useState(false)
   const [forGood, setForGood] = React.useState<NoteCard | null>(null)
   const [emptying, setEmptying] = React.useState(false)
+  const [rightClick, setRightClick] = React.useState<{ id: string; x: number; y: number } | null>(null)
+  const folds = useFolds()
 
   async function act(work: () => Promise<unknown>) {
     setBusy(true)
@@ -147,33 +168,10 @@ export function NotesListPanel({
     }
   }
 
-  const folder = page.folders.find((each) => each.id === scope)
-  const title = search.author
-    ? search.author
-    : scope === "all"
-      ? "All notes"
-      : scope === "loose"
-        ? "Loose notes"
-        : archived
-          ? "Archived"
-          : trash
-            ? "Trash"
-            : (folder?.name ?? "Folder")
-  const icon = search.author ? (
-    <UserRoundIcon className="size-4" />
-  ) : trash ? (
-    <Trash2Icon className="size-4" />
-  ) : archived ? (
-    <ArchiveIcon className="size-4" />
-  ) : folder ? (
-    <FolderIcon className="size-4" />
-  ) : (
-    <LibraryIcon className="size-4" />
-  )
-
   // Trash keeps its own order, newest trashed first, so its headings do not sort.
   const sort = sortOf(search) ?? DEFAULT_SORT
   function sortBy(column: NoteSortColumn) {
+    if (trash) return
     const next = sort.column === column ? { column, descending: !sort.descending } : { column, descending: FIRST_CLICK_DESCENDING[column] }
     const isDefault = next.column === DEFAULT_SORT.column && next.descending === DEFAULT_SORT.descending
     actions.setSearch({ sort: isDefault ? undefined : sortParam(next) })
@@ -186,248 +184,247 @@ export function NotesListPanel({
         {label}
       </TableSortButton>
     )
-  const ariaSort = (column: NoteSortColumn) =>
-    trash || sort.column !== column ? undefined : sort.descending ? ("descending" as const) : ("ascending" as const)
 
-  const pinned = list.notes.filter((note) => note.pinned)
-  const rest = list.notes.filter((note) => !note.pinned)
-  const grouped = !trash && pinned.length > 0
-  const columns = 7 + (massSelect ? 1 : 0)
+  // Columns drop out as the middle narrows, each only once there is room for
+  // every one before it, so the table never runs past its panel.
+  const columns: TableHeaderColumn<NoteSortColumn>[] = [
+    { key: "title", sortable: false, column: "main", className: "min-w-40", label: heading("title", "Note") },
+    { key: "source", sortable: false, column: "preview", className: "hidden md:hidden @xl:table-cell", label: heading("source", "Source") },
+    { key: "priority", sortable: false, column: "preview", className: "hidden md:hidden @2xl:table-cell", label: heading("priority", "Priority") },
+    { key: "edited", sortable: false, column: "meta", className: "hidden @lg:table-cell", label: trash ? "Trashed" : heading("edited", "Edited") },
+  ]
+
+  // All notes shows its pinned ones first under their own heading; the Pinned
+  // tab and Trash are one list.
+  const grouped = !trash && search.tab !== "pinned"
+  const pinned = grouped ? list.notes.filter((note) => note.pinned) : []
+  const rest = grouped ? list.notes.filter((note) => !note.pinned) : list.notes
   const filtering = Boolean(search.q) || FILTER_KEYS.some((key) => filters[key] !== undefined)
 
   const rowChanged = async (note: NoteCard) => {
     await actions.refreshAll()
     if (note.id === openId) onOpenedElsewhere()
   }
+  const toTrash = (note: NoteCard) =>
+    void act(async () => {
+      await changeNotes([note.id], { change: "trash" })
+      actions.gone(note.id)
+      if (note.id === openId) actions.openNote(undefined)
+    })
+  const restore = (note: NoteCard) =>
+    void act(async () => {
+      await restoreNoteFromTrash(note.id)
+      actions.gone(note.id)
+    })
 
-  const row = (note: NoteCard) => (
-    <TableRow
-      key={note.id}
-      className={cn(
-        "group",
-        // The open note carries a dark bar down its left edge, as in Tyler's
-        // picture; drawn on the first cell, since a table row draws no border of its own.
-        note.id === openId && "bg-muted/60 [&>td:first-child]:shadow-[inset_2px_0_0_var(--color-foreground)]"
-      )}
-      rowAction={() => actions.openNote(note.id)}
-    >
-      {massSelect ? (
-        <TableCell column="select">
-          <Checkbox
-            checked={selection.selected.has(note.id)}
-            onCheckedChange={() => selection.toggle(note.id)}
-            aria-label={`Select ${noteTitle(note.title)}`}
-          />
+  function rowMenuItems(id: string): RowMenuItem[] {
+    const note = list.notes.find((each) => each.id === id)
+    if (!note) return []
+    if (trash) {
+      return [
+        { label: "Restore", icon: <Undo2Icon className="size-4" />, onSelect: () => restore(note) },
+        { label: "Delete for good", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setForGood(note) },
+      ]
+    }
+    return [
+      {
+        label: note.pinned ? "Unpin" : "Pin",
+        icon: note.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />,
+        onSelect: () =>
+          void act(async () => {
+            await changeNotes([note.id], { change: "pin", on: !note.pinned })
+            await rowChanged(note)
+          }),
+      },
+      {
+        label: note.archived ? "Unarchive" : "Archive",
+        icon: note.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />,
+        onSelect: () =>
+          void act(async () => {
+            await changeNotes([note.id], { change: "archive", on: !note.archived })
+            await rowChanged(note)
+          }),
+      },
+      {
+        label: "Duplicate",
+        icon: <CopyIcon className="size-4" />,
+        onSelect: () =>
+          void act(async () => {
+            const copy = await duplicateLibraryNote(note.id)
+            await actions.refreshAll()
+            actions.openNote(copy.id)
+          }),
+      },
+      { label: "Move to Trash", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => toTrash(note) },
+    ]
+  }
+
+  const row = (note: NoteCard) => {
+    const title = noteTitle(note.title)
+    return (
+      <CrmTableRow
+        key={note.id}
+        open={note.id === openId}
+        label={title}
+        tick={
+          trash
+            ? null
+            : { shown: massSelect, ticked: selection.selected.has(note.id), onToggle: () => selection.toggle(note.id) }
+        }
+        onOpen={() => actions.openNote(note.id)}
+        buttons={trash ? [{ label: `Restore ${title}`, icon: <Undo2Icon className="size-4" />, onPress: () => restore(note) }] : undefined}
+        onDelete={() => (trash ? setForGood(note) : toTrash(note))}
+        onRightClick={(x, y) => setRightClick({ id: note.id, x, y })}
+      >
+        <MainCell name={title}>
+          {isImporting(note.importStatus) || isAnalysing(note.analyseStatus) ? (
+            <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Working on it" />
+          ) : null}
+        </MainCell>
+        <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
+          <SourceMark source={note.source} />
         </TableCell>
-      ) : null}
-      <TableCell column="main" className="min-w-48">
-        <div className="grid min-w-0 gap-1">
-          {/* The same action the row carries, so it is reachable by keyboard. */}
-          <button
-            type="button"
-            className="flex max-w-96 min-w-0 items-center gap-1.5 text-left font-medium group-hover:underline"
-            onClick={() => actions.openNote(note.id)}
-          >
-            {note.pinned ? <PinIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Pinned" /> : null}
-            {isImporting(note.importStatus) || isAnalysing(note.analyseStatus) ? (
-              <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Working on it" />
-            ) : null}
-            <span className="truncate">{noteTitle(note.title)}</span>
-          </button>
-        </div>
-      </TableCell>
-      <TableCell column="mutedMeta" className="hidden @xl/list:table-cell">
-        <SourceMark source={note.source} />
-      </TableCell>
-      <TableCell column="meta" className="hidden @2xl/list:table-cell">
-        <PriorityChip priority={note.priority} />
-      </TableCell>
-      <TableCell column="meta" className="hidden @4xl/list:table-cell">
-        <Badge variant="outline" className={cn("max-w-40", !note.folderName && "text-muted-foreground")}>
-          <span className="truncate">{note.folderName ?? "No folder"}</span>
-        </Badge>
-      </TableCell>
-      <TableCell column="mutedMeta" className="hidden tabular-nums @lg/list:table-cell">
-        <Badge variant="outline" className="text-muted-foreground">
+        <TableCell column="preview" className="hidden md:hidden @2xl:table-cell">
+          <PriorityChip priority={note.priority} />
+        </TableCell>
+        <TableCell column="mutedMeta" className="hidden tabular-nums @lg:table-cell">
           {/* "How long ago" is worked out again when the page wakes up, a moment
               after the server drew it, so a minute that ticked over between the
               two is expected rather than an error. */}
-          <span suppressHydrationWarning>
-            {formatShortTimeAgo(trash && note.deletedAt ? note.deletedAt : note.updatedAt)}
-          </span>
-        </Badge>
-      </TableCell>
-      <TableCell column="actions">
-        {trash ? (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Restore ${noteTitle(note.title)}`}
-              disabled={busy}
-              onClick={() =>
-                void act(async () => {
-                  await restoreNoteFromTrash(note.id)
-                  actions.gone(note.id)
-                })
-              }
-            >
-              <Undo2Icon className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Delete ${noteTitle(note.title)} for good`}
-              onClick={() => setForGood(note)}
-            >
-              <Trash2Icon className="size-4" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <NoteRowMenu
-              note={note}
-              page={page}
-              onChanged={() => rowChanged(note)}
-              onMovedAway={() => {
-                actions.gone(note.id)
-                if (note.id === openId) actions.openNote(undefined)
-              }}
-              onDuplicated={async (copy) => {
-                await actions.refreshAll()
-                actions.openNote(copy.id)
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Move ${noteTitle(note.title)} to Trash`}
-              disabled={busy}
-              onClick={() =>
-                void act(async () => {
-                  await changeNotes([note.id], { change: "trash" })
-                  actions.gone(note.id)
-                  if (note.id === openId) actions.openNote(undefined)
-                })
-              }
-            >
-              <Trash2Icon className="size-4" />
-            </Button>
-          </>
-        )}
-      </TableCell>
-    </TableRow>
+          <span suppressHydrationWarning>{formatShortTimeAgo(trash && note.deletedAt ? note.deletedAt : note.updatedAt)}</span>
+        </TableCell>
+      </CrmTableRow>
+    )
+  }
+
+  const group = (key: string, label: string, notes: NoteCard[]) => (
+    <React.Fragment key={key}>
+      <CrmGroupRow label={label} count={notes.length} folded={folds.folded(key)} onToggle={() => folds.toggle(key)} />
+      {folds.folded(key) ? null : notes.map(row)}
+    </React.Fragment>
   )
 
+  const emptyWords = filtering
+    ? search.q?.trim()
+      ? `No notes match "${search.q.trim()}".`
+      : "No notes match."
+    : trash
+      ? `Trash is empty. A note moved here stays ${TRASH_DAYS} days.`
+      : archived
+        ? "Nothing is archived. A note's ⋮ has Archive."
+        : search.author
+          ? "No notes by this author here."
+          : search.tab === "pinned"
+            ? "Nothing is pinned. A note's ⋮ or a row's right-click has Pin."
+            : "No notes yet. New note writes one or imports a link."
+
   return (
-    <div className="@container/list flex min-h-0 flex-1 flex-col">
-      <DashboardCardTitleHeader
-        className="@container"
-        // The icon stays while a list loads (Tyler, 20 Oct 2026: "remove the circle loading here").
-        icon={icon}
-        title={title}
-        meta={`${list.notes.length.toLocaleString()}${list.more ? "+" : ""} ${plural(list.notes.length, "note")}`}
-        action={
-          <div className="flex items-center gap-1">
-            {massSelect && picked.length ? (
-              <NoteBulkMenu
-                page={page}
-                selected={picked}
-                onDone={selection.clear}
-                onOpen={actions.openNote}
-                onLeft={(ids) => {
-                  if (openId && ids.includes(openId)) actions.openNote(undefined)
-                }}
-                onRefresh={async () => {
-                  await actions.refreshAll()
-                  if (openId && picked.some((note) => note.id === openId)) onOpenedElsewhere()
-                }}
-              />
-            ) : null}
-            <SearchToggle
-              name="note-search"
-              label="Search notes"
-              placeholder="Search notes"
-              value={searchText}
-              onChange={setSearchText}
-            />
-            <NoteFilterMenu
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <CrmListHeader
+        tabs={<LibraryTabs page={page} search={search} actions={actions} />}
+        end={<PanelReopenButton side="right" label="Show the note" />}
+        selected={
+          massSelect && picked.length ? (
+            <NoteBulkMenu
               page={page}
-              filters={filters}
-              onChange={(next) =>
-                actions.setSearch({
-                  view: undefined,
-                  source: next.source,
-                  priority: next.priority,
-                  tag: next.tag,
-                  author: next.author,
-                  analysed: next.analysed,
-                  progress: next.progress,
-                })
-              }
-              onSaved={async (view) => {
-                await actions.refreshPage()
-                actions.setSearch({ view: view.id })
+              selected={picked}
+              onDone={selection.clear}
+              onOpen={actions.openNote}
+              onLeft={(ids) => {
+                if (openId && ids.includes(openId)) actions.openNote(undefined)
+              }}
+              onRefresh={async () => {
+                await actions.refreshAll()
+                if (openId && picked.some((note) => note.id === openId)) onOpenedElsewhere()
               }}
             />
-            <ViewsMenu
-              views={page.views}
+          ) : null
+        }
+        search={{
+          name: "note-search",
+          label: "Search notes",
+          placeholder: "Search notes",
+          value: search.q ?? "",
+          onChange: (text) => actions.setSearch({ q: text.trim() ? text : undefined }),
+        }}
+        massSelect={trash ? null : { on: massSelect, onToggle: () => toggleMassSelect() }}
+        filter={
+          <NoteFilterMenu
+            page={page}
+            filters={filters}
+            show={search.show}
+            onShow={(show) => actions.setSearch({ show })}
+            onChange={(next) =>
+              actions.setSearch({
+                view: undefined,
+                source: next.source,
+                priority: next.priority,
+                tag: next.tag,
+                author: next.author,
+                analysed: next.analysed,
+                progress: next.progress,
+              })
+            }
+            onSaved={async (view) => {
+              await actions.refreshPage()
+              actions.setSearch({ view: view.id })
+            }}
+          />
+        }
+        view={
+          <ViewsMenu
+            views={page.views}
+            page={page}
+            activeId={search.view}
+            onOpen={(view) =>
+              actions.setSearch({
+                view: view.id,
+                source: view.filters.source,
+                priority: view.filters.priority,
+                tag: view.filters.tag,
+                author: view.filters.author,
+                analysed: view.filters.analysed,
+                progress: view.filters.progress,
+              })
+            }
+            onDeleted={async (view) => {
+              await actions.refreshPage()
+              if (search.view === view.id) actions.setSearch({ view: undefined })
+            }}
+          />
+        }
+        primary={
+          trash || archived ? null : (
+            <NewNoteDropdown
               page={page}
-              activeId={search.view}
-              onOpen={(view) =>
-                actions.setSearch({
-                  view: view.id,
-                  source: view.filters.source,
-                  priority: view.filters.priority,
-                  tag: view.filters.tag,
-                  author: view.filters.author,
-                  analysed: view.filters.analysed,
-                  progress: view.filters.progress,
-                })
-              }
-              onDeleted={async (view) => {
-                await actions.refreshPage()
-                if (search.view === view.id) actions.setSearch({ view: undefined })
+              onMade={async (note) => {
+                await actions.refreshAll()
+                actions.openNote(note.id)
+              }}
+              onImported={async (note) => {
+                await actions.refreshAll()
+                actions.openNote(note.id)
               }}
             />
-            {trash ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  if (!list.notes.length) {
-                    showErrorToast("Trash is already empty.")
-                    return
-                  }
-                  setEmptying(true)
-                }}
-              >
-                <Trash2Icon className="size-4" />
-                <span className="@max-3xl:sr-only">Empty trash</span>
-              </DashboardToolbarButton>
-            ) : archived ? null : (
-              <>
-                <ImportDropdown
-                  libraryId={page.library.id}
-                  onImported={async (note) => {
-                    await actions.refreshAll()
-                    actions.openNote(note.id)
-                  }}
-                />
-                <NewNoteDropdown
-                  page={page}
-                  folderId={folder?.id ?? null}
-                  onMade={async (note) => {
-                    await actions.refreshAll()
-                    actions.openNote(note.id)
-                  }}
-                />
-              </>
-            )}
-          </div>
+          )
+        }
+        menuLabel="More for Trash"
+        menuItems={
+          trash
+            ? [
+                {
+                  label: "Empty trash",
+                  icon: <Trash2Icon className="size-4" />,
+                  onClick: () => {
+                    if (!list.notes.length) {
+                      showErrorToast("Trash is already empty.")
+                      return
+                    }
+                    setEmptying(true)
+                  },
+                },
+              ]
+            : undefined
         }
       />
       {loading ? (
@@ -435,90 +432,78 @@ export function NotesListPanel({
           Loading the notes
         </p>
       ) : null}
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <Table
-          containerClassName="overflow-visible"
-          className="[&_td]:py-1.5 [&_td:first-child]:pl-4 [&_td:last-child]:pr-3 [&_th:first-child]:pl-4 [&_th:last-child]:pr-3"
-        >
-          <TableHeader>
-            <TableRow>
-              {massSelect ? (
-                <SelectAllTableHead
-                  noun="notes"
-                  disabled={visibleIds.length === 0}
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                />
-              ) : null}
-              <TableHead column="main" className="group/title min-w-48" aria-sort={ariaSort("title")}>
-                <span className="flex items-center gap-2">
-                  {heading("title", "Note")}
-                  {trash ? null : <MassSelectChip on={massSelect} onToggle={toggleMassSelect} />}
-                </span>
-              </TableHead>
-              <TableHead column="meta" className="hidden @xl/list:table-cell" aria-sort={ariaSort("source")}>
-                {heading("source", "Source")}
-              </TableHead>
-              <TableHead column="meta" className="hidden @2xl/list:table-cell" aria-sort={ariaSort("priority")}>
-                {heading("priority", "Priority")}
-              </TableHead>
-              <TableHead column="meta" className="hidden @4xl/list:table-cell" aria-sort={ariaSort("folder")}>
-                {heading("folder", "Folder")}
-              </TableHead>
-              <TableHead column="meta" className="hidden @lg/list:table-cell" aria-sort={ariaSort("edited")}>
-                {trash ? "Trashed" : heading("edited", "Edited")}
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {failed ? (
-              <TableRow>
-                <TableCell colSpan={columns}>
-                  <ErrorRow message="These notes could not be loaded." onRetry={onRetry} />
-                </TableCell>
-              </TableRow>
-            ) : list.notes.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns} className="py-10 text-center text-sm text-muted-foreground">
-                  {filtering
-                    ? "No note matches that."
-                    : trash
-                      ? `Trash is empty. A note moved here stays ${TRASH_DAYS} days.`
-                      : archived
-                        ? "Nothing is archived. A note's menu has Archive."
-                        : search.author
-                          ? "No notes by this author here."
-                          : scope === "all"
-                            ? "No notes yet. Write one with New note or bring one in with Import."
-                            : "No notes here yet."}
-                </TableCell>
-              </TableRow>
-            ) : grouped ? (
-              <>
-                <TableGroupRow colSpan={columns} label="Pinned">
-                  <span className="text-muted-foreground tabular-nums">{pinned.length}</span>
-                </TableGroupRow>
-                {pinned.map(row)}
-                {rest.length ? (
-                  <TableGroupRow colSpan={columns} label="Notes">
-                    <span className="text-muted-foreground tabular-nums">{rest.length}</span>
-                  </TableGroupRow>
-                ) : null}
-                {rest.map(row)}
-              </>
-            ) : (
-              list.notes.map(row)
-            )}
-          </TableBody>
-        </Table>
-        {list.more ? (
-          <p className="px-4 py-3 text-sm text-muted-foreground">
-            Only the newest {NOTES_LIST_MAX.toLocaleString()} show. Search, or pick a folder, to find the rest.
-          </p>
-        ) : null}
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      <CrmTable<NoteSortColumn>
+        columns={columns}
+        sort={sort.column}
+        direction={sort.descending ? "desc" : "asc"}
+        onSort={sortBy}
+        select={
+          massSelect && !trash
+            ? {
+                noun: "notes",
+                disabled: visibleIds.length === 0,
+                checked: selection.selectAllState(visibleIds),
+                onToggle: () => selection.toggleVisible(visibleIds),
+              }
+            : null
+        }
+        empty={
+          failed ? (
+            <ErrorRow message="These notes could not be loaded." onRetry={onRetry} />
+          ) : list.notes.length ? null : filtering ? (
+            <span className="grid justify-items-center gap-2">
+              {emptyWords}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  actions.setSearch({
+                    q: undefined,
+                    view: undefined,
+                    source: undefined,
+                    priority: undefined,
+                    tag: undefined,
+                    author: undefined,
+                    analysed: undefined,
+                    progress: undefined,
+                  })
+                }
+              >
+                Clear filters
+              </Button>
+            </span>
+          ) : (
+            emptyWords
+          )
+        }
+        after={
+          list.more ? (
+            <p className="px-6 py-3 text-sm text-muted-foreground">
+              Only the newest {NOTES_LIST_MAX.toLocaleString()} show. Search, or pick a folder, to find the rest.
+            </p>
+          ) : null
+        }
+      >
+        {failed ? null : pinned.length ? (
+          <>
+            {group("pinned", "Pinned", pinned)}
+            {rest.length ? group("notes", "Notes", rest) : null}
+          </>
+        ) : (
+          rest.map(row)
+        )}
+      </CrmTable>
+
+      {rightClick ? (
+        <CrmRowMenu
+          key={`${rightClick.id}-${rightClick.x}-${rightClick.y}`}
+          at={rightClick}
+          massSelect={trash ? null : { on: massSelect, onToggle: () => toggleMassSelect(massSelect ? undefined : rightClick.id) }}
+          items={rowMenuItems(rightClick.id)}
+          onClose={() => setRightClick(null)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={forGood !== null}
@@ -549,11 +534,10 @@ export function NotesListPanel({
         loading={busy}
         onConfirm={() =>
           void act(async () => {
-            const { notes } = await emptyLibraryTrash(page.library.id)
+            await emptyLibraryTrash(page.library.id)
             setEmptying(false)
             if (openId) actions.openNote(undefined)
             await actions.refreshAll()
-            return notes
           })
         }
       />

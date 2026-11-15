@@ -45,12 +45,15 @@ export function HistoryDialog({
   libraryId,
   noteId,
   open,
+  startAt = null,
   onClose,
   onRestored,
 }: {
   libraryId: string
   noteId: string
   open: boolean
+  /** The copy to show first, picked in the note ⋮'s Versions tab. */
+  startAt?: string | null
   onClose: () => void
   onRestored: (detail: NoteDetail) => void
 }) {
@@ -76,7 +79,10 @@ export function HistoryDialog({
     let live = true
     loadNoteVersions(noteId)
       .then((list) => {
-        if (live) setVersions(list)
+        if (!live) return
+        setVersions(list)
+        const first = list.find((version) => version.id === startAt)
+        if (first) void pickRef.current(first)
       })
       .catch((error) => {
         if (live) setFailure(getLibraryErrorMessage(error))
@@ -84,6 +90,8 @@ export function HistoryDialog({
     return () => {
       live = false
     }
+    // The copy to start on is read once, as the window opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, noteId, reloads])
 
   // Only the newest pick may show, so two quick clicks never put one copy's
@@ -101,6 +109,11 @@ export function HistoryDialog({
       if (latestPick.current === version.id) setLoadingPick(null)
     }
   }
+
+  const pickRef = React.useRef(pick)
+  React.useEffect(() => {
+    pickRef.current = pick
+  })
 
   async function restore() {
     if (!picked) {

@@ -1,7 +1,11 @@
 # Importing a note
 
-The Import dropdown in a library's middle header brings in a YouTube, Instagram,
-TikTok, X, Threads, LinkedIn, Facebook or Reddit link as a note. The click only writes the note and returns; the slow
+New note in a library's middle header brings in a YouTube, Instagram, TikTok,
+X, Threads, LinkedIn, Facebook or Reddit link as a note: its first step lists
+Write a note, then each of those sources, and picking one asks for the link.
+Since 15 Nov 2026 that is the only way in. The separate Import button went when
+the Library moved onto the shell's three-panel design, which puts a second way
+to add something in the New … button's first step. The click only writes the note and returns; the slow
 part happens in the `note-imports` worker, so closing the browser never stops
 an import.
 
@@ -10,8 +14,10 @@ an import.
 - The Import menu has YouTube long, YouTube short, Instagram, TikTok and
   X/Twitter, as his picture draws it. Uploading a video file was dropped.
   ("Drop it")
-- An import files its note in a folder named after its source, made the first
-  time. ("Import files it there")
+- An import filed its note in a folder named after its source until 15 Nov
+  2026, when folders went ("Remove folder block and folder feature"). An
+  import now lands in the library, and the Source column and Filter's Source
+  find it.
 - An imported video is downloaded and kept: 720p, up to 30 minutes and 500MB.
   It plays in the app even if the post is deleted later. ("Download and keep
   it")
@@ -70,10 +76,7 @@ an import.
 
 ## What happens
 
-1. **The note appears at once**, titled "Importing…", in the source's folder.
-   The folder is found by the source it was made for, so one renamed by hand is
-   still used; a folder of the same name made by hand is taken over; a deleted
-   one is made again.
+1. **The note appears at once**, titled "Importing…".
 2. **The worker claims it** on the shell's 15-second loop.
 3. **A video link**: yt-dlp downloads the file, it goes up to the bucket ten
    megabytes at a time, ffmpeg takes a cover, and the note gets the video's
@@ -121,7 +124,7 @@ workers.
   and passed over, so it never holds up the rest.
 - An author typed while the note imported stays; the worker fills the author
   only when the note has none. Every author name is stored with its spaces
-  tidied, so the Authors card can match on it.
+  tidied, so Filter's Author can match on it.
 - Pictures from X are fetched with no redirects, and one with no size, or a
   wrong one, is never read past 8MB.
 
@@ -143,8 +146,7 @@ App settings → Library (`src/components/note-library/save-to-note.tsx`). It wa
 "Save from x.com" until 20 Oct 2026; a button dragged before keeps working,
 since its key is the same. Clicked on a YouTube, Instagram, TikTok, X,
 LinkedIn, Facebook or Reddit page it opens `/library?key=<key>&save=<link>` in
-a new tab, which imports the link into its own source's folder of the library
-opened last (or a new "My library") and opens it there (`saveFromLink` in
+a new tab, which imports the link into the library opened last (or a new "My library") and opens it there (`saveFromLink` in
 `src/server/note/library/imports.ts`).
 
 ## Save from your iPhone
@@ -183,7 +185,9 @@ media library, where they can be deleted by hand.
   Library link) run on the way in. **0102 deletes every saved video, post and
   note**, as Tyler asked. `0104_note_pins_and_play_place.sql` adds the folder
   and row pins, the video's place and the three newer sources, and deletes
-  nothing.
+  nothing. `0123_note_remove_folders.sql` (15 Nov 2026) **deletes every folder,
+  each note's folder, the pinned rows and each note's last-opened time**; the
+  notes themselves stay.
 - `WORKER_PACKAGES="ffmpeg yt-dlp"` and `WORKER_PIP_PACKAGES="curl_cffi"` on
   the worker image, both build time. Alpine's yt-dlp comes without curl_cffi,
   and without it `--impersonate chrome` stops every download. `launch.md` has

@@ -155,7 +155,7 @@ describe("importing a Threads post", () => {
       video: null,
     })
     const { note } = await importLink(user.id, { libraryId, url: "https://www.threads.net/@mosseri/post/Cw1dvVTLesB" })
-    expect(note.folderName).toBe("Threads")
+    expect(note.source).toBe("threads")
     await runNext()
     expect(threadsReader.readThreadsPost).toHaveBeenCalledWith("https://www.threads.com/@mosseri/post/Cw1dvVTLesB")
     expect(download.downloadVideo).not.toHaveBeenCalled()

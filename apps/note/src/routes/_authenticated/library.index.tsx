@@ -1,19 +1,24 @@
 import * as React from "react"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 
-import { LibrariesPage } from "@/components/note-library/libraries-page"
+import { NoLibraryDashboard } from "@/components/note-library/library-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { saveLinkToLibrary } from "@/lib/api/note/imports"
-import { getLibraryErrorMessage, loadLibraries } from "@/lib/api/note/library"
+import { getLibraryErrorMessage } from "@/lib/api/note/library"
+import { loadLastLibraryId } from "@/lib/api/note/library-page"
 import { LIBRARY_SAYS } from "@/lib/note/library/notes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
- * The Library screen: every library this person has. Here rather than under
- * `/admin`, so every signed-in member gets it, as Notes did. `?save=` is the
- * link the Save to Note button or the iPhone Shortcut sends: it is imported
- * into the library opened last, and that library opens on it.
+ * `/library`, the left menu's Library link. Here rather than under `/admin`,
+ * so every signed-in member gets it, as Notes did. It opens the Library
+ * dashboard on the library opened last (Tyler, 15 Nov 2026: the list of
+ * libraries lives in the dashboard's left panel now, and this table went).
+ * Somebody with none sees the dashboard with only New library.
+ *
+ * `?save=` is the link the Save to Note button or the iPhone Shortcut sends:
+ * it is imported into the library opened last, and that library opens on it.
  */
 export const Route = createFileRoute("/_authenticated/library/")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -22,16 +27,21 @@ export const Route = createFileRoute("/_authenticated/library/")({
     // The button's own key, so only a button made for this person saves.
     key: typeof search.key === "string" && /^[0-9a-f]{32}$/.test(search.key) ? search.key : undefined,
   }),
-  loader: async () => ({ libraries: await loadLibraries() }),
+  loaderDeps: ({ search }) => ({ saving: Boolean(search.save) }),
+  loader: async ({ deps }) => {
+    if (deps.saving) return null
+    const last = await loadLastLibraryId()
+    if (last) throw redirect({ to: "/library/$libraryId", params: { libraryId: last }, search: {}, replace: true })
+    return null
+  },
   component: LibraryRoute,
   errorComponent: routeErrorComponent(getLibraryErrorMessage),
 })
 
 function LibraryRoute() {
-  const { libraries } = Route.useLoaderData()
   const { save, key } = Route.useSearch()
   if (save) return <SavingLink link={save} saveKey={key} />
-  return <LibrariesPage libraries={libraries} />
+  return <NoLibraryDashboard />
 }
 
 /** The Save to Note button or the iPhone Shortcut landed here: import the link, then open it in its library. */
@@ -52,7 +62,7 @@ function SavingLink({ link, saveKey }: { link: string; saveKey: string | undefin
         void navigate({
           to: "/library/$libraryId",
           params: { libraryId: result.note.libraryId },
-          search: { folder: result.note.folderId ?? "loose", open: result.note.id },
+          search: { open: result.note.id },
           replace: true,
         })
       })

@@ -50,7 +50,24 @@ leaves the shell file untouched.
   Quote, Code, Divider, Table, Image, Link to a note, and Video time while the
   note's video can play. Typing narrows it, arrows
   move, Enter picks, Escape closes.
-- **The toolbar above the text** has the same blocks as buttons.
+- **The toolbar above the text** is drawn from the "/" menu's own list, so it
+  has every block "/" has, in the same order: Text, the headings, the lists,
+  Toggle, Callout, Quote, Code, Divider, Table, Image, Link to a note, and
+  Video time on a note whose video can play (Tyler, 15 Nov 2026: it "should
+  offer the same tools as the "/""). The two can never drift apart.
+- **The "/" list looks like the shell's on every left page**
+  (`shared/notes/note-blocks-menu.tsx`; Tyler, 15 Nov 2026: "it should look
+  like this"): Basic blocks (Text, the headings, the lists, Toggle, Callout,
+  Quote, Code, Divider, Table, Image), then Advanced blocks (Link to a note,
+  and Video time on a note whose video can play) under one line edge to edge.
+  Each row is a bare grey icon and the name, one column.
+- **Every row shows, with no scroller** ("we dont need areascroll. just make
+  it fit all the tools"). A list that would run past the bottom of the window
+  moves up until it fits (`fitOnScreen` in `suggestion-menu.ts`). The "[["
+  note picker, up to 20 notes, still scrolls.
+- **In the note panel the text box is 72px tall when empty**, so the cards
+  under it start straight after it (Tyler, 15 Nov 2026: "too much spacing
+  here").
 - **The bar over selected text** has bold, italic, strikethrough, inline code,
   link, highlight and text colour. The colours open as a second row in the same
   bar.
@@ -105,7 +122,7 @@ editor.
 - **Opening the note again in this browser** picks a kept change up and sends
   it. If the note changed elsewhere meanwhile, the same version window asks
   first.
-- **Tags, priority, folder, author and the AI's cards save separately** and
+- **Tags, priority, author and the AI's cards save separately** and
   never count as a revision, so they cannot collide with the text.
 - **Opening a note never saves it.** The editor tidies a note as it first draws
   it, which arrives as a change with the very same text; the editor hands on
@@ -118,8 +135,8 @@ editor.
 - **A copy of the note as it was is kept before a title or text change**, at
   most one per five minutes of editing, and the newest 100 copies stay (Tyler,
   18 Oct 2026). Older ones are deleted as new ones arrive.
-- **History in the note's header** lists the copies by time. Picking one shows
-  it as it was; Restore puts it back. The note as it is now is kept as a copy
+- **The Versions tab of the note's ⋮** lists the copies by time. Picking one
+  opens History on it, which shows it as it was; Restore puts it back. The note as it is now is kept as a copy
   first, so a restore can be undone the same way.
 
 ## What the server checks on every save

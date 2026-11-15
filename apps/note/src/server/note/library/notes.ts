@@ -3,23 +3,20 @@ import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, lt, ne, notInArr
 
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { cardsFor, detailFor, joinedCard, withFolderName } from "@/server/note/library/cards"
+import { cardsFor, detailFor, toCard } from "@/server/note/library/cards"
 import type { Db } from "@/server/note/library/db-types"
 import { removeNoteFiles } from "@/server/note/library/files"
-import { authorMatches, folderForSource, requireFolder, requireLibrary } from "@/server/note/library/libraries"
-import { noteFolders, noteLinks, noteNotes, noteTemplates, noteVersions, noteViews, type NoteRow } from "@/server/note/schema"
+import { authorMatches, requireLibrary } from "@/server/note/library/libraries"
+import { noteLinks, noteNotes, noteTemplates, noteVersions, noteViews, type NoteRow } from "@/server/note/schema"
 import { cleanNoteBody, EMPTY_BODY, noteBodyFacts } from "@/lib/note/notes/body"
 import {
   AUTHOR_HANDLE_MAX,
-  authorKey,
   cleanAuthorName,
   cleanNoteTitle,
   cleanTag,
   isAnalysing,
-  isFixedScope,
   isGatheredScope,
   isImporting,
-  isImportSource,
   LIBRARY_SAYS,
   NOTE_TITLE_MAX,
   noteTitle,
@@ -54,7 +51,7 @@ import {
  * A save of the title or text carries the revision it started from. When the
  * note moved on since (another tab saved first) the save is refused with
  * `LIBRARY_SAYS.changedElsewhere`, and the screen asks which version to keep.
- * Tags, priority, author and folder save on their own and never collide, so
+ * Tags, priority and author save on their own and never collide, so
  * they do not count.
  */
 
@@ -132,19 +129,14 @@ function sortOrder(sort: NoteSort | undefined): SQL[] {
       return [way(sql`${noteNotes.source}`), desc(noteNotes.updatedAt)]
     case "priority":
       return [way(PRIORITY_RANK), desc(noteNotes.updatedAt)]
-    case "folder":
-      return [
-        sort.descending ? sql`lower(${noteFolders.name}) desc nulls last` : sql`lower(${noteFolders.name}) asc nulls last`,
-        desc(noteNotes.updatedAt),
-      ]
     case "edited":
       return [way(noteNotes.updatedAt)]
   }
 }
 
 /**
- * The middle panel's notes: everything, the loose ones, the archived ones,
- * Trash, or one folder's, narrowed by the filters and the search box. A search
+ * The middle panel's notes: everything, the pinned ones, the archived ones or
+ * Trash, narrowed by the filters and the search box. A search
  * shows archived notes too and never shows Trash, except on Trash itself.
  * Pinned notes come first, then the column a heading sorts by, or the newest
  * edited. Plan steps and Quotes read as All notes.
@@ -163,15 +155,13 @@ export async function listNotes(
     where.push(isNull(noteNotes.deletedAt))
     if (scope === "archived") where.push(isNotNull(noteNotes.archivedAt))
     else if (!searching) where.push(isNull(noteNotes.archivedAt))
-    if (scope === "loose") where.push(isNull(noteNotes.folderId))
-    else if (!isFixedScope(scope)) where.push(eq(noteNotes.folderId, scope))
+    if (scope === "pinned") where.push(isNotNull(noteNotes.pinnedAt))
   }
   where.push(searchFilter(options.search), ...filtersWhere(options.filters ?? {}))
 
   const rows = await db
-    .select(withFolderName)
+    .select()
     .from(noteNotes)
-    .leftJoin(noteFolders, eq(noteFolders.id, noteNotes.folderId))
     .where(and(...where))
     .orderBy(
       // Pinned notes as one group first, each group in the same order.
@@ -180,7 +170,7 @@ export async function listNotes(
       desc(noteNotes.id)
     )
     .limit(NOTES_LIST_MAX + 1)
-  return { notes: rows.slice(0, NOTES_LIST_MAX).map(joinedCard), more: rows.length > NOTES_LIST_MAX }
+  return { notes: rows.slice(0, NOTES_LIST_MAX).map(toCard), more: rows.length > NOTES_LIST_MAX }
 }
 
 export async function requireNote(ownerId: string, id: string, tx: Db = db): Promise<NoteRow> {
@@ -212,14 +202,8 @@ async function oneCard(ownerId: string, id: string): Promise<NoteCard> {
   return card
 }
 
-/** Everything the right panel shows. Opening it (`open`) is what Recently opened reads. */
-export async function loadNote(ownerId: string, id: string, options: { open?: boolean } = {}): Promise<NoteDetail> {
-  if (options.open) {
-    await db
-      .update(noteNotes)
-      .set({ lastOpenedAt: now() })
-      .where(and(eq(noteNotes.id, id), eq(noteNotes.ownerId, ownerId)))
-  }
+/** Everything the right panel shows. */
+export async function loadNote(ownerId: string, id: string): Promise<NoteDetail> {
   return detailFor(ownerId, id)
 }
 
@@ -229,9 +213,8 @@ export async function noteTitles(
   options: { libraryId: string; search?: string; exceptId?: string }
 ): Promise<NoteTitle[]> {
   const rows = await db
-    .select({ id: noteNotes.id, title: noteNotes.title, folderName: noteFolders.name })
+    .select({ id: noteNotes.id, title: noteNotes.title })
     .from(noteNotes)
-    .leftJoin(noteFolders, eq(noteFolders.id, noteNotes.folderId))
     .where(
       and(
         eq(noteNotes.ownerId, ownerId),
@@ -243,7 +226,7 @@ export async function noteTitles(
     )
     .orderBy(desc(noteNotes.updatedAt))
     .limit(20)
-  return rows.map((row) => ({ id: row.id, title: row.title, folderName: row.folderName }))
+  return rows
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +255,7 @@ async function rewriteLinks(tx: Db, row: Pick<NoteRow, "id" | "ownerId" | "libra
 }
 
 /**
- * A new note, in a folder or loose, either blank or from one of the library's
+ * A new note, either blank or from one of the library's
  * templates. A title given here wins over the template's. New notes are Normal
  * (the default Tyler was offered, 20 Oct 2026).
  */
@@ -280,7 +263,6 @@ export async function createNote(
   ownerId: string,
   input: {
     libraryId: string
-    folderId: string | null
     templateId?: string | null
     title?: string
     body?: JSONContent
@@ -291,10 +273,6 @@ export async function createNote(
   const id = uuid()
   await db.transaction(async (tx) => {
     await requireLibrary(ownerId, input.libraryId, tx)
-    if (input.folderId) {
-      const folder = await requireFolder(ownerId, input.folderId, tx)
-      if (folder.libraryId !== input.libraryId) throw new Error(LIBRARY_SAYS.folderNotFound)
-    }
     let title = input.title ?? ""
     let body = input.body ?? EMPTY_BODY
     if (input.templateId) {
@@ -312,12 +290,10 @@ export async function createNote(
       id,
       ownerId,
       libraryId: input.libraryId,
-      folderId: input.folderId,
       title: cleanNoteTitle(title),
       ...bodyColumns(clean),
       tags: cleanTags(input.tags ?? []),
       priority: input.priority ?? "normal",
-      lastOpenedAt: at,
       createdAt: at,
       updatedAt: at,
     } satisfies typeof noteNotes.$inferInsert
@@ -522,26 +498,9 @@ export async function setAuthor(
   return oneCard(ownerId, id)
 }
 
-/** Into one folder of the notes' own library, or out of every folder with null. */
-export async function moveToFolder(ownerId: string, ids: string[], folderId: string | null): Promise<BulkOutcome> {
-  return db.transaction(async (tx) => {
-    const folder = folderId ? await requireFolder(ownerId, folderId, tx) : null
-    const done: string[] = []
-    for (const row of await ownNotes(tx, ownerId, ids, true)) {
-      if (row.folderId === folderId) continue
-      if (folder && folder.libraryId !== row.libraryId) continue
-      await tx.update(noteNotes).set({ folderId, updatedAt: now() }).where(eq(noteNotes.id, row.id))
-      done.push(row.id)
-    }
-    return outcome(ids, done)
-  })
-}
-
 /**
  * Into another of this person's libraries (Tyler, 20 Oct 2026: "notes can
- * move to diff libraries"). An import goes into that library's folder for its
- * source, made if it needs to be; a plain note goes loose. Tags and author go
- * with it. A "[[" link to a note left behind turns into plain text, and links
+ * move to diff libraries"). Tags and author go with it. A "[[" link to a note left behind turns into plain text, and links
  * from the old library to it go. A link already in the other library is
  * skipped, since the same link is one note in a library.
  */
@@ -575,11 +534,10 @@ export async function moveToLibrary(
     }
     const moving = new Set(movers.map((each) => each.id))
     for (const row of movers) {
-      const folderId = isImportSource(row.source) ? await folderForSource(libraryId, row.source, tx) : null
       const body = unlinkOtherLibraries(row.body, moving)
       await tx
         .update(noteNotes)
-        .set({ libraryId, folderId, ...bodyColumns(body), revision: row.revision + 1, updatedAt: now() })
+        .set({ libraryId, ...bodyColumns(body), revision: row.revision + 1, updatedAt: now() })
         .where(eq(noteNotes.id, row.id))
       done.push(row.id)
     }
@@ -609,7 +567,7 @@ export function unlinkOtherLibraries(body: JSONContent, moving: ReadonlySet<stri
   return walk(body)
 }
 
-/** Brings a note back from Trash into its folder, or loose when that folder has gone. */
+/** Brings a note back from Trash. */
 export async function restoreNote(ownerId: string, id: string): Promise<NoteCard> {
   const done = await db
     .update(noteNotes)
@@ -676,9 +634,8 @@ export async function purgeOldTrash(limit = 50): Promise<number> {
  * It has the text, tags, priority, author, the import and the AI's cards with
  * their ticks, and no History. It shares the saved video and pictures with
  * the note it came from rather than storing them twice; `removeNoteFiles`
- * keeps a file while either still uses it. In another library it goes into
- * the folder for its source, or loose, and its "[[" links become plain text,
- * as a move does.
+ * keeps a file while either still uses it. In another library its "[[" links
+ * become plain text, as a move does.
  */
 export async function duplicateNote(ownerId: string, id: string, libraryId?: string): Promise<NoteCard> {
   const row = await requireNote(ownerId, id)
@@ -691,7 +648,6 @@ export async function duplicateNote(ownerId: string, id: string, libraryId?: str
   if (elsewhere) await requireLibrary(ownerId, target)
   const copyId = uuid()
   await db.transaction(async (tx) => {
-    const folderId = !elsewhere ? row.folderId : isImportSource(row.source) ? await folderForSource(target, row.source, tx) : null
     const body = elsewhere ? unlinkOtherLibraries(row.body, new Set()) : row.body
     // The link stays one note per library: the copy keeps the site's id only
     // in a library that does not have the link yet.
@@ -706,7 +662,6 @@ export async function duplicateNote(ownerId: string, id: string, libraryId?: str
       ...row,
       id: copyId,
       libraryId: target,
-      folderId,
       title: `Copy of ${noteTitle(row.title)}`.slice(0, NOTE_TITLE_MAX),
       ...bodyColumns(body),
       platformId: twin ? null : row.platformId,
@@ -716,7 +671,6 @@ export async function duplicateNote(ownerId: string, id: string, libraryId?: str
       archivedAt: null,
       playedSeconds: null,
       revision: 0,
-      lastOpenedAt: at,
       createdAt: at,
       updatedAt: at,
     })
@@ -787,28 +741,6 @@ export async function deleteTag(ownerId: string, libraryId: string, tag: string)
         .set({ tags: row.tags.filter((each) => each !== old), updatedAt: now() })
         .where(eq(noteNotes.id, row.id))
     }
-    return { notes: rows.length }
-  })
-}
-
-/**
- * Renames an author on every note of the library that has it, and in the
- * saved views that filter on it. Notes group by name (Tyler, 20 Oct 2026:
- * "Group by name"), so a name another author already has merges the two
- * rows. Each note keeps its own handle and picture.
- */
-export async function renameAuthor(ownerId: string, libraryId: string, from: string, to: string): Promise<{ notes: number }> {
-  const next = cleanAuthorName(to)
-  if (!next) throw new Error(LIBRARY_SAYS.authorEmpty)
-  if (next === cleanAuthorName(from)) throw new Error(LIBRARY_SAYS.sameName)
-  await requireLibrary(ownerId, libraryId)
-  return db.transaction(async (tx) => {
-    const rows = await tx
-      .update(noteNotes)
-      .set({ authorName: next, updatedAt: now() })
-      .where(and(eq(noteNotes.ownerId, ownerId), eq(noteNotes.libraryId, libraryId), authorMatches(from)))
-      .returning({ id: noteNotes.id })
-    await renameInViews(tx, libraryId, "author", (value) => authorKey(value) === authorKey(from), next)
     return { notes: rows.length }
   })
 }

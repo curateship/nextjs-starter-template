@@ -3,35 +3,23 @@ import type { JSONContent } from "@tiptap/core"
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CheckIcon,
-  ChevronLeftIcon,
   CopyIcon,
   DownloadIcon,
   FileVideoIcon,
-  EllipsisVerticalIcon,
-  FolderIcon,
-  FolderInputIcon,
   FileTextIcon,
-  HistoryIcon,
   LayoutTemplateIcon,
-  LibraryIcon,
-  ListTreeIcon,
   Loader2Icon,
-  MinusIcon,
   PencilLineIcon,
   PinIcon,
   PinOffIcon,
-  TagIcon,
   Trash2Icon,
   Undo2Icon,
-  UserRoundIcon,
 } from "lucide-react"
 
-import { AiCards, SourceCard } from "@/components/note-library/import-cards"
+import { EmptyRecord, RecordFrame } from "@/components/crm/record-frame"
+import { AiCards, AnalyseBox, SourceCard } from "@/components/note-library/import-cards"
 import type { DashboardActions, SeekRequest } from "@/components/note-library/library-dashboard"
-import { LibraryDot } from "@/components/note-library/library-dot"
+import { SourceIcon } from "@/components/note-library/library-dot"
 import { AuthorPicture } from "@/components/note-library/library-left-panel"
 import { HistoryDialog } from "@/components/note-library/history-dialog"
 import { NoteEditor, type NoteEditorHandle } from "@/components/note-library/note-editor"
@@ -41,9 +29,13 @@ import { useReportedSaveStatus } from "@/components/settings/use-reported-save-s
 import {
   DashboardCardHeader,
   dashboardCardHeadingClassName,
-  DashboardCardTitleHeader,
 } from "@/components/shared/dashboard-card-header"
-import { SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
+import { SelectedMenuRow } from "@/components/shared/mass-select"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
+import { PickGroup, PickMenuRow, PickRow, RowButton } from "@/components/shared/notes/pick-rows"
+import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -59,7 +51,6 @@ import {
 import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -76,14 +67,16 @@ import {
   deleteNoteNow,
   duplicateLibraryNote,
   loadNoteDetail,
+  loadNoteVersions,
   moveNotesToLibrary,
   restoreNoteFromTrash,
   saveNoteAuthor,
   saveNoteTags,
 } from "@/lib/api/note/notes"
+import { formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { useWideScreen } from "@/lib/layout/wide-screen"
+import { PANEL_FOOTER_PADDING, PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import type { Highlight } from "@/lib/note/library/highlights"
 import {
   AUTHOR_HANDLE_MAX,
@@ -102,9 +95,10 @@ import {
   type NoteCard,
   type NoteDetail,
   type NotePriority,
+  type NoteVersionSummary,
   type PlanStep,
 } from "@/lib/note/library/notes"
-import { noteBodyFacts, noteHeadings, readingMinutes } from "@/lib/note/notes/body"
+import { noteHeadings } from "@/lib/note/notes/body"
 import { markdownFileName, noteToMarkdown } from "@/lib/note/notes/markdown"
 import { forgetKeptChanges, readKeptChanges, useNoteAutosave, type NoteChanges } from "@/lib/note/notes/use-note-autosave"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -138,7 +132,6 @@ export function NotePanel({
   page: LibraryPage
   actions: DashboardActions
 }) {
-  const wide = useWideScreen()
   const [loaded, setLoaded] = React.useState<{ id: string; detail: NoteDetail; round: number } | null>(null)
   const [failure, setFailure] = React.useState<{ id: string; message: string } | null>(null)
   // A note opened again (after another, or after closing) waits for a fresh
@@ -160,7 +153,7 @@ export function NotePanel({
   React.useEffect(() => {
     if (!noteId) return
     let live = true
-    loadNoteDetail(noteId, true)
+    loadNoteDetail(noteId)
       .then((detail) => {
         if (!live) return
         setLoaded((current) => ({ id: noteId, detail, round: (current?.round ?? 0) + 1 }))
@@ -176,30 +169,35 @@ export function NotePanel({
   }, [noteId, reloads, reloadKey])
 
   const close = () => actions.openNote(undefined)
-  const back = wide ? undefined : { label: "Back to the notes", onClick: close }
 
+  // Only a library with no notes leaves the panel empty; otherwise the first
+  // row opens on arrival (the Admin 3 panel design, "Right panel").
   if (!noteId) {
-    return (
-      <>
-        <DashboardCardTitleHeader icon={<FileTextIcon />} title="Note" />
-        <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-          Click a note to read and edit it here, or make one with New note.
-        </p>
-      </>
-    )
+    return <EmptyRecord title="Note" icon={<FileTextIcon aria-hidden />} line="No notes here. New note writes one or imports a link." hideLabel="Hide the note" />
   }
 
   const detail = loaded?.id === noteId ? loaded.detail : null
   if (!detail) {
     const failed = failure?.id === noteId ? failure.message : null
+    const title = listedCard?.id === noteId ? noteTitle(listedCard.title) : "Note"
+    if (!failed) {
+      // No spinner while the note loads (Tyler, 20 Oct 2026); the panel
+      // simply stays empty for the moment it takes. Read out all the same.
+      return (
+        <>
+          <EmptyRecord title={title} icon={<FileTextIcon aria-hidden />} line="" loading hideLabel="Hide the note" />
+          <p className="sr-only" role="status">
+            Loading the note
+          </p>
+        </>
+      )
+    }
     return (
-      <>
-        <DashboardCardTitleHeader
-          icon={<FileTextIcon />}
-          back={back}
-          title={listedCard?.id === noteId ? noteTitle(listedCard.title) : "Note"}
-        />
-        {failed ? (
+      <RecordFrame
+        avatar={<FileTextIcon aria-hidden />}
+        title={title}
+        hideLabel="Hide the note"
+        body={
           <ErrorRow
             message={failed}
             onRetry={() => {
@@ -207,14 +205,8 @@ export function NotePanel({
               setReloads((count) => count + 1)
             }}
           />
-        ) : (
-          // No spinner while the note loads (Tyler, 20 Oct 2026); the panel
-          // simply stays empty for the moment it takes. Read out all the same.
-          <p className="sr-only" role="status">
-            Loading the note
-          </p>
-        )}
-      </>
+        }
+      />
     )
   }
 
@@ -259,6 +251,7 @@ function OpenNote({
 }) {
   const trashed = opened.deletedAt !== null
   const readOnly = trashed
+  const cover = useRightCover()
 
   // Changes this browser kept from a visit whose save never landed. Read once,
   // as the note opens, and shown on screen straight away.
@@ -273,6 +266,8 @@ function OpenNote({
   const [detail, setDetail] = React.useState<NoteDetail>(opened)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = React.useState(false)
+  // The copy History opens on, picked in the ⋮'s Versions tab.
+  const [historyAt, setHistoryAt] = React.useState<string | null>(null)
   const [templateOpen, setTemplateOpen] = React.useState(false)
   const [authorOpen, setAuthorOpen] = React.useState(false)
   const [removing, setRemoving] = React.useState(false)
@@ -303,7 +298,6 @@ function OpenNote({
     setSaveStatus(status === "saving" ? "saving" : status === "saved" ? "saved" : "idle")
   }, [status, setSaveStatus])
 
-  const facts = React.useMemo(() => noteBodyFacts(body), [body])
   const headings = React.useMemo(() => noteHeadings(body), [body])
   const isImport = isImportSource(detail.source)
   const merged = detail.mergedFrom.length > 0 || (detail.source === "note" && detail.analyseStatus !== null)
@@ -330,7 +324,7 @@ function OpenNote({
     if (!isMoving(detail)) return
     let live = true
     const timer = setTimeout(() => {
-      loadNoteDetail(detail.id, false)
+      loadNoteDetail(detail.id)
         .then((fresh) => {
           if (!live) return
           if (fresh.title !== detail.title && title === detail.title) setTitle(fresh.title)
@@ -378,14 +372,14 @@ function OpenNote({
   }
 
   async function reloadFromServer() {
-    onReload(await loadNoteDetail(opened.id, false))
+    onReload(await loadNoteDetail(opened.id))
   }
 
   /** A field outside the text: the server's answer is the row in the middle, and here. */
   async function changeOne(what: Parameters<typeof changeNotes>[1]) {
     await run("change", async () => {
       await changeNotes([detail.id], what)
-      const fresh = await loadNoteDetail(detail.id, false)
+      const fresh = await loadNoteDetail(detail.id)
       show(fresh)
       await actions.refreshPage()
     })
@@ -522,8 +516,17 @@ function OpenNote({
   const shownTitle = noteTitle(title)
 
   return (
-    <>
-      <DashboardCardHeader className="gap-1">
+    // The shell's right panel frame (`RecordFrame`), drawn here because the
+    // name is typed in place: the left page's cover behind the header, its
+    // line see-through over it, and the collapse button at the edge (the
+    // Admin 3 panel design, "every right panel that is not a RecordFrame").
+    <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <RightPanelCover />
+      <div>
+      <DashboardCardHeader className={cn("gap-1", cover && "border-b-transparent")}>
+        <span aria-hidden className="ml-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4">
+          {isImportSource(detail.source) ? <SourceIcon source={detail.source} /> : <FileTextIcon />}
+        </span>
         {/* The note's name where the folder dropdown was, and the only place
             it is written now (Tyler, 20 Oct 2026), so it is where it is renamed. */}
         <input
@@ -591,13 +594,13 @@ function OpenNote({
               headings={headings}
               knownTags={page.tags.map((each) => each.tag)}
               onPriority={(priority) => void changeOne({ change: "priority", priority })}
-              onFolder={(folderId) =>
-                void changeOne({ change: "folder", folderId })
-              }
               onAddTag={(tag) => saveTags([...detail.tags, tag.trim().toLowerCase()])}
               onRemoveTag={(tag) => void saveTags(detail.tags.filter((each) => each !== tag))}
               onOutline={(index) => editorRef.current?.scrollToHeading(index)}
-              onHistory={() => setHistoryOpen(true)}
+              onVersion={(versionId) => {
+                setHistoryAt(versionId)
+                setHistoryOpen(true)
+              }}
               onPin={() =>
                 void changeOne({ change: "pin", on: !detail.pinned })
               }
@@ -634,9 +637,11 @@ function OpenNote({
             />
           </>
         )}
+        <SidePanelCollapseButton side="right" label="Hide the note" />
       </DashboardCardHeader>
+      </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 px-4 pt-3 empty:hidden">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 px-3.75 pt-3 empty:hidden">
           {trashed ? (
             <p className="text-sm text-muted-foreground" role="status">
               This note is in Trash. Restore it to change it. It is deleted for good {TRASH_DAYS} days after it went there.
@@ -648,7 +653,7 @@ function OpenNote({
               <AuthorPicture name={detail.authorName} url={detail.authorPictureUrl} className="size-6 text-xs" />
               <button
                 type="button"
-                onClick={() => actions.setSearch({ author: detail.authorName ?? undefined, folder: undefined })}
+                onClick={() => actions.setSearch({ author: detail.authorName ?? undefined, tab: undefined })}
                 className={cn("min-w-0 truncate rounded-sm text-sm font-medium hover:underline", focusRing)}
               >
                 {detail.authorName}
@@ -688,15 +693,15 @@ function OpenNote({
               changed({ body: next })
             }}
           />
-          <p className="px-5 pb-3 text-xs text-muted-foreground tabular-nums">
-            {facts.words.toLocaleString("en")} {facts.words === 1 ? "word" : "words"}, {readingMinutes(facts.words)} min read
-          </p>
         </div>
 
         {/* Marked as the side panel's cards, so the first follows Settings ->
             Styling -> Panel cards -> Opacity (UI standard, "A side panel's
             body"). */}
-        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3 empty:hidden">
+        {/* The panel gutter, so the cards sit where Settings -> Styling ->
+            Panel cards -> Edge to edge puts them, as every side panel's do
+            (the shell's rule reaches past `--panel-gutter`). */}
+        <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)] empty:hidden", PANEL_GUTTER, "gap-3.75")}>
           {isImport ? (
             <SourceCard
               detail={detail}
@@ -709,6 +714,7 @@ function OpenNote({
               onRemove={() => setRemoving(true)}
               onHighlights={saveHighlights}
               onAddTime={addTime}
+              analyseInFooter
             />
           ) : null}
 
@@ -748,10 +754,26 @@ function OpenNote({
         </div>
       </ScrollArea>
 
+      {/* Analyse, pinned to the bottom of an imported note (Tyler, 15 Nov
+          2026). No word count or reading time ("remove these labels"), and
+          the price is Analyse's tooltip, not a line beside it. */}
+      {isImport && !trashed ? (
+        <div className={cn("flex shrink-0 flex-wrap items-center gap-2 border-t", PANEL_FOOTER_PADDING)}>
+          <AnalyseBox
+            detail={detail}
+            busy={busy}
+            priceAsTooltip
+            onAnalyse={() => void run("analyse", async () => show(await analyseNoteNow(detail.id)))}
+            onRetry={() => void run("retry", async () => show(await retryNoteImport(detail.id)))}
+          />
+        </div>
+      ) : null}
+
       <HistoryDialog
         libraryId={detail.libraryId}
         noteId={opened.id}
         open={historyOpen}
+        startAt={historyAt}
         onClose={() => setHistoryOpen(false)}
         onRestored={(fresh) => {
           setHistoryOpen(false)
@@ -789,7 +811,7 @@ function OpenNote({
         onSave={async (name, handle) => {
           const ok = await run("author", async () => {
             await saveNoteAuthor(detail.id, name, handle || null)
-            show(await loadNoteDetail(detail.id, false))
+            show(await loadNoteDetail(detail.id))
             await actions.refreshPage()
           })
           if (ok) setAuthorOpen(false)
@@ -864,7 +886,7 @@ function OpenNote({
               disabled={resolving}
               onClick={() => {
                 setResolving(true)
-                loadNoteDetail(opened.id, false)
+                loadNoteDetail(opened.id)
                   .then((fresh) => {
                     // Everything on screen is the version to keep; then one save.
                     autosave.change({ title, body })
@@ -880,27 +902,20 @@ function OpenNote({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 
-type MenuPage = "priority" | "folder" | "tags" | "outline" | "library" | "duplicate"
-
-const MENU_TITLE: Record<MenuPage, string> = {
-  priority: "Priority",
-  folder: "Folder",
-  tags: "Tags",
-  outline: "Outline",
-  library: "Move to library",
-  duplicate: "Duplicate to library",
-}
-
 /**
- * The note's ⋮ menu (Tyler, 20 Oct 2026: "move all these into the 3 dotted
- * dropdown"): Priority, Folder, Tags and Outline step into lists of their own
- * with a back arrow, then History and the rest of what is done to the note as
- * a whole. It steps the way the "N selected" menu does, since the shell's
- * dropdown has no sub-menus.
+ * The note's ⋮, the record ⋮ of the Admin 3 panel design (Tyler, 15 Nov
+ * 2026: "We need to revamp the ui to the new shell 3 panel ui"): a tabbed
+ * menu, 20.4rem wide.
+ *
+ * - **General:** the grouped rows. Details (Priority, Tags), Author,
+ *   and Place (Library, which moves the note). Then what is done to the note
+ *   as a whole as ghost rows, Move to Trash in red under a line.
+ * - **Outline:** the note's headings; one press scrolls to it.
+ * - **Versions:** the earlier copies; one press opens History on it.
  */
 function NoteMenu({
   page,
@@ -908,11 +923,10 @@ function NoteMenu({
   headings,
   knownTags,
   onPriority,
-  onFolder,
   onAddTag,
   onRemoveTag,
   onOutline,
-  onHistory,
+  onVersion,
   onPin,
   onArchive,
   onAuthor,
@@ -928,11 +942,11 @@ function NoteMenu({
   headings: { level: number; text: string; index: number }[]
   knownTags: string[]
   onPriority: (priority: NotePriority) => void
-  onFolder: (folderId: string | null) => void
   onAddTag: (tag: string) => boolean
   onRemoveTag: (tag: string) => void
   onOutline: (index: number) => void
-  onHistory: () => void
+  /** Opens History on that copy, or on the newest with none. */
+  onVersion: (versionId: string | null) => void
   onPin: () => void
   onArchive: () => void
   onAuthor: () => void
@@ -946,206 +960,191 @@ function NoteMenu({
   onTrash: () => void
 }) {
   const [open, setOpen] = React.useState(false)
-  const [step, setStep] = React.useState<MenuPage | null>(null)
-  const folder = page.folders.find((each) => each.id === detail.folderId)
-
-  function openChange(next: boolean) {
-    setOpen(next)
-    if (!next) setStep(null)
-  }
-  /** Runs a pick and shuts the menu, as a menu item does. */
+  /** Runs a pick and shuts the menu, as a menu row does. */
   const pick = (work: () => void) => () => {
-    openChange(false)
+    setOpen(false)
     work()
   }
-  // flex-1 rather than an auto margin, which the row's own arrow also takes, so the word sits right by the arrow.
-  const hint = (words: string) => <span className="min-w-0 flex-1 truncate pl-2 text-right text-xs text-muted-foreground">{words}</span>
-  const priorityIcon = (each: NotePriority) =>
-    each === "high" ? (
-      <ArrowUpIcon className="size-4 text-muted-foreground" />
-    ) : each === "low" ? (
-      <ArrowDownIcon className="size-4 text-muted-foreground" />
-    ) : (
-      <MinusIcon className="size-4 text-muted-foreground" />
-    )
 
   return (
-    <Popover open={open} onOpenChange={openChange}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="More for this note">
-              <EllipsisVerticalIcon />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>More</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        align="end"
-        className={cn("gap-0 p-1", step === "tags" ? "w-80" : "w-64")}
-        onEscapeKeyDown={(event) => {
-          if (step === null) return
-          event.preventDefault()
-          setStep(null)
-        }}
-      >
-        {step ? (
-          <>
-            <SelectedMenuRow onClick={() => setStep(null)} className="font-medium">
-              <ChevronLeftIcon className="size-4 text-muted-foreground" />
-              {MENU_TITLE[step]}
-            </SelectedMenuRow>
-            <SelectedMenuSeparator />
-            {step === "priority" ? (
-              NOTE_PRIORITIES.map((each) => (
-                <SelectedMenuRow key={each} onClick={pick(() => onPriority(each))}>
-                  {priorityIcon(each)}
-                  {PRIORITY_LABEL[each]}
-                  {each === detail.priority ? <CheckIcon className="ml-auto size-4" /> : null}
-                </SelectedMenuRow>
-              ))
-            ) : step === "folder" ? (
-              <ScrollArea className="max-h-72">
-                <SelectedMenuRow onClick={pick(() => onFolder(null))}>
-                  <MinusIcon className="size-4 text-muted-foreground" />
-                  No folder
-                  {detail.folderId === null ? <CheckIcon className="ml-auto size-4" /> : null}
-                </SelectedMenuRow>
-                {page.folders.map((each) => (
-                  <SelectedMenuRow key={each.id} onClick={pick(() => onFolder(each.id))}>
-                    <FolderIcon className="size-4 text-muted-foreground" />
-                    <span className="truncate">{each.name}</span>
-                    {each.id === detail.folderId ? <CheckIcon className="ml-auto size-4 shrink-0" /> : null}
-                  </SelectedMenuRow>
-                ))}
-              </ScrollArea>
-            ) : step === "tags" ? (
-              <div className="p-1.5">
-                <ContactTagsBox
-                  id={`note-tags-${detail.id}`}
-                  tags={detail.tags}
-                  knownTags={knownTags}
-                  onAdd={onAddTag}
-                  onRemove={onRemoveTag}
+    <TabbedMenu
+      label="Note menu"
+      align="end"
+      width="20.4rem"
+      open={open}
+      onOpenChange={setOpen}
+      tabs={[
+        {
+          value: "general",
+          label: "General",
+          content: (
+            <div className="grid gap-3 p-3">
+              <PickGroup title="Details">
+                <PickMenuRow
+                  label="Priority"
+                  value={PRIORITY_LABEL[detail.priority]}
+                  selected={detail.priority}
+                  options={NOTE_PRIORITIES.map((each) => ({ value: each, label: PRIORITY_LABEL[each] }))}
+                  onPick={(value) => onPriority(value as NotePriority)}
                 />
+                <PickRow
+                  label="Tags"
+                  value={detail.tags.length ? detail.tags.join(", ") : "None"}
+                  empty={!detail.tags.length}
+                >
+                  <ContactTagsBox
+                    id={`note-tags-${detail.id}`}
+                    tags={detail.tags}
+                    knownTags={knownTags}
+                    onAdd={onAddTag}
+                    onRemove={onRemoveTag}
+                  />
+                </PickRow>
+              </PickGroup>
+              <PickGroup title="Author">
+                <RowButton
+                  label="Author"
+                  value={detail.authorName ?? "None"}
+                  empty={!detail.authorName}
+                  open={false}
+                  onClick={pick(onAuthor)}
+                />
+              </PickGroup>
+              <PickGroup title="Place">
+                <PickMenuRow
+                  label="Library"
+                  value={page.library.name}
+                  selected={page.library.id}
+                  disabled={!page.otherLibraries.length}
+                  options={[
+                    { value: page.library.id, label: page.library.name },
+                    ...page.otherLibraries.map((library) => ({ value: library.id, label: library.name })),
+                  ]}
+                  onPick={(id) => {
+                    const library = page.otherLibraries.find((each) => each.id === id)
+                    if (library) pick(() => onMoveLibrary(library))()
+                  }}
+                />
+              </PickGroup>
+              <div className="grid">
+                <MenuFooterButton icon={detail.pinned ? <PinOffIcon /> : <PinIcon />} onClick={pick(onPin)}>
+                  {detail.pinned ? "Unpin" : "Pin to the top"}
+                </MenuFooterButton>
+                <MenuFooterButton icon={detail.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />} onClick={pick(onArchive)}>
+                  {detail.archived ? "Unarchive" : "Archive"}
+                </MenuFooterButton>
+                <MenuFooterButton icon={<CopyIcon />} onClick={pick(() => onDuplicate())}>
+                  Duplicate
+                </MenuFooterButton>
+                {page.otherLibraries.length ? (
+                  <PickMenuRow
+                    label="Duplicate to library"
+                    value=""
+                    selected=""
+                    options={page.otherLibraries.map((library) => ({ value: library.id, label: library.name }))}
+                    onPick={(id) => {
+                      const library = page.otherLibraries.find((each) => each.id === id)
+                      if (library) pick(() => onDuplicate(library))()
+                    }}
+                  />
+                ) : null}
+                <MenuFooterButton icon={<LayoutTemplateIcon />} onClick={pick(onTemplate)}>
+                  Save as template…
+                </MenuFooterButton>
+                <MenuFooterButton icon={<DownloadIcon />} onClick={pick(onDownload)}>
+                  Download as Markdown
+                </MenuFooterButton>
+                {onDownloadVideo ? (
+                  <MenuFooterButton icon={<FileVideoIcon />} onClick={pick(onDownloadVideo)}>
+                    Download {detail.mediaKind === "audio" ? "sound" : "video"}
+                  </MenuFooterButton>
+                ) : null}
               </div>
-            ) : step === "outline" ? (
-              headings.length ? (
-                <ScrollArea className="max-h-80">
-                  {headings.map((heading) => (
-                    <SelectedMenuRow
-                      key={heading.index}
-                      onClick={pick(() => onOutline(heading.index))}
-                      className={heading.level === 1 ? "font-medium" : undefined}
-                    >
-                      <span className="truncate" style={{ paddingLeft: `${(heading.level - 1) * 12}px` }}>
-                        {heading.text || "Untitled heading"}
-                      </span>
-                    </SelectedMenuRow>
-                  ))}
-                </ScrollArea>
-              ) : (
-                <p className="px-2 py-2 text-sm text-muted-foreground">No headings yet. Type / and pick a heading.</p>
-              )
-            ) : page.otherLibraries.length ? (
-              <ScrollArea className="max-h-72">
-                {page.otherLibraries.map((library) => (
-                  <SelectedMenuRow
-                    key={library.id}
-                    onClick={pick(() => (step === "duplicate" ? onDuplicate(library) : onMoveLibrary(library)))}
-                  >
-                    <LibraryDot colour={library.colour} />
-                    <span className="truncate">{library.name}</span>
-                  </SelectedMenuRow>
-                ))}
-              </ScrollArea>
-            ) : (
-              <p className="px-2 py-2 text-sm text-muted-foreground">This is your only library.</p>
-            )}
-          </>
-        ) : (
-          <>
-            <SelectedMenuRow page="priority" onClick={() => setStep("priority")}>
-              {priorityIcon(detail.priority)}
-              Priority
-              {hint(PRIORITY_LABEL[detail.priority])}
-            </SelectedMenuRow>
-            <SelectedMenuRow page="folder" onClick={() => setStep("folder")}>
-              <FolderInputIcon className="size-4 text-muted-foreground" />
-              Folder
-              {hint(folder?.name ?? "No folder")}
-            </SelectedMenuRow>
-            <SelectedMenuRow page="tags" onClick={() => setStep("tags")}>
-              <TagIcon className="size-4 text-muted-foreground" />
-              Tags
-              {hint(detail.tags.length ? String(detail.tags.length) : "None")}
-            </SelectedMenuRow>
-            <SelectedMenuRow page="outline" onClick={() => setStep("outline")}>
-              <ListTreeIcon className="size-4 text-muted-foreground" />
-              Outline
-            </SelectedMenuRow>
-            <SelectedMenuRow onClick={pick(onHistory)}>
-              <HistoryIcon className="size-4 text-muted-foreground" />
-              History
-            </SelectedMenuRow>
-            <SelectedMenuSeparator />
-            <SelectedMenuRow onClick={pick(onPin)}>
-              {detail.pinned ? (
-                <PinOffIcon className="size-4 text-muted-foreground" />
-              ) : (
-                <PinIcon className="size-4 text-muted-foreground" />
-              )}
-              {detail.pinned ? "Unpin" : "Pin to the top"}
-            </SelectedMenuRow>
-            <SelectedMenuRow onClick={pick(onArchive)}>
-              {detail.archived ? (
-                <ArchiveRestoreIcon className="size-4 text-muted-foreground" />
-              ) : (
-                <ArchiveIcon className="size-4 text-muted-foreground" />
-              )}
-              {detail.archived ? "Unarchive" : "Archive"}
-            </SelectedMenuRow>
-            <SelectedMenuRow onClick={pick(onAuthor)}>
-              <UserRoundIcon className="size-4 text-muted-foreground" />
-              Edit author…
-            </SelectedMenuRow>
-            <SelectedMenuRow page="library" onClick={() => setStep("library")}>
-              <LibraryIcon className="size-4 text-muted-foreground" />
-              Move to library
-            </SelectedMenuRow>
-            <SelectedMenuRow onClick={pick(() => onDuplicate())}>
-              <CopyIcon className="size-4 text-muted-foreground" />
-              Duplicate
-            </SelectedMenuRow>
-            <SelectedMenuRow page="duplicate" onClick={() => setStep("duplicate")}>
-              <CopyIcon className="size-4 text-muted-foreground" />
-              Duplicate to library
-            </SelectedMenuRow>
-            <SelectedMenuSeparator />
-            <SelectedMenuRow onClick={pick(onTemplate)}>
-              <LayoutTemplateIcon className="size-4 text-muted-foreground" />
-              Save as template…
-            </SelectedMenuRow>
-            <SelectedMenuRow onClick={pick(onDownload)}>
-              <DownloadIcon className="size-4 text-muted-foreground" />
-              Download as Markdown
-            </SelectedMenuRow>
-            {onDownloadVideo ? (
-              <SelectedMenuRow onClick={pick(onDownloadVideo)}>
-                <FileVideoIcon className="size-4 text-muted-foreground" />
-                Download {detail.mediaKind === "audio" ? "sound" : "video"}
-              </SelectedMenuRow>
-            ) : null}
-            <SelectedMenuSeparator />
-            <SelectedMenuRow onClick={pick(onTrash)} className="text-destructive hover:text-destructive">
-              <Trash2Icon className="size-4" />
-              Move to Trash
-            </SelectedMenuRow>
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
+            </div>
+          ),
+          footer: (
+            <MenuFooterButton icon={<Trash2Icon className="text-destructive" />} onClick={pick(onTrash)}>
+              <span className="text-destructive">Move to Trash</span>
+            </MenuFooterButton>
+          ),
+        },
+        {
+          value: "outline",
+          label: "Outline",
+          content: headings.length ? (
+            <div className="grid p-1.5">
+              {headings.map((heading) => (
+                <SelectedMenuRow
+                  key={heading.index}
+                  onClick={pick(() => onOutline(heading.index))}
+                  className={heading.level === 1 ? "font-medium" : undefined}
+                >
+                  <span className="truncate" style={{ paddingLeft: `${(heading.level - 1) * 12}px` }}>
+                    {heading.text || "Untitled heading"}
+                  </span>
+                </SelectedMenuRow>
+              ))}
+            </div>
+          ) : (
+            <p className="px-4 py-3 text-sm text-muted-foreground">No headings yet. Type / and pick a heading.</p>
+          ),
+        },
+        {
+          value: "versions",
+          label: "Versions",
+          content: <VersionsList noteId={detail.id} onPick={(id) => pick(() => onVersion(id))()} />,
+        },
+      ]}
+    />
+  )
+}
+
+/** The note's earlier copies, newest first; one press opens History on it. */
+function VersionsList({ noteId, onPick }: { noteId: string; onPick: (versionId: string) => void }) {
+  const [versions, setVersions] = React.useState<NoteVersionSummary[] | null>(null)
+  const [failure, setFailure] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
+  React.useEffect(() => {
+    let live = true
+    loadNoteVersions(noteId)
+      .then((list) => {
+        if (live) setVersions(list)
+      })
+      .catch((error) => {
+        if (live) setFailure(getLibraryErrorMessage(error))
+      })
+    return () => {
+      live = false
+    }
+  }, [noteId, reloads])
+  if (failure) {
+    return (
+      <ErrorRow
+        message={failure}
+        onRetry={() => {
+          setFailure(null)
+          setReloads((count) => count + 1)
+        }}
+      />
+    )
+  }
+  if (!versions) return <LoadingRow label="Loading earlier copies" />
+  if (!versions.length) {
+    return <p className="px-4 py-3 text-sm text-muted-foreground">No earlier copies yet. One is kept once you have written for a while.</p>
+  }
+  return (
+    <div className="grid p-1.5">
+      {versions.map((version) => (
+        <SelectedMenuRow key={version.id} onClick={() => onPick(version.id)}>
+          <span className="grid min-w-0 gap-0.5">
+            <span className="truncate">{formatDateTime(version.createdAt)}</span>
+            <span className="truncate text-xs text-muted-foreground">
+              {noteTitle(version.title)}, {version.words} words
+            </span>
+          </span>
+        </SelectedMenuRow>
+      ))}
+    </div>
   )
 }
 

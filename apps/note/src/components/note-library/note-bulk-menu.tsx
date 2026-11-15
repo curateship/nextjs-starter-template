@@ -4,7 +4,6 @@ import {
   ArchiveRestoreIcon,
   ArrowDownIcon,
   ArrowUpIcon,
-  FolderInputIcon,
   LibraryIcon,
   Loader2Icon,
   MinusIcon,
@@ -43,7 +42,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The ticked notes as one "N selected" button in the middle header, with the
- * changes Tyler listed on 20 Oct 2026: Move to folder, Move to library, Add
+ * changes Tyler listed on 20 Oct 2026: Move to library, Add
  * tag, Remove tag, Set priority, Pin, Unpin, Archive, Unarchive, Analyse
  * many, One plan from many and Move to Trash. Each is one request, and the
  * toast says how many changed and how many were already that way.
@@ -102,10 +101,6 @@ export function NoteBulkMenu({
       onClear={onDone}
       main={(menu) => (
         <>
-          <SelectedMenuRow page="folder" onClick={() => menu.step("folder")}>
-            <FolderInputIcon className="size-4 text-muted-foreground" />
-            Move to folder
-          </SelectedMenuRow>
           <SelectedMenuRow page="library" onClick={() => menu.step("library")}>
             <LibraryIcon className="size-4 text-muted-foreground" />
             Move to library
@@ -166,25 +161,6 @@ export function NoteBulkMenu({
         </>
       )}
       pages={{
-        folder: {
-          title: "Move to folder",
-          content: (menu) => (
-            <ScrollArea className="max-h-72">
-              <SelectedMenuRow onClick={() => change(menu.close, { change: "folder", folderId: null }, "moved out of their folder")}>
-                <MinusIcon className="size-4 text-muted-foreground" />
-                No folder
-              </SelectedMenuRow>
-              {page.folders.map((folder) => (
-                <SelectedMenuRow
-                  key={folder.id}
-                  onClick={() => change(menu.close, { change: "folder", folderId: folder.id }, `moved to ${quoteOneLine(folder.name)}`)}
-                >
-                  <span className="truncate">{folder.name}</span>
-                </SelectedMenuRow>
-              ))}
-            </ScrollArea>
-          ),
-        },
         library: {
           title: "Move to library",
           content: (menu) =>
@@ -331,7 +307,7 @@ export function NoteBulkMenu({
                   ? "Pick at least two notes that have an action plan."
                   : withPlan.length > MANY_AT_ONCE_MAX
                     ? `Pick up to ${MANY_AT_ONCE_MAX} notes at a time.`
-                    : `${mergePriceLine(withPlan)} It makes a new note in Loose notes.`
+                    : `${mergePriceLine(withPlan)} It makes a new note in this library.`
               }
               label={`One plan from ${withPlan.length.toLocaleString()}`}
               busy={busy}

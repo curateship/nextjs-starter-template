@@ -48,7 +48,7 @@ export const IMPORT_SOURCES = [
 ] as const
 export type ImportSource = (typeof IMPORT_SOURCES)[number]
 
-/** The name on the Import menu, the Source column, and the folder an import makes. */
+/** The name on New note's import choices and in the Source column. */
 export const SOURCE_LABEL: Record<NoteSource, string> = {
   note: "Note",
   youtube_long: "YouTube long",
@@ -192,8 +192,6 @@ export const MAX_FILE_BYTES = 500 * 1024 * 1024
 export type MediaKind = "video" | "audio"
 export const NOTE_TITLE_MAX = 200
 export const LIBRARY_NAME_MAX = 80
-export const LIBRARY_DESCRIPTION_MAX = 500
-export const FOLDER_NAME_MAX = 80
 export const TEMPLATE_NAME_MAX = 80
 export const VIEW_NAME_MAX = 60
 export const TAG_MAX = 60
@@ -204,7 +202,7 @@ export const AUTHOR_HANDLE_MAX = 100
 export const PLAN_STEPS_MAX = 30
 export const PLAN_STEP_MAX = 400
 export const ABOUT_YOU_MAX = 500
-/** How many notes one list brings. More than that asks for a search or a folder. */
+/** How many notes one list brings. More than that asks for a search or a filter. */
 export const NOTES_LIST_MAX = 1000
 /** How many earlier copies of a note are kept (Tyler, 18 Oct 2026). */
 export const VERSIONS_KEPT = 100
@@ -212,8 +210,6 @@ export const VERSIONS_KEPT = 100
 export const VERSION_EVERY_MINUTES = 5
 /** How long Trash keeps a note (Tyler, 18 Oct 2026). */
 export const TRASH_DAYS = 30
-/** How many recently opened notes sit in the left panel. */
-export const RECENT_NOTES = 3
 /** The most notes one press of Analyse many or One plan from many takes. */
 export const MANY_AT_ONCE_MAX = 10
 
@@ -224,9 +220,6 @@ export const LIBRARY_SAYS = {
   libraryNotFound: "Library not found",
   libraryTaken: "You already have a library with that name",
   libraryNameEmpty: "Give the library a name",
-  folderNotFound: "Folder not found",
-  folderTaken: "A folder with that name is already in this library",
-  folderNameEmpty: "Give the folder a name",
   noteNotFound: "Note not found",
   titleEmpty: "Give the note a title",
   changedElsewhere: "This note changed in another tab",
@@ -272,6 +265,8 @@ export const LIBRARY_SAYS = {
   saveKeyUnavailable: "Save to Note needs the server's secret key, which is not set here.",
   sameName: "That is already its name",
   playedOutOfRange: "That place in the video is out of range",
+  pageLocked: "The page is locked. Unlock it in its ⋮ first.",
+  pageTooLong: "The page is too long to save.",
 } as const
 
 // ---------------------------------------------------------------------------
@@ -308,27 +303,12 @@ export const LIBRARY_COLOUR_DOT: Record<LibraryColour, string> = {
 export type LibraryRow = {
   id: string
   name: string
-  description: string
   colour: LibraryColour
-  avatarUrl: string | null
-  bannerUrl: string | null
   pinned: boolean
   /** Notes not in Trash. */
   noteCount: number
   /** The newest edit to the library or any note in it. */
   editedAt: string
-}
-
-export type LibraryFolder = {
-  id: string
-  name: string
-  /** The import source this folder was made for, or null for one made by hand. */
-  source: ImportSource | null
-  position: number
-  /** Notes in it, not counting archived ones or Trash. */
-  noteCount: number
-  /** When it was pinned to the Pinned card, or null. */
-  pinnedAt: string | null
 }
 
 export type LibraryAuthor = {
@@ -345,36 +325,16 @@ export type LibraryView = { id: string; name: string; filters: NoteFilters; posi
 
 export type TemplateSummary = { id: string; name: string; position: number }
 
-/**
- * The LIBRARY card's own rows, which pin to the Pinned card like folders do
- * (Tyler, 20 Oct 2026: "I should be able to pin library folders too").
- */
-export const PINNABLE_ROWS = ["all", "loose", "steps", "quotes", "archived", "trash"] as const
-export type PinnableRow = (typeof PINNABLE_ROWS)[number]
-export type PinnedRow = { row: PinnableRow; pinnedAt: string }
-
-export const PINNABLE_ROW_LABEL: Record<PinnableRow, string> = {
-  all: "All notes",
-  loose: "Loose notes",
-  steps: "Plan steps",
-  quotes: "Quotes",
-  archived: "Archived",
-  trash: "Trash",
-}
-
 /** Everything the left panel and the headers need, read once per library. */
 export type LibraryPage = {
   library: LibraryRow
-  folders: LibraryFolder[]
-  /** Notes per fixed row; `openSteps` counts unticked plan steps, `quotes` quotes and highlighted transcript lines. */
-  counts: { all: number; loose: number; archived: number; trash: number; openSteps: number; quotes: number }
+  /** Notes per tab and Show choice; `openSteps` counts unticked plan steps, `quotes` quotes and highlighted transcript lines. */
+  counts: { all: number; pinned: number; archived: number; trash: number; openSteps: number; quotes: number }
+  /** Everyone the notes came from, for Filter's Author. */
   authors: LibraryAuthor[]
   tags: LibraryTag[]
-  recent: { id: string; title: string; openedAt: string }[]
   views: LibraryView[]
   templates: TemplateSummary[]
-  /** The LIBRARY card's rows pinned to the Pinned card, in the order pinned. */
-  pinnedRows: PinnedRow[]
   /** Every other library of this person, for Move to library. */
   otherLibraries: { id: string; name: string; colour: LibraryColour }[]
 }
@@ -383,17 +343,13 @@ export type LibraryPage = {
 // The list
 
 /**
- * The fixed rows of the left panel, or a folder's id. Plan steps and Quotes
- * show a list of their own in the middle; the notes under them are All notes,
- * so the right panel still opens the first one on arrival.
+ * What the middle list holds: a tab (All notes, Pinned, Plan steps, Quotes)
+ * or a Show choice (Archived, Trash). Plan steps and Quotes show a list of
+ * their own; the notes under them are All notes, so the right panel still
+ * opens the first one on arrival.
  */
-export const FIXED_SCOPES = ["all", "loose", "archived", "trash", "steps", "quotes"] as const
-type FixedScope = (typeof FIXED_SCOPES)[number]
-export type NoteScope = FixedScope | string
-
-export function isFixedScope(scope: string): scope is FixedScope {
-  return (FIXED_SCOPES as readonly string[]).includes(scope)
-}
+export const NOTE_SCOPES = ["all", "pinned", "archived", "trash", "steps", "quotes"] as const
+export type NoteScope = (typeof NOTE_SCOPES)[number]
 
 /** The rows that show a list of their own rather than notes. */
 export function isGatheredScope(scope: string): scope is "steps" | "quotes" {
@@ -404,7 +360,7 @@ export function isGatheredScope(scope: string): scope is "steps" | "quotes" {
  * The notes table's sort: a column, newest or highest first unless it starts
  * with "-". Absent is the newest edited first. Pinned notes stay first.
  */
-export const NOTE_SORT_COLUMNS = ["title", "source", "priority", "folder", "edited"] as const
+export const NOTE_SORT_COLUMNS = ["title", "source", "priority", "edited"] as const
 export type NoteSortColumn = (typeof NOTE_SORT_COLUMNS)[number]
 export type NoteSort = { column: NoteSortColumn; descending: boolean }
 
@@ -459,8 +415,6 @@ export function countFilters(filters: NoteFilters) {
 export type NoteCard = {
   id: string
   libraryId: string
-  folderId: string | null
-  folderName: string | null
   title: string
   tags: string[]
   priority: NotePriority
@@ -566,7 +520,7 @@ export type NoteVersionSummary = { id: string; createdAt: string; title: string;
 export type NoteVersion = NoteVersionSummary & { body: JSONContent }
 
 /** One note's title, for the "[[" picker. */
-export type NoteTitle = { id: string; title: string; folderName: string | null }
+export type NoteTitle = { id: string; title: string }
 
 export type BulkOutcome = { done: string[]; skipped: string[] }
 

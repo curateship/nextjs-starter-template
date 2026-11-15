@@ -242,7 +242,6 @@ describe("NoteEditor", () => {
     })
     const option = document.body.querySelector<HTMLButtonElement>('[role="listbox"][aria-label="Blocks"] [role="option"]')
     expect(option?.textContent).toContain("Video time")
-    expect(option?.textContent).toContain("1:30")
     await act(async () => option?.click())
     expect(JSON.stringify(editor.getJSON())).toContain('"type":"videoTime","attrs":{"ms":90000}')
 

@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { deleteSavedView, getLibraryErrorMessage, saveView } from "@/lib/api/note/library"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { SHOW_CHOICES, type ShowChoice } from "@/lib/note/library/address"
 import {
   ANALYSED_FILTERS,
   ANALYSED_LABEL,
@@ -42,25 +43,37 @@ import { cn } from "@/lib/utils"
 
 const ANY = "__any"
 
+/** Filter's Show choice: Archived and Trash were rows of the old LIBRARY card (Tyler, 15 Nov 2026). */
+const SHOW_LABEL: Record<ShowChoice, string> = {
+  archived: "Archived",
+  trash: "Trash",
+}
+
 /**
- * The middle header's Filter: a row per filter Tyler picked on 20 Oct 2026
- * (Source, Priority, Tag, Analysed, Plan progress) plus Author, then Clear and
- * Save as view. Every pick changes the list at once and lives in the address.
+ * The middle header's Filter: Show first (Archived, Trash; Tyler, 15 Nov
+ * 2026), then a row per filter Tyler picked on 20 Oct 2026 (Source,
+ * Priority, Tag, Analysed, Plan progress) plus Author, then Clear and Save as
+ * view. Every pick changes the list at once and lives in the address. A saved
+ * view keeps the filters only, not Show.
  */
 export function NoteFilterMenu({
   page,
   filters,
+  show,
+  onShow,
   onChange,
   onSaved,
 }: {
   page: LibraryPage
   filters: NoteFilters
+  show: ShowChoice | undefined
+  onShow: (show: ShowChoice | undefined) => void
   onChange: (filters: NoteFilters) => void
   onSaved: (view: { id: string }) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
-  const count = countFilters(filters)
+  const count = countFilters(filters) + (show ? 1 : 0)
   const set = (patch: Partial<NoteFilters>) => onChange({ ...filters, ...patch })
 
   return (
@@ -69,12 +82,15 @@ export function NoteFilterMenu({
         count={count}
         open={open}
         onOpenChange={setOpen}
-        onClear={() => onChange({})}
+        onClear={() => {
+          onChange({})
+          onShow(undefined)
+        }}
         save={
           <Button
             type="button"
             onClick={() => {
-              if (count === 0) {
+              if (countFilters(filters) === 0) {
                 showErrorToast("Pick a filter first, then save it as a view.")
                 return
               }
@@ -86,6 +102,14 @@ export function NoteFilterMenu({
           </Button>
         }
       >
+        <FilterRow
+          id="note-filter-show"
+          label="Show"
+          anyLabel="All notes"
+          value={show}
+          options={SHOW_CHOICES.map((value) => ({ value, label: SHOW_LABEL[value] }))}
+          onChange={onShow}
+        />
         <FilterRow
           id="note-filter-source"
           label="Source"
@@ -155,12 +179,14 @@ function withPicked(options: { value: string; label: string }[], picked: string 
 function FilterRow<T extends string>({
   id,
   label,
+  anyLabel = "Any",
   value,
   options,
   onChange,
 }: {
   id: string
   label: string
+  anyLabel?: string
   value: T | undefined
   options: { value: T; label: string }[]
   onChange: (value: T | undefined) => void
@@ -175,7 +201,7 @@ function FilterRow<T extends string>({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ANY}>Any</SelectItem>
+          <SelectItem value={ANY}>{anyLabel}</SelectItem>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
