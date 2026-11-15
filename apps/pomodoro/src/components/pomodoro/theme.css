@@ -178,6 +178,131 @@ html:root:has([data-pomodoro-screen]) .title-halo {
   from { transform: scale(1) translate(0, 0); }
   to { transform: scale(1.05) translate(-1%, -0.6%); }
 }
+/* The Flowfly logo (`flowfly/flowfly-logo.tsx`). The firefly drifts on three
+   clocks of 7.3, 5.1 and 3.3 seconds that add together, so its path does not
+   look like a loop. `--fly-reach` shrinks the drift for the small f. */
+.flowfly-logo {
+  --p-fly-body: #29241f;
+  --p-fly-wing: rgba(41, 36, 31, 0.32);
+  --p-fly-glow-core: #2cc4b0;
+  --p-fly-glow: #12a595;
+  --fly-reach: 1;
+}
+.dark .flowfly-logo {
+  --p-fly-body: #55555e;
+  --p-fly-wing: rgba(125, 125, 136, 0.5);
+  --p-fly-glow-core: #d4fff7;
+  --p-fly-glow: #2ee6cb;
+}
+.flowfly-logo-letter { --fly-reach: 0.55; }
+/* On the timer ring while it is paused or not started: the bar's orange.
+   After the dark rule, so it wins on both themes. */
+.flowfly-logo.flowfly-logo-waiting {
+  --p-fly-glow-core: color-mix(in srgb, var(--p-accent) 55%, white);
+  --p-fly-glow: var(--p-accent);
+}
+/* The glow fades between teal and orange over half a second when the timer
+   starts or pauses. */
+.flowfly-glow-core-stop,
+.flowfly-glow-stop {
+  transition: stop-color 0.5s ease;
+}
+.flowfly-glow-core-stop { stop-color: var(--p-fly-glow-core); }
+.flowfly-glow-stop { stop-color: var(--p-fly-glow); }
+.flowfly-drift-a { animation: flowfly-drift-a 7.3s ease-in-out infinite; }
+.flowfly-drift-b { animation: flowfly-drift-b 5.1s ease-in-out infinite; }
+.flowfly-drift-c { animation: flowfly-drift-c 3.3s ease-in-out infinite; }
+.flowfly-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: flowfly-glow 2.1s ease-in-out infinite alternate;
+}
+.flowfly-wing-left,
+.flowfly-wing-right {
+  transform-origin: 20px 17px;
+  animation: flowfly-wing-left 0.16s linear infinite alternate;
+}
+.flowfly-wing-right { animation-name: flowfly-wing-right; }
+/* A finished task's fireflies (`flowfly/release-fireflies.ts`). Each one gets
+   its own reach, sway, size, time and wait from the script, so no two bursts
+   look alike. Above dialogs, since a task can be ticked inside one. */
+.flowfly-burst {
+  position: fixed;
+  z-index: 100;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.flowfly-burst i {
+  position: absolute;
+  left: calc(var(--fly-size) / -2);
+  top: calc(var(--fly-size) / -2);
+  width: var(--fly-size);
+  height: var(--fly-size);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--p-fly-glow-core) 0%,
+    var(--p-fly-glow) 30%,
+    color-mix(in srgb, var(--p-fly-glow) 45%, transparent) 55%,
+    transparent 100%
+  );
+  opacity: 0;
+  animation: flowfly-rise var(--fly-time) ease-out var(--fly-wait) forwards;
+}
+@keyframes flowfly-rise {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+  15% { opacity: 1; }
+  55% {
+    transform: translate(
+        calc(var(--fly-x) * 0.6 + var(--fly-sway)),
+        calc(var(--fly-y) * 0.65)
+      )
+      scale(1);
+    opacity: 1;
+  }
+  100% { transform: translate(var(--fly-x), var(--fly-y)) scale(0.6); opacity: 0; }
+}
+/* One back flip on the timer ring: the firefly pitches nose-up and flies a
+   full loop around a point just outside the ring, landing where it left. */
+.flowfly-flip { animation: flowfly-flip 0.9s cubic-bezier(0.45, 0, 0.3, 1); }
+@keyframes flowfly-flip {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes flowfly-drift-a {
+  0%, 100% { transform: translate(0, 0); }
+  18% { transform: translate(calc(var(--fly-reach) * -9px), calc(var(--fly-reach) * 2px)); }
+  41% { transform: translate(calc(var(--fly-reach) * 4px), calc(var(--fly-reach) * -3px)); }
+  63% { transform: translate(calc(var(--fly-reach) * -3px), calc(var(--fly-reach) * 4px)); }
+  82% { transform: translate(calc(var(--fly-reach) * 7px), calc(var(--fly-reach) * 1px)); }
+}
+@keyframes flowfly-drift-b {
+  0%, 100% { transform: translate(0, 0); }
+  27% { transform: translate(calc(var(--fly-reach) * 3px), calc(var(--fly-reach) * 5px)); }
+  52% { transform: translate(calc(var(--fly-reach) * -5px), calc(var(--fly-reach) * -2px)); }
+  77% { transform: translate(calc(var(--fly-reach) * 2px), calc(var(--fly-reach) * -4px)); }
+}
+@keyframes flowfly-drift-c {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(calc(var(--fly-reach) * -2px), calc(var(--fly-reach) * -2px)); }
+  70% { transform: translate(calc(var(--fly-reach) * 2.5px), calc(var(--fly-reach) * 1.5px)); }
+}
+@keyframes flowfly-glow {
+  from { opacity: 0.7; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1.12); }
+}
+@keyframes flowfly-wing-left {
+  from { transform: rotate(-7deg); }
+  to { transform: rotate(9deg); }
+}
+@keyframes flowfly-wing-right {
+  from { transform: rotate(7deg); }
+  to { transform: rotate(-9deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flowfly-logo * { animation: none; }
+}
 html:root.dark:has([data-pomodoro-screen]) {
   color-scheme: dark;
 

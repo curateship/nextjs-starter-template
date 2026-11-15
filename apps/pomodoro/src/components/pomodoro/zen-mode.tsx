@@ -7,6 +7,7 @@ import { useShownBackground } from "@/lib/pomodoro/break-look"
 import { cn } from "@/lib/utils"
 import { MODE_LABELS } from "@/lib/pomodoro/timer"
 import type { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import { RingFirefly } from "@/components/pomodoro/flowfly/flowfly-logo"
 
 type PomodoroApi = ReturnType<typeof usePomodoro>
 
@@ -190,7 +191,7 @@ export function ZenMode({
       <div className="relative flex h-full flex-col items-center justify-center gap-10 px-6">
         <div className="relative size-[min(380px,calc(100vw-48px),calc(100vh-260px))]">
           <svg
-            className="size-full"
+            className="size-full overflow-visible"
             viewBox="0 0 380 380"
             aria-hidden="true"
           >
@@ -218,6 +219,13 @@ export function ZenMode({
               style={{
                 transition: "stroke-dashoffset .9s linear, stroke .2s ease",
               }}
+            />
+            <RingFirefly
+              center={190}
+              radius={RING_RADIUS}
+              fraction={1 - dashOffset / RING_CIRCUMFERENCE}
+              running={pomodoro.timer.running}
+              scale={1.6}
             />
           </svg>
           {/* The ring is the pause control, so zen mode needs no button of

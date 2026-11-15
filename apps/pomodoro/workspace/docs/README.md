@@ -15,6 +15,9 @@ cover this one.
 - [Notifications](notifications.md) — the bell beside your photo, how a
   Pomodoro notice is told apart in the shell's tray, and the rules every notice
   follows.
+- [The Flowfly logo](brand-logo.md) — the name in Grandstander with a firefly
+  drifting at its top right, what Tyler chose, how it moves, and where the
+  word, the f and the still tab icon show.
 - [The Pomoder look](pomoder-look.md) — the ported design tokens, fonts and
   orange accent for the member-facing screens, and the PomodoroShell wrapper
   that switches them on.
@@ -29,8 +32,8 @@ cover this one.
 - [Zen mode](zen-mode.md) — the fullscreen timer: the ring, the phase and
   the task name, how you get in and out, and why the countdown never notices.
 - [The floating timer](floating-timer.md) — the small window on top of your
-  other apps, opening by itself when a focus starts, the switch for it in
-  Settings → Timer, Chrome, Edge and Arc only.
+  other apps, opening by itself when you leave the tab, never on the page you
+  are on, the switch for it in Settings → Timer, Chrome, Edge and Arc only.
 - [The timer inside Notion](embed-timer.md) — `/embed/timer` for a Notion
   embed block, always a guest timer, and why nothing about framing changed.
 - [Tasks](tasks.md) — today's plan and the six days after it: create,

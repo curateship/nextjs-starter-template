@@ -53,6 +53,7 @@ import { plural } from "@/lib/format/plural"
 import { formatDuration } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 import { contentColumn } from "@/lib/pomodoro/content-column"
+import { RingFirefly } from "@/components/pomodoro/flowfly/flowfly-logo"
 import { HomeOpenRooms } from "@/components/pomodoro/open-rooms"
 import { SoundPlayerRow } from "@/components/pomodoro/sound-player-row"
 
@@ -322,7 +323,11 @@ export function TimerDashboard() {
             against the window, which is the right measure there because it
             covers the window. */}
         <div className="relative aspect-square w-[min(300px,100%)]">
-          <svg className="size-full" viewBox="0 0 300 300" aria-hidden="true">
+          <svg
+            className="size-full overflow-visible"
+            viewBox="0 0 300 300"
+            aria-hidden="true"
+          >
             <circle
               cx="150"
               cy="150"
@@ -347,6 +352,16 @@ export function TimerDashboard() {
               style={{
                 transition: "stroke-dashoffset .9s linear, stroke .2s ease",
               }}
+            />
+            {/* The logo's firefly rides the end of the bar. Its glow is teal
+                while the timer runs and the bar's orange otherwise (Tyler, 15
+                Nov 2026: "keep the firefly orange when its pause or not
+                started yet"). */}
+            <RingFirefly
+              center={150}
+              radius={ringRadius}
+              fraction={pomodoro.remainingSeconds / totalSeconds}
+              running={pomodoro.timer.running}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">

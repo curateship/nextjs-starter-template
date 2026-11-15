@@ -10,6 +10,7 @@ import { useGuestsStayDark } from "@/lib/pomodoro/guest-theme"
 import { MODE_LABELS } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
 import { useSpaceToggle } from "@/lib/pomodoro/use-space-toggle"
+import { RingFirefly } from "@/components/pomodoro/flowfly/flowfly-logo"
 
 const RING_RADIUS = 92
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
@@ -48,7 +49,7 @@ export function EmbedTimer() {
       className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[var(--p-canvas)] p-4 text-foreground"
     >
       <div className="relative aspect-square w-[min(220px,calc(100vw-32px),calc(100vh-110px))]">
-        <svg className="size-full" viewBox="0 0 220 220" aria-hidden="true">
+        <svg className="size-full overflow-visible" viewBox="0 0 220 220" aria-hidden="true">
           <circle
             cx="110"
             cy="110"
@@ -69,6 +70,13 @@ export function EmbedTimer() {
             strokeDashoffset={dashOffset}
             transform="rotate(-90 110 110)"
             style={{ transition: "stroke-dashoffset .9s linear, stroke .2s ease" }}
+          />
+          <RingFirefly
+            center={110}
+            radius={RING_RADIUS}
+            fraction={1 - dashOffset / RING_CIRCUMFERENCE}
+            running={running}
+            scale={1}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">

@@ -60,10 +60,6 @@ if (typeof window !== "undefined") {
   hydrate()
 }
 
-export function floatingTimerEnabled() {
-  return enabled
-}
-
 export function useFloatingTimerEnabled() {
   return React.useSyncExternalStore(subscribe, () => enabled, () => true)
 }

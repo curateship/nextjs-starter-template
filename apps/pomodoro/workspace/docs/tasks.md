@@ -71,6 +71,14 @@ Drawn to Tyler's design of 7 Oct 2026
   only accepts an order that names today's full active list exactly once
   (`TASK_ORDER_MISMATCH` in `src/server/pomodoro/tasks.ts`); a refused order
   rolls back on screen and reloads the list.
+- **A tick releases fireflies.** Six small teal glows, the logo's, lift off
+  from the tick box, drift apart and fade in about a second and a half
+  (Tyler, 15 Nov 2026: "Build the fireflies lifting off from the tick box").
+  They are drawn where the tick box was at the press, so they stay put while
+  the row drops to Done today. Taking a tick back off releases none, and none
+  are drawn with the device's reduce motion setting on. A tick the server then
+  refuses has already had its fireflies. `flowfly/release-fireflies.ts` draws
+  them. See [The Flowfly logo](brand-logo.md).
 - **Complete and reopen** with the row checkbox. Completing adds one to the
   day's `tasks_completed` stat, reopening takes it back. Completed tasks
   sit in their own group under a "Done today · 2" heading, struck through,

@@ -7,12 +7,10 @@ import { SceneBackdrop } from "@/components/pomodoro/scene-backdrop"
 import { Button } from "@/components/ui/button"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useShownBackground } from "@/lib/pomodoro/break-look"
-import {
-  floatingTimerEnabled,
-  useFloatingTimerEnabled,
-} from "@/lib/pomodoro/floating-timer-setting"
+import { useFloatingTimerEnabled } from "@/lib/pomodoro/floating-timer-setting"
 import { MODE_LABELS } from "@/lib/pomodoro/timer"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
+import { RingFirefly } from "@/components/pomodoro/flowfly/flowfly-logo"
 
 /**
  * The floating timer: a small window holding the time left, the phase, the
@@ -119,32 +117,68 @@ function mirrorRoot(target: Window) {
   return () => observer.disconnect()
 }
 
+/** A press on the floating window itself takes this long at most. */
+const BRIEFLY_AWAY_MS = 1500
+
 /**
- * Opens the floating window, or brings the open one forward. The browser
- * refuses the window unless a press or a key came just before, so an
- * `automatic` try (a focus starting) checks that first and gives up quietly;
- * only a press on the button says it failed. Chrome's own tab-switch call
- * comes with its permission and no press, so it passes `granted`.
+ * Closes the floating window once you are back on the page it came from
+ * (Tyler, 15 Nov 2026: "this should never show on the same page that im on").
+ * The window is for other tabs and other apps, and on the page the ring is
+ * already there.
+ *
+ * - Coming back from another tab makes the page visible again.
+ * - Coming back from another app gives the page focus again without ever
+ *   hiding it. A press on the floating window's own button also takes focus
+ *   from the page for a moment, so only an absence longer than
+ *   `BRIEFLY_AWAY_MS` counts.
  */
-export async function openFloatingTimer({ automatic = false, granted = false } = {}) {
+function closeWhenThePageIsBack(opened: Window) {
+  let leftAt: number | null = document.hasFocus() ? null : Date.now()
+  const onVisible = () => {
+    if (document.visibilityState === "visible") opened.close()
+  }
+  const onBlur = () => {
+    leftAt = Date.now()
+  }
+  const onFocus = () => {
+    if (leftAt !== null && Date.now() - leftAt > BRIEFLY_AWAY_MS) opened.close()
+    leftAt = null
+  }
+  document.addEventListener("visibilitychange", onVisible)
+  window.addEventListener("blur", onBlur)
+  window.addEventListener("focus", onFocus)
+  return () => {
+    document.removeEventListener("visibilitychange", onVisible)
+    window.removeEventListener("blur", onBlur)
+    window.removeEventListener("focus", onFocus)
+  }
+}
+
+/**
+ * Opens the floating window, or brings the open one forward. A press on the
+ * header button is the press the browser needs. `automatic` is Chrome's own
+ * tab-switch call, which comes with its permission and no press, and it
+ * fails quietly: only a press on the button says it failed.
+ */
+export async function openFloatingTimer({ automatic = false } = {}) {
   if (floatingWindow) {
     if (!automatic) floatingWindow.focus()
     return
   }
   const picture = window.documentPictureInPicture
   if (!picture) return
-  if (automatic && !granted && navigator.userActivation && !navigator.userActivation.isActive)
-    return
   try {
     const opened = await picture.requestWindow(WINDOW_SIZE)
     opened.document.title = "Flowfly timer"
     copyStyles(opened.document)
     loadPomodoroFonts(opened.document)
     const stopMirroring = mirrorRoot(opened)
+    const stopWatching = closeWhenThePageIsBack(opened)
     opened.addEventListener(
       "pagehide",
       () => {
         stopMirroring()
+        stopWatching()
         if (floatingWindow === opened) floatingWindow = null
         emit()
       },
@@ -159,30 +193,20 @@ export async function openFloatingTimer({ automatic = false, granted = false } =
 }
 
 /**
- * Opens the window by itself (Tyler, 7 Nov 2026: "The floating timer should
- * be automatic. I shoudlnt need to press any button"), unless the member
- * switched it off in Settings → Timer.
+ * Opens the window by itself when you leave the tab while the timer runs
+ * (Tyler, 7 Nov 2026: "The floating timer should be automatic. I shoudlnt
+ * need to press any button"), unless the member switched it off in Settings →
+ * Timer. Chrome sends a page playing sound the media session's
+ * "enterpictureinpicture" action as you switch away, and lets it open the
+ * window without a press.
  *
- * - **When a focus starts.** The Start press, Space or the header's Start is
- *   the press the browser needs. A focus started on another device arrives
- *   with no press here, so it opens nothing.
- * - **When you leave the tab while it runs**, where Chrome offers it: the
- *   media session's "enterpictureinpicture" action, which Chrome sends to a
- *   page playing sound when you switch away, and lets it open the window
- *   without a press.
- *
- * Closing the window keeps it closed until the next focus starts.
+ * Starting a focus does not open it. It did until 15 Nov 2026, which put the
+ * window on top of the very page showing the ring (Tyler: "this should never
+ * show on the same page that im on").
  */
 function useAutomaticOpen() {
   const pomodoro = usePomodoro()
   const enabled = useFloatingTimerEnabled()
-  const focusing = pomodoro.timer.running && pomodoro.timer.mode === "focus"
-  const wasFocusing = React.useRef(focusing)
-  React.useEffect(() => {
-    const started = focusing && !wasFocusing.current
-    wasFocusing.current = focusing
-    if (started && floatingTimerEnabled()) void openFloatingTimer({ automatic: true })
-  }, [focusing])
 
   React.useEffect(() => {
     const session = typeof navigator === "undefined" ? undefined : navigator.mediaSession
@@ -190,10 +214,10 @@ function useAutomaticOpen() {
     try {
       session.setActionHandler(
         "enterpictureinpicture" as MediaSessionAction,
-        () => void openFloatingTimer({ automatic: true, granted: true })
+        () => void openFloatingTimer({ automatic: true })
       )
     } catch {
-      // A browser without the action: the focus start still opens it.
+      // A browser without the action: only the header button opens it.
       return
     }
     return () => {
@@ -249,7 +273,7 @@ function FloatingTimerView() {
           a 120px ring ran into the ring (Tyler, 7 Nov 2026: "The number is
           too big that it goes to the edge"). */}
       <div className="relative size-[140px]">
-        <svg className="size-full" viewBox="0 0 120 120" aria-hidden="true">
+        <svg className="size-full overflow-visible" viewBox="0 0 120 120" aria-hidden="true">
           <circle
             cx="60"
             cy="60"
@@ -270,6 +294,13 @@ function FloatingTimerView() {
             strokeDashoffset={dashOffset}
             transform="rotate(-90 60 60)"
             style={{ transition: "stroke-dashoffset .9s linear, stroke .2s ease" }}
+          />
+          <RingFirefly
+            center={60}
+            radius={RING_RADIUS}
+            fraction={1 - dashOffset / RING_CIRCUMFERENCE}
+            running={running}
+            scale={0.6}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">

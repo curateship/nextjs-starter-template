@@ -108,7 +108,7 @@ transparent".
 
 Below Settings sits **Collapse**, a row drawn like the nav links, with a
 chevron that points left when the sidebar is open and right when it is
-shut. Pressing it narrows the sidebar from 224px to 76px: the labels and
+shut. Pressing it narrows the sidebar from 202px to 76px: the labels and
 the wordmark go, the icons stay where they were, and the page beside it
 widens to match. Every link keeps a `title`, so hovering an icon in the
 narrow sidebar still names the page.

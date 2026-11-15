@@ -40,7 +40,7 @@ import { pomodoroEngineState, timerIsIdle } from "@/lib/pomodoro/use-pomodoro"
 const TICK_WORKER_SOURCE = `setInterval(function () { postMessage(0) }, 1000)`
 
 const ICON_SIZE = 32
-/** The tomato in the app's own `public/`, the tab icon when no admin set one. */
+/** The Flowfly f in the app's own `public/`, the tab icon when no admin set one. */
 const APP_ICON_URL = "/favicon.ico"
 
 /** One icon link the ring is drawn on, with the address to put back. */
@@ -152,7 +152,7 @@ function restoreIcon() {
   paintedIconUrl = ""
   if (!borrowedIcons) return
   for (const icon of borrowedIcons) {
-    // A link of our own is pointed at the app's tomato rather than removed:
+    // A link of our own is pointed at the app's own icon rather than removed:
     // a browser whose icon link is taken away can keep showing the last
     // picture, which would leave the ring in the tab after the timer stopped.
     if (icon.added) {

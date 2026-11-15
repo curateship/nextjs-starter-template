@@ -26,6 +26,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { releaseFireflies } from "@/components/pomodoro/flowfly/release-fireflies"
 import { SettingsWindow } from "@/components/pomodoro/settings-window"
 import {
   TaskStepList,
@@ -511,6 +512,10 @@ function TaskRow({
         checked={task.completed}
         disabled={busy}
         onCheckedChange={() => pomodoro.toggleTask(task.id)}
+        // Only a tick celebrates. Taking the tick back off does not.
+        onClick={(event) => {
+          if (!task.completed) releaseFireflies(event.currentTarget)
+        }}
         aria-label={`${task.completed ? "Reopen" : "Complete"} ${task.title}`}
         className={cn(
           flat &&

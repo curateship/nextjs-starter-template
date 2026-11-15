@@ -9,9 +9,8 @@ dashboard (`/admin/flowfly`, which the old `/admin/pomodoro-*` pages forward to)
 
 **The tab icon comes from the app's own `public/`.** The shell writes icon
 links only for an icon an admin uploaded. With none, the browser asks for
-`/favicon.ico` and `/apple-touch-icon.png`, and this app serves the Pomoder
-tomato at both, so no shell file changed. See
-[The Pomoder look](pomoder-look.md).
+`/favicon.ico` and `/apple-touch-icon.png`, and this app serves the Flowfly f
+at both, so no shell file changed. See [The Flowfly logo](brand-logo.md).
 
 ## What this app claims from the shell
 

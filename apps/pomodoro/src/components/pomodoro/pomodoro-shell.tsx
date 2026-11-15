@@ -38,6 +38,7 @@ import { setGuestStartingTimer } from "@/lib/pomodoro/use-pomodoro"
 import { MediaBootstrapContext } from "@/lib/pomodoro/room-media-store"
 import { useTabCountdown } from "@/lib/pomodoro/use-tab-countdown"
 import { FloatingTimerHost } from "@/components/pomodoro/floating-timer"
+import { FlowflyLogo } from "@/components/pomodoro/flowfly/flowfly-logo"
 
 // The whole Pomoder look rides in with the product shell: the tokens
 // stylesheet and the two fonts. The stylesheet is also imported by
@@ -99,43 +100,6 @@ const NAV_LINKS = [
   { to: "/history", label: "Stats", icon: HistoryIcon },
   { to: "/tasks", label: "Tasks", icon: CheckSquareIcon },
 ] as const
-
-function TomatoMark({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 40 40"
-      fill="none"
-      aria-hidden="true"
-    >
-      <ellipse cx="20" cy="23.5" rx="14.5" ry="13.5" fill="#FF5A3C" />
-      <ellipse
-        cx="15.5"
-        cy="18.5"
-        rx="5"
-        ry="3.5"
-        fill="#FF8A70"
-        opacity=".55"
-        transform="rotate(-28 15.5 18.5)"
-      />
-      <path
-        d="M20 10.5C17 7.5 13 7.8 11 9.5c3 .5 5.5 1.7 7.2 3.7.5-1.1 1.2-2 1.8-2.7Z"
-        fill="#3E9B4F"
-      />
-      <path
-        d="M20 10.5c3-3 7-2.7 9-1-3 .5-5.5 1.7-7.2 3.7-.5-1.1-1.2-2-1.8-2.7Z"
-        fill="#4FBF62"
-      />
-      <path
-        d="M20 24v-7.5M20 24l4.8 2.6"
-        stroke="#0B0B0E"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-      <circle cx="20" cy="24" r="1.8" fill="#0B0B0E" />
-    </svg>
-  )
-}
 
 /**
  * The page's left and right edge, used by the header and by the content under
@@ -338,20 +302,25 @@ export function PomodoroShell({
       <aside
         inert={menuIsDrawer && !menuOpen}
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-screen w-56 shrink-0 flex-col gap-1.5 overflow-hidden border-r bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] transition-[width] duration-300 max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-[202px] shrink-0 flex-col gap-1.5 overflow-hidden border-r bg-[rgba(var(--p-canvas-rgb),0.35)] px-3.5 py-[22px] backdrop-blur-[14px] transition-[width] duration-300 max-lg:-translate-x-full max-lg:bg-[var(--p-canvas)] max-lg:transition-transform",
           collapsed && "lg:w-[76px]",
           menuOpen && "max-lg:translate-x-0"
         )}
       >
         <Link
           to="/timer"
-          className="mb-[22px] flex items-center gap-2.5 whitespace-nowrap px-1.5 text-[19px] font-bold tracking-tight"
+          // 12px in puts the f's left edge on the nav icons' left edge, 28px
+          // from the menu's side.
+          className="mb-[22px] flex items-center pl-3"
           aria-label="Flowfly dashboard"
         >
-          <TomatoMark className="size-9 shrink-0" />
-          <span className={cn(collapsed && "lg:hidden")}>
-            flowfly<span className="text-[var(--p-accent)]">.</span>
-          </span>
+          {/* The whole name, or only its f once the menu is narrowed to icons. */}
+          <FlowflyLogo className={cn("h-9", collapsed && "lg:hidden")} />
+          <FlowflyLogo
+            variant="letter"
+            // 2px back, so the lone f sits over the middle of the icons.
+            className={cn("-ml-0.5 hidden size-9", collapsed && "lg:block")}
+          />
         </Link>
         <Button
           variant="ghost"
@@ -409,7 +378,7 @@ export function PomodoroShell({
       <div
         inert={drawerOpen}
         className={cn(
-          "min-h-screen w-full transition-[padding] duration-300 lg:pl-56",
+          "min-h-screen w-full transition-[padding] duration-300 lg:pl-[202px]",
           collapsed && "lg:pl-[76px]"
         )}
       >
@@ -466,11 +435,15 @@ export function PomodoroShell({
             >
               <MenuIcon className="size-[18px]" aria-hidden="true" />
             </button>
+            {/* Only while the left menu is a drawer. Beside the open menu it
+                was a second logo, and Tyler had it removed (15 Nov 2026:
+                "remove this one"). */}
             <Link
               to="/timer"
-              className="whitespace-nowrap text-[21px] font-bold tracking-tight max-sm:hidden"
+              className="max-sm:hidden lg:hidden"
+              aria-label="Flowfly dashboard"
             >
-              flowfly<span className="text-[var(--p-accent)]">.</span>
+              <FlowflyLogo className="h-8" />
             </Link>
           </div>
           <div className="mx-auto flex items-center gap-2.5 min-[1440px]:mx-0">

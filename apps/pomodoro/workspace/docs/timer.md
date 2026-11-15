@@ -10,6 +10,9 @@ Tyler sent the design on 7 Oct 2026 with "redesign the front page", and the
 screen is drawn to it (`src/components/pomodoro/timer-dashboard.tsx`). Top to
 bottom:
 
+- **A firefly rides the end of the ring's bar.** Its glow is teal while the
+  timer runs and orange while it is paused or not started. It is the logo's
+  firefly, see [The Flowfly logo](brand-logo.md).
 - **The ring holds everything about the countdown.** A small spaced line at the
   top says where the cycle is ("Session 1 of 4"). Under it the time sits in
   large white mono digits. Then comes the orange Start pill between Reset and

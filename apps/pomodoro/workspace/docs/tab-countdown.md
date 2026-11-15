@@ -53,7 +53,7 @@ while the timer carries on running underneath.
   size it wants, and that is not reliably the newest link, so drawing on one
   extra link of our own would sometimes show the ring and sometimes not.
 - **With no icon link on the page, the countdown adds one**, and on stop points
-  it at `/favicon.ico`, the tomato, rather than removing it. A browser whose
+  it at `/favicon.ico`, the Flowfly f, rather than removing it. A browser whose
   icon link is taken away can keep showing the last picture it drew, which
   would leave the ring in the tab after the timer stopped.
 - **The icon is redrawn once per whole percent**, not once per second. One

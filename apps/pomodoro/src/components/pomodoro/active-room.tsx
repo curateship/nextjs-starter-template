@@ -56,6 +56,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { PersonAvatar } from "@/components/pomodoro/initials-avatar"
 import { RoomSettingsCog } from "@/components/pomodoro/room-settings-cog"
+import { RingFirefly } from "@/components/pomodoro/flowfly/flowfly-logo"
 
 /**
  * The room you are in, drawn: its ring, its card, its chat. The front page
@@ -557,7 +558,7 @@ function RoomRing({
         className="relative grid aspect-square w-[min(300px,100%)] place-items-center [&:fullscreen]:w-full [&:fullscreen]:bg-background"
       >
         <svg
-          className="absolute inset-0 m-auto size-full max-h-[min(300px,100%)] max-w-[min(300px,100%)]"
+          className="absolute inset-0 m-auto size-full max-h-[min(300px,100%)] max-w-[min(300px,100%)] overflow-visible"
           viewBox="0 0 300 300"
           aria-hidden="true"
         >
@@ -583,6 +584,13 @@ function RoomRing({
             strokeDashoffset={circumference * (1 - fraction)}
             transform="rotate(-90 150 150)"
             style={{ transition: "stroke-dashoffset .9s linear, stroke .2s ease" }}
+          />
+          <RingFirefly
+            center={150}
+            radius={ringRadius}
+            fraction={fraction}
+            running={room.phase === "focus"}
+            scale={1.3}
           />
         </svg>
         <div className="relative flex flex-col items-center">

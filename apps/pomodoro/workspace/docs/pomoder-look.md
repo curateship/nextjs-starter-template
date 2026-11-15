@@ -24,8 +24,8 @@ in, never edited here.
 
 ## The name and the tab icon
 
-People see the app called Flowfly: "flowfly." in the left menu and the phone
-header, every tab title, the front page, the end-of-focus notification, the
+People see the app called Flowfly: the logo in the left menu and the header
+(see [The Flowfly logo](brand-logo.md)), every tab title, the front page, the end-of-focus notification, the
 share picture, room broadcasts and the bell's admin notices. The live site's
 name is saved in the database too (`workspaces.name`, and `appName` and
 `workspaceName` in the settings row), so emails and footers read it from there.
@@ -39,10 +39,10 @@ at `simulated.pomoder.com` and every file at `media.pomoder.com`. Notices
 saved before the rename still say "the Pomoder team", and the bell reads them
 back as the same kind (`noticeKindFromWords` in `src/lib/pomodoro/notices.ts`).
 
-The tab icon is the tomato with clock hands from the left menu (`TomatoMark`
-in `pomodoro-shell.tsx`), saved as `public/favicon.ico` (16, 32 and 48px) and
-`public/apple-touch-icon.png` (180px on the light canvas colour). Browsers ask
-for both addresses on their own, so no shell file links them. An icon an admin
+The tab icon is the logo's letter f with its firefly, on a rounded tile in the
+light canvas colour, saved as `public/favicon.ico` (16, 32 and 48px) and
+`public/apple-touch-icon.png` (180px, square). Browsers ask for both addresses
+on their own, so no shell file links them. An icon an admin
 uploads in the branding settings still wins, because the root route writes its
 links into the page. The other page titles read the app name saved in those
 same settings, which falls back to "Custom Shell" until it is set to Pomoder.

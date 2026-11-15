@@ -6,20 +6,27 @@ focus counts on, and one Start or Pause button, over your own background
 faded the way zen mode fades it. Tyler picked it on 7 Nov 2026, free for
 everyone, guests included.
 
-## It opens by itself
+## It opens by itself, and never on the page you are on
 
 Tyler, 7 Nov 2026: "The floating timer should be automatic. I shoudlnt need to
-press any button."
+press any button." Then, 15 Nov 2026, pointing at the window sitting on top of
+the timer page: "this should never show on the same page that im on".
 
-- **When a focus starts.** Start on the ring, Space, or Start in the header
-  opens the window as the focus begins. A browser only opens one straight
-  after a press or a key, and that press is the one it counts. A focus started
-  on another device arrives with no press on this one, so it opens nothing
-  here.
-- **When you switch tabs while the timer runs**, in Chrome where it offers it.
-  Chrome sends a page playing sound an "enter picture-in-picture" call as you
-  leave it, and lets that call open the window with no press.
-- **Closed stays closed until the next focus starts.**
+- **It opens when you switch tabs while the timer runs**, in Chrome where it
+  offers it. Chrome sends a page playing sound an "enter picture-in-picture"
+  call as you leave it, and lets that call open the window with no press.
+- **It does not open when a focus starts.** It did until 15 Nov 2026. A start
+  is always pressed on a Flowfly page, so the window landed on top of the page
+  that already shows the ring.
+- **It closes when you come back.** Returning to the Flowfly tab closes the
+  window. So does returning to Flowfly from another app after more than a
+  second and a half away. A press on the window's own button takes you away
+  for less than that, so it does not close the window.
+- **Leaving again opens it again**, the same way.
+- **Switching to another app without switching tabs opens nothing.** A browser
+  only opens the window after a press or on its own tab-switch call, and
+  neither happens then. The header button, pressed before you leave, covers
+  that case.
 - **Each member can switch it off** in Settings → Timer, "Floating timer",
   under Completion alerts. On for everyone until they do (Tyler, 7 Nov 2026:
   "I can enable or disable the floating timer in settings"). It saves the
@@ -42,11 +49,15 @@ press any button."
 - **Inside a room the button is not offered.** The header shows the room's
   clock then, and the floating window follows your own timer, not the room's.
 - **Pressing it again brings the open window forward.** There is only ever one.
+- **A window opened by hand shows on the page until you leave**, because the
+  press asked for it. It closes like any other when you come back.
 
 ## How it looks
 
 - **The background is yours, faded.** The same scene or upload the timer
   page shows, under zen mode's fade, and the break's background on a break.
+- **The logo's firefly rides the end of the ring's bar**, as on the timer
+  page. See [The Flowfly logo](brand-logo.md).
 - **The ring is 140px across and the time 24px.** At 28px in a 120px ring the
   time ran into the ring (Tyler, 7 Nov 2026: "The number is too big that it
   goes to the edge"). Measured since: "22:40" is 69px wide inside a 100px
