@@ -11,6 +11,7 @@ import {
 } from "@/components/pages/front-page-block-kinds"
 import { FrontPageBlockList } from "@/components/pages/front-page-block-list"
 import { FrontPageSettingsPanel } from "@/components/pages/front-page-settings-panel"
+import { useWrittenPageDraft } from "@/components/pages/use-written-page-draft"
 import { createShellId } from "@/components/settings/nav-editor-shared"
 import { appFrontPageRowKind } from "@/lib/app-options"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -186,6 +187,9 @@ export function FrontPageEditor({
    * either one's list going stale.
    */
   const [rows, setRows] = React.useState(initialBlocks)
+  // The page's own typed settings live here, not in their panel, because
+  // opening a block swaps that panel out and would throw the typing away.
+  const pageDraft = useWrittenPageDraft(writtenPage)
   // The block's own Saving…/Saved, in the sticky header, which is the one
   // place this app reports saving.
   const setSaveStatus = useReportedSaveStatus()
@@ -495,6 +499,7 @@ export function FrontPageEditor({
     <FrontPageSettingsPanel
       page={page}
       writtenPage={writtenPage}
+      draft={pageDraft}
       config={config}
       onConfigChange={onConfigChange}
     />
@@ -549,7 +554,13 @@ export function FrontPageEditor({
 
   // Escape backs out of the open block, through the same guard the panel's
   // own way out uses rather than a second way out that could drift from it.
+  //
+  // A dropdown or window drawn on top takes its own Escape first and marks the
+  // key used. React still hands that key up to here, because the dropdown was
+  // opened from inside the editor, so a used key is left alone: one Escape
+  // closes one thing, the top one.
   const onEscape = (event: React.KeyboardEvent) => {
+    if (event.defaultPrevented) return
     if (event.key !== "Escape" || !selection) return
     leaveSelection(() => setSelection(null))
   }

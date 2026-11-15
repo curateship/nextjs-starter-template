@@ -78,6 +78,15 @@ export type ShellStyling = {
    */
   sidebarShade?: number
   /**
+   * Whether the left menu and the top bar have their own shade
+   * ("separate", as they always had) or are the page's grey with no line
+   * along their edge ("one-shade"). Tyler, 14 Nov 2026: "add an option in
+   * styling settings to choose between the currant sidebar/topnav styling to
+   * this (the bg and the side and top as one gray shade)". Unset reads as
+   * "separate". Optional for the same reason as `dashboardTabs`.
+   */
+  sidebarStyle?: SidebarStyle
+  /**
    * How dark the line down the left menu's edge and under the top bar is, 0
    * to 100 of the theme's text colour. Unset, it is the Divider lines colour,
    * as it always was (Tyler, 11 Nov 2026: "add another option to isolate just
@@ -251,6 +260,17 @@ export type DashboardTabStyle = (typeof DASHBOARD_TAB_STYLES)[number]
 
 /** Pills, Tyler's pick on 20 Oct 2026 for a site that never chose. */
 export const DEFAULT_DASHBOARD_TABS: DashboardTabStyle = "pills"
+
+/** The left menu and top bar's two looks; see `sidebarStyle` on ShellStyling. */
+export const SIDEBAR_STYLES = ["separate", "one-shade"] as const
+
+export type SidebarStyle = (typeof SIDEBAR_STYLES)[number]
+
+export const DEFAULT_SIDEBAR_STYLE: SidebarStyle = "separate"
+
+export function isSidebarStyle(value: unknown): value is SidebarStyle {
+  return SIDEBAR_STYLES.includes(value as SidebarStyle)
+}
 
 export function isDashboardTabStyle(value: unknown): value is DashboardTabStyle {
   return DASHBOARD_TAB_STYLES.includes(value as DashboardTabStyle)
@@ -626,6 +646,7 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.sidebarShade === undefined
       ? {}
       : { sidebarShade: clampSidebarShade(styling.sidebarShade) }),
+    ...(isSidebarStyle(styling.sidebarStyle) ? { sidebarStyle: styling.sidebarStyle } : {}),
     ...(styling.sidebarBorderShade === undefined
       ? {}
       : { sidebarBorderShade: clampSidebarBorderShade(styling.sidebarBorderShade) }),
@@ -860,8 +881,11 @@ export const DARK_SHADE_VAR_NAMES = ["--shell-dark-lift"] as const
 export function getSidebarShadeVars(
   styling: ShellStyling
 ): Record<string, string> {
+  // One shade: the rail is the page itself, whatever the Shade slider says.
+  const share =
+    styling.sidebarStyle === "one-shade" ? 0 : clampSidebarShade(styling.sidebarShade)
   return {
-    "--shell-rail-card-share": `${clampSidebarShade(styling.sidebarShade)}%`,
+    "--shell-rail-card-share": `${share}%`,
   }
 }
 

@@ -35,6 +35,24 @@ describe("sidebarShade", () => {
   })
 })
 
+describe("sidebarStyle", () => {
+  const base = createDefaultStyling()
+
+  it("is left unset when never chosen and drops a value it does not know", () => {
+    expect("sidebarStyle" in normalizeStyling(base)).toBe(false)
+    expect("sidebarStyle" in normalizeStyling({ ...base, sidebarStyle: "x" })).toBe(false)
+  })
+
+  it("makes the rail the page's grey in one shade, whatever Shade says", () => {
+    const styling = normalizeStyling({ ...base, sidebarShade: 80, sidebarStyle: "one-shade" })
+    expect(styling.sidebarStyle).toBe("one-shade")
+    expect(getSidebarShadeVars(styling)).toEqual({ "--shell-rail-card-share": "0%" })
+    expect(getSidebarShadeVars({ ...styling, sidebarStyle: "separate" })).toEqual({
+      "--shell-rail-card-share": "80%",
+    })
+  })
+})
+
 describe("Content spacing on phones", () => {
   const base = createDefaultStyling()
 

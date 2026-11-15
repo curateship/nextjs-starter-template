@@ -770,6 +770,17 @@ export type SegmentInput = {
 }
 
 /**
+ * A saved segment's changes. A hand-picked one sends only who joined and who
+ * left since the window opened, never its whole list, so a segment of any size
+ * can be renamed: the whole list of a big segment is more than one request may
+ * carry.
+ */
+export type SegmentUpdate = Omit<SegmentInput, "contactIds"> & {
+  addIds?: string[]
+  removeIds?: string[]
+}
+
+/**
  * Everything that has to be true before a segment is saved.
  *
  * All of it refuses out loud rather than fixing the input quietly. A segment
@@ -778,7 +789,9 @@ export type SegmentInput = {
  */
 async function validateSegment(
   workspaceId: string,
-  input: SegmentInput,
+  input: Omit<SegmentInput, "contactIds">,
+  /** The people being put in: all of a new segment's, or a saved one's joiners. */
+  pickedIds: string[],
   segmentId: string | null,
   database: CustomShellDb
 ) {
@@ -802,7 +815,7 @@ async function validateSegment(
     // first and filled from the contacts list afterwards, by ticking people and
     // choosing it in the toolbar — refusing an empty one would make that the
     // long way round.
-    if (input.contactIds.length === 0) return { name, contactIds: [] }
+    if (pickedIds.length === 0) return { name, contactIds: [] }
 
     const known = await database
       .select({ id: customShellContacts.id })
@@ -810,13 +823,13 @@ async function validateSegment(
       .where(
         and(
           eq(customShellContacts.workspaceId, workspaceId),
-          inArray(customShellContacts.id, input.contactIds)
+          inArray(customShellContacts.id, pickedIds)
         )
       )
-    if (known.length !== new Set(input.contactIds).size) {
+    if (known.length !== new Set(pickedIds).size) {
       throw new Error("SEGMENT_CONTACT_MISSING")
     }
-    return { name, contactIds: [...new Set(input.contactIds)] }
+    return { name, contactIds: [...new Set(pickedIds)] }
   }
 
   for (const condition of input.rules.conditions) {
@@ -888,6 +901,7 @@ export async function createWorkspaceSegment(
   const { name, contactIds } = await validateSegment(
     workspaceId,
     input,
+    input.contactIds,
     null,
     database
   )
@@ -915,37 +929,63 @@ export async function createWorkspaceSegment(
 export async function updateWorkspaceSegment(
   workspaceId: string,
   segmentId: string,
-  input: SegmentInput,
+  input: SegmentUpdate,
   database: CustomShellDb = db
 ): Promise<CustomShellContactSegment> {
-  const existing = await getWorkspaceSegment(workspaceId, segmentId, database)
-  if (!existing) throw new Error("SEGMENT_NOT_FOUND")
+  const addIds = input.addIds ?? []
+  const removeIds = input.removeIds ?? []
 
-  const { name, contactIds } = await validateSegment(
-    workspaceId,
-    input,
-    segmentId,
-    database
-  )
+  // One transaction, so the name and the people change together or not at all.
+  return database.transaction(async (tx) => {
+    const existing = await getWorkspaceSegment(workspaceId, segmentId, tx)
+    if (!existing) throw new Error("SEGMENT_NOT_FOUND")
 
-  const [updated] = await database
-    .update(customShellContactSegments)
-    .set({
-      name,
-      description: input.description.trim(),
-      kind: input.kind,
-      rules: input.kind === "static" ? { conditions: [] } : input.rules,
-      updatedAt: now(),
-    })
-    .where(eq(customShellContactSegments.id, segmentId))
-    .returning()
+    const { name, contactIds: joining } = await validateSegment(
+      workspaceId,
+      input,
+      addIds,
+      segmentId,
+      tx
+    )
 
-  if (!updated) throw new Error("SEGMENT_SAVE_FAILED")
-  // A segment switched from hand-picked to rules drops its people; the other
-  // way round it gains the ones just picked. Either way the table matches the
-  // kind, so a leftover row can never quietly rejoin the segment later.
-  await replaceMembers(segmentId, contactIds, database)
-  return updated
+    const [updated] = await tx
+      .update(customShellContactSegments)
+      .set({
+        name,
+        description: input.description.trim(),
+        kind: input.kind,
+        rules: input.kind === "static" ? { conditions: [] } : input.rules,
+        updatedAt: now(),
+      })
+      .where(eq(customShellContactSegments.id, segmentId))
+      .returning()
+
+    if (!updated) throw new Error("SEGMENT_SAVE_FAILED")
+
+    if (input.kind !== "static" || existing.kind !== "static") {
+      // A segment switched from hand-picked to rules drops its people; the
+      // other way round it gains only the ones just picked. Either way the
+      // table matches the kind, so a leftover row can never quietly rejoin the
+      // segment later.
+      await replaceMembers(segmentId, joining, tx)
+      return updated
+    }
+
+    // Still hand-picked: only the people who joined or left are touched, so
+    // everyone else stays put however many there are.
+    if (removeIds.length > 0) {
+      await tx
+        .delete(customShellContactSegmentMembers)
+        .where(
+          and(
+            eq(customShellContactSegmentMembers.segmentId, segmentId),
+            inArray(customShellContactSegmentMembers.contactId, removeIds)
+          )
+        )
+    }
+    await insertSegmentMembers(segmentId, joining, tx)
+    return updated
+  })
 }
 
 async function replaceMembers(

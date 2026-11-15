@@ -16,6 +16,7 @@ import {
   countSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
+  listSegmentMembers,
   listSegmentNames,
   listSegmentContacts,
   listWorkspaceContactSources,
@@ -27,6 +28,7 @@ import {
 } from "@/server/people/contact-segments"
 import { type CustomShellDb } from "@/server/db"
 import {
+  customShellContactSegments,
   customShellContacts,
   customShellDeliveries,
   customShellWorkspaces,
@@ -1696,5 +1698,110 @@ describe("taking people out of a hand-picked segment", () => {
       )
     ).toEqual({ removed: 0, notThere: 0 })
     expect(await membersOf(segment.id)).toEqual(["ada@example.test"])
+  })
+})
+
+describe("saving a hand-picked segment that already has people", () => {
+  function picked(name: string, contactIds: string[]): SegmentInput {
+    return { name, description: "", kind: "static", rules: { conditions: [] }, contactIds }
+  }
+
+  async function memberIds(segmentId: string) {
+    const members = await listSegmentMembers(WORKSPACE_ID, segmentId, db)
+    return members.map((member) => member.id).sort()
+  }
+
+  it("renames a 1,500-person segment and keeps all 1,500", async () => {
+    const ids = Array.from({ length: 1500 }, (_, at) => `c${String(at).padStart(4, "0")}`)
+    await db.insert(customShellContacts).values(
+      ids.map((id) => ({
+        id,
+        workspaceId: WORKSPACE_ID,
+        email: `${id}@example.test`,
+        status: "subscribed" as const,
+        tags: [],
+        createdAt: daysAgo(1),
+        updatedAt: daysAgo(1),
+      }))
+    )
+    const segment = await createWorkspaceSegment(WORKSPACE_ID, picked("Big", ids), db)
+
+    const { contactIds: _unused, ...unchanged } = picked("Big, renamed", [])
+    const renamed = await updateWorkspaceSegment(WORKSPACE_ID, segment.id, unchanged, db)
+
+    expect(renamed.name).toBe("Big, renamed")
+    expect(await memberIds(segment.id)).toEqual(ids)
+  })
+
+  it("changes exactly the people who were added and removed", async () => {
+    for (const id of ["ada", "bob", "cat", "dan", "eve", "fay", "gus"]) await insertContact(id)
+    const segment = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      picked("Mixed", ["ada", "bob", "cat", "dan"]),
+      db
+    )
+
+    await updateWorkspaceSegment(
+      WORKSPACE_ID,
+      segment.id,
+      {
+        name: "Mixed",
+        description: "",
+        kind: "static",
+        rules: { conditions: [] },
+        addIds: ["eve", "fay", "gus"],
+        removeIds: ["ada", "bob"],
+      },
+      db
+    )
+
+    expect(await memberIds(segment.id)).toEqual(["cat", "dan", "eve", "fay", "gus"])
+  })
+
+  it("changes nothing at all when one of the people added is not in this workspace", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    const segment = await createWorkspaceSegment(WORKSPACE_ID, picked("Kept", ["ada"]), db)
+
+    await expect(
+      updateWorkspaceSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          name: "Kept, renamed",
+          description: "",
+          kind: "static",
+          rules: { conditions: [] },
+          addIds: ["bob", "stranger"],
+          removeIds: ["ada"],
+        },
+        db
+      )
+    ).rejects.toThrow("SEGMENT_CONTACT_MISSING")
+
+    expect(await memberIds(segment.id)).toEqual(["ada"])
+    const [stored] = await db
+      .select({ name: customShellContactSegments.name })
+      .from(customShellContactSegments)
+      .where(eq(customShellContactSegments.id, segment.id))
+    expect(stored?.name).toBe("Kept")
+  })
+
+  it("drops everybody when a hand-picked segment becomes a rules one", async () => {
+    await insertContact("ada")
+    const segment = await createWorkspaceSegment(WORKSPACE_ID, picked("Turned", ["ada"]), db)
+
+    await updateWorkspaceSegment(WORKSPACE_ID, segment.id, rulesInput("Turned", []), db)
+
+    expect(await memberIds(segment.id)).toEqual([])
   })
 })

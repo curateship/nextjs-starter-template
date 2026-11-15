@@ -282,6 +282,7 @@ export function ShellLayout({
   useBorderStyleVars(config.styling)
   useDarkShadeVars(config.styling)
   useSidebarShadeVars(config.styling)
+  useSidebarStyleAttribute(config.styling)
   usePageShadeVars(config.styling)
   useBlockStyleVars(config.styling)
   useWidgetStyleVars(config.styling)
@@ -996,6 +997,20 @@ function useSidebarShadeVars(styling: ShellStyling) {
       applyRootStyleVars(SIDEBAR_SHADE_VAR_NAMES, getSidebarShadeVars(styling)),
     [styling]
   )
+}
+
+// One shade (Settings -> Styling -> Sidebar & Top navigation -> Style): the
+// rail is the page's grey through the share above, and this attribute lets
+// theme.css drop the line down the left menu's edge and under the top bar.
+// The divider lines between the left menu's groups stay.
+function useSidebarStyleAttribute(styling: ShellStyling) {
+  const oneShade = styling.sidebarStyle === "one-shade"
+  React.useEffect(() => {
+    const root = document.documentElement
+    if (!oneShade) return
+    root.setAttribute("data-shell-sidebar", "one-shade")
+    return () => root.removeAttribute("data-shell-sidebar")
+  }, [oneShade])
 }
 
 // The gutter shade. --shell-canvas in theme.css is declared on the root, so the

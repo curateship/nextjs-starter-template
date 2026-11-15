@@ -52,3 +52,16 @@ Every shell change since `5131991aa` is in Travel, up to the shell at `9757749ff
 **No migration was new**, no file was added or deleted, and no route changed.
 
 **Checked.** Typecheck is clean, and 2,679 of 2,684 tests pass, with 2 skipped. The 3 failures were there before the merge: delivery and public-branding, which fail in the shell too, and the styling test expecting no Sidebar shade, which Travel's own saved styling sets to 100. Not checked in a browser: no dev server on this app's port runs from workspace-4.
+
+## Shell merge, 15 November 2026
+
+Every shell change since `9757749ff` is in Travel, up to the shell at `83d208d87`: 23 files replaced and 4 added. Each replaced file was an unedited copy of an older shell version.
+
+**What arrived.**
+
+- **Settings -> Styling -> Sidebar & Top navigation has a Style choice.** Own shade is the look the left menu and top bar always had. Same grey as the page makes the left menu, the top bar and the page one grey, with no line along the left menu's edge or under the top bar. It is `sidebarStyle`, saved with the site's styling, so no migration. Tyler, 14 Nov 2026: "add an option in styling settings to choose between the currant sidebar/topnav styling to this (the bg and the side and top as one gray shade)".
+- **Shell polish.** The media picker rings only the picture Select will use. Review and send no longer sends on a stray Enter, and refuses to send until it has counted who gets it. Adding everybody the filters match to a segment asks first. Renaming a big hand-picked segment works. Typed page settings survive opening a block. The Cloudflare R2 card tests new details before saving them instead of saving on a timer.
+
+**No migration was new**, nothing was deleted, and no route changed. `scripts/setup-database.mjs` keeps Travel's own version.
+
+**Checked.** Typecheck is clean. The 140 tests in the 9 changed test files pass except one: the sidebarShade test expects no saved shade, and Travel's own `scaffold-styling.ts` sets 100. Not checked in a browser: no dev server on this app's port runs from workspace-4.

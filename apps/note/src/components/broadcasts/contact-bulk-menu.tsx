@@ -78,6 +78,9 @@ export function ContactBulkMenu({
   const [runSegment, segmentBusy] = useAsyncAction(getSegmentErrorMessage)
   const [runContacts, contactsBusy] = useAsyncAction(getContactErrorMessage)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
+  // The segment everybody the filters match is about to join. One click on a
+  // segment can add thousands of people, so that case asks first.
+  const [confirmAddTo, setConfirmAddTo] = React.useState<SegmentItem | null>(null)
   const busy = segmentBusy || contactsBusy
 
   const finish = async () => {
@@ -85,11 +88,10 @@ export function ContactBulkMenu({
     await onRefresh()
   }
 
+  /** Ticked rows join straight away. Everybody who matches goes through the confirm below. */
   const addTo = (segment: SegmentItem) =>
     void runSegment(async () => {
-      await (allMatching
-        ? addMatchingContactsToWorkspaceSegment(segment.id, filter)
-        : addContactsToWorkspaceSegment(segment.id, selectedIds))
+      await addContactsToWorkspaceSegment(segment.id, selectedIds)
       await finish()
     })
 
@@ -181,7 +183,11 @@ export function ContactBulkMenu({
           </>
         )}
         pages={{
-          add: { title: "Add to segment", content: (menu) => segmentList(addTo, menu.close) },
+          add: {
+            title: "Add to segment",
+            content: (menu) =>
+              segmentList(allMatching ? setConfirmAddTo : addTo, menu.close),
+          },
           remove: {
             title: "Remove from segment",
             content: (menu) => segmentList(removeFrom, menu.close),
@@ -201,6 +207,25 @@ export function ContactBulkMenu({
                 </SelectedMenuRow>
               )),
           },
+        }}
+      />
+      <ConfirmDialog
+        open={confirmAddTo !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAddTo(null)
+        }}
+        title={`Add ${people} to ${confirmAddTo?.name ?? "this segment"}?`}
+        description="That is everybody the filters match, not only the people on this page."
+        confirmLabel={`Add ${people}`}
+        destructive={false}
+        loading={segmentBusy}
+        onConfirm={() => {
+          if (!confirmAddTo) return
+          void runSegment(async () => {
+            await addMatchingContactsToWorkspaceSegment(confirmAddTo.id, filter)
+            setConfirmAddTo(null)
+            await finish()
+          })
         }}
       />
       <ConfirmDialog

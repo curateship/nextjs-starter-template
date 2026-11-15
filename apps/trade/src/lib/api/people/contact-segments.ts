@@ -84,7 +84,12 @@ const segmentInputSchema = z.object({
   description: z.string().trim().max(MAX_SEGMENT_DESCRIPTION_LENGTH).default(""),
   kind: z.enum(SEGMENT_KINDS),
   rules: segmentRulesSchema,
+  /** A new segment's picks. A saved one sends `addIds` and `removeIds`. */
   contactIds: z.array(z.string().min(1).max(36)).max(1000).default([]),
+  /** Who joined a saved segment since its window opened. */
+  addIds: z.array(z.string().min(1).max(36)).max(1000).default([]),
+  /** Who left a saved segment since its window opened. */
+  removeIds: z.array(z.string().min(1).max(36)).max(1000).default([]),
 })
 
 export type SegmentFormInput = z.input<typeof segmentInputSchema>
@@ -129,18 +134,27 @@ const saveSegmentFn = createServerFn({ method: "POST" })
       segmentId: z.string().min(1).max(36).nullable().default(null),
       segment: segmentInputSchema,
     })
+    // A saved segment is changed by who joined and who left, a new one by its
+    // whole list. Each shape means one thing, so a mixed request is refused.
+    .refine(({ segmentId, segment }) =>
+      segmentId === null
+        ? segment.addIds.length === 0 && segment.removeIds.length === 0
+        : segment.contactIds.length === 0
+    )
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const workspaceId = await currentWorkspaceId(context.user.id)
+    const { contactIds, addIds, removeIds, ...segment } = data.segment
     // Parsed rather than trusted: the shape the browser sent has already been
     // checked, and this is what drops anything that got past it.
-    const input = {
-      ...data.segment,
-      rules: parseSegmentRules(data.segment.rules),
-    }
+    const input = { ...segment, rules: parseSegmentRules(segment.rules) }
     const saved = data.segmentId
-      ? await updateWorkspaceSegment(workspaceId, data.segmentId, input)
-      : await createWorkspaceSegment(workspaceId, input)
+      ? await updateWorkspaceSegment(workspaceId, data.segmentId, {
+          ...input,
+          addIds,
+          removeIds,
+        })
+      : await createWorkspaceSegment(workspaceId, { ...input, contactIds })
     return { id: saved.id }
   })
 

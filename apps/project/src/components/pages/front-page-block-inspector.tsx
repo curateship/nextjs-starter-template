@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -58,6 +59,8 @@ import {
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   MAX_FRONT_PAGE_ROW_SPACE,
+  FRONT_PAGE_ROW_HEADING_MESSAGE,
+  frontPageBlockProblem,
   frontPageHeroBandColors,
   frontPageHeroGrey,
   normalizeFrontPageHeroBackground,
@@ -160,6 +163,11 @@ export function FrontPageBlockInspector({
    */
   const [openedWith] = React.useState(() => JSON.stringify(draft))
   const touched = JSON.stringify(draft) !== openedWith
+  // Why the block has stopped saving, in the words the editor's own check
+  // uses. The header keeps its last "Saved" while a block is held back, so
+  // without this line a cleared heading looks saved when it is not.
+  const problem = touched && heldBack ? frontPageBlockProblem(draft) : null
+  const headingIsTheProblem = problem === FRONT_PAGE_ROW_HEADING_MESSAGE
 
   const appKind =
     draft.kind === APP_FRONT_PAGE_ROW_KIND
@@ -245,7 +253,10 @@ export function FrontPageBlockInspector({
                   placeholder={
                     kind === "divider" ? "Divider" : "Welcome to our site"
                   }
-                  aria-invalid={headingInvalid || undefined}
+                  aria-invalid={headingInvalid || headingIsTheProblem || undefined}
+                  aria-describedby={
+                    headingIsTheProblem ? "front-page-block-problem" : undefined
+                  }
                   onBlur={() => setHeadingTouched(true)}
                   onChange={(event) =>
                     onChange(patchCommon(draft, { heading: event.target.value }))
@@ -594,6 +605,12 @@ export function FrontPageBlockInspector({
                 )
               }
             />
+
+            {problem ? (
+              <InlineError id="front-page-block-problem">
+                Not saved. {problem}
+              </InlineError>
+            ) : null}
 
             <InspectorCard icon={<MoveVerticalIcon />}
               storageId="front-page-row-spacing"

@@ -127,6 +127,55 @@ describe("MediaPicker", () => {
     host.remove()
   })
 
+  it("rings only the picked file, and the file in use keeps its Current badge", async () => {
+    const secondFile = {
+      ...firstFile,
+      id: "media-2",
+      filename: "second.png",
+      original_name: "second.png",
+      url: "https://example.com/second.png",
+    }
+    mediaApi.listMedia.mockResolvedValue(page([firstFile, secondFile]))
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <Dialog open>
+          <MediaPicker
+            open
+            onOpenChange={vi.fn()}
+            onSelectMedia={vi.fn()}
+            currentMediaUrl={firstFile.url}
+          />
+        </Dialog>
+      )
+    })
+    await act(async () => await Promise.resolve())
+
+    const pressed = () =>
+      Array.from(
+        picker().querySelectorAll<HTMLButtonElement>('button[aria-pressed="true"]')
+      ).map((button) => button.getAttribute("aria-label"))
+
+    expect(pressed()).toEqual(["Select first.png"])
+
+    const second = picker().querySelector<HTMLButtonElement>(
+      'button[aria-label="Select second.png"]'
+    )
+    await act(async () => second?.click())
+
+    expect(pressed()).toEqual(["Select second.png"])
+    const firstTile = picker()
+      .querySelector('button[aria-label="Select first.png"]')
+      ?.closest("div")
+    expect(firstTile?.textContent).toContain("Current")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("opens as its own window over the form that asked for it", async () => {
     mediaApi.listMedia.mockResolvedValue(page())
     const onOpenChange = vi.fn()

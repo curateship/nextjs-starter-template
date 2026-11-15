@@ -1097,3 +1097,14 @@ body:has(
     background-color: var(--shell-hero-band-dark);
   }
 }
+
+/*
+ * Sidebar & Top navigation -> Style -> one shade: the left menu and the top
+ * bar are the page's grey (--shell-rail-card-share is 0) and have no line
+ * along their edge. Unlayered so it beats the border-sidebar-border utility.
+ * Only the two edges go; the lines between the left menu's groups stay.
+ */
+html[data-shell-sidebar="one-shade"] [data-slot="sidebar-container"],
+html[data-shell-sidebar="one-shade"] [data-slot="sticky-header"] {
+  border-color: transparent;
+}

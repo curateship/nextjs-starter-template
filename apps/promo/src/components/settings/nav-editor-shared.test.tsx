@@ -141,9 +141,13 @@ describe("useSortableChip", () => {
   }
 
   function pressSpaceOn(element: Element) {
+    return pressOn(element, " ", "Space")
+  }
+
+  function pressOn(element: Element, key: string, code: string) {
     const event = new KeyboardEvent("keydown", {
-      key: " ",
-      code: "Space",
+      key,
+      code,
       bubbles: true,
       cancelable: true,
     })
@@ -180,6 +184,21 @@ describe("useSortableChip", () => {
     if (!chip) throw new Error("no chip")
 
     expect(pressSpaceOn(chip).defaultPrevented).toBe(true)
+  })
+
+  it("leaves Enter and Space on a button inside the chip to that button", () => {
+    const button = host.querySelector('[data-testid="chip"] button')
+    if (!button) throw new Error("no button in the chip")
+
+    expect(pressOn(button, "Enter", "Enter").defaultPrevented).toBe(false)
+    expect(pressSpaceOn(button).defaultPrevented).toBe(false)
+  })
+
+  it("still picks the chip up with Enter on the chip itself", () => {
+    const chip = host.querySelector('[data-testid="chip"]')
+    if (!chip) throw new Error("no chip")
+
+    expect(pressOn(chip, "Enter", "Enter").defaultPrevented).toBe(true)
   })
 })
 
