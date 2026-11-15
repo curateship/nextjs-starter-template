@@ -28,6 +28,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { TILE_BODY } from "@/components/project/notes/project-block-card"
 import { PageNoteEditor } from "@/components/project/project-page-notes"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
@@ -79,14 +80,15 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
 })
 
 /**
- * The project's notes, filling the left panel under the project's header
- * while its note icon is an × (task "Project notes"; Tyler, 6 Nov 2026: "Add
- * a note feature here ... like in travel app"). Copied from Travel's trip
- * notes: with none yet, the panel is one place to press that makes the first
+ * The project's notes, in the Notes block on the project's page (`inBlock`),
+ * or in the page's place for a # link with no Notes block to open in (task
+ * "Project notes"; Tyler, 6 Nov 2026: "Add a note feature here ... like in
+ * travel app"). Copied from Travel's trip notes: with none yet, it is one
+ * place to press that makes the first
  * note; with some, they're listed pinned first, then in the order the
  * project's people dragged them into, with New note under them. Right-click a
  * note to pin it, duplicate it or delete it; Delete puts it in the project's
- * bin with Undo and doesn't ask ("Bin with Undo, no ask"). An open note is
+ * bin and doesn't ask ("Bin with Undo, no ask"; the Undo went on 11 Nov 2026). An open note is
  * the project page's own editor, saving itself, with Back to notes under it.
  *
  * Everyone who can see the project sees and writes all its notes. There are
@@ -95,10 +97,13 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
 export function ProjectNotes({
   projectId,
   startOpen = null,
+  inBlock = false,
 }: {
   projectId: string
   /** A note to open at once, from a # link. */
   startOpen?: string | null
+  /** Drawn in the page's Notes block, whose tile already scrolls. */
+  inBlock?: boolean
 }) {
   const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
   const [reloads, setReloads] = React.useState(0)
@@ -111,6 +116,7 @@ export function ProjectNotes({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
   const dndId = React.useId()
+  const Body = inBlock ? BlockBody : PanelBody
 
   React.useEffect(() => {
     let live = true
@@ -127,16 +133,16 @@ export function ProjectNotes({
 
   if (loaded.state === "loading") {
     return (
-      <PanelBody>
+      <Body>
         <LoadingRow label="Loading the notes…" />
-      </PanelBody>
+      </Body>
     )
   }
   if (loaded.state === "error") {
     return (
-      <PanelBody>
+      <Body>
         <ErrorRow message={loaded.message} onRetry={reload} />
-      </PanelBody>
+      </Body>
     )
   }
 
@@ -299,7 +305,7 @@ export function ProjectNotes({
 
   return (
     <>
-      <PanelBody>{body}</PanelBody>
+      <Body>{body}</Body>
       {menu ? (
         // Not modal, so a right-click on another note moves the menu there in one go.
         <DropdownMenu open onOpenChange={(next) => (next ? undefined : setMenu(null))} modal={false}>
@@ -335,6 +341,11 @@ function PanelBody({ children }: { children: React.ReactNode }) {
       <div data-side-panel-body="" className="grid gap-3 p-3">{children}</div>
     </ScrollArea>
   )
+}
+
+/** Inside the Notes block: the tile's own padding, with its scroll area round it. */
+function BlockBody({ children }: { children: React.ReactNode }) {
+  return <div className={TILE_BODY}>{children}</div>
 }
 
 /** One note in the list: its writer, first line and last change, and a handle to drag it by. */

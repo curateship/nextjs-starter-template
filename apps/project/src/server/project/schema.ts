@@ -416,7 +416,7 @@ export const projectProjectStars = pgTable(
 )
 
 /**
- * A project's notes, behind the note icon in the left panel's header
+ * A project's notes, shown in the Notes block on the project's page
  * (`drizzle/0148_project_notes.sql`). `position` orders them for everyone,
  * pinned ones first; a deleted one waits in the bin like a task.
  */

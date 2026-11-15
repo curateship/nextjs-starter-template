@@ -28,6 +28,7 @@ import {
   MinusIcon,
   PlayIcon,
   type LucideIcon,
+  NotebookPenIcon,
 } from "lucide-react"
 
 import {
@@ -56,7 +57,7 @@ import {
   WeekBlockView,
   WorkloadBlockView,
 } from "@/components/project/notes/team-blocks"
-import { MilestonesBlockView } from "@/components/project/notes/project-page-blocks"
+import { MilestonesBlockView, ProjectNotesBlockView } from "@/components/project/notes/project-page-blocks"
 import { NoteFolds } from "@/components/project/notes/note-folds"
 import type { NoteWhere } from "@/components/project/notes/note-setup"
 
@@ -93,6 +94,7 @@ export type BlockKey =
   | "teamWeek"
   | "teamMembers"
   | "milestones"
+  | "projectNotes"
 
 /**
  * The "/" list's two groups (Tyler, 6 Nov 2026: "divider the blocks into basic
@@ -139,6 +141,8 @@ const BLOCKS: BlockChoice[] = [
   { key: "teamMembers", label: "Members", icon: UsersIcon, group: "advanced" },
   // A project's own page only (Tyler, 9 Nov 2026: "make milestone a block").
   { key: "milestones", label: "Milestones", icon: FlagIcon, group: "advanced" },
+  // A project's own page only (task "Misc/writing-canvas", 15 Nov 2026: "Turn notes into block").
+  { key: "projectNotes", label: "Notes", icon: NotebookPenIcon, group: "advanced" },
 ]
 
 /** Blocks only the site admin's own page on My dashboard offers. */
@@ -163,7 +167,7 @@ export function blocksFor(where: NoteWhere, hasRecord: boolean): BlockChoice[] {
   return BLOCKS.filter((block) => {
     if (DASHBOARD_BLOCKS.has(block.key)) return where === "dashboard"
     if (TEAM_BLOCKS.has(block.key)) return where === "team"
-    if (block.key === "milestones") return where === "projectPage"
+    if (block.key === "milestones" || block.key === "projectNotes") return where === "projectPage"
     if (block.key === "file" || block.key === "comments") return where === "task"
     if (block.key === "record") return where === "task" && hasRecord
     return true
@@ -176,7 +180,18 @@ export function matchingBlocks(choices: BlockChoice[], query: string) {
   return choices.filter((block) => block.label.toLowerCase().startsWith(words))
 }
 
-function atomNode(name: string, defaults: Record<string, unknown>, view: (props: NodeViewProps) => React.ReactNode) {
+/**
+ * `ownsEvents`: the page's editor leaves every mouse and key event inside the
+ * block to the block. Tiptap leaves alone only events aimed straight at a
+ * button or a box, so a right-click on a note's name inside the Notes block
+ * moved the page's cursor and shut the note's menu as it opened.
+ */
+function atomNode(
+  name: string,
+  defaults: Record<string, unknown>,
+  view: (props: NodeViewProps) => React.ReactNode,
+  ownsEvents = false
+) {
   return Node.create({
     name,
     group: "block",
@@ -194,7 +209,7 @@ function atomNode(name: string, defaults: Record<string, unknown>, view: (props:
       return ["div", { "data-note-block": name }]
     },
     addNodeView() {
-      return ReactNodeViewRenderer(view)
+      return ReactNodeViewRenderer(view, ownsEvents ? { stopEvent: () => true } : undefined)
     },
   })
 }
@@ -309,6 +324,8 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteTeamWeek", {}, WeekBlockView),
   atomNode("noteTeamMembers", {}, MembersBlockView),
   atomNode("noteMilestones", {}, MilestonesBlockView),
+  // A list and an editor of its own, so it keeps its own clicks, keys and right-clicks.
+  atomNode("noteProjectNotes", {}, ProjectNotesBlockView, true),
   Callout,
   Fold,
   TaskList,

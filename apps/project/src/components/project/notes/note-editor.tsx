@@ -73,9 +73,11 @@ export function NoteEditor({
       <div
         data-note-box=""
         // A right-click in the note opens the "/" list there (Tyler, 6 Nov 2026). Words
-        // already selected keep the browser's own menu, for Copy.
+        // already selected keep the browser's own menu, for Copy. A right-click a block
+        // already answered, such as on a note in the Notes block or inside a note's own
+        // writing there, stays that block's.
         onContextMenu={(event) => {
-          if (disabled) return
+          if (disabled || event.defaultPrevented) return
           const selected = window.getSelection()
           if (selected && !selected.isCollapsed) return
           const area = event.currentTarget.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")

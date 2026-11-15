@@ -1,5 +1,7 @@
 import * as React from "react"
 import {
+  ArrowDownIcon,
+  ArrowUpIcon,
   ChevronRightIcon,
   CircleCheckIcon,
   ClapperboardIcon,
@@ -22,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import type { BlockMenuItem } from "@/components/shared/notes/block-card"
 import { useFolded, toggleFold } from "@/components/project/notes/note-folds"
 import { useLoaded, useNoteSetup } from "@/components/project/notes/note-setup"
 import { ProjectBlockCard, TILE_BODY } from "@/components/project/notes/project-block-card"
@@ -97,7 +100,12 @@ export const BLOCK_FRAME = "group/block relative my-2 [&_a]:text-inherit! [&_a]:
 export const ADVANCED_BLOCK_FRAME = `${BLOCK_FRAME} mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)]`
 
 /** Whether the note can be written in, and how to change or remove the block, from the editor. */
-export type BlockEditing = { editable: boolean; remove: () => void }
+export type BlockEditing = {
+  editable: boolean
+  remove: () => void
+  /** Move up and Move down, worked out when asked; left out where the block reads only. */
+  moves?: () => BlockMenuItem[]
+}
 
 function ToolButton({ label, icon: Icon, onClick }: { label: string; icon: LucideIcon; onClick: () => void }) {
   return (
@@ -131,13 +139,48 @@ export function BlockTools({
   className?: string
   children?: React.ReactNode
 }) {
+  const [moves, attachMoves] = useBlockMoves(editing)
   if (!editing.editable && !children) return null
   return (
-    <div className={cn(BLOCK_TOOLS, top, className)}>
+    <div ref={attachMoves} className={cn(BLOCK_TOOLS, top, className)}>
       {children}
+      {/* Move up and Move down, as a card block's ⋮ has them, beside Remove. */}
+      {moves.map((move) => (
+        <ToolButton key={move.label} label={move.label} icon={move.label === "Move up" ? ArrowUpIcon : ArrowDownIcon} onClick={move.onSelect} />
+      ))}
       {editing.editable ? <ToolButton label={label} icon={Trash2Icon} onClick={editing.remove} /> : null}
     </div>
   )
+}
+
+/**
+ * The moves a block's buttons offer, worked out again each time the pointer
+ * or the keyboard reaches the block, so a block at the top never shows Move
+ * up. The buttons only show then, so they are never out of date.
+ */
+function useBlockMoves(editing: BlockEditing) {
+  const [items, setItems] = React.useState<BlockMenuItem[]>([])
+  const latest = React.useRef(editing)
+  React.useLayoutEffect(() => {
+    latest.current = editing
+  })
+  const [host, setHost] = React.useState<HTMLElement | null>(null)
+  const attach = React.useCallback((node: HTMLDivElement | null) => setHost(node?.parentElement ?? null), [])
+  React.useEffect(() => {
+    if (!host) return
+    const refresh = () => {
+      const { editable, moves } = latest.current
+      setItems(editable && moves ? moves() : [])
+    }
+    refresh()
+    host.addEventListener("pointerenter", refresh)
+    host.addEventListener("focusin", refresh)
+    return () => {
+      host.removeEventListener("pointerenter", refresh)
+      host.removeEventListener("focusin", refresh)
+    }
+  }, [host])
+  return [items, attach] as const
 }
 
 /** A grey line in the block's place: something gone, or not set up. */

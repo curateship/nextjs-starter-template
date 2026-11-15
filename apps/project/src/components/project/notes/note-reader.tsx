@@ -14,7 +14,7 @@ import {
   WeekDrawing,
   WorkloadDrawing,
 } from "@/components/project/notes/team-blocks"
-import { MilestonesDrawing } from "@/components/project/notes/project-page-blocks"
+import { MilestonesDrawing, ProjectNotesDrawing } from "@/components/project/notes/project-page-blocks"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   CalloutFrame,
@@ -111,6 +111,8 @@ function Block({ node }: { node: NoteNode }) {
     // A project's page, as everyone but the site admin reads it.
     case "noteMilestones":
       return <MilestonesDrawing editing={READING} />
+    case "noteProjectNotes":
+      return <ProjectNotesDrawing editing={READING} />
     case "noteCallout":
       return (
         <CalloutFrame kind={(attrs.kind as CalloutKind) ?? "note"} editing={READING}>

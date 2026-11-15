@@ -1,10 +1,13 @@
 # Project notes
 
-A project has its own list of notes behind the note icon in the left panel's
-header, between the pin and the ⋮. They work like a trip's notes in Travel.
-The task is `workspace/tasks/project-notes/01-project-notes.md`.
+A project has its own list of notes, shown in a Notes block on the project's
+page in the left panel. They work like a trip's notes in Travel. The tasks
+are `workspace/tasks/project-notes/01-project-notes.md` and
+`workspace/tasks/Misc/writing-canvas.md`.
 
-## Tyler's rules, 6 Nov 2026
+## Tyler's rules
+
+On 6 Nov 2026:
 
 - "Add a note feature here ... like in travel app", pointing at the gap
   between the pin and the ⋮ on the project page.
@@ -19,16 +22,29 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
   11 Nov 2026 (Tyler: "remove them"); the Bin brings a note back.
 - Later the same day: "remove the privacy feature". There are no private
   notes. Whoever can see the project sees every note on it.
+- 15 Nov 2026: "Turn notes into block", pointing at the note icon. He then
+  picked a block that shows the list and opens a note inside itself, added
+  "Only through /". There is no note icon any more.
 
-## The icon and the list
+## The Notes block and the list
 
-- **The icon** is Lucide's NotebookPen. It bends into an × while the notes
-  show and back when they close, with the same motion as the inbox and Look
-  back icons (`NotesMorphIcon` in `src/components/project/notes-morph-icon.tsx`).
-- **The notes take the panel's place.** The page, Lead, Client, Time and
-  Milestones come back when the notes close. The header keeps the project's
-  name, its dot and its back arrow.
-- **With no notes** the panel is one dashed area, Add a note, that makes the
+- **The site admin adds it** by typing "/" on the project's page and picking
+  Notes, under Advanced blocks. No page gets it by itself, and a page holds
+  one at most; picking it again shows the one already there. Only a
+  project's own page offers it (`PROJECT_PAGE_ATOM_TYPES` in
+  `src/lib/project/note-blocks.ts`), so a note can't hold the notes.
+- **It is a block like the others**: a card headed Notes with the notebook
+  icon, the block's ⋮ with Delete block, folding from its title,
+  and scrolling inside its tile. Deleting the block deletes no notes; adding
+  it again shows them all.
+- **Everyone on the project writes notes in it**, even on a page they only
+  read: employees, and the site admin with Lock blocks on. Who may write a
+  note comes from the notes, not from the page.
+- **A right-click inside the block stays the block's.** On a note it opens
+  Pin to top, Duplicate and Delete, never the page's "/" list. The page's
+  editor leaves every click and key inside the block to the block
+  (`atomNode`'s `ownsEvents` in `note-block-nodes.ts`).
+- **With no notes** the block is one dashed area, Add a note, that makes the
   first one. An archived project with no notes says "No notes on this
   project." instead.
 - **With notes,** each row shows the writer's face, the note's first line,
@@ -67,8 +83,8 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
   who can see the project on every read and every change, not just the
   screen.
 - **A "Just me" list's notes** are its person's and the site admin's, the
-  same as the list. The note icon is the only button in that header, because
-  a "Just me" list has no pin and no ⋮.
+  same as the list. A "Just me" list has no page, so no Notes block and no
+  note icon: its notes open only from a # link.
 
 ## Right-click, pins and order
 
@@ -102,7 +118,9 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
   projects the writer can see are offered. The list looks through the 500 most recently
   changed notes the writer can see.
 - **The link shows the note's first line** and opens the project page with
-  the notes open on that note. A note that has since been renamed shows its
+  that note open in the page's Notes block. A page with no Notes block, and
+  a "Just me" list, which has no page, shows the notes in the page's place,
+  with an × in the header that puts the page back. A note that has since been renamed shows its
   new first line.
 - **A reader who can't see the note's project reads "a note you can't
   see",** and it isn't a link. A note in the Bin, or gone, reads "deleted note".
@@ -137,6 +155,7 @@ The task is `workspace/tasks/project-notes/01-project-notes.md`.
   # list's search across tasks and notes.
 - `src/components/project/project-notes-panel.tsx`: the list and the open
   note. `project-page-notes.tsx` holds the editor shared with the project's
-  page, and `project-details-panel.tsx` the icon.
+  page, `notes/project-page-blocks.tsx` the Notes block, and
+  `project-details-panel.tsx` where a # link opens.
 - `src/server/project/project-notes.test.ts`: who sees what, the cap, the
   order, the Bin and # links.

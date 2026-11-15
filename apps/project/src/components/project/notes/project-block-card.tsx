@@ -53,6 +53,8 @@ export function ProjectBlockCard({
     <BlockCard
       editable={editing.editable}
       onRemove={editing.editable ? editing.remove : undefined}
+      // Move up and Move down between its own rows and Delete block, as on every shell block.
+      moves={editing.editable ? editing.moves : undefined}
       kind={kind}
       title={title}
       icon={icon}

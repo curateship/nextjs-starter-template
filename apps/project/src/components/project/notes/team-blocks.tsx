@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import type { TeamDay } from "@/lib/api/project/checkins"
 import type { TeamFigures, TeamMemberRow } from "@/lib/api/project/teams"
 import { useTeamId } from "@/lib/project/team-scope"
+import { editingOf } from "@/components/project/notes/block-editing"
 
 /**
  * The blocks only a team's own page on the Team dashboard offers (task "Team
@@ -75,10 +76,6 @@ function Frame({ selected, children }: { selected: boolean; children: React.Reac
       {children}
     </NodeViewWrapper>
   )
-}
-
-function editingOf({ editor, deleteNode }: NodeViewProps): BlockEditing {
-  return { editable: editor.isEditable, remove: deleteNode }
 }
 
 /** What a team block shows on any page but a team's, which can't happen today. */

@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
 import { cn } from "@/lib/utils"
+import { editingOf } from "@/components/project/notes/block-editing"
 
 /**
  * The blocks only the site admin's own page on My dashboard offers (task "My
@@ -64,10 +65,6 @@ function Frame({ selected, children }: { selected: boolean; children: React.Reac
       {children}
     </NodeViewWrapper>
   )
-}
-
-function editingOf({ editor, deleteNode }: NodeViewProps): BlockEditing {
-  return { editable: editor.isEditable, remove: deleteNode }
 }
 
 /** Fills the block in, then puts the cursor on the line under it, as the other blocks do. */

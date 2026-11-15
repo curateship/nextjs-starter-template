@@ -18,9 +18,9 @@ import { projectNotes, projectProjects } from "@/server/project/schema"
 import { customShellUsers } from "@/server/schema"
 
 /**
- * A project's notes, behind the note icon in its left panel's header (task
- * "Project notes"; Tyler, 6 Nov 2026: "Add a note feature here ... like in
- * travel app"). See `workspace/docs/project-notes.md`.
+ * A project's notes, shown in the Notes block on its page (task "Project
+ * notes"; Tyler, 6 Nov 2026: "Add a note feature here ... like in travel
+ * app"; a block since 15 Nov 2026). See `workspace/docs/project-notes.md`.
  *
  * - Everyone who can see the project writes its team notes ("Everyone on the
  *   project"), and an archived project's notes read only.

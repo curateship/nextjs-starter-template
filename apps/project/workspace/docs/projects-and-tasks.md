@@ -295,9 +295,9 @@ couple of blocks like a links block and call out block".
 - **Copy project** copies the page and whether it is locked.
 - **Saved** in `project_projects.notes` and `notes_locked`
   (`drizzle/0146_project_page_lock.sql`, `src/components/project/project-page-notes.tsx`).
-- **The project's notes are separate.** The note icon between the pin and
-  the ⋮ swaps the page and the rest of the panel for the project's list of
-  notes, which everyone on the project writes. See
+- **The project's notes are a Notes block** the site admin adds with "/"
+  on the page (Tyler, 15 Nov 2026: "Turn notes into block"). Everyone on the
+  project writes in it, even on a page they only read. See
   [Project notes](project-notes.md).
 
 ## Project templates are gone
@@ -327,8 +327,10 @@ members moved to the left. On 14 Oct 2026 he redrew the tasks panel's header
 show out of the left panel and into that header.
 
 - **Left: details.** The header holds the button that hides the panel, the
-  back arrow, the name with its status dot right after it, the pin, the
-  notes button and the ⋮. At the panel's narrowest the name has no room
+  name with its status dot right after it, and the ⋮, which only the site
+  admin sees. The back arrow went on 15 Nov 2026 (Tyler: "Remove arrow back");
+  the left menu's Projects goes back. The pin moved into the ⋮ and the notes
+  became a block the same day. At the panel's narrowest the name has no room
   left; dragging the panel wider shows it. The colour dot before the name, the
   avatar with the name beside it, the description and the links left the
   panel on 5 Nov 2026 (Tyler), and projects have no avatar at all since then
@@ -342,7 +344,7 @@ show out of the left panel and into that header.
   is gone, and Milestones is a block on the page. The lead and the client are
   set in Project settings, and the Projects table shows both. The Status
   card that was here went with the manual status on 19 Oct 2026 (see Project
-  status). The pin in the header pins the project for me (see Pins below).
+  status). Pin project in the ⋮ pins the project for me (see Pins below).
 - **Project settings, the ⋮.** It opens to the right of the ⋮ over the board
   (Tyler, 5 Nov 2026: "Replace the project settings cog with a 3 dot
   vertical and convert the modal into a dropdown instead", then "dropdown
@@ -356,7 +358,8 @@ show out of the left panel and into that header.
     and Due date opens the calendar at once, so one press picks and saves
     (Tyler, 6 Nov 2026: "It should be one step to select"). The rest open a
     small box with their field, which saves when it is left. Under the
-    lists is Archive project (or Bring back), and Lock blocks is the tab's
+    lists are Pin project (or Unpin project) and Archive project (or Bring
+    back), and Lock blocks is the tab's
     footer. On an archived project the rows can't be opened and there is no
     Lock blocks.
   - **Members**: the members as plain rows, with the crown and the bin at
@@ -742,7 +745,9 @@ goes, so it no longer ends up on whatever task was open.
 ## Pins
 
 - **Each person pins their own projects**, from the pin on the Projects
-  table's row or in the project page's left panel header. Nobody else sees
+  table's row, or from Pin project in the project page's ⋮, above Archive
+  project (Tyler, 15 Nov 2026: "Move pin into the buttons here"; it was a pin
+  in the panel's header until then). It reads Unpin project once pinned. Nobody else sees
   them. It was a star until Tyler renamed it on 19 Oct 2026 ("That should be
   pinned"); every star became a pin, and the code and database still call it
   a star (`project_project_stars`, `starProject`).

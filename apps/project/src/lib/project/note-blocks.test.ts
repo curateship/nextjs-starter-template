@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 
-import { cleanNoteBody, keepTaskFiles, noteFileIds, noteForCopy, noteIsEmpty, noteTaskIds } from "@/lib/project/note-blocks"
+import {
+  cleanNoteBody,
+  keepTaskFiles,
+  noteFileIds,
+  noteForCopy,
+  noteIsEmpty,
+  noteTaskIds,
+  storedPageHolds,
+} from "@/lib/project/note-blocks"
 import {
   readPlainNotes,
   readTaskNotes,
@@ -230,6 +238,21 @@ describe("a project's page", () => {
     expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Brief")])
     const stored = JSON.stringify(doc({ type: "noteMilestones" }, { type: "noteComments" }))
     expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, projectPage: true }))).toEqual(doc({ type: "noteMilestones" }))
+  })
+
+  it("keeps the Notes block only on a project's own page, so a note can't hold the notes", () => {
+    const body = doc(paragraph("Brief"), { type: "noteProjectNotes", attrs: { noteId: "x" } })
+    expect(cleanNoteBody(body, { projectPage: true }).content).toEqual([paragraph("Brief"), { type: "noteProjectNotes" }])
+    expect(cleanNoteBody(body).content).toEqual([paragraph("Brief")])
+    expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Brief")])
+  })
+
+  it("finds a Notes block anywhere on a stored page, and nothing in plain words", () => {
+    const folded = { type: "noteFold", attrs: { id: "f" }, content: [{ type: "noteProjectNotes" }] }
+    expect(storedPageHolds(JSON.stringify(doc(paragraph("a"), folded)), "noteProjectNotes")).toBe(true)
+    expect(storedPageHolds(JSON.stringify(doc({ type: "noteMilestones" })), "noteProjectNotes")).toBe(false)
+    expect(storedPageHolds("", "noteProjectNotes")).toBe(false)
+    expect(storedPageHolds("plain words", "noteProjectNotes")).toBe(false)
   })
 })
 

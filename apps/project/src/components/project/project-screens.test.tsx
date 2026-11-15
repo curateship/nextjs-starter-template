@@ -373,7 +373,11 @@ describe("the project page", () => {
       </TooltipProvider>
     )
     expect(html).toContain(`aria-label="Project settings"`)
-    expect(html).toContain(`aria-label="Unpin Website"`)
+    // The header is the collapse button, the name and its dot, and the ⋮: no back arrow, pin or note
+    // icon (task "Misc/writing-canvas", 15 Nov 2026). The pin is a row in the ⋮.
+    expect(html).not.toContain(`aria-label="Unpin Website"`)
+    expect(html).not.toContain(`aria-label="Back to projects"`)
+    expect(html).not.toContain(`aria-label="Notes"`)
     expect(html).toContain(">Filter</span>")
     expect(html).toContain("Click a task to see its notes and chat here.")
     // One late task ("Late thing"), and the rule starts Slowing down at 1.

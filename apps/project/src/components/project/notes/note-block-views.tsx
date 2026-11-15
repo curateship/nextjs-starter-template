@@ -14,9 +14,9 @@ import {
   VideoDrawing,
   WebPageDrawing,
   LinksDrawing,
-  type BlockEditing,
 } from "@/components/project/notes/note-block-drawings"
 import type { CalloutKind, NoteImageAttrs, NoteLink } from "@/lib/project/note-blocks"
+import { editingOf } from "@/components/project/notes/block-editing"
 
 /**
  * Each "/" block as the editor draws it (Project note blocks task): the
@@ -69,10 +69,6 @@ function fill(props: NodeViewProps, attrs: Record<string, unknown>) {
     if (next?.isTextblock) editor.chain().focus().setTextSelection(after + 1).run()
     else editor.commands.focus()
   })
-}
-
-function editingOf({ editor, deleteNode }: NodeViewProps): BlockEditing {
-  return { editable: editor.isEditable, remove: deleteNode }
 }
 
 /** A block not filled in yet is never saved, so a note that can't be written in never shows one. */

@@ -40,6 +40,7 @@ export const NOTE_ATOM_TYPES = [
   "noteTeamWeek",
   "noteTeamMembers",
   "noteMilestones",
+  "noteProjectNotes",
 ] as const
 export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
 
@@ -78,7 +79,12 @@ export const TEAM_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
  * at the foot of the project's left panel. Its notes and every other page drop
  * them.
  */
-export const PROJECT_PAGE_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteMilestones"])
+export const PROJECT_PAGE_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
+  "noteMilestones",
+  // The project's notes, which were behind a note icon in the panel's header
+  // until 15 Nov 2026 (task "Misc/writing-canvas": "Turn notes into block").
+  "noteProjectNotes",
+])
 
 /**
  * The "/" list's advanced blocks, the ones that show something live from the
@@ -263,6 +269,8 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   noteTeamMembers: () => ({}),
   // The project's own milestones, read when drawn, so it holds nothing.
   noteMilestones: () => ({}),
+  // The project's own notes, read when drawn, so it holds nothing.
+  noteProjectNotes: () => ({}),
 }
 
 function isAtom(type: unknown): type is NoteAtomType {
@@ -378,6 +386,22 @@ export function cleanProjectPageBody(value: unknown): NoteNode {
  * the start.
  */
 export const NEW_PROJECT_PAGE = JSON.stringify({ type: "doc", content: [{ type: "noteMilestones" }] })
+
+/** Whether a stored page holds a block of this type anywhere, folded sections included. */
+export function storedPageHolds(stored: string, type: NoteAtomType): boolean {
+  let body: unknown
+  try {
+    body = JSON.parse(stored)
+  } catch {
+    return false
+  }
+  const holds = (node: unknown): boolean => {
+    if (!node || typeof node !== "object") return false
+    const { type: kind, content } = node as { type?: unknown; content?: unknown }
+    return kind === type || (Array.isArray(content) && content.some(holds))
+  }
+  return holds(body)
+}
 
 /** A new Fold section's id, which each reader's folds are remembered by. */
 export function newFoldId() {

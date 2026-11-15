@@ -64,7 +64,7 @@ tasks templates feature too").
     card, File, Comments and Video or Promo where the box offers them, and on
     the site admin's own page Projects, Daily card, Rating calendar,
     Rating trend and Inbox, on a team's page Check-ins, Workload, Attention, This
-    week and Members, and on a project's own page Milestones.
+    week and Members, and on a project's own page Milestones and Notes.
   - The arrow keys walk the list as it shows, through the basic blocks and
     on into the advanced ones. Narrowing it by typing keeps only the headings
     whose group still has a block (`BLOCKS` in `note-block-nodes.ts`, drawn
@@ -85,8 +85,13 @@ tasks templates feature too").
   it, on the server too (`PROJECT_PAGE_ATOM_TYPES` in
   `src/lib/project/note-blocks.ts`). What it shows is in
   [Projects and tasks](projects-and-tasks.md#milestones).
+- **A project's own page also offers Notes** (Tyler, 15 Nov 2026: "Turn notes
+  into block"). It is the project's list of notes in a block, added only by
+  typing "/" on the page; no page gets it by itself. It goes in once, and no
+  other page or note can hold it. What it does is in
+  [Project notes](project-notes.md).
 - **The site admin's own page** offers what a project's page does but
-  Milestones, plus five
+  Milestones and Notes, plus five
   blocks no other note has: Projects, Daily card, Rating calendar, Rating
   trend and Inbox (Tyler, 6 Nov 2026: "Your My dashboard page only"; Inbox on
   11 Nov 2026). Look back was a sixth until 13 Nov 2026, when it moved into the
@@ -224,8 +229,8 @@ tasks templates feature too").
     where it has one. Pressing the name folds the block, remembered in this
     browser.
   - A ⋮ at the heading's right, shown while the heading is pointed at
-    (always on a phone): the block's own rows, then Delete block. A page
-    that reads only shows no Delete block.
+    (always on a phone): the block's own rows, then Move up and Move down,
+    then Delete block. A page that reads only shows none of the three.
   - What it shows sits on one white tile 3px inside the grey, in a scroll
     area, as Trade's blocks are (Tyler, 11 Nov 2026: "it needs area scroll
     and it needs to have the height automatic adjustment like how trade
@@ -252,6 +257,17 @@ tasks templates feature too").
   pointed at, focused or selected (always on a phone), inside its top-right
   corner, level with its first line. Selecting a block and pressing
   Backspace removes it too.
+- **Moving a block** (Tyler, 15 Nov 2026: "make sure all the blocks have the
+  move up and down function like shell"). Every block swaps places with the
+  line or block above or below it, as the shell's blocks do. A card block
+  has Move up and Move down in its ⋮; every other block has an up and a
+  down arrow beside its bin. Each is offered only when there is something on
+  that side, worked out when the ⋮ opens or the block is pointed at, so the
+  first block on a page has no Move up. A block inside a Callout doesn't
+  move. Moving needs a page that can be written on: on a locked page, unlock
+  it first (the shell moves blocks on a locked page; Project's locked pages
+  are read only). `editingOf` in
+  `src/components/project/notes/block-editing.tsx`.
 - **Filling a block in** (picking a task or file, adding a link) puts the
   cursor on the line under it, so the notes don't count it as clicking away.
 - **Clicking away never takes a block back.** The notes are drawn again from

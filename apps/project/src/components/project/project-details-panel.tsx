@@ -1,20 +1,18 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
-import { ArrowLeftIcon } from "lucide-react"
+import { XIcon } from "lucide-react"
 
-import { NotesMorphIcon } from "@/components/project/notes-morph-icon"
 import { ProjectPageBlocksProvider } from "@/components/project/notes/project-page-blocks"
 import { ProjectNotes } from "@/components/project/project-notes-panel"
 import { ProjectPageNotes } from "@/components/project/project-page-notes"
 import { ProjectPaceDot } from "@/components/project/project-pace"
 import { ProjectMenu } from "@/components/project/project-menu"
-import { PinButton } from "@/components/project/pin-button"
 import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { storedPageHolds } from "@/lib/project/note-blocks"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
@@ -48,11 +46,14 @@ import { PageCover } from "@/components/shared/notes/page-cover"
  * 19 Oct 2026). Over a banner the header has no line under it, so the
  * picture runs on unbroken (Tyler, 20 Oct 2026).
  *
- * The note icon between the pin and the ⋮ shows the project's notes in the
- * panel's place and turns into an × that closes them, as a trip's notes do in
- * Travel (task "Project notes"; Tyler, 6 Nov 2026: "Add a note feature here
- * ... like in travel app"). A "Just me" list has the note icon alone. A # link
- * to a note (`openNoteId`) opens the notes with it.
+ * The header is the button that hides the panel, the name with its status
+ * dot, and the ⋮ (task "Misc/writing-canvas", Tyler, 15 Nov 2026: "Remove
+ * arrow back", "Move pin into the buttons here"). The pin is a row in the ⋮
+ * above Archive project, and the project's notes are a Notes block on the
+ * page ("Turn notes into block"), so there is no note icon. A # link to a
+ * note (`openNoteId`) opens it in the page's Notes block. A page with no
+ * Notes block, and a "Just me" list, which has no page, shows the notes in
+ * the page's place instead, with an × in the header that puts the page back.
  */
 export function ProjectDetailsPanel({
   page,
@@ -66,31 +67,40 @@ export function ProjectDetailsPanel({
   onNoteOpened?: () => void
 }) {
   const { project } = page
-  const [notesOpen, setNotesOpen] = React.useState(Boolean(openNoteId))
-  // Each # link opens its note afresh, even with the notes already showing.
+  // Each # link opens its note afresh, even with that note already showing.
   const [request, setRequest] = React.useState(openNoteId ? { noteId: openNoteId, at: 0 } : null)
   const [seenNoteId, setSeenNoteId] = React.useState(openNoteId)
   if (openNoteId !== seenNoteId) {
     setSeenNoteId(openNoteId)
-    if (openNoteId) {
-      setRequest({ noteId: openNoteId, at: (request?.at ?? 0) + 1 })
-      setNotesOpen(true)
-    }
+    if (openNoteId) setRequest({ noteId: openNoteId, at: (request?.at ?? 0) + 1 })
   }
   React.useEffect(() => {
     if (openNoteId) onNoteOpened?.()
   }, [openNoteId, onNoteOpened])
-  const notesLabel = notesOpen ? "Close the notes" : "Notes"
+  // How many Notes blocks are drawn on the page right now: one added since the page
+  // loaded counts as soon as it shows, before the page is saved.
+  const [notesBlocks, setNotesBlocks] = React.useState(0)
+  const notesBlockShown = React.useCallback((shown: boolean) => setNotesBlocks((n) => n + (shown ? 1 : -1)), [])
   const shared = !project.personal
+  const pageHasNotes = shared && (notesBlocks > 0 || storedPageHolds(project.notes, "noteProjectNotes"))
+  // A # link with no Notes block to open in shows the notes in the page's place.
+  const notesInstead = request !== null && !pageHasNotes
   const siteAdmin = runsTheTeam(page.myRole)
   // A "Just me" list has no cover. `PageCover` leaves out a picture that no longer loads.
   const banner = shared ? project.bannerUrl : null
   const late = countLate(page.tasks)
 
-  // What the page's Milestones block draws.
+  // What the page's Milestones and Notes blocks draw.
   const blocks = React.useMemo(
-    () => ({ projectId: project.id, milestones: page.milestones, tasks: page.tasks, readOnly: project.archived }),
-    [project.id, page.milestones, page.tasks, project.archived]
+    () => ({
+      projectId: project.id,
+      milestones: page.milestones,
+      tasks: page.tasks,
+      readOnly: project.archived,
+      noteLink: request,
+      notesBlockShown,
+    }),
+    [project.id, page.milestones, page.tasks, project.archived, request, notesBlockShown]
   )
 
   return (
@@ -101,20 +111,10 @@ export function ProjectDetailsPanel({
       <PageCover url={banner} />
       {/* Wrapped in its own div, so the shell's table line under a header never
           matches it. The collapse button first, as on every side panel in the
-          shell's design, then the way back to Projects. */}
+          shell's design. */}
       <div className="relative shrink-0">
         <DashboardCardHeader className={cn("gap-1", banner && "border-b-transparent")}>
           <SidePanelCollapseButton side="left" label="Hide the project page" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button asChild variant="ghost" size="icon" className="shrink-0 rounded-lg">
-                <Link to="/projects" aria-label="Back to projects">
-                  <ArrowLeftIcon className="size-4" />
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Back to projects</TooltipContent>
-          </Tooltip>
           <h2 className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="truncate">{project.name}</span>
@@ -123,32 +123,23 @@ export function ProjectDetailsPanel({
             </span>
           </h2>
           <div className="flex shrink-0 items-center gap-1">
-            {shared ? <PinButton project={project} /> : null}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={notesLabel}
-                  aria-pressed={notesOpen}
-                  onClick={() => {
-                    setNotesOpen((was) => !was)
-                    setRequest(null)
-                  }}
-                >
-                  <NotesMorphIcon open={notesOpen} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{notesLabel}</TooltipContent>
-            </Tooltip>
+            {notesInstead ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Close the notes" onClick={() => setRequest(null)}>
+                    <XIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Close the notes</TooltipContent>
+              </Tooltip>
+            ) : null}
             {shared && siteAdmin ? <ProjectMenu page={page} /> : null}
           </div>
         </DashboardCardHeader>
       </div>
       {/* The page, or its notes, fill the rest of the panel. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {notesOpen ? (
+        {notesInstead ? (
           <ProjectNotes
             key={`${project.id}:${request?.at ?? "notes"}`}
             projectId={project.id}

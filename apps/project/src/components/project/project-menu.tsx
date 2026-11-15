@@ -1,4 +1,5 @@
-import { ArchiveIcon, ArchiveRestoreIcon } from "lucide-react"
+import { useRouter } from "@tanstack/react-router"
+import { ArchiveIcon, ArchiveRestoreIcon, PinIcon, PinOffIcon } from "lucide-react"
 
 import { ProjectMembersList } from "@/components/project/project-members-card"
 import { CoverRow } from "@/components/shared/notes/page-rows"
@@ -17,6 +18,9 @@ import { ProjectDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { LockRow } from "@/components/shared/notes/page-rows"
 import type { ProjectPage } from "@/lib/api/project/projects"
+import { starProject } from "@/lib/api/project/sorting"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { getProjectErrorMessage } from "@/lib/project/errors"
 import { dayLabel } from "@/lib/project/days"
 import { PROJECT_COLOR_LABEL, PROJECT_COLORS, type ProjectColor } from "@/lib/project/rules"
 
@@ -28,6 +32,9 @@ import { PROJECT_COLOR_LABEL, PROJECT_COLORS, type ProjectColor } from "@/lib/pr
  * Admin 3 panel design): General is grouped rows (Project, Page, Schedule), each
  * picking in one press where there is a choice and opening a small box for a
  * typed value, then Lock page and Archive; Members is a tab.
+ * Pin project sits above Archive project; it was a pin in the panel's header
+ * until 15 Nov 2026 (task "Misc/writing-canvas": "Move pin into the buttons
+ * here"). It pins the project for me, so it sits first on the Projects page.
  * Lock page makes the project's page in the left panel read only, even for
  * the site admin, until Unlock page (Tyler, 5 Nov 2026: "add a function here
  * to lock the tip tap"). It opens to the right of the ⋮, over the board
@@ -43,6 +50,8 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
   const lock = useSaveProject(project.id)
   const { save } = useSaveProject(project.id)
   const cover = useSaveProject(project.id)
+  const router = useRouter()
+  const [runPin, pinBusy] = useAsyncAction(getProjectErrorMessage)
   const off = project.archived
   const row = "w-full justify-start font-normal"
 
@@ -124,6 +133,20 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
         </PickRow>
       </PickGroup>
       <div className="-mx-2 grid gap-1 [&_[data-slot=button]]:font-normal">
+        <Button
+          type="button"
+          variant="ghost"
+          className={row}
+          aria-pressed={project.starred}
+          disabled={pinBusy}
+          onClick={async () => {
+            if (await runPin(() => starProject(project.id, !project.starred))) await router.invalidate()
+          }}
+        >
+          {/* As a note's right-click reads: Pin, or Unpin once pinned. */}
+          {project.starred ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
+          {project.starred ? "Unpin project" : "Pin project"}
+        </Button>
         <Button type="button" variant="ghost" className={row} disabled={archive.busy} onClick={() => void archive.toggle()}>
           {project.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
           {project.archived ? "Bring back" : "Archive project"}
