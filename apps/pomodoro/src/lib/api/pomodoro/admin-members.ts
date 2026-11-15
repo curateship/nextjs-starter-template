@@ -71,9 +71,9 @@ const hideProfilesFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ userIds: z.array(userIdSchema).min(1).max(100) }))
   .handler(async ({ data, context }) => {
-    const { handles, ...result } = await hideProfilesByAdmin({ userIds: data.userIds, actorUserId: context.user.id })
+    const { profiles, ...result } = await hideProfilesByAdmin({ userIds: data.userIds, actorUserId: context.user.id })
     // A hidden profile must 404 on the very next request.
-    forgetHiddenProfiles(handles)
+    forgetHiddenProfiles(profiles)
     return result
   })
 

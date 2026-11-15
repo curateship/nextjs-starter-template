@@ -161,7 +161,7 @@ export async function ringProxyRenewals(
         targetId,
         message: `${NOTICE_HEADINGS.proxy_renewal} ${name}`,
         detail: `The proxy ${name} renews on ${proxy.renewsOn}.${cost} Renew it, or move its profiles to another proxy before then.`,
-        href: `/admin/proxies?open=${encodeURIComponent(proxy.id)}`,
+        href: `/admin/anti-detect?section=proxies&open=${encodeURIComponent(proxy.id)}`,
       },
       db,
       now

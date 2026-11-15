@@ -135,7 +135,7 @@ describe("the active wallet picker", () => {
 
     const mainRow = host
       .querySelector('[aria-label="Main is the wallet in use"]')
-      ?.closest("label")
+      ?.closest("button")
     expect(mainRow?.textContent).toContain("Main")
     expect(mainRow?.parentElement?.textContent).toContain(
       "Could not check what this key may do"
@@ -143,7 +143,16 @@ describe("the active wallet picker", () => {
     expect(mainRow?.textContent).toContain("Connected$5,100.00+$75.00")
     expect(mainRow?.parentElement?.className).toContain("min-h-12")
     expect(mainRow?.parentElement?.className).not.toContain("rounded")
-    expect(mainRow?.parentElement?.className).toContain("bg-muted/60")
+    // The wallet in use is marked by the blocks' small dark bar, not shading.
+    expect(mainRow?.parentElement?.className).not.toContain("bg-muted/60")
+    expect(
+      mainRow?.querySelector("[data-dashboards-bar]")?.className
+    ).toContain("w-3")
+    expect(
+      host
+        .querySelector('[aria-label="Trade with Scalper"]')
+        ?.querySelector("[data-dashboards-bar]")?.className
+    ).toContain("w-0")
     expect(mainRow?.parentElement?.parentElement?.className).not.toContain(
       "px-2"
     )

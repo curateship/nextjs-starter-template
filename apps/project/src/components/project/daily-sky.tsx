@@ -1,15 +1,15 @@
 import * as React from "react"
 
-import type { DayPart, SkyKind, SkyPhase, WeatherKind } from "@/lib/project/daily-card"
+import type { DayPart, SkyPhase, WeatherKind } from "@/lib/project/daily-card"
 
 /**
  * The Daily card's sky (Tyler, 29 Oct 2026: "the card can have a sunny sky
  * in the background"). It is a drawing, so its colours are its own, the way
  * the UI rules allow for deliberate drawings: a sunrise, day, gold, sunset or
- * night with stars, then the weather over it, then a scene along the bottom
- * (beach, city, mountains or forest), or the site admin's own photo for this
- * part of the day in place of all of it. The card lays a dark fade along the
- * bottom so its words stay readable over any of them.
+ * night with stars, then the weather over it. The scenes along the bottom
+ * (beach, city, mountains, forest) and the site admin's own photos went on
+ * 11 Nov 2026, when their page took the shell's Cover photo row ("Shell row
+ * exactly"). It lies behind an employee's My dashboard.
  */
 
 const SKY: Record<SkyPhase, [string, string]> = {
@@ -39,20 +39,12 @@ export function DailySky({
   phase,
   part,
   weather,
-  sky,
-  ownPhoto,
 }: {
   phase: SkyPhase
   part: DayPart
   weather: WeatherKind | null
-  sky: SkyKind
-  /** The site admin's own photo for this part of the day, when the sky is set to their own. */
-  ownPhoto: string
 }) {
   const gradientId = React.useId()
-  if (sky === "own" && ownPhoto) {
-    return <img src={ownPhoto} alt="" className="absolute inset-0 size-full object-cover" data-part={part} />
-  }
   const [top, bottom] = SKY[phase]
   const light = LIGHT[phase]
   const cloudy = weather === "cloudy" || weather === "rain" || weather === "drizzle" || weather === "storm" || weather === "snow"
@@ -63,6 +55,7 @@ export function DailySky({
       className="absolute inset-0 size-full"
       aria-hidden
       data-phase={phase}
+      data-part={part}
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -81,7 +74,6 @@ export function DailySky({
       ) : null}
       {cloudy ? <rect width="400" height="140" fill={dark(phase) ? "#0f172a" : "#64748b"} opacity={weather === "storm" ? 0.55 : 0.35} /> : null}
       <Weather kind={weather} night={dark(phase)} />
-      <Scene sky={sky} phase={phase} />
     </svg>
   )
 }
@@ -138,63 +130,4 @@ function Weather({ kind, night }: { kind: WeatherKind | null; night: boolean }) 
       {kind === "storm" ? <path d="M250 50 L238 78 L250 78 L242 100 L262 70 L250 70 L258 50 Z" fill="#fde047" /> : null}
     </>
   )
-}
-
-/** A silhouette along the bottom; darker at night, with lit windows in the city. */
-function Scene({ sky, phase }: { sky: SkyKind; phase: SkyPhase }) {
-  const night = dark(phase)
-  if (sky === "beach") {
-    return (
-      <>
-        <rect y="104" width="400" height="16" fill={night ? "#1e3a8a" : "#0ea5e9"} opacity={0.9} />
-        <path d="M0 116 Q100 110 200 116 T400 116 V140 H0 Z" fill={night ? "#a16207" : "#fcd34d"} />
-        <g fill={night ? "#14532d" : "#166534"}>
-          <rect x="330" y="84" width="4" height="34" />
-          <path d="M332 84 q-18 -2 -28 10 q14 -12 28 -10 q-6 -14 -22 -14 q18 2 22 14 q8 -14 24 -12 q-16 2 -24 12 q20 -4 28 10 q-12 -10 -28 -10 Z" />
-        </g>
-      </>
-    )
-  }
-  if (sky === "city") {
-    const buildings = [
-      [0, 92, 34], [36, 80, 26], [64, 98, 30], [96, 70, 22], [120, 88, 36], [158, 76, 28], [188, 94, 32], [222, 66, 24],
-      [248, 86, 34], [284, 74, 26], [312, 96, 30], [344, 82, 28], [374, 90, 26],
-    ]
-    return (
-      <g>
-        {buildings.map(([x, y, w]) => (
-          <g key={x}>
-            <rect x={x} y={y} width={w} height={140 - y} fill={night ? "#0f172a" : "#334155"} />
-            {night
-              ? Array.from({ length: 3 }, (_, row) => (
-                  <rect key={row} x={x + 6} y={y + 8 + row * 12} width={4} height={4} fill="#fde68a" opacity={(x + row) % 3 ? 0.9 : 0.25} />
-                ))
-              : null}
-          </g>
-        ))}
-      </g>
-    )
-  }
-  if (sky === "mountains") {
-    return (
-      <>
-        <path d="M0 140 L70 72 L130 120 L200 60 L280 124 L340 80 L400 112 V140 Z" fill={night ? "#1e293b" : "#64748b"} />
-        <path d="M200 60 L216 74 L206 72 L198 78 L190 70 Z" fill="#f8fafc" opacity={night ? 0.5 : 0.95} />
-        <path d="M0 140 L90 104 L170 132 L260 100 L400 134 V140 Z" fill={night ? "#0f172a" : "#334155"} />
-      </>
-    )
-  }
-  if (sky === "forest") {
-    const trees = [8, 34, 58, 86, 112, 140, 166, 196, 222, 250, 278, 306, 332, 360, 388]
-    return (
-      <g fill={night ? "#052e16" : "#15803d"}>
-        <rect y="126" width="400" height="14" />
-        {trees.map((x, index) => {
-          const h = 34 + ((index * 13) % 22)
-          return <path key={x} d={`M${x} ${130 - h} L${x + 12} 130 L${x - 12} 130 Z`} />
-        })}
-      </g>
-    )
-  }
-  return null
 }

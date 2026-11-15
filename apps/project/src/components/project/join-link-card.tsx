@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CopyIcon, Link2Icon, Loader2Icon, RefreshCwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,7 +24,8 @@ import { useTeamId } from "@/lib/project/team-scope"
  * ask inside the card: it sits in the Team settings window, and a second
  * window on top of it is the thing not to do.
  */
-export function JoinLinkCard({ state }: { state: JoinLinkState }) {
+/** `bare` draws only what is inside, for the Joining tab of the Team dashboard's ⋮. */
+export function JoinLinkCard({ state, bare = false }: { state: JoinLinkState; bare?: boolean }) {
   const teamId = useTeamId()
   const router = useRouter()
   const [link, setLink] = React.useState<string | null>(null)
@@ -35,7 +35,7 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
   useEscapeCancels(question, () => setAsking(null))
 
   async function turnOff() {
-    if (!(await run(() => stopJoinLink(teamId), "The join link is off."))) return
+    if (!(await run(() => stopJoinLink(teamId)))) return
     setAsking(null)
     setLink(null)
     await router.invalidate()
@@ -45,7 +45,7 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
     let made = ""
     const ok = await run(async () => {
       made = (await newJoinLink(teamId)).link
-    }, state.on ? "A new link is ready. The old one no longer works." : "The join link is on.")
+    })
     if (!ok) return
     setAsking(null)
     setLink(made)
@@ -56,18 +56,13 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
     if (!link) return
     try {
       await navigator.clipboard.writeText(link)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("This browser wouldn't copy it. Select the link and copy it by hand.")
     }
   }
 
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Join link</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+  const body = (
+    <>
         <p className="text-sm text-muted-foreground">
           {state.on
             ? state.expired
@@ -132,7 +127,15 @@ export function JoinLinkCard({ state }: { state: JoinLinkState }) {
             ) : null}
           </div>
         )}
-      </CardContent>
+    </>
+  )
+  if (bare) return <div className="grid gap-3">{body}</div>
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Join link</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">{body}</CardContent>
     </Card>
   )
 }

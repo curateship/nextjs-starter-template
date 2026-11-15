@@ -805,15 +805,15 @@ export async function startAutomationRun(
 }
 
 /**
- * Starts a side-effect-safe rehearsal with one real contact as its subject,
- * the same way a segment run is about one contact. The contact may have no
- * account behind it.
+ * Starts a side-effect-safe rehearsal with one real person as its subject: a
+ * subscriber, as a segment run is about one, or an account, as a member-event
+ * run is. `personKey` is the test picker's own key ("c:…" or "a:…").
  */
 export async function startAutomationTestRun(
   workspaceId: string,
   userId: string,
   automationId: string,
-  subjectContactId: string,
+  personKey: string,
   database: CustomShellDb = db
 ): Promise<CustomShellAutomationRun> {
   const [admin, subject] = await Promise.all([
@@ -828,7 +828,7 @@ export async function startAutomationTestRun(
         )
       )
       .limit(1),
-    findAutomationTestContact(workspaceId, subjectContactId, database),
+    findAutomationTestContact(workspaceId, personKey, database),
   ])
   if (!admin[0]) throw new Error("NOT_FOUND")
   if (!subject) throw new Error("CONTACT_NOT_FOUND")
@@ -838,7 +838,7 @@ export async function startAutomationTestRun(
     userId,
     automationId,
     {
-      subjectContactId: subject.id,
+      subjectContactId: subject.contactId,
       subjectUserId: subject.userId,
       subjectLabel: automationSubjectLabel(subject),
       testRecipientEmail: admin[0].email,
@@ -853,7 +853,7 @@ async function startAutomationRunRecord(
   automationId: string,
   test:
     | {
-        subjectContactId: string
+        subjectContactId: string | null
         subjectUserId: string | null
         subjectLabel: string
         testRecipientEmail: string

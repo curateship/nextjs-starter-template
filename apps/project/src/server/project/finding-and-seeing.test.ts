@@ -75,7 +75,7 @@ afterEach(async () => {
 const task = (who: CustomShellUser, projectId: string, title: string, notes = "") =>
   createTask(
     who,
-    { projectId, title, notes, assigneeUserId: null, dueDate: null, steps: [] },
+    { projectId, title, notes, assigneeUserId: null, dueDate: null },
     database
   ).then((made) => made.id)
 
@@ -207,7 +207,7 @@ describe("saved views", () => {
     expect(view.filters).toEqual({ group: "priority" })
     const [listed] = (await loadProjectPage(anna.id, website, database)).views
     expect(listed.filters).toEqual({ group: "priority" })
-    expect(openView(listed, { labels: [], types: [] }, NOBODY_FILTER).filters).toEqual({ group: "priority" })
+    expect(openView(listed, {}, NOBODY_FILTER).filters).toEqual({ group: "priority" })
 
     // "None" isn't kept, so it alone is an empty view.
     await expect(
@@ -249,7 +249,7 @@ describe("saved views", () => {
     // On My tasks a view keeps no person or group.
     const mine = await saveView(anna.id, { projectId: null, name: "Doing", filters: { status: "doing" } }, database)
     expect(
-      (await updateView(anna.id, { viewId: mine.id, name: "Done", filters: { status: "done", person: ben.id, group: "tags" } }, database))
+      (await updateView(anna.id, { viewId: mine.id, name: "Done", filters: { status: "done", person: ben.id, group: "priority" } }, database))
         .filters
     ).toEqual({ status: "done" })
   })
@@ -280,15 +280,15 @@ describe("saved views", () => {
     })
   })
 
-  it("open without a person no longer on the project or a deleted label, and say so", () => {
+  it("open without a person no longer on the project, and say so", () => {
     const view = {
-      filters: { status: "stuck" as const, person: "leo", label: "gone" },
-      names: { person: "Leo", label: "Bug" },
+      filters: { status: "stuck" as const, person: "leo" },
+      names: { person: "Leo" },
     }
-    const here = { people: [{ id: "ben" }], labels: [{ id: "l1" }], types: [] }
+    const here = { people: [{ id: "ben" }] }
     expect(openView(view, here, NOBODY_FILTER)).toEqual({
       filters: { status: "stuck" },
-      missing: ["Leo isn't on this project any more", 'The tag "Bug" was deleted'],
+      missing: ["Leo isn't on this project any more"],
     })
     // "Nobody assigned" is always there.
     expect(openView({ filters: { person: NOBODY_FILTER }, names: {} }, here, NOBODY_FILTER).missing).toEqual([])

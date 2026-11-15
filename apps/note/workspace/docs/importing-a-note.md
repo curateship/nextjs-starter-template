@@ -30,7 +30,7 @@ an import.
 ## Defaults Tyler was offered and did not change
 
 - A link from another source than the one picked (a TikTok link pasted under
-  Instagram) is filed under its real source, and the toast says so.
+  Instagram) is filed under its real source.
 - The same link imported twice into one library opens the note already there.
   The same link may sit in two libraries.
 - The bin on the Video card removes the link, the file, the author and the AI
@@ -66,7 +66,7 @@ an import.
 - **Anything else** is refused: "That link isn't from YouTube, Instagram,
   TikTok, X, LinkedIn, Facebook or Reddit."
 - **A link already in the library** opens that note. One in Trash is brought
-  back out, and the toast says so.
+  back out and opened.
 
 ## What happens
 

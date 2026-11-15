@@ -86,7 +86,7 @@ saved with it.
 | media_failed | the owner of the file | Account | My uploads, `/uploads?kind=background` or `?kind=sound` |
 | credits_low | the person running low | Account | My uploads, `/uploads?kind=background` or `?kind=sound` |
 | storage_low | a member at 90% of their space, once until they drop back under | Account | My uploads, `/uploads` |
-| report_new | every active admin but the reporter | Account | `/admin/pomodoro-reports` |
+| report_new | every active admin but the reporter | Account | `/admin/flowfly?section=safety` |
 | report_reviewed | whoever filed the report | Account | nothing |
 | profile_hidden | the owner of the hidden profile | Account | Settings → Public page |
 | streak_reminder | a member who switched it on, streak alive and today empty | Account | `/timer` |

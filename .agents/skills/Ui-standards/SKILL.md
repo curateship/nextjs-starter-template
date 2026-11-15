@@ -227,10 +227,66 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
 - **Under 1280px, one panel at a time.** A pill row of the three panel names
   sits above them; all three stay mounted and the hidden two are `inert`.
   Opening a record switches to the right panel. This row is navigation, not
-  content tabs, so it stays pills whatever the tab rule below says.
+  content tabs, so it stays pills whatever the tab rule below says. Trade's
+  dashboard at `/trade` is the one exception: under 1280px it is the chart with
+  a bar of four buttons along the bottom (Left panel, Positions, Browse, Right
+  panel) sliding each panel up over it (Tyler, 13 Nov 2026), in
+  `apps/trade/workspace/docs/screens/dashboard-on-a-phone.md`.
+- **A side panel's body: first card straight under the header, and wired to
+  Panel cards → Opacity.** Tyler, 13 Nov 2026, after both came back on Trade
+  and Bots: "The blank strip and the right panel first block not wiring to the
+  opacity setting is a persistent problem." Settings → Styling → Panel cards →
+  Opacity reaches a side panel's first card through `theme.css` alone, so a
+  panel that misses one of these marks silently ignores the setting. Every left
+  page panel, right record panel and inspector, in the shell and in every app's
+  own copy of one:
+  - **The box that directly holds the cards carries `data-side-panel-body=""`**,
+    the div under the panel's `ScrollArea` with `PANEL_GUTTER` and `pt-0`
+    (`admin-page-panel.tsx`, `crm/record-frame.tsx`). A right panel built on
+    `RecordFrame` has it already; a panel frame of an app's own does not until
+    it is added.
+  - **Cards are the shell's `PanelCard`** (`data-slot="panel-card"`,
+    `data-panel-card-tile`), and page blocks a `BlockCard` with
+    `data-block-card` and `data-block-tile`. An app's own copy of either must
+    carry the same attributes.
+  - **The white body inside a card is painted from the shell's variable,
+    never a plain colour.** A block's tile is
+    `[--block-body:color-mix(in_oklab,var(--muted)_var(--shell-block-body-shade,0%),var(--card))] bg-[var(--block-body)]`,
+    with its table heading and totals rows on `var(--block-body)` too, exactly
+    as `shared/notes/block-card.tsx`; a panel card's tile is the shell's
+    `data-panel-card-tile`. The setting turns the first card see-through by
+    changing that variable, so a tile left on `bg-card` stays solid white under
+    a see-through heading (Tyler, 13 Nov 2026: "you forgot the opacity for the
+    body too", then "this change needs to be applied to all the apps and
+    update skill too"). Trade's own block card was the one copy that did this.
+  - **The cards are siblings, never each in a wrapper.** The rule is
+    `[data-slot="panel-card"]:first-of-type`, so a card wrapped in its own div
+    is "first" too and turns see-through with the real first card. A popover
+    that needs the card's position finds it from a hidden marker just before
+    it (`trades-popover.tsx` in Trade), never by wrapping it.
+  - **No space above the first card.** The body has no top padding, and a
+    page editor drops its own 15px top edge when a block opens the page:
+    `[&_.page-rte_.tiptap:has(>.react-renderer:first-child)]:!pt-0` beside
+    `!pt-3.75` in `saving-document.tsx`. An app's own copy of that file needs
+    the same line, or a blank strip shows under the header.
+  - **Check it by measuring, not by reading.** With Opacity below 100%, the
+    first card's background and its body's (`[data-block-tile]` or
+    `[data-panel-card-tile]`) both have an alpha below 1 and the second card's
+    do not, and the header's bottom equals the first card's top
+    (`getBoundingClientRect()`). At 100% the first card's background has an
+    alpha of exactly 1, a top block included: the setting is its whole
+    solidity, never a share of the 60% other blocks are drawn at (Tyler,
+    14 Nov 2026: "if we already have the opacity setting then it makes no
+    sense to have a fixed opacity for one block"). Do this on every side
+    panel the change touches, in the running app, before calling it done.
 - **Every panel starts with `DashboardCardHeader`** (57px). The left panel's is
   `DashboardCardTitleHeader`: a back arrow or an icon, the title, then the pin
   and the cog. Tabs sit inside a header, never in a second row under it.
+  - **A tab's own choices are a dropdown in the header, never a second
+    row.** Tyler, 7 Nov 2026, on the CRM: "We dont need a second subnav. Just
+    put it as a dropdown filter here", between Filter and the New button. It
+    names the choice showing and its count, and lists every choice with its
+    count. It is the shell's `ViewMenu` (`src/components/shared/view-menu.tsx`).
 - **A left panel about one record has a banner and an avatar**, drawn as the
   project page does (`project-details-panel.tsx`). A record is one project,
   team, person, creator and the like.
@@ -308,6 +364,15 @@ Trade's recipe editor, the front page editor, and Trade's exchange desk.
   - The Filter frame is the shell's `FilterPopover`
     (`src/components/shared/filter-popover.tsx`); Project's
     `TaskFilterPopover` is the drawing it was taken from.
+- **A row press goes to the record's own dashboard; the cog opens the right
+  panel.** Tyler, 14 Nov 2026: "clicking on the table item should always lead
+  to another dashboard (if there is one) and the cog icon should always open
+  up the right panel". A row whose record has a dashboard of its own (a page's
+  builder, a flow's canvas, a recipe's canvas, a backtest's chart, a project's
+  page) opens it on a press, and the row's cog (`CrmTableRow`'s `cog`) shows
+  the record on the right. A row with no dashboard of its own opens on the
+  right either way. Never the other way round. Admin's Pages, Video's Flows,
+  and Trade's Recipes and Backtests are the references.
 - **A middle list whose rows can change together has mass select** (Tyler,
   19 Oct 2026: "the mass select function as well"). It replaces the Tables
   rule's always-shown tick box column on these screens.
@@ -495,7 +560,7 @@ draw a menu any other way on this pattern.
 - **Boxes opened from inside** (selects, date pickers, time zones, the media
   library, Unsplash) don't close the menu.
 - **Delete asks first** in a `ConfirmDialog` when it can't be undone. When it
-  goes to a bin with Undo, it doesn't ask.
+  goes to a bin it can be brought back from, it doesn't ask.
 
 ### Where this guide and the older rules disagree
 
@@ -669,9 +734,13 @@ card in the rail on `/admin/settings`.
   read-only window ends with one “Done” button.
 - Use `src/components/ui/form-dialog.tsx` when a window holds typed work. Pass
   `dirty` and `busy`, and wire Cancel through its `requestClose` callback.
-- Report failures through the persistent error toast. Successes from dashboard
-  changes use a success toast; account-window actions may confirm inline beside
-  the action.
+- Report failures through the persistent error toast. **Nothing pops up when
+  something works** (Tyler, 10 Nov 2026: "Remove all success toast", "All of
+  trade and shell too"): the changed screen is the answer. That includes a
+  toast carrying an Undo button (Tyler, 11 Nov 2026: "remove them"); a bin
+  is the way back. Something only
+  partly done says the part that was not done, in the error toast. Trade's
+  `workspace/docs/screens/no-success-toasts.md` has the cases.
 - A record with several tabs opens from its list and keeps the open record in
   `?open=<id>`. `src/lib/hooks/use-open-from-link.ts` owns that address behavior.
 - Preserve Escape, focus trapping, focus restoration, and accessible titles.

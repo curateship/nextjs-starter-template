@@ -42,6 +42,13 @@ export type LiveFill = {
   sz: number
   /** Epoch ms, the exchange's clock. */
   at: number
+  /**
+   * The price its order was first placed at, for slippage (Tyler, 10 Nov
+   * 2026: "aimed vs filled"). Kept from when the order went out, through
+   * every re-place of a chase. Null or missing on fills from before it was
+   * recorded, and on any fill whose order this app did not place.
+   */
+  aimedPx?: number | null
   /** What it banked, the exchange's own figure. Zero on a fill that opened. */
   closedPnl: number
   fee: number
@@ -98,6 +105,20 @@ export type LiveFill = {
    * It decides which half of the event's sentence this is.
    */
   gridPairOut?: boolean
+  /**
+   * The smart order or bot that placed this fill's order, when one did:
+   * missing on a fill placed by hand. Stamped where the fills are read
+   * (`stampFillOwners`), because only the server knows which smart orders
+   * were working the coin at that moment.
+   */
+  owner?: FillOwner
+}
+
+/** The smart order, and the bot run when a bot placed it, behind one fill. */
+export type FillOwner = {
+  kind: "grid" | "dca" | "signal" | "watch"
+  ladderId: string
+  flowRunId: string | null
 }
 
 /** What ended a trade. */

@@ -10,6 +10,7 @@ import {
   markAllCurrentUserNotificationsRead,
   deleteAdminNotificationRows,
   clearAdminNotificationRows,
+  sendCurrentUserTestNotification,
 } from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
 import { readShellGlobals } from "@/server/shell-settings"
@@ -274,4 +275,15 @@ export function deleteAdminNotifications(notificationIds: string[]) {
 
 export function clearAdminNotifications() {
   return clearAdminNotificationsFn()
+}
+
+const sendTestNotificationFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ sent: boolean }> => {
+    return sendCurrentUserTestNotification()
+  }
+)
+
+/** Drops one test notice in the signed-in admin's own bell. */
+export function sendTestNotification() {
+  return sendTestNotificationFn()
 }

@@ -128,11 +128,18 @@ function useMediaViews(screen: string, enabled: boolean) {
       .then((loaded) => {
         if (active) setViews(loaded)
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (!active) return
+        const message = error instanceof Error ? error.message : ""
+        showErrorToast(
+          describeAuthError(message) ?? "Your saved views could not be loaded.",
+          { label: "Try again", onClick: reload }
+        )
+      })
     return () => {
       active = false
     }
-  }, [enabled, screen, version])
+  }, [enabled, reload, screen, version])
   return { views, reload }
 }
 
@@ -271,9 +278,6 @@ export function MediaFilterMenu({
       if (value.collection === deleting.id) {
         onChange({ ...value, collection: kind.defaultCollection })
       }
-      toast.success(
-        `Deleted “${deleting.name}”. Its files are still in your library.`
-      )
       setDeleting(null)
       onCollectionsChanged()
     } catch (error) {
@@ -289,7 +293,6 @@ export function MediaFilterMenu({
     dismissErrorToast()
     try {
       await deleteView(deletingView.id)
-      toast.success(`Deleted the view “${deletingView.name}”.`)
       setDeletingView(null)
       reloadViews()
     } catch (error) {
@@ -490,8 +493,7 @@ export function MediaFilterMenu({
           if (!next) setRenaming(null)
         }}
         collection={renaming}
-        onSaved={(saved) => {
-          toast.success(`Renamed to “${saved.name}”.`)
+        onSaved={() => {
           onCollectionsChanged()
         }}
       />
@@ -554,7 +556,6 @@ function ViewNameDialog({
     dismissErrorToast()
     try {
       await updateView({ viewId: view.id, name: next, filters: view.filters })
-      toast.success(`Renamed to “${next}”.`)
       onSaved()
       onClose()
     } catch (error) {

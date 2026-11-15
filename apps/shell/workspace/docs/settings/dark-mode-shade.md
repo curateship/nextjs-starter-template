@@ -1,7 +1,7 @@
 # The dark mode shade
 
 Dark mode comes in four steps, from the shell's original near black up to a
-soft grey, and an admin picks one in Settings → Styling → Dark mode. Tyler
+soft grey, and an admin picks one in Admin → Styling → Dark mode. Tyler
 asked for it on 27 September 2026, pointing at the same control in Pomodoro,
 where the near-black canvas "is too dark and hurts the eye".
 

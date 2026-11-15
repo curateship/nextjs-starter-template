@@ -18,33 +18,55 @@ import { defineNode } from "../node-descriptor"
  */
 export const AUDIENCE_KINDS = [
   "everyone",
+  "segment",
+  "accounts",
   "registered",
   "paying",
   "plan",
-  "segment",
   "tag",
 ] as const
 
 export type AutomationAudienceKind = (typeof AUDIENCE_KINDS)[number]
 
+/**
+ * The two lists an audience reads, which never mix (Tyler, 9 Nov 2026:
+ * "users and subscribers are also seperate"). Subscribers are the mailing
+ * list, people added by hand or imported; accounts are everyone who signed
+ * up, emailed at their own address.
+ */
+export type AudienceList = "subscribers" | "accounts"
+
+export const AUDIENCE_LIST: Record<AutomationAudienceKind, AudienceList> = {
+  everyone: "subscribers",
+  segment: "subscribers",
+  accounts: "accounts",
+  registered: "accounts",
+  paying: "accounts",
+  plan: "accounts",
+  tag: "accounts",
+}
+
 /** The dropdown's words, and the words the run history uses. */
 export const AUDIENCE_LABELS: Record<AutomationAudienceKind, string> = {
-  everyone: "Everyone on the contact list",
-  registered: "Members who confirmed their email",
-  paying: "Members paying for any plan",
-  plan: "Members on one plan",
-  segment: "The people in a segment",
-  tag: "Members with a tag",
+  everyone: "Every subscriber",
+  segment: "The subscribers in a segment",
+  accounts: "Every account",
+  registered: "Accounts that confirmed their email",
+  paying: "Accounts paying for any plan",
+  plan: "Accounts on one plan",
+  tag: "Accounts with a member tag",
 }
 
 export const AUDIENCE_HINTS: Record<AutomationAudienceKind, string> = {
   everyone:
-    "Every subscribed contact — including addresses added by hand that never made an account, and admins.",
+    "Everyone on the mailing list who has not opted out: people added by hand or imported. Accounts are not on it.",
+  segment: "Whoever is in the segment you pick, at the moment the flow runs.",
+  accounts:
+    "Everyone who signed up, emailed at their own address, unless they turned automated mail off.",
   registered:
     "Only accounts that have clicked the link in their sign-up email.",
-  paying: "Anyone whose paid plan is running right now, on any plan.",
-  plan: "Anyone paying for the one plan you pick below.",
-  segment: "Whoever is in the segment you pick, at the moment the flow runs.",
+  paying: "Accounts whose paid plan is running right now, on any plan.",
+  plan: "Accounts paying for the one plan you pick below.",
   tag: "Accounts carrying the exact member tag you enter below.",
 }
 
@@ -61,17 +83,17 @@ export function audienceWording(
 ): string {
   if (kind === "plan") {
     return planSlug
-      ? `members paying for the "${planSlug}" plan`
+      ? `accounts paying for the "${planSlug}" plan`
       : "a plan nobody has picked yet"
   }
   if (kind === "segment") {
     return segmentName
-      ? `the people in the "${segmentName}" segment`
+      ? `the subscribers in the "${segmentName}" segment`
       : "a segment nobody has picked yet"
   }
   if (kind === "tag") {
     return tag
-      ? `members with the “${tag}” tag`
+      ? `accounts with the “${tag}” tag`
       : "a tag nobody has entered yet"
   }
   return AUDIENCE_LABELS[kind].toLowerCase()
@@ -99,7 +121,8 @@ export function audienceIsMostOfTheList(
   total: number,
   everyone: number
 ): boolean {
-  if (kind === "everyone") return false
+  // The widest choice of each list is not compared with itself.
+  if (kind === "everyone" || kind === "accounts") return false
   return everyone > 0 && total > 0 && total >= everyone * MOST_OF_THE_LIST
 }
 

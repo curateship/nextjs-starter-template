@@ -15,6 +15,7 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import {
   createExtra,
@@ -112,59 +113,68 @@ export function ExtraFormDialog({
           <DialogHeader>
             <DialogTitle>{extra ? `Edit ${label}` : `Create ${label}`}</DialogTitle>
           </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>{EXTRA_KIND_LABELS[extra?.kind ?? kind].tab}</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="extra-name">Name</Label>
-                  <Input
-                    id="extra-name"
-                    value={form.name}
-                    maxLength={200}
-                    aria-invalid={(invalid && !form.name.trim()) || undefined}
-                    onChange={(event) => setForm({ ...form, name: event.target.value })}
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit(false)
+            }}
+          >
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>{EXTRA_KIND_LABELS[extra?.kind ?? kind].tab}</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="extra-name">Name</Label>
+                    <Input
+                      id="extra-name"
+                      value={form.name}
+                      maxLength={200}
+                      aria-invalid={(invalid && !form.name.trim()) || undefined}
+                      onChange={(event) => setForm({ ...form, name: event.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="extra-description">Description</Label>
+                    <Textarea
+                      id="extra-description"
+                      rows={1}
+                      value={form.prompt}
+                      maxLength={5000}
+                      aria-invalid={(invalid && !form.prompt.trim()) || undefined}
+                      onChange={(event) => setForm({ ...form, prompt: event.target.value })}
+                    />
+                    <LengthCounter length={form.prompt.length} max={5000} />
+                  </div>
+                  <ImageUpload
+                    label="Picture"
+                    value={form.imageMediaUrl}
+                    onChange={(value) => setForm({ ...form, imageMediaUrl: value })}
+                    aspect="square"
+                    fit="contain"
+                    disabled={busy !== null}
+                    className="max-w-32"
+                    hint="Pick one from Media, or press Draw with AI to make one from the description."
                   />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="extra-description">Description</Label>
-                  <Textarea
-                    id="extra-description"
-                    rows={1}
-                    value={form.prompt}
-                    maxLength={5000}
-                    aria-invalid={(invalid && !form.prompt.trim()) || undefined}
-                    onChange={(event) => setForm({ ...form, prompt: event.target.value })}
-                  />
-                </div>
-                <ImageUpload
-                  label="Picture"
-                  value={form.imageMediaUrl}
-                  onChange={(value) => setForm({ ...form, imageMediaUrl: value })}
-                  aspect="square"
-                  fit="contain"
-                  disabled={busy !== null}
-                  className="max-w-32"
-                  hint="Pick one from Media, or press Draw with AI to make one from the description."
-                />
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy !== null} onClick={requestClose}>
-              Cancel
-            </Button>
-            <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void submit(true)}>
-              {busy === "draw" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-              Draw with AI · {formatCents(DRAW_CENTS)}
-            </Button>
-            <Button type="button" disabled={busy !== null} onClick={() => void submit(false)}>
-              {busy === "save" ? <Loader2Icon className="animate-spin" /> : null}
-              {extra ? "Save changes" : `Create ${label}`}
-            </Button>
-          </DialogFooter>
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={busy !== null} onClick={requestClose}>
+                Cancel
+              </Button>
+              <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void submit(true)}>
+                {busy === "draw" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                Draw with AI · {formatCents(DRAW_CENTS)}
+              </Button>
+              <Button type="submit" disabled={busy !== null}>
+                {busy === "save" ? <Loader2Icon className="animate-spin" /> : null}
+                {extra ? "Save changes" : `Create ${label}`}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       )}
     </FormDialog>

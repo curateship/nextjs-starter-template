@@ -10,9 +10,14 @@ beside Delete. One press puts the same export back in the queue.
   anything. A failed row has no Download or Settings button, because there is no
   file.
 - **The page watches what it started.** Exports that are waiting or being made
-  are listed too, with "Waiting to start…" or "Making it now…". While any of
-  them is on the list, the page asks again every three seconds, so a retried
-  export can be watched until it lands.
+  are listed too, with the same line the Export window shows: "Waiting to
+  start…", "Waiting, 2 ahead of it" when others of yours are first in line,
+  the worker's own words while it waits for room on the server's disk, or
+  "Making it now · 2:14 so far" once the worker has begun. The time counts up
+  once a second from when the worker started rendering (the job's
+  `started_at`), not from when Export was pressed. While any of them is on the
+  list, the page asks again every three seconds, so a retried export can be
+  watched until it lands.
 - **Stopped exports are not listed.** Stopping one was a choice, not a failure.
 
 ## When a retry is allowed

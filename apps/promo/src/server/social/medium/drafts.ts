@@ -37,6 +37,7 @@ import { promoMediumDrafts, promoMediumResponses } from "./schema"
  * off "Medium Rules" (policy.medium.com/medium-rules-30e5502c4eb4, dated
  * 26 May 2021) on 21 Oct 2026 and put in short. Handed to the rules check
  * (part 18) and to every prompt. Re-read the page when Medium changes it.
+ * Read on 21 Oct 2026.
  */
 export const MEDIUM_RULES = [
   "No posting mainly to drive traffic to, or raise the search ranking of, an outside site, product or service.",
@@ -49,8 +50,6 @@ export const MEDIUM_RULES = [
   "If you got something for free or of value connected to the topic, you must say so.",
   "No misleading tags, links or titles.",
 ]
-
-export const MEDIUM_RULES_READ_ON = "21 Oct 2026"
 
 /**
  * Tyler's rule for when a response names the product, 21 Oct 2026: "Only

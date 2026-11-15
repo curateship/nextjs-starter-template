@@ -79,6 +79,22 @@ export function loadArchiveItems(query: z.infer<typeof listShape>): Promise<{ it
   return listFn({ data: query })
 }
 
+const everyShape = listShape.omit({ projectId: true })
+
+// Admin only: a guest works one project and never reads past it.
+const everyFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(everyShape)
+  .handler(async ({ context, data }) => {
+    const items = await import("@/server/archive/items")
+    return items.listArchiveItems(context.user.id, { ...data, projectId: null })
+  })
+
+/** Every project's items at once, for the Projects dashboard's Archive with no project picked. */
+export function loadEveryArchiveItem(query: z.infer<typeof everyShape>): Promise<{ items: ArchiveCard[]; binCount: number }> {
+  return everyFn({ data: query })
+}
+
 /** The guest check for one item: the project it is in decides who the call acts as. */
 async function actorForItem(caller: Parameters<typeof actorFor>[0], itemId: string) {
   const items = await import("@/server/archive/items")

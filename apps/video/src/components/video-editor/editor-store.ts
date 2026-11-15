@@ -5,6 +5,7 @@ import {
   DEFAULT_CLIP_SPEED,
   MAX_CLIP_SPEED,
   MIN_CLIP_SPEED,
+  playbackSourceMsAt,
   sourceMsAt,
   sourceSpanMs,
   storedPlaybackValue,
@@ -156,6 +157,7 @@ export type EditorAction =
       clipId: string
       clipMediaId: string | null
       pieces: MovingPiece[]
+      loop?: boolean
     }
   // A voice line read again, swapped in with its words (remake-clip.ts). One
   // action, so one Undo brings the old line and its captions back together.
@@ -229,8 +231,12 @@ export type EditorAction =
   | { type: "INSERT_CAPTIONS"; captions: EditorClip[] }
   // A music track under the whole project, on a lane of its own at the bottom
   // with ducking on (see background-music.ts). One action, one undo.
-  | { type: "ADD_MUSIC_TRACK"; clips: EditorClip[] }
+  // `blended` is the second lane of a track laid with Blend the repeats
+  // (background-music.ts layAudioRepeats): both lanes go in as one Undo.
+  | { type: "ADD_MUSIC_TRACK"; clips: EditorClip[]; blended?: EditorClip[] }
   | { type: "DELETE_CLIP"; clipId: string }
+  // Every clip picked with Shift or Cmd at once, as one undo step.
+  | { type: "DELETE_CLIPS"; clipIds: string[] }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
   | { type: "TOGGLE_TRACK_MUTE"; trackId: string }
@@ -930,8 +936,12 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         duck: true,
         clips: action.clips,
       }
+      const blended: EditorTrack[] =
+        action.blended?.length && state.tracks.length + 1 < MAX_TIMELINE_TRACKS
+          ? [{ ...newTrack(), duck: true, clips: action.blended }]
+          : []
       return {
-        ...pushUndo(state, [...state.tracks, music]),
+        ...pushUndo(state, [...state.tracks, music, ...blended]),
         selectedClipId: action.clips[0].id,
       }
     }
@@ -1042,7 +1052,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         trimStartMs: 0,
         // The new file has to cover the clip at whatever speed it is set to:
         // a clip playing at 2x needs twice its own length of recording.
-        durationMs: isTimed
+        // A looped clip keeps its length: the new file starts again too.
+        durationMs: isTimed && !found.clip.loop
           ? Math.min(
               found.clip.durationMs,
               action.media.sourceDurationMs / clipSpeed(found.clip)
@@ -1195,7 +1206,8 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
         id: editorId(),
         startMs: clip.startMs + offset,
         durationMs: clip.durationMs - offset,
-        trimStartMs: sourceMsAt(clip, offset),
+        // A looped clip's right half starts where the loop had got to.
+        trimStartMs: playbackSourceMsAt(clip, offset),
         transition: undefined,
         origin: keptOrigin(clip),
         // Only the first piece stays a Subscribe sticker's click.
@@ -1213,20 +1225,28 @@ function reduceEditor(state: EditorState, action: EditorAction): EditorState {
       return { ...pushUndo(state, tracks), selectedClipId: right.id }
     }
 
-    case "DELETE_CLIP": {
-      const found = findClip(state.tracks, action.clipId)
-      if (!found) return state
-      // Taking an ad off closes the gap a pause ad made.
-      const tracks = isAd(found.clip)
-        ? removeAd(state.tracks, action.clipId)
-        : withTrack(state.tracks, found.track.id, (track) => ({
-            ...track,
-            clips: track.clips.filter((clip) => clip.id !== action.clipId),
-          }))
+    case "DELETE_CLIP":
+    case "DELETE_CLIPS": {
+      const ids = action.type === "DELETE_CLIP" ? [action.clipId] : action.clipIds
+      let tracks = state.tracks
+      for (const clipId of ids) {
+        const found = findClip(tracks, clipId)
+        if (!found) continue
+        // Taking an ad off closes the gap a pause ad made.
+        tracks = isAd(found.clip)
+          ? removeAd(tracks, clipId)
+          : withTrack(tracks, found.track.id, (track) => ({
+              ...track,
+              clips: track.clips.filter((clip) => clip.id !== clipId),
+            }))
+      }
+      if (tracks === state.tracks) return state
       return {
         ...pushUndo(state, tracks),
         selectedClipId:
-          state.selectedClipId === action.clipId ? null : state.selectedClipId,
+          state.selectedClipId && ids.includes(state.selectedClipId)
+            ? null
+            : state.selectedClipId,
       }
     }
 

@@ -1,5 +1,3 @@
-import type { BacktestTrade } from "@/lib/trade/backtest/result"
-
 type SelectableCoin = {
   marketKey: string
   summary: { madeOrLost: number; trades: number } | null
@@ -23,16 +21,6 @@ export function firstBacktestMarket(
       if (leftBand !== rightBand) return leftBand - rightBand
       return (right.summary?.madeOrLost ?? 0) - (left.summary?.madeOrLost ?? 0)
     })[0]?.marketKey ?? null
-}
-
-/** The first row in the Trades panel's default order. */
-export function firstBacktestTrade(
-  trades: readonly BacktestTrade[]
-): number | null {
-  const closed = trades
-    .filter((trade) => trade.exitAt !== null)
-    .sort((left, right) => left.n - right.n)[0]
-  return closed?.n ?? trades.find((trade) => trade.exitAt === null)?.n ?? null
 }
 
 export function readBacktestSelection(

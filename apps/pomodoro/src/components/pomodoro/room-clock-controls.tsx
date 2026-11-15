@@ -10,9 +10,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { playRoomStartTick } from "@/lib/pomodoro/completion-alerts"
 import {
   START_DELAYS,
   START_DELAY_LABELS,
+  startTickDue,
   type StartDelay,
 } from "@/lib/pomodoro/room-countdown"
 import type { RoomSnapshotClient } from "@/lib/pomodoro/room-clock-store"
@@ -69,6 +71,26 @@ export function useRoomClockReading(room: Room) {
     counting: countdownLeft !== null,
     shownSeconds: countdownLeft ?? secondsLeft ?? room.focusMinutes * 60,
   }
+}
+
+/**
+ * Ticks through the last ten seconds of a room's "Starting in" countdown, for
+ * everyone in the room. Mounted once, in the header's room control, which is
+ * on every page, so the tick plays wherever you are and never twice.
+ */
+export function useRoomStartTicks(room: Room | null) {
+  const countdownLeft = useRoomSecondsLeft(
+    room?.phase === "waiting" ? room.startingAt : null
+  )
+  const lastTicked = React.useRef<number | null>(null)
+  React.useEffect(() => {
+    if (!startTickDue(lastTicked.current, countdownLeft)) {
+      if (countdownLeft === null) lastTicked.current = null
+      return
+    }
+    lastTicked.current = countdownLeft
+    playRoomStartTick()
+  }, [countdownLeft])
 }
 
 const roomPhaseNames: Record<string, string> = {

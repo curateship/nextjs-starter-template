@@ -29,6 +29,7 @@ import {
   DARK_SHADES,
   darkShade,
   DEFAULT_DASHBOARD_TABS,
+  DEFAULT_PAGE_SHADE,
   DEFAULT_SIDEBAR_SHADE,
   isDarkShadeId,
   isDashboardTabStyle,
@@ -57,7 +58,12 @@ export function StylingSettings({
   const [previewTab, setPreviewTab] = React.useState("list")
   const shade = darkShade(styling.darkShade)
   const sidebarShade = styling.sidebarShade ?? DEFAULT_SIDEBAR_SHADE
-  const railPreview = `color-mix(in oklab, var(--card) ${sidebarShade}%, var(--shell-canvas))`
+  const pageShade = styling.pageShade ?? DEFAULT_PAGE_SHADE
+  // The page is drawn from the slider's own number rather than the live
+  // --shell-canvas, so the preview moves with the thumb even before the
+  // root variable catches up. The rail preview mixes from this page too.
+  const pagePreview = `color-mix(in oklab, var(--shell-canvas-deep) ${pageShade}%, var(--card))`
+  const railPreview = `color-mix(in oklab, var(--card) ${sidebarShade}%, ${pagePreview})`
 
   const update = (patch: Partial<ShellStyling>) =>
     onConfigChange({ ...config, styling: { ...styling, ...patch } })
@@ -275,6 +281,36 @@ export function StylingSettings({
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
+        storageId="styling-page-shade"
+        title="Gutter shade"
+        description="The background behind the cards, in the middle of every dashboard. The whole admin area recolors live as you adjust this."
+        contentClassName="space-y-6"
+      >
+        <SliderRow
+          label="Shade"
+          value={pageShade}
+          min={0}
+          max={100}
+          valueLabel={`${pageShade}%`}
+          onChange={(value) => update({ pageShade: value })}
+          help="0% matches a card, so the cards blend into the page. 100% is the deepest grey. It works the same way in light and dark mode."
+        />
+
+        <FieldGroup label="Preview" className="gap-2">
+          <div
+            className="flex h-32 max-w-lg overflow-hidden rounded-lg border p-3"
+            style={{ background: pagePreview }}
+          >
+            <Card size="sm" className="h-full flex-1">
+              <CardContent className="text-sm text-muted-foreground">
+                A card, sitting on the page.
+              </CardContent>
+            </Card>
+          </div>
+        </FieldGroup>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
         storageId="styling-sidebar-shade"
         title="Left menu shade"
         description="The background of the left menu and the bar along the top. The whole admin area recolors live as you adjust this."
@@ -291,7 +327,10 @@ export function StylingSettings({
         />
 
         <FieldGroup label="Preview" className="gap-2">
-          <div className="shell-canvas flex h-32 max-w-lg overflow-hidden rounded-lg border">
+          <div
+            className="flex h-32 max-w-lg overflow-hidden rounded-lg border"
+            style={{ background: pagePreview }}
+          >
             <div
               className="w-1/4 border-r"
               style={{ background: railPreview }}

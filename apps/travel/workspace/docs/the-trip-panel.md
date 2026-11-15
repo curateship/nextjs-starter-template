@@ -1,9 +1,12 @@
 # The trip's left panel
 
-The trip's left panel shows the trip itself. The back arrow goes to Trips. Two
-icons sit in the header. The note icon opens the trip's notes, and the ⋮
+The trip's left panel shows the trip itself: the header, then the
+description. The back arrow goes to Trips. Two icons sit in the header. The note icon opens the trip's notes, and the ⋮
 opens Trip settings.
 
+- **The trip's name** is in the header when the panel is 18rem wide or more.
+  Narrower, as when it opens, the back arrow, note icon and ⋮ leave it no
+  room, so it sits on its own line under them instead of shrinking to a dot.
 - **The cover photo** lies faintly behind the top of the panel, the way
   Project's banner does, with its Unsplash credit under the description. It is
   set in Trip settings → Cover photo, uploaded or from Unsplash, and shows as a
@@ -12,16 +15,30 @@ opens Trip settings.
   editor, with its toolbar over selected words (task "Misc": "I want to also
   inline edit discription with tiptap editor"). It saves 700ms after the last
   letter and when it's left. It is the only place the description is
-  written. Trip settings doesn't have it.
-- **Money:** the total of every cost on the trip's days against the budget
-  typed here, with a bar that turns red over budget, then two tabs, By day
-  and By type (Tyler, 4 Nov 2026: "Switch: day or type"), remembered in this
-  browser. By day is a line per day. By type is a line per activity type with
-  its icon, biggest first, such as Hotel ¥90,000 and Food ¥42,000; cards with
-  no type, or a removed one, count under Other. Both add up to the same
-  total. Costs in Ideas are listed apart and not counted. A stay counts once,
-  on its first day. The sums are `tripTotals` and `spendingByType` in
-  `src/lib/travel/budget.ts`.
+  written. Trip settings doesn't have it. It reads at 13px, the panel's body
+  size, not a note's 15px, which left one or two words a line in the narrow
+  panel.
+- **Lock blocks** in the ⋮ makes the description read only, its words and
+  its blocks, until Unlock blocks (Tyler, 7 Nov 2026: "add lock blocks
+  button"), as Project's Lock the notes does for a page. While it's locked
+  nothing can be typed, no "/" list opens, the Budget field is turned off
+  and blocks have no bins. It reads at full strength, not faded the way a
+  note is with no signal (Tyler, 7 Nov 2026: "Why is there a shade overlay
+  when the left panel is locked?"). The Budget block still folds and switches between
+  By day and By type, since those change nothing on the trip. The server
+  refuses a new description while it's locked, with "The trip's blocks are
+  locked. Unlock them from the trip's ⋮ first." The trip's own notes behind
+  the note icon aren't locked. The lock is `description_locked` on
+  `travel_trips` (`drizzle/0108_travel_trip_blocks_lock.sql`), and Copy trip
+  copies it.
+- **Money** is the Budget block, put in the description, or any note on the
+  trip, by typing "/" (Tyler, 7 Nov 2026: "turn this bottom card into a
+  budget block"). It was a folding card in the panel's footer, so the panel
+  has no footer now and the description takes all of it. The block is
+  described in [Notes and the "/" blocks](notes-and-blocks.md). The budget
+  itself is still the trip's own (`budget_cents` on `travel_trips`), so a
+  trip keeps its budget without a block, and a trip with no block shows no
+  money in the panel until one is added.
 
 ## Notes
 
@@ -36,17 +53,33 @@ should then turn into an x icon to close with the morph animation").
 - With no notes, the panel is one dashed area, Add a note, that makes the
   first one.
 - With notes, they're listed by first line and the day each last changed,
-  newest first, with a New note button under them.
-- Right-click a note in the list for Duplicate and Delete; Delete asks first
+  pinned notes first, then newest first, with a New note button under them.
+- Right-click a note in the list for Pin (or Unpin), Duplicate and Delete
   (Tyler, 3 Nov 2026: "add right click feature to delete and duplicate note
   in the notes list").
+- **Pinned notes** (Tyler, 6 Nov 2026: "Right-click, many pins") sit at the
+  top of the list with an amber pin before their first line (Tyler, 6 Nov
+  2026: "pinned icon should be ember", the rating stars' amber), newest change first
+  among them. Any number can be pinned. Pinning doesn't change the day a note
+  last changed. A duplicate starts unpinned; a note put back from the bin
+  keeps its pin. The pin is `pinned_at` on `travel_trip_notes`.
+- **Delete puts a note in the trip's bin** (Tyler, 6 Nov 2026: "Same Bin as
+  cards"), and does not ask first, because Put back returns it. The note waits 30 days in the same Bin as deleted cards (the
+  ⋮ after the board's tabs), listed as "Note", with Put back and Delete for
+  good (which asks on the row first), then goes for good the next time the
+  Bin opens after 30 days. A binned note isn't in
+  the list or the Photos tab, can't be written in, and doesn't count toward
+  the 200. Putting one back when the trip already holds 200 is refused. The
+  bin is `deleted_at` on `travel_trip_notes`
+  (`drizzle/0107_travel_trip_note_bin_and_pin.sql`).
 - A new note opens with the cursor in it. A note is written in the shell's
   editor and saves itself. Back to notes, right under the note, goes back to
   the list (Tyler, 3 Nov 2026).
 - The header keeps the trip's name and its back arrow to Trips while the
   notes are open (Tyler, 3 Nov 2026: "we dont need notes with back arrow").
-- At most 200 notes a trip. They live in `travel_trip_notes`, one row each,
-  the editor's document as JSON text.
+- At most 200 notes a trip, not counting the bin. They live in
+  `travel_trip_notes`, one row each, the editor's document as JSON text. The
+  server side is `src/server/travel/trip-notes.ts`.
 
 ## What went
 
@@ -62,29 +95,44 @@ settings.
 
 The ⋮ at the top of the panel opens Trip settings as a dropdown, not a
 window (Tyler, 3 Nov 2026: "change this to 3 vertical dot and isntead of
-modal, make it into a dropdown and using the same ui and spacing as the
-previous dropdown"). It opens to the right of the ⋮, over the board, not over
-the left menu ("dropdown to appear aligned right side").
+modal, make it into a dropdown"). It opens to the right of the ⋮, over the
+board, not over the left menu ("dropdown to appear aligned right side").
 
-- It is the same menu as an activity's ⋮ (see [Activities](activities.md)):
-  294px wide, folding rows with no lines between them, one line, then Delete
-  trip in red.
-- The rows are Name, Destination, Tags, Status, Start date, Time zone,
-  Currency, Getting around (walk, transit or drive, used for travel times)
-  and Cover photo. Each shows what it holds now on the right and folds open
-  to change it.
-- Every field saves itself, the way an activity's do. There is no Save
-  button. An empty name is refused with "Give the trip a name."
-- A folded-open row shows its field with no second label, since the row
-  already names it (Tyler, 4 Nov 2026: "Remove all these duplicate labels").
-  Tags says "a comma between" in its placeholder instead.
-- The Time zone list scrolls inside its dropdown, 240px tall, by wheel or
-  drag; before 4 Nov 2026 it ran past the dropdown's edge. The activity's
-  place suggestions scroll the same way at 288px.
-- Tags go in with a comma between them and filter the Trips table.
-- The cover photo is uploaded or picked from Unsplash.
-- Delete trip moves the trip to the Trips table's Bin with Undo, then goes
-  back to Trips (see [Trips and the trip page](trips-and-the-trip-page.md)).
+Since 6 Nov 2026 it is the tabbed ⋮ of the Admin 3 panel design, the same
+menu as Project's project ⋮ (Tyler: "Look at the serttings dropdown, its not
+ui standard for example. fix them all"). Before, it was one folding row per
+setting.
+
+- **Its shape:** 20.4rem wide, never past the screen less 2rem. One
+  underlined tab, General, since a trip has nothing for a second tab. It
+  opens on General every time.
+- **General is grouped rows.** A small grey heading, then one bordered list
+  with a line between rows. The rows are light grey, darker while pointed at
+  or open (Tyler, 6 Nov 2026: "make this bg light gray"). Each row is the name
+  on the left, muted, what it holds on the right, and an arrow. An empty value
+  reads "None" in grey.
+  - **Trip:** Name, Destination, Tags and Cover photo. Each opens a small box
+    with its field, the cursor already in it.
+  - **Dates:** Start date opens the month at once, with "No dates yet" under
+    it to clear the dates. Time zone opens the zones at once, with a search
+    box over them ("tok" finds Asia/Tokyo, Enter takes the first match).
+  - **Details:** Status, Currency and Getting around (walk, transit or drive,
+    used for travel times). Each drops its choices from the row, the current
+    one ticked, and one press picks and saves.
+- **Under the groups:** Rate the trip, Lock blocks (Unlock blocks while
+  locked), then Delete trip in red under a line of its own.
+- **Saving:** every field saves itself. There is no Save button. An empty
+  name is refused with "Give the trip a name." Closing the menu leaves the
+  field being typed in first, so its save lands.
+- **Escape** inside a row's box or list closes that box and leaves the menu
+  open. Using a box opened from inside, such as the media library or
+  Unsplash, doesn't close the menu.
+- Tags go in with a comma between them, and the Trips dashboard's Tags block
+  and Filter narrow the Trips table by them.
+- Delete trip moves the trip to the Trips table's Bin, then opens Trips on its
+  Bin tab with the trip picked (see [The Trips dashboard](trips-dashboard.md)).
+- The same Trip settings, without Delete trip, is the ⋮ of a trip picked on
+  the Trips dashboard, so a trip can be changed there without opening it.
 - The number of days changes on the board.
 - With no start date, the Calendar tab has its own date picker that saves
   the start date.
@@ -92,8 +140,9 @@ the left menu ("dropdown to appear aligned right side").
 ## Where it lives
 
 `src/components/travel/trip-details-panel.tsx`, `trip-notes-panel.tsx`,
-`trip-budget-card.tsx`, `saving-document.tsx` and `trip-menu.tsx`, which is
-built from the shell's `src/components/shared/folding-menu.tsx`, the same
-pieces as an activity's ⋮ menu.
-Notes are `src/server/travel/trip-notes.ts`, the totals
-`src/lib/travel/budget.ts`.
+`saving-document.tsx` and `trip-menu.tsx`. The menu
+is `TabbedMenu` (`tabbed-menu.tsx`) with `PickGroup` and the row kinds in
+`pick-rows.tsx`, copied from Project's `my-settings-menu.tsx` and
+`pick-rows.tsx`. The gutters are in `src/lib/travel/panel-gutter.ts`.
+Notes are `src/server/travel/trip-notes.ts`. The Budget block is
+`trip-budget-card.tsx`, its totals `src/lib/travel/budget.ts`.

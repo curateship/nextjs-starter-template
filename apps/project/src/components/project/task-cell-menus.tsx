@@ -64,8 +64,8 @@ const CELL_TRIGGER =
 function useTaskChange() {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  async function change(action: () => Promise<unknown>, success?: string) {
-    const ok = await run(action, success)
+  async function change(action: () => Promise<unknown>) {
+    const ok = await run(action)
     if (ok) await router.invalidate()
     return ok
   }
@@ -146,8 +146,7 @@ export function StatusCellMenu({ task, look }: { task: TaskCard; look: "badge" |
           onClose={() => setAskingStuck(false)}
           onConfirm={async (reason) => {
             const ok = await change(
-              () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason }),
-              "Marked Stuck."
+              () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason })
             )
             if (ok) setAskingStuck(false)
             return ok
@@ -201,7 +200,7 @@ export type ProjectChoice = { id: string; name: string; color: ProjectColor; gro
  * 23 Oct 2026: "I should be able to select a project in the project col and
  * the text there to be in a chip form"). The dropdown lists every choice in
  * its order, under group names, with the task's own project ticked. The move
- * is the task's own Move to project, so its steps, chat and files go with it.
+ * is the task's own Move to project, so its chat and files go with it.
  */
 export function ProjectCellMenu({
   task,
@@ -327,8 +326,7 @@ export function AssigneeCellMenu({
           onClose={() => setHandingTo(null)}
           onConfirm={async (note) => {
             const ok = await change(
-              () => assignProjectTask({ taskId: task.id, assigneeUserId: handingTo.id, note: note || null }),
-              `Handed to ${handingTo.name}.`
+              () => assignProjectTask({ taskId: task.id, assigneeUserId: handingTo.id, note: note || null })
             )
             if (ok) setHandingTo(null)
             return ok

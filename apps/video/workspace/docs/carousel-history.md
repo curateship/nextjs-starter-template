@@ -26,7 +26,8 @@ slides, shape and caption.
 ## Looking and bringing one back
 
 - **Where:** the ⋯ menu at the top of the editor, "Earlier versions".
-- **The list** shows when each version was saved, why it was kept, how many
+- **The list** shows when each version was saved, as a date and a time so
+  several saves on one day can be told apart, why it was kept, how many
   slides it had and its shape. Picking one shows its slides.
 - **Bring this version back** saves what is on screen, keeps it as "Before
   restoring", puts the version's slides back, and opens the editor again on

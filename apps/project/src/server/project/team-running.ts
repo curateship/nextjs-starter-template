@@ -34,7 +34,6 @@ import {
 import { addEmployee } from "@/server/project/invites"
 import { assignTask, listTaskCards, type Actor, type TaskCard } from "@/server/project/tasks"
 import { clearAssignee } from "@/server/project/teams"
-import { weekSecondsOf } from "@/server/project/task-clock-runs"
 import { customShellUsers } from "@/server/schema"
 
 /**
@@ -52,16 +51,6 @@ function sharedOpenProjects(membership: Membership) {
     isNull(projectProjects.personalUserId),
     isNull(projectProjects.archivedAt)
   )
-}
-
-/** The shared, open projects this person can see that belong to one client, as a filter. */
-async function clientProjects(membership: Membership, client: string, database: ProjectDb) {
-  const projects = await database
-    .select({ id: projectProjects.id, client: projectProjects.client })
-    .from(projectProjects)
-    .where(sharedOpenProjects(membership))
-  const ids = projects.filter((project) => matchesClient(project.client, client)).map((project) => project.id)
-  return ids.length ? inArray(projectProjects.id, ids) : sql`false`
 }
 
 /** Open tasks in the team's shared, open projects that this person can see. */
@@ -101,8 +90,7 @@ async function teamToday(teamId: string, database: ProjectDb, at: Date) {
 
 /**
  * When each task was last touched: its own change time, or its newest history
- * row when that is later. A message, a step and the clock all leave one or the
- * other (a step touches the task; a message and the clock write history).
+ * row when that is later. A message writes history.
  */
 async function lastTouched(tasks: { id: string; updatedAt: Date }[], database: ProjectDb) {
   const touched = new Map(tasks.map((task) => [task.id, task.updatedAt]))
@@ -263,8 +251,6 @@ export type WorkloadRow = {
   person: { id: string; name: string; avatarUrl: string; title: string | null }
   counts: Record<WorkloadBucket, number>
   tasks: Record<WorkloadBucket, WorkloadTask[]>
-  /** Seconds on the task clock this week, Monday to now in their own zone (Task panel task 01, part 10). */
-  weekSeconds: number
 }
 
 /**
@@ -284,7 +270,7 @@ export async function loadWorkload(
   const all = await openTeamTasks(membership, database)
   // One client's work only, when one is picked (Features 16 Oct, part 9).
   const tasks = client ? all.filter((task) => matchesClient(task.projectClient, client)) : all
-  const { today, zone } = await teamToday(membership.teamId, database, at)
+  const { today } = await teamToday(membership.teamId, database, at)
   const weekEnd = addDays(today, 7)
   const people = await database
     .select({
@@ -292,7 +278,6 @@ export async function loadWorkload(
       name: customShellUsers.name,
       avatarUrl: customShellUsers.avatarUrl,
       title: projectTeamMembers.title,
-      zone: projectTeamMembers.timeZone,
     })
     .from(projectTeamMembers)
     .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
@@ -306,13 +291,6 @@ export async function loadWorkload(
     week: (task) => Boolean(task.dueDate && task.dueDate >= today && task.dueDate <= weekEnd),
   }
   const buckets = Object.keys(inBucket) as WorkloadBucket[]
-  // The same projects the counts come from, so nobody sees hours from a project they can't.
-  const hours = await weekSecondsOf(
-    people.map((person) => ({ id: person.id, zone: person.zone ?? zone })),
-    client ? await clientProjects(membership, client, database) : sharedOpenProjects(membership),
-    database,
-    at
-  )
   return people
     .map((person) => {
       const theirs = tasks.filter((task) => task.assignee?.id === person.id)
@@ -328,7 +306,6 @@ export async function loadWorkload(
         person: { id: person.id, name: person.name, avatarUrl: person.avatarUrl ?? "", title: person.title },
         counts: Object.fromEntries(buckets.map((b) => [b, lists[b].length])) as Record<WorkloadBucket, number>,
         tasks: lists,
-        weekSeconds: hours.get(person.id) ?? 0,
       }
     })
     .sort((a, b) => b.counts.open - a.counts.open || a.person.name.localeCompare(b.person.name))

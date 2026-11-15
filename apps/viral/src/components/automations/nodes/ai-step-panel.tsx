@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import {
@@ -54,7 +55,7 @@ export default function AiStepFields({
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`ai-step-${node.id}-provider`}

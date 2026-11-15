@@ -16,7 +16,6 @@ import {
   DueChip,
   DueMovesMark,
   HeldTaskGhost,
-  LabelChip,
   PersonChip,
   PickedDaysBadge,
   PriorityChip,
@@ -25,16 +24,14 @@ import {
   SnoozedBadge,
   StatusBadge,
   StatusDot,
-  StepsChip,
-  TypeChip,
   UnreadBadge,
   WaitingBadge,
   WaitingOnBadge,
 } from "@/components/project/task-bits"
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkMenu, type BulkTargets } from "@/components/project/task-bulk-bar"
-import { ClockReadout, ClockRunningChip } from "@/components/project/task-clock"
 import {
   AssigneeCellMenu,
   DueCellMenu,
@@ -66,20 +63,15 @@ import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { todayKey } from "@/lib/project/dates"
-import { clockSeconds } from "@/lib/project/clock"
 import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
 import { TASK_STATUSES, priorityRank, type ProjectColor } from "@/lib/project/rules"
-import { fieldSortValue, fieldValueText, type FieldRule } from "@/lib/project/task-fields"
 import type { TaskGroup } from "@/lib/project/task-groups"
 import { byPosition } from "@/lib/project/task-order"
 import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
 
-/**
- * "order" is the project's own order, set by dragging; the rest are columns.
- * A task type's field shows as a column named `field:<its id>`.
- */
+/** "order" is the project's own order, set by dragging; the rest are columns. */
 export type TaskColumn =
   | "order"
   | "title"
@@ -88,9 +80,6 @@ export type TaskColumn =
   | "priority"
   | "assignee"
   | "due"
-  | "steps"
-  | "time"
-  | `field:${string}`
 
 /** The Project column's chip for a task, and the projects it can move to. */
 export type ProjectColumn = {
@@ -98,34 +87,15 @@ export type ProjectColumn = {
   choices?: (task: TaskCard) => ProjectChoice[]
 }
 
-/** A task type's field drawn as a column, with the words for each task's value. */
-export type FieldColumn = {
-  field: Pick<FieldRule, "id" | "name" | "kind" | "settings">
-  people: ReadonlyMap<string, string>
-}
-
 const STATUS_ORDER = Object.fromEntries(TASK_STATUSES.map((s, i) => [s, i]))
-const NO_FIELD_COLUMNS: readonly FieldColumn[] = []
-const NO_TARGETS: BulkTargets = { people: [], projects: [], tags: [], types: [] }
+const NO_TARGETS: BulkTargets = { people: [], projects: [] }
 
 function compare(
   a: TaskCard,
   b: TaskCard,
   column: TaskColumn,
-  fieldColumns: readonly FieldColumn[],
   projectOf: (task: TaskCard) => string
 ) {
-  if (column.startsWith("field:")) {
-    const spec = fieldColumns.find((c) => `field:${c.field.id}` === column)
-    if (!spec) return 0
-    const left = fieldSortValue(spec.field, a.fieldValues[spec.field.id], spec.people)
-    const right = fieldSortValue(spec.field, b.fieldValues[spec.field.id], spec.people)
-    // A blank goes last whichever way the column is sorted, like a missing due date.
-    if (left === null || right === null) return left === right ? 0 : left === null ? 1 : -1
-    return typeof left === "number" && typeof right === "number"
-      ? left - right
-      : String(left).localeCompare(String(right))
-  }
   switch (column) {
     case "project":
       return projectOf(a).localeCompare(projectOf(b))
@@ -139,12 +109,6 @@ function compare(
     case "due":
       // Tasks with no due date go last whichever way the column is sorted.
       return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999")
-    case "steps":
-      return a.steps.total - b.steps.total
-    case "time": {
-      const now = Date.now()
-      return clockSeconds(a.clock, now) - clockSeconds(b.clock, now)
-    }
     case "order":
       return byPosition(a, b)
     default:
@@ -157,8 +121,7 @@ function compare(
  * column, and ticked rows can be marked Done together.
  *
  * `groupsOf` puts the rows under headings, in `groups` order, from Filter's
- * Group row (`lib/project/task-groups.ts`); a task with several tags is under
- * each. With `onDrop` rows drag up or down inside their heading to change the
+ * Group row (`lib/project/task-groups.ts`). With `onDrop` rows drag up or down inside their heading to change the
  * order, or under another heading that `canMove` allows: on a project page
  * that changes what the row is grouped by, on My dashboard its date.
  *
@@ -177,9 +140,11 @@ export function TaskList({
   busy = false,
   onOpenTask,
   showProject = false,
+  showAssignee = !showProject,
   emptyText = "No tasks yet.",
   groups,
   groupsOf,
+  onRows,
   ordered = false,
   onDrop,
   canMove = sameHeading,
@@ -187,15 +152,15 @@ export function TaskList({
   foldsKey,
   orderLabel = "the project's order",
   bulk = NO_TARGETS,
-  fieldColumns = NO_FIELD_COLUMNS,
-  showTime = false,
   selectedSlot,
   onDelete,
   canDelete,
   myUserId,
   addTask,
   projectColumn,
-  showSteps = true,
+  massSelect,
+  rowActions,
+  openTaskId,
 }: {
   tasks: TaskCard[]
   readOnly: boolean
@@ -203,9 +168,19 @@ export function TaskList({
   busy?: boolean
   onOpenTask: (task: TaskCard) => void
   showProject?: boolean
-  emptyText?: string
+  /**
+   * The Assigned to column. Left out, it shows only without the Project
+   * column; the Team dashboard's Tasks tab shows both (Tyler, 7 Nov 2026).
+   */
+  showAssignee?: boolean
+  emptyText?: React.ReactNode
   groups?: readonly TaskGroup[]
   groupsOf?: (task: TaskCard) => string[]
+  /**
+   * Told the tasks' ids in the order the rows show, headings and sort
+   * included, each once, so a page can open the first row on arrival.
+   */
+  onRows?: (ids: string[]) => void
   /** The rows come in an order of their own, in `position`, which the first sort keeps. */
   ordered?: boolean
   /** A row let go inside its heading or under another (`lib/project/list-drop.ts`). Left out, rows don't drag. */
@@ -220,10 +195,6 @@ export function TaskList({
   orderLabel?: string
   /** The people and projects that Hand to and Move to project offer for ticked rows. */
   bulk?: BulkTargets
-  /** Up to 3 of a task type's fields, when the List is filtered to that type. */
-  fieldColumns?: readonly FieldColumn[]
-  /** Each task's time on the clock as a column, picked in the Columns menu. */
-  showTime?: boolean
   /** Where the "3 selected" button goes, such as the project header; above the table without one. */
   selectedSlot?: HTMLElement | null
   /** A bin in each row's Actions, on the tasks `canDelete` allows; the caller asks first. */
@@ -242,9 +213,26 @@ export function TaskList({
    * moves the task when picked; without it, the project's name in a plain chip.
    */
   projectColumn?: ProjectColumn
-  /** Tyler took Steps off the site admin's My dashboard (23 Oct 2026). */
-  showSteps?: boolean
+  /**
+   * Mass select switched from outside, as from My tasks' ⋮ (Tyler, 6 Nov 2026:
+   * "move mass select and search under its dropdown"). The header then shows
+   * no Mass select button of its own, only "N selected".
+   */
+  massSelect?: { on: boolean; onToggle: () => void; tick?: string | null }
+  /**
+   * A row's own buttons, first in its Actions, such as Yes and No on an ask
+   * for more time in My tasks' Need your attention tab.
+   */
+  rowActions?: (task: TaskCard) => React.ReactNode
+  /**
+   * The task open on the right, whose row shows open: its name dark and the
+   * shell's small bar before it, as the shell's tables draw their open row
+   * (Tyler, 8 Nov 2026: "I want to add the pill sliding in ui to the table
+   * items").
+   */
+  openTaskId?: string
 }) {
+  const press = useRowPress(openTaskId)
   const { sort, direction, toggleSort } = useTableSort<TaskColumn>(
     ordered ? "order" : showProject ? "due" : "status"
   )
@@ -252,13 +240,23 @@ export function TaskList({
   useClearSelectionOnListChange(selection.setSelected, tasks.map((t) => t.id).join(","))
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const dndId = React.useId()
-  const [editing, setEditing] = React.useState(false)
+  const [ownEditing, setOwnEditing] = React.useState(false)
+  const editing = massSelect ? massSelect.on : ownEditing
+  // Turned off from outside too, the ticks go, as they do from the button.
+  const [seenEditing, setSeenEditing] = React.useState(editing)
+  if (seenEditing !== editing) {
+    setSeenEditing(editing)
+    if (!editing) selection.clear()
+    // Turned on from a row's right-click, that row starts ticked.
+    else if (massSelect?.tick && !selection.selected.has(massSelect.tick)) selection.toggle(massSelect.tick)
+  }
   const canEdit = editing && !readOnly
   const canDrag = canEdit && Boolean(onDrop) && sort === "order"
 
   function toggleEditing() {
+    if (massSelect) return massSelect.onToggle()
     if (editing) selection.clear()
-    setEditing(!editing)
+    setOwnEditing(!editing)
   }
 
   const columns: TableHeaderColumn<TaskColumn>[] = [
@@ -277,27 +275,19 @@ export function TaskList({
     ...(showProject ? [{ key: "project" as const, label: "Project", column: "preview" as const }] : []),
     { key: "status", label: "Status", column: "preview" },
     { key: "priority", label: "Priority", column: "preview" },
-    ...(showProject ? [] : [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }]),
+    ...(showAssignee ? [{ key: "assignee" as const, label: "Assigned to", column: "preview" as const }] : []),
     { key: "due", label: "Due", column: "preview" },
-    ...(showSteps ? [{ key: "steps" as const, label: "Steps", column: "preview" as const }] : []),
-    ...(showTime ? [{ key: "time" as const, label: "Time", column: "preview" as const }] : []),
-    ...fieldColumns.map((spec) => ({
-      key: `field:${spec.field.id}` as const,
-      label: spec.field.name,
-      column: "preview" as const,
-    })),
   ]
 
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
     return [...tasks].sort(
       (a, b) =>
-        compare(a, b, sort, fieldColumns, (task) => projectColumn?.of(task).name ?? task.projectName) * sign ||
+        compare(a, b, sort, (task) => projectColumn?.of(task).name ?? task.projectName) * sign ||
         a.title.localeCompare(b.title)
     )
-  }, [direction, fieldColumns, projectColumn, sort, tasks])
-  // A task with several tags is under each of their headings, so each row
-  // drags by its heading and task together.
+  }, [direction, projectColumn, sort, tasks])
+  // Each row drags by its heading and task together.
   const grouped = React.useMemo(() => {
     const under = (key: string, tasks: TaskCard[]) => tasks.map((task) => ({ id: `${key}|${task.id}`, task }))
     if (!groups || !groupsOf) return [{ key: "all", label: null, rows: under("all", rows) }]
@@ -325,13 +315,17 @@ export function TaskList({
   const shownIds = [
     ...new Set(sections.flatMap((group) => (folds.folded(group.key) ? [] : group.rows.map((row) => row.task.id)))),
   ]
+  const rowOrder = shownIds.join(",")
+  React.useEffect(() => {
+    onRows?.(rowOrder ? rowOrder.split(",") : [])
+  }, [rowOrder, onRows])
   const selectedIds = ids.filter((id) => selection.selected.has(id))
   const colSpan = columns.length + (canEdit ? 2 : 1)
   // The "N selected" button, then Mass select, left of the header's search.
   const headerControls = readOnly ? null : (
     <>
       {canEdit && selectedIds.length ? <TaskBulkMenu taskIds={selectedIds} targets={bulk} onDone={selection.clear} /> : null}
-      <MassSelectButton on={editing} onToggle={toggleEditing} />
+      {massSelect ? null : <MassSelectButton on={editing} onToggle={toggleEditing} />}
     </>
   )
 
@@ -423,7 +417,7 @@ export function TaskList({
                           task={task}
                           project={showProject ? (projectColumn?.of(task) ?? { name: task.projectName, color: "slate" }) : null}
                           projectChoices={projectColumn?.choices?.(task) ?? null}
-                          showSteps={showSteps}
+                          showAssignee={showAssignee}
                           editable={!readOnly}
                           people={bulk.people}
                           myUserId={myUserId}
@@ -432,12 +426,12 @@ export function TaskList({
                           dragLocked={busy}
                           selected={selection.selected.has(task.id)}
                           onToggle={() => selection.toggle(task.id)}
-                          onOpen={() => onOpenTask(task)}
+                          open={press.shownOpen(task.id)}
+                          onOpen={() => press.press(task.id, () => onOpenTask(task))}
                           onDelete={
                             onDelete && !readOnly && (canDelete?.(task) ?? true) ? () => onDelete(task) : undefined
                           }
-                          fieldColumns={fieldColumns}
-                          showTime={showTime}
+                          actions={rowActions?.(task)}
                         />
                       ))}
                     </SortableContext>
@@ -461,7 +455,7 @@ function TaskRow({
   task,
   project,
   projectChoices,
-  showSteps,
+  showAssignee,
   editable,
   people,
   myUserId,
@@ -470,19 +464,19 @@ function TaskRow({
   dragLocked,
   selected,
   onToggle,
+  open,
   onOpen,
   onDelete,
-  fieldColumns,
-  showTime,
+  actions,
 }: {
-  /** The row's heading and task together, since a task can sit under several tags. */
+  /** The row's heading and task together. */
   dragId: string
   task: TaskCard
   /** The Project column's chip, or null without the column. */
   project: { name: string; color: ProjectColor } | null
   /** Where the chip can move the task; null keeps it a plain chip. */
   projectChoices: ProjectChoice[] | null
-  showSteps: boolean
+  showAssignee: boolean
   /** Each cell opens a dropdown to change it. */
   editable: boolean
   people: BulkTargets["people"]
@@ -492,10 +486,11 @@ function TaskRow({
   dragLocked: boolean
   selected: boolean
   onToggle: () => void
+  /** The task is open on the right, or was just pressed. */
+  open: boolean
   onOpen: () => void
   onDelete?: () => void
-  fieldColumns: readonly FieldColumn[]
-  showTime: boolean
+  actions?: React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: dragId, disabled: !canDrag || dragLocked })
@@ -509,8 +504,14 @@ function TaskRow({
       style={style}
       data-task-id={task.id}
       // A little tighter than the shell's rows (Tyler, 19 Oct 2026).
+      aria-current={open ? "true" : undefined}
       className={cn(
         "group [&>td]:py-1",
+        // The name grey, dark while pointed at and while open, as the shell's
+        // tables draw theirs (Tyler, 8 Nov 2026: "change the items to gray and
+        // if hover over it turns black and when selected it stays black").
+        "[&_[data-row-name]]:transition-colors hover:[&_[data-row-name]]:text-foreground",
+        open && "[&_[data-row-name]]:text-foreground",
         // Its place shows dimmed in the gap while a copy follows the pointer.
         isDragging && "opacity-40"
       )}
@@ -536,12 +537,16 @@ function TaskRow({
             </button>
           ) : null}
           {editable ? <StatusCellMenu task={task} look="dot" /> : <StatusDot status={task.status} />}
-          <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
-            {task.title}
+          <span className="flex min-w-0 items-center">
+            <SlideBar on={open} />
+            <span
+              data-row-name=""
+              className={cn("truncate font-medium text-muted-foreground", task.priority === "low" && "text-muted-foreground/70")}
+            >
+              {task.title}
+            </span>
           </span>
-          <ClockRunningChip task={task} />
           <UnreadBadge count={task.unread} />
-          <TypeChip type={task.type} />
           {task.waiting ? <WaitingBadge /> : null}
           <ReviewBadge review={task.review} />
           <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
@@ -549,9 +554,6 @@ function TaskRow({
           <DueMovesMark moves={task.dueMoves} status={task.status} />
           <WaitingOnBadge waitingOn={task.waitingOn} />
           <SnoozedBadge until={task.snoozedUntil} today={todayKey()} />
-          {task.labels.map((label) => (
-            <LabelChip key={label.id} label={label} />
-          ))}
         </span>
       </TableCell>
       {project !== null ? (
@@ -573,7 +575,7 @@ function TaskRow({
           <PriorityChip priority={task.priority} />
         )}
       </TableCell>
-      {project !== null ? null : (
+      {!showAssignee ? null : (
         // Wide enough for a face and a full name, however narrow the panel.
         <TableCell column="preview" className="min-w-40">
           {editable ? (
@@ -590,24 +592,8 @@ function TaskRow({
           <DueChip dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
         )}
       </TableCell>
-      {showSteps ? (
-        <TableCell column="preview">
-          <StepsChip steps={task.steps} />
-        </TableCell>
-      ) : null}
-      {showTime ? (
-        // Blank for a task whose clock never ran; ticking while it runs.
-        <TableCell column="preview">
-          <ClockReadout clock={task.clock} className="text-foreground" />
-        </TableCell>
-      ) : null}
-      {fieldColumns.map((spec) => (
-        // A blank cell for a task that left the field empty.
-        <TableCell key={spec.field.id} column="preview" className="max-w-48 truncate">
-          {fieldValueText(spec.field, task.fieldValues[spec.field.id], spec.people)}
-        </TableCell>
-      ))}
       <TableCell column="actions">
+        {actions}
         <Button
           type="button"
           variant="ghost"
@@ -673,4 +659,50 @@ function GroupHeading({
 /** Without its own rule, a row only moves inside its heading. */
 function sameHeading() {
   return false
+}
+
+/** How long the open row's bar takes to grow; the task opens after it. */
+const BAR_MS = 220
+
+/**
+ * A press shows its row open at once and opens the task after the bar has
+ * grown, 220ms, as the shell's tables do: drawing the task keeps the browser
+ * busy long enough to freeze a bar growing at the same time. It opens only if
+ * the address is still the one pressed on, and at once when less motion is
+ * asked for or the row is already open.
+ */
+function useRowPress(openTaskId: string | undefined) {
+  const [pressed, setPressed] = React.useState<string | null>(null)
+  const timers = React.useRef<number[]>([])
+  const cancel = React.useCallback(() => {
+    timers.current.forEach((timer) => window.clearTimeout(timer))
+    timers.current = []
+  }, [])
+  React.useEffect(() => cancel, [cancel])
+  // The task has opened: the address says so from here on.
+  const [seenOpen, setSeenOpen] = React.useState(openTaskId)
+  if (seenOpen !== openTaskId) {
+    setSeenOpen(openTaskId)
+    if (pressed && pressed === openTaskId) setPressed(null)
+  }
+  return {
+    shownOpen: (taskId: string) => (pressed ? pressed === taskId : openTaskId === taskId),
+    press: (taskId: string, open: () => void) => {
+      cancel()
+      if (taskId === openTaskId || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setPressed(null)
+        open()
+        return
+      }
+      setPressed(taskId)
+      const from = window.location.href
+      timers.current = [
+        window.setTimeout(() => {
+          if (window.location.href === from) open()
+        }, BAR_MS),
+        // A task that never opens lets the address show the truth again.
+        window.setTimeout(() => setPressed((current) => (current === taskId ? null : current)), BAR_MS + 2000),
+      ]
+    },
+  }
 }

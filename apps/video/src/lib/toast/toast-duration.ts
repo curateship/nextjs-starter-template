@@ -3,7 +3,7 @@ import * as React from "react"
 import { clampToastSeconds, DEFAULT_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 
 /**
- * How long a success toast stays up, shared between the shell (which knows the
+ * How long a toast that is not an error stays up, shared between the shell (which knows the
  * saved setting) and the Toaster (which does not).
  *
  * The Toaster is mounted in `__root.tsx`, above the router outlet, because the

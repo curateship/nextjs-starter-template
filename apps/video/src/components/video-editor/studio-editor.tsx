@@ -27,7 +27,6 @@ import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
   ResizableHandle,
   ResizablePanel,
@@ -37,6 +36,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { railPickedEdge, useRailPickedEdge } from "@/lib/video/rail"
@@ -83,6 +83,13 @@ import { ThumbnailInspector } from "@/components/video-thumbnails/thumbnail-insp
 import { ThumbnailsProvider } from "@/components/video-thumbnails/thumbnail-provider"
 import "@/components/video-editor/studio.css"
 import "@/components/video-editor/text-fonts.css"
+
+/**
+ * The timeline folds down to its own header and its 2px of edge, not to
+ * nothing, so its title never disappears. Kept here since the shell's
+ * resizable panels stopped exporting it (9 Nov 2026), as Trade does.
+ */
+const BOTTOM_COLLAPSED_HEIGHT = `${DASHBOARD_CARD_HEADER_HEIGHT_PX + 2}px`
 
 /**
  * The editor: the panel you are working from on the left, the picture in the
@@ -223,8 +230,8 @@ export function StudioEditor({
   const { copy, paste } = useClipClipboard()
   const dropMarker = useDropMarker()
 
-  // Space plays and pauses, Delete removes the selected clip, Escape lets go of
-  // it, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
+  // Space plays and pauses, Delete removes every selected clip, Escape lets go
+  // of them, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
   // so is copying words highlighted on the page. So is anything pressed inside
   // an open window: the History preview has a player of its own, and a Delete
   // there once removed a clip from the project behind it.
@@ -247,10 +254,10 @@ export function StudioEditor({
         // While a thumbnail is designed, these keys belong to the board's
         // layers (thumbnail-board.tsx), never to a clip on the timeline.
         if (designing) return
-        const selectedClipId = store.getSnapshot().state.selectedClipId
-        if (selectedClipId) {
+        const { selectedClipIds } = store.getSnapshot().state
+        if (selectedClipIds.length > 0) {
           event.preventDefault()
-          dispatch({ type: "DELETE_CLIP", clipId: selectedClipId })
+          dispatch({ type: "DELETE_CLIPS", clipIds: selectedClipIds })
         }
       } else if (
         event.key.toLowerCase() === "m" &&
@@ -341,10 +348,9 @@ export function StudioEditor({
 
   const workspace = desktop ? (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -404,10 +410,9 @@ export function StudioEditor({
           >
             <OpenElsewhereDialog />
             <ResizablePanelGroup
-              key={verticalLayout.layoutKey}
+              groupRef={verticalLayout.groupRef}
               orientation="vertical"
               className="min-h-0 flex-1"
-              defaultLayout={verticalLayout.defaultLayout}
               onLayoutChanged={verticalLayout.onLayoutChanged}
             >
               <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
@@ -458,6 +463,7 @@ function RailButton({
       )}
     >
       <Icon className="size-5" />
+      {/* 10px on purpose: the rail is 64px wide and "Transcript" needs it. */}
       <span className="text-[0.625rem] font-medium">{label}</span>
     </button>
   )

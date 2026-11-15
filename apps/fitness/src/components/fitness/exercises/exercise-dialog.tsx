@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { draftOf, type ExerciseDraft } from "@/components/fitness/exercises/exercise-draft"
 import { ExerciseFields } from "@/components/fitness/exercises/exercise-fields"
@@ -85,12 +84,10 @@ export function ExerciseDialog({
       const input = { ...draft, name, pictureUrl: draft.pictureUrl || null }
       if (exercise) {
         await changeExercise({ action: "update", exerciseId: exercise.id, input })
-        toast.success(`Saved ${name}.`)
         await router.invalidate()
         onClose()
       } else {
         const { id } = await changeExercise({ action: "create", input })
-        toast.success(`Added ${name} to your library.`)
         await router.invalidate()
         onCreated(id as string)
       }
@@ -106,7 +103,6 @@ export function ExerciseDialog({
     setBusy(true)
     try {
       await changeExercise({ action: "delete", exerciseId: exercise.id })
-      toast.success(`Deleted ${exercise.name}.`)
       setConfirmingDelete(false)
       await router.invalidate()
       onClose()
@@ -258,7 +254,6 @@ function PainCard({ exercise }: { exercise: Exercise }) {
     try {
       if (nextAvoided) await changeExercise({ action: "avoid", exerciseId: exercise.id, note: nextNote })
       else await changeExercise({ action: "unavoid", exerciseId: exercise.id })
-      toast.success(nextAvoided ? `${exercise.name} is marked painful.` : `${exercise.name} is no longer marked painful.`)
       await router.invalidate()
     } catch (error) {
       setAvoided(before)

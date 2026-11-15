@@ -1,7 +1,7 @@
 # App-owned automation run results
 
-Each app may give an automation node its own result view inside the shared Runs
-panel. This lets Trade show a backtest report while CMS and Video show results
+Each app may give an automation node its own result view inside the shared run
+record, on the Automations dashboard's right panel. This lets Trade show a backtest report while CMS and Video show results
 that fit their own products, without any app changing the shell's run-panel
 code.
 
@@ -9,7 +9,8 @@ code.
 
 The shell owns:
 
-- The bottom Runs panel and run history.
+- The run record and run history (`run-record.tsx`, see
+  [The Automations dashboard](dashboard.md)).
 - Run and step status.
 - Retries and failure messages.
 - The required plain-language step summary.

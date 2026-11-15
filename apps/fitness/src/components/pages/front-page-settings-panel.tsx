@@ -1,7 +1,12 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ExternalLinkIcon, FileTextIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
+import {
+  ExternalLinkIcon,
+  FileTextIcon,
+  Loader2Icon,
+  MoveVerticalIcon,
+  SearchIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -41,7 +46,6 @@ import { MAX_WRITTEN_PAGE_DESCRIPTION } from "@/lib/pages/front-page"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
-  PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
 import {
@@ -56,6 +60,7 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { useSiteAddress } from "@/lib/hooks/use-site-address"
+import { pageEditSearch } from "@/lib/admin-dashboard/page-edit-search"
 
 /**
  * The right panel with no block selected: the settings that belong to the page
@@ -133,12 +138,11 @@ export function FrontPageSettingsPanel({
         imageAlt,
         description,
       })
-      toast.success(`${saved.title} was saved.`)
       // The address can have changed, and this screen is keyed by it, so the
       // editor moves with the page rather than looking at one that is gone.
       await router.navigate({
-        to: "/admin/pages/edit",
-        search: { path: saved.path },
+        to: "/admin/dashboard",
+        search: pageEditSearch(saved.path),
         replace: true,
       })
       await router.invalidate()
@@ -161,7 +165,6 @@ export function FrontPageSettingsPanel({
     try {
       await savePageVisibility({ path: page.path, visibility: next })
       await router.invalidate()
-      toast.success(`${page.name} is now ${PAGE_VISIBILITY_SENTENCES[next]}`)
     } catch (error) {
       showErrorToast(getPageVisibilityErrorMessage(error))
     } finally {
@@ -191,7 +194,7 @@ export function FrontPageSettingsPanel({
       <ScrollArea className="min-h-0 flex-1">
         <InspectorCollapseAllProvider signal={collapseAll.signal}>
           <div className="grid gap-4 p-4 sm:p-5">
-            <InspectorCard
+            <InspectorCard icon={<FileTextIcon />}
               storageId="front-page-page-settings"
               title="This page"
               description="What this page is called in the app, where it answers, and who may reach it."
@@ -346,7 +349,7 @@ export function FrontPageSettingsPanel({
               </div>
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<SearchIcon />}
               storageId="front-page-page-seo"
               title="Search engines"
               description={
@@ -429,7 +432,7 @@ export function FrontPageSettingsPanel({
               )}
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<MoveVerticalIcon />}
               storageId="front-page-page-spacing"
               title="Spacing"
               description="How much air the page leaves between one block and the next."

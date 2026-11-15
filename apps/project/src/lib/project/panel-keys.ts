@@ -3,17 +3,17 @@
  * rather than in the shell's `panelLayoutKey` list, because that list is a
  * shell file and an app never edits one.
  *
- * The `-2` is deliberate: a remembered layout outranks the default, so a
+ * The number on the end is deliberate: a remembered layout outranks the default, so a
  * browser that kept the old widths would never show new defaults. Changing
  * the key drops the old widths once. Bump it again whenever the defaults in
  * `three-panels.tsx` move (Tyler, 31 Oct 2026, after the narrowest-width
- * default "is not fixed for the 5th time").
+ * default "is not fixed for the 5th time"). It went to -3 with the shell's new
+ * remembered-layout hook, 9 Nov 2026.
  */
-export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal-2"
-export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal-2"
-export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal-2"
-export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal-2"
-export const TASK_TYPES_PANEL_LAYOUT_KEY = "project-task-types-horizontal-2"
+export const PROJECT_PANEL_LAYOUT_KEY = "project-page-horizontal-3"
+export const MY_DASHBOARD_PANEL_LAYOUT_KEY = "project-my-dashboard-horizontal-3"
+export const ADMIN_DASHBOARD_PANEL_LAYOUT_KEY = "project-admin-dashboard-horizontal-3"
+export const TEAM_PANEL_LAYOUT_KEY = "project-team-dashboard-horizontal-3"
 
 /** The Board or List tab the project page opened on last. */
 export const PROJECT_TASK_VIEW_KEY = "project-page-task-view"
@@ -23,20 +23,14 @@ export const MY_TASK_VIEW_KEY = "project-my-dashboard-task-view"
 export const MY_OPEN_TASK_KEY = "project-my-dashboard-open-task"
 /** The task the site admin's My dashboard had open last. */
 export const ADMIN_OPEN_TASK_KEY = "project-admin-dashboard-open-task"
-
-/** The field columns a project's List shows when filtered to one task type, per type. */
-export const fieldColumnsKey = (typeId: string) => `project-type-columns-${typeId}`
-
-/** Whether every project's List shows the Time column (Task panel task 01, part 9). */
-export const LIST_TIME_COLUMN_KEY = "project-list-time-column"
-/** The Projects table's Time column, off until picked (Seven features, part 4). */
-export const PROJECTS_TIME_COLUMN_KEY = "project-projects-time-column"
+/** The task a project's page had open last, per project. */
+export const projectOpenTaskKey = (projectId: string) => `project-page-open-task-${projectId}`
+/** The task the Team dashboard had open last, per team, or on an employee's own `/team`. */
+export const teamOpenTaskKey = (teamId: string | undefined) => `project-team-open-task-${teamId ?? "own"}`
 
 /** The project New task in the header chose last, so it is chosen first next time. */
 export const NEW_TASK_PROJECT_KEY = "project-new-task-project"
 
-/** The Team dashboard's right-hand tab opened last: Check-ins, Workload or Needs attention. */
-export const TEAM_RIGHT_TAB_KEY = "project-team-right-tab"
 
 /** The Board's "Group by person" switch, remembered in this browser. */
 export const BOARD_GROUP_KEY = "project-board-group"
@@ -49,9 +43,15 @@ export const taskFoldsKey = (projectId: string, grouping: string) => `project-ta
 
 /** The headings folded shut on My dashboard's List, the employee's rows and the site admin's table alike. */
 export const MY_TASK_FOLDS_KEY = "project-my-dashboard-task-folds"
+/** The headings folded shut in the site admin's Need your attention tab. */
+export const MY_ATTENTION_FOLDS_KEY = "project-my-dashboard-attention-folds"
 /** My dashboard's Group row, remembered in this browser. */
 export const MY_TASK_GROUPING_KEY = "project-my-dashboard-task-grouping"
 
-/** The Team dashboard's middle tab (Calendar or Activity) and the calendar's Month or Week. */
+/** The headings folded shut on the Team dashboard's Tasks tab, per grouping, and its Group row. */
+export const TEAM_TASK_FOLDS_KEY = "project-team-task-folds"
+export const TEAM_TASK_GROUPING_KEY = "project-team-task-grouping"
+
+/** The Team dashboard's middle tab (Tasks, Calendar or Activity) and the calendar's Month or Week. */
 export const TEAM_MIDDLE_TAB_KEY = "project-team-middle-tab"
 export const TEAM_CALENDAR_VIEW_KEY = "project-team-calendar-view"

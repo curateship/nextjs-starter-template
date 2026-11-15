@@ -1,12 +1,12 @@
 # Medium accounts and signing in
 
-A Medium account is a row on the Accounts dashboard with Medium as its
+A Medium account is a row on the Projects dashboard's Accounts with Medium as its
 platform. It runs on a browser profile or on a phone of its own, and belongs to
 one project. Parts 1 to 4 and 42 of `workspace/tasks/Medium/01-medium-features.md`.
 
 ## Adding one
 
-Add account on the Accounts dashboard offers Medium beside the other networks.
+Add account on the Projects dashboard's Accounts offers Medium beside the other networks.
 A Medium account runs on a browser profile with no Medium account in it yet
 (one Medium account per profile, or they sign in over each other), or on a
 phone. Every account starts as a throwaway; important and throwaway accounts
@@ -17,7 +17,7 @@ are kept apart the same way as on every network.
 Medium signs people in with a link it emails, not a password. Pressing that link
 in an everyday browser signs that browser in, which is the wrong one (part 2).
 
-The key button, on the account's row on the Accounts dashboard and beside
+The key button, on the account's row on the Projects dashboard's Accounts and beside
 Comment as on the network's Commenting row, takes the pasted link and opens it inside the
 account's own browser profile. Who is signed in is read straight after. The
 link signs in whoever opens it, so it is wiped from the job as soon as the
@@ -35,7 +35,7 @@ data Medium draws every page from says who is signed in (`viewer` in
 and how many follow it. A look taken on another site is not written down, so a
 signed-in account is never marked signed out by mistake.
 
-**Check now** on the Accounts dashboard takes the full look, which goes to
+**Check now** on the Projects dashboard's Accounts takes the full look, which goes to
 Medium's front page first. When the page will not load, the look is "not
 checked", never "signed out". A second Check now while one waits asks for
 nothing more.

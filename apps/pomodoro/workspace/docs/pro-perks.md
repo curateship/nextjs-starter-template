@@ -14,8 +14,10 @@ the old app's Pro).
 - **One module answers every can-do question:**
   `src/server/pomodoro/entitlements.ts`. Endpoints gate with
   `requirePomodoroPerk(userId, perk)`, which throws
-  `UPGRADE_REQUIRED:<perk>`; screens read `loadMyEntitlements()` from
-  `src/lib/api/pomodoro/entitlements.ts` to lock controls.
+  `UPGRADE_REQUIRED:<perk>`. Screens get what they need to lock a control
+  from the data their page already loads (the uploads list carries
+  `canUploadMedia` and the space limit, for example) and turn a refused
+  `UPGRADE_REQUIRED` into the upgrade prompt.
 - **The rule per perk:** an explicit value in the plan's feature record wins
   (a perk can be gifted on a free plan or withheld from a paid one), and a
   missing key falls back to the old contract — paid unlocks everything,
@@ -108,8 +110,8 @@ This is the app's own checkout, beside the shell's, in
   `?purchase=<session>`. The page asks the server to confirm that session,
   which reads it from Stripe, checks it is this member's own, and marks the
   row paid. Only a pending row turns paid, so a reload or the worker landing
-  at the same moment records one purchase. A toast says what was bought:
-  "5 AI backgrounds added. They never run out at the end of a month."
+  at the same moment records one purchase. What was bought shows on the
+  page; nothing pops up.
 - **Nobody came back?** The `pomodoro-purchases` worker asks Stripe about any
   session still pending after a minute, every minute for its first 25 hours
   and hourly after that. It marks one expired only when Stripe says the

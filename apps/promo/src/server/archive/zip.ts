@@ -37,9 +37,13 @@ function crc32(crc: number, bytes: Uint8Array): number {
 
 export type ZipEntry = { name: string; open: () => Promise<ReadableStream<Uint8Array>> }
 
-/** A name safe on any disk: no slashes but the folder's own, nothing odd. */
+/**
+ * A name safe on any disk: no slashes but the folder's own, nothing odd, and
+ * no dots at the start, so a title of ".." can never become a folder that
+ * climbs out of the zip's own, and no name turns into a hidden file.
+ */
 export function zipName(raw: string, fallback: string): string {
-  const cleaned = raw.replace(/[^\w .()-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80)
+  const cleaned = raw.replace(/[^\w .()-]+/g, " ").replace(/\s+/g, " ").trim().replace(/^[.\s]+/, "").slice(0, 80).trim()
   return cleaned || fallback
 }
 

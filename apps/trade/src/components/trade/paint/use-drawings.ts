@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import {
   clearDrawings,
@@ -577,10 +576,7 @@ export function useChartDrawings(
       await Promise.all(
         previous.map(({ id }) => pendingAlertSaves.current.get(id))
       )
-      const { deleted } = await clearDrawings(key)
-      toast.success(
-        deleted === 1 ? "1 drawing deleted." : `${deleted} drawings deleted.`
-      )
+      await clearDrawings(key)
     } catch (error) {
       revise(key, () => previous)
       showErrorToast(getDrawingsErrorMessage(error))

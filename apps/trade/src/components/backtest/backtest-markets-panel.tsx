@@ -1,13 +1,8 @@
 import * as React from "react"
-import { ListOrderedIcon, SkipForwardIcon } from "lucide-react"
 
 import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
-import {
-  DashboardCardTab,
-  DashboardCardTabsHeader,
-} from "@/components/shared/dashboard-card-header"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { MarketIcon } from "@/components/trade/market-icon"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Table,
   TableBody,
@@ -20,7 +15,6 @@ import {
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
   BACKTEST_STATUS_LABELS,
-  openPnlOf,
   whyNoLadder,
   type BacktestSkip,
 } from "@/lib/trade/backtest/result"
@@ -29,6 +23,7 @@ import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
+import { listSkipped, type SkippedCoin } from "./skipped-coins"
 
 /**
  * Every market the run tested — the same table the old app puts down the right of
@@ -39,7 +34,7 @@ import type { BacktestCoinRow } from "./backtest-run-page"
  * column that used to sit beside it was the same number written twice — and it
  * was taking a quarter of a narrow panel to do it.
  *
- * **Two tabs, because there are two kinds of coin here.** Results holds the
+ * **Two lists, because there are two kinds of coin here.** Traded holds the
  * ones that traded. Skipped holds every coin that produced nothing — whether
  * it was ruled out before the run began or walked the whole window without
  * opening a trade — with the reason in words beside it. They used to share one
@@ -50,12 +45,22 @@ import type { BacktestCoinRow } from "./backtest-run-page"
  * the bottom — a list of fifty coins is only readable from its ends, and the
  * total is the one number that says whether the strategy worked at all.
  *
- * Right-aligned columns flip their sort button so the arrow hugs the number,
- * exactly as `sortHead` does in the old app.
+ * **It looks like the Grid trades block** (Tyler, 10 Nov 2026: "revamp
+ * backtest dashboard trades panel ... to this", with a picture of Grid
+ * trades): each coin's logo before its name, every column left-aligned under
+ * a small heading with its sort arrow after it, figures in the monospaced
+ * font, Total coloured by whether it made or lost money, and Dip muted the
+ * way Grid trades mutes Value. The styles are copied from
+ * `smart-orders-panel.tsx`, so the two tables read as one.
+ *
+ * It is the body of the right panel's Trades card and of its Skipped card:
+ * the card is the frame and the panel scrolls, so nothing here scrolls. As the
+ * card narrows, Dip drops out first and then Win, so the coin and what it made
+ * always have room.
  */
 type Column = "coin" | "net" | "dip" | "win"
 
-type PanelTab = "results" | "skipped"
+export type MarketsTab = "traded" | "skipped"
 
 export function BacktestMarketsPanel({
   coins,
@@ -63,15 +68,17 @@ export function BacktestMarketsPanel({
   openCoin,
   onOpenCoin,
   tab,
-  onTabChange,
+  icons,
 }: {
-  tab: PanelTab
-  onTabChange: (tab: PanelTab) => void
+  /** Which list shows: the Trades card's, or the Skipped card's. Neither has a header of its own. */
+  tab: MarketsTab
   coins: readonly BacktestCoinRow[]
   /** Coins the run could not test at all, with the reason it gives. */
   skipped: readonly BacktestSkip[]
   openCoin: string | null
   onOpenCoin: (marketKey: string) => void
+  /** Each coin's logo address by market key. A coin without one shows its first letter. */
+  icons?: ReadonlyMap<string, string>
 }) {
   const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
 
@@ -84,39 +91,7 @@ export function BacktestMarketsPanel({
   // dozens of them, sitting between the real results and pushing them off the
   // screen. What you actually want to know about one is *why*, and that is a
   // sentence, not four zeroes. So they get a tab with a Why column instead.
-  const skippedRows = React.useMemo(() => {
-    const rows = new Map<string, { symbol: string; reason: string }>()
-    for (const coin of coins) {
-      if (coin.status === "skipped" || coin.status === "error") {
-        rows.set(coin.marketKey, {
-          symbol: coin.symbol,
-          reason:
-            (coin.status === "error"
-              ? coin.error
-              : (coin.skipReason ?? coin.error)) ?? "No reason recorded.",
-        })
-        continue
-      }
-      // Walked to the end and never opened a trade. `whyNoLadder` already works
-      // out which of the reasons it was — waiting for a base, already under
-      // one, or never affordable — and says it in words.
-      if (coin.status === "done" && coin.summary && coin.summary.trades === 0) {
-        rows.set(coin.marketKey, {
-          symbol: coin.symbol,
-          reason:
-            whyNoLadder(coin.summary)?.words ??
-            "Walked the whole window without a trade.",
-        })
-      }
-    }
-    for (const skip of skipped) {
-      if (rows.has(skip.marketKey)) continue
-      rows.set(skip.marketKey, { symbol: skip.symbol, reason: skip.reason })
-    }
-    return [...rows.entries()]
-      .map(([marketKey, row]) => ({ marketKey, ...row }))
-      .sort((left, right) => left.symbol.localeCompare(right.symbol))
-  }, [coins, skipped])
+  const skippedRows = React.useMemo(() => listSkipped(coins, skipped), [coins, skipped])
 
   // What is left for the results table: the coins that actually traded, plus
   // any the run has not finished with yet — a live run's rows have no figures
@@ -160,110 +135,52 @@ export function BacktestMarketsPanel({
     tested.reduce((sum, coin) => sum + pick(coin), 0)
   const wonTotal = total((coin) => coin.summary?.won ?? 0)
   const closedTotal = total((coin) => coin.summary?.closed ?? 0)
-  const openPnlTotal = total((coin) =>
-    coin.summary ? (openPnlOf(coin.summary) ?? 0) : 0
-  )
 
-  const head = (
-    label: string,
-    column: Column,
-    width: string,
-    right = false
-  ) => (
-    <TableHead column="meta" className={cn(width, right && "text-right")}>
+  // The Grid trades heading: 12px, left-aligned, the arrow 2px after the
+  // word. 12px because the figures under it are 12px, and a bigger heading
+  // was wider than its own column ("Trades" came out as "Trade").
+  const head = (label: string, column: Column, width: string) => (
+    <TableHead className={cn(width, "px-1", HIDE[column])}>
       <TableSortButton
         active={sort === column}
         direction={direction}
         onClick={() => toggleSort(column)}
-        // The shared heading is 14px with an 8px gap before its sort arrow,
-        // while the figures under it are 12px — so every heading was wider
-        // than its own column and "Trades" came out as "Trade". Matched to the
-        // figures, which is the size that decides how wide the column has to
-        // be anyway.
-        className={cn(
-          "gap-1 text-xs sm:text-xs",
-          right && "ml-auto flex-row-reverse"
-        )}
+        className="gap-0.5 whitespace-nowrap sm:text-xs"
       >
         {label}
       </TableSortButton>
     </TableHead>
   )
 
-  return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => onTabChange(value as PanelTab)}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
-    >
-      <DashboardCardTabsHeader>
-        <DashboardCardTab
-          value="results"
-          icon={<ListOrderedIcon className="size-4" />}
-          label="Results"
-          count={tested.length}
-        />
-        {/* Always there, even at zero. A run where every coin traded is worth
-            being able to check, and a tab that comes and goes is one you cannot
-            learn the place of. */}
-        <DashboardCardTab
-          value="skipped"
-          icon={<SkipForwardIcon className="size-4" />}
-          label="Skipped / failed"
-          count={skippedRows.length}
-        />
-      </DashboardCardTabsHeader>
+  if (tab === "skipped") return <SkippedList rows={skippedRows} />
 
-      <TabsContent value="results" className="flex min-h-0 flex-1 flex-col">
-        {/* The scroll box's own inner element is `display: table`, which sizes
-          itself to its CONTENTS. A table set to `w-full` inside it therefore
-          measures 100% of ITSELF and grows as wide as its widest row, so the
-          panel simply clipped whatever did not fit — the last columns
-          disappeared off the right edge with no scrollbar to reach them.
-          Making that element a plain block ties the width back to the panel,
-          and the fixed column widths below then share out the panel's width
-          instead of ignoring it. */}
-        <ScrollArea
-          className="min-h-0 flex-1"
-          viewportClassName="[&>div]:block!"
-        >
-          {/* The old app's exact table type and padding: small text, 8px between
-            columns and 12px at the two outside edges. The shared cell padding
-            is a dashboard rule — 20px each side — and at this width it pushed
-            the numbers so far right that a coin's name and its result were at
-            opposite ends of the panel. Tightened here rather than in the
-            primitive, which every dashboard table depends on. */}
-          {/* `table-fixed` with the five widths as PERCENTAGES adding up to 100.
-            
-            Everything else was tried and each failed the same way. Left to
-            itself, a table hands the spare width to whichever column has the
-            widest content — the coin names — so a ticker sat a hand's width
-            from its own result. `w-full` on that column was worse: it means
-            "this column wants the whole table" and the browser adds the others
-            ON TOP, so the table outgrew the panel and the last column fell off
-            the edge. Fixed widths in PIXELS fail too: when their total is more
-            than the panel, a fixed-layout table grows to fit the total rather
-            than shrinking the columns.
-            
-            Percentages cannot do any of that. They always add up to the panel,
-            whatever width it is dragged to, so nothing is ever clipped and the
-            columns stay evenly spread instead of one of them hogging the room.
-            The old app's type and spacing — small text, 8px between columns,
-            12px at the outside edges — because the shared dashboard padding is
-            20px a side and this panel does not have that to give. */}
-          <Table className="table-fixed text-xs [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th]:overflow-hidden [&_th]:px-1.5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
+  return (
+    // Fills the card's white tile edge to edge and straight under the
+    // heading, as Grid trades' table fills its block's tile. The margins
+    // undo the tile's own padding, read from the same settings the tile uses
+    // (theme.css, [data-panel-card-tile]), so the table moves with them. The
+    // heading row loses the table's grey band, as it does in a block.
+    <div className="@container -mx-4 -mb-4 mt-[calc(var(--shell-panel-card-tile-top,0px)*-1)] [&_thead_tr]:bg-transparent">
+          {/* `table-fixed` with the widths as PERCENTAGES. Left to itself a
+            table hands the spare width to the coin names, so a ticker sat a
+            hand's width from its own result; pixels outgrow a narrow panel.
+            Percentages always add up to the card, whatever width it is
+            dragged to. 4px either side of each column, as Grid trades has,
+            and the card's own 16px at the outside edges. A coin's status
+            note sits on a line of its own under its name, lined up with the
+            name rather than the logo, as Grid trades' "Paused" does. */}
+          <Table className="table-fixed [&_td]:overflow-hidden [&_td]:text-ellipsis [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th]:overflow-hidden [&_th:first-child]:pl-4 [&_th:last-child]:pr-4 [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2">
             <TableHeader>
               <TableRow>
-                {head("Market", "coin", "w-[30%]")}
-                {head("Total", "net", "w-[27%]", true)}
-                {head("Dip", "dip", "w-[22%]", true)}
-                {head("Win", "win", "w-[21%]", true)}
+                {head("Market", "coin", "w-[34%]")}
+                {head("Total", "net", "w-[26%]")}
+                {head("Dip", "dip", "w-[20%]")}
+                {head("Win", "win", "w-[20%]")}
               </TableRow>
             </TableHeader>
             <TableBody>
               {sorted.map((coin) => {
                 const noLadder = coin.summary ? whyNoLadder(coin.summary) : null
-                const openPnl = coin.summary ? openPnlOf(coin.summary) : null
                 return (
                   <TableRow
                     key={coin.id}
@@ -276,27 +193,62 @@ export function BacktestMarketsPanel({
                         : undefined
                     }
                   >
-                    <TableCell column="meta" className="whitespace-nowrap">
-                      <span
-                        className={cn(
-                          "font-medium",
-                          coin.marketKey === openCoin &&
-                            "underline underline-offset-4"
+                    <TableCell className="py-1.5 pr-1 whitespace-nowrap">
+                      <span className="flex min-w-0 items-center gap-1">
+                        {/* A coin still holding a trade when the run ended shows a
+                          green dot in place of its logo, with the money still in
+                          it on hover (Tyler, 11 Nov 2026). */}
+                        {coin.summary && coin.summary.openAtEndUsd > 0 ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                data-open-dot=""
+                                aria-label={`${usd(coin.summary.openAtEndUsd)} still in this trade`}
+                                className="flex size-4 shrink-0 items-center justify-center"
+                              >
+                                <span className="size-2 rounded-full bg-emerald-500" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {usd(coin.summary.openAtEndUsd)} still in this trade
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : icons?.get(coin.marketKey) ? (
+                          <MarketIcon
+                            symbol={coin.symbol}
+                            iconUrl={icons.get(coin.marketKey) ?? null}
+                          />
+                        ) : (
+                          // A coin out of trades with no logo gets a grey dot,
+                          // not its first letter (Tyler, 11 Nov 2026).
+                          <span
+                            data-idle-dot=""
+                            aria-hidden
+                            className="flex size-4 shrink-0 items-center justify-center"
+                          >
+                            <span className="size-2 rounded-full bg-muted-foreground/40" />
+                          </span>
                         )}
-                      >
-                        {coin.symbol}
+                        <span
+                          className={cn(
+                            "block min-w-0 truncate text-xs font-semibold",
+                            coin.marketKey === openCoin &&
+                              "underline underline-offset-4"
+                          )}
+                        >
+                          {coin.symbol}
+                        </span>
                       </span>
                       {coin.summary ? null : (
-                        <span
-                          className="ml-2 text-[10px] text-muted-foreground"
-                          title={coin.skipReason ?? coin.error ?? undefined}
-                        >
-                          {(coin.status === "waiting" ||
-                            coin.status === "running") &&
-                          coin.progressNote
-                            ? coin.progressNote
-                            : BACKTEST_STATUS_LABELS[coin.status]}
-                        </span>
+                        <Hint words={coin.skipReason ?? coin.error}>
+                          <span className="block truncate pl-5 text-[10px] text-muted-foreground">
+                            {(coin.status === "waiting" ||
+                              coin.status === "running") &&
+                            coin.progressNote
+                              ? coin.progressNote
+                              : BACKTEST_STATUS_LABELS[coin.status]}
+                          </span>
+                        </Hint>
                       )}
                       {/* A coin the run walked and never traded. Without this it is
                         a row of zeroes with nothing to ask — and working out
@@ -304,39 +256,28 @@ export function BacktestMarketsPanel({
                         simply unaffordable meant reading the price history by
                         hand against the ladder's settings. */}
                       {noLadder ? (
-                        <span
-                          className="ml-2 text-[10px] text-muted-foreground"
-                          title={`${noLadder.bars} ${plural(noLadder.bars, "bar", "bars")}, last on ${formatDate(new Date(noLadder.lastAt))}`}
+                        <Hint
+                          words={`${noLadder.bars} ${plural(noLadder.bars, "bar", "bars")}, last on ${formatDate(new Date(noLadder.lastAt))}`}
                         >
-                          {noLadder.words}
-                        </span>
+                          <span className="block truncate pl-5 text-[10px] text-muted-foreground">
+                            {noLadder.words}
+                          </span>
+                        </Hint>
                       ) : null}
                     </TableCell>
-                    <TableCell
-                      column="meta"
-                      className={cn(
-                        "text-right tabular-nums",
-                        toneClass(coin.summary?.madeOrLost)
-                      )}
-                    >
+                    <TableCell className="px-1 py-1.5 font-mono text-xs tabular-nums">
                       {coin.summary ? (
-                        <span className="flex flex-col items-end">
-                          <span>{signedUsd(coin.summary.madeOrLost)}</span>
-                          {coin.summary.openAtEndUsd > 0 ? (
-                            <span className="text-[10px] font-normal text-muted-foreground">
-                              {openPnl === null
-                                ? "open P&L unavailable"
-                                : `${signedUsd(openPnl)} open`}
-                            </span>
-                          ) : null}
+                        <span className="flex flex-col items-start">
+                          <span className={cn("font-medium", toneClass(coin.summary.madeOrLost))}>
+                            {signedUsd(coin.summary.madeOrLost)}
+                          </span>
                         </span>
                       ) : (
-                        "—"
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell
-                      column="meta"
-                      className="text-right tabular-nums"
+                      className={cn("px-1 py-1.5 font-mono text-xs text-muted-foreground tabular-nums", HIDE.dip)}
                     >
                       {coin.summary ? usd(coin.summary.worstDipUsd) : "—"}
                     </TableCell>
@@ -344,12 +285,13 @@ export function BacktestMarketsPanel({
                       trades — so a column repeating the six was a column of
                       numbers that were on the row twice. */}
                     <TableCell
-                      column="meta"
-                      className="text-right tabular-nums"
+                      className={cn("px-1 py-1.5 font-mono text-xs tabular-nums", HIDE.win)}
                     >
-                      {coin.summary
-                        ? `${coin.summary.won}/${coin.summary.closed}`
-                        : "—"}
+                      {coin.summary ? (
+                        `${coin.summary.won}/${coin.summary.closed}`
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 )
@@ -362,101 +304,105 @@ export function BacktestMarketsPanel({
                   {/* "Traded", not "tested": the coins that were tested and did
                     nothing are in the Skipped tab now, and counting them here
                     would describe a list that is not on the screen. */}
-                  <TableCell
-                    column="meta"
-                    className="font-medium whitespace-nowrap"
-                  >
+                  <TableCell className="py-2.5 pr-1 text-xs font-medium whitespace-nowrap text-muted-foreground">
                     {tested.length} traded
                   </TableCell>
-                  <TableCell
-                    column="meta"
-                    className={cn(
-                      "text-right font-medium tabular-nums",
-                      toneClass(total((coin) => coin.summary?.madeOrLost ?? 0))
-                    )}
-                  >
-                    <span className="flex flex-col items-end">
-                      <span>
+                  <TableCell className="px-1 py-2.5 font-mono text-xs tabular-nums">
+                    <span className="flex flex-col items-start">
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          toneClass(total((coin) => coin.summary?.madeOrLost ?? 0))
+                        )}
+                      >
                         {signedUsd(
                           total((coin) => coin.summary?.madeOrLost ?? 0)
                         )}
                       </span>
-                      {openPnlTotal !== 0 ? (
-                        <span className="text-[10px] font-normal text-muted-foreground">
-                          {signedUsd(openPnlTotal)} open
-                        </span>
-                      ) : null}
                     </span>
                   </TableCell>
                   {/* No total for the dip: adding up each coin's worst moment
                     would describe a day that never happened. The run's own dip
                     is on the left, measured on the one combined line. */}
-                  <TableCell
-                    column="meta"
-                    className="text-right text-muted-foreground"
-                  >
+                  <TableCell className={cn("px-1 py-2.5 text-xs text-muted-foreground", HIDE.dip)}>
                     —
                   </TableCell>
-                  <TableCell
-                    column="meta"
-                    className="text-right font-medium tabular-nums"
-                  >
+                  <TableCell className={cn("px-1 py-2.5 font-mono text-xs font-semibold tabular-nums", HIDE.win)}>
                     {wonTotal}/{closedTotal}
                   </TableCell>
                 </TableRow>
               ) : null}
             </TableBody>
           </Table>
-        </ScrollArea>
-      </TabsContent>
+    </div>
+  )
+}
 
-      <TabsContent value="skipped" className="flex min-h-0 flex-1 flex-col">
-        <ScrollArea
-          className="min-h-0 flex-1"
-          viewportClassName="[&>div]:block!"
-        >
-          {skippedRows.length === 0 ? (
-            <p className="p-4 text-center text-xs text-muted-foreground">
-              Every market on the list traded at least once.
-            </p>
-          ) : (
-            <Table className="table-fixed text-xs [&_td]:px-1.5 [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th]:px-1.5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
-              <TableHeader>
-                <TableRow>
-                  <TableHead column="meta" className="w-[30%]">
-                    Coin
-                  </TableHead>
-                  <TableHead column="meta" className="w-[70%]">
-                    Why
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {skippedRows.map((row) => (
-                  <TableRow key={row.marketKey}>
-                    <TableCell
-                      column="meta"
-                      className="font-medium whitespace-nowrap"
-                    >
-                      {row.symbol}
-                    </TableCell>
-                    {/* The reason in full, wrapped. It is usually a sentence
-                        about missing history, and a truncated one leaves you
-                        guessing at the only thing this row says. */}
-                    <TableCell
-                      column="meta"
-                      className="break-words whitespace-normal text-muted-foreground"
-                    >
-                      {row.reason}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </ScrollArea>
-      </TabsContent>
-    </Tabs>
+/**
+ * The coins that produced nothing, grouped by why (Tyler, 10 Nov 2026:
+ * "revamp skipped card", with a picture): each reason once, in grey with its
+ * count in a pill, and its coins under it as small boxed names. The biggest
+ * group comes first. A reason is usually a sentence about missing history,
+ * and writing it once per group instead of once per coin is what makes a
+ * long list readable.
+ */
+function SkippedList({ rows }: { rows: readonly SkippedCoin[] }) {
+  if (rows.length === 0) {
+    return <p className="py-2 text-center text-xs text-muted-foreground">Every market on the list traded at least once.</p>
+  }
+  const groups = new Map<string, SkippedCoin[]>()
+  for (const row of rows) {
+    const group = groups.get(row.reason)
+    if (group) group.push(row)
+    else groups.set(row.reason, [row])
+  }
+  const ordered = [...groups.entries()].sort(
+    (left, right) => right[1].length - left[1].length || left[0].localeCompare(right[0])
+  )
+  return (
+    <div className="grid gap-6">
+      {ordered.map(([reason, coins]) => (
+        <section key={reason} className="grid gap-3">
+          <div className="flex items-start gap-3">
+            <p className="min-w-0 flex-1 text-sm leading-6 text-muted-foreground">{reason}</p>
+            <span className="mt-0.5 shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+              {coins.length}
+            </span>
+          </div>
+          <ul className="flex flex-wrap gap-1.5">
+            {coins.map((coin) => (
+              <li
+                key={coin.marketKey}
+                data-skipped-coin=""
+                className="rounded-md border border-foreground/15 bg-background px-2 py-0.5 text-xs font-semibold"
+              >
+                {coin.symbol}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Which columns drop out as the card narrows (Tyler's polish pick, 10 Nov
+ * 2026): Dip under 18rem, Win under 14rem. Market and Total always stay.
+ */
+const HIDE: Partial<Record<Column, string>> = {
+  dip: "hidden @[18rem]:table-cell",
+  win: "hidden @[14rem]:table-cell",
+}
+
+/** A muted note that explains itself on hover, in the shared tooltip. */
+function Hint({ words, children }: { words: string | null; children: React.ReactElement }) {
+  if (!words) return children
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent className="max-w-64">{words}</TooltipContent>
+    </Tooltip>
   )
 }
 

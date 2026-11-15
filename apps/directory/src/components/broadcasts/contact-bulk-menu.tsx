@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CircleDotIcon, Trash2Icon, UserRoundMinusIcon, UsersRoundIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   SelectedMenu,
@@ -30,9 +29,7 @@ import {
   segmentStatusLabels,
   type ContactSegmentStatus,
 } from "@/lib/contacts/contact-segments"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
-import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 
 const DELETE_DETAIL =
@@ -45,8 +42,7 @@ const DELETE_DETAIL =
  * also offers everybody the filters match, and then every change is sent as
  * the filters rather than as ids, so it means the people the list means.
  *
- * Each change is one request, and the toast says how many changed and how
- * many were already that way.
+ * Each change is one request, and the list redraws with the result.
  */
 export function ContactBulkMenu({
   selectedIds,
@@ -84,72 +80,43 @@ export function ContactBulkMenu({
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const busy = segmentBusy || contactsBusy
 
-  const finish = async (message: string) => {
+  const finish = async () => {
     onDone()
-    toast.success(message)
     await onRefresh()
   }
 
   const addTo = (segment: SegmentItem) =>
     void runSegment(async () => {
-      const { added, alreadyThere } = allMatching
-        ? await addMatchingContactsToWorkspaceSegment(segment.id, filter)
-        : await addContactsToWorkspaceSegment(segment.id, selectedIds)
-      const name = quoteOneLine(segment.name)
-      await finish(
-        added === 0
-          ? `Everybody picked was already in ${name}.`
-          : `${added.toLocaleString()} ${plural(added, "person", "people")} added to ${name}.${alreadyThere ? ` ${alreadyThere.toLocaleString()} ${alreadyThere === 1 ? "was" : "were"} already in it.` : ""}`
-      )
+      await (allMatching
+        ? addMatchingContactsToWorkspaceSegment(segment.id, filter)
+        : addContactsToWorkspaceSegment(segment.id, selectedIds))
+      await finish()
     })
 
   const removeFrom = (segment: SegmentItem) =>
     void runSegment(async () => {
-      const { removed, notThere } = allMatching
-        ? await removeMatchingContactsFromWorkspaceSegment(segment.id, filter)
-        : await removeContactsFromWorkspaceSegment(segment.id, selectedIds)
-      const name = quoteOneLine(segment.name)
-      await finish(
-        removed === 0
-          ? `Nobody picked was in ${name}.`
-          : `${removed.toLocaleString()} ${plural(removed, "person", "people")} taken out of ${name}.${notThere ? ` ${notThere.toLocaleString()} ${notThere === 1 ? "was" : "were"} not in it.` : ""}`
-      )
+      await (allMatching
+        ? removeMatchingContactsFromWorkspaceSegment(segment.id, filter)
+        : removeContactsFromWorkspaceSegment(segment.id, selectedIds))
+      await finish()
     })
 
   const setStatus = (status: ContactSegmentStatus) =>
     void runContacts(async () => {
-      const { changed } = allMatching
-        ? await setMatchingContactsStatus(filter, status)
-        : await setContactsStatus(selectedIds, status)
-      await finish(
-        describeBulkResult({
-          done: changed,
-          kept: Math.max(0, count - changed),
-          one: "contact",
-          many: "contacts",
-          verb: `set to ${segmentStatusLabels[status]}`,
-        })
-      )
+      await (allMatching
+        ? setMatchingContactsStatus(filter, status)
+        : setContactsStatus(selectedIds, status))
+      await finish()
     })
 
   const remove = () =>
     void runContacts(async () => {
-      const { deleted } = allMatching
-        ? await deleteMatchingContacts(filter)
-        : await deleteContacts(selectedIds)
+      await (allMatching
+        ? deleteMatchingContacts(filter)
+        : deleteContacts(selectedIds))
       setConfirmDelete(false)
       onDeleted()
-      // The number the server really deleted, which can differ from the
-      // number on the button: accounts sync into this list on every load.
-      await finish(
-        describeBulkResult({
-          done: deleted,
-          kept: Math.max(0, count - deleted),
-          one: "contact",
-          many: "contacts",
-          verb: "deleted",
-        })
-      )
+      await finish()
     })
 
   const segmentList = (pick: (segment: SegmentItem) => void, close: () => void) =>

@@ -1,3 +1,4 @@
+import { isInboundAddress } from "@/server/crm/addresses"
 import { db, type CustomShellDb } from "@/server/db"
 import { emailBrandName } from "@/server/email/branding"
 import { composeFromAddress } from "@/server/email/send"
@@ -36,9 +37,17 @@ type EmailSettingsRow = Awaited<ReturnType<typeof getEmailSettings>>
 async function senderFromSettings(
   workspaceId: string,
   settings: EmailSettingsRow,
-  database: CustomShellDb
+  database: CustomShellDb,
+  ownAddress?: string | null
 ): Promise<CrmReplySender | null> {
-  const address = settings?.inboundAddress ?? null
+  // A conversation's own address, while it is still on the list, so the
+  // answer goes back out from where the mail arrived (CRM task 18). Otherwise
+  // the first address, which Settings → Email holds.
+  const own =
+    ownAddress && (await isInboundAddress(workspaceId, ownAddress, database))
+      ? ownAddress.trim().toLowerCase()
+      : null
+  const address = own ?? settings?.inboundAddress ?? null
   if (!address) return null
 
   const typed = settings?.crmReplyName?.trim() ?? ""
@@ -65,10 +74,11 @@ async function senderFromSettings(
  */
 export async function getCrmReplySender(
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  ownAddress?: string | null
 ): Promise<CrmReplySender | null> {
   const settings = await getEmailSettings(workspaceId, database)
-  return senderFromSettings(workspaceId, settings, database)
+  return senderFromSettings(workspaceId, settings, database, ownAddress)
 }
 
 /**
@@ -80,10 +90,16 @@ export async function getCrmReplySender(
  */
 export async function getCrmOutgoingReply(
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  ownAddress?: string | null
 ): Promise<CrmOutgoingReply | null> {
   const settings = await getEmailSettings(workspaceId, database)
-  const sender = await senderFromSettings(workspaceId, settings, database)
+  const sender = await senderFromSettings(
+    workspaceId,
+    settings,
+    database,
+    ownAddress
+  )
   if (!sender) return null
   return {
     sender,

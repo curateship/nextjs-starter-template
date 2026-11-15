@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CircleDotIcon, PlusIcon, TagIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -40,7 +39,6 @@ export function VaultSelectedMenu({
       const result = await changeVaultItemsFn(ids, next)
       const message = describeVaultBulk(result, verb)
       if (result.skipped.length) showErrorToast(message)
-      else toast.success(message)
       await onDone(next, result)
       return true
     } catch (error) {

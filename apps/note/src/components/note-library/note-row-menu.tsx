@@ -13,7 +13,6 @@ import {
   PinOffIcon,
   SettingsIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { LibraryDot } from "@/components/note-library/library-dot"
 import { SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
@@ -60,13 +59,13 @@ export function NoteRowMenu({
     if (!next) setStep(null)
   }
 
-  /** `work` answers false when it said why it did nothing itself. */
-  async function run(work: () => Promise<unknown>, success: string) {
+  /** `work` says why itself when it does nothing. */
+  async function run(work: () => Promise<unknown>) {
     openChange(false)
     setBusy(true)
     dismissErrorToast()
     try {
-      if ((await work()) !== false) toast.success(success)
+      await work()
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))
     } finally {
@@ -74,11 +73,11 @@ export function NoteRowMenu({
     }
   }
 
-  const change = (what: NoteChange, success: string) =>
+  const change = (what: NoteChange) =>
     void run(async () => {
       await changeNotes([note.id], what)
       await onChanged()
-    }, success)
+    })
 
   return (
     <Popover open={open} onOpenChange={openChange}>
@@ -105,14 +104,14 @@ export function NoteRowMenu({
             <SelectedMenuSeparator />
             {step === "folder" ? (
               <ScrollArea className="max-h-64">
-                <SelectedMenuRow onClick={() => change({ change: "folder", folderId: null }, "Moved out of its folder.")}>
+                <SelectedMenuRow onClick={() => change({ change: "folder", folderId: null })}>
                   <MinusIcon className="size-4 text-muted-foreground" />
                   No folder
                 </SelectedMenuRow>
                 {page.folders.map((folder) => (
                   <SelectedMenuRow
                     key={folder.id}
-                    onClick={() => change({ change: "folder", folderId: folder.id }, `Moved to ${quoteOneLine(folder.name)}.`)}
+                    onClick={() => change({ change: "folder", folderId: folder.id })}
                   >
                     <span className="truncate">{folder.name}</span>
                   </SelectedMenuRow>
@@ -132,7 +131,7 @@ export function NoteRowMenu({
                             return false
                           }
                           onMovedAway()
-                        }, `Moved ${quoteOneLine(title)} to ${quoteOneLine(library.name)}.`)
+                        })
                       }
                     >
                       <LibraryDot colour={library.colour} />
@@ -147,7 +146,7 @@ export function NoteRowMenu({
               NOTE_PRIORITIES.map((priority) => (
                 <SelectedMenuRow
                   key={priority}
-                  onClick={() => change({ change: "priority", priority }, `Set to ${PRIORITY_LABEL[priority]}.`)}
+                  onClick={() => change({ change: "priority", priority })}
                 >
                   {priority === "high" ? (
                     <ArrowUpIcon className="size-4 text-muted-foreground" />
@@ -164,14 +163,14 @@ export function NoteRowMenu({
         ) : (
           <>
             <SelectedMenuRow
-              onClick={() => change({ change: "pin", on: !note.pinned }, note.pinned ? "Unpinned." : "Pinned to the top.")}
+              onClick={() => change({ change: "pin", on: !note.pinned })}
             >
               {note.pinned ? <PinOffIcon className="size-4 text-muted-foreground" /> : <PinIcon className="size-4 text-muted-foreground" />}
               {note.pinned ? "Unpin" : "Pin"}
             </SelectedMenuRow>
             <SelectedMenuRow
               onClick={() =>
-                change({ change: "archive", on: !note.archived }, note.archived ? "Back in its folder." : "Archived. Search still finds it.")
+                change({ change: "archive", on: !note.archived })
               }
             >
               {note.archived ? (
@@ -199,7 +198,7 @@ export function NoteRowMenu({
               onClick={() =>
                 void run(async () => {
                   await onDuplicated(await duplicateLibraryNote(note.id))
-                }, `Made a copy of ${quoteOneLine(title)}.`)
+                })
               }
             >
               <CopyIcon className="size-4 text-muted-foreground" />

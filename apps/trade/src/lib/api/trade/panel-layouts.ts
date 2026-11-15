@@ -2,30 +2,31 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
+import { chartViewSchema, type ChartView } from "@/lib/trade/chart-view"
 import { ALL_ROW } from "@/lib/trade/market-folders"
-import { TRADE_PANEL_LAYOUT_KEYS } from "@/lib/trade/panel-keys"
 import type {
   ChartToolbarPosition,
+  JournalView,
   MarketPanelScope,
-  TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
-import { userPost } from "@/server/guards"
+import { TRADE_MAKERS } from "@/lib/trade/trade-maker"
 import {
-  applyNamedTradePanelLayout,
-  createNamedTradePanelLayout,
-  deleteNamedTradePanelLayout,
-  importLegacyTradePanelLayouts,
+  TRADES_POPOVER_KINDS,
+  type HiddenTradeColumns,
+  type TradesPopoverKind,
+} from "@/lib/trade/trades-popover-columns"
+import { userGet, userPost } from "@/server/guards"
+import {
+  loadTradePanelLayouts,
+  saveHiddenTradeColumns as saveHiddenTradeColumnsForUser,
   saveChartToolbarPosition as saveChartToolbarPositionForUser,
   saveOpenMarketRow as saveOpenMarketRowForUser,
-  saveTradePanelLayout,
+  saveJournalView as saveJournalViewForUser,
+  saveNarrowChartView as saveNarrowChartViewForUser,
 } from "@/server/trade/prefs"
 
 import { createErrorMessage } from "../error-message"
 
-const layoutKeySchema = z.enum(TRADE_PANEL_LAYOUT_KEYS)
-const layoutSchema = z
-  .record(z.string().min(1).max(40), z.number().finite().min(0).max(100))
-  .refine((layout) => Object.keys(layout).length <= 3)
 const openMarketRowIdSchema = z
   .union([z.literal(ALL_ROW), z.string().uuid()])
   .nullable()
@@ -39,56 +40,6 @@ const chartToolbarPositionSchema = z
     y: z.number().finite().min(0).max(1),
   })
   .nullable()
-
-const savePanelLayoutFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ key: layoutKeySchema, layout: layoutSchema }))
-  .handler(async ({ data, context }): Promise<{ saved: true }> => {
-    await saveTradePanelLayout(context.user.id, data.key, data.layout)
-    return { saved: true }
-  })
-
-const importLegacyPanelLayoutsFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    z.object({ current: z.partialRecord(layoutKeySchema, layoutSchema) })
-  )
-  .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
-    return importLegacyTradePanelLayouts(context.user.id, data.current)
-  })
-
-const createNamedPanelLayoutFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(
-    z.object({
-      name: z.string().trim().min(1).max(32),
-      horizontal: layoutSchema,
-      vertical: layoutSchema,
-      scope: marketPanelScopeSchema,
-      openMarketRowId: openMarketRowIdSchema,
-      headerProfitVisible: z.boolean(),
-      chartToolbarPosition: chartToolbarPositionSchema,
-    })
-  )
-  .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
-    return createNamedTradePanelLayout(context.user.id, data)
-  })
-
-const namedIdSchema = z.object({ id: z.string().min(1).max(36) })
-
-const applyNamedPanelLayoutFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(namedIdSchema.extend({ scope: marketPanelScopeSchema }))
-  .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
-    return applyNamedTradePanelLayout(context.user.id, data.id, data.scope)
-  })
-
-const deleteNamedPanelLayoutFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(namedIdSchema)
-  .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
-    return deleteNamedTradePanelLayout(context.user.id, data.id)
-  })
 
 const saveOpenMarketRowFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -108,44 +59,74 @@ const saveChartToolbarPositionFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
-export function savePanelLayout(
-  key: (typeof TRADE_PANEL_LAYOUT_KEYS)[number],
-  layout: Record<string, number>
-) {
-  return savePanelLayoutFn({ data: { key, layout } })
-}
-
-export function importLegacyPanelLayouts(
-  current: TradePanelLayouts["current"]
-) {
-  return importLegacyPanelLayoutsFn({ data: { current } })
-}
-
-export function createNamedPanelLayout(input: {
-  name: string
-  horizontal: Record<string, number>
-  vertical: Record<string, number>
-  scope: MarketPanelScope
-  openMarketRowId: string | null
-  headerProfitVisible: boolean
-  chartToolbarPosition: ChartToolbarPosition | null
-}) {
-  return createNamedPanelLayoutFn({ data: input })
-}
-
-export function applyNamedPanelLayout(id: string, scope: MarketPanelScope) {
-  return applyNamedPanelLayoutFn({ data: { id, scope } })
-}
-
-export function deleteNamedPanelLayout(id: string) {
-  return deleteNamedPanelLayoutFn({ data: { id } })
-}
-
 export function saveOpenMarketRow(
   scope: MarketPanelScope,
   openMarketRowId: string | null
 ) {
   return saveOpenMarketRowFn({ data: { ...scope, openMarketRowId } })
+}
+
+const saveHiddenTradeColumnsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      kind: z.enum(TRADES_POPOVER_KINDS),
+      columns: z.array(z.string().min(1).max(20)).max(10),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveHiddenTradeColumnsForUser(context.user.id, data.kind, data.columns)
+    return { saved: true }
+  })
+
+export function saveHiddenTradeColumns(kind: TradesPopoverKind, columns: readonly string[]) {
+  return saveHiddenTradeColumnsFn({ data: { kind, columns: [...columns] } })
+}
+
+/**
+ * Every table's hidden columns, for a place outside the Trade dashboard that
+ * has not loaded the account's panel choices, such as the header's Active
+ * trades button.
+ */
+const loadHiddenTradeColumnsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<HiddenTradeColumns> => {
+    const layouts = await loadTradePanelLayouts(context.user.id)
+    return layouts.hiddenTradeColumns
+  })
+
+export function loadHiddenTradeColumns() {
+  return loadHiddenTradeColumnsFn()
+}
+
+const saveJournalViewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      hidePractice: z.boolean(),
+      makers: z.array(z.enum(TRADE_MAKERS)).max(TRADE_MAKERS.length),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveJournalViewForUser(context.user.id, data)
+    return { saved: true }
+  })
+
+export function saveJournalView(view: JournalView) {
+  return saveJournalViewFn({ data: { hidePractice: view.hidePractice, makers: [...view.makers] } })
+}
+
+const saveNarrowChartViewFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ chartView: chartViewSchema }))
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveNarrowChartViewForUser(context.user.id, data.chartView)
+    return { saved: true }
+  })
+
+/** The chart's zoom under 1280px, kept apart from the wide screen's. */
+export function saveNarrowChartView(chartView: ChartView) {
+  return saveNarrowChartViewFn({ data: { chartView } })
 }
 
 export function saveChartToolbarPosition(
@@ -156,9 +137,6 @@ export function saveChartToolbarPosition(
 
 export const getPanelLayoutErrorMessage = createErrorMessage(
   {
-    PANEL_LAYOUT_NAME_TAKEN: "A saved layout already uses that name.",
-    PANEL_LAYOUT_LIMIT: "You can keep up to five saved layouts.",
-    PANEL_LAYOUT_NOT_FOUND: "That saved layout is not here any more.",
     PANEL_LAYOUT_INVALID: "That panel arrangement could not be saved.",
   },
   "The panel arrangement could not be saved. Try again."

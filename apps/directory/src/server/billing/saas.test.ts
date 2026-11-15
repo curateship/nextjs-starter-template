@@ -48,7 +48,6 @@ import {
 } from "@/server/billing/entitlements"
 import {
   archivePlan,
-  archivePlans,
   createPlan,
   findPlanByStripePrice,
   getDefaultPlan,
@@ -58,7 +57,6 @@ import {
 } from "@/server/billing/plans"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
 import { listSubscriptionEvents } from "@/server/billing/subscription-events"
-import { listScheduledCancellations } from "@/server/billing/cancellations"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
   consumeAuthToken,
@@ -570,35 +568,6 @@ describe("plans", () => {
     await expect(archivePlan(defaultPlan!.id, database)).rejects.toThrow(
       "DEFAULT_PLAN_REQUIRED"
     )
-  })
-
-  // The table's Archive (n) sends the whole selection in one request, so the
-  // guard that protects a single archive has to hold for the batch too, and the
-  // caller has to be told exactly what went through.
-  it("archives a whole selection in one pass and leaves the default plan alone", async () => {
-    const team = await createPlan(planInput(), database)
-    const starter = await createPlan(
-      planInput({
-        slug: "starter",
-        stripePriceIdMonthly: "price_starter_monthly",
-      }),
-      database
-    )
-    const defaultPlan = await getDefaultPlan(database)
-
-    const result = await archivePlans(
-      [team.id, starter.id, defaultPlan!.id],
-      database
-    )
-    expect([...result.archived].sort()).toEqual([team.id, starter.id].sort())
-    expect(result.kept).toEqual([defaultPlan!.id])
-    expect((await getPlanBySlug("team", database))?.active).toBe(false)
-    expect((await getPlanBySlug("free", database))?.active).toBe(true)
-
-    // Running it again takes nothing: those two are already archived.
-    await expect(
-      archivePlans([team.id, starter.id], database)
-    ).resolves.toEqual({ archived: [], kept: [team.id, starter.id] })
   })
 })
 
@@ -1197,18 +1166,6 @@ describe("members cancel subscriptions", () => {
       .where(eq(customShellCancellations.userId, user.id))
     expect(answer.reason).toBe("too_expensive")
     expect(answer.feedback).toBe("I cannot justify it right now.")
-
-    const leaving = await listScheduledCancellations(5, database)
-    expect(leaving).toEqual([
-      expect.objectContaining({
-        userId: user.id,
-        name: "Leaving Member",
-        planName: "Pro",
-        reason: "too_expensive",
-        feedback: "I cannot justify it right now.",
-        endsAt: new Date("2027-01-01").toISOString(),
-      }),
-    ])
   })
 
   it("cancels without an answer and records that it was skipped", async () => {
@@ -1272,29 +1229,6 @@ describe("members cancel subscriptions", () => {
       "Cancellation survey could not be recorded"
     )
     reported.mockRestore()
-  })
-
-  it("does not attach an old answer to a later cancellation", async () => {
-    const user = await createUser()
-    const subscription = await seedStripeSubscription(user.id, {
-      cancelAtPeriodEnd: true,
-      currentPeriodEnd: new Date("2027-02-01"),
-    })
-    const plan = await getPlanBySlug("pro", database)
-    await database.insert(customShellCancellations).values({
-      id: uuid(),
-      userId: user.id,
-      planId: plan!.id,
-      planName: plan!.name,
-      reason: "missing_features",
-      feedback: "From the earlier subscription.",
-      endsAt: new Date("2027-01-01"),
-      createdAt: subscription.createdAt,
-    })
-
-    const [leaving] = await listScheduledCancellations(5, database)
-    expect(leaving.reason).toBeNull()
-    expect(leaving.feedback).toBeNull()
   })
 
   it("refuses a granted plan and a second cancellation", async () => {

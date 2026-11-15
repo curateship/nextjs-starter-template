@@ -1,8 +1,24 @@
 import * as React from "react"
 
+import {
+  DailyCardDrawing,
+  ProjectDrawing,
+  RatingMonthDrawing,
+  RatingTrendDrawing,
+  InboxDrawing,
+} from "@/components/project/notes/dashboard-blocks"
+import {
+  AttentionDrawing,
+  CheckinsDrawing,
+  MembersDrawing,
+  WeekDrawing,
+  WorkloadDrawing,
+} from "@/components/project/notes/team-blocks"
+import { MilestonesDrawing } from "@/components/project/notes/project-page-blocks"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   CalloutFrame,
+  CommentsDrawing,
   FileDrawing,
   FoldHeading,
   ImageDrawing,
@@ -16,6 +32,7 @@ import {
 import { hiddenByFolds, useFoldsVersion } from "@/components/project/notes/note-folds"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import {
+  ADVANCED_ATOM_TYPES,
   NOTE_ATOM_TYPES,
   NOTE_HOLDER_TYPES,
   type CalloutKind,
@@ -36,6 +53,8 @@ const READING: BlockEditing = { editable: false, remove: () => undefined }
 const BLOCK_TYPES = new Set<string>([...NOTE_ATOM_TYPES, ...NOTE_HOLDER_TYPES])
 /** The reader's frame for a block: the editor's, less the editor's own gap above and below. */
 const READER_FRAME = "group/block relative [&_a]:text-inherit! [&_a]:no-underline! [&_a:hover]:text-foreground!"
+/** An advanced block's frame, reaching the panel's edges as in the editor (`ADVANCED_BLOCK_FRAME`). */
+const ADVANCED_READER_FRAME = `${READER_FRAME} mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)]`
 
 function holdsBlocks(node: NoteNode): boolean {
   return BLOCK_TYPES.has(node.type) || (node.content ?? []).some(holdsBlocks)
@@ -57,6 +76,8 @@ function Block({ node }: { node: NoteNode }) {
       return <TaskCardDrawing taskId={text(attrs.taskId)} editing={READING} onPick={none} />
     case "noteFile":
       return <FileDrawing fileId={text(attrs.fileId)} editing={READING} onPick={none} />
+    case "noteComments":
+      return <CommentsDrawing editing={READING} />
     case "noteRecord":
       return <RecordDrawing editing={READING} />
     case "noteWebPage":
@@ -65,6 +86,31 @@ function Block({ node }: { node: NoteNode }) {
       return <LinksDrawing links={(Array.isArray(attrs.links) ? attrs.links : []) as NoteLink[]} editing={READING} onChange={none} />
     case "horizontalRule":
       return <hr className="border-t" />
+    // The site admin's own page, read only while it's locked.
+    case "noteProject":
+      return <ProjectDrawing projectId={text(attrs.projectId)} editing={READING} onPick={none} />
+    case "noteHabit":
+      return <DailyCardDrawing editing={READING} />
+    case "noteRatingMonth":
+      return <RatingMonthDrawing editing={READING} />
+    case "noteRatingTrend":
+      return <RatingTrendDrawing editing={READING} />
+    case "noteInbox":
+      return <InboxDrawing editing={READING} />
+    // A team's page, as every member but the site admin reads it.
+    case "noteTeamCheckins":
+      return <CheckinsDrawing editing={READING} />
+    case "noteTeamWorkload":
+      return <WorkloadDrawing editing={READING} />
+    case "noteTeamAttention":
+      return <AttentionDrawing editing={READING} />
+    case "noteTeamWeek":
+      return <WeekDrawing editing={READING} />
+    case "noteTeamMembers":
+      return <MembersDrawing editing={READING} />
+    // A project's page, as everyone but the site admin reads it.
+    case "noteMilestones":
+      return <MilestonesDrawing editing={READING} />
     case "noteCallout":
       return (
         <CalloutFrame kind={(attrs.kind as CalloutKind) ?? "note"} editing={READING}>
@@ -129,7 +175,7 @@ function NoteChildren({ nodes, hidden }: { nodes: NoteNode[]; hidden?: boolean[]
     flush()
     parts.push(
       BLOCK_TYPES.has(node.type) ? (
-        <div key={index} data-note-block="" className={READER_FRAME}>
+        <div key={index} data-note-block="" className={ADVANCED_ATOM_TYPES.has(node.type) ? ADVANCED_READER_FRAME : READER_FRAME}>
           <Block node={node} />
         </div>
       ) : (

@@ -14,7 +14,6 @@ import { makeRepeatCopies } from "@/server/project/planning-jobs"
 import {
   addProjectMember,
   loadProjectPage,
-  removeProjectMember,
   setProjectArchived,
   setProjectClient,
   setProjectLead,
@@ -24,22 +23,13 @@ import { sendMilestoneReminders } from "@/server/project/reminder-jobs"
 import {
   projectMilestones,
   projectNoticeLinks,
-  projectTaskFollowers,
   projectTasks,
   projectTeamMembers,
 } from "@/server/project/schema"
 import { loadTeamDueDates, setCalendarDueDates } from "@/server/project/team-due-dates"
 import { loadNeedsAttention, loadWorkload } from "@/server/project/team-running"
 import { reviewTask, setNeedsReview } from "@/server/project/task-review"
-import { createTaskType, createTypeField, setTaskFieldValue, setTaskType } from "@/server/project/task-types"
-import {
-  addStep,
-  createTask,
-  loadTaskDetail,
-  setTaskStatus,
-  updateStep,
-  updateTask,
-} from "@/server/project/tasks"
+import { createTask, setTaskStatus, updateTask } from "@/server/project/tasks"
 import { addTimeOff, awayBetween } from "@/server/project/time-off"
 import { customShellNotifications, type CustomShellUser } from "@/server/schema"
 import { insertEmployee, projectFor, startTeam } from "@/server/project/test-people"
@@ -110,7 +100,6 @@ async function task(title: string, input: { assignee?: CustomShellUser | null; d
       notes: "",
       assigneeUserId: input.assignee === undefined ? ben.id : (input.assignee?.id ?? null),
       dueDate: input.dueDate ?? null,
-      steps: [],
     },
     database
   )
@@ -214,7 +203,7 @@ describe("part 3: waiting for review in Needs attention", () => {
 })
 
 describe("part 4: a repeating task's next copy keeps its whole setup", () => {
-  it("keeps step people, moves step dates and the start day, keeps the due time and the milestone", async () => {
+  it("moves the start day, keeps the due time and the milestone", async () => {
     const report = await task("Send the client report", { dueDate: "2099-02-27" })
     await database.update(projectTasks).set({ createdAt: at("2099-02-20T10:00:00Z") }).where(eq(projectTasks.id, report))
     await updateTask(
@@ -224,44 +213,31 @@ describe("part 4: a repeating task's next copy keeps its whole setup", () => {
     )
     const milestone = (await createMilestone(anna.id, { projectId: website, name: "Q1", dueDate: "2099-03-31" }, database)).id
     await setTaskMilestone(anna.id, { taskId: report, milestoneId: milestone }, database)
-    const figures = await addStep(actor(anna), { taskId: report, text: "Gather figures" }, database)
-    await updateStep(actor(anna), { stepId: figures.id, assigneeUserId: carla.id, dueDate: "2099-02-26" }, database)
-    const plain = await addStep(actor(anna), { taskId: report, text: "Send it" }, database)
-    await updateStep(actor(anna), { stepId: plain.id, done: true }, database)
     await setRepeat(actor(anna), { taskId: report, repeat: { every: "week", weekDays: [1] } }, database)
     await setTaskStatus(actor(ben), { taskId: report, status: "done", stuckReason: null }, database)
 
     await makeRepeatCopies(database, at(`${MONDAY}T00:00:30Z`))
     const copy = (await loadProjectPage(anna.id, website, database)).tasks.find((t) => t.id !== report)!
-    // Due Monday 2 March, 3 days after 27 February, so every date moves 3 days.
+    // Due Monday 2 March, 3 days after 27 February, so the start day moves 3 days.
     expect(copy).toMatchObject({
       dueDate: MONDAY,
       dueAt: `${MONDAY}T15:30:00.000Z`,
       startDate: "2099-02-28",
       milestoneId: milestone,
     })
-    const steps = (await loadTaskDetail(anna.id, copy.id, database)).steps
-    expect(steps.map((s) => [s.text, s.done, s.assignee?.id ?? null, s.dueDate])).toEqual([
-      ["Gather figures", false, carla.id, "2099-03-01"],
-      ["Send it", false, null, null],
-    ])
   })
 
-  it("leaves off a milestone already passed and a step person who left the project", async () => {
+  it("leaves off a milestone already passed", async () => {
     const report = await task("Water the plants", { dueDate: "2099-02-27" })
     await database.update(projectTasks).set({ createdAt: at("2099-02-20T10:00:00Z") }).where(eq(projectTasks.id, report))
     const old = (await createMilestone(anna.id, { projectId: website, name: "February", dueDate: "2099-02-28" }, database)).id
     await setTaskMilestone(anna.id, { taskId: report, milestoneId: old }, database)
-    const step = await addStep(actor(anna), { taskId: report, text: "Fill the can" }, database)
-    await updateStep(actor(anna), { stepId: step.id, assigneeUserId: carla.id }, database)
     await setRepeat(actor(anna), { taskId: report, repeat: { every: "week", weekDays: [1] } }, database)
     await setTaskStatus(actor(ben), { taskId: report, status: "done", stuckReason: null }, database)
-    await removeProjectMember(admin.id, website, carla.id, database)
 
     await makeRepeatCopies(database, at(`${MONDAY}T00:00:30Z`))
     const copy = (await loadProjectPage(anna.id, website, database)).tasks.find((t) => t.id !== report)!
     expect(copy.milestoneId).toBeNull()
-    expect((await loadTaskDetail(anna.id, copy.id, database)).steps[0].assignee).toBeNull()
   })
 })
 
@@ -297,68 +273,6 @@ describe("part 6: time off on the Team calendar", () => {
   })
 })
 
-describe("part 7: Person fields tell the person", () => {
-  async function reviewType() {
-    const { id: typeId } = await inTeam(teamId, () =>
-      createTaskType(admin.id, { name: "Video", icon: "video", color: "red" }, database)
-    )
-    const reviewer = (await createTypeField(admin.id, { typeId, name: "Reviewer", kind: "person" }, database)).id
-    return { typeId, reviewer }
-  }
-
-  it("tells the person named and makes them follow, but never the one who named them nor the task's own person", async () => {
-    await inTeam(teamId, async () => {
-      const { typeId, reviewer } = await reviewType()
-      const trailer = await task("Edit the trailer")
-      await setTaskType(actor(anna), { taskId: trailer, typeId }, database)
-
-      await setTaskFieldValue(actor(ben), { taskId: trailer, fieldId: reviewer, value: carla.id }, database)
-      expect(await noticesFor(carla, "task_field_person")).toEqual([
-        {
-          message: "Ben named you on a task",
-          detail: "Reviewer on Edit the trailer",
-          href: `/projects/${website}?task=${trailer}`,
-        },
-      ])
-      const followers = await database
-        .select({ userId: projectTaskFollowers.userId })
-        .from(projectTaskFollowers)
-        .where(eq(projectTaskFollowers.taskId, trailer))
-      expect(followers.map((row) => row.userId)).toContain(carla.id)
-
-      // Saving the same person again says nothing new.
-      await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: carla.id }, database)
-      expect(await noticesFor(carla, "task_field_person")).toHaveLength(1)
-      // Ben is the task's own person; Anna names herself.
-      await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: ben.id }, database)
-      await setTaskFieldValue(actor(anna), { taskId: trailer, fieldId: reviewer, value: anna.id }, database)
-      expect(await noticesFor(ben, "task_field_person")).toEqual([])
-      expect(await noticesFor(anna, "task_field_person")).toEqual([])
-    })
-  })
-
-  it("tells the person named when the task is made with the field filled", async () => {
-    await inTeam(teamId, async () => {
-      const { typeId, reviewer } = await reviewType()
-      await createTask(
-        actor(anna),
-        {
-          projectId: website,
-          title: "Cut the teaser",
-          notes: "",
-          assigneeUserId: ben.id,
-          dueDate: null,
-          steps: [],
-          typeId,
-          fieldValues: { [reviewer]: carla.id },
-        },
-        database
-      )
-      expect((await noticesFor(carla, "task_field_person")).map((n) => n.detail)).toEqual(["Reviewer on Cut the teaser"])
-    })
-  })
-})
-
 describe("part 9: filtering by client", () => {
   it("matches a client ignoring capitals and spaces, and lists each client once", () => {
     expect(matchesClient(" Hart dental ", "Hart Dental")).toBe(true)
@@ -381,8 +295,6 @@ describe("part 9: filtering by client", () => {
       status: "todo" as const,
       priority: "normal" as const,
       assignee: null,
-      labels: [],
-      type: null,
     }))
     expect(filterTasks(tasks, { client: "hart dental" }).map((t) => t.id)).toEqual(["a"])
     expect(filterTasks(tasks, { client: NO_CLIENT_FILTER }).map((t) => t.id)).toEqual(["b"])
@@ -401,7 +313,7 @@ describe("part 9: filtering by client", () => {
     await task("Website task")
     await createTask(
       actor(anna),
-      { projectId: shop, title: "Shop task", notes: "", assigneeUserId: anna.id, dueDate: null, steps: [] },
+      { projectId: shop, title: "Shop task", notes: "", assigneeUserId: anna.id, dueDate: null },
       database
     )
     const open = async (client?: string) =>

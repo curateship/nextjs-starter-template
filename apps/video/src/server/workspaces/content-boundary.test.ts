@@ -9,18 +9,6 @@ import {
   retireAnnouncements,
   updateAnnouncement,
 } from "@/server/content/announcements"
-import {
-  createChangelogEntry,
-  deleteChangelogEntries,
-  listChangelogEntries,
-  listPublishedChangelogEntries,
-  updateChangelogEntry,
-} from "@/server/content/changelog"
-import { loadFeedsSummary } from "@/server/content/feeds"
-import {
-  listWorkspaceContacts,
-  syncContactsFromUsers,
-} from "@/server/people/contacts"
 import { loadTrafficSummary, recordVisit } from "@/server/traffic"
 import {
   readPageVisibility,
@@ -53,9 +41,7 @@ import {
 import {
   customShellFeedback,
   customShellMedia,
-  customShellWorkspaces,
 } from "@/server/schema"
-import { ne } from "drizzle-orm"
 
 /**
  * Two sites, content in both, and nothing on one reachable from the other.
@@ -155,50 +141,6 @@ describe("announcements stay on their own site", () => {
   })
 })
 
-describe("the changelog stays on its own site", () => {
-  it("lists only its own updates, drafts and published alike", async () => {
-    await createChangelogEntry(
-      alpha, { title: "Alpha shipped", body: "It is out.", published: true },
-      database
-    )
-    await createChangelogEntry(
-      beta, { title: "Beta shipped", body: "Also out.", published: true },
-      database
-    )
-
-    expect(
-      (await listChangelogEntries(alpha, database)).map((row) => row.title)
-    ).toEqual(["Alpha shipped"])
-    expect(
-      (await listPublishedChangelogEntries(beta, 20, database)).map(
-        (row) => row.title
-      )
-    ).toEqual(["Beta shipped"])
-  })
-
-  it("refuses to edit or delete the other site's", async () => {
-    const theirs = await createChangelogEntry(
-      beta, { title: "Theirs", body: "Their news.", published: true },
-      database
-    )
-
-    await expect(
-      updateChangelogEntry(
-        alpha, theirs.id, { title: "Mine now", body: "Taken.", published: true },
-        database
-      )
-    ).rejects.toThrow("CHANGELOG_ENTRY_NOT_FOUND")
-
-    await expect(
-      deleteChangelogEntries(alpha, [theirs.id], database)
-    ).rejects.toThrow("CHANGELOG_ENTRY_NOT_FOUND")
-
-    expect(
-      (await listChangelogEntries(beta, database)).map((row) => row.title)
-    ).toEqual(["Theirs"])
-  })
-})
-
 describe("feedback stays on its own site", () => {
   async function leaveFeedback(workspaceId: string, userId: string, message: string) {
     const timestamp = now()
@@ -212,15 +154,6 @@ describe("feedback stays on its own site", () => {
       updatedAt: timestamp,
     })
   }
-
-  it("counts only its own on the admin Overview", async () => {
-    await leaveFeedback(alpha, alphaPerson, "Alpha idea")
-    await leaveFeedback(beta, betaPerson, "Beta idea one")
-    await leaveFeedback(beta, betaPerson, "Beta idea two")
-
-    expect((await loadFeedsSummary(alpha, database)).feedback.last7Days).toBe(1)
-    expect((await loadFeedsSummary(beta, database)).feedback.last7Days).toBe(2)
-  })
 
   it("shows somebody only what they filed on the site they are on", async () => {
     // The same person, using both sites — which is exactly the case a
@@ -436,35 +369,5 @@ describe("traffic is counted per site", () => {
     const onAlpha = await loadTrafficSummary(alpha, 7, database, at)
     expect(onAlpha.topPages.map((row) => row.key)).toEqual(["/alpha-only"])
     expect(onAlpha.siteName).toBe("Alpha")
-  })
-})
-
-describe("a site's contacts are that site's people", () => {
-  it("leaves out an account that has never touched this site", async () => {
-    // `syncContactsFromUsers` used to take **every** account on the
-    // deployment, so Alpha's newsletter list filled up with Beta's customers.
-    await syncContactsFromUsers(alpha, database)
-    await syncContactsFromUsers(beta, database)
-
-    const onAlpha = await listWorkspaceContacts(alpha, {}, database)
-    const onBeta = await listWorkspaceContacts(beta, {}, database)
-
-    expect(onAlpha.contacts.map((row) => row.userId)).toEqual([alphaPerson])
-    expect(onBeta.contacts.map((row) => row.userId)).toEqual([betaPerson])
-  })
-
-  it("still takes everybody on an app that has only one site", async () => {
-    // The old behaviour, which has to survive: on one site, somebody pointed
-    // nowhere belongs to it, so the list is every account exactly as before.
-    const only = (await insertWorkspace(database)).id
-    await database.delete(customShellWorkspaces).where(
-      ne(customShellWorkspaces.id, only)
-    )
-    const nobody = (await insertUser(database)).id
-
-    await syncContactsFromUsers(only, database)
-
-    const list = await listWorkspaceContacts(only, {}, database)
-    expect(list.contacts.map((row) => row.userId)).toContain(nobody)
   })
 })

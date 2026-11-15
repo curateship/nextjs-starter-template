@@ -1,6 +1,5 @@
 import * as React from "react"
 import { BellIcon, BellRingIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import type { ListingFollowState } from "@/lib/api/directory/public"
@@ -17,7 +16,6 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
  */
 export function FollowButton({
   listingId,
-  listingTitle,
   start,
 }: {
   listingId: string
@@ -43,11 +41,6 @@ export function FollowButton({
         return
       }
       setFollowing(answer.following)
-      toast.success(
-        answer.following
-          ? `You will get an email when ${listingTitle} posts a new deal.`
-          : `You no longer follow ${listingTitle}.`
-      )
     } catch (error) {
       showErrorToast(getFollowErrorMessage(error))
     } finally {

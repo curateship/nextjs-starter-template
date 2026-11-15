@@ -312,6 +312,12 @@ export const PHONE_STALE_MS = 45_000
 /** How long a pairing code works. */
 export const RACK_CODE_MINUTES = 15
 
+/** The longest name a rack takes, the column's own length. */
+export const RACK_NAME_MAX = 120
+
+/** The most letters a rack's description holds. */
+export const RACK_DESCRIPTION_MAX = 4_000
+
 /** How far a signed message's clock may be from the server's, either way. */
 export const RACK_CLOCK_WINDOW_SECONDS = 300
 
@@ -383,6 +389,10 @@ export type PhoneEventKind =
   | "setup_checked"
   // An account on it was banned (Bans task, part 1). A wipe never clears it.
   | "banned"
+  // A check-in from another rack moved it there (Racks dashboard, part 118).
+  | "moved_rack"
+  // Put on a rack by hand from Not on a rack (Racks dashboard, part 83).
+  | "put_on_rack"
 
 export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
   plugged_in: "Plugged in",
@@ -397,6 +407,8 @@ export const PHONE_EVENT_WORDS: Record<PhoneEventKind, string> = {
   wiped: "Wiped",
   setup_checked: "Setup check",
   banned: "Banned",
+  moved_rack: "Moved rack",
+  put_on_rack: "Put on a rack",
 }
 
 /**
@@ -423,11 +435,3 @@ export const READING_KEEP_DAYS = 28
 
 /** The self-test and the Play Store look run once a day. */
 export const SELF_TEST_GAP_MS = 24 * 60 * 60_000
-
-/**
- * The rack mix warning (part 27): more than half the phones sharing one
- * model, carrier or Android version, once the rack has four phones or more
- * (Tyler, 14 Oct 2026). A rack of two or three never warns.
- */
-export const MIX_WARN_SHARE = 0.5
-export const MIX_MIN_PHONES = 4

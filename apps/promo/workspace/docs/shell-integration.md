@@ -27,7 +27,7 @@ promo created, which has no shell version and so can never conflict.
   and which voice the account uses. "Browsers" holds the machine's limit on
   open browsers and the minutes before an unused one closes.
 - **`notifications.describe`** — a dead-proxy notice in the bell gets a globe
-  tile and opens that proxy on the Proxies dashboard. Worked out from the
+  tile and opens that proxy in the Anti Detect dashboard's Proxies. Worked out from the
   notice's own id and words, so no server is asked. Promo's other notices get
   their icon and colour the same way, from their headings.
 - **`notifications.detailsFor`**: where a reply, removal, suspension, failure
@@ -107,7 +107,11 @@ stay in `src/server/schema.ts`, which promo never opens.
   own), `promo_notices` (where each bell notice opens), and from
   `drizzle/0120_promo_instagram_tiktok.sql` `promo_app_posts` (Instagram and
   TikTok posts), `promo_profile_edits`, `promo_inbox` and `promo_inbox_seen`
-  (messages and comments read off the phones).
+  (messages and comments read off the phones), and from
+  `drizzle/0157_promo_projects_dashboard.sql` `promo_projects_pages` (each
+  person's left page, sections and Overview layout on the Projects dashboard);
+  `drizzle/0158_promo_project_cover_images.sql` adds
+  `promo_projects.cover_images` for the shell's Cover photo row.
 - `src/server/social/medium/schema.ts`, from `drizzle/0124_promo_medium.sql`:
   `promo_medium_keywords`, `promo_medium_finds`, `promo_medium_hidden`,
   `promo_medium_drafts`, `promo_medium_responses`, `promo_medium_articles`,
@@ -184,7 +188,7 @@ with a shell key.
 admin sidebar is saved settings, edited in Settings → Navigation, not a list in a
 file. A route file on its own is not a reachable screen. The entry points at
 `/admin/projects` and is admin-only. It used to be a Reddit entry pointing at
-`/admin/reddit`, which now sends to `/admin/projects`.
+`/admin/reddit`, an address gone since 13 Nov 2026 ([Old addresses](old-addresses.md)).
 
 `drizzle/0105_promo_comment_checks.sql` writes into those saved settings once:
 it puts Comments (`/admin/comments`) under the Reddit link, or adds a Reddit
@@ -198,9 +202,12 @@ took Today, Comments, Reddit accounts and Jobs back out of every saved sidebar,
 wherever they sat, when they moved inside each project's Reddit module on 14 Oct
 2026 ([Networks as modules](network-modules.md)).
 `drizzle/0119_promo_accounts_menu.sql` put Accounts under Projects after
-Voices, and `drizzle/0120_promo_instagram_tiktok.sql` put Messages after
-Accounts ([the Messages dashboard](messages-dashboard.md)). After that the
-entries are an admin's to move or remove like any other.
+Voices, `drizzle/0120_promo_instagram_tiktok.sql` put Messages after
+Accounts, and `drizzle/0134_promo_archive.sql` put the Archive after that.
+`drizzle/0157_promo_projects_dashboard.sql` took Voices, Accounts, Archive and
+Messages back out of every saved sidebar, wherever they sat, when they became
+sections of the [Projects dashboard](projects-dashboard.md) on 12 Nov 2026.
+After that the entries are an admin's to move or remove like any other.
 
 ## Two shell hazards worth knowing
 
@@ -368,3 +375,23 @@ Every shell change up to 5 Nov is in Promo: 85 files replaced and 24 added, with
 **No migration was new.** The shell has added none since 0097, and Promo already had every one.
 
 **Kept as Promo's own.** `src/app/` stays Promo's own, and so does `src/app/open-endpoints.ts`, which lists Promo's own open endpoints.
+
+## Shell merge, 12 November 2026
+
+Every shell change since the 7 Nov shell at `e69b7243e` is in Promo, up to the shell at `9757749ff`: 267 files replaced, 179 added and 75 deleted. Each replaced or deleted file was an unedited older shell copy, so nothing Promo changed was lost.
+
+**What arrived.**
+
+- **The Admin dashboard is one three-panel screen.** Overview, Users, Plans, Feedback, Announcements, Analytics and the Media library are sections of its Dashboards block, and Pages, Styling and Navigations sit inside it too. Their old separate screens are gone.
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists, Leads as its own section, lead tags, and Newsletter, Contacts, System emails and Dev outbox inside it.
+- **Automations is one three-panel dashboard**, Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with Reset panels, Opacity for the first card in a side panel, and a border shade of its own for the left menu and top bar under Sidebar & Top navigation.
+- **The header's Settings cog can hold links**, and Navigations' link editors open as popovers.
+- **Nothing pops up when something works.** Success toasts and Undo bars are gone from the shell's screens. Failures still raise the red error toast.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0140 to 0156. 0148 drops the referral and changelog tables, and 0153 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy.
+
+**Kept as Promo's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator, and the shell's `@tiptap/extension-list` package was added. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were already in Promo and stay.
+
+**Checked.** Typecheck is clean in both the app and node configs. Tests were not run. Not checked in a browser: no dev server on this app's port runs from workspace-4.

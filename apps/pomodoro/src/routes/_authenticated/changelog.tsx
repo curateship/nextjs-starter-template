@@ -1,10 +1,12 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 /**
- * The changelog area. Its own index is where updates are written; What's new,
- * the page everyone reads and the one a notification opens, is the child route
- * underneath it.
+ * The Changelog was removed from the shell (Tyler, 8 Nov 2026: "I would
+ * remove the changelog feature"). This address stays so notices and emails
+ * sent before then land on the home page instead of a missing page.
  */
 export const Route = createFileRoute("/_authenticated/changelog")({
-  component: Outlet,
+  beforeLoad: () => {
+    throw redirect({ to: "/home", replace: true })
+  },
 })

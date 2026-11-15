@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import { seededCatalog } from "@/lib/pomodoro/catalog-fixture"
 import {
   catalogTags,
-  describeTags,
   filterByTags,
   normalizeTag,
   ownOnlyTags,
@@ -14,6 +13,7 @@ import {
   poolSounds,
   serializeMediaPool,
   tagsFit,
+  type MediaPool,
 } from "@/lib/pomodoro/media-pool"
 
 const tagged = {
@@ -23,6 +23,13 @@ const tagged = {
     tags:
       sound.key === "rain" ? ["rain", "nature"] : sound.key === "forest" ? ["nature"] : [],
   })),
+}
+
+
+/** The tags of a pool that must be a tag pool; anything else fails the test. */
+function tagsOf(pool: MediaPool | null) {
+  if (pool?.mode !== "tags") throw new Error(`expected a tag pool, got ${JSON.stringify(pool)}`)
+  return pool.tags
 }
 
 describe("a group choice", () => {
@@ -35,11 +42,11 @@ describe("a group choice", () => {
     expect(parseMediaPool("tags:")).toBeNull()
     // Up to the 200-character column, not a count of six.
     const twenty = Array.from({ length: 20 }, (_, index) => `tag ${index}`)
-    expect(parseMediaPool(`tags:${twenty.join(",")}`)?.tags).toHaveLength(20)
+    expect(tagsOf(parseMediaPool(`tags:${twenty.join(",")}`))).toHaveLength(20)
     const long = Array.from({ length: 12 }, (_, index) => `${"x".repeat(20)}${index}`)
-    const kept = parseMediaPool(`tags:${long.join(",")}`)
-    expect(kept && tagsFit(kept.tags)).toBe(true)
-    expect(kept?.tags.length).toBeLessThan(12)
+    const kept = tagsOf(parseMediaPool(`tags:${long.join(",")}`))
+    expect(tagsFit(kept)).toBe(true)
+    expect(kept.length).toBeLessThan(12)
     expect(parseMediaPool("curated:rain")).toBeNull()
     expect(serializeMediaPool({ mode: "tags", tags: ["rain", "nature"] })).toBe(
       "tags:nature,rain"
@@ -73,7 +80,6 @@ describe("a group choice", () => {
       { tag: "nature", count: 2, free: 1 },
       { tag: "rain", count: 1, free: 1 },
     ])
-    expect(describeTags(["rain", "nature", "piano"])).toBe("rain, nature or piano")
   })
 })
 

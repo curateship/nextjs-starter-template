@@ -155,7 +155,10 @@ export function FrontPageBlockList({
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card">
       <DashboardCardTitleHeader
         icon={<LayersIcon className="size-4" />}
-        back={{ to: "/admin/pages", label: "Back to pages" }}
+        // No way back from here: the builder sits in the Admin dashboard's
+        // Pages section, and pressing Pages in its Dashboards block goes back
+        // to the list, as an open automation has no back arrow (Tyler, 9 Nov
+        // 2026: "Look at how automation does it").
         // Left as it was. The page's own name is "Home" for the front page, so
         // swapping it in renames this header rather than fixing anything, and
         // what a second page's header should say is Tyler's call.

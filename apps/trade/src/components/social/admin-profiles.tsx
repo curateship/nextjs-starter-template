@@ -5,7 +5,6 @@ import {
   ExternalLinkIcon,
   Loader2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -115,7 +114,6 @@ export function AdminProfilesPage({ initial }: { initial: AdminProfileRow[] }) {
     try {
       await setAdminProfileHidden(row.userId, null)
       await refresh()
-      toast.success(`@${row.handle} is public again.`)
     } catch (error) {
       showErrorToast(getPublicProfileErrorMessage(error))
     } finally {
@@ -288,7 +286,6 @@ function HideProfileDialog({
     try {
       await setAdminProfileHidden(row.userId, reason)
       await onHidden()
-      toast.success(`@${row.handle} is hidden from the public.`)
       close()
     } catch (error) {
       showErrorToast(getPublicProfileErrorMessage(error))

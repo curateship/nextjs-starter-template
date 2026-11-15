@@ -160,7 +160,7 @@ export async function refuseAppAccount(
   if (!account.phoneId) throw new Error(`${name} is on no phone. Pick its phone on the Accounts dashboard.`)
   if (!account.handle) {
     throw new Error(
-      `${NETWORK_NAMES[network]} has not been read signed in on this account's phone yet. Sign in through the phone's screen on the Phones dashboard, then press Check now on the Accounts dashboard.`
+      `${NETWORK_NAMES[network]} has not been read signed in on this account's phone yet. Sign in through the phone's screen on its rack's page, then press Check now on the Accounts dashboard.`
     )
   }
   const [phone] = await db

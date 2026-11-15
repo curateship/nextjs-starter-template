@@ -6,7 +6,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -278,10 +277,7 @@ export function AdminSavedListsTable({
                       async () => {
                         await adminSetSavedListPublic(collection.id, isPublic)
                         await router.invalidate()
-                      },
-                      isPublic
-                        ? "Saved list is public."
-                        : "Saved list is private."
+                      }
                     )
                   }
                 />
@@ -329,7 +325,7 @@ export function AdminSavedListsTable({
           const saved = await run(async () => {
             await adminRenameSavedList(editing.id, name)
             await router.invalidate()
-          }, "Saved list renamed.")
+          })
           if (saved) setOpen(undefined)
           return saved
         }}
@@ -351,7 +347,7 @@ export function AdminSavedListsTable({
                 : current
             )
             await router.invalidate()
-          }, "Listing removed.")
+          })
         }}
       />
 
@@ -393,11 +389,6 @@ export function AdminSavedListsTable({
             } else {
               await router.invalidate()
             }
-            toast.success(
-              skipped.length
-                ? `${result.deleted.length} deleted, ${skipped.length} skipped.`
-                : `${result.deleted.length} ${result.deleted.length === 1 ? "list" : "lists"} deleted.`
-            )
           })
         }
       />

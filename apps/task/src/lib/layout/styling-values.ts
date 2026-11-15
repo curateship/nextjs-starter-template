@@ -69,6 +69,12 @@ export type ShellStyling = {
    * Optional for the same reason as `dashboardTabs`.
    */
   sidebarShade?: number
+  /**
+   * How dark the page behind the cards is, from a card's colour (0) to the
+   * theme's deepest page grey (100). Unset reads as halfway
+   * (`DEFAULT_PAGE_SHADE`). Optional for the same reason as `dashboardTabs`.
+   */
+  pageShade?: number
 }
 
 /**
@@ -189,6 +195,8 @@ export const DEFAULT_MODAL_PADDING = 20
 export const DEFAULT_MODAL_OVERLAY_OPACITY = 8
 /** Halfway between the page and a card, the shade the rail has always had. */
 export const DEFAULT_SIDEBAR_SHADE = 50
+/** Halfway between a card and the deepest page grey: the page it has always been. */
+export const DEFAULT_PAGE_SHADE = 50
 // Fallback strength used when a stored value is missing/invalid.
 export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
 export const SHELL_BACKGROUND_MODES: readonly ShellBackgroundMode[] = [
@@ -224,6 +232,10 @@ export function clampOverlayOpacity(value: unknown): number {
 
 export function clampSidebarShade(value: unknown): number {
   return clampInt(value, 0, 100, DEFAULT_SIDEBAR_SHADE)
+}
+
+export function clampPageShade(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_PAGE_SHADE)
 }
 
 // The out-of-the-box look for a new workspace/app and every reset. These are the
@@ -326,6 +338,9 @@ export function normalizeStyling(value: unknown): ShellStyling {
     ...(styling.sidebarShade === undefined
       ? {}
       : { sidebarShade: clampSidebarShade(styling.sidebarShade) }),
+    ...(styling.pageShade === undefined
+      ? {}
+      : { pageShade: clampPageShade(styling.pageShade) }),
   }
 }
 
@@ -502,3 +517,17 @@ export function getSidebarShadeVars(
 
 /** The sidebar-shade CSS variable names, used to clear stale values. */
 export const SIDEBAR_SHADE_VAR_NAMES = ["--shell-rail-card-share"] as const
+
+/**
+ * The page's shade, applied to the document root like the left menu's.
+ * `--shell-canvas` in theme.css mixes this much of `--shell-canvas-deep` into
+ * `--card`, in both palettes. The rail is mixed from the canvas, so it follows.
+ */
+export function getPageShadeVars(styling: ShellStyling): Record<string, string> {
+  return {
+    "--shell-page-depth": `${clampPageShade(styling.pageShade)}%`,
+  }
+}
+
+/** The page-shade CSS variable names, used to clear stale values. */
+export const PAGE_SHADE_VAR_NAMES = ["--shell-page-depth"] as const

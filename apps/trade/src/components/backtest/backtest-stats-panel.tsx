@@ -1,13 +1,7 @@
-import {
-  backtestDurationText,
-  useBacktestClock,
-  type BacktestTiming,
-} from "@/components/backtest/backtest-duration"
-import { ChevronDownIcon, FlaskConicalIcon, Loader2Icon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 
 import {
-  BacktestKpi,
   roundedPct,
   sharePct,
   signedPct,
@@ -15,16 +9,12 @@ import {
   toneClass,
   usd,
 } from "@/components/backtest/backtest-kpi"
-import { BacktestPotMini } from "@/components/backtest/backtest-pot-mini"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Meter } from "@/components/ui/meter"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { emaGridCleanHours } from "@/lib/recipes/trade-grid"
 import type {
@@ -33,7 +23,6 @@ import type {
   BacktestSummary,
 } from "@/lib/trade/backtest/result"
 import type {
-  GraphSeries,
   GraphWindow,
   WindowStats,
 } from "@/lib/trade/backtest/graph"
@@ -41,6 +30,7 @@ import { formatDate, formatDuration } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import { moneyToneSurface } from "@/lib/trade/money-tone"
+import { FigureGroup as Group, FigureLine as Line, FigureStat as Stat } from "@/components/trade/figure-rows"
 import { cn } from "@/lib/utils"
 
 /**
@@ -51,8 +41,8 @@ import { cn } from "@/lib/utils"
  * middle panel and every tile here recounts itself for those dates: the
  * headline names them, "Trades closed" counts only the round trips that
  * finished inside them, "Coins tested" says how many coins traded in that
- * window rather than in the run. The little chart at the bottom shades the
- * same stretch, so the numbers always have a place.
+ * window rather than in the run. The headline and the Window line name the
+ * stretch, so the numbers always have a place.
  *
  * The sums are in `@/lib/trade/backtest/graph`, where a test can check them.
  * Nothing is worked out in this file: a panel doing its own arithmetic drifts
@@ -79,37 +69,22 @@ function count(value: number | null): string {
 }
 
 export function BacktestStatsPanel({
-  skippedCount = 0,
-  failedCount = 0,
-  onShowSkipped,
-  timing,
   summary,
   result,
   spec,
-  series,
   stats,
   window,
-  onWindow,
   coinsTotal,
   running,
   progress = 0,
   progressText = `${Math.round(progress * 100)}% through`,
-  stopRequested,
-  onStop,
 }: {
-  skippedCount?: number
-  failedCount?: number
-  onShowSkipped?: () => void
-  timing: BacktestTiming
   summary: BacktestSummary | null
   result: BacktestResult | null
   spec: BacktestSpecSnapshot
-  /** The pot's lines. Null while the run has nothing to draw. */
-  series: GraphSeries | null
   /** Every figure, for the picked stretch of time. */
   stats: WindowStats | null
   window: GraphWindow
-  onWindow: (next: GraphWindow) => void
   /** How much the run borrows — see the tooltip in the graph. */
   coinsTotal: number
   /** How far the run has got, from zero to one. */
@@ -118,13 +93,7 @@ export function BacktestStatsPanel({
   progressText?: string
   /** The run has not finished, so these figures are still moving. */
   running: boolean
-  /** True once a stop has been asked for, so the button says so. */
-  stopRequested?: boolean
-  /** Asks the run to stop. Left out on a run that has already finished. */
-  onStop?: () => void
 }) {
-  const now = useBacktestClock(timing.finishedAt === null)
-  const duration = backtestDurationText(timing, now)
   const scoped =
     stats !== null &&
     (window.sel !== null ||
@@ -138,62 +107,18 @@ export function BacktestStatsPanel({
   const liquidatedCount = stats?.liquidatedCount ?? 0
   const showLiquidated = liquidatedCount > 0
 
+  // The body of the right panel's Result card: the card is its frame and the
+  // panel scrolls, so nothing here scrolls or pads itself.
+  // One column the card's own width: an "auto" one grew to the widest line and
+  // ran past the card's edge in a narrow panel.
   return (
-    <>
-      <DashboardCardTitleHeader
-        icon={<FlaskConicalIcon />}
-        title={
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate">Backtest · all markets</span>
-            <span
-              className="truncate text-xs font-normal text-muted-foreground tabular-nums"
-              title={duration}
-            >
-              {duration}
-            </span>
-            {skippedCount + failedCount > 0 ? (
-              <button
-                type="button"
-                onClick={onShowSkipped}
-                className={cn(
-                  "text-left text-xs font-normal text-muted-foreground underline underline-offset-4",
-                  focusRing
-                )}
-              >
-                {[
-                  skippedCount > 0
-                    ? `${skippedCount} ${plural(skippedCount, "coin", "coins")} skipped`
-                    : null,
-                  failedCount > 0
-                    ? `${failedCount} ${plural(failedCount, "coin", "coins")} failed`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </button>
-            ) : null}
-          </span>
-        }
-        action={
-          running && onStop ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7"
-              disabled={stopRequested}
-              onClick={onStop}
-            >
-              {stopRequested ? (
-                <Loader2Icon className="animate-spin" aria-hidden="true" />
-              ) : null}
-              Stop
-            </Button>
-          ) : null
-        }
-      />
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
+      {/* No lines over the headline: how long it took and how many coins it
+          skipped are gone (Tyler, 10 Nov 2026: "remove [Took 10m]", "remove
+          [3 coins skipped]"). The Backtests table has the time, and the
+          Skipped card's heading has the count. */}
       {running ? (
-        <div className="grid gap-2 border-b px-5 py-3">
+        <div className="grid gap-2">
           <span className="text-xs tabular-nums">{progressText}</span>
           <Meter
             value={Math.round(progress * 100)}
@@ -202,13 +127,12 @@ export function BacktestStatsPanel({
           />
         </div>
       ) : null}
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 px-5 py-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
           {!summary ? (
             <p className="p-2 text-xs text-muted-foreground">
               {running
-                ? "Still loading its candles — nothing is worked out yet."
-                : "This run ended without testing a market — it was stopped, or every market was skipped."}
+                ? "Still loading its candles. Nothing is worked out yet."
+                : "This run ended without testing a market. It was stopped, or every market was skipped."}
             </p>
           ) : (
             <>
@@ -226,7 +150,9 @@ export function BacktestStatsPanel({
                     pot they came out of. Both at the same size and weight —
                     in a pill at 11px the comparable figure was the smallest
                     thing on the panel. */}
-                <div className="mt-0.5 flex items-baseline gap-2">
+                {/* Wraps in a narrow panel, as the bot's does, rather than
+                    running past the card's edge. */}
+                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span
                     className={cn(
                       "rounded-full px-2.5 py-0.5 text-xl font-semibold tracking-tight tabular-nums",
@@ -248,12 +174,12 @@ export function BacktestStatsPanel({
                 </div>
               </div>
 
-              {/* Ruled, not gapped: one hairline between cells so the figures
-                  line up in two columns and read as a table of results. The
-                  grid is pulled out to the panel's edges, the way the design
-                  runs its rules the full width. */}
-              <div className="-mx-5 grid grid-cols-2 border-t">
-                <BacktestKpi
+              {/* Named groups of label and figure, one figure a line (Tyler,
+                  10 Nov 2026: "revamp the results card", then "just make it
+                  look like what I showed you"). Each figure's note, such as
+                  "917W / 1181L" or the trough's date, is on its tooltip. */}
+              <Group title="Trades">
+                <Stat
                   label="Win rate"
                   value={
                     stats &&
@@ -262,60 +188,16 @@ export function BacktestStatsPanel({
                       ? sharePct(stats.tradesWon, stats.tradesClosed)
                       : "—"
                   }
-                  sub={
+                  note={
                     stats &&
                     stats.tradesClosed !== null &&
                     stats.tradesWon !== null
-                      ? `${stats.tradesWon}W / ${stats.tradesClosed - stats.tradesWon}L`
-                      : "needs the run's trades"
+                      ? `${stats.tradesWon} won, ${stats.tradesClosed - stats.tradesWon} lost`
+                      : "Needs the run's trades"
                   }
+                  tone={stats?.expectancy ?? undefined}
                 />
-                <BacktestKpi
-                  label="Trades closed"
-                  value={count(stats?.tradesClosed ?? null)}
-                  sub={
-                    stats?.openNow === null || stats?.openNow === undefined
-                      ? "in this window"
-                      : `${stats.openNow} open at the end`
-                  }
-                />
-                <BacktestKpi
-                  label="Max drawdown"
-                  value={stats ? `-${roundedPct(stats.worstDipPct)}` : "—"}
-                  sub={
-                    stats
-                      ? `${usd(stats.worstDipUsd)} off ${usd(stats.worstDipPeak)}`
-                      : ""
-                  }
-                  tone={stats && stats.worstDipUsd > 0 ? -1 : undefined}
-                />
-                <BacktestKpi
-                  label="Recovery"
-                  value={
-                    !stats
-                      ? "—"
-                      : stats.recoveryDays === null
-                        ? "not yet"
-                        : `${stats.recoveryDays}d`
-                  }
-                  sub={
-                    stats?.worstDipAt
-                      ? `trough ${formatDate(new Date(stats.worstDipAt))}`
-                      : "back to the old high"
-                  }
-                />
-                {/* Whole-run, always. There is nothing saved per bar to slice a
-                    hold-it-instead figure out of, so a windowed one would be
-                    invented. Saying "whole run" is cheaper than being wrong. */}
-                <BacktestKpi
-                  label="Buy & hold"
-                  value={signedUsd(summary.buyAndHold)}
-                  sub={
-                    scoped ? "whole run · if you just held" : "if you just held"
-                  }
-                  tone={summary.buyAndHold}
-                />
-                <BacktestKpi
+                <Stat
                   label="Profit factor"
                   value={
                     !stats || stats.tradesClosed === null
@@ -324,88 +206,136 @@ export function BacktestStatsPanel({
                         ? "no losses"
                         : stats.profitFactor.toFixed(2)
                   }
-                  sub={
+                  note={
                     !stats || stats.profitFactor === null
-                      ? "made against lost"
+                      ? "Made against lost"
                       : stats.profitFactor >= 1
-                        ? "wins outweigh losses"
-                        : "losses outweigh wins"
+                        ? "Wins outweigh losses"
+                        : "Losses outweigh wins"
+                  }
+                  tone={
+                    stats && stats.profitFactor !== null
+                      ? stats.profitFactor - 1
+                      : undefined
                   }
                 />
-                <BacktestKpi
+                <Stat
                   label="Expectancy"
                   value={
                     stats && stats.expectancy !== null
                       ? signedUsd(stats.expectancy)
                       : "—"
                   }
-                  sub="per closed trade"
+                  note="What one closed trade made on average"
                   tone={stats?.expectancy ?? undefined}
                 />
-                <BacktestKpi
-                  label="Markets green"
-                  value={
-                    stats &&
-                    stats.coinsGreen !== null &&
-                    stats.coinsTraded !== null
-                      ? `${stats.coinsGreen}/${stats.coinsTraded}`
-                      : "—"
+                <Stat
+                  label="Trades closed"
+                  value={count(stats?.tradesClosed ?? null)}
+                  note={
+                    stats?.openNow === null || stats?.openNow === undefined
+                      ? "In this window"
+                      : `${stats.openNow} still open at the end`
                   }
-                  sub="net positive of traded"
                 />
-                {/* Only on a window where it happened. A permanent zero tile is
-                    one the eye stops reading — including on the day it matters. */}
+              </Group>
+
+              <Group title="Risk">
+                <Stat
+                  label="Max drawdown"
+                  value={stats ? `-${roundedPct(stats.worstDipPct)}` : "—"}
+                  note={
+                    stats
+                      ? `${usd(stats.worstDipUsd)} off ${usd(stats.worstDipPeak)}`
+                      : null
+                  }
+                  tone={stats && stats.worstDipUsd > 0 ? -1 : undefined}
+                />
+                {/* Whole-run, always. There is nothing saved per bar to slice a
+                    hold-it-instead figure out of, so a windowed one would be
+                    invented. */}
+                <Stat
+                  label="Buy & hold"
+                  value={signedUsd(summary.buyAndHold)}
+                  note={
+                    scoped
+                      ? "Whole run: what you would have if you just held"
+                      : "What you would have if you just held"
+                  }
+                  tone={summary.buyAndHold}
+                />
+                <Stat
+                  label="Recovery"
+                  value={
+                    !stats
+                      ? "—"
+                      : stats.recoveryDays === null
+                        ? "not yet"
+                        : `${stats.recoveryDays}d`
+                  }
+                  note={
+                    stats?.worstDipAt
+                      ? `Back to the old high. Lowest on ${formatDate(new Date(stats.worstDipAt))}`
+                      : "Back to the old high"
+                  }
+                />
+                {/* Only on a window where it happened. A permanent zero line is
+                    one the eye stops reading, including on the day it matters. */}
                 {showLiquidated ? (
-                  <BacktestKpi
+                  <Stat
                     label="Liquidated"
                     value={signedUsd(stats?.liquidatedUsd ?? 0)}
-                    sub={`${liquidatedCount} ${plural(liquidatedCount, "trade", "trades")} taken by the exchange`}
+                    note={`${liquidatedCount} ${plural(liquidatedCount, "trade", "trades")} taken by the exchange`}
                     tone={-1}
                   />
                 ) : null}
-                <BacktestKpi
-                  label="Peak wallet"
-                  value={stats ? `${Math.round(stats.peakWalletPct)}%` : "—"}
-                  sub={
-                    stats
-                      ? `${usd(stats.peakWalletUsd)} · ${formatDate(new Date(stats.peakWalletAt))}`
-                      : ""
-                  }
-                />
-                <BacktestKpi
-                  label="Avg wallet"
-                  value={stats ? `${Math.round(stats.typicalWalletPct)}%` : "—"}
-                  sub={stats ? `${usd(stats.typicalWalletUsd)} typically` : ""}
-                />
-                <BacktestKpi
+              </Group>
+
+              <Group title="Exposure">
+                <Stat
                   label="Time in market"
                   value={
                     stats && stats.timeInMarketPct !== null
                       ? `${Math.round(stats.timeInMarketPct)}%`
                       : "—"
                   }
-                  sub={
+                  note={
                     stats && stats.avgHoldMs !== null
-                      ? `avg hold ${formatDuration(stats.avgHoldMs, {
+                      ? `Average hold ${formatDuration(stats.avgHoldMs, {
                           zero: "under one candle",
                         })}`
-                      : "needs the run's trades"
+                      : "Needs the run's trades"
                   }
                 />
-                <BacktestKpi
+                <Stat
                   label="In markets now"
-                  // Already the coin bought, not the margin behind it —
-                  // `windowStats` multiplies the borrowing in. Multiplying
-                  // again here doubled the tile against the graph's own
-                  // tooltip: $13,541 on the card beside $6,770 on the chart.
+                  // Already the coin bought, not the margin behind it:
+                  // `windowStats` multiplies the borrowing in.
                   value={stats ? usd(stats.inCoinsUsd) : "—"}
-                  sub={
+                  note={
                     stats?.openNow === null || stats?.openNow === undefined
-                      ? "at the end of the window"
+                      ? "At the end of the window"
                       : `${stats.openNow} ${plural(stats.openNow, "position", "positions")} open`
                   }
                 />
-                <BacktestKpi
+                <Stat
+                  label="Peak wallet"
+                  value={stats ? `${Math.round(stats.peakWalletPct)}%` : "—"}
+                  note={
+                    stats
+                      ? `${usd(stats.peakWalletUsd)} on ${formatDate(new Date(stats.peakWalletAt))}`
+                      : null
+                  }
+                />
+                <Stat
+                  label="Avg wallet"
+                  value={stats ? `${Math.round(stats.typicalWalletPct)}%` : "—"}
+                  note={stats ? `${usd(stats.typicalWalletUsd)} typically` : null}
+                />
+              </Group>
+
+              <Group title="Markets">
+                <Stat
                   label="Markets tested"
                   value={
                     scoped &&
@@ -414,31 +344,24 @@ export function BacktestStatsPanel({
                       ? `${stats.coinsTraded}/${coinsTotal}`
                       : `${summary.coinsTested}/${coinsTotal}`
                   }
-                  sub={scoped ? "traded in this window" : "in this run"}
+                  note={scoped ? "Traded in this window" : "In this run"}
                 />
-                {/* Holds the last row up when the Liquidated tile is away and
-                    the count is odd, so the rule between the columns does not
-                    run down past the last figure into nothing. */}
-                {showLiquidated ? null : <div className="border-b" />}
-              </div>
-
-              {series ? (
-                <BacktestPotMini
-                  series={series}
-                  window={window}
-                  onReset={() =>
-                    onWindow({ preset: "all", from: null, to: null, sel: null })
+                <Stat
+                  label="Markets green"
+                  value={
+                    stats &&
+                    stats.coinsGreen !== null &&
+                    stats.coinsTraded !== null
+                      ? `${stats.coinsGreen}/${stats.coinsTraded}`
+                      : "—"
                   }
+                  note="Made money, of the ones that traded"
                 />
-              ) : null}
+              </Group>
 
-              <dl className="grid gap-1 border-t pt-3 text-[11px]">
+              <Group title="Setup" small>
                 {/* Follows the box dragged on the graph, like every figure
-                    above it. It was the run's own window and nothing else —
-                    so dragging out a fortnight left this saying "90 days",
-                    which is the one line on the panel somebody checks the
-                    dates against. Whole run, and it is the run's window
-                    again. */}
+                    above it. */}
                 <Line
                   label={scoped ? "Picked" : "Window"}
                   value={
@@ -504,7 +427,7 @@ export function BacktestStatsPanel({
                     />
                     <Line
                       label="Grid"
-                      value={`${spec.strategy.settings.grid.levels} rungs · ${spec.strategy.settings.grid.potPct}% per market`}
+                      value={`${spec.strategy.settings.grid.levels} rungs, ${spec.strategy.settings.grid.potPct}% per market`}
                     />
                     <Line
                       label="Follows price"
@@ -521,19 +444,17 @@ export function BacktestStatsPanel({
                     />
                   </>
                 )}
+                {/* Whose candles the run walked. */}
+                <Line label="Prices from" value={pricesFrom(spec.marketKeys)} />
+              </Group>
+
+              <Group title="Costs" small>
                 <Line
                   label="Costs"
                   value={`${spec.takerFeePct}% / ${spec.makerFeePct}% / ${spec.slippagePct}%`}
                 />
-                {/* Whose candles the run walked. Binance for coins and
-                    Dukascopy for stocks on a run saved after the store
-                    gained sources; the venue itself on an older run, which
-                    is what that run really read. */}
-                <Line label="Prices from" value={pricesFrom(spec.marketKeys)} />
                 {/* The engine counts a charge as positive and a payment to
-                    us as negative. Shown as "-$1,489" under a label reading
-                    "paid" it looks like an enormous cost, when it is money the
-                    run took in — so the label follows the sign. */}
+                    us as negative, so the label follows the sign. */}
                 <Line
                   label={
                     figure(summary.fundingPaid) !== null &&
@@ -547,43 +468,42 @@ export function BacktestStatsPanel({
                       : usd(Math.abs(summary.fundingPaid))
                   }
                 />
-                {/* A stock's source settles no funding. A Hyperliquid or
-                    Lighter stock perpetual does charge it in real life, so the
-                    result says plainly that this run did not count it. */}
                 {(summary.fundingNotCounted ?? []).length > 0 ? (
+                  // The stocks named on a tooltip: listed in full they were
+                  // eleven lines (Tyler, 10 Nov 2026: "hide this in a
+                  // tooltip or something").
                   <Line
                     label="Funding not counted"
-                    value={`Stocks: no funding in this run (${summary.fundingNotCounted.join(", ")})`}
+                    value={`${summary.fundingNotCounted.length} ${plural(summary.fundingNotCounted.length, "stock", "stocks")}`}
+                    note={`No funding was counted in this run for ${summary.fundingNotCounted.join(", ")}.`}
                   />
                 ) : null}
-                {/* Not saved anywhere as one figure — it is the coins' own fee
-                    totals added up, and a run too old to carry them says so
-                    rather than reporting nothing spent. */}
+                {/* The coins' own fee totals added up; a run too old to carry
+                    them says so rather than reporting nothing spent. */}
                 <Line label="Fees paid" value={feesPaid(result)} />
-              </dl>
+              </Group>
 
-              {/* Shut by default, and it says how many there are on the line
-                  you open it with. Three paragraphs about missing history sat
-                  permanently under the figures and pushed the pot's own chart
-                  off the bottom of the panel — and a warning you scroll past
-                  every visit is one you stop reading. It still cannot be
-                  missed: the count is in the heading. */}
+              {/* An amber box with the count in a circle, shut until opened:
+                  a warning you scroll past every visit is one you stop
+                  reading, and the count keeps it from being missed. */}
               {summary.warnings.length > 0 ? (
-                <Collapsible className="border-t pt-3">
+                <Collapsible className="rounded-lg border border-orange-200 bg-orange-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                   <CollapsibleTrigger
                     className={cn(
-                      "group flex w-full items-center gap-2 text-left text-xs font-semibold",
+                      "group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm leading-5 font-semibold",
                       focusRing
                     )}
                   >
-                    <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                    Read this before you believe the top number
-                    <span className="ml-auto font-normal text-muted-foreground">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-800 text-xs font-semibold text-white tabular-nums">
                       {summary.warnings.length}
                     </span>
+                    <span className="min-w-0 flex-1">
+                      Warning
+                    </span>
+                    <ChevronDownIcon className="size-3.5 shrink-0 text-amber-800 transition-transform group-data-[state=open]:rotate-180 dark:text-amber-300" />
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <ul className="grid list-disc gap-1.5 pt-2 pl-4 text-[11px] leading-4 text-muted-foreground">
+                    <ul className="grid list-disc gap-1.5 px-3 pb-3 pl-7 text-xs leading-4">
                       {summary.warnings.map((warning) => (
                         <li key={warning}>{warning}</li>
                       ))}
@@ -593,9 +513,8 @@ export function BacktestStatsPanel({
               ) : null}
             </>
           )}
-        </div>
-      </ScrollArea>
-    </>
+      </div>
+    </div>
   )
 }
 
@@ -624,13 +543,4 @@ function pricesFrom(marketKeys: readonly string[]): string {
     if (!labels.includes(label)) labels.push(label)
   }
   return labels.length > 0 ? labels.join(", ") : "—"
-}
-
-function Line({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-3">
-      <dt className="min-w-0 flex-1 text-muted-foreground">{label}</dt>
-      <dd className="shrink-0 tabular-nums">{value}</dd>
-    </div>
-  )
 }

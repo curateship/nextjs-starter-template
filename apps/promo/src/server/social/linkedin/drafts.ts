@@ -40,6 +40,7 @@ import { promoLinkedinComments, promoLinkedinDrafts } from "./schema"
  * its Professional Community Policies (linkedin.com/legal/professional-community-policies)
  * and put in short. Handed to the rules check and to every prompt. Re-read
  * the page when LinkedIn changes it.
+ * Read on 22 Oct 2026.
  */
 export const LINKEDIN_RULES = [
   "Be professional: no insults, no harassment, nothing a person would not say at work.",
@@ -49,8 +50,6 @@ export const LINKEDIN_RULES = [
   "No engagement bait: no asking people to like, comment or share just to spread the post.",
   "Paid promotion must be disclosed when the writer was given something for it.",
 ]
-
-export const LINKEDIN_RULES_READ_ON = "22 Oct 2026"
 
 /**
  * Tyler's rule for when a comment names the product, 22 Oct 2026: "Only when

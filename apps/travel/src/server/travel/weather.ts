@@ -16,8 +16,12 @@ const TIMEOUT_MS = 5000
 const PLACE_KEEP_MS = 24 * 60 * 60_000
 const FORECAST_KEEP_MS = 60 * 60_000
 
-/** A place's position, and its country's two-letter code when the place search gave one (for holidays). */
-export type Point = { latitude: number; longitude: number; countryCode: string | null }
+/**
+ * A place's position, its country's two-letter code when the place search gave
+ * one (for holidays), and its time zone, such as "Asia/Tokyo", when it gave a
+ * real one (Travel features 4, part 1).
+ */
+export type Point = { latitude: number; longitude: number; countryCode: string | null; timeZone: string | null }
 const placesKept = new Map<string, { at: number; point: Point | null }>()
 const forecastsKept = new Map<string, { at: number; days: Map<string, Omit<DayWeather, "day">> }>()
 
@@ -38,13 +42,29 @@ export async function findPlace(name: string, nowMs: number = Date.now()): Promi
   const response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => null)
   if (!response?.ok) return null
   const body = (await response.json().catch(() => null)) as {
-    results?: { latitude: number; longitude: number; country_code?: string }[]
+    results?: { latitude: number; longitude: number; country_code?: string; timezone?: string }[]
   } | null
   const first = body?.results?.[0]
   const countryCode = typeof first?.country_code === "string" && /^[A-Za-z]{2}$/.test(first.country_code) ? first.country_code.toUpperCase() : null
-  const point = first ? { latitude: first.latitude, longitude: first.longitude, countryCode } : null
+  const timeZone = typeof first?.timezone === "string" && isTimeZone(first.timezone) ? first.timezone : null
+  const point = first ? { latitude: first.latitude, longitude: first.longitude, countryCode, timeZone } : null
   placesKept.set(key, { at: nowMs, point })
   return point
+}
+
+/** Whether the browser and server both know this time zone, the same check Trip settings' saves get. */
+export function isTimeZone(timeZone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** A chance of rain out of 100, or null when Open-Meteo gave none or a number out of range. */
+function chanceOf(value: number | null | undefined) {
+  return typeof value === "number" && value >= 0 && value <= 100 ? Math.round(value) : null
 }
 
 async function forecastAt(point: Point, nowMs: number) {
@@ -55,6 +75,7 @@ async function forecastAt(point: Point, nowMs: number) {
     latitude: String(point.latitude),
     longitude: String(point.longitude),
     daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+    hourly: "precipitation_probability",
     timezone: "auto",
     forecast_days: "16",
     // The forecast's days are the place's own; a day back covers a place already a day ahead of the trip's clock.
@@ -70,9 +91,20 @@ async function forecastAt(point: Point, nowMs: number) {
       temperature_2m_min?: number[]
       precipitation_probability_max?: (number | null)[]
     }
+    hourly?: { time?: string[]; precipitation_probability?: (number | null)[] }
   } | null
   const daily = body?.daily
   if (!daily?.time) return null
+  // Each hour arrives as "2026-03-04T14:00", in the destination's own time.
+  const hourly = new Map<string, (number | null)[]>()
+  body?.hourly?.time?.forEach((stamp, index) => {
+    const hour = Number(stamp.slice(11, 13))
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) return
+    const date = stamp.slice(0, 10)
+    const hours = hourly.get(date) ?? Array.from({ length: 24 }, () => null)
+    hours[hour] = chanceOf(body.hourly?.precipitation_probability?.[index])
+    hourly.set(date, hours)
+  })
   const days = new Map<string, Omit<DayWeather, "day">>()
   daily.time.forEach((date, index) => {
     const code = daily.weather_code?.[index]
@@ -85,7 +117,8 @@ async function forecastAt(point: Point, nowMs: number) {
         low: Math.round(low),
         kind: weatherKindOf(code),
         // Open-Meteo sends null for a day it has no chance for; that shows no rain line.
-        rain: typeof rain === "number" && rain >= 0 && rain <= 100 ? Math.round(rain) : null,
+        rain: chanceOf(rain),
+        hourlyRain: hourly.get(date) ?? [],
       })
     }
   })

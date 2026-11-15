@@ -22,3 +22,4 @@ true of every app built on Custom Shell lives in the repo's `docs/`, and
   runs, every live value, what Tyler decided at launch, and each release.
 - `shell-integration.md` — what this app takes from Custom Shell, what it
   keeps of its own, and what each shell merge carried across.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, MicIcon, SquareIcon, UploadIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +14,7 @@ import {
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { TimeSoFar } from "@/components/video-assets/time-so-far"
 import {
   getVoiceCloneErrorMessage,
   makeOwnVoice,
@@ -216,13 +216,8 @@ export function VoiceCloneDialog({
     }
     setCreating(true)
     try {
-      const { voice, needsVerifying } = await makeOwnVoice(name, sample.file)
+      const { voice } = await makeOwnVoice(name, sample.file)
       dismissErrorToast()
-      toast.success(
-        needsVerifying
-          ? `"${voice.name}" is made, but ElevenLabs wants to check it first. Finish that on elevenlabs.io before reading with it.`
-          : `"${voice.name}" is ready. Pick it in Read a script with AI, where it is marked (yours).`
-      )
       onCreated(voice)
       onOpenChange(false)
       reset()
@@ -253,146 +248,151 @@ export function VoiceCloneDialog({
               a paid plan.
             </DialogDescription>
           </DialogHeader>
-          <DialogBody>
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Whose voice</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 text-sm">
-                <p>
-                  The recording must be your own voice, or the voice of someone
-                  who has agreed to have it copied. Copying anyone else's voice
-                  is against ElevenLabs' rules.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>The recording</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <p className="text-sm text-muted-foreground">
-                  A quiet room, one person talking, no music. Talk the way you
-                  want the voice to sound.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {recording ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => recorderRef.current?.stop()}
-                    >
-                      <SquareIcon />
-                      Stop
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={creating}
-                      onClick={() => void startRecording()}
-                    >
-                      <MicIcon />
-                      {sample ? "Record again" : "Record"}
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={recording || creating}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <UploadIcon />
-                    Upload a file
-                  </Button>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept={ACCEPT}
-                    hidden
-                    aria-label="Upload a recording"
-                    onChange={(event) => {
-                      void pickFile(event.target.files?.[0])
-                      event.target.value = ""
-                    }}
-                  />
-                </div>
-                {recording ? (
-                  <p
-                    className="text-sm tabular-nums"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    Recording, {formatClock(elapsedMs)}. It stops itself at{" "}
-                    {formatClock(VOICE_SAMPLE_MAX_MS)}.
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void create()
+            }}
+          >
+            <DialogBody>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Whose voice</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 text-sm">
+                  <p>
+                    The recording must be your own voice, or the voice of someone
+                    who has agreed to have it copied. Copying anyone else's voice
+                    is against ElevenLabs' rules.
                   </p>
-                ) : null}
-                {sample ? (
-                  <div className="grid gap-2">
-                    <audio
-                      controls
-                      src={sample.url}
-                      className="w-full"
-                      aria-label="Hear the recording"
-                    />
-                    <p
-                      className={
-                        lengthRefusal
-                          ? "text-sm text-destructive"
-                          : "text-sm text-muted-foreground tabular-nums"
-                      }
-                    >
-                      {lengthRefusal ??
-                        (sample.durationMs != null
-                          ? `${formatClock(sample.durationMs)} long.`
-                          : "The length is checked when it is sent.")}
-                    </p>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Name</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="voice-clone-name">What to call it</Label>
-                  <Input
-                    id="voice-clone-name"
-                    value={name}
-                    maxLength={VOICE_CLONE_NAME_MAX}
-                    aria-invalid={nameInvalid || undefined}
-                    placeholder="My voice"
-                    onChange={(event) => {
-                      setName(event.target.value)
-                      if (event.target.value.trim()) setNameInvalid(false)
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </DialogBody>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={creating}
-              onClick={requestClose}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={creating || recording}
-              onClick={() => void create()}
-            >
-              {creating ? <Loader2Icon className="animate-spin" /> : null}
-              {creating ? "Making it…" : "Create voice"}
-            </Button>
-          </DialogFooter>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>The recording</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    A quiet room, one person talking, no music. Talk the way you
+                    want the voice to sound.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recording ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => recorderRef.current?.stop()}
+                      >
+                        <SquareIcon />
+                        Stop
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={creating}
+                        onClick={() => void startRecording()}
+                      >
+                        <MicIcon />
+                        {sample ? "Record again" : "Record"}
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={recording || creating}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <UploadIcon />
+                      Upload a file
+                    </Button>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept={ACCEPT}
+                      hidden
+                      aria-label="Upload a recording"
+                      onChange={(event) => {
+                        void pickFile(event.target.files?.[0])
+                        event.target.value = ""
+                      }}
+                    />
+                  </div>
+                  {recording ? (
+                    <p
+                      className="text-sm tabular-nums"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      Recording, {formatClock(elapsedMs)}. It stops itself at{" "}
+                      {formatClock(VOICE_SAMPLE_MAX_MS)}.
+                    </p>
+                  ) : null}
+                  {sample ? (
+                    <div className="grid gap-2">
+                      <audio
+                        controls
+                        src={sample.url}
+                        className="w-full"
+                        aria-label="Hear the recording"
+                      />
+                      <p
+                        className={
+                          lengthRefusal
+                            ? "text-sm text-destructive"
+                            : "text-sm text-muted-foreground tabular-nums"
+                        }
+                      >
+                        {lengthRefusal ??
+                          (sample.durationMs != null
+                            ? `${formatClock(sample.durationMs)} long.`
+                            : "The length is checked when it is sent.")}
+                      </p>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Name</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="voice-clone-name">What to call it</Label>
+                    <Input
+                      id="voice-clone-name"
+                      value={name}
+                      maxLength={VOICE_CLONE_NAME_MAX}
+                      aria-invalid={nameInvalid || undefined}
+                      placeholder="My voice"
+                      onChange={(event) => {
+                        setName(event.target.value)
+                        if (event.target.value.trim()) setNameInvalid(false)
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </DialogBody>
+            <DialogFooter>
+              <TimeSoFar running={creating} />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creating}
+                onClick={requestClose}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creating || recording}>
+                {creating ? <Loader2Icon className="animate-spin" /> : null}
+                {creating ? "Making it…" : "Create voice"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       )}
     </FormDialog>

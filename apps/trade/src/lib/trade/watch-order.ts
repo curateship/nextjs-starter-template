@@ -231,6 +231,13 @@ const watchPlanSchema = z.object({
    * rather than buying that back. Absent on every other watch.
    */
   peakHeld: z.number().optional(),
+  /**
+   * The price this watch's first order went out at, for slippage (Tyler,
+   * 10 Nov 2026: "aimed vs filled"). Set on the first send and kept through
+   * every chase, so each re-placed order is measured against where it began,
+   * not where the chase had walked it. Absent on watches from before then.
+   */
+  aimedPx: z.number().positive().optional(),
 })
 
 export type WatchPlan = z.infer<typeof watchPlanSchema>

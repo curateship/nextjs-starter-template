@@ -1,5 +1,4 @@
 import { CopyIcon, FilmIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -63,7 +62,6 @@ function HookRow({
   async function copy() {
     try {
       await navigator.clipboard.writeText(hook.text)
-      toast.success("Hook copied.")
     } catch {
       showErrorToast("The hook could not be copied. Select the words and copy them instead.")
     }

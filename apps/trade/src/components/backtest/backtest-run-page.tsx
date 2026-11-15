@@ -1,35 +1,35 @@
 import * as React from "react"
-import { useNavigate, useRouter } from "@tanstack/react-router"
-import type { PanelImperativeHandle } from "react-resizable-panels"
+import { useRouter } from "@tanstack/react-router"
+import {
+  ArrowLeftRightIcon,
+  ChartLineIcon,
+  CircleSlashIcon,
+  FlaskConicalIcon,
+  Loader2Icon,
+} from "lucide-react"
 
 import { BacktestChartPanel } from "@/components/backtest/backtest-chart-panel"
 import { BacktestMarketsPanel } from "@/components/backtest/backtest-markets-panel"
+import { listSkipped } from "@/components/backtest/skipped-coins"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
 import { BacktestTradesPanel } from "@/components/backtest/backtest-trades-panel"
+import { useBacktestFigures } from "@/components/backtest/use-backtest-figures"
+import { useMarketIcons } from "@/components/backtest/use-market-icons"
+import { OpenRunPanel } from "@/components/bots/bots-record"
+import { TradeColumnsMenu } from "@/components/bots/trade-columns-menu"
+import { TRADES_POPOVER_LIST_MAX, TradesPopover } from "@/components/bots/trades-popover"
+import { FooterState } from "@/components/crm/record-frame"
+import { PanelCard } from "@/components/shared/panel-card"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
-import {
-  BOTTOM_COLLAPSED_HEIGHT,
-  PanelReopenTab,
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  WorkspacePanel,
-} from "@/components/ui/resizable"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   getBacktestErrorMessage,
   loadBacktestCoin,
-  loadBacktestRunTrades,
+  loadBacktestCoinTrades,
   stopBacktest,
 } from "@/lib/api/trade/backtests"
-import {
-  buildGraphSeries,
-  graphView,
-  windowStats,
-  WHOLE_RUN,
-  type BacktestRunTrade,
-  type GraphWindow,
-} from "@/lib/trade/backtest/graph"
+import { plural } from "@/lib/format/plural"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import { backtestMeter } from "@/lib/trade/backtest/progress"
@@ -44,32 +44,22 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import {
-  useBlankSpaceDoubleClick,
-  usePanelToggle,
-} from "@/lib/layout/panel-collapse"
-import { useWideScreen } from "@/lib/layout/wide-screen"
-import {
   firstBacktestMarket,
-  firstBacktestTrade,
   readBacktestSelection,
   rememberBacktestSelection,
 } from "@/lib/trade/backtest/selection"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
-import {
-  type TradePanelLayouts,
-  useRememberedPanelLayoutInPlace,
-} from "@/lib/trade/panel-layout"
+import type { ChartView } from "@/lib/trade/chart-view"
+import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 
 /**
- * One backtest, laid out as a workspace: the settings it ran with on the left,
- * the chart in the middle, what it came to on the right, and its coins and
- * trades along the bottom.
- *
- * The same four panels as the Trade screen and the Automation Canvas, built on
- * the same parts — so resizing, collapsing, the reopen tabs and the remembered
- * layout behave identically on all three and only had to be got right once. A
- * results page that scrolled would be a fourth way of arranging this app.
+ * One backtest opened on the Bots dashboard: its chart, or the Graph of the
+ * pot over the whole run, fills the middle, and the right panel holds two
+ * folding cards (Tyler, 10 Nov 2026): Result, the run in figures, then
+ * Trades, its coins with Traded and Skipped tabs. Pressing a coin charts it
+ * and opens its trades in a popover that can be pinned and dragged, in place
+ * of the trades panel that sat under the chart. The left panel stays the
+ * dashboard's page.
  *
  * Every figure is a **dollar amount**, worked out when the run was saved.
  * Nothing here recalculates anything: a page doing its own sums would drift
@@ -102,70 +92,45 @@ export type BacktestCoinRow = {
   summary: BacktestCoinSummary | null
 }
 
-/** No focus ring on a panel divider — the same reason as the Trade workspace. */
-const NO_RING = "focus-visible:ring-0"
-
 export function BacktestRunPage({
   run,
   coins,
   openCoin,
+  chartView,
   initialPanelLayouts,
+  heading,
+  menu,
+  onCoin,
+  frame,
 }: {
   run: BacktestRunView
   coins: BacktestCoinRow[]
-  /** `?run=<market key>` — which coin's chart is open. */
+  /** `?coin=<market key>`: which coin's chart is open. */
   openCoin: string | null
+  /** The Trade chart's remembered zoom and position, which a coin's chart opens at. */
+  chartView: ChartView | null
   initialPanelLayouts: TradePanelLayouts
+  /** The end of the middle's header: the button that reopens a shut right panel. */
+  heading: React.ReactNode
+  /** The backtest's ⋮, in the right panel's header. */
+  menu: React.ReactNode
+  /** Puts the coin on the chart in the address; `push` when somebody picked it. */
+  onCoin: (marketKey: string, push: boolean) => void
+  /** The Bots dashboard's frame: the middle and the right panel. */
+  frame: (panels: { header: React.ReactNode; middle: React.ReactNode; right: { label: string; content: React.ReactNode } }) => React.ReactNode
 }) {
-  const navigate = useNavigate()
   const router = useRouter()
-  const desktop = useWideScreen()
-
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  const horizontalKey = tradePanelLayoutKey.backtestHorizontal
-  const verticalKey = tradePanelLayoutKey.backtestVertical
-  const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[horizontalKey],
-    panelLayouts.layouts.current[horizontalKey],
-    (layout) => panelLayouts.remember(horizontalKey, layout)
-  )
-  const verticalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[verticalKey],
-    panelLayouts.layouts.current[verticalKey],
-    (layout) => panelLayouts.remember(verticalKey, layout)
-  )
 
-  const statsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const tradesPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const [marketsTab, setMarketsTab] = React.useState<"results" | "skipped">(
-    "results"
-  )
-  const [statsCollapsed, setStatsCollapsed] = React.useState(false)
-  const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
-
-  // Double-clicking a panel's blank space shuts it, the same gesture the Trade
-  // workspace and the canvas use.
-  const toggleStatsPanel = usePanelToggle(statsPanelRef)
-  const toggleStats = React.useCallback(() => {
-    toggleStatsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleStatsPanel])
-  const toggleMarketsPanel = usePanelToggle(marketsPanelRef)
-  const toggleMarkets = React.useCallback(() => {
-    toggleMarketsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleMarketsPanel])
-  const statsDoubleClick = useBlankSpaceDoubleClick(toggleStats)
-  const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
-  const toggleTradesPanel = usePanelToggle(tradesPanelRef)
-  const toggleTrades = React.useCallback(() => {
-    toggleTradesPanel()
-    verticalLayout.rememberLayout()
-  }, [toggleTradesPanel, verticalLayout])
-  const tradesDoubleClick = useBlankSpaceDoubleClick(toggleTrades)
+  // The Trades card's popover of one coin's trades.
+  const [tradesOpen, setTradesOpen] = React.useState(false)
 
   const fallbackCoin = React.useMemo(() => firstBacktestMarket(coins), [coins])
+  // The Trades card's coin logos, read from each exchange's market list.
+  const coinKeys = React.useMemo(() => coins.map((coin) => coin.marketKey), [coins])
+  const icons = useMarketIcons(coinKeys)
+  // The Skipped card's coins, counted in its heading from the same list it shows.
+  const skippedList = React.useMemo(() => listSkipped(coins, run.result?.skipped ?? []), [coins, run.result])
   const [activeCoin, setActiveCoin] = React.useState(
     () => openCoin ?? fallbackCoin
   )
@@ -221,76 +186,7 @@ export function BacktestRunPage({
     )
   }, [run.id, run.summary])
 
-  // How much the run borrows. The pot's line records the MARGIN each position
-  // put up, not what it bought, so at 2× the money in the market is twice the
-  // saved figure — and reading it straight said $529 where $1,058 was at work.
-  // A signals run does not borrow, so it stands at 1.
-  const leverage =
-    run.spec.strategy.kind === "dca"
-      ? run.spec.strategy.params.leverage
-      : run.spec.strategy.kind === "emaGrid"
-        ? run.spec.strategy.settings.grid.leverage
-        : 1
-
-  // Which stretch of the run every figure on the screen is answering for. It
-  // lives here rather than inside the graph because the tiles on the left have
-  // to move with it — two copies of this would be two answers to one question.
-  const [window, setWindow] = React.useState<GraphWindow>(WHOLE_RUN)
-
-  // Every round trip the run made, in one request. The figures that need them —
-  // win rate, profit factor, how long it was in the market, which coins made
-  // money — cannot be windowed without them, and the coin-at-a-time door would
-  // be one request per coin to draw one panel.
-  // Carries the run it answers, the same way the coin fetch below does. Opening
-  // a second run reuses this page rather than rebuilding it, so without the id
-  // the previous run's trades would be counted against the new run's pot until
-  // the new ones landed — a second or two of figures belonging to neither.
-  const [runTrades, setRunTrades] = React.useState<{
-    runId: string
-    trades: BacktestRunTrade[]
-  } | null>(null)
-  React.useEffect(() => {
-    let live = true
-    void loadBacktestRunTrades(run.id)
-      .then((answer) => {
-        if (live) setRunTrades({ runId: run.id, trades: answer.trades })
-      })
-      .catch(() => {
-        // A run whose trades will not load still has a pot to draw and a
-        // summary to read; those tiles show a dash. Nothing here is worth
-        // taking the page down for.
-        if (live) setRunTrades(null)
-      })
-    return () => {
-      live = false
-    }
-  }, [run.id])
-  const trades = runTrades?.runId === run.id ? runTrades.trades : null
-
-  const graphSeries = React.useMemo(() => {
-    if (!run.result || run.result.equity.length < 2) return null
-    return buildGraphSeries(
-      run.result.equity,
-      run.result.inPlay,
-      trades,
-      run.spec.startingUsd
-    )
-  }, [run.result, run.spec.startingUsd, trades])
-
-  const graphStats = React.useMemo(() => {
-    if (!graphSeries) return null
-    const { stats } = graphView(graphSeries, window)
-    return windowStats(
-      graphSeries,
-      trades,
-      stats[0],
-      stats[1],
-      run.spec.startingUsd,
-      // The same borrowing the graph's own reading uses, so the tiles and the
-      // tooltip cannot disagree about how much of the wallet is in the market.
-      leverage
-    )
-  }, [graphSeries, trades, window, run.spec.startingUsd, leverage])
+  const { leverage, window, setWindow, trades, graphSeries, graphStats } = useBacktestFigures(run)
 
   // One coin's candles and trades, fetched when the address names one. Carries
   // the coin it answers, so a slow reply for a coin you have already left is
@@ -322,11 +218,11 @@ export function BacktestRunPage({
         const rememberedTradeIsValid = answer.trades.some(
           (trade) => trade.n === remembered?.trade
         )
-        const nextTrade = sameRememberedMarket
-          ? remembered?.trade === null || rememberedTradeIsValid
-            ? remembered.trade
-            : firstBacktestTrade(answer.trades)
-          : firstBacktestTrade(answer.trades)
+        // No trade is picked for you (Tyler, 10 Nov 2026: "Dont make clicking
+        // on market open the market first trade"): the chart opens at your
+        // saved view, and only a trade you picked, on this market, comes back.
+        const nextTrade =
+          sameRememberedMarket && remembered.trade !== null && rememberedTradeIsValid ? remembered.trade : null
         setChart({
           key: activeCoin,
           bars: answer.bars,
@@ -355,13 +251,8 @@ export function BacktestRunPage({
 
   React.useEffect(() => {
     if (!activeCoin || activeCoin === openCoin) return
-    void navigate({
-      to: "/backtests/$groupId",
-      params: { groupId: run.id },
-      search: { run: activeCoin },
-      replace: true,
-    })
-  }, [activeCoin, navigate, openCoin, run.id])
+    onCoin(activeCoin, false)
+  }, [activeCoin, onCoin, openCoin])
 
   /**
    * Believed from the click until the page is read again.
@@ -371,6 +262,9 @@ export function BacktestRunPage({
    * reads as a press that did nothing.
    */
   const [stopping, setStopping] = React.useState(false)
+  // Stopping throws away the rest of the walk, so it asks first, as a bot's
+  // Stop does (Tyler's polish pick, 10 Nov 2026).
+  const [stopAsked, setStopAsked] = React.useState(false)
   const askToStop = () => {
     setStopping(true)
     void stopBacktest(run.id)
@@ -387,17 +281,65 @@ export function BacktestRunPage({
   const done = run.finishedAt !== null
   const meter = backtestMeter(coins)
 
-  const openCoinInChart = (marketKey: string) => {
-    setActiveCoin(marketKey)
-    setSelectedTrade(null)
-    // Picking a coin is asking to see it, so the panel swaps over to the
-    // candles rather than leaving the click looking like it did nothing.
-    setView("chart")
-    void navigate({
-      to: "/backtests/$groupId",
-      params: { groupId: run.id },
-      search: { run: marketKey },
-    })
+  // **Pressing a coin in the Trades card opens its trades and nothing else.**
+  // The chart stays as it is (Tyler, 10 Nov 2026: "Dont make clicking on
+  // market open the market first trade", then "if its not first trade then
+  // just dont load the chart at all. Just open the popover"). The chart moves
+  // to the coin only when one of its trades is pressed in the popover.
+  const [popCoin, setPopCoin] = React.useState<string | null>(null)
+  const [popRead, setPopRead] = React.useState<
+    { key: string; trades: BacktestTrade[] } | { key: string; error: string } | null
+  >(null)
+  const [popAttempt, setPopAttempt] = React.useState(0)
+  // A finished run's trades never change, so a coin opened once opens again
+  // at once instead of asking the server a second time.
+  const popCache = React.useRef(new Map<string, BacktestTrade[]>())
+  const runDone = run.finishedAt !== null
+  React.useEffect(() => {
+    // The coin on the chart already has its trades read.
+    if (!popCoin || popCoin === activeCoin) return
+    const cached = runDone ? popCache.current.get(popCoin) : undefined
+    if (cached) {
+      setPopRead({ key: popCoin, trades: cached })
+      return
+    }
+    let live = true
+    loadBacktestCoinTrades(run.id, popCoin)
+      .then((answer) => {
+        if (runDone) popCache.current.set(popCoin, answer.trades)
+        if (live) setPopRead({ key: popCoin, trades: answer.trades })
+      })
+      .catch((error: unknown) => {
+        if (live) setPopRead({ key: popCoin, error: getBacktestErrorMessage(error) })
+      })
+    return () => {
+      live = false
+    }
+  }, [run.id, popCoin, activeCoin, popAttempt, runDone])
+  const popIsChart = popCoin !== null && popCoin === activeCoin
+  const popAnswer = popRead?.key === popCoin ? popRead : null
+  const popTrades = popIsChart ? (shown?.trades ?? []) : popAnswer && "trades" in popAnswer ? popAnswer.trades : []
+  const popError = popIsChart ? shownError : popAnswer && "error" in popAnswer ? popAnswer.error : null
+  const popLoading = popCoin !== null && (popIsChart ? shown === null && shownError === null : popAnswer === null)
+
+  const pressCoin = (marketKey: string) => {
+    setPopCoin(marketKey)
+    setTradesOpen(true)
+  }
+
+  // A trade pressed in the popover: the chart moves to its coin, if it is not
+  // there already, and frames it.
+  const selectFromPopover = (trade: number | null) => {
+    if (popCoin && popCoin !== activeCoin) {
+      // Read back by the coin's load, which then frames this trade.
+      rememberBacktestSelection(run.id, { marketKey: popCoin, trade })
+      setActiveCoin(popCoin)
+      setSelectedTrade(trade)
+      setView("chart")
+      onCoin(popCoin, true)
+      return
+    }
+    selectTrade(trade)
   }
 
   const selectTrade = (trade: number | null) => {
@@ -417,24 +359,6 @@ export function BacktestRunPage({
 
   const statsPanel = (
     <BacktestStatsPanel
-      skippedCount={
-        new Set([
-          ...coins
-            .filter((coin) => coin.status === "skipped")
-            .map((coin) => coin.marketKey),
-          ...(run.result?.skipped ?? []).map((coin) => coin.marketKey),
-        ]).size
-      }
-      failedCount={coins.filter((coin) => coin.status === "error").length}
-      onShowSkipped={() => {
-        setMarketsTab("skipped")
-        marketsPanelRef.current?.expand()
-      }}
-      timing={{
-        createdAt: run.createdAt,
-        finishedAt: run.finishedAt,
-        failed: coins.some((coin) => coin.status === "error"),
-      }}
       // Nothing tested is not a result. A run stopped before it started still
       // writes a summary — same ending code either way — and drawn as figures
       // it reads as a finished backtest that found nothing rather than one that
@@ -442,26 +366,22 @@ export function BacktestRunPage({
       summary={resultSummary(run.summary)}
       result={run.result}
       spec={run.spec}
-      series={graphSeries}
       stats={graphStats}
       window={window}
-      onWindow={setWindow}
       coinsTotal={coins.length}
       progress={meter.value}
       progressText={meter.text}
       running={!done}
-      stopRequested={run.stopRequested || stopping}
-      onStop={askToStop}
     />
   )
   const marketsPanel = (
     <BacktestMarketsPanel
-      tab={marketsTab}
-      onTabChange={setMarketsTab}
+      tab="traded"
       coins={coins}
+      icons={icons}
       skipped={run.result?.skipped ?? []}
-      openCoin={activeCoin}
-      onOpenCoin={openCoinInChart}
+      openCoin={tradesOpen && popCoin ? popCoin : activeCoin}
+      onOpenCoin={pressCoin}
     />
   )
   const chartPanel = (
@@ -481,154 +401,116 @@ export function BacktestRunPage({
       window={window}
       onWindow={setWindow}
       view={view}
-      onSwapView={() => setView(view === "graph" ? "chart" : "graph")}
+      onView={setView}
       interval={run.spec.interval}
       loading={activeCoin !== null && shown === null && shownError === null}
       error={shownError}
       live={!done}
-      automationId={run.automationId}
+      headerEnd={heading}
+      savedView={chartView}
       chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
       onChartToolbarPositionChange={panelLayouts.rememberChartToolbarPosition}
       onRetry={retryChart}
     />
   )
 
-  const upper = desktop ? (
-    <ResizablePanelGroup
-      groupRef={horizontalLayout.groupRef}
-      orientation="horizontal"
-      className="min-h-0 flex-1"
-      onLayoutChanged={horizontalLayout.onLayoutChanged}
+  const coinPicked = coins.find((coin) => coin.marketKey === popCoin)
+
+  // The chart fills the middle; a coin's trades are in the popover.
+  const middle = <div className="relative flex min-h-0 flex-1 flex-col">{chartPanel}</div>
+
+  const tradesCard = (
+    <PanelCard storageId="backtest-trades" icon={<ArrowLeftRightIcon />} title="Trades">
+      {marketsPanel}
+    </PanelCard>
+  )
+  // The coins that produced nothing, in a card of their own under Trades
+  // (Tyler, 10 Nov 2026: "Put the skipped markets into its own card and out
+  // of the tab").
+  const skippedCard = (
+    <PanelCard
+      storageId="backtest-skipped"
+      icon={<CircleSlashIcon />}
+      title="Skipped"
+      badge={
+        <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+          {skippedList.length} {plural(skippedList.length, "coin", "coins")}
+        </span>
+      }
     >
-      <ResizablePanel
-        id="stats"
-        panelRef={statsPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="14%"
-        minSize="14%"
-        maxSize="32%"
-        onResize={(size) => setStatsCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          className="flex flex-col"
-          collapsed={statsCollapsed}
-          onDoubleClick={statsDoubleClick}
-        >
-          {statsPanel}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={statsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" defaultSize="70%" minSize="30%">
-        <WorkspacePanel className="relative flex min-w-0 flex-1 flex-col">
-          {chartPanel}
-          {/* Shown where a panel disappeared, so getting it back is findable
-              without having to remember that the divider is still draggable —
-              the same tab the trade screen puts there. */}
-          {statsCollapsed ? (
-            <PanelReopenTab
-              side="left"
-              label="Show the run's figures"
-              onClick={toggleStats}
-            />
-          ) : null}
-          {marketsCollapsed ? (
-            <PanelReopenTab
-              side="right"
-              label="Show the results"
-              onClick={toggleMarkets}
-            />
-          ) : null}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
-      <ResizablePanel
-        id="markets"
-        panelRef={marketsPanelRef}
-        collapsible
-        collapsedSize="0%"
-        defaultSize="16%"
-        minSize="16%"
-        maxSize="36%"
-        onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
-      >
-        <WorkspacePanel
-          className="flex flex-col"
-          collapsed={marketsCollapsed}
-          onDoubleClick={marketsDoubleClick}
-        >
-          {marketsPanel}
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
-  ) : (
-    // Narrow screens stack the three rather than squeezing them into a width
-    // none of them fits in. The chart leads, because it is the thing you came
-    // to look at.
-    <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
-      <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <WorkspacePanel className="flex h-[60vh] min-w-0 flex-col">
-          {chartPanel}
-        </WorkspacePanel>
-        <WorkspacePanel className="flex flex-col">
-          {marketsPanel}
-        </WorkspacePanel>
-        <WorkspacePanel className="flex flex-col">{statsPanel}</WorkspacePanel>
-      </div>
-    </ScrollArea>
+      <BacktestMarketsPanel
+        tab="skipped"
+        coins={coins}
+        skipped={run.result?.skipped ?? []}
+        openCoin={null}
+        onOpenCoin={() => {}}
+      />
+    </PanelCard>
   )
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup
-        groupRef={verticalLayout.groupRef}
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        onLayoutChanged={verticalLayout.onLayoutChanged}
+  const right = (
+    <OpenRunPanel
+      title="Backtest"
+      icon={FlaskConicalIcon}
+      menu={menu}
+      hideLabel="Hide the backtest"
+      footer={
+        <>
+          <FooterState>{done ? "Finished" : run.stopRequested || stopping ? "Stopping" : "Running"}</FooterState>
+          {!done ? (
+            <Button type="button" variant="outline" disabled={run.stopRequested || stopping} onClick={() => setStopAsked(true)}>
+              {run.stopRequested || stopping ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : null}
+              Stop
+            </Button>
+          ) : null}
+          <ConfirmDialog
+            open={stopAsked}
+            onOpenChange={setStopAsked}
+            title="Stop this backtest?"
+            description="The coins it has not reached yet are left untested. What it has worked out so far stays."
+            confirmLabel="Stop"
+            onConfirm={() => {
+              setStopAsked(false)
+              askToStop()
+            }}
+          />
+        </>
+      }
+    >
+      <PanelCard storageId="backtest-result" icon={<ChartLineIcon />} title="Result">
+        {statsPanel}
+      </PanelCard>
+      <TradesPopover
+        open={tradesOpen && coinPicked !== undefined}
+        onOpenChange={setTradesOpen}
+        anchor={tradesCard}
+        menu={
+          <TradeColumnsMenu
+            kind="backtest"
+            hidden={panelLayouts.layouts.hiddenTradeColumns.backtest ?? []}
+            onChange={(hidden) => panelLayouts.rememberHiddenTradeColumns("backtest", hidden)}
+          />
+        }
       >
-        <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
-          <div className="flex h-full min-h-0">{upper}</div>
-        </ResizablePanel>
-        {/* Keeps its gap even while the panel below is collapsed — that
-            collapsed tab row is still a panel on screen, and this handle is
-            what makes it draggable back open. */}
-        <ResizableHandle gap className={NO_RING} />
-        <ResizablePanel
-          id="trades"
-          panelRef={tradesPanelRef}
-          defaultSize="32%"
-          minSize="14%"
-          maxSize="60%"
-          // Down to its own header rather than to nothing, so its tabs and
-          // their counts never disappear.
-          collapsible
-          collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-        >
-          <WorkspacePanel
-            className="flex flex-col"
-            onDoubleClick={tradesDoubleClick}
-          >
-            <BacktestTradesPanel
-              symbol={
-                coins.find((coin) => coin.marketKey === activeCoin)?.symbol ??
-                null
-              }
-              summary={
-                coins.find((coin) => coin.marketKey === activeCoin)?.summary ??
-                null
-              }
-              trades={shown?.trades ?? []}
-              loading={
-                activeCoin !== null && shown === null && shownError === null
-              }
-              error={shownError}
-              selected={selectedTrade}
-              onRetry={retryChart}
-              onSelect={selectTrade}
-            />
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+        {(headerAction) => (
+          <BacktestTradesPanel
+            symbol={coinPicked?.symbol ?? null}
+            summary={coinPicked?.summary ?? null}
+            trades={popTrades}
+            loading={popLoading}
+            error={popError}
+            selected={popIsChart ? selectedTrade : null}
+            onRetry={popIsChart ? retryChart : () => setPopAttempt((count) => count + 1)}
+            onSelect={selectFromPopover}
+            headerAction={headerAction}
+            hidden={panelLayouts.layouts.hiddenTradeColumns.backtest}
+            listClassName={TRADES_POPOVER_LIST_MAX}
+          />
+        )}
+      </TradesPopover>
+      {skippedCard}
+    </OpenRunPanel>
   )
+
+  return frame({ header: null, middle, right: { label: "Backtest", content: right } })
 }

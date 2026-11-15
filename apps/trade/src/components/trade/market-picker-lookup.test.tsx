@@ -86,7 +86,7 @@ async function openPicker(
   )
   await act(async () => {
     host
-      .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
+      .querySelector<HTMLButtonElement>('[aria-label="Browse market"]')!
       .click()
   })
 }
@@ -367,7 +367,7 @@ describe("the Solana list", () => {
     )
     await act(async () => {
       host
-        .querySelector<HTMLButtonElement>('[aria-label="Choose market"]')!
+        .querySelector<HTMLButtonElement>('[aria-label="Browse market"]')!
         .click()
     })
     await act(async () => type("WIF"))

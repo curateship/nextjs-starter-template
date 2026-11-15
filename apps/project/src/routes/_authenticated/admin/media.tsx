@@ -1,55 +1,23 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router"
-
-import { MediaLibraryPage } from "@/components/media/media-library-page"
-import {
-  getAdminMediaErrorMessage,
-  loadAdminMediaPage,
-} from "@/lib/api/media/admin-media"
-import { routeErrorComponent } from "@/components/shell/route-error"
-
-const authenticatedRoute = getRouteApi("/_authenticated")
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
 /**
- * `?owner=<user id>` is how an account links here, so the first render is
- * already filtered instead of flashing everyone's files.
+ * The media library lives in the Admin dashboard now, as its Media library
+ * section (Tyler, 8 Nov 2026: "we add media library to it too";
+ * `workspace/tasks/admin-changes.md`). An old link or bookmark lands there:
+ * `?owner=` keeps whose files show, `?media=` becomes the file open on the
+ * right, and `?orphan=` the orphan open.
  */
 export const Route = createFileRoute("/_authenticated/admin/media")({
   validateSearch: (search: Record<string, unknown>) => ({
-    owner:
-      typeof search.owner === "string" && search.owner.length <= 36
-        ? search.owner
-        : undefined,
-    media:
-      typeof search.media === "string" && search.media.length <= 36
-        ? search.media
-        : undefined,
-    orphan:
-      typeof search.orphan === "string" && search.orphan.length <= 512
-        ? search.orphan
-        : undefined,
+    owner: typeof search.owner === "string" && search.owner.length <= 36 ? search.owner : undefined,
+    media: typeof search.media === "string" && search.media.length <= 36 ? search.media : undefined,
+    orphan: typeof search.orphan === "string" && search.orphan.length <= 512 ? search.orphan : undefined,
   }),
-  loaderDeps: ({ search }) => ({ owner: search.owner }),
-  // No page size here: the server reads the configured rows-per-page and sends
-  // it back, so the first page holds exactly what the grid will show.
-  loader: ({ deps }) =>
-    loadAdminMediaPage({ page: 1, ownerId: deps.owner ?? "all" }),
-  component: AdminMediaRoute,
-  errorComponent: routeErrorComponent(getAdminMediaErrorMessage),
+  beforeLoad: ({ search }) => {
+    throw redirect({
+      to: "/admin/dashboard",
+      search: { tab: "media", owner: search.owner, open: search.media, orphan: search.orphan },
+      replace: true,
+    })
+  },
 })
-
-function AdminMediaRoute() {
-  const data = Route.useLoaderData()
-  const { owner, media, orphan } = Route.useSearch()
-  const { user } = authenticatedRoute.useLoaderData()
-
-  return (
-    <MediaLibraryPage
-      key={owner ?? "all"}
-      initialData={data}
-      initialOwnerId={owner ?? "all"}
-      currentUserId={user.id}
-      openMediaId={media}
-      openOrphanKey={orphan}
-    />
-  )
-}

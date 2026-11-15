@@ -71,6 +71,11 @@ deleted in another tab shows up in the filter menu then, without a reload. A
 tab that sits on screen beside the other one, never clicked, keeps its old
 list until it is clicked.
 
+A fetch that fails keeps the collections already showing and says "Your
+collections could not be loaded." with Try again. It says so once, and again
+only after a fetch has worked in between, so looking back at a tab while the
+connection is down never stacks up messages.
+
 If the collection being shown is deleted elsewhere, the panel falls back to
 All.
 

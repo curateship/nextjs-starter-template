@@ -9,7 +9,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * you made or lost.
  *
  * It sits in the header because the header is on every screen, so the switch
- * is reached the same way from the trading workspace, the P&L page and a
+ * is reached the same way from the trading workspace and a
  * backtest. Reading the saved answer is `use-hide-pnl-sync.ts`'s job rather
  * than this row's, because a menu draws nothing until somebody opens it.
  */

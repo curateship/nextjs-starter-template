@@ -646,18 +646,21 @@ export type BacktestCoinSummary = z.infer<typeof backtestCoinSummarySchema>
 /**
  * The part of a coin's result that is still riding on an open position.
  *
- * `madeOrLost` includes both closed trades and the position at the final
- * price. The trade stats carry the closed half, so the difference explains a
- * large total without pretending that the money was banked. Old runs without
- * trade stats cannot answer and return null rather than making up a zero.
+ * `madeOrLost` is closed trades, plus the position at the final price, minus
+ * funding paid. The trade stats carry the closed half, so taking them away and
+ * putting the funding back leaves the open position alone. Funding used to be
+ * left in, so a coin that earned $243 of funding while holding $48 read
+ * "+$244 open" (Tyler, 11 Nov 2026: "why are these 2 number different?").
+ * Old runs without trade stats cannot answer and return null rather than
+ * making up a zero.
  */
 export function openPnlOf(
-  summary: Pick<BacktestCoinSummary, "madeOrLost" | "openAtEndUsd" | "stats">
+  summary: Pick<BacktestCoinSummary, "madeOrLost" | "openAtEndUsd" | "stats" | "fundingPaid">
 ): number | null {
   if (summary.openAtEndUsd <= 0) return 0
   if (!summary.stats) return null
   const closedPnl = summary.stats.grossProfit - summary.stats.grossLoss
-  return summary.madeOrLost - closedPnl
+  return summary.madeOrLost - closedPnl + summary.fundingPaid
 }
 
 /**
@@ -670,7 +673,7 @@ export function openPnlOf(
  */
 export function openTradePnls(
   trades: readonly BacktestTrade[],
-  summary: Pick<BacktestCoinSummary, "madeOrLost" | "openAtEndUsd" | "stats">
+  summary: Parameters<typeof openPnlOf>[0]
 ): Map<number, number> | null {
   const totalOpenPnl = openPnlOf(summary)
   if (totalOpenPnl === null) return null

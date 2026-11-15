@@ -12,20 +12,14 @@
  * rather than two that can drift.
  */
 
-/**
- * A notice about a flow — it stopped, it went quiet, a trigger could not start
- * it — opens that run's own page, where the reason and the coins it watched
- * are already written down.
- */
-export function flowRunNoticeHref(runId: string): string {
-  return `/flow-runs/${encodeURIComponent(runId)}`
-}
+import { botsRecordHref } from "@/lib/bots/bots-search"
 
 /**
- * A flow that was refused before it started has no run to open, so the notice
- * opens the flow itself — the canvas, where the step that refused it is, and
- * where switching it on again is one press.
+ * A notice about a bot (it stopped, it went quiet, a trigger could not start
+ * it) opens that bot on the Bots dashboard, its chart in the middle and its
+ * figures on the right, where the reason and the coins it watched are
+ * already written down.
  */
-export function flowEditorNoticeHref(recipeId: string): string {
-  return `/admin/recipes/${encodeURIComponent(recipeId)}`
+export function flowRunNoticeHref(runId: string): string {
+  return botsRecordHref("bots", runId)
 }

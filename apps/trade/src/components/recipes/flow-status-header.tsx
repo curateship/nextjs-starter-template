@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { toast } from "sonner"
 import {
   ActivityIcon,
   Loader2Icon,
@@ -10,6 +9,7 @@ import {
   SquareIcon,
 } from "lucide-react"
 
+import { botsRecordSearch } from "@/lib/bots/bots-search"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -48,7 +48,7 @@ import { useTradeSounds } from "@/components/trade/trade-sounds"
  * something else entirely. Four controls, three owners, and no line saying
  * which was which. An app gets one strip here and puts everything in it.
  *
- * **What is where.** The strip holds one thing: **Switch on**, for a flow that
+ * **What is where.** The strip holds one thing: **Run recipe**, for a flow that
  * names a wallet and is not trading yet. Running a backtest lives in the
  * Backtest panel beside its last result, because that is the same act — run it,
  * read it, adjust, run it again — and out here it sat next to Stop.
@@ -148,12 +148,11 @@ export default function FlowStatusHeader({
   const trades = flow
   const live = trades.running || trades.stopping ? trades : null
 
-  /** Every action is the same shape: do it, say so, redraw at once. */
+  /** Every action is the same shape: do it, then redraw at once. */
   const act = (what: () => Promise<{ summary: string }>, then?: () => void) => {
     setBusy(true)
     void what()
-      .then((answer) => {
-        toast.success(answer.summary)
+      .then(() => {
         setOpen(false)
         setAsking(null)
         then?.()
@@ -179,8 +178,7 @@ export default function FlowStatusHeader({
       headline: `${trades.working} ${plural(trades.working, "ladder", "ladders")} left to call off.`,
     })
     void stopFlow(automationId)
-      .then((answer) => {
-        toast.success(answer.summary)
+      .then(() => {
         setRefreshKey((n) => n + 1)
       })
       .catch((error: unknown) => {
@@ -200,7 +198,6 @@ export default function FlowStatusHeader({
           showErrorToast(outcome.summary)
           return
         }
-        toast.success(outcome.summary)
         setOpen(false)
         setAsking(null)
         setRefreshKey((n) => n + 1)
@@ -219,13 +216,22 @@ export default function FlowStatusHeader({
           disabled={trades.problem !== null}
           reason={trades.problem ?? ""}
         >
+          {/* Red while the recipe is not ready to run, and still red rather
+              than faded, so it reads as "something to fix"; pointing at it
+              says what (Tyler, 11 Nov 2026: "Rename the "Switched on" button
+              to "Run recipe" and turn the button into ember color if its
+              paused, green when its running and red if its not ready to run"). */}
           <Button
             type="button"
             disabled={busy || trades.problem !== null}
+            className={cn(
+              trades.problem !== null &&
+                "bg-red-600 text-white hover:bg-red-600 disabled:opacity-100 dark:bg-red-600"
+            )}
             onClick={() => setAsking("start")}
           >
             <PlayIcon className="size-4" />
-            Switch on
+            Run recipe
           </Button>
         </DisabledReason>
       ) : null}
@@ -244,7 +250,7 @@ export default function FlowStatusHeader({
         title={
           trades.real
             ? `Trade ${trades.walletLabel} with real money?`
-            : "Switch this flow on?"
+            : "Run this recipe?"
         }
         description={
           <>
@@ -256,7 +262,7 @@ export default function FlowStatusHeader({
             base, and keeps going whether or not this page is open.
           </>
         }
-        confirmLabel={trades.real ? "Yes, trade real money" : "Switch it on"}
+        confirmLabel={trades.real ? "Yes, trade real money" : "Run it"}
         onConfirm={startNow}
       />
 
@@ -299,12 +305,16 @@ export default function FlowStatusHeader({
         <PopoverTrigger asChild>
           <Button
             type="button"
-            variant="outline"
-            // Colour AND words. Amber alone would say nothing to somebody who
-            // cannot tell it from the button beside it.
+            // Green while it runs, amber while paused (Tyler, 11 Nov 2026), and
+            // the words say which, for somebody who cannot tell the colours
+            // apart. Stopping stays plain: it is on its way to not running.
+            // Real money is said in words in the dropdown.
+            variant={live.stopping ? "outline" : "default"}
             className={cn(
-              live.real &&
-                "border-amber-500/40 text-amber-700 dark:text-amber-400"
+              !live.stopping &&
+                (live.paused
+                  ? "bg-amber-500 text-white hover:bg-amber-500/90 dark:bg-amber-500"
+                  : "bg-emerald-600 text-white hover:bg-emerald-600/90 dark:bg-emerald-600")
             )}
           >
             {/* The same dot the account panel puts on the wallet in use, and the
@@ -317,22 +327,27 @@ export default function FlowStatusHeader({
                 // Amber the moment a coin needs a person. The flow is still on,
                 // so it is not red — but "nothing is happening" now has two
                 // meanings and the dot is the first place somebody looks.
-                live.stopping || live.paused
+                live.stopping
                   ? "bg-muted-foreground"
-                  : live.needsAttention
-                    ? "bg-amber-500"
-                    : "bg-emerald-500"
+                  : live.needsAttention && !live.paused
+                    ? "bg-amber-300"
+                    : "bg-white"
               )}
               aria-hidden
             />
             {/* The wallet, then the exchange it is on. Real money is carried by
               the amber and by the dropdown, which says it in words. */}
-            {live.stopping ? "Stopping" : live.paused ? "Paused" : "Trading"} —{" "}
+            {live.stopping ? "Stopping" : live.paused ? "Paused" : "Trading"} on{" "}
             {live.walletLabel}
-            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span
+              className={cn(
+                "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                live.stopping ? "bg-muted text-muted-foreground" : "bg-white/20 text-white"
+              )}
+            >
               {live.venue}
             </span>
-            <span className="text-muted-foreground tabular-nums">
+            <span className={cn("tabular-nums", live.stopping ? "text-muted-foreground" : "text-white/80")}>
               {live.stopping
                 ? `${live.working} left`
                 : `${live.working}/${live.coins}`}
@@ -345,8 +360,8 @@ export default function FlowStatusHeader({
             dashboardSummary
           ) : (
             <Link
-              to="/flow-runs/$runId"
-              params={{ runId: live.runId }}
+              to="/bots"
+              search={botsRecordSearch("bots", live.runId)}
               aria-label={`Open ${live.walletLabel} run dashboard`}
               className={cn(
                 "-m-1 grid gap-1.5 rounded-md p-1 transition-colors hover:bg-muted/60",
@@ -432,7 +447,7 @@ export default function FlowStatusHeader({
             question in a popover. */}
           {live.runId === null ? null : (
             <Button asChild type="button" variant="outline" className="w-full">
-              <Link to="/flow-runs/$runId" params={{ runId: live.runId }}>
+              <Link to="/bots" search={botsRecordSearch("bots", live.runId)}>
                 <ActivityIcon className="size-4" />
                 Open the dashboard
               </Link>

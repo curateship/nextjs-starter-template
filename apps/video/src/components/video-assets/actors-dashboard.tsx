@@ -1,6 +1,5 @@
 import * as React from "react"
 import { PlusIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ActorFormDialog } from "@/components/video-assets/actor-form-dialog"
 import { ExtraFormDialog } from "@/components/video-assets/extra-form-dialog"
@@ -31,6 +30,7 @@ import {
   EXTRA_KINDS,
   type ExtraKind,
 } from "@/lib/video/extras"
+import { ACTOR_STATUS_LABELS } from "@/lib/video/asset-factories"
 
 export type ActorsTab = "actors" | ExtraKind
 
@@ -97,7 +97,6 @@ export function ActorsDashboard({
         ? [saved, ...current]
         : current.map((extra) => (extra.id === saved.id ? saved : extra))
     )
-    toast.success(created ? `${saved.name} created.` : `${saved.name} saved.`)
     setEditingExtra(null)
   }
 
@@ -108,7 +107,6 @@ export function ActorsDashboard({
       await deleteExtras([deletingExtra.id])
       setExtras((current) => current.filter((extra) => extra.id !== deletingExtra.id))
       setDeletingExtra(null)
-      toast.success(`${deletingExtra.name} removed. Its picture remains in Media.`)
     } catch (error) {
       showErrorToast(getExtraErrorMessage(error))
     } finally {
@@ -116,15 +114,13 @@ export function ActorsDashboard({
     }
   }
 
-  function handleSaved(saved: ActorItem, reposed: boolean) {
+  function handleSaved(saved: ActorItem) {
     if (editing === "new") {
       setActors((current) => [saved, ...current])
-      toast.success("Actor created.")
     } else {
       setActors((current) =>
         current.map((actor) => (actor.id === saved.id ? saved : actor))
       )
-      toast.success(reposed ? "Actor re-posed." : "Actor saved.")
     }
     setEditing(null)
   }
@@ -143,7 +139,6 @@ export function ActorsDashboard({
       await deleteActors([deleting.id])
       setActors((current) => current.filter((actor) => actor.id !== deleting.id))
       setDeleting(null)
-      toast.success("Actor removed. Its generated files remain in Media.")
     } catch (error) {
       showErrorToast(getActorErrorMessage(error))
     } finally {
@@ -254,7 +249,7 @@ export function ActorsDashboard({
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle>{actor.name}</CardTitle>
-                      <Badge variant="secondary">{actor.status}</Badge>
+                      <Badge variant="secondary">{ACTOR_STATUS_LABELS[actor.status]}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="grid gap-3">

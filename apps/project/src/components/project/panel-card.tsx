@@ -1,174 +1,91 @@
 import * as React from "react"
-import { ChevronDown, SettingsIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { focusRingInset } from "@/lib/layout/focus-ring"
-import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
+import { ONE_LINE_TITLE } from "@/components/project/notes/project-block-card"
+import { BlockCard, BlockHeadingActions } from "@/components/shared/notes/block-card"
 import { cn } from "@/lib/utils"
 
-/** Whether the card's footer is open, read by `PanelCardFooter` inside it. */
-const FooterOpen = React.createContext<boolean | null>(null)
-
 /**
- * A folding card on one of Project's side panels: "Steps · 0 of 2 done",
- * "My week · Oct 12 to 13", "Today's check-in" with a Late badge. The same
- * grey box, border, 15px heading and arrow as the shell's `InspectorCard`,
- * with two things Tyler's drawings of 13 Oct 2026 add to the heading: a muted
- * note after the title, and a badge before the arrow. Open or shut is
- * remembered in this browser under `storageId`.
- *
- * `settings` puts a cog beside the arrow that opens the card's footer, the
- * row of its buttons (`PanelCardFooter`). The cog, the card's own buttons
- * and the arrow show only while the card is pointed at, or holds the
- * keyboard's visible focus (a click leaves none), folded or open. Tyler drew
- * the task panel's cards that way on 14 Oct 2026 and made it every card's
- * rule on 20 Oct 2026; a button whose dropdown or footer is open stays in
- * view. On a screen with no pointer to hover, they always show.
+ * A folding card on an employee's My dashboard: "Today's check-in" with a
+ * Late badge, "My week · Oct 12 to 13", Time off, Inbox. Since 9 Nov 2026 it
+ * is the shell's block card (task "Shell look/three-panel-shell-look", Tyler:
+ * "Restyle the cards only"): the frosted grey box, a 57px heading whose title
+ * folds it, and what it holds on one white tile. The muted note, the badge
+ * and the card's own button sit in the heading's right end while it is open.
+ * Open or shut is remembered in this browser under `storageId`. These cards
+ * are not "/" blocks, so there is no Delete block.
  */
 export function PanelCard({
   storageId,
+  icon,
   title,
   meta,
-  after,
   badge,
   action,
-  actionOpen = false,
-  settings = false,
-  className,
+  top,
   children,
 }: {
   /** Plain characters only; it names the card's remembered open or shut state. */
   storageId: string
+  icon: React.ReactNode
   title: string
-  /** Muted, after a dot: "0 of 2 done", "4", "Oct 12 to 13". */
+  /** Muted, at the heading's right: "4", "Oct 12 to 13". */
   meta?: React.ReactNode
-  /** After the title with a gap and no dot, such as a status: "Status   ● At risk". */
-  after?: React.ReactNode
-  /** Beside the arrow, such as Late. */
+  /** Beside the note, such as Late. */
   badge?: React.ReactNode
-  /** A button of the card's own beside the arrow, such as a cog that opens a dropdown. */
+  /** A button of the card's own, at the heading's right end. */
   action?: React.ReactNode
-  /** The action's dropdown is open, so a `quiet` card keeps it in view. */
-  actionOpen?: boolean
-  /** A cog that opens the footer of buttons. */
-  settings?: boolean
-  className?: string
+  /** Edge to edge at the top of the tile, over the padded rows: a row of tabs. */
+  top?: React.ReactNode
   children?: React.ReactNode
 }) {
-  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
-  const [footerOpen, setFooterOpen] = React.useState(false)
-  const quietClass = "opacity-0 transition-opacity group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className={cn(
-        "group/card min-w-0 rounded-lg border bg-muted/40 p-4",
-        // Fields sit on the page background, so a box to type in never looks
-        // like part of the grey card.
-        "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background",
-        className
-      )}
-    >
-      <div className="flex items-center gap-2">
-        <h2 className="min-w-0 flex-1 text-[15px] font-semibold">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className={cn("flex w-full cursor-pointer items-center rounded-md text-left select-none", focusRingInset)}
-            >
-              <span className="min-w-0 flex-1 truncate">
-                {title}
-                {meta ? <span className="font-normal text-muted-foreground"> · {meta}</span> : null}
-                {after ? <span className="ml-2">{after}</span> : null}
-              </span>
-            </button>
-          </CollapsibleTrigger>
-        </h2>
-        {badge}
-        {action ? <span className={cn("flex", !actionOpen && quietClass)}>{action}</span> : null}
-        {settings ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`${title} settings`}
-                aria-expanded={open && footerOpen}
-                // On a folded card the cog opens the card with its buttons showing.
-                onClick={() => {
-                  if (!open) {
-                    setOpen(true)
-                    setFooterOpen(true)
-                  } else setFooterOpen((shown) => !shown)
-                }}
-                // No background, open or not (Tyler, 14 Oct 2026); kept in view
-                // while its footer is open, so it can close it again.
-                className={cn(
-                  "text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent",
-                  !(open && footerOpen) && quietClass
-                )}
-              >
-                <SettingsIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{open && footerOpen ? "Hide the buttons" : "Show the buttons"}</TooltipContent>
-          </Tooltip>
-        ) : null}
-        {/* The heading is the button that folds the card; the arrow is the
-            same press for the pointer, and left out of the keyboard's way. */}
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            className={cn("flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md", quietClass)}
-          >
-            <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
-      </div>
-      <CollapsibleContent data-collapse-key={noFlashKey}>
-        <FooterOpen.Provider value={settings ? footerOpen : null}>
-          <div className="mt-4 grid gap-4">{children}</div>
-        </FooterOpen.Provider>
-      </CollapsibleContent>
-    </Collapsible>
+    <div data-project-panel-card="" className={ONE_LINE_TITLE}>
+    <BlockCard editable={false} kind={storageId} title={title} icon={icon}>
+      {meta || badge || action ? (
+        <BlockHeadingActions>
+          {meta ? <span className="truncate text-sm text-muted-foreground">{meta}</span> : null}
+          {badge}
+          {action}
+        </BlockHeadingActions>
+      ) : null}
+      {top}
+      {/* Fields sit on the tile's white, so a box to type in never looks like part of the grey. */}
+      <div className="grid min-h-0 gap-4 overflow-y-auto p-3 [scrollbar-width:thin]">{children}</div>
+    </BlockCard>
+    </div>
   )
 }
 
 /**
- * A card's row of buttons. Inside a `PanelCard` with `settings`, it is the
- * card's footer, across its full width under a line, shown while the cog is
- * on or while `always` (such as Done while notes are being written).
- * Anywhere else it is a plain row.
+ * Panel cards -> Opacity for these cards. theme.css finds a side panel's first
+ * block only inside a page's writing area, and these cards sit straight in the
+ * panel, so the first of them gets the same rule here (UI standard, "A side
+ * panel's body"; Tyler, 13 Nov 2026: "the right panel first block not wiring
+ * to the opacity setting is a persistent problem"). "First" is the first card
+ * among the panel's own children, whatever comes before it, such as the
+ * Daily card's greeting. Drawn once by the panel that holds the cards.
  */
-export function PanelCardFooter({
-  always = false,
-  className,
-  children,
-}: {
-  always?: boolean
-  className?: string
-  children: React.ReactNode
-}) {
-  const footerOpen = React.useContext(FooterOpen)
-  if (footerOpen === null) {
-    return <div className={cn("flex flex-wrap items-center gap-2", className)}>{children}</div>
+export const PANEL_CARD_FIRST_STYLES = `
+  [data-side-panel-body] > [data-project-panel-card]:not([data-project-panel-card] ~ [data-project-panel-card]) [data-block-card] {
+    background: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--muted) var(--shell-block-shade, 50%), var(--card))
+        calc(0.6 * var(--shell-panel-first-opacity, 100%)),
+      transparent
+    );
+    backdrop-filter: blur(var(--shell-panel-first-blur, 12px));
   }
-  if (!footerOpen && !always) return null
-  return (
-    <div
-      className={cn(
-        // A row of buttons handed in whole (Steps' step-list pair) spreads across it too.
-        "-mx-4 -mb-4 flex flex-wrap items-center justify-between gap-2 border-t px-2 py-1.5 [&_[data-slot=button]]:text-muted-foreground [&>div]:w-full [&>div]:justify-between",
-        className
-      )}
-    >
-      {children}
-    </div>
-  )
+  [data-side-panel-body] > [data-project-panel-card]:not([data-project-panel-card] ~ [data-project-panel-card]) [data-block-card] [data-block-tile] {
+    --block-body: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--muted) var(--shell-block-body-shade, 0%), var(--card))
+        var(--shell-panel-first-opacity, 100%),
+      transparent
+    );
+  }
+`
+
+/** A row of buttons under what they act on, wrapping in a narrow panel. */
+export function PanelCardFooter({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn("flex flex-wrap items-center gap-2", className)}>{children}</div>
 }

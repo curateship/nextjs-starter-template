@@ -7,18 +7,18 @@ import { actorFor, guestOnlyDescription, guestProjectView } from "@/server/socia
 import {
   addAccountToProject,
   addProjectNetwork,
+  arrangeProjectNetworks,
   createProject,
   deleteProject,
   deleteProjects,
   listProjectRows,
-  projectForOldScreen,
+  projectForOldComments,
   readProjectView,
   removeAccountFromProject,
   removeProjectNetwork,
   setProjectDescriptionLocked,
   setProjectPinned,
   updateProject,
-  type OldScreen,
   type ProjectAccount,
   type ProjectRow,
   type ProjectView,
@@ -29,7 +29,9 @@ import { readToday } from "@/server/social/today"
 import { readMediumCounts } from "@/server/social/medium/module"
 import { readLinkedinCounts } from "@/server/social/linkedin/module"
 import { readXCounts } from "@/server/social/x/module"
-import { cleanWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-page-body"
+import { PAGE_MAX_LENGTH } from "@/lib/notes/page-body"
+import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
+import { PROJECT_DESCRIPTION_MOVED } from "@/lib/social/project-description"
 import {
   listPromoThreads,
   queuePromoThreadReads,
@@ -62,6 +64,7 @@ export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
     "description only": "You can change the description only.",
     "description is locked": "The description is locked. Unlock it from the project's ⋮ menu first.",
     "Keep it under": "The description is too long. Keep it under 4,000 letters.",
+    "changed somewhere else": PROJECT_DESCRIPTION_MOVED,
   },
   "That did not work. Please try again."
 ))
@@ -161,6 +164,24 @@ const networkFn = createServerFn({ method: "POST" })
       : removeProjectNetwork(context.user.id, data.projectId, data.network)
   )
 
+const arrangeNetworksFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      projectId: z.string().min(1),
+      order: z.array(z.enum(NETWORKS)).max(NETWORKS.length),
+      hidden: z.array(z.enum(NETWORKS)).max(NETWORKS.length),
+    })
+  )
+  .handler(async ({ context, data: { projectId, ...input } }): Promise<void> =>
+    arrangeProjectNetworks(context.user.id, projectId, input)
+  )
+
+/** Saves the Networks block's order and the networks it leaves out, from its ⋮. */
+export function arrangeNetworks(projectId: string, input: { order: Network[]; hidden: Network[] }) {
+  return arrangeNetworksFn({ data: { projectId, ...input } })
+}
+
 /** Adds a network to a project, or with `use` false takes it off. */
 export function setProjectNetwork(projectId: string, network: Network, use: boolean) {
   return networkFn({ data: { projectId, network, use } })
@@ -172,23 +193,34 @@ const updateFn = createServerFn({ method: "POST" })
     z.object({
       projectId: z.string().min(1),
       name: z.string().max(120).optional(),
-      // The editor's document, cleaned here to what a description may hold
-      // whatever the browser sent; its length is checked as it saves.
-      description: z.unknown().transform(cleanWrittenPageBody).optional(),
-      // A media address from the shared image field, or "" for none. The
-      // server refuses any address that is not this person's own upload.
-      imageUrl: z.string().trim().max(2_048).optional(),
+      // The project's page as JSON text: the description's words, "/"
+      // blocks and the Networks block. The server cleans it to what a page
+      // may hold whatever the browser sent, and checks its length as it saves.
+      page: z.string().max(PAGE_MAX_LENGTH).optional(),
+      // The page the editor started from, as the server last gave it, so a
+      // stale copy is refused rather than written over what is stored.
+      base: z.string().max(PAGE_MAX_LENGTH).optional(),
+      // The cover from the shell's Cover photo row: None, the sky or a
+      // picture, and the pictures it has had. The server refuses any picture
+      // that is not this person's own upload.
+      cover: z.object({ coverUrl: coverSchema, coverImages: coverImagesSchema }).optional(),
     })
   )
-  .handler(async ({ context, data: { projectId, ...input } }): Promise<void> => {
+  .handler(async ({ context, data: { projectId, ...input } }): Promise<{ page: string | null }> => {
     const actor = await actorFor(context.caller, projectId)
     // A guest works the project and may rewrite what it makes, never its name or picture.
     if (actor.guest) guestOnlyDescription(input)
-    await updateProject(actor.userId, projectId, input)
+    return updateProject(actor.userId, projectId, input)
   })
 
-/** Saves the name or the description as it is typed, or the picture when it is picked. */
-export function saveProject(data: { projectId: string; name?: string; description?: WrittenPageNode; imageUrl?: string }) {
+/** Saves the name or the project's page as it is typed, or the picture when it is picked. */
+export function saveProject(data: {
+  projectId: string
+  name?: string
+  page?: string
+  base?: string
+  cover?: { coverUrl: string | null; coverImages: string[] }
+}) {
   return updateFn({ data })
 }
 
@@ -262,7 +294,7 @@ const pauseCommentingFn = createServerFn({ method: "POST" })
 
 /**
  * Pauses commenting on one network of a project, or with `paused` false
- * resumes it, from a network's Commenting row. Comments, answers and
+ * resumes it, from the foot of a network's keywords dropdown on Commenting. Comments, answers and
  * connection requests wait; the project's own posts keep going out.
  */
 export function pauseProjectCommenting(projectId: string, network: Network, paused: boolean) {
@@ -315,23 +347,17 @@ export function takeAccountOutOfProject(accountId: string) {
   return removeAccountFn({ data: { accountId } })
 }
 
-const oldScreenFn = createServerFn({ method: "GET" })
+const oldCommentsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .inputValidator(
-    z.object({
-      screen: z.enum(["today", "comments", "jobs"]),
-      commentId: z.string().min(1).max(40).nullable(),
-    })
-  )
+  .inputValidator(z.object({ commentId: z.string().min(1).max(40).nullable() }))
   .handler(async ({ context, data }): Promise<{ projectId: string | null }> => ({
-    projectId: await projectForOldScreen(context.user.id, data.screen, data.commentId),
+    projectId: await projectForOldComments(context.user.id, data.commentId),
   }))
 
 /**
- * Which project an old screen's address opens now, or null for the Projects
- * table. Used by `/admin/today`, `/admin/comments` and `/admin/jobs`, which
- * only send on.
+ * Which project `/admin/comments` opens now, or null for the Projects table.
+ * That address only sends on.
  */
-export function findProjectForOldScreen(screen: OldScreen, commentId: string | null = null) {
-  return oldScreenFn({ data: { screen, commentId } })
+export function findProjectForOldComments(commentId: string | null = null) {
+  return oldCommentsFn({ data: { commentId } })
 }

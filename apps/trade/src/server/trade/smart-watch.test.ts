@@ -707,6 +707,24 @@ describe("a copy's opening order", () => {
     expect(await positions()).toEqual([])
   })
 
+  it("keeps its first order's price as its aim while it chases", async () => {
+    // Slippage is measured from where the order began (Tyler, 10 Nov 2026:
+    // "aimed vs filled"), so a chase must never move the aim along with it.
+    await watchAt(copyBuy)
+    await settle()
+    const [first] = await orders()
+    const aim = (await row()).plan.aimedPx
+    expect(aim).toBeCloseTo(first.px, 2)
+
+    await priceTo(100.6)
+    vi.advanceTimersByTime(CHASE_PATIENCE_MS)
+    await settle()
+
+    const [moved] = await orders()
+    expect(moved.px).toBeGreaterThan(first.px)
+    expect((await row()).plan.aimedPx).toBe(aim)
+  })
+
   it("gives up once the price runs past the copier's allowance", async () => {
     await watchAt(copyBuy)
     await settle()

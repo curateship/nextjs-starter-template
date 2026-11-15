@@ -26,7 +26,7 @@ export function isAnnouncementLevel(value: unknown): value is AnnouncementLevel 
 
 /** One line on a banner, not an essay — and the column is `varchar(200)`. */
 export const MAX_ANNOUNCEMENT_TITLE_LENGTH = 200
-/** A couple of short sentences. Anything longer belongs in a changelog entry. */
+/** A couple of short sentences. Anything longer belongs on a page of its own. */
 export const MAX_ANNOUNCEMENT_BODY_LENGTH = 1000
 
 /** What the shell hands the banner: live, not dismissed, nothing else. */

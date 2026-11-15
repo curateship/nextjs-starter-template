@@ -1,7 +1,7 @@
 # What edgeX does differently
 
 Trade reads edgeX's perpetual contracts, charts and funding at
-`/protocols/edgex`, on mainnet only, holds a connected edgeX account, and
+`/trade?view=edgex`, on mainnet only, holds a connected edgeX account, and
 places, moves, cancels and closes orders there with stops that rest on edgeX
 itself. edgeX is a decentralised perpetuals exchange of the Lighter kind: the
 account lives on edgeX's own chain and every order is signed with a key the
@@ -337,7 +337,7 @@ places himself.
 
 The steps marked "real values" need Tyler's edgeX account.
 
-1. Open `/protocols/edgex?market=edgex%3Amainnet%3ABTCUSDC`. The chart draws
+1. Open `/trade?market=edgex%3Amainnet%3ABTCUSDC`. The chart draws
    BTC-USDC at 100x with a live price line.
 2. Open the market picker. The footer counts crypto, stock and commodity
    markets. Search "SPY" and "XAU".

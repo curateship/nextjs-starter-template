@@ -19,11 +19,11 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cleanNoteBody } from "@/lib/project/note-blocks"
 
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] })
-const file = { id: "file-1", name: "brief.pdf", sizeBytes: 2048, createdAt: "", uploadedBy: null, picture: false, canDelete: false, fieldId: null, commentId: null }
+const file = { id: "file-1", name: "brief.pdf", sizeBytes: 2048, createdAt: "", uploadedBy: null, picture: false, canDelete: false, commentId: null }
 const openTask = vi.fn()
 
 function setup(): NoteSetup {
-  return { where: "task", teamId: undefined, openTask, hold: () => undefined, task: { id: "task-1", files: [file], link: null, refresh: async () => undefined } }
+  return { where: "task", teamId: undefined, openTask, hold: () => undefined, task: { id: "task-1", files: [file], link: null, refresh: async () => undefined, comments: null } }
 }
 
 let container: HTMLDivElement
@@ -105,7 +105,8 @@ describe("a note drawn for someone who only reads it", () => {
       { type: "noteFold", attrs: { id: "fold-2" }, content: [{ type: "text", text: "After" }] },
       paragraph("Still shown"),
     ])
-    const card = [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Book the photographer"))
+    // The task's name is the block's heading, which folds it; the tile under it opens the task.
+    const card = container.querySelector<HTMLButtonElement>('[aria-label="Open Book the photographer"]')
     act(() => card!.click())
     expect(openTask).toHaveBeenCalledWith("task-2", "project-1")
 

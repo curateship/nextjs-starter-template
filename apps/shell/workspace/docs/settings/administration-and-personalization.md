@@ -4,20 +4,24 @@ Settings is the control room for the active workspace and platform. The rail is
 two cards, and the line between them is who wrote the screen: the shell wrote
 everything in the first card, and the app wrote everything in the second.
 
-**Platform settings** is every screen the shell draws, in three blocks:
+**Platform settings** is every screen the shell draws, one list with no
+headings: General settings, Email, Payments, AI, SEO and Social. AI holds the
+AI provider keys card, one key per provider. SEO is the public site's
+search defaults, and Social its X card choices. They sat under a Public
+heading until 9 Nov 2026 (Tyler: "move the 2 settings in public into
+platform settings and remove that subsection").
 
-- The admin's own rows first, with no heading, because the card's own title
-  already names them: General settings, Navigation, Widgets, Styling, Email,
-  Payments, AI. AI holds the AI provider keys card, one key per provider.
-- **Members**: Navigation, the member sidebar and member top right menu.
-- **Public**: Navigation for the signed-out header layout and links, Styling for
-  the site's colours and frame, SEO for site-wide search defaults, and Social
-  for X card choices.
-
-Members and Public are the two audiences who are not the admin. The rows under
-each heading carry short names because the heading is what says whose Navigation
-and whose Styling they are, and a heading is drawn at the same size and weight
-as the card's own title.
+**Navigation and Styling are not in Settings.** Since 9 Nov 2026 they are the
+Admin dashboard's Navigations and Styling sections, with the members', each
+role's and the public site's (Tyler: "consolidate the pages, navigation and
+styling into the admin dashboard ... We'll pull the styling from settings
+here including platform and public styling").
+`../ui/admin.md` says what each holds. The old addresses,
+`/admin/settings/navigation`, `/styling`, `/member-navigation`,
+`/role-navigation-<role>`, `/public-navigation` and `/public-styling`, forward
+to the matching section and tab (`lib/admin-dashboard/moved-settings.ts`).
+A Members or Public row an app has claimed with its own screen stays in
+Settings, in its old place in the list, under the app's name for it.
 
 **App settings** holds what the app itself added, and nothing else. The card is
 always drawn, so an admin can tell at a glance whether this app has settings of
@@ -42,18 +46,13 @@ address saved before any of this, such as `/admin/settings/security`, opens
 General settings, because an unknown tab id falls back to General and General is
 where that content now lives.
 
-Sidebar section cards have 16px between them, matching the containing card's
-16px content inset. Add section and Reset all to defaults sit inside that
-card beneath the sections and collapse with the editor. Each top right menu's
-reset button also sits inside its card, beneath the menu items.
-
 ## What is on General settings
 
 Six cards, in this order. Each collapses on its own and remembers the choice
 per browser.
 
-1. **General settings** — app name, site name, the two home routes, rows per
-   page, toast duration, the logo and the browser tab icon.
+1. **General settings** — app name, site name, the two home routes, the sky
+   city, rows per page, toast duration, the logo and the browser tab icon.
 2. **Notifications** — one switch for whether the bell lights up the moment
    something happens, then the twelve kinds a bell may show. These were two
    cards on two screens before 25 Sep 2026 and are one question.
@@ -62,6 +61,17 @@ per browser.
 4. **Old data** — what the app deletes for itself once a day.
 5. **Cloudflare R2** — where uploaded files are kept.
 6. **Maintenance mode** — last, because it is the one that shuts the app.
+
+**Sky city** (Tyler, 8 Nov 2026: "we need a time zone setting because it
+shows the sun and its almost night here", then picking real sun times for a
+city): a page cover set to Sky follows this city's real sunrise and sunset, so
+its evenings come earlier in winter. Typed and left, the city is looked up
+once by name (Open-Meteo's free geocoding, from the server; `api/notes/sky-city.ts`)
+and kept as its name and place; the line under the field says what was found
+and today's sun times there, in the viewer's time. The sky then works out each
+day's sunrise and sunset itself (`src/lib/notes/sky-city.ts`). Empty, the sky
+uses fixed hours on each viewer's own clock, night from 6 PM. One city for
+the whole app.
 
 Cloudflare R2 on General settings and AI provider keys on the AI row each load
 from the server when their screen opens. Both report their own
@@ -75,7 +85,7 @@ An app adds rows to the App settings card through `settings.tabs` in its
 
 **An app may also take over a Members or Public row.** It registers a tab with
 that row's id, and its own screen takes that place and keeps the position in the
-Platform card, so Public → Styling stays between Navigation and SEO whoever draws
+Platform card, so a claimed Public → Styling row sits between Navigation and SEO whoever draws
 it. A claimed row does not move into the App settings card: an admin looks for
 public styling where public styling has always been, not under a different
 heading because a different team wrote it. The five claimable ids are
@@ -131,7 +141,7 @@ Settings saving follows these rules:
 
 Two things stop the save, and the header names both of them. An empty workspace
 name reads "Not saved — add a workspace name". A half-typed colour anywhere on
-Public → Styling reads "Not saved — fix the brand colour on Public →
+Admin → Styling → Public reads "Not saved — fix the brand colour on Public →
 Styling", with the field's own name in it: brand colour, hover colour, soft
 tint, button text colour, dark-mode brand colour, canvas colour, border colour,
 divider colour, header and footer colour, or one of the four modal colours. A
@@ -148,7 +158,7 @@ sentence feeds the header and every button below.
 Four buttons depend on that save and used to run, spin and change nothing
 while it was refused. Upload font, Remove font, Save current look and Delete
 preset now each say so: "The font was not uploaded. Fix the brand colour on
-Public → Styling first." Applying a preset is left alone, because a preset
+Admin → Styling → Public first." Applying a preset is left alone, because a preset
 writes every colour at once and applying one is the way out of a bad colour.
 
 Provider key fields preserve exactly what the admin typed for the save in
@@ -175,13 +185,53 @@ change cannot erase another.
 
 ## Navigation and style choices
 
-Platform settings → Navigation combines Your sidebar and Your top right menu on
-one page. App settings → Members → Navigation combines the member sidebar and
-member top right menu separately, so editing one role's links does not change
-the other role's links. The former Sidebar and Top right menu tabs are no longer listed.
+These editors are drawn in the Admin dashboard's Navigations section, a tab
+each, as Settings drew them (`../ui/admin.md`). The Platform tab combines Your
+sidebar, Top left shortcuts and Your top right menu. The Members tab combines
+the member sidebar and member top right menu separately, so editing one role's
+links does not change the other role's links.
+
+**How they look** (Tyler, 9 Nov 2026, a drawing of the Platform tab with
+"redesign the navigation page", `assets/pasted-image-1794279721805662000.png`):
+
+- White cards 16px apart, each with a faint 1px edge of its own (#f0f0f2),
+  on a light grey (#f7f7f8), following neither Panel cards nor the card
+  border setting ("unwire the card to setting", then "needs more spacing",
+  "the card border is too thick and dark", "the gray background needs to
+  be darker", then "background a bit lighter and the border still too
+  dark").
+- Each card's reset is a quiet button at the right of its heading: Reset to
+  defaults on a sidebar, Reset on a top right menu. Each asks first.
+- Top left shows and Top left max items sit in a light grey box at the top of
+  Your sidebar.
+- A sidebar section is a bordered box, 12px from the next. Its grey heading
+  row has the grip, the name in small capitals (typed in place), Add link and
+  a bin. Then one row per link: the grip, its icon on a grey tile, the name,
+  "3 children" when it has any, a switch that shows or hides it, and a bin.
+  Add section is a dashed button the whole width under the sections.
+- Shortcuts, top right buttons, public menu links, action items and social
+  accounts are chips with a grip, an icon, the name, a switch where it can
+  be hidden, and a bin where it can be deleted. A dashed "+ Add" chip ends
+  each row.
+- These boxes and chips draw their lines in a light grey of their own, not
+  the Divider lines setting.
+- **The Public tab** (Tyler: "redesign the public page", with a drawing,
+  `assets/pasted-image-1794280958417214000.png`) is three cards of rows,
+  Header, Breadcrumbs and Footer, each row its name and line on the left and
+  its controls on the right as small bordered tiles (`settings-rows.tsx`).
+  Header: Header behaviour (Sticky header, Full width, Glass blur), Header
+  sizing (Navigation width, Space after the logo, Menu text size in pixels,
+  and Logo size picked from three drawings), Header style (Navigation &
+  footer font, and Menu position picked from Left or Centre), Public menu
+  and Action items. Footer: Public footer, Footer alignment (Follow the
+  site, Left or Centred, by drawing), Social accounts and Copyright. The
+  drawing showed a Right menu position too; the setting stores Left or
+  Centre only, so there is no Right.
+- Sidebar boxes stop at 42rem rather than spanning a wide card ("make the
+  sidebar elements not full width").
 
 Top left shows and Top left max items sit side by side at the top of Your
-sidebar on Platform settings → Navigation. Members → Navigation has its own Top
+sidebar on the Platform tab. The Members tab has its own Top
 left shows at the top of Member sidebar, because admins and members choose
 separately (Tyler, 13 Oct 2026). The three choices are Sidebar links (the
 default), Breadcrumb and Shortcuts. `../ui/app-shell-and-navigation.md`
@@ -194,11 +244,11 @@ members. Choices are Show all, 3, 4, 5, 6, 7, and 8. Show all remains the
 default for an installation with no saved limit. Phones keep their compact
 navigation menu, and an app-owned replacement header controls its own contents.
 
-Top left shortcuts is its own card on Platform settings → Navigation, between
+Top left shortcuts is its own card on the Platform tab, between
 Your sidebar and Your top right menu. It edits the one list both admins and
 members see when their choice is Shortcuts. It works like the top right menu
-editor: drag a chip to reorder, the + tile adds a link and opens its window
-(icon, name and page), the checkbox switches a link off and leaves it in the
+editor: drag a chip to reorder, "+ Add" adds a link and opens its window
+(icon, name and page), the switch turns a link off and leaves it in the
 editor with a Hidden pill, and the trash can deletes it after asking. A link
 with no name or no page stays out of the header until it has both.
 
@@ -217,13 +267,33 @@ reorders and hides like every other row there. A menu saved before the change
 kept a row called Theme; that row IS this control, so it keeps the place and
 the on-or-off state it was left in.
 
+The cog can also hold links. Pressing the Settings chip's name in a top right
+menu card opens a dropdown, "Links inside Settings" (Tyler, 10 Nov 2026:
+"clicking on the button should open a dropdown to add it instead"). The
+dropdown lists the links and ends in one line holding an icon, a short name
+box, a short address box and Add (Tyler, 10 Nov 2026: "make it one row").
+Add puts a new link at the bottom of the list. Pressing a listed
+link loads it into the form to change it, and the bin deletes it at once. The
+chip wears a "2 links" pill once it has any.
+
+- The links sit at the bottom of the cog's panel, under a line, one full-width
+  row each, in the order dragged. Pressing one goes to the page and closes the
+  panel. An address starting with http opens in a new tab.
+- Your top right menu and the member top right menu each have their own list,
+  so a link added for yourself is not shown to members.
+- A link with no name or no address stays in the editor but is not drawn. A
+  member is never shown a link to an admin page.
+- The links go where the cog goes. Switching Settings off hides them, and on a
+  phone they fold into the three-dot menu with the cog's rows.
+- They are saved on the Settings row itself (`links` on the `settings` item of
+  `topRightNavigation` and `memberTopRightNavigation`), so no migration was
+  needed. Reset on the card deletes them along with the row's links.
+
 Public pages keep their own separate colour-mode button, because a visitor who
 is not signed in has no settings to put in a menu.
 
-Navigation and widget settings can:
-
-- Rename, reorder, hide, and group known navigation items.
-- Change the dashboard arrangement within registered widget choices.
+Navigation settings can rename, reorder, hide, and group known navigation
+items.
 
 A hidden admin link does not make its route public.
 
@@ -294,7 +364,7 @@ icon with it**, because they are the same picture. An install that had a
 favicon set and no logo therefore loses that favicon on its next settings save.
 Pick the picture in the Logo field before saving and it comes back as both.
 
-App settings → Public → Styling is separate from Platform settings → Styling,
+Admin → Styling → Public is separate from Admin → Styling → Platform,
 which is why they sit in different cards. Platform Styling changes the signed-in
 workspace used by admins and members. Public Styling changes only the pages a
 visitor can see before signing in. Font, corners,
@@ -385,6 +455,35 @@ the two things a chip does are both visible before either is tried. The
 keyboard still reorders: tab to a chip, space to lift it, the arrows to move
 it, space to drop it.
 
+**A link opens in a popover, not a window.** Every editor in Navigations
+that changes a link opens as a popover under the chip, row or + that was
+pressed (Tyler, 10 Nov 2026: "replace all of the other modals that changes
+links to a popover instead"). That covers a sidebar link with its child links,
+a top right menu link, a top left shortcut, a public menu link, a public
+dropdown group and a social account, and the + that adds each of them. The
+account corner's settings are not a link and still open in a window.
+
+- The frame is `EditPopover` in `src/components/ui/edit-popover.tsx`: a
+  title, a body that scrolls when the screen is short, and the same footer
+  order a window has.
+- The editors that hold a draft (the public link, group and social account)
+  use `FormPopover`. Once something is typed, a click outside or Escape asks
+  "Discard changes?" first, as their windows did.
+- The editors that save as you type (sidebar, top right, top left) close on a
+  click outside and save the last edit as they close.
+- The cards inside, and a sidebar link's child rows, take their colour and
+  line from Styling → Cards inside modals, as they did when these were
+  windows (Tyler: "wire the bg to the card settings"). The popover's own
+  background and outer line come from Styling → Modal and popover, as a
+  window's (Tyler: "the outer of the card should be wired too"). Both rules
+  are in `theme.css`, under `[data-edit-popover]`. That tile's preview draws two
+  cards, each with a heading and input boxes inside, so it is clear the
+  setting paints the card and not the boxes.
+- The icon picker still opens its own window over the popover, and closing it
+  leaves the popover open.
+
+In the next paragraph, and in older notes, "window" means this popover.
+
 **A chip's own window types normally.** The window that edits a chip is drawn in
 `document.body`, outside the chip, but React sends its keys and presses up the
 component tree, so they arrived at the chip's drag listeners as though they had
@@ -398,6 +497,15 @@ still drags. The rule lives in `useSortableChip` in
 `src/components/settings/nav-editor-shared.ts`, and
 `nav-editor-shared.test.tsx` holds both halves: a space in the window is left
 alone, and a space on the chip still lifts it.
+
+**A chip's own buttons answer the keyboard.** A key lifts a chip only when the
+chip itself has focus. Enter or Space on a button inside it, such as "Edit
+settings for Pricing" or the bin, presses that button, the same as a click.
+Before, dnd-kit read Enter or Space anywhere in the chip as "lift", so tabbing
+to the edit button and pressing Enter picked the chip up instead of opening its
+popover. The pointer still drags from anywhere on the chip. Same rule, same
+file, and the test checks both: Enter on the inner button is left to it, and
+Enter on the chip still lifts the chip.
 
 **A dropped chip slides into its new place.** The public menu chips, the public
 footer links and the footer's social accounts settle the way the action items
@@ -463,7 +571,7 @@ gone after a reload.
 
 Done then waits for the save. It shows a spinner and refuses a second click
 while the save is running, and it closes only once the save has landed. A save
-refused for something else, a bad colour on Public → Styling or an empty
+refused for something else, a bad colour on Admin → Styling → Public or an empty
 workspace name, puts the menu back as it was and leaves the window open with the
 link still in it; the header says what to fix.
 
@@ -514,7 +622,7 @@ account without `@`. Small is the default so older installs keep their previous
 card style.
 
 The 404 and maintenance pages' own wording is not in Settings. Both are listed
-under System pages on the Pages screen, and clicking either one opens a window
+under System pages on Admin's Pages section, and clicking either one opens a window
 with its heading, its message and a preview. It moved there on 4 October 2026,
 because a page's words belong where the page is listed.
 

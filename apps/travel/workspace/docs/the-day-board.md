@@ -44,7 +44,7 @@ this browser.
   its closed Monday, says "Closed on Mondays" in red whether or not it has a
   start time, with a "Move to Tue" button along its foot (Tyler, 3 Nov 2026:
   "Warning + Move button"). The button moves it to the nearest day of the
-  trip the place is open, the later day when two are as near, with Undo. It
+  trip the place is open, the later day when two are as near. It
   needs a start date, to know the weekdays, and opening hours on the place.
   A place open on none of the trip's days warns with no button. Compact
   cards leave the line off, to stay one line.
@@ -74,11 +74,21 @@ this browser.
   day whose forecast is 70 out of 100 rain or more, an outdoor card reads
   "Rain on Tue" with "Move to Thu" along its foot, the same as the closed-day
   button. Thu is the driest forecast day of the trip under 30, the nearer one
-  when two are as dry, and the move has Undo. With no day that dry, the card
+  when two are as dry. With no day that dry, the card
   says "Rain on Tue" in red with no button. A card is outdoors when Google
   calls its place a park, garden, beach, hiking area, zoo, amusement park and
   the like (the list is `src/lib/travel/rainy-day.ts`), so only places picked
   or pasted since 4 Nov 2026 can warn. A shut-all-day warning wins over rain.
+- **Rain at the card's hour** (Tyler, 6 Nov 2026: "Card + panel"). An outdoor
+  card with a start time reads "40% rain at 2:30 PM" in its time row, from the
+  chance of rain in the hour it starts, at 30 out of 100 or more, the same
+  rule as the day's own rain line. The hour is the destination's own, read in
+  the trip's time zone. Untimed cards, indoor cards and days past the
+  14-day forecast show nothing. A card shut that day says that
+  instead, and compact cards stay one line. A card on a very rainy day can
+  carry both this line and the Move button above. The rule is `cardRainLine`
+  in `src/lib/travel/rainy-day.ts`, and Open-Meteo's hourly chances come with
+  the daily forecast in `src/server/travel/weather.ts`.
 - **Must do** cards carry a flag after the name, and one still in Ideas once
   a dated trip has started reads "Must do, not on a day yet" in red (see
   [Activities](activities.md)).
@@ -92,15 +102,16 @@ this browser.
 
 - **Drag a card** to another day or up and down a day. The column's new order
   is saved in one go.
-- **Right-click a card** (or press and hold on a phone) for Open, Duplicate,
-  Move to day, Mark done, Mark must do, and Delete.
+- **Right-click a card** (or press and hold on a phone) for Mass select first,
+  on the Board tab ("Hide select" while on), then Open, Duplicate, Move to
+  day, Mark done, Mark must do, and Delete.
 - **Done.** The tick in a card's corner marks it done; done cards fade and are
-  struck through.
-- **Undo.** After a move, delete, duplicate, copy or a change to several
-  cards, a bar at the bottom says what happened, with Undo, for 6 seconds.
-  Undo puts every card back where it was, with its start time and part of
-  the day, and removes any copies. Marking
-  Done or Must do has no Undo; pressing again undoes it.
+  struck through. The tick changes at once and takes no second click until the
+  save is in, so a double-click can't undo it; a refused save puts it back.
+- **Nothing pops up after a move, delete, duplicate or copy.** The board
+  redraws with the cards where they went. There is no Undo bar (Tyler,
+  11 Nov 2026, removing the success toasts and the Undo bars with them): a
+  deleted card waits in the bin, and a moved one is moved back by hand.
 - **A day's menu** (the three dots) adds a day after it, fills it with AI,
   puts it in its best order, copies its cards onto another day, or removes
   it. Removing a day with cards asks whether to send
@@ -115,8 +126,8 @@ this browser.
   time when that is free. Each answer is checked: a card outside the gaps is
   dropped, one running past its gap is cut to fit (or dropped when under 30
   minutes would be left), and none overlap. They show first in the Draft a
-  plan window, titled "Fill Day 2", to untick or change, and Create adds them
-  with Undo on the bar at the bottom. A day with no gap says so and asks
+  plan window, titled "Fill Day 2", to untick or change, and Create adds them.
+  A day with no gap says so and asks
   nothing. It needs the trip's destination and an AI key (see
   [Drafting a plan with AI](drafting-a-plan.md)).
 - **Best order** (Tyler, 3 Nov 2026: "From the hotel") puts the day's cards
@@ -131,10 +142,9 @@ this browser.
   still wins over the order, so a Morning card stays before an Afternoon one.
   - Up to 8 cards, every order is tried. Past 8, each step goes to the
     nearest card left.
-  - The toast says what it saved, such as "Day 2 in its best order: saves
-    25m of walking", with Undo. A day already in its best order says so and
-    changes nothing. When Google finds no route between two of the places,
-    the order still changes, and the toast says the time saved isn't known.
+  - The cards change order on the board and nothing pops up. A day already
+    in its best order changes nothing. When Google finds no route between two
+    of the places, the order still changes.
   - It needs `GOOGLE_MAPS_API_KEY`; without it the toast says Google Maps
     isn't set up. Google charges for each new pair of places: five cards and
     a hotel are 15 pairs the first time, and none after, because every time
@@ -150,7 +160,7 @@ this browser.
   "Day 3 · Wed 12 Mar", or "Day 3" on a trip with no dates. Picking one
   scrolls the board to it, smoothly unless the device asks for less motion,
   and opens it first if it was folded. On a phone it switches to that day.
-- **Hide Ideas** with the bulb between the search and Filter in the header.
+- **Hide Ideas** with the bulb before Filter in the header.
   It's lit while Ideas shows and unlit while it's hidden; press it again to
   bring Ideas back (Tyler, 3 Nov 2026: "the eye icon should be an idea kind
   of icon instead", "move the idea icon here").
@@ -163,24 +173,30 @@ this browser.
   remembered in this browser. Compact cards and Fold every day float together
   at the board's bottom right (Tyler, 3 Nov 2026: "Move the 2 fold icons to
   the bottom right of the canvas").
-- **Mass select** is a small "Mass select" button left of the search, on the
-  Board tab. Like every dashboard's, it shows while the middle panel's header
-  is pointed at (always on a phone); until 4 Nov 2026 Travel's never showed,
-  since its header had no hover group (Tyler: "How do I access mass
-  select?"). Pressed, it reads "Hide select" and shows a tick box on each
-  card. Ticked cards gather in the
-  "N selected" button. Its first row is Mark done (Tyler, 4 Nov 2026: "Mark
-  done / not done"), which reads Mark not done when every ticked card is
-  already done, then Move to day and Delete. Mark done is one request with
-  no Undo, the same as the single tick, and the toast says how many changed
-  and how many were no longer on the trip.
+- **Mass select** is in the ⋮ after "+ Add", on the Board tab, and first in
+  a card's right-click menu (the Admin 3 panel design, Tyler, 6 Nov 2026:
+  "mass selects is also not ui standards"). Until then it was a small button
+  left of the search. Picked, it reads "Hide select" and shows a tick box on
+  each card. Turned on from a card's right-click, that card starts ticked;
+  from the ⋮, none is. Leaving the Board tab turns it off. Ticked cards
+  gather in the "N selected" button. Its first row is Mark done (Tyler, 4 Nov
+  2026: "Mark done / not done"), which reads Mark not done when every ticked
+  card is already done, then Move to day and Delete. Mark done is one request
+  the same as the single tick. The cards change on the board and
+  nothing pops up.
 - **Today.** While a dated trip is on, the board opens on today's column and
   marks it Today. Today is worked out in the trip's time zone, from Trip
   settings, or the reader's own when none is set.
 
 ## Search, Filter and Views
 
+- **Search activities** is in the ⋮ after "+ Add", not a button in the
+  header (the Admin 3 panel design, 6 Nov 2026). It opens the search box in
+  the header with the cursor in it, once the menu has closed. The box stays
+  while something is typed; Escape empties and closes it.
 - The search matches words in a card's name or place.
+- **No matches:** a search or filter that hides every card says so under the
+  header, `No activities match "x".`, with a Clear filters button.
 - Filter narrows by activity type, and since 4 Nov 2026 by Done (done or not
   done), Part of day, Place (no place yet), Cost (has a cost or none) and Must
   do (Tyler: "Done or not done", "Part of the day", "No place yet", "Has a
@@ -201,10 +217,39 @@ this browser.
   have more spacing", then "make it gray color"). The heading is the day
   alone, with no count after it: the number of activities read as part of the
   date ("What is the 3 for?" ... "remove it").
+  Since 6 Nov 2026 it is drawn as Project's list is (Tyler: "The list view
+  should match that of the list view of the project app. Add what make sense
+  and ignore what doesnt"):
+  - **Folding:** pressing a day's heading, or the arrow that shows on
+    pointing at it, folds its rows. Folds are kept per trip in this browser,
+    apart from the board's folded columns.
+  - **The heading's "+"** shows on pointing and opens New activity set to
+    that day, or to Ideas.
+  - **Each row** is a little tighter: a Done circle that marks it done or not,
+    a circle with a tick, green once done (Tyler, 6 Nov 2026: "make the
+    checkbox green color", then "just chanbge the color"),
+    the name, then Time, Type and Cost. There is no Delete column: a row's
+    right-click menu, the card's own, has Delete, as the Trips table's rows
+    do. A press on the row opens it on the right.
+  - **Type changes from its cell:** a press opens your types, and a pick saves.
+  - **Sorting:** Activity, Type and Cost sort within each day. Time is the
+    day's own order, the board's, and pressing it again turns it round.
+  - **Mass select** works here as on the Board, from the ⋮ or first in a
+    row's right-click, which is the card's menu. It shows tick boxes, a tick
+    box over the column to tick every row in view, and drag handles. A row
+    dragged under another day moves there; a row with a start time
+    keeps its place by time. With a column sorted, rows don't drag, and a
+    line offers "Use the day's order".
+  - **Left out from Project:** status, priority, person and due, which a trip
+    doesn't have, the count after a heading (Tyler's 3 Nov rule above), and
+    the open cog at the end of a row, since a press on the row opens it.
+  - The name takes whatever width the other columns leave and cuts a long
+    name short, so a row never runs past the panel, at 1440 wide with Mass
+    select on too.
 - **Calendar:** the trip's dates as weeks, each day listing its activities by
   time. A trip with no start date says so, with a date picker that saves one.
   A card drags onto another day of the trip (Tyler, 4 Nov 2026: "Keep time
-  and part"), keeping its start time and part of the day, with Undo, through
+  and part"), keeping its start time and part of the day, through
   the board's own move. A drag starts after 8px, so a click still opens the
   card. Dates outside the trip take no drop.
 - **Map:** the activities picked from Google as numbered pins, one colour per
@@ -222,10 +267,13 @@ this browser.
   uploaded photo loads as it is. A trip with no photos says how to add one.
   On a screen under 1280px wide, or with the left panel folded away, the note
   opens out of sight, so the left panel has to be shown first.
-- **The ⋮ after the tabs** holds the Bin, with how many cards are in it.
-  It took the place of the More dropdown and sits level with the tab names
-  (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot";
-  then "not aligned").
+- **The ⋮ at the end of the header,** after "+ Add" (Tyler, 6 Nov 2026: "The
+  3 dots icon is supposed to be here"), holds Search activities, Mass select
+  (on the Board tab), then the Bin with how many cards are in it. Its hover
+  hint names them. It took the place of the More dropdown (Tyler, 3 Nov 2026:
+  "Replace the "More" dropdown with a 3 vertical dot") and sat after the tabs
+  until 6 Nov 2026. The header reads: the tabs, "N selected", the Ideas bulb,
+  Jump to a day, Filter, Views, "+ Add", then the ⋮.
 
 ## + Add
 
@@ -244,20 +292,29 @@ The last button in the header is "+ Add" (Tyler, 3 Nov 2026: "Rename the
   ([Phone calendar](phone-calendar.md)).
 - In a narrow panel the button is the + alone.
 - The menu is as wide as its longest row (Tyler: "Too much space here"), and
-  so is the ⋮ menu after the tabs. Both are Travel's one dropdown look, the
-  same as an activity's ⋮ (see [Activities](activities.md)).
+  so is the ⋮ after it. Both are menus of actions, drawn by the
+  shell's `folding-menu.tsx`. The settings menus (Trip settings and an
+  activity's ⋮) are the tabbed menu of grouped rows instead (see
+  [Activities](activities.md)).
 
 ## The bin
 
-Deleted cards stay in the trip's bin for 30 days, then go for good when the bin
-is next opened. Put back returns a card to the end of its old day, or to Ideas
-when that day no longer exists. Delete for good empties one now.
+Deleted cards and deleted trip notes (Travel features 4, part 6; see
+[The trip's left panel](the-trip-panel.md)) stay in the trip's bin for 30
+days, newest first, then go for good when the bin is next opened. Put back
+returns a card to the end of its old day, or to Ideas when that day no longer
+exists, and a note to the notes list. Delete for good asks on the row itself
+("Delete for good?" with Delete and Cancel), since it can't be undone, then
+empties one now (6 Nov 2026; before then it didn't ask). The count after Bin
+in the ⋮ holds both.
 
 ## On a phone
 
 Under 640px wide the board shows one day at a time, with arrows either side of
 the day's name and a sideways swipe of 60px or more to move a day. Opening a card switches to the Activity pill.
 Moving a card to another day is press and hold, then Move to day.
+Where the middle header is too narrow for Board, List, Calendar, Map and
+Photos, as on a phone, they are one dropdown naming the view showing.
 
 ## Where it lives
 

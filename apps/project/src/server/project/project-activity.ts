@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, notInArray, or, type Column, type SQL } from "drizzle-orm"
+import { and, desc, eq, isNull, lt, or, type Column, type SQL } from "drizzle-orm"
 import { alias } from "drizzle-orm/pg-core"
 
 import type { ProjectColor, ProjectHealth, TaskEventKind } from "@/lib/project/rules"
@@ -51,7 +51,7 @@ export type TaskActivityEntry = {
   at: string
   actorName: string
   targetName: string | null
-  /** A reason, a new status or a step's words. */
+  /** A reason or a new status. */
   reason: string | null
   /** For a move: the project it came from, named only when the reader can see it. */
   fromProjectName: string | null
@@ -177,8 +177,6 @@ async function projectActivity(
   }))
 }
 
-const CLOCK_KINDS: TaskEventKind[] = ["clock_started", "clock_paused", "clock_fixed"]
-
 async function taskActivity(
   where: SQL | undefined,
   visible: Set<string>,
@@ -218,8 +216,6 @@ async function taskActivity(
     .where(
       and(
         where,
-        // Every Start and Pause would bury the rest; they stay in the task's own History.
-        notInArray(projectTaskEvents.kind, CLOCK_KINDS),
         olderThan(before, { at: projectTaskEvents.createdAt, id: projectTaskEvents.id })
       )
     )

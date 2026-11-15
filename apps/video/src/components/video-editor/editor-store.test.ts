@@ -599,6 +599,19 @@ describe("picking several clips", () => {
     expect(state.selectedClipId).toBeNull()
     expect(state.selectedClipIds).toEqual([])
   })
+
+  it("deletes every picked clip at once, and one undo brings them all back", () => {
+    let state = editorReducer(three, { type: "SELECT_CLIP", clipId: "a" })
+    state = editorReducer(state, { type: "SELECT_CLIP", clipId: "c", additive: true })
+    state = editorReducer(state, { type: "DELETE_CLIPS", clipIds: state.selectedClipIds })
+    const left = state.tracks.flatMap((track) => track.clips.map((clip) => clip.id))
+    expect(left).toEqual(["b"])
+    expect(state.selectedClipId).toBeNull()
+    expect(state.selectedClipIds).toEqual([])
+    state = editorReducer(state, { type: "UNDO" })
+    const back = state.tracks.flatMap((track) => track.clips.map((clip) => clip.id))
+    expect(back.sort()).toEqual(["a", "b", "c"])
+  })
 })
 
 describe("pasting copied clips", () => {

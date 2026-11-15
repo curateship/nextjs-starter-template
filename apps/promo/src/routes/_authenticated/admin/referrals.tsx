@@ -1,18 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminReferralsDashboard } from "@/components/admin/admin-referrals-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getReferralErrorMessage,
-  loadAdminReferrals,
-} from "@/lib/api/billing/referrals"
-
+/**
+ * Referrals were removed from the shell (Tyler, 8 Nov 2026); the address lands
+ * on the Admin dashboard. This address stays so old links and bookmarks land.
+ */
 export const Route = createFileRoute("/_authenticated/admin/referrals")({
-  loader: loadAdminReferrals,
-  component: AdminReferralsRoute,
-  errorComponent: routeErrorComponent(getReferralErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/dashboard", replace: true })
+  },
 })
-
-function AdminReferralsRoute() {
-  return <AdminReferralsDashboard initialData={Route.useLoaderData()} />
-}

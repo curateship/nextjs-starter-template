@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon, MapPinIcon, PlusIcon, TagIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   DealClaimsCard,
@@ -98,7 +97,6 @@ export function OwnerDealsCard({
         return
       }
       await router.invalidate()
-      toast.success(`${live.content.title} has ended. It is off the Deals page now.`)
       setEnding(null)
     } catch (error) {
       showErrorToast(getOwnerDealErrorMessage(error))
@@ -366,11 +364,6 @@ function OwnerDealDialog({
       }
       // Read again before the window closes, so the row is there when it does.
       await router.invalidate()
-      toast.success(
-        live
-          ? "Sent. The deal stays as it is until the admin approves the change."
-          : "Sent. The admin reads it before it goes on the Deals page."
-      )
       onClose()
     } catch (error) {
       showErrorToast(getOwnerDealErrorMessage(error))

@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  BookmarkPlusIcon,
   DownloadIcon,
   FilmIcon,
   GalleryHorizontalIcon,
@@ -11,7 +10,6 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
@@ -19,7 +17,6 @@ import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { MassSelectChip, SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
-import { SavedViewsControls, SaveViewDialog, type SavedViewsScreen } from "@/components/shared/saved-views"
 import { SearchToggle } from "@/components/shared/search-toggle"
 import { AskForVideoDialog } from "@/components/archive/ask-for-video-dialog"
 import { MediaPicker } from "@/components/media/media-picker"
@@ -38,43 +35,40 @@ import {
   restoreArchiveItem,
   type ArchiveCard,
 } from "@/lib/api/archive/items"
-import type { SavedView } from "@/lib/api/saved-views"
 import { BIN_DAYS, type ArchiveItemKind } from "@/lib/archive/items"
-import {
-  ARCHIVE_FILTER_KEYS,
-  ARCHIVE_VIEW_KIND,
-  archiveFilterCount,
-  describeArchiveFilters,
-  keptArchiveFilters,
-  readArchiveSearch,
-  type ArchiveSearch,
-} from "@/lib/archive/search"
+import { archiveFilterCount, type ArchiveSearch } from "@/lib/archive/search"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often the list asks again while something is still arriving from Video. */
 const ARRIVING_POLL_MS = 4_000
 
 const ANY = "any"
 
-export type ArchiveItemsHandle = { reload: () => void }
-
 /**
- * The middle panel of the Archive (`workspace/docs/archive.md`): one
+ * The Archive on a project's own page (`workspace/docs/archive.md`): one
  * project's videos, carousels and pictures as a grid, newest first, pinned
- * on top. Drawn on the Archive dashboard and in a project's own dashboard,
- * where a guest from Project sees it too, with nothing to manage.
+ * on top, where a guest from Project sees it too, with nothing to manage.
+ * The Projects dashboard's Archive section is `archive-section.tsx`.
  *
  * Tabs pick the kind; the toolbar has mass select, search, Filter (not
- * posted yet, most viewed, grouped by Video project), Views and "+ Add",
+ * posted yet, most viewed, grouped by Video project) and "+ Add",
  * which opens the media library to upload or pick files (part 28). The ⋮
  * after the tabs holds the Bin and the whole project as one zip.
  */
-export const ArchiveItemsPanel = React.forwardRef<
-  ArchiveItemsHandle,
-  {
+export function ArchiveItemsPanel({
+  projectId,
+  projectName,
+  search,
+  onSearch,
+  openId,
+  onOpen,
+  onShown,
+  canManage,
+}: {
     projectId: string
     projectName: string
     search: ArchiveSearch
@@ -85,12 +79,7 @@ export const ArchiveItemsPanel = React.forwardRef<
     onShown?: (ids: string[]) => void
     /** False for a guest from Project: no Bin, no uploads, no select. */
     canManage: boolean
-    /** Saved views, on the Archive dashboard. A project's own page leaves them out. */
-    views?: SavedView[]
-    /** A back arrow, on the project's own dashboard only. */
-    header?: React.ReactNode
-  }
->(function ArchiveItemsPanel({ projectId, projectName, search, onSearch, openId, onOpen, onShown, canManage, views, header }, ref) {
+}) {
   const [items, setItems] = React.useState<ArchiveCard[] | null>(null)
   const [binCount, setBinCount] = React.useState(0)
   const [error, setError] = React.useState<string | null>(null)
@@ -98,13 +87,11 @@ export const ArchiveItemsPanel = React.forwardRef<
   const [selecting, setSelecting] = React.useState(false)
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [filterOpen, setFilterOpen] = React.useState(false)
-  const [savingView, setSavingView] = React.useState(false)
   const [picking, setPicking] = React.useState(false)
   const [asking, setAsking] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const inBin = search.bin === "1"
 
-  React.useImperativeHandle(ref, () => ({ reload: () => setReloads((count) => count + 1) }), [])
 
   const queryKey = JSON.stringify([projectId, search.kind, search.q, search.posted, search.sort, inBin, reloads])
   React.useEffect(() => {
@@ -152,22 +139,14 @@ export const ArchiveItemsPanel = React.forwardRef<
     if (loaded) onShown?.(shownKey ? shownKey.split(",") : [])
   }, [loaded, onShown, shownKey])
 
-  const here: SavedViewsScreen = {
-    screen: `${ARCHIVE_VIEW_KIND}:${projectId}`,
-    describe: (filters) => describeArchiveFilters(filters),
-    kept: (filters) => keptArchiveFilters(filters),
-  }
-  const viewFilters = keptArchiveFilters(search)
-
   async function binSelected() {
     const ids = [...selected]
     setBusy(true)
     dismissErrorToast()
     try {
-      const { binned } = await binArchiveItems(ids)
+      await binArchiveItems(ids)
       setSelected(new Set())
       setReloads((count) => count + 1)
-      toast.success(`${binned} ${plural(binned, "item", "items")} moved to the Bin. They wait there ${BIN_DAYS} days.`)
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     } finally {
@@ -178,9 +157,8 @@ export const ArchiveItemsPanel = React.forwardRef<
   async function addUpload(mediaUrl: string) {
     dismissErrorToast()
     try {
-      const { added } = await addUploadsToArchive(projectId, [mediaUrl])
+      await addUploadsToArchive(projectId, [mediaUrl])
       setReloads((count) => count + 1)
-      toast.success(`${added} ${plural(added, "file", "files")} added to ${projectName}'s archive.`)
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     }
@@ -190,7 +168,6 @@ export const ArchiveItemsPanel = React.forwardRef<
     try {
       await restoreArchiveItem(itemId)
       setReloads((count) => count + 1)
-      toast.success("Put back in the archive.")
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     }
@@ -198,7 +175,6 @@ export const ArchiveItemsPanel = React.forwardRef<
 
   return (
     <>
-      {header}
       {inBin ? (
         <DashboardCardTitleHeader
           back={{ label: "Back to the archive", onClick: () => onSearch({ bin: undefined, open: undefined }) }}
@@ -207,6 +183,8 @@ export const ArchiveItemsPanel = React.forwardRef<
         />
       ) : (
         <DashboardCardHeader className="group/title @container">
+          {/* On a project's own page, the arrow back to the Projects dashboard first. */}
+          <ProjectBackButton />
           <DashboardTabs
             value={search.kind ?? "all"}
             onValueChange={(value) => onSearch({ kind: value === "all" ? undefined : (value as ArchiveItemKind), open: undefined })}
@@ -263,25 +241,7 @@ export const ArchiveItemsPanel = React.forwardRef<
               open={filterOpen}
               onOpenChange={setFilterOpen}
               onClear={() => onSearch({ posted: undefined, sort: undefined })}
-              save={
-                canManage && views ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      if (!Object.keys(viewFilters).length) {
-                        showErrorToast("Search or pick a filter first, then save it as a view.")
-                        return
-                      }
-                      setFilterOpen(false)
-                      setSavingView(true)
-                    }}
-                  >
-                    <BookmarkPlusIcon className="size-4" />
-                    Save as view
-                  </Button>
-                ) : null
-              }
+              save={null}
             >
               <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
                 <FilterRow
@@ -310,22 +270,6 @@ export const ArchiveItemsPanel = React.forwardRef<
                 />
               </div>
             </FilterPopover>
-            {canManage && views ? (
-              <SavedViewsControls
-                here={here}
-                views={views}
-                filters={viewFilters}
-                saveButton={false}
-                buttonVariant="ghost"
-                onOpen={(saved) =>
-                  onSearch({
-                    ...Object.fromEntries(ARCHIVE_FILTER_KEYS.map((key) => [key, undefined])),
-                    ...readArchiveSearch(saved.filters),
-                    open: undefined,
-                  })
-                }
-              />
-            ) : null}
             {canManage ? <AddMenu onUpload={() => setPicking(true)} onAsk={() => setAsking(true)} /> : null}
           </div>
         </DashboardCardHeader>
@@ -382,12 +326,11 @@ export const ArchiveItemsPanel = React.forwardRef<
         )}
       </ScrollArea>
 
-      {canManage && views ? <SaveViewDialog open={savingView} here={here} filters={viewFilters} onClose={() => setSavingView(false)} /> : null}
       {canManage && asking ? <AskForVideoDialog projectId={projectId} projectName={projectName} onClose={() => setAsking(false)} /> : null}
       {canManage ? <MediaPicker open={picking} onOpenChange={setPicking} onSelectMedia={(url) => void addUpload(url)} showVideos /> : null}
     </>
   )
-})
+}
 
 /** Cards under their Video project's name, or one unnamed group. Uploads go under "Uploaded". */
 function groupCards(items: ArchiveCard[], bySource: boolean): { name: string; items: ArchiveCard[] }[] {

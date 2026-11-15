@@ -12,8 +12,10 @@ import {
   restoreFromBin,
   setTripArchived,
 } from "@/server/travel/trip-admin"
+import { listNoteBin } from "@/server/travel/trip-notes"
 
 export type { BinEntry, TripPin, VisitedPin } from "@/server/travel/trip-admin"
+export type { BinNote } from "@/server/travel/trip-notes"
 
 const archiveFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -37,7 +39,11 @@ const copyFn = createServerFn({ method: "POST" })
 const binFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object({ tripId: id }))
-  .handler(async ({ data, context }) => listBin(context.user.id, data.tripId))
+  .handler(async ({ data, context }) => {
+    // Deleted notes wait in the same bin as deleted cards (Travel features 4, part 6).
+    const [activities, notes] = await Promise.all([listBin(context.user.id, data.tripId), listNoteBin(context.user.id, data.tripId)])
+    return { activities, notes }
+  })
 
 const restoreFn = createServerFn({ method: "POST" })
   .middleware([userPost])

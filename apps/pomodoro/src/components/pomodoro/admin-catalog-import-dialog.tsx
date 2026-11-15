@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -146,8 +145,8 @@ export function AdminCatalogImportDialog({
       const refused = [...refusals, ...result.refused].sort((a, b) => a.line - b.line)
       const keepOpen = !result.added || refused.length > REFUSALS_IN_TOAST
       const message = describeImport(words, kind, result.added, refused)
-      if (result.added) toast.success(message)
-      else showErrorToast(message)
+      // Only partly done when some lines were refused, so the refusals are said.
+      if (!result.added || refused.length) showErrorToast(message)
       await onImported()
       if (!keepOpen) {
         onClose()

@@ -14,16 +14,14 @@ const task = (overrides: Partial<Parameters<typeof filterTasks>[0][number]> & { 
   status: "todo" as const,
   priority: "normal" as const,
   assignee: null as { id: string } | null,
-  labels: [] as { id: string }[],
-  type: null as { id: string } | null,
   ...overrides,
 })
 
 describe("filtering tasks", () => {
   const tasks = [
-    task({ id: "a", title: "Set up redirects", assignee: { id: "ben" }, labels: [{ id: "client" }] }),
+    task({ id: "a", title: "Set up redirects", assignee: { id: "ben" } }),
     task({ id: "b", title: "Fonts", notesText: "Check the redirect list first", status: "doing" }),
-    task({ id: "c", title: "Fix the 404 page", status: "stuck", assignee: { id: "maya" }, type: { id: "video" } }),
+    task({ id: "c", title: "Fix the 404 page", status: "stuck", assignee: { id: "maya" } }),
   ]
   const ids = (filters: Parameters<typeof filterTasks>[1]) => filterTasks(tasks, filters).map((t) => t.id)
 
@@ -33,24 +31,18 @@ describe("filtering tasks", () => {
     expect(ids({ q: "zebra" })).toEqual([])
   })
 
-  it("narrows by status, person, nobody and label, and together", () => {
+  it("narrows by status, person and nobody, and together", () => {
     expect(ids({ status: "stuck" })).toEqual(["c"])
     expect(ids({ person: "ben" })).toEqual(["a"])
     expect(ids({ person: "nobody" })).toEqual(["b"])
-    expect(ids({ label: "client" })).toEqual(["a"])
     expect(ids({ q: "redirect", status: "doing" })).toEqual(["b"])
-    expect(ids({ type: "video" })).toEqual(["c"])
     expect(ids({})).toEqual(["a", "b", "c"])
   })
 
   it("reads only real filters from an address", () => {
     expect(
-      readTaskFilters({ q: "x", status: "nope", person: "ben", label: "<script>", type: "video", due: "someday" })
-    ).toEqual({
-      q: "x",
-      person: "ben",
-      type: "video",
-    })
+      readTaskFilters({ q: "x", status: "nope", person: "<script>", due: "someday" })
+    ).toEqual({ q: "x" })
     expect(readTaskFilters({ due: "next-week" })).toEqual({ due: "next-week" })
   })
 })

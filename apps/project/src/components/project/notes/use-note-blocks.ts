@@ -6,8 +6,12 @@ import { BLOCK_NODES, matchingBlocks, type BlockChoice, type BlockKey } from "@/
 import { dismissSlash, noteSlashExtension, type SlashBridge, type SlashMatch } from "@/components/project/notes/note-slash"
 import { newFoldId } from "@/lib/project/note-blocks"
 
-/** The "/" list while it's open: what was typed, the note's editor, and where on the page the "/" is. */
-export type OpenSlash = { match: SlashMatch; editor: Editor; x: number; y: number }
+/**
+ * The "/" list while it's open: what was typed, the note's editor, and where
+ * on the page the "/" is. Opened by a right-click instead (`byPointer`), the
+ * match is the empty spot clicked and the list hangs from the pointer.
+ */
+export type OpenSlash = { match: SlashMatch; editor: Editor; x: number; y: number; byPointer?: boolean }
 
 type Listener = { onChange: SlashBridge["onChange"]; onKey: SlashBridge["onKey"] }
 
@@ -26,15 +30,60 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   video: "noteVideo",
   task: "noteTask",
   file: "noteFile",
+  comments: "noteComments",
   record: "noteRecord",
   webpage: "noteWebPage",
   links: "noteLinks",
   divider: "horizontalRule",
+  project: "noteProject",
+  habit: "noteHabit",
+  ratingMonth: "noteRatingMonth",
+  ratingTrend: "noteRatingTrend",
+  inbox: "noteInbox",
+  teamCheckins: "noteTeamCheckins",
+  teamWorkload: "noteTeamWorkload",
+  teamAttention: "noteTeamAttention",
+  teamWeek: "noteTeamWeek",
+  teamMembers: "noteTeamMembers",
+  milestones: "noteMilestones",
+}
+
+/** Blocks a note holds once at most. */
+const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = {
+  comments: "noteComments",
+  habit: "noteHabit",
+  // The whole inbox, so a second would only repeat it.
+  inbox: "noteInbox",
+  // Each team block shows the whole team, so a second would only repeat it.
+  teamCheckins: "noteTeamCheckins",
+  teamWorkload: "noteTeamWorkload",
+  teamAttention: "noteTeamAttention",
+  teamWeek: "noteTeamWeek",
+  teamMembers: "noteTeamMembers",
+  // The project's milestones, all of them, so a second would only repeat it.
+  milestones: "noteMilestones",
+}
+
+function hasNode(editor: Editor, type: string) {
+  let found = false
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === type) found = true
+    return !found
+  })
+  return found
 }
 
 /** Puts the picked block where the "/" was typed. Blocks of words take over the line, keeping the cursor in it. */
 function place(editor: Editor, match: SlashMatch, key: BlockKey) {
   const range = { from: match.from, to: match.to }
+  // One Comments block per task, and one Daily card per page: picking it again takes away the
+  // "/" and shows the one already there.
+  const single = ONE_PER_NOTE[key]
+  if (single && hasNode(editor, single)) {
+    editor.chain().focus().deleteRange(range).run()
+    editor.view.dom.querySelector(`[data-note-block="${single}"]`)?.scrollIntoView({ block: "nearest" })
+    return
+  }
   const atom = ATOMS[key]
   if (atom) {
     editor.chain().focus().insertContentAt(range, { type: atom }).run()
@@ -88,13 +137,17 @@ export function useNoteBlocks(choices: BlockChoice[]) {
   function choose(key: BlockKey) {
     if (!open) return
     place(open.editor, open.match, key)
+    if (open.byPointer) setOpen(null)
   }
 
   React.useEffect(() => {
     relay.listen({
       onChange(match, editor) {
         if (!match || !editor || editor.isDestroyed) {
-          setOpen(null)
+          // A list opened by a right-click has no "/" to lose, so the editor's own
+          // updates (the cursor placed, the focus) leave it open; a pick, Escape or a
+          // click elsewhere closes it.
+          setOpen((was) => (was?.byPointer && editor && !editor.isDestroyed ? was : null))
           return
         }
         let at: { left: number; bottom: number }
@@ -136,6 +189,18 @@ export function useNoteBlocks(choices: BlockChoice[]) {
     })
   })
 
+  /**
+   * A right-click in the note opens the same list at the pointer, with no "/"
+   * typed (Tyler, 6 Nov 2026: "enable right click on left and right panel to
+   * open the blocks"). The cursor is already where it was clicked, and the
+   * picked block goes there.
+   */
+  function openAt(editor: Editor, x: number, y: number) {
+    const at = editor.state.selection.from
+    setActive(0)
+    setOpen({ match: { from: at, to: at, query: "" }, editor, x, y, byPointer: true })
+  }
+
   return {
     extensions,
     open: items.length ? open : null,
@@ -143,7 +208,12 @@ export function useNoteBlocks(choices: BlockChoice[]) {
     active,
     setActive,
     choose,
-    close: () => (open ? dismissSlash(open.editor) : undefined),
+    openAt,
+    close: () => {
+      if (!open) return
+      if (open.byPointer) setOpen(null)
+      else dismissSlash(open.editor)
+    },
   }
 }
 

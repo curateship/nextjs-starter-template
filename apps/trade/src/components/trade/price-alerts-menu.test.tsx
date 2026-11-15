@@ -27,7 +27,10 @@ vi.mock("@/lib/toast/error-toast", () => ({
   useErrorToast: vi.fn(),
 }))
 
-import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
+import * as React from "react"
+
+import { PriceAlertsMenu as PriceAlertsList } from "@/components/trade/price-alerts-menu"
+import { useFiredPriceAlerts } from "@/components/trade/price-alerts-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 let host: HTMLDivElement
@@ -77,7 +80,27 @@ afterEach(async () => {
   delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
 })
 
-describe("the alerts menu", () => {
+/** The list as the dashboard draws it: the fired alerts read above it. */
+function PriceAlertsMenu(props: Omit<React.ComponentProps<typeof PriceAlertsList>, "fired">) {
+  const fired = useFiredPriceAlerts()
+  return <PriceAlertsList {...props} fired={fired} />
+}
+
+/** The tab's list sits in the page ⋮'s tooltips. */
+function InMenu({ children }: { children: React.ReactNode }) {
+  return <TooltipProvider>{children}</TooltipProvider>
+}
+
+const noLines = {
+  armed: [],
+  fired: [],
+  error: null,
+  onRetry: () => {},
+  onSelect: () => {},
+  onSwitchOff: () => {},
+}
+
+describe("the Alerts tab of the page's ⋮", () => {
   it.each([false, true])(
     "clicking a fired alert opens its market, and a delete that fails puts the row back, failure=%s",
     async (fails) => {
@@ -85,89 +108,36 @@ describe("the alerts menu", () => {
       if (fails) api.removeFired.mockRejectedValue(new Error("refused"))
       await act(async () =>
         root.render(
-          <TooltipProvider>
+          <InMenu>
             <PriceAlertsMenu
               alerts={[]}
               error={null}
               onRetry={() => {}}
               onSelectMarket={select}
               onDelete={() => {}}
-              lines={{
-                armed: [],
-                fired: [],
-                error: null,
-                onRetry: () => {},
-                onSelect: () => {},
-                onSwitchOff: () => {},
-              }}
+              lines={noLines}
               onCleared={async () => {}}
             />
-          </TooltipProvider>
+          </InMenu>
         )
       )
-      await act(async () => button("Open alerts, 1 fired").click())
-      const tab = [
-        ...document.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
-      ].find((one) => one.textContent?.includes("Fired"))!
-      await act(async () =>
-        tab.dispatchEvent(
-          new MouseEvent("mousedown", { bubbles: true, button: 0 })
-        )
-      )
+      await vi.waitFor(() => buttonStartingWith("ETH"))
       await act(async () => buttonStartingWith("ETH").click())
       expect(select).toHaveBeenCalledWith("hyperliquid:mainnet:ETH")
       expect(api.removeFired).toHaveBeenCalledWith(
         "00000000-0000-4000-8000-000000000002"
       )
-      // Opening the menu already counted the alert as seen, so the red count
-      // is off the siren either way (Tyler, 29 Sep 2026).
-      expect(button("Open alerts")).not.toBeNull()
       expect(document.body.textContent?.includes("ETH")).toBe(fails)
       if (fails) expect(errors.show).toHaveBeenCalledWith("Delete failed.")
     }
   )
 
-  it("takes the red count off the siren once the menu has been opened", async () => {
-    await act(async () => {
-      root.render(
-        <TooltipProvider>
-          <PriceAlertsMenu
-            alerts={[]}
-            error={null}
-            onRetry={() => {}}
-            onSelectMarket={() => {}}
-            onDelete={() => {}}
-            lines={{
-              armed: [],
-              fired: [],
-              error: null,
-              onRetry: () => {},
-              onSelect: () => {},
-              onSwitchOff: () => {},
-            }}
-            onCleared={async () => {}}
-          />
-        </TooltipProvider>
-      )
-    })
-
-    await vi.waitFor(() => {
-      expect(button("Open alerts, 1 fired")).not.toBeNull()
-    })
-    await act(async () => button("Open alerts, 1 fired").click())
-    // The fired alert is still in the list. Only the count on the siren goes,
-    // because it now means "fired since you last looked" (Tyler, 29 Sep 2026).
-    await act(async () => button("Open alerts").click())
-    expect(button("Open alerts")).not.toBeNull()
-    expect(button("Open alerts").textContent).not.toContain("1")
-  })
-
-  it("shows the fired badge and clears only the visible tab", async () => {
+  it("walks the list one row at a time and clears only the visible tab", async () => {
     const onCleared = vi.fn().mockResolvedValue(undefined)
     const onSelectMarket = vi.fn()
     await act(async () => {
       root.render(
-        <TooltipProvider>
+        <InMenu>
           <PriceAlertsMenu
             alerts={[
               {
@@ -184,40 +154,17 @@ describe("the alerts menu", () => {
             onRetry={() => {}}
             onSelectMarket={onSelectMarket}
             onDelete={() => {}}
-            lines={{
-              armed: [],
-              fired: [],
-              error: null,
-              onRetry: () => {},
-              onSelect: () => {},
-              onSwitchOff: () => {},
-            }}
+            lines={noLines}
             onCleared={onCleared}
           />
-        </TooltipProvider>
+        </InMenu>
       )
     })
 
-    await vi.waitFor(() => {
-      expect(button("Open alerts, 1 fired")).not.toBeNull()
-    })
-    expect(button("Open alerts, 1 fired").dataset.slot).toBe("popover-trigger")
-    expect(button("Open alerts, 1 fired").textContent).toContain("1")
-
-    // Passing the pointer over the siren opens nothing. Only a click does.
-    await act(async () => {
-      button("Open alerts, 1 fired").dispatchEvent(
-        new MouseEvent("mouseover", { bubbles: true })
-      )
-    })
-    expect(
-      document.body.querySelector('[data-slot="popover-content"]')
-    ).toBeNull()
-    await act(async () => button("Open alerts, 1 fired").click())
     expect(document.body.textContent).toContain("Alert")
     expect(document.body.textContent).toContain("Fired")
 
-    // The menu opens on Fired, so the armed list is one press away.
+    // It opens on Fired, so the armed list is one press away.
     const alertTab = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     ).find((candidate) => candidate.textContent?.includes("Alert"))
@@ -227,24 +174,18 @@ describe("the alerts menu", () => {
       )
     })
 
-    // A row puts its market on the chart and leaves the menu up, so a list of
-    // alerts is walked down one row at a time.
+    // A row puts its market on the chart and leaves the list as it is.
     await act(async () => buttonStartingWith("BTC").click())
     expect(onSelectMarket).toHaveBeenCalledWith("hyperliquid:mainnet:BTC")
-    expect(
-      document.body.querySelector('[data-slot="popover-content"]')
-    ).not.toBeNull()
+    expect(buttonStartingWith("BTC")).not.toBeNull()
 
     await act(async () => buttonWithText("Clear all").click())
     expect(api.clear).not.toHaveBeenCalled()
     expect(document.body.textContent).toContain("Clear every active alert?")
-    await act(async () => buttonWithText("Clear all").click())
+    await act(async () => confirmButton().click())
     expect(api.clear).toHaveBeenLastCalledWith("active")
     expect(onCleared).toHaveBeenCalledTimes(1)
 
-    // Opening the menu once counts the fired alert as seen, so the red count
-    // is off the siren from then on (Tyler, 29 Sep 2026).
-    await act(async () => button("Open alerts").click())
     const firedTab = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')
     ).find((candidate) => candidate.textContent?.includes("Fired"))
@@ -256,19 +197,41 @@ describe("the alerts menu", () => {
     await act(async () => buttonWithText("Clear all").click())
     expect(api.clear).toHaveBeenCalledTimes(1)
     expect(document.body.textContent).toContain("Clear all fired alerts?")
-    await act(async () => buttonWithText("Clear all").click())
+    await act(async () => confirmButton().click())
     expect(api.clear).toHaveBeenLastCalledWith("fired")
     expect(onCleared).toHaveBeenCalledTimes(2)
   })
-})
 
-function button(name: string) {
-  const found = document.querySelector<HTMLButtonElement>(
-    `button[aria-label="${name}"]`
-  )
-  if (!found) throw new Error(`Missing ${name}`)
-  return found
-}
+  // The tab is drawn each time the page's ⋮ opens it. The fired alerts are
+  // read by the dashboard, so opening it again shows them at once (Tyler,
+  // 8 Nov 2026: "Why does this amount kept loading if i go back to it").
+  it("shows the fired alerts at once when the tab opens again", async () => {
+    function Dashboard({ open }: { open: boolean }) {
+      const fired = useFiredPriceAlerts()
+      return open ? (
+        <InMenu>
+          <PriceAlertsList
+            alerts={[]}
+            error={null}
+            onRetry={() => {}}
+            onSelectMarket={() => {}}
+            onDelete={() => {}}
+            lines={noLines}
+            fired={fired}
+            onCleared={async () => {}}
+          />
+        </InMenu>
+      ) : null
+    }
+    await act(async () => root.render(<Dashboard open />))
+    await vi.waitFor(() => buttonStartingWith("ETH"))
+    await act(async () => root.render(<Dashboard open={false} />))
+    await act(async () => root.render(<Dashboard open />))
+    expect(document.body.textContent).not.toContain("Reading fired alerts")
+    expect(buttonStartingWith("ETH")).toBeTruthy()
+    expect(api.loadFired).toHaveBeenCalledTimes(1)
+  })
+})
 
 function buttonStartingWith(text: string) {
   const found = Array.from(
@@ -283,5 +246,16 @@ function buttonWithText(text: string) {
     document.querySelectorAll<HTMLButtonElement>("button")
   ).find((candidate) => candidate.textContent === text)
   if (!found) throw new Error(`Missing ${text}`)
+  return found
+}
+
+/** The confirm window's own Clear all, beside the list's button of that name. */
+function confirmButton() {
+  const found = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(
+      '[role="alertdialog"] button, [role="dialog"] button'
+    )
+  ).find((candidate) => candidate.textContent === "Clear all")
+  if (!found) throw new Error("Missing the confirm window's Clear all")
   return found
 }

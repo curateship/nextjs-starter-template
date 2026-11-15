@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CaptionsIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -27,7 +26,6 @@ import {
 import { AiChoiceField } from "@/components/video-editor/ai-choice-field"
 import { CaptionLookFields } from "@/components/video-editor/caption-look-fields"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { plural } from "@/lib/format/plural"
 import { captionTextClips, type CaptionLook } from "@/lib/video/caption-look"
 import { findCaptionSource } from "@/lib/video/captions"
 import { editorId } from "@/lib/video/timeline-utils"
@@ -111,9 +109,6 @@ export function CaptionsDialog({
       )
       dispatch({ type: "INSERT_CAPTIONS", captions })
       dismissErrorToast()
-      toast.success(
-        `${captions.length} ${plural(captions.length, "caption", "captions")} added. Undo takes them all back off.`
-      )
       onOpenChange(false)
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))

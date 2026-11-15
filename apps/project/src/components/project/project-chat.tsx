@@ -66,8 +66,8 @@ export function ProjectChat({ page }: { page: ProjectPage }) {
 
   useProjectLive(projectId, (change) => change === "chat", () => void reload())
 
-  const change: Change = async (work, successText) => {
-    const ok = await run(work, successText)
+  const change: Change = async (work) => {
+    const ok = await run(work)
     if (ok) await reload()
     return ok
   }

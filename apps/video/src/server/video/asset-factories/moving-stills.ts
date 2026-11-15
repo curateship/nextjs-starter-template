@@ -19,6 +19,8 @@ import {
   landMovingShot,
   MOVING_STILL_BUSY_MESSAGE,
   MOVING_STILL_NOT_FOUND_MESSAGE,
+  MOVING_STILL_LOOP_COMPANY_MESSAGE,
+  MOVING_STILL_LOOP_LENGTH_MESSAGE,
   MOVING_STILL_UNREADABLE_MESSAGE,
   type MovingPiece,
   stillRefusal,
@@ -99,9 +101,17 @@ export async function createStillShot(
     /** Who makes it. A clip made again stays with the company that made it. */
     company?: VideoCompany
     sound?: boolean
+    /**
+     * End on the picture it starts on, so the shot loops without a join and
+     * lands as one looped clip as long as the picture (animate-a-still.md).
+     * Only the companies that take a last frame can.
+     */
+    endOnStart?: boolean
   }
 ) {
+  const loop = Boolean(payload.endOnStart)
   const pieces = shotPieces(payload.lengthSeconds)
+  if (loop && pieces.count !== 1) throw new Error(MOVING_STILL_LOOP_LENGTH_MESSAGE)
   if (payload.prompts.length !== pieces.count) {
     throw new Error("Write one direction for each piece of the shot")
   }
@@ -118,9 +128,9 @@ export async function createStillShot(
   if (!clip?.mediaId || (clip.kind !== "image" && !remade)) {
     throw new Error(MOVING_STILL_NOT_FOUND_MESSAGE)
   }
-  const refusal = stillRefusal(clip)
+  const refusal = stillRefusal(clip, loop)
   if (refusal) throw new Error(refusal)
-  if (!stillShotLengths(clip.durationMs).includes(payload.lengthSeconds)) {
+  if (!stillShotLengths(clip.durationMs, loop).includes(payload.lengthSeconds)) {
     throw new Error("Pick a length at least as long as the picture")
   }
   // The picture the shot starts on: the clip itself, or for a clip made
@@ -170,6 +180,7 @@ export async function createStillShot(
   const company =
     payload.company ?? (remade ? companyOf(remade.model) : null) ?? "gemini"
   const model = VIDEO_MODELS[company]
+  if (loop && !model.endFrame) throw new Error(MOVING_STILL_LOOP_COMPANY_MESSAGE)
   const size = sizeFor(company, payload.quality)
   const sound = model.soundSwitch ? (payload.sound ?? remade?.sound ?? true) : true
   if (!(await companiesReady())[company]) throw new Error(missingKeyMessage(company))
@@ -211,6 +222,8 @@ export async function createStillShot(
           videoId: video.id,
           firstFrameId: null,
           firstFrameMediaId: index === 0 ? media.id : null,
+          // A loop ends on the picture it starts on.
+          endFrameMediaId: loop && index === prompts.length - 1 ? media.id : null,
           prompt,
           model: model.id,
           aspectRatio,
@@ -308,12 +321,16 @@ export async function settleStillShot(
       )
       .returning({ id: videoAiGenerations.id })
     if (!claimed.length) return false
-    await attachPastedMediaToProject(
-      userId,
-      first.projectId,
-      pieces.map((piece) => piece.mediaId),
-      tx
-    )
+    // A picture on a clip is always in a project; a Flow's loop is not
+    // landed here (flow.md).
+    if (first.projectId) {
+      await attachPastedMediaToProject(
+        userId,
+        first.projectId,
+        pieces.map((piece) => piece.mediaId),
+        tx
+      )
+    }
     return true
   })
   return { settled }
@@ -345,6 +362,7 @@ async function landStillShot(userId: string, shotId: string) {
     clipMediaId: first.clipMediaId,
     pieces,
     newId: uuid,
+    loop: rows.some((row) => row.generation.endFrameMediaId),
   })
   await db.transaction(async (tx) => {
     const [row] = await tx
@@ -368,12 +386,16 @@ async function landStillShot(userId: string, shotId: string) {
         tx
       )
     }
-    await attachPastedMediaToProject(
-      userId,
-      first.projectId,
-      pieces.map((piece) => piece.mediaId),
-      tx
-    )
+    // A picture on a clip is always in a project; a Flow's loop is not
+    // landed here (flow.md).
+    if (first.projectId) {
+      await attachPastedMediaToProject(
+        userId,
+        first.projectId,
+        pieces.map((piece) => piece.mediaId),
+        tx
+      )
+    }
     if (landed.outcome === "gone") {
       await tx.insert(customShellNotifications).values({
         id: uuid(),
@@ -436,5 +458,95 @@ export async function movingStillTick() {
       // with a save made meanwhile is tried again on the next pass.
       console.error("A moving shot could not land yet", error)
     }
+  }
+}
+
+/**
+ * A picture made to move that sits on no clip: one 4, 6 or 8 second piece,
+ * for a Flow run that has no project or video yet (flow.md, the AI editor's
+ * `animate_picture`). With `endOnStart` it ends on the picture it starts on,
+ * so it loops with no join (animate-a-still.md). The worker makes it as it
+ * makes any shot; nothing lands it, the Flow step reads it back with
+ * `pictureShotState` and lays it itself. Its meter rows carry the Flow step.
+ */
+export async function createPictureShot(
+  userId: string,
+  payload: {
+    mediaId: string
+    prompt: string
+    seconds: 4 | 6 | 8
+    company: VideoCompany
+    quality: VideoQuality
+    sound: boolean
+    endOnStart: boolean
+    /** The shape of video it is for, when the picture is square. */
+    aspect: "16:9" | "9:16" | "1:1" | "4:3"
+    projectId: string | null
+    videoId: string | null
+    flowStepId: string
+  }
+) {
+  const model = VIDEO_MODELS[payload.company]
+  if (payload.endOnStart && !model.endFrame) throw new Error(MOVING_STILL_LOOP_COMPANY_MESSAGE)
+  const [media] = await db
+    .select()
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, payload.mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media || media.fileType !== "image") throw new Error(MOVING_STILL_NOT_FOUND_MESSAGE)
+  const size = sizeFor(payload.company, payload.quality)
+  const sound = model.soundSwitch ? payload.sound : true
+  if (!(await companiesReady())[payload.company]) throw new Error(missingKeyMessage(payload.company))
+  await requireRoomForShot(
+    userId,
+    { projectId: payload.projectId, videoId: payload.videoId },
+    shotCostCents(payload.seconds, model.id, size, sound)
+  )
+  const aspectRatio = await pictureSize(await readStoredPicture(media.storagePath)).then(
+    (picture) => stillShotAspect(picture.width, picture.height, payload.aspect),
+    () => {
+      throw new Error(MOVING_STILL_UNREADABLE_MESSAGE)
+    }
+  )
+  const at = now()
+  const shotId = uuid()
+  await db
+    .insert(videoAiGenerations)
+    .values({
+      id: shotId,
+      userId,
+      projectId: payload.projectId,
+      videoId: payload.videoId,
+      flowStepId: payload.flowStepId,
+      firstFrameId: null,
+      firstFrameMediaId: media.id,
+      endFrameMediaId: payload.endOnStart ? media.id : null,
+      prompt: assetPrompt(payload.prompt),
+      model: model.id,
+      aspectRatio,
+      durationSeconds: payload.seconds,
+      resolution: size,
+      withSound: sound,
+      shotId,
+      shotIndex: 1,
+      shotPieces: 1,
+      status: "queued",
+      attempts: 0,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .catch(rethrowShotsFull)
+  return { shotId, cents: shotCostCents(payload.seconds, model.id, size, sound) }
+}
+
+/** Where a picture shot made for a Flow step has got to, and its file once made. */
+export async function pictureShotState(userId: string, shotId: string) {
+  const [row] = await getShot(userId, shotId)
+  const job = row.generation
+  return {
+    status: job.status as "waiting" | "queued" | "processing" | "ready" | "error",
+    mediaId: job.status === "ready" ? job.outputMediaId : null,
+    durationMs: job.durationSeconds * 1000,
+    error: job.errorMessage,
   }
 }

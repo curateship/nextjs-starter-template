@@ -1,8 +1,7 @@
 import * as React from "react"
 import { BookmarkPlusIcon, CheckIcon, CopyIcon, EyeIcon, Loader2Icon, PencilIcon, Undo2Icon } from "lucide-react"
-import { toast } from "sonner"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
@@ -18,7 +17,7 @@ import { segmentRoleLabels } from "@/lib/viral/viral-breakdown"
 /**
  * The four things Analyse with AI writes (Tyler, 4 Nov 2026: "Why it works",
  * "Script for my topic", "3 to 5 more ideas", "Title + hashtags"), each a
- * folding `InspectorCard` with its own Copy. The right panel and a vault
+ * folding `PanelCard` with its own Copy. The right panel and a vault
  * item both draw them, so a saved idea reads exactly as it did when it was
  * written. Save format under the script keeps its structure for Library →
  * Formats (task part 18).
@@ -46,7 +45,7 @@ export function AnalysisCards({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
       {hasWhy ? (
-      <InspectorCard storageId="viral-analysis-why" title="Why it works">
+      <PanelCard storageId="viral-analysis-why" title="Why it works">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <p>
             <span className="font-medium">The hook. </span>
@@ -73,13 +72,13 @@ export function AnalysisCards({
             ].join("\n")}
           />
         </div>
-      </InspectorCard>
+      </PanelCard>
       ) : null}
 
       <ScriptCard pieces={pieces} topic={topic} sourceTitle={sourceTitle} edit={scriptEdit} />
 
       {ideas.length ? (
-      <InspectorCard storageId="viral-analysis-ideas" title="More ideas" description={`${ideas.length} in the same style`}>
+      <PanelCard storageId="viral-analysis-ideas" title="More ideas" meta={`${ideas.length} in the same style`}>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <ol className="grid gap-2">
             {ideas.map((one, index) => (
@@ -94,11 +93,11 @@ export function AnalysisCards({
             text={ideas.map((one, index) => `${index + 1}. ${one.idea}\n   Hook: ${one.hook}`).join("\n")}
           />
         </div>
-      </InspectorCard>
+      </PanelCard>
       ) : null}
 
       {hasTitle ? (
-      <InspectorCard storageId="viral-analysis-title" title="Title and hashtags">
+      <PanelCard storageId="viral-analysis-title" title="Title and hashtags">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           <p className="font-medium">{title.title}</p>
           <p className="whitespace-pre-wrap">{title.caption}</p>
@@ -108,7 +107,7 @@ export function AnalysisCards({
             text={[title.title, title.caption, title.hashtags.map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)).join(" ")].join("\n\n")}
           />
         </div>
-      </InspectorCard>
+      </PanelCard>
       ) : null}
     </div>
   )
@@ -207,7 +206,6 @@ function ScriptCard({
         setReverting(false)
         setEditing(false)
         setShowOriginal(false)
-        toast.success("The script is the AI's version again.")
       }
     } finally {
       setBusy(false)
@@ -219,9 +217,32 @@ function ScriptCard({
     .join(" · ")
   const editLabel = editing ? "Done editing" : "Edit the script"
 
+  // The pencil sits in the card's header beside its fold arrow, in the card's
+  // own button slot, so it shows as the card's other buttons do and stays in
+  // view while editing. Hidden while the card is shut, since editing a shut
+  // card shows nothing.
+  const pencil = edit ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="group-data-[state=closed]/card:hidden"
+          aria-label={editLabel}
+          aria-pressed={editing}
+          onClick={() => (editing ? stopEditing() : startEditing())}
+        >
+          {editing ? <CheckIcon /> : <PencilIcon />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{editing ? "Done editing. Your words are saved as you type." : "Edit the script"}</TooltipContent>
+    </Tooltip>
+  ) : undefined
+
   return (
-    <div className="group/script relative">
-      <InspectorCard storageId="viral-analysis-script" title="Script" description={description || undefined}>
+    <>
+      <PanelCard storageId="viral-analysis-script" title="Script" meta={description || undefined} action={pencil} actionOpen={editing}>
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm break-words">
           {editing
             ? original.map((part, index) => (
@@ -264,30 +285,7 @@ function ScriptCard({
             ) : null}
           </div>
         </div>
-      </InspectorCard>
-      {edit ? (
-        // The pencil sits in the card's header, left of its fold arrow. The
-        // shared card's header has no slot for it, so it is laid over it.
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              // Hidden while the card is shut, since editing a shut card shows nothing.
-              // Only the card (the div) counts: this button carries the tooltip's own
-              // data-state="closed" whenever the tooltip is not showing.
-              className="absolute top-3 right-10 group-has-[>div[data-state=closed]]/script:hidden"
-              aria-label={editLabel}
-              aria-pressed={editing}
-              onClick={() => (editing ? stopEditing() : startEditing())}
-            >
-              {editing ? <CheckIcon /> : <PencilIcon />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{editing ? "Done editing. Your words are saved as you type." : "Edit the script"}</TooltipContent>
-        </Tooltip>
-      ) : null}
+      </PanelCard>
       <ConfirmDialog
         open={reverting}
         onOpenChange={setReverting}
@@ -297,7 +295,7 @@ function ScriptCard({
         loading={busy}
         onConfirm={() => void goBack()}
       />
-    </div>
+    </>
   )
 }
 
@@ -308,8 +306,7 @@ function SaveFormatButton({ pieces, sourceTitle }: { pieces: AnalysisPieces; sou
     setBusy(true)
     try {
       const parts = formatFromAnalysis(pieces)
-      const format = await saveFormatFn({ name: partsName(parts), parts, sourceTitle })
-      toast.success(`Saved as the format "${format.name}". Find it on Library → Formats.`)
+      await saveFormatFn({ name: partsName(parts), parts, sourceTitle })
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -330,7 +327,6 @@ function CopyButton({ label, name, text }: { label: string; name: string; text: 
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      toast.success("Copied.")
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
       showErrorToast("It couldn't be copied. Select the words and copy them instead.")

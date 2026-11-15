@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -58,7 +57,6 @@ export function StreakReminderCard() {
     setSaving(true)
     try {
       await saveStreakReminder(draft)
-      toast.success("Streak reminder saved.")
     } catch {
       showErrorToast("The streak reminder could not be saved. Try again.")
     } finally {

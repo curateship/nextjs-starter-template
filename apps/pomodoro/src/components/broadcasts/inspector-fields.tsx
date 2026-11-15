@@ -35,10 +35,12 @@ function cardStorageId(title: string) {
  */
 export function InspectorCard({
   title,
+  icon,
   description,
   children,
 }: {
   title: string
+  icon?: React.ReactNode
   description?: string
   children: React.ReactNode
 }) {
@@ -46,6 +48,7 @@ export function InspectorCard({
     <SharedInspectorCard
       storageId={cardStorageId(title)}
       title={title}
+      icon={icon}
       description={description}
     >
       {children}

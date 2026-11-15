@@ -90,6 +90,12 @@ refused by the server whatever the screen shows:
 | Open the project's Archive, play its items, edit their captions and Write captions, and post them from the project's Instagram and TikTok accounts ([archive.md](archive.md)) | Download an archive file, open the Bin, upload, copy, move, pin or delete one |
 | Look for self-promotion threads | Block a subreddit, which hides it from every project |
 
+**"Download an archive file" means the button.** A guest has no Download
+button and no PDF link, but an item still plays, so the file's own address
+reaches the guest's browser (`itemFn` in `src/lib/api/archive/items.ts` sends
+`fileUrl`, which the player and posting both read). Only files in the guest's
+own project are sent this way.
+
 **Who sent it.** A comment, reply or post a guest sends carries "Sam via
 Project" in `sent_by` on its row, carried there through the job's payload. The
 owner sees it under the account on Sent and on Reddit's Posts.

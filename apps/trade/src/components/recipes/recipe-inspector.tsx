@@ -5,16 +5,16 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
-  Loader2Icon,
   PlusIcon,
-  StarIcon,
   Trash2Icon,
   WorkflowIcon,
 } from "lucide-react"
 
 import { InspectorNote } from "@/components/automations/inspector-card"
 import { RecipeNodeIcon } from "@/components/recipes/recipe-node-icon"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelHeading } from "@/components/bots/bots-record"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 import { Button } from "@/components/ui/button"
 import { InlineError } from "@/components/ui/inline-error"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -24,7 +24,6 @@ import type {
   AutomationValidationError,
 } from "@/lib/automations/graph"
 import {
-  recipeNodeDescription,
   recipeNodeFields,
   recipeNodeIcon,
   recipeNodeName,
@@ -37,11 +36,9 @@ export function RecipeInspector({
   selectedNode,
   graph,
   errors,
-  favorite,
-  savingFavorite,
   onNodeChange,
   onOpenNodeEditor,
-  onToggleFavorite,
+  headerEnd,
   onAddNode,
   onDeleteNode,
 }: {
@@ -49,73 +46,52 @@ export function RecipeInspector({
   selectedNode: AutomationNode | null
   graph: AutomationGraph
   errors: AutomationValidationError[]
-  favorite?: boolean
-  savingFavorite?: boolean
   onNodeChange: (node: AutomationNode) => void
   onOpenNodeEditor?: (nodeId: string) => void
-  onToggleFavorite?: () => void
+  /** The end of the header: the collapse button at the panel's edge. */
+  headerEnd?: React.ReactNode
+  /** Given while the step shown was pressed in the step list and is not on the canvas yet. */
   onAddNode?: (node: AutomationNode) => void
   onDeleteNode: (nodeId: string) => void
 }) {
   const nodeErrors = selectedNode
     ? errors.filter((error) => error.nodeId === selectedNode.id)
     : errors
-  // The panel is showing a node picked in the palette that has not been put on
-  // the canvas yet — the only state where "Add node" is on offer.
   const previewing = Boolean(onAddNode)
   const { scrollRef, fades } = useScrollFades()
 
+  const cover = useRightCover()
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
+        "relative isolate flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
         className
       )}
     >
-      <DashboardCardTitleHeader
-        icon={
-          selectedNode ? (
-            <RecipeNodeIcon
-              icon={recipeNodeIcon(selectedNode)}
-              className="size-4"
-            />
-          ) : (
-            <WorkflowIcon className="size-4" />
-          )
-        }
-        title={selectedNode ? recipeNodeName(selectedNode) : "Recipe"}
-        meta={previewing ? "Not added yet" : undefined}
-        action={
-          selectedNode && onToggleFavorite ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`${favorite ? "Remove" : "Add"} ${recipeNodeName(selectedNode)} ${favorite ? "from" : "to"} favorites`}
-              aria-pressed={favorite}
-              disabled={savingFavorite}
-              onClick={onToggleFavorite}
-              className={cn(favorite && "text-amber-500 dark:text-amber-400")}
-            >
-              {savingFavorite ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <StarIcon
-                  className={cn("size-4", favorite && "fill-current")}
-                />
-              )}
-            </Button>
-          ) : undefined
-        }
-      />
+      {/* The right panel's cover, as the Recipe, Backtest and Bot panels draw
+          it (Tyler, 11 Nov 2026: "all the nodes header still need to inherate
+          the background too"). */}
+      <RightPanelCover />
+      <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
+        <RightPanelHeading
+          icon={selectedNode ? <RecipeNodeIcon icon={recipeNodeIcon(selectedNode)} className="size-4" /> : <WorkflowIcon />}
+          title={selectedNode ? recipeNodeName(selectedNode) : "Recipe"}
+          note={previewing ? "Not added yet" : undefined}
+        />
+        {headerEnd}
+      </DashboardCardHeader>
       <div ref={scrollRef} className="relative min-h-0 flex-1">
         <ScrollArea className="h-full">
-          <div className="grid gap-4 p-4 sm:p-5">
-            <p className="text-xs text-muted-foreground">
-              {selectedNode
-                ? recipeNodeDescription(selectedNode)
-                : "Select a node to view and edit its settings."}
-            </p>
+          {/* As the shell's automation step panel: 16px that is also the
+              panel gutter, so a card set to edge to edge reaches the side,
+              and no line describing the step under its name (Tyler, 10 Nov
+              2026: "all these tooltips are not nesessary"). */}
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 [--panel-gutter:1rem]">
+            {selectedNode ? null : (
+              <p className="text-xs text-muted-foreground">
+                Select a node to view and edit its settings.
+              </p>
+            )}
 
             {nodeErrors.length > 0 ? (
               <InlineError className="grid gap-1">
@@ -148,34 +124,28 @@ export function RecipeInspector({
               />
             ) : null}
 
-            {selectedNode ? (
+            {selectedNode && onAddNode ? (
+              // Not on the canvas yet, so backing out only lets go of it:
+              // Cancel, never a red Delete beside Add step.
               <div className="grid grid-cols-2 gap-2">
-                {onAddNode ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onAddNode(selectedNode)}
-                  >
-                    <PlusIcon className="size-4" />
-                    Add node
-                  </Button>
-                ) : null}
-                {/* A previewed node is not on the canvas, so there is nothing to
-                    destroy — backing out only drops the preview. Both call the
-                    same thing; only the word and the colour change, because a red
-                    "Delete node" beside "Add node" reads as a threat it cannot
-                    carry out. */}
-                <Button
-                  type="button"
-                  variant={previewing ? "outline" : "destructive"}
-                  size="sm"
-                  className={cn(!previewing && "col-span-2")}
-                  onClick={() => onDeleteNode(selectedNode.id)}
-                >
-                  {previewing ? null : <Trash2Icon className="size-4" />}
-                  {previewing ? "Cancel" : "Delete node"}
+                <Button type="button" size="sm" onClick={() => onAddNode(selectedNode)}>
+                  <PlusIcon className="size-4" />
+                  Add step
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => onDeleteNode(selectedNode.id)}>
+                  Cancel
                 </Button>
               </div>
+            ) : selectedNode ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => onDeleteNode(selectedNode.id)}
+              >
+                <Trash2Icon className="size-4" />
+                Delete step
+              </Button>
             ) : null}
           </div>
         </ScrollArea>

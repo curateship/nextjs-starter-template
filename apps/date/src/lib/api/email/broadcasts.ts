@@ -32,6 +32,8 @@ import {
   deleteWorkspaceTemplates,
   duplicateWorkspaceBroadcast,
   getWorkspaceBroadcast,
+  BROADCAST_STATUS_GROUPS,
+  countBroadcastGroups,
   listWorkspaceBroadcasts,
   listWorkspaceTemplates,
   sanitizeBlocks,
@@ -86,7 +88,12 @@ export type BroadcastDetail = BroadcastListItem & {
 export type BroadcastsPage = {
   broadcasts: BroadcastListItem[]
   total: number
+  /** How many each Broadcasts pill holds, whichever shows, and the saved templates. */
+  counts: { drafts: number; scheduled: number; sent: number; templates: number }
 }
+
+/** The Broadcasts tab's pills that list newsletters rather than templates. */
+export type BroadcastGroup = keyof typeof BROADCAST_STATUS_GROUPS
 
 export type BroadcastTemplateItem = {
   id: string
@@ -187,6 +194,7 @@ const listSchema = z.object({
   search: z.string().trim().max(200).optional(),
   limit: z.number().int().min(1).max(200).optional(),
   offset: z.number().int().min(0).optional(),
+  group: z.enum(["drafts", "scheduled", "sent"]).optional(),
 })
 
 const updateSchema = broadcastIdSchema.extend({
@@ -207,11 +215,16 @@ const loadBroadcastsPageFn = createServerFn({ method: "GET" })
   .inputValidator(listSchema)
   .handler(async ({ data, context }): Promise<BroadcastsPage> => {
     const workspaceId = await currentWorkspaceId(context.user.id)
-    const { broadcasts, total } = await listWorkspaceBroadcasts(
-      workspaceId,
-      data
-    )
-    return { broadcasts: broadcasts.map(toListItem), total }
+    const [{ broadcasts, total }, groups, templates] = await Promise.all([
+      listWorkspaceBroadcasts(workspaceId, data),
+      countBroadcastGroups(workspaceId),
+      listWorkspaceTemplates(workspaceId),
+    ])
+    return {
+      broadcasts: broadcasts.map(toListItem),
+      total,
+      counts: { ...groups, templates: templates.length },
+    }
   })
 
 const getBroadcastFn = createServerFn({ method: "GET" })
@@ -458,7 +471,7 @@ const deleteTemplatesFn = createServerFn({ method: "POST" })
   })
 
 export function loadBroadcastsPage(
-  options: { search?: string; limit?: number; offset?: number } = {}
+  options: { search?: string; limit?: number; offset?: number; group?: BroadcastGroup } = {}
 ) {
   return loadBroadcastsPageFn({ data: options })
 }

@@ -133,7 +133,7 @@ export type WalletCheckRead = {
 /**
  * The whole answer, worked out from the fills alone.
  *
- * **The same counting as the P&L page.** A fill's money is the exchange's own
+ * **The same counting as the month grid.** A fill's money is the exchange's own
  * `closedPnl` less the fee it charged (`moneyForWalletFill`), trades are the
  * Journal's flat-to-flat trades (`buildLiveTrades`), and the windows are
  * `publicFigures`, the function a public trader profile already uses. A

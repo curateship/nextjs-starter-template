@@ -158,9 +158,14 @@ export async function autocompletePlaces(
   return rows
 }
 
-/** A picked place's name, address, position, hours, website and phone. */
-export async function placeDetails(placeId: string, sessionToken: string): Promise<PlaceDetails> {
+/**
+ * A picked place's name, address, position, hours, website and phone.
+ * `spend` counts the lookup against the person's day (Travel features 4,
+ * part 4) once the key is known to be there, and throws at the limit.
+ */
+export async function placeDetails(placeId: string, sessionToken: string, spend: () => Promise<void>): Promise<PlaceDetails> {
   const key = googleKey()
+  await spend()
   const url = new URL(`${PLACES}/places/${encodeURIComponent(placeId)}`)
   if (sessionToken) url.searchParams.set("sessionToken", sessionToken)
   const body = (await askGoogle(url.toString(), {
@@ -258,12 +263,15 @@ export function routeKey(point: LatLng): string {
  * Saved in `travel_route_times` by both positions and the mode, so the same
  * pair is only asked again when an address changes and moves its position.
  * Null when Google finds no route, which happens most with transit; a missing
- * route isn't saved, so it is asked again next time.
+ * route isn't saved, so it is asked again next time. `spend` counts a time
+ * Google is asked for against the person's day (Travel features 4, part 4); a
+ * saved time costs nothing and counts nothing.
  */
 export async function routeMinutes(
   from: LatLng,
   to: LatLng,
-  mode: TravelMode
+  mode: TravelMode,
+  spend: () => Promise<void>
 ): Promise<number | null> {
   const key = googleKey()
   const fromKey = routeKey(from)
@@ -282,6 +290,7 @@ export async function routeMinutes(
     )
     .limit(1)
   if (saved) return saved.minutes
+  await spend()
 
   const point = (p: LatLng) => ({ location: { latLng: { latitude: p.lat, longitude: p.lng } } })
   const body = (await askGoogle(ROUTES, {

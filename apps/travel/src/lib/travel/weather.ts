@@ -24,8 +24,20 @@ export function weatherKindOf(code: number): WeatherKind {
   return "storm"
 }
 
-/** One day's forecast: Celsius, rounded, and the chance of rain out of 100, or null when there is none. */
-export type DayWeather = { day: number; high: number; low: number; kind: WeatherKind; rain: number | null }
+/**
+ * One day's forecast: Celsius, rounded, and the chance of rain out of 100, or
+ * null when there is none. `hourlyRain` is the chance for each hour of the
+ * day at the destination, midnight first, for a card's own hour (Travel
+ * features 4, part 3); an hour with none is null.
+ */
+export type DayWeather = {
+  day: number
+  high: number
+  low: number
+  kind: WeatherKind
+  rain: number | null
+  hourlyRain: (number | null)[]
+}
 
 /** The chance of rain a day's forecast shows from (Tyler, 3 Nov 2026: "70% rain", only at 30% or more). */
 export const RAIN_SHOWN_FROM = 30

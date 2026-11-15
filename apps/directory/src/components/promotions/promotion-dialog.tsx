@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ListingPicker } from "@/components/directory/listing-picker"
 import {
@@ -238,7 +237,6 @@ export function PromotionDialog({
     setRemovingClaim(claimId)
     try {
       setClaims(await removeDealClaim({ promotionId, claimId }))
-      toast.success("The claim is taken away. Its place is free again.")
     } catch (error) {
       showErrorToast(getPromotionErrorMessage(error))
     } finally {
@@ -261,7 +259,6 @@ export function PromotionDialog({
         },
       })
       onSaved()
-      toast.success("The deal is back on its own days and times.")
     } catch (error) {
       showErrorToast(getPromotionErrorMessage(error))
     } finally {
@@ -283,7 +280,6 @@ export function PromotionDialog({
         })
       }
       onSaved()
-      toast.success(promotionId ? "Deal saved." : "Deal created.")
       onClose()
     } catch (error) {
       setTried(true)

@@ -17,7 +17,6 @@ import { useCaptionPlacement } from "@/components/video-editor/caption-settings-
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import type { AiToolsAvailability } from "@/lib/api/video/ai-tools"
 import { getRecordingErrorMessage, keepRecording } from "@/lib/api/video/voiceovers"
-import { plural } from "@/lib/format/plural"
 import {
   encodeWav,
   RECORDING_EMPTY_MESSAGE,
@@ -222,12 +221,6 @@ export function RecordVoiceoverDialog({
         ...voiceoverClips(result, atMs, captions),
       })
       dismissErrorToast()
-      const count = result.captions.length
-      toast.success(
-        count
-          ? `Added at ${formatClock(atMs)}, with ${count} ${plural(count, "caption", "captions")}. Undo removes it.`
-          : `Added at ${formatClock(atMs)}. Undo removes it.`
-      )
       if (result.notice) toast(result.notice)
       onOpenChange(false)
       reset()

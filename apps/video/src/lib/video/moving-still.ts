@@ -35,6 +35,10 @@ export const MOVING_STILL_BUSY_MESSAGE =
   "This picture is already being made to move."
 export const MOVING_STILL_NOT_FOUND_MESSAGE =
   "That picture is no longer on the timeline."
+export const MOVING_STILL_LOOP_LENGTH_MESSAGE =
+  "A loop is one piece: pick 4, 6 or 8 seconds."
+export const MOVING_STILL_LOOP_COMPANY_MESSAGE =
+  "Only Wan and Seedance can end on the picture they start on. Pick one of them for a loop."
 export const MOVING_STILL_UNREADABLE_MESSAGE =
   "That picture's file could not be read, so it cannot be made to move."
 
@@ -45,7 +49,10 @@ export const MOVING_STILL_UNREADABLE_MESSAGE =
  * run of 8 second pieces that covers it, because a longer run would only be
  * cut off. A picture over 32 seconds gets none.
  */
-export function stillShotLengths(clipDurationMs: number): ShotLengthSeconds[] {
+export function stillShotLengths(clipDurationMs: number, loop = false): ShotLengthSeconds[] {
+  // A shot that ends on its own first picture loops for as long as the
+  // picture runs, so any one piece will do (animate-a-still.md).
+  if (loop) return SHOT_LENGTHS.filter((length) => length * 1000 <= PIECE_MS)
   const covering = SHOT_LENGTHS.filter((length) => length * 1000 >= clipDurationMs)
   if (clipDurationMs <= PIECE_MS) {
     return covering.filter((length) => length * 1000 <= PIECE_MS)
@@ -54,8 +61,8 @@ export function stillShotLengths(clipDurationMs: number): ShotLengthSeconds[] {
 }
 
 /** Why this clip cannot be made to move, or null when it can. */
-export function stillRefusal(clip: Clip): string | null {
-  if (clip.durationMs > MAX_MOVING_STILL_MS) return MOVING_STILL_TOO_LONG_MESSAGE
+export function stillRefusal(clip: Clip, loop = false): string | null {
+  if (!loop && clip.durationMs > MAX_MOVING_STILL_MS) return MOVING_STILL_TOO_LONG_MESSAGE
   if (isPlacedPicture(clip)) return MOVING_STILL_NOT_FULL_FRAME_MESSAGE
   return null
 }
@@ -136,6 +143,11 @@ export function landMovingShot(
     clipMediaId: string | null
     pieces: MovingPiece[]
     newId: () => string
+    /**
+     * The shot ends on its own first picture, so it lands as one looped clip
+     * as long as the picture was (clip-loop.md, animate-a-still.md).
+     */
+    loop?: boolean
   }
 ): { tracks: Tracks; outcome: ClipOutcome } {
   const still = findShotClip(tracks, shot.clipId, shot.clipMediaId)
@@ -144,9 +156,10 @@ export function landMovingShot(
   const endMs = still.startMs + still.durationMs
   const clips: Clip[] = []
   let atMs = still.startMs
-  for (const [index, piece] of shot.pieces.entries()) {
+  const pieces = shot.loop ? shot.pieces.slice(0, 1) : shot.pieces
+  for (const [index, piece] of pieces.entries()) {
     if (atMs >= endMs) break
-    const durationMs = Math.min(piece.durationMs, endMs - atMs)
+    const durationMs = shot.loop ? endMs - atMs : Math.min(piece.durationMs, endMs - atMs)
     clips.push({
       ...still,
       id: index === 0 ? still.id : shot.newId(),
@@ -157,6 +170,7 @@ export function landMovingShot(
       durationMs,
       trimStartMs: 0,
       sourceDurationMs: piece.durationMs,
+      loop: shot.loop || undefined,
       muted: still.kind === "image" ? true : still.muted,
       motion: undefined,
       speed: undefined,

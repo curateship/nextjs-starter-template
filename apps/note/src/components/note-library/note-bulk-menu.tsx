@@ -16,7 +16,6 @@ import {
   Trash2Icon,
   WandSparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { LibraryDot } from "@/components/note-library/library-dot"
 import { SelectedMenu, SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
@@ -78,9 +77,8 @@ export function NoteBulkMenu({
     setBusy(true)
     dismissErrorToast()
     try {
-      const line = await work()
+      await work()
       onDone()
-      toast.success(line)
       await onRefresh()
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))

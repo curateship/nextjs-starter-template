@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { useShownColumns } from "@/components/trade/block-columns"
 import { OrderPanelTotals } from "@/components/trade/order-panel-totals"
 import { PnlAmount } from "@/components/trade/pnl-amount"
 import { TradeBadge } from "@/components/trade/trade-badge"
@@ -46,6 +47,7 @@ import {
   type WatchedLevel,
 } from "@/lib/trade/watched-cache"
 import { cn } from "@/lib/utils"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 /**
  * Every hand-placed price you are waiting on, shown in Manual orders.
@@ -96,6 +98,14 @@ export function WatchedOrdersList({
   selectedKey,
   onEmptyChange,
 }: {
+  /**
+   * Told whenever the list has no row to show, or has one again, so the
+   * dashboard can hide the Manual trades block when "Hide empty blocks" is
+   * on. A coin held by hand is a row, so a list showing one is not empty.
+   * Still reading is not empty, and a failed read is never empty: its Try
+   * again has to stay reachable. Reported before paint.
+   */
+  onEmptyChange?: (empty: boolean) => void
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly TradeOrder[]
   /** Everything held right now, practice and real together. */
@@ -127,15 +137,6 @@ export function WatchedOrdersList({
   settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
-  /**
-   * Told whenever the list has no row to show, or has one again, so the
-   * dashboard can leave the Manual orders panel out when Hide on empty is on.
-   * A coin held by hand is a row, so a panel listing one is not empty. A
-   * failed read with nothing listed is never "empty": its Retry button has to
-   * stay reachable. Reported before paint, so the panel is never drawn for a
-   * frame and then taken away.
-   */
-  onEmptyChange?: (empty: boolean) => void
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   /** The market on the chart, so its rows read as the one already open. */
@@ -341,11 +342,14 @@ export function WatchedOrdersList({
     sort,
     walletName,
   ])
-
-  const empty = tableRows.length === 0 && !failed
+  const empty = tableRows.length === 0 && !failed && (answered || standingIn)
   useEffectBeforePaint(() => {
     onEmptyChange?.(empty)
   }, [empty, onEmptyChange])
+
+  // The columns this table's block hides from its ⋮ (`block-columns.tsx`).
+  // A hidden column that the rows are sorted by keeps their order.
+  const shows = useShownColumns()
 
   const heading = (column: ManualOrderColumn, label: string) => (
     <TableSortButton
@@ -408,15 +412,21 @@ export function WatchedOrdersList({
                   <TableHead className="w-[34%] px-1">
                     {heading("ticker", "Ticker")}
                   </TableHead>
-                  <TableHead className="w-[22%] px-1">
-                    {heading("type", "Type")}
-                  </TableHead>
-                  <TableHead className="w-[20%] px-1">
-                    {heading("held", "Value")}
-                  </TableHead>
-                  <TableHead className="w-[24%] px-1">
-                    {heading("pnl", "PnL")}
-                  </TableHead>
+                  {shows("type") ? (
+                    <TableHead className="w-[22%] px-1">
+                      {heading("type", "Type")}
+                    </TableHead>
+                  ) : null}
+                  {shows("value") ? (
+                    <TableHead className="w-[20%] px-1">
+                      {heading("held", "Value")}
+                    </TableHead>
+                  ) : null}
+                  {shows("pnl") ? (
+                    <TableHead className="w-[24%] px-1">
+                      {heading("pnl", "PnL")}
+                    </TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -425,8 +435,12 @@ export function WatchedOrdersList({
                     key={row.id}
                     title={row.title}
                     rowAction={() => onSelectMarket(row.marketKey)}
-                    data-state={
-                      row.marketKey === selectedKey ? "selected" : undefined
+                    // The market on the chart is marked by the small dark bar
+                    // before its ticker, as every block's picked row is, not
+                    // by shading (Tyler, 12 Nov 2026: "for the blocks. make a
+                    // the selected styling to use this").
+                    aria-current={
+                      row.marketKey === selectedKey ? "true" : undefined
                     }
                   >
                     {/* Cell for cell, the Smart orders row above: coin art
@@ -434,38 +448,48 @@ export function WatchedOrdersList({
                         mono, PnL in the money colours (Tyler, 14 Sep 2026). */}
                     <TableCell className="py-2 pr-2 pl-1">
                       <div className="grid min-w-0 gap-1">
-                        <div className="flex min-w-0 items-center gap-1">
-                          <MarketIcon
-                            symbol={row.symbol}
-                            iconUrl={row.iconUrl}
-                          />
-                          <span
-                            className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm"
-                            title={row.symbol}
-                          >
-                            {row.symbol}
-                          </span>
+                        <div className="flex min-w-0 items-center">
+                          <SlideBar on={row.marketKey === selectedKey} />
+                          <div className="flex min-w-0 flex-1 items-center gap-1">
+                            {shows("avatar") ? (
+                              <MarketIcon
+                                symbol={row.symbol}
+                                iconUrl={row.iconUrl}
+                              />
+                            ) : null}
+                            <span
+                              className="min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm"
+                              title={row.symbol}
+                            >
+                              {row.symbol}
+                            </span>
+                          </div>
                         </div>
                         {row.refusal ? (
                           <RefusalNote refusal={row.refusal} />
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="px-1 py-2">
-                      <TradeBadge tone={row.winningSide ? "made" : "lost"}>
-                        {row.type}
-                      </TradeBadge>
-                    </TableCell>
-                    <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
-                      <span className="text-muted-foreground">
-                        {row.money === null ? "—" : formatWholeUsd(row.money)}
-                      </span>
-                    </TableCell>
+                    {shows("type") ? (
+                      <TableCell className="px-1 py-2">
+                        <TradeBadge tone={row.winningSide ? "made" : "lost"}>
+                          {row.type}
+                        </TradeBadge>
+                      </TableCell>
+                    ) : null}
+                    {shows("value") ? (
+                      <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                        <span className="text-muted-foreground">
+                          {row.money === null ? "—" : formatWholeUsd(row.money)}
+                        </span>
+                      </TableCell>
+                    ) : null}
                     {/* **A waiting level borrows the PnL column for its
                         distance** (Tyler, 14 Sep 2026). It is not a profit and
                         must never read as one, so it takes the muted colour
                         every other "nothing here" in this table wears, while a
                         real profit keeps the money colour and the weight. */}
+                    {shows("pnl") ? (
                     <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
                       {row.profit !== null ? (
                         <PnlAmount
@@ -486,6 +510,7 @@ export function WatchedOrdersList({
                         </span>
                       )}
                     </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -516,8 +541,8 @@ export function WatchedOrdersList({
  * which is not this screen. Counting them anyway took the coin off this panel
  * without putting it anywhere else: ARB, held by an automation on 16 Sep 2026,
  * was on the Positions tab and nowhere in Manual orders (Tyler). The rule is
- * now the one `smartOrdersYouPlaced` states, the same one the Positions tab
- * filters by, so the two lists can never disagree about which coins a
+ * now the one `smartOrdersYouPlaced` states, the same one the Grid and DCA
+ * blocks list by, so the blocks can never disagree about which coins a
  * strategy owns.
  *
  * Sorted by what was put in rather than by what it is worth now, so a row

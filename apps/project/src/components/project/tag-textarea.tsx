@@ -1,15 +1,16 @@
 import * as React from "react"
-import { ListTodoIcon, UsersIcon } from "lucide-react"
+import { ListTodoIcon, NotebookPenIcon, UsersIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Textarea } from "@/components/ui/textarea"
 import type { LinkChoice } from "@/lib/api/project/chat"
 import { PROJECT_TAG, linkQueryBefore, messageParts, tagQueryBefore } from "@/lib/project/mentions"
+import { isNoteLink } from "@/lib/project/notes"
 import { cn } from "@/lib/utils"
 
 export type Taggable = { id: string; name: string; avatarUrl: string }
 
-/** What # lists: tasks found by their title, and what to remember once one is picked. */
+/** What # lists: tasks and project notes found by their words, and what to remember once one is picked. */
 export type TaskLinking = {
   find: (typed: string) => Promise<LinkChoice[]>
   onPick: (task: LinkChoice) => void
@@ -144,7 +145,7 @@ export function TagTextarea({
         <ul
           id={listId}
           role="listbox"
-          aria-label={typing?.sign === "#" ? "Tasks to link" : listLabel}
+          aria-label={typing?.sign === "#" ? "Tasks and notes to link" : listLabel}
           className="absolute bottom-full left-0 z-10 mb-1 grid w-72 max-w-full gap-0.5 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
         >
           {choices.map((choice, index) => (
@@ -178,7 +179,11 @@ export function TagTextarea({
                 </>
               ) : (
                 <>
-                  <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  {isNoteLink(choice.id) ? (
+                    <NotebookPenIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  ) : (
+                    <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  )}
                   <span className="grid min-w-0">
                     <span className="truncate">{choice.label}</span>
                     <span className="truncate text-xs text-muted-foreground">{choice.task.projectName}</span>
@@ -248,9 +253,9 @@ export function TaggedWords({
 }: {
   body: string
   people: readonly { id: string; name: string }[]
-  /** Linked tasks this reader can open: task id to project id. */
+  /** Linked tasks and notes this reader can open: link id (a task's, or `note:` and a note's) to project id. */
   links?: Record<string, string>
-  onOpenTask?: (projectId: string, taskId: string) => void
+  onOpenTask?: (projectId: string, linkId: string) => void
 }) {
   return messageParts(body).map((part, index) => {
     if (part.kind === "text") return <React.Fragment key={index}>{part.text}</React.Fragment>
@@ -264,13 +269,13 @@ export function TaggedWords({
         </span>
       )
     }
-    const projectId = links[part.taskId]
+    const projectId = links[part.linkId]
     return projectId && onOpenTask ? (
       <button
         key={index}
         type="button"
         className="font-medium text-primary underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-        onClick={() => onOpenTask(projectId, part.taskId)}
+        onClick={() => onOpenTask(projectId, part.linkId)}
       >
         #{part.name}
       </button>

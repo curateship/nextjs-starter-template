@@ -268,7 +268,7 @@ describe("loadAiUsageDashboard", () => {
 
   it("adds the meter up by person, feature, model and day", async () => {
     await seedSpread()
-    const dashboard = await loadAiUsageDashboard("30d")
+    const dashboard = await loadAiUsageDashboard(30)
 
     expect(dashboard.totals).toEqual({
       costCents: 155,
@@ -298,20 +298,22 @@ describe("loadAiUsageDashboard", () => {
     expect(byModel["claude-opus-5"].costCents).toBe(55)
     expect(byModel["gpt-5"].costCents).toBe(100)
 
-    // Every day of the range is in the chart, and today carries the spend.
-    expect(dashboard.daily).toHaveLength(31)
+    // Every day of the range is in the chart, today being the 30th, and
+    // today carries the spend.
+    expect(dashboard.daily).toHaveLength(30)
     expect(dashboard.daily.at(-1)?.costCents).toBe(155)
     expect(dashboard.daily[3].costCents).toBe(0)
   })
 
   it("widens with the range instead of always reading 30 days", async () => {
     await seedSpread()
-    const wide = await loadAiUsageDashboard("90d")
+    const wide = await loadAiUsageDashboard(90)
     expect(wide.totals.calls).toBe(4)
     expect(wide.totals.costCents).toBe(1154)
-    // The current month can never contain the 45-day-old call.
-    const month = await loadAiUsageDashboard("month")
-    expect(month.totals.costCents).toBe(155)
+    // Today is since midnight UTC: the three calls made now, and one day.
+    const today = await loadAiUsageDashboard(1)
+    expect(today.totals.costCents).toBe(155)
+    expect(today.daily).toHaveLength(1)
   })
 
   it("keeps a deleted account's spend on the books, anonymously", async () => {
@@ -319,7 +321,7 @@ describe("loadAiUsageDashboard", () => {
       userId: null, provider: "anthropic", model: "claude-opus-5",
       feature: "automation", inputTokens: 5_000, outputTokens: 0, costCents: 3,
     })
-    const dashboard = await loadAiUsageDashboard("30d")
+    const dashboard = await loadAiUsageDashboard(30)
     const anonymous = dashboard.byPerson.find((row) => row.userId === null)
     expect(anonymous?.name).toBe("Deleted account")
     expect(anonymous?.costCents).toBe(3)
@@ -332,7 +334,7 @@ describe("loadAiUsageDashboard", () => {
     await seedSpread()
     await setAiAllowanceOverride("user-1", 500)
 
-    const dashboard = await loadAiUsageDashboard("30d")
+    const dashboard = await loadAiUsageDashboard(30)
     const byPerson = Object.fromEntries(
       dashboard.byPerson.map((row) => [row.userId, row])
     )

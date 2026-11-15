@@ -1,3 +1,4 @@
+import { FilesIcon } from "lucide-react"
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MAX_FRONT_PAGE_LISTED_PAGES } from "@/lib/pages/front-page"
@@ -57,7 +58,7 @@ export function FrontPageListedPagesEditor({
   }
 
   return (
-    <InspectorCard
+    <InspectorCard icon={<FilesIcon />}
       storageId="front-page-row-listed-pages"
       title="Pages"
       description={`Tick the pages to show as cards, up to ${MAX_FRONT_PAGE_LISTED_PAGES}. Each card shows the page's picture, its name and its description, which are set in that page's own Page settings.`}

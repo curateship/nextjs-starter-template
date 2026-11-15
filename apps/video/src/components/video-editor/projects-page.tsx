@@ -12,7 +12,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -49,7 +48,6 @@ import {
   type ProjectItem,
   type ProjectListResponse,
 } from "@/lib/api/video/projects"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -70,6 +68,7 @@ import {
 } from "@/components/video-editor/project-folders"
 import type { ProjectFolderSummary } from "@/lib/api/video/project-folders"
 import { ARCHIVED_PROJECTS, NO_FOLDER } from "@/lib/video/project-folders"
+import { PINNED_ROW_CLASS } from "@/lib/video/pinned-look"
 
 const projectsRoute = getRouteApi("/_authenticated/admin/video-editor/")
 
@@ -298,29 +297,19 @@ export function ProjectsPage({
     key = "bulk"
   ) {
     await run(key, async () => {
-      const { done_ids: done } = await archiveProjects(
+      await archiveProjects(
         targets.map((project) => project.id),
         archived
       )
       selection.clear()
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: targets.length - done.length,
-          one: "project",
-          many: "projects",
-          verb: archived ? "archived" : "brought back",
-        })
-      )
     })
   }
 
   async function handleDuplicate(project: ProjectItem) {
     await run(`duplicate:${project.id}`, async () => {
-      const copy = await duplicateProject(project.id)
+      await duplicateProject(project.id)
       await router.invalidate()
-      toast.success(`"${copy.name}" created.`)
     })
   }
 
@@ -364,15 +353,6 @@ export function ProjectsPage({
       setDeleteSummaryError(null)
       setCarouselChoice(null)
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: deleteTargets.length - deleted.length,
-          one: "project",
-          many: "projects",
-          verb: "deleted",
-        })
-      )
     })
   }
 
@@ -550,9 +530,8 @@ export function ProjectsPage({
             className={cn(
               "group",
               // A pinned project reads as pinned from across the list (Tyler,
-              // 17 Oct 2026), in the amber the app already uses for notices.
-              project.pinned &&
-                "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-400/10 dark:hover:bg-amber-400/15"
+              // 17 Oct 2026).
+              project.pinned && PINNED_ROW_CLASS
             )}
             rowAction={() => openEditor(project)}
           >

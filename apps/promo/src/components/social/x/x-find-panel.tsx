@@ -189,8 +189,6 @@ export function XFindPanel({
       if (sent.undoUntil) {
         setUndo({ replyId: sent.replyId, text: words, until: new Date(sent.undoUntil).getTime() })
         setClock(Date.now())
-      } else if (sent.runAfter) {
-        toast.success(xWaitingText(new Date(sent.runAfter), account.handle))
       }
       setSimilar(sent.similarTo)
       if (sent.similarTo) toast.warning(`It still goes. ${sent.similarTo}`)
@@ -222,7 +220,6 @@ export function XFindPanel({
             onClick={() =>
               void run("list", async () => {
                 await addToXList({ accountId: account.id, findId: post.id })
-                toast.success(`On its way to @${account.handle}'s X list. It shows on the Posts tab.`)
                 await onChanged()
               })
             }
@@ -442,7 +439,6 @@ export function XFindPanel({
                   setText(undo.text)
                   setUndo(null)
                   setSimilar("")
-                  toast.success("Taken back. Nothing was sent.")
                   await onChanged()
                 })
               }
@@ -472,7 +468,6 @@ export function XFindPanel({
               onClick={() =>
                 void run("post", async () => {
                   await takeBackXReply(held.replyId)
-                  toast.success("Cancelled. Nothing was sent.")
                   await onChanged()
                 })
               }

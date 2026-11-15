@@ -140,6 +140,20 @@ describe("music made to fit", () => {
     expect(row.metadata).toMatchObject({ videoId })
   })
 
+  it("is made for a Flow run with no video yet, charged to the step", async () => {
+    const made = await makeAiMusic({
+      userId: user.id,
+      mood: "warm lofi",
+      forMs: 300_000,
+      spend: { flowRunId: "run-1", flowStepId: "step-1" },
+    })
+    expect(made.lengthMs).toBe(300_000)
+    const rows = await database.select().from(customShellAiUsageEvents)
+    const row = rows.at(-1)!
+    expect(row.metadata).toMatchObject({ flowRunId: "run-1", flowStepId: "step-1", seconds: 300 })
+    expect(row.metadata).not.toHaveProperty("videoId")
+  })
+
   it("charges nothing and keeps nothing when ElevenLabs refuses", async () => {
     stand.answer = { status: 500, bytes: new Uint8Array() }
     await expect(makeAiMusic({ userId: user.id, videoId, mood: "calm" })).rejects.toThrow(

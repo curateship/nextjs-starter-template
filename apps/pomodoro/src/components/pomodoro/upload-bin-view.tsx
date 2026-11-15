@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, RotateCcwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -70,8 +69,7 @@ export function UploadBinView() {
         many: "files",
         verb: "brought back",
       })
-      if (result.done.length) toast.success(line)
-      else showErrorToast(line)
+      if (!result.done.length) showErrorToast(line)
     } catch (restoreError) {
       showErrorToast(getPomodoroUploadErrorMessage(restoreError))
     } finally {
@@ -214,7 +212,6 @@ export function UploadBinView() {
               verb: "removed for good",
             })
             if (result.kept) showErrorToast(line)
-            else toast.success(line)
             setConfirmingEmpty(false)
           } catch (emptyError) {
             showErrorToast(getPomodoroUploadErrorMessage(emptyError))

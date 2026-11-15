@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, SparklesIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { Button } from "@/components/ui/button"
@@ -110,9 +109,6 @@ export function SuggestIdeasDialog({
     })
     const result = made as MadePlan | null
     if (!ok || !result) return
-    const found = result.looked ? ` Google found ${result.placed} of ${result.created.length}.` : ""
-    const left = result.repeated ? ` ${places(result.repeated)} already on the trip ${result.repeated === 1 ? "was" : "were"} left out.` : ""
-    toast.success(`Added ${places(result.created.length)} to Ideas.${found}${left}`)
     onClose()
   }
 

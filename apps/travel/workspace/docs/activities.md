@@ -34,9 +34,11 @@ Tyler, 5 Nov 2026: "Row of small photos". A card holds up to 30 photos.
 - **The first photo is the card's picture,** the one on the board and behind
   the panel, and it has a ring round it. Dragging another photo to the front
   makes that one the card's picture.
-- **"+" at the end** adds more, uploaded or from Unsplash, the same two ways as
-  the picture. Each one is checked like the picture: one the person uploaded,
-  or Unsplash's with its credit.
+- **"+" at the end** opens the media library straight away, to upload a photo
+  or pick one already there (Tyler, 6 Nov 2026: "this didnt need to open a
+  dropdown. Just open it straight to the media picker"). With Unsplash set up,
+  an Unsplash button sits beside it. Each one is checked like the picture: one
+  the person uploaded, or Unsplash's with its credit.
 - **Clicking a photo** shows it large, with its credit, the arrows to the next
   and the one before, and Remove. Removing takes it off the card; the file
   stays in the media library.
@@ -74,24 +76,39 @@ the trip page.
 ## The ⋮ menu
 
 Tyler, 2 Nov 2026: "All of these are collapsible cards in a 3 dot dropdown ...
-and move delete there too." The ⋮ in the panel's header opens a menu drawn like
-the ⋮ on a task in Project. Each row shows what it holds now on the right and
-folds open to change it. Every field saves itself.
+and move delete there too." Since 6 Nov 2026 the ⋮ in the panel's header is
+the tabbed ⋮ of the Admin 3 panel design, drawn as Project's task ⋮ is
+(Tyler: "Look at the serttings dropdown, its not ui standard for example. fix
+them all"). Before, it was one folding row per part.
 
-- **Name and type,** and the Must do tick box (see "Must do" below).
-- **When:** the day (Ideas or Day N), start time, length in hours and minutes,
-  and nights for a stay. Nights shows for a Hotel or anything with nights set.
-  Moving to another day can be undone from the bar at the bottom. A card on a
-  day with no start time also has Part of the day: Any time, Morning,
-  Afternoon, Evening or Night (see [The day board](the-day-board.md)). The
-  row's summary reads "Day 2 · Morning".
-- **Weather,** after When, on a card on a dated day (Tyler, 4 Nov 2026: "put
-  it in the 3 dot dropdown right panel"). The row's summary is the day's
-  forecast, such as "18° / 9° · 70% rain", or "Usually 24° / 15°" past the
-  14-day forecast, or the holiday's name; folded open it shows the holiday,
-  then the forecast or "Usually 24° / 15° · rain on 8 of 30 days". A card in
-  Ideas, or a day with none of these, has no Weather row. The weather is
-  loaded once per trip page and shared by both panels
+- **Its shape:** 20.4rem wide, never past the screen less 2rem, with one
+  underlined tab, General. Travel's notes keep no earlier versions, so there
+  is no Versions tab.
+- **General is grouped rows:** a small grey heading, then one bordered list
+  with a line between rows. The rows are light grey, darker while pointed at
+  or open (Tyler, 6 Nov 2026: "make this bg light gray"). Each row is the name
+  on the left, muted, what it holds on the right, and an arrow. An empty value
+  reads "None" in grey.
+- **One press picks.** A row with choices drops them from the row, the
+  current one ticked, and a pick saves and closes. A typed value opens a
+  small box with its fields. Escape closes that box and leaves the menu open.
+- Every field saves itself. There is no Save button.
+
+The groups, in order:
+
+- **Activity:** Name, Type (with each type's icon, or No type), and Must do,
+  Yes or No (see "Must do" below).
+- **When:** Day (Ideas or Day N), then Time, which opens the start time, the
+  length in hours and minutes, and nights for a stay. Nights shows for a
+  Hotel or anything with nights set. A card on a day with no start time also has
+  Part of day: Any time, Morning, Afternoon, Evening or Night (see
+  [The day board](the-day-board.md)).
+- **The weather** sits under When's list, on a card on a dated day (Tyler,
+  4 Nov 2026: "put it in the 3 dot dropdown right panel"): the holiday, then
+  the forecast or "Usually 24° / 15° · rain on 8 of 30 days", then, for an
+  outdoor card with a start time, the chance of rain at its hour, such as
+  "40% rain at 2:30 PM" (Tyler, 6 Nov 2026: "Card + panel"; see The day
+  board). The weather is loaded once per trip page and shared by both panels
   (`useTripWeather`, `src/components/travel/day-weather.tsx`).
 - **Place:** a Google Maps link first (see below), then a search for the
   address. With Google on, picking a suggestion
@@ -104,41 +121,35 @@ folds open to change it. Every field saves itself.
   day it's open, the same move as on the card. With no start date the
   weekday isn't known, so it doesn't warn. Website and
   Menu open in a new tab, and Phone has a Call button.
-- **Cost:** in the trip's currency, added up in the trip's Money card.
-- **Picture:** upload one, or search Unsplash. An Unsplash photo shows its
-  photographer's credit.
+- **Money and picture:** Cost, in the trip's currency, added up in the trip's
+  Budget block; and Picture, uploaded or searched on Unsplash. An Unsplash photo
+  shows its photographer's credit.
 - **How was it:** once the activity is done or its day is over, 1 to 5 stars,
   "Would go again", and Save to saved places.
-- **Add tips** (see "Tips by AI" below), **Duplicate activity** and
-  **Delete activity** end the menu, under the one line. Delete moves it
-  to the trip's bin, with Undo. Delete is red.
+- **Under the groups:** Add tips (see "Tips by AI" below) and Duplicate
+  activity, then Delete activity in red under a line of its own. Delete moves
+  it to the trip's bin, where Put back returns it.
 
-The menu is drawn like Project's task menu (Tyler, 3 Nov 2026, from two
-pictures of it: "the items dont have dividers except the divider that
-seperate the delete"; then "duplicate goes here", with an arrow under the
-line). Its rows have no lines between them. The one line runs edge to edge
-under the last folding row, and Add tips, Duplicate activity and Delete
-activity sit under it. Every row is 32px tall, and the rows touch with no gap between
-them ("reduce space between items a bit").
-
-Inside a folding row the row's own name is the field's label, so a field on
+Inside a row's box the row's own name is the field's label, so a field on
 its own carries no second label on screen; screen readers still read one
 (Tyler, 4 Nov 2026: "Remove all these duplicate labels"). The Cost field says
-its money in its placeholder, such as "0 CAD". A row with several fields,
-such as When, keeps a label on each.
+its money in its placeholder, such as "0 CAD". A box with several fields,
+such as Time, keeps a label on each.
 
-Trip settings (the ⋮ in the trip's left panel), the schedule's "+ Add" and
-the ⋮ after its tabs are the same menu, built from the same file,
-the shell's `src/components/shared/folding-menu.tsx` (Tyler, 3 Nov 2026: "every time you created a dropdown,
-you made something different so all of the dropdown has slightly different
-ui"). A menu of actions alone, such as "+ Add", is as wide as its longest
-row ("Too much space here").
+The same menu, `TabbedMenu` with the rows in `pick-rows.tsx`, is Trip
+settings. The schedule's "+ Add" and
+the ⋮ at the end of its header are menus of actions, so they stay the shell's
+`src/components/shared/folding-menu.tsx` (Tyler, 3 Nov 2026: "every time you
+created a dropdown, you made something different so all of the dropdown has
+slightly different ui").
 
-The menu is 294px wide, and nothing inside it is ever wider: a long place
-name is cut short with "…" in its row (Tyler, 3 Nov 2026: "drop down gets
-cut off", when a long name pushed every field past the right edge). That is Project's 363px task menu made 10% narrower
-twice (Tyler, 3 Nov 2026: "Reduce the dropdown by 10%", then again "reduce
-dropdown with by 10%").
+## The footer: Done
+
+The open activity's state is pinned to the bottom of the panel, with a line
+above it, as Project's task footer is (the Admin 3 panel design, 6 Nov 2026).
+It reads "Not done yet" with Mark done, or "Done" with Mark not done. Done is
+the only state an activity has, since bookings went on 2 Nov 2026. With no
+signal there is no footer, since nothing could be saved.
 
 ## A Google Maps link fills it in
 
@@ -288,6 +299,9 @@ is skipped, with a message such as "Kinkaku-ji is already on Day 2."
   itself. A place typed by hand in the Place section is the person's own
   words, so it is never refused. Duplicate, Copy day and Copy trip copy on
   purpose and aren't checked.
+- **A place typed by hand** that matches another card is saved, and the
+  Place section shows the same line under the address, such as "The Vintage
+  Cafe is already on Day 1.", as a warning only.
 - **Known gap:** two different places with the same typed name, such as two
   "Starbucks", count as one when neither came from Google.
 - **The code:** `src/lib/travel/same-place.ts`, and `refuseSamePlace` in
@@ -338,22 +352,36 @@ Tyler, 4 Nov 2026: "Into the card's notes".
 ## Saved places
 
 Save to saved places copies the name, type, place, links, notes and picture.
+The copy is its own from then on, so editing a copy on a trip never changes
+the saved place, and editing the saved place never changes a copy.
 
-The Saved places window has two tabs, Saved and Go again (Tyler, 4 Nov 2026:
-"Tab in Saved places", "Ticked only"). Go again lists every place ticked
-"Would go again" in its How was it section, on any of the person's trips not
-in the Bin, newest trip first, each with its trip and day. Opened from a
-trip's Ideas column, each has Add to trip, which copies it into Ideas the way
-a saved place is copied, with no cost, rating or Done. Opened from the Trips
-table, each has Open trip, which opens that trip on that card. The list is
-`listGoAgain` in `src/server/travel/saved-places.ts`.
-The Trips table's Saved places button lists them and removes one. The bookmark
-on a trip's Ideas column adds one to that trip's Ideas. The copy is its own
-from then on, so editing it never changes the saved place.
+- **Away from a trip,** saved places live in the Trips dashboard's Places
+  section, with Go again and Been beside them ([The Trips dashboard](trips-dashboard.md)).
+  New place, Add to a trip on any day, editing and the Bin are there.
+- **Inside a trip,** "+ Add" → Saved places opens a window with two tabs,
+  Saved and Go again (Tyler, 4 Nov 2026: "Tab in Saved places", "Ticked
+  only"). Each place has Add to trip, which copies it into the trip's Ideas
+  with no cost, rating or Done. Its bin moves a saved place to Places' Bin.
+- **Go again** lists every place ticked "Would go again" in its How was it
+  section, on any of the person's trips not in the Bin, newest trip first,
+  each with its trip and day (`listGoAgain` in `src/server/travel/saved-places.ts`).
+
+**Editing a saved place** (Tyler, 6 Nov 2026: "Opens in the window"): in the
+window, clicking a saved place's name opens it with Back to saved places above
+it; on the Trips dashboard it opens in the right panel.
+
+- Its name saves 700ms after the last letter, when it's left, or on Enter. An
+  empty name is refused and stays as typed.
+- Its type and picture (an upload or Unsplash, with the credit) save the
+  moment they're picked, and its notes save themselves like any other note.
+- The notes offer Image, Video and Link blocks but not Place or Map, because a
+  saved place belongs to no trip; the server drops any that arrive.
+- The server side is `updateSavedPlace` in `saved-places.ts`, and the view is
+  `saved-place-editor.tsx`.
 
 ## Where it lives
 
 `src/components/travel/activity-panel.tsx`, `activity-notes.tsx`, `activity-photos-row.tsx`, `saving-document.tsx`,
-`activity-menu.tsx` and the `activity-*-fields.tsx` sections it folds open.
+`activity-menu.tsx` and the `activity-*-fields.tsx` fields its rows open.
 Saving is `src/server/travel/trips.ts` (`updateActivity`), saved places
 `saved-places.ts`.

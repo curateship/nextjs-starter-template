@@ -11,7 +11,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { GripVerticalIcon, Loader2Icon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ListingPicker } from "@/components/directory/listing-picker"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -243,7 +242,6 @@ export function GuideDialog({
         await saveGuide({ id, title, slug, ...rest, listingIds })
       }
       onSaved()
-      toast.success(guideId ? "Guide saved." : "Guide created.")
       onClose()
     } catch (error) {
       // Every refusal is about the title or the address, in the first card.

@@ -10,20 +10,16 @@ import { createDefaultMemberSections, type ShellSection } from "@/lib/custom-she
 import { testAppRoleOptions } from "@/lib/test-app-roles"
 import { consumeAuthToken, now } from "@/server/auth/security"
 import { createAccountByAdmin, updateUserRole } from "@/server/people/accounts"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import { inviteAccount } from "@/server/people/invite"
-import { loadMembershipSummary } from "@/server/people/membership"
 import { requireKnownRole, requireRoleFeature } from "@/server/people/roles"
 import {
   customShellAuthTokens,
-  customShellContacts,
   customShellUsers,
 } from "@/server/schema"
 import { sectionsForRole } from "@/server/shell-settings"
 import {
   createTestDatabase,
   insertUser,
-  insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
 
@@ -254,47 +250,5 @@ describe("each role's left menu", () => {
         roleSections: { venue_owner: saved },
       })
     ).toEqual([])
-  })
-})
-
-describe("code that used to treat every non-admin as a member", () => {
-  it("tags an employee's contact as an employee, and swaps the tag when the role changes", async () => {
-    const workspace = await insertWorkspace(database)
-    const employee = await insertUser(database, {
-      role: "employee",
-      currentWorkspaceId: workspace.id,
-    })
-    await syncContactsFromUsers(workspace.id, database)
-
-    const tagsOf = async () =>
-      (
-        await database
-          .select({ tags: customShellContacts.tags })
-          .from(customShellContacts)
-          .where(eq(customShellContacts.userId, employee.id))
-      )[0]?.tags
-
-    expect(await tagsOf()).toEqual(["employee"])
-
-    await database
-      .update(customShellUsers)
-      .set({ role: "member" })
-      .where(eq(customShellUsers.id, employee.id))
-    await syncContactsFromUsers(workspace.id, database)
-    expect(await tagsOf()).toEqual(["member"])
-  })
-
-  it("counts members by name on Membership, and keeps app roles off the free plan", async () => {
-    await insertUser(database, { role: "admin" })
-    await insertUser(database, { role: "member" })
-    await insertUser(database, { role: "employee" })
-    await insertUser(database, { role: "employee" })
-
-    const summary = await loadMembershipSummary(database)
-    expect(summary.admins).toBe(1)
-    expect(summary.members).toBe(1)
-    // The admin and the member; neither employee holds a plan.
-    const free = summary.planMembership.find((plan) => !plan.isPaid)
-    expect(free?.people).toBe(2)
   })
 })

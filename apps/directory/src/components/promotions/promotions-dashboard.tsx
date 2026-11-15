@@ -7,7 +7,6 @@ import {
   TagIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PromotionDialog } from "@/components/promotions/promotion-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -44,7 +43,6 @@ import {
   LISTING_STATUS_LABELS,
   type ListingStatusFilter,
 } from "@/lib/directory/listing-sort"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useBulkChange } from "@/lib/hooks/use-bulk-change"
@@ -166,11 +164,9 @@ export function PromotionsDashboard({
 
   const bulk = useBulkChange({
     one: "deal",
-    many: "deals",
     rows: data.promotions,
     // A deal is filed under its listing, not under the site's categories, so
     // the action bar here is publishing and nothing else.
-    categories: null,
     send: changePromotions,
     describeError: getPromotionErrorMessage,
     onChanged: () => router.invalidate(),
@@ -188,15 +184,6 @@ export function PromotionsDashboard({
           "No deals were deleted. They may already be gone. The list has been refreshed."
         )
       }
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: kept.length,
-          one: "deal",
-          many: "deals",
-          verb: "deleted",
-        })
-      )
       setConfirm(null)
     })
   }

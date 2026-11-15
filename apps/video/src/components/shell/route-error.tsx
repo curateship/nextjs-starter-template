@@ -18,7 +18,7 @@ import { ErrorRow } from "@/components/ui/error-row"
  * Every admin route builds its error component from this one call, passing the
  * message helper for whatever it loads:
  *
- *   errorComponent: routeErrorComponent(getAdminOverviewErrorMessage)
+ *   errorComponent: routeErrorComponent(getCrmErrorMessage)
  *
  * A real-height card matters here: an empty surface is a one-pixel hairline
  * under the header, which looks like a rendering mistake instead of an error.
@@ -40,9 +40,10 @@ export function routeErrorComponent(getMessage: (error: unknown) => string) {
 }
 
 /**
- * A failed public loader stays inside the signed-out frame. The address does
- * not change, Try again repeats that page's loader, and sign in is a useful
- * way out for a visitor even when the page keeps failing.
+ * A failed public loader shows its card alone in the middle of the page, with
+ * no menu and no footer, as the 404 page does. The address does not change,
+ * Try again repeats that page's loader, and sign in is a useful way out for a
+ * visitor even when the page keeps failing.
  */
 export function visitorRouteErrorComponent(
   getMessage: (error: unknown) => string = getVisitorPageErrorMessage
@@ -52,6 +53,7 @@ export function visitorRouteErrorComponent(
 
     return (
       <AuthShell
+        bare
         title="This page could not be loaded"
         description={getMessage(error)}
         footer={

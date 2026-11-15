@@ -2,16 +2,10 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import {
   BrushCleaningIcon,
-  RadarIcon,
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
 import { LoadingRow } from "@/components/ui/loading-row"
-import {
-  DashboardCardHeader,
-  dashboardCardHeadingClassName,
-} from "@/components/shared/dashboard-card-header"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,11 +13,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Tooltip,
@@ -31,6 +20,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { MarketScannerSettings } from "@/components/trade/market-scanner-settings"
+import {
+  BlockHeadingActions,
+  useBlockCount,
+  useBlockOpen,
+} from "@/components/trade/notes/trade-block-views"
 import { loadMarketScannerSettings } from "@/lib/api/trade/market-scanner"
 import { marketChartHref, type MarketCatalog } from "@/lib/protocols/contracts"
 import {
@@ -49,20 +43,15 @@ type Props = {
   catalogs: readonly MarketCatalog[]
   onSelectMarket: (key: string) => void
   selectedMarketKey: string | null
-  /**
-   * A line in the phone's market menu, in place of the radar button. It is
-   * handed the count so the line can carry the same red number.
-   */
-  renderTrigger?: (newCount: number) => React.ReactElement
 }
 
 /**
- * The market scanner, opened from the radar button after the siren in the
- * chart header (Tyler, 15 Oct 2026). It used to fill the left panel.
+ * The market scanner, the dashboard's Scanner block (the Admin 3 panel
+ * design, 7 Nov 2026). Its cog and broom sit in the block's heading.
  *
- * The scanner keeps running with the menu shut, so the red number on the radar
- * can count what it found since the list was last looked at. Opening the menu
- * clears the number, the same way the siren's does.
+ * The scanner keeps running with the block folded, so the heading can count
+ * what it found since the list was last looked at. An open block counts what
+ * it shows as seen, as the Alerts block does.
  */
 export function MarketScannerMenu(props: Props) {
   const [opening, setOpening] = React.useState<Awaited<
@@ -70,8 +59,8 @@ export function MarketScannerMenu(props: Props) {
   > | null>(null)
   const [failed, setFailed] = React.useState(false)
   const [editing, setEditing] = React.useState(false)
-  const [open, setOpen] = React.useState(false)
-  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  // The cog, which focus comes back to when the settings window closes.
+  const cogRef = React.useRef<HTMLButtonElement>(null)
   const load = React.useCallback(() => {
     void loadMarketScannerSettings()
       .then((answer) => {
@@ -81,32 +70,19 @@ export function MarketScannerMenu(props: Props) {
       .catch(() => setFailed(true))
   }, [])
   React.useEffect(load, [load])
-  // The settings window is a modal of its own, so the menu shuts first and
-  // focus comes back to the radar when the window closes.
-  const edit = React.useCallback(() => {
-    setOpen(false)
-    setEditing(true)
-  }, [])
+  const edit = React.useCallback(() => setEditing(true), [])
   return (
     <>
       {opening ? (
         <ScannerResults
           {...props}
           settings={opening.settings}
-          open={open}
-          onOpenChange={setOpen}
-          triggerRef={triggerRef}
+          cogRef={cogRef}
           onEdit={edit}
         />
       ) : (
-        <ScannerPopover
-          open={open}
-          onOpenChange={setOpen}
-          triggerRef={triggerRef}
-          newCount={0}
-          renderTrigger={props.renderTrigger}
-        >
-          <ScannerHeader />
+        <ScannerFrame>
+          <ScannerHeader cogRef={cogRef} />
           <div className="p-3 text-sm text-muted-foreground">
             {failed ? (
               <>
@@ -119,13 +95,13 @@ export function MarketScannerMenu(props: Props) {
               <LoadingRow label="Reading scanner settings" />
             )}
           </div>
-        </ScannerPopover>
+        </ScannerFrame>
       )}
       {editing && opening ? (
         <MarketScannerSettings
           settings={opening.settings}
           venues={opening.venues}
-          triggerRef={triggerRef}
+          triggerRef={cogRef}
           onClose={() => setEditing(false)}
           onSave={(settings) => {
             setOpening({ ...opening, settings })
@@ -137,65 +113,9 @@ export function MarketScannerMenu(props: Props) {
   )
 }
 
-/** The radar button with its red count, and the menu it opens. */
-function ScannerPopover({
-  open,
-  onOpenChange,
-  triggerRef,
-  newCount,
-  renderTrigger,
-  children,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  triggerRef: React.RefObject<HTMLButtonElement | null>
-  newCount: number
-  renderTrigger?: (newCount: number) => React.ReactElement
-  children: React.ReactNode
-}) {
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild ref={triggerRef}>
-        {renderTrigger ? (
-          renderTrigger(newCount)
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="relative"
-            aria-label={
-              newCount > 0
-                ? `Open market scanner, ${newCount} new`
-                : "Open market scanner"
-            }
-          >
-            <RadarIcon className="size-4" />
-            {newCount > 0 ? (
-              <Badge
-                variant="destructive"
-                aria-hidden
-                className="pointer-events-none absolute -top-1 -right-1 min-w-5 border-2 border-background px-1 text-[0.625rem] leading-none font-semibold tabular-nums"
-              >
-                {newCount > 99 ? "99+" : newCount}
-              </Badge>
-            ) : null}
-          </Button>
-        )}
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        collisionPadding={12}
-        sideOffset={8}
-        style={{
-          maxHeight: "var(--radix-popover-content-available-height)",
-        }}
-        className="flex h-[28rem] w-[calc(100vw-2rem)] max-w-96 flex-col gap-0 overflow-hidden p-0"
-      >
-        {children}
-      </PopoverContent>
-    </Popover>
-  )
+/** The block's body: the list in place, its own height, scrolling inside. */
+function ScannerFrame({ children }: { children: React.ReactNode }) {
+  return <div className="flex h-80 min-h-0 flex-col overflow-hidden">{children}</div>
 }
 
 /** One match, told apart from a later match on the same market. */
@@ -257,24 +177,19 @@ function scannerResultDetails(row: ScannerResult) {
 function ScannerHeader({
   onEdit,
   onClearAll,
+  cogRef,
 }: {
   onEdit?: () => void
   onClearAll?: () => void
+  /** The cog, so the settings window can hand focus back to it. */
+  cogRef: React.RefObject<HTMLButtonElement | null>
 }) {
-  return (
-    <DashboardCardHeader>
-      <RadarIcon
-        aria-hidden="true"
-        className="size-4 shrink-0 text-muted-foreground"
-      />
-      <h2
-        className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}
-      >
-        Market scanner
-      </h2>
+  const buttons = (
+    <>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            ref={cogRef}
             variant="ghost"
             size="icon"
             aria-label="Market scanner settings"
@@ -304,8 +219,10 @@ function ScannerHeader({
           <TooltipContent>Clear all matches</TooltipContent>
         </Tooltip>
       ) : null}
-    </DashboardCardHeader>
+    </>
   )
+  // The block's own heading row holds them.
+  return <BlockHeadingActions>{buttons}</BlockHeadingActions>
 }
 
 function ScannerResults({
@@ -314,16 +231,11 @@ function ScannerResults({
   catalogs,
   onSelectMarket,
   selectedMarketKey,
-  renderTrigger,
-  open,
-  onOpenChange,
-  triggerRef,
+  cogRef,
   onEdit,
 }: Props & {
   settings: ScannerSettings
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  triggerRef: React.RefObject<HTMLButtonElement | null>
+  cogRef: React.RefObject<HTMLButtonElement | null>
   onEdit: () => void
 }) {
   const { snapshot, retry, dismiss, dismissAll } = useMarketScanner(
@@ -350,24 +262,22 @@ function ScannerResults({
   const readingMarkets =
     settings.enabled && !snapshot.loaded && snapshot.errors.length === 0
   const [seen, markSeen] = useSeenResults(accountId)
+  const open = useBlockOpen()
   const ids = snapshot.rows.map(resultId)
   const newCount = open ? 0 : ids.filter((id) => !seen.has(id)).length
+  // An open block counts what it shows as seen, and folding it lets the
+  // list fall back into its own order.
+  const idsKey = ids.join("\n")
+  React.useEffect(() => {
+    if (open) markSeen(idsKey ? idsKey.split("\n") : [])
+    else setOrder(null)
+  }, [open, idsKey, markSeen])
+  useBlockCount(newCount)
   return (
     <>
-      <ScannerPopover
-        open={open}
-        onOpenChange={(next) => {
-          // Both ways round, as the siren does: opening counts what is on
-          // screen as seen, and closing catches what arrived while it was up.
-          markSeen(ids)
-          if (!next) setOrder(null)
-          onOpenChange(next)
-        }}
-        triggerRef={triggerRef}
-        newCount={newCount}
-        renderTrigger={renderTrigger}
-      >
+      <ScannerFrame>
         <ScannerHeader
+          cogRef={cogRef}
           onEdit={onEdit}
           onClearAll={rows.length > 0 ? dismissAll : undefined}
         />
@@ -557,7 +467,7 @@ function ScannerResults({
             </DropdownMenu>
           ) : null}
         </ScrollArea>
-      </ScannerPopover>
+      </ScannerFrame>
     </>
   )
 }

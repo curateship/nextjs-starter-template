@@ -35,8 +35,10 @@ import type { ShellConfig } from "@/lib/custom-shell"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import {
   useBlankSpaceDoubleClick,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
+import { cn } from "@/lib/utils"
 import { panelLayoutKey, useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
@@ -116,6 +118,22 @@ function draftOf(row: FrontPageRow): FrontPageRowDraft {
   return draft
 }
 
+/** The builder's parts, for a screen that lays them out itself. */
+export type FrontPageEditorParts = {
+  /** The kinds a page may hold, picked or dragged in. */
+  kinds: React.ReactNode
+  /** This page's blocks, in the order a visitor reads them. */
+  list: React.ReactNode
+  /** The picked block's fields, or the page's own settings. */
+  panel: React.ReactNode
+  /** "Block" while one is picked, "Page" otherwise. */
+  panelLabel: string
+  /** The block picked, so a phone can bring its panel forward. */
+  selectedId: string | null
+  /** The builder's confirm windows. */
+  windows: React.ReactNode
+}
+
 /**
  * The front page, built from blocks, on one screen.
  *
@@ -135,7 +153,16 @@ export function FrontPageEditor({
   pageChoices,
   config,
   onConfigChange,
+  frame,
 }: {
+  /**
+   * Given, the builder hands its parts to the screen around it rather than
+   * drawing its own three panels: the Admin dashboard puts the kinds and the
+   * page's blocks in its middle and the picked block on its right, as an
+   * open automation does (Tyler, 9 Nov 2026: "Clicking on editing a page
+   * should not forward me to an isolated page editor").
+   */
+  frame?: (parts: FrontPageEditorParts) => React.ReactNode
   page: PublicPageRow
   /** The row behind a page an admin added, or null for one the code declares. */
   writtenPage: WrittenPage | null
@@ -187,8 +214,12 @@ export function FrontPageEditor({
   const kindsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const panelRef = React.useRef<PanelImperativeHandle | null>(null)
   const layout = useRememberedPanelLayout(panelLayoutKey.frontPageEditor)
-  const toggleKinds = usePanelToggle(kindsPanelRef)
-  const togglePanel = usePanelToggle(panelRef)
+  // Every fold and open slides rather than snapping (`usePanelFold`).
+  const { fold, className: foldingClassName } = usePanelFold()
+  const snapKinds = usePanelToggle(kindsPanelRef)
+  const toggleKinds = React.useCallback(() => fold(snapKinds), [fold, snapKinds])
+  const snapPanel = usePanelToggle(panelRef)
+  const togglePanel = React.useCallback(() => fold(snapPanel), [fold, snapPanel])
   const kindsDoubleClick = useBlankSpaceDoubleClick(toggleKinds)
   const panelDoubleClick = useBlankSpaceDoubleClick(togglePanel)
 
@@ -469,23 +500,88 @@ export function FrontPageEditor({
     />
   )
 
+  const windows = (
+    <>
+      <ConfirmDialog
+        open={discarding !== null}
+        onOpenChange={(open) => {
+          if (!open) setDiscarding(null)
+        }}
+        title="Throw this block away?"
+        // The only edits that can be lost now are the ones that cannot be
+        // saved, because everything else saves itself. So the question is
+        // about a block that is not finished rather than about unsaved work.
+        description={
+          selection
+            ? `It is not on the page yet: ${lowerFirst(
+                frontPageBlockProblem(selection.draft) ?? ""
+              )} Leaving now throws away what has been typed into it.`
+            : null
+        }
+        confirmLabel="Throw it away"
+        cancelLabel="Keep editing"
+        onConfirm={() => {
+          const run = discarding?.run
+          setDiscarding(null)
+          run?.()
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        title="Delete this block?"
+        description={
+          pendingDelete
+            ? `${pendingDelete.heading} will come off the public front page.`
+            : null
+        }
+        confirmLabel="Delete block"
+        loading={busy}
+        onConfirm={() => {
+          if (pendingDelete) void deleteBlock(pendingDelete)
+        }}
+      />
+    </>
+  )
+
+  // Escape backs out of the open block, through the same guard the panel's
+  // own way out uses rather than a second way out that could drift from it.
+  const onEscape = (event: React.KeyboardEvent) => {
+    if (event.key !== "Escape" || !selection) return
+    leaveSelection(() => setSelection(null))
+  }
+
+  if (frame) {
+    // Each part keeps the same Escape, wherever the screen around puts it.
+    const withEscape = (part: React.ReactNode) => (
+      <div className="contents" onKeyDown={onEscape}>
+        {part}
+      </div>
+    )
+    return frame({
+      kinds: withEscape(kinds),
+      list: withEscape(list),
+      panel: withEscape(panel),
+      panelLabel: selection ? "Block" : "Page",
+      selectedId: selection?.id ?? null,
+      windows,
+    })
+  }
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
       style={{ gap: pageGutter }}
-      onKeyDown={(event) => {
-        // Escape backs out of the open block, through the same guard the panel's
-        // own way out uses rather than a second way out that could drift from it.
-        if (event.key !== "Escape" || !selection) return
-        leaveSelection(() => setSelection(null))
-      }}
+      onKeyDown={onEscape}
     >
       {desktop ? (
         <ResizablePanelGroup
-          key={layout.layoutKey}
+          groupRef={layout.groupRef}
           orientation="horizontal"
-          className="min-h-0 flex-1"
-          defaultLayout={layout.defaultLayout}
+          className={cn("min-h-0 flex-1", foldingClassName)}
           onLayoutChanged={layout.onLayoutChanged}
         >
           <ResizablePanel
@@ -585,48 +681,7 @@ export function FrontPageEditor({
         </Tabs>
       )}
 
-      <ConfirmDialog
-        open={discarding !== null}
-        onOpenChange={(open) => {
-          if (!open) setDiscarding(null)
-        }}
-        title="Throw this block away?"
-        // The only edits that can be lost now are the ones that cannot be
-        // saved, because everything else saves itself. So the question is
-        // about a block that is not finished rather than about unsaved work.
-        description={
-          selection
-            ? `It is not on the page yet: ${lowerFirst(
-                frontPageBlockProblem(selection.draft) ?? ""
-              )} Leaving now throws away what has been typed into it.`
-            : null
-        }
-        confirmLabel="Throw it away"
-        cancelLabel="Keep editing"
-        onConfirm={() => {
-          const run = discarding?.run
-          setDiscarding(null)
-          run?.()
-        }}
-      />
-
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDelete(null)
-        }}
-        title="Delete this block?"
-        description={
-          pendingDelete
-            ? `${pendingDelete.heading} will come off the public front page.`
-            : null
-        }
-        confirmLabel="Delete block"
-        loading={busy}
-        onConfirm={() => {
-          if (pendingDelete) void deleteBlock(pendingDelete)
-        }}
-      />
+      {windows}
     </div>
   )
 }

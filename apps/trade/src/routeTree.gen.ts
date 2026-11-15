@@ -32,13 +32,10 @@ import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
-import { Route as AuthenticatedBacktestsRouteImport } from './routes/_authenticated/backtests'
+import { Route as AuthenticatedBotsRouteImport } from './routes/_authenticated/bots'
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
-import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
 import { Route as AuthenticatedFollowingRouteImport } from './routes/_authenticated/following'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedPnlRouteImport } from './routes/_authenticated/pnl'
-import { Route as AuthenticatedSocialRouteImport } from './routes/_authenticated/social'
 import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -51,78 +48,50 @@ import { Route as ToolsWhatIfRouteImport } from './routes/tools_.what-if'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
+import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
-import { Route as AuthenticatedAdminAsterRouteImport } from './routes/_authenticated/admin/aster'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
-import { Route as AuthenticatedAdminBnbRouteImport } from './routes/_authenticated/admin/bnb'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminCopyTradingRouteImport } from './routes/_authenticated/admin/copy-trading'
 import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminHyperLiquidRouteImport } from './routes/_authenticated/admin/hyper-liquid'
-import { Route as AuthenticatedAdminKucoinRouteImport } from './routes/_authenticated/admin/kucoin'
-import { Route as AuthenticatedAdminLighterRouteImport } from './routes/_authenticated/admin/lighter'
 import { Route as AuthenticatedAdminMarketsRouteImport } from './routes/_authenticated/admin/markets'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
-import { Route as AuthenticatedAdminPhemexRouteImport } from './routes/_authenticated/admin/phemex'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
 import { Route as AuthenticatedAdminProfilesRouteImport } from './routes/_authenticated/admin/profiles'
-import { Route as AuthenticatedAdminRecipesRouteImport } from './routes/_authenticated/admin/recipes'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminSolanaRouteImport } from './routes/_authenticated/admin/solana'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
-import { Route as AuthenticatedAdminTradingOverviewRouteImport } from './routes/_authenticated/admin/trading-overview'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
-import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_authenticated/backtests_.$groupId'
-import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
-import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
-import { Route as AuthenticatedFlowRunsRunIdRouteImport } from './routes/_authenticated/flow-runs_.$runId'
-import { Route as AuthenticatedProtocolsApexRouteImport } from './routes/_authenticated/protocols/apex'
-import { Route as AuthenticatedProtocolsAsterRouteImport } from './routes/_authenticated/protocols/aster'
-import { Route as AuthenticatedProtocolsBinanceRouteImport } from './routes/_authenticated/protocols/binance'
-import { Route as AuthenticatedProtocolsBnbRouteImport } from './routes/_authenticated/protocols/bnb'
-import { Route as AuthenticatedProtocolsEdgexRouteImport } from './routes/_authenticated/protocols/edgex'
-import { Route as AuthenticatedProtocolsHyperLiquidRouteImport } from './routes/_authenticated/protocols/hyper-liquid'
-import { Route as AuthenticatedProtocolsKucoinRouteImport } from './routes/_authenticated/protocols/kucoin'
-import { Route as AuthenticatedProtocolsLighterRouteImport } from './routes/_authenticated/protocols/lighter'
-import { Route as AuthenticatedProtocolsPhemexRouteImport } from './routes/_authenticated/protocols/phemex'
-import { Route as AuthenticatedProtocolsRobinhoodRouteImport } from './routes/_authenticated/protocols/robinhood'
-import { Route as AuthenticatedProtocolsSolanaRouteImport } from './routes/_authenticated/protocols/solana'
-import { Route as AuthenticatedSocialHandleRouteImport } from './routes/_authenticated/social_.$handle'
-import { Route as AuthenticatedSocialManageRouteImport } from './routes/_authenticated/social_.manage'
+import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog_.whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as TShareImageHandleRouteImport } from './routes/t.share-image.$handle'
 import { Route as ToolsConvertPairRouteImport } from './routes/tools_.convert_.$pair'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
-import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
-import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
-import { Route as AuthenticatedAdminRecipesRecipeIdRouteImport } from './routes/_authenticated/admin/recipes_.$recipeId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSettingsGoalsRouteImport } from './routes/_authenticated/admin/settings_.goals'
 import { Route as AuthenticatedAdminSettingsMarketsRouteImport } from './routes/_authenticated/admin/settings_.markets'
 import { Route as AuthenticatedAdminSettingsTradingEngineRouteImport } from './routes/_authenticated/admin/settings_.trading-engine'
 import { Route as AuthenticatedAdminSettingsTradingRulesRouteImport } from './routes/_authenticated/admin/settings_.trading-rules'
-import { Route as AuthenticatedAdminSettingsTradingWidgetsRouteImport } from './routes/_authenticated/admin/settings_.trading-widgets'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
-import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1CrmFilesMessageIdIndexRouteImport } from './routes/api/v1/crm/files/$messageId/$index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -238,19 +207,14 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBacktestsRoute = AuthenticatedBacktestsRouteImport.update({
-  id: '/backtests',
-  path: '/backtests',
+const AuthenticatedBotsRoute = AuthenticatedBotsRouteImport.update({
+  id: '/bots',
+  path: '/bots',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedChangelogRoute = AuthenticatedChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedFlowRunsRoute = AuthenticatedFlowRunsRouteImport.update({
-  id: '/flow-runs',
-  path: '/flow-runs',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedFollowingRoute = AuthenticatedFollowingRouteImport.update({
@@ -261,16 +225,6 @@ const AuthenticatedFollowingRoute = AuthenticatedFollowingRouteImport.update({
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedPnlRoute = AuthenticatedPnlRouteImport.update({
-  id: '/pnl',
-  path: '/pnl',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedSocialRoute = AuthenticatedSocialRouteImport.update({
-  id: '/social',
-  path: '/social',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
@@ -334,28 +288,24 @@ const AuthenticatedAdminAiUsageRoute =
     path: '/ai-usage',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAnalyticsRoute =
+  AuthenticatedAdminAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAnnouncementsRoute =
   AuthenticatedAdminAnnouncementsRouteImport.update({
     id: '/announcements',
     path: '/announcements',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminAsterRoute = AuthenticatedAdminAsterRouteImport.update({
-  id: '/aster',
-  path: '/aster',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminAutomationsRoute =
   AuthenticatedAdminAutomationsRouteImport.update({
     id: '/automations',
     path: '/automations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminBnbRoute = AuthenticatedAdminBnbRouteImport.update({
-  id: '/bnb',
-  path: '/bnb',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminContactsRoute =
   AuthenticatedAdminContactsRouteImport.update({
     id: '/contacts',
@@ -389,24 +339,6 @@ const AuthenticatedAdminFeedbackRoute =
   AuthenticatedAdminFeedbackRouteImport.update({
     id: '/feedback',
     path: '/feedback',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminHyperLiquidRoute =
-  AuthenticatedAdminHyperLiquidRouteImport.update({
-    id: '/hyper-liquid',
-    path: '/hyper-liquid',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminKucoinRoute =
-  AuthenticatedAdminKucoinRouteImport.update({
-    id: '/kucoin',
-    path: '/kucoin',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminLighterRoute =
-  AuthenticatedAdminLighterRouteImport.update({
-    id: '/lighter',
-    path: '/lighter',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminMarketsRoute =
@@ -443,12 +375,6 @@ const AuthenticatedAdminPagesRoute = AuthenticatedAdminPagesRouteImport.update({
   path: '/pages',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminPhemexRoute =
-  AuthenticatedAdminPhemexRouteImport.update({
-    id: '/phemex',
-    path: '/phemex',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
@@ -458,12 +384,6 @@ const AuthenticatedAdminProfilesRoute =
   AuthenticatedAdminProfilesRouteImport.update({
     id: '/profiles',
     path: '/profiles',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminRecipesRoute =
-  AuthenticatedAdminRecipesRouteImport.update({
-    id: '/recipes',
-    path: '/recipes',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminReferralsRoute =
@@ -484,22 +404,10 @@ const AuthenticatedAdminSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminSolanaRoute =
-  AuthenticatedAdminSolanaRouteImport.update({
-    id: '/solana',
-    path: '/solana',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminSystemEmailsRoute =
   AuthenticatedAdminSystemEmailsRouteImport.update({
     id: '/system-emails',
     path: '/system-emails',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminTradingOverviewRoute =
-  AuthenticatedAdminTradingOverviewRouteImport.update({
-    id: '/trading-overview',
-    path: '/trading-overview',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTrafficRoute =
@@ -513,106 +421,10 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedBacktestsGroupIdRoute =
-  AuthenticatedBacktestsGroupIdRouteImport.update({
-    id: '/backtests_/$groupId',
-    path: '/backtests/$groupId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedChangelogIndexRoute =
-  AuthenticatedChangelogIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedChangelogRoute,
-  } as any)
 const AuthenticatedChangelogWhatsNewRoute =
   AuthenticatedChangelogWhatsNewRouteImport.update({
-    id: '/whats-new',
-    path: '/whats-new',
-    getParentRoute: () => AuthenticatedChangelogRoute,
-  } as any)
-const AuthenticatedFlowRunsRunIdRoute =
-  AuthenticatedFlowRunsRunIdRouteImport.update({
-    id: '/flow-runs_/$runId',
-    path: '/flow-runs/$runId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsApexRoute =
-  AuthenticatedProtocolsApexRouteImport.update({
-    id: '/protocols/apex',
-    path: '/protocols/apex',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsAsterRoute =
-  AuthenticatedProtocolsAsterRouteImport.update({
-    id: '/protocols/aster',
-    path: '/protocols/aster',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsBinanceRoute =
-  AuthenticatedProtocolsBinanceRouteImport.update({
-    id: '/protocols/binance',
-    path: '/protocols/binance',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsBnbRoute =
-  AuthenticatedProtocolsBnbRouteImport.update({
-    id: '/protocols/bnb',
-    path: '/protocols/bnb',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsEdgexRoute =
-  AuthenticatedProtocolsEdgexRouteImport.update({
-    id: '/protocols/edgex',
-    path: '/protocols/edgex',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsHyperLiquidRoute =
-  AuthenticatedProtocolsHyperLiquidRouteImport.update({
-    id: '/protocols/hyper-liquid',
-    path: '/protocols/hyper-liquid',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsKucoinRoute =
-  AuthenticatedProtocolsKucoinRouteImport.update({
-    id: '/protocols/kucoin',
-    path: '/protocols/kucoin',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsLighterRoute =
-  AuthenticatedProtocolsLighterRouteImport.update({
-    id: '/protocols/lighter',
-    path: '/protocols/lighter',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsPhemexRoute =
-  AuthenticatedProtocolsPhemexRouteImport.update({
-    id: '/protocols/phemex',
-    path: '/protocols/phemex',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsRobinhoodRoute =
-  AuthenticatedProtocolsRobinhoodRouteImport.update({
-    id: '/protocols/robinhood',
-    path: '/protocols/robinhood',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedProtocolsSolanaRoute =
-  AuthenticatedProtocolsSolanaRouteImport.update({
-    id: '/protocols/solana',
-    path: '/protocols/solana',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSocialHandleRoute =
-  AuthenticatedSocialHandleRouteImport.update({
-    id: '/social_/$handle',
-    path: '/social/$handle',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSocialManageRoute =
-  AuthenticatedSocialManageRouteImport.update({
-    id: '/social_/manage',
-    path: '/social/manage',
+    id: '/changelog_/whats-new',
+    path: '/changelog/whats-new',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
@@ -646,18 +458,6 @@ const AuthenticatedAccountBillingSuccessRoute =
     path: '/billing/success',
     getParentRoute: () => AuthenticatedAccountRoute,
   } as any)
-const AuthenticatedAdminAutomationsAutomationIdRoute =
-  AuthenticatedAdminAutomationsAutomationIdRouteImport.update({
-    id: '/automations_/$automationId',
-    path: '/automations/$automationId',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminAutomationsTemplatesRoute =
-  AuthenticatedAdminAutomationsTemplatesRouteImport.update({
-    id: '/automations_/templates',
-    path: '/automations/templates',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
   AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
     id: '/newsletter_/$broadcastId',
@@ -668,12 +468,6 @@ const AuthenticatedAdminPagesEditRoute =
   AuthenticatedAdminPagesEditRouteImport.update({
     id: '/pages_/edit',
     path: '/pages/edit',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminRecipesRecipeIdRoute =
-  AuthenticatedAdminRecipesRecipeIdRouteImport.update({
-    id: '/recipes_/$recipeId',
-    path: '/recipes/$recipeId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminSettingsTabRoute =
@@ -706,12 +500,6 @@ const AuthenticatedAdminSettingsTradingRulesRoute =
     path: '/settings/trading-rules',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminSettingsTradingWidgetsRoute =
-  AuthenticatedAdminSettingsTradingWidgetsRouteImport.update({
-    id: '/settings_/trading-widgets',
-    path: '/settings/trading-widgets',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminSystemEmailsKindRoute =
   AuthenticatedAdminSystemEmailsKindRouteImport.update({
     id: '/system-emails_/$kind',
@@ -739,17 +527,17 @@ const ApiV1TrafficViewRoute = ApiV1TrafficViewRouteImport.update({
   path: '/api/v1/traffic/view',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
-  AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport.update({
-    id: '/automations_/templates_/$templateKey',
-    path: '/automations/templates/$templateKey',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1CrmFilesMessageIdIndexRoute =
+  ApiV1CrmFilesMessageIdIndexRouteImport.update({
+    id: '/api/v1/crm/files/$messageId/$index',
+    path: '/api/v1/crm/files/$messageId/$index',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -774,13 +562,10 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
-  '/backtests': typeof AuthenticatedBacktestsRoute
-  '/changelog': typeof AuthenticatedChangelogRouteWithChildren
-  '/flow-runs': typeof AuthenticatedFlowRunsRoute
+  '/bots': typeof AuthenticatedBotsRoute
+  '/changelog': typeof AuthenticatedChangelogRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/pnl': typeof AuthenticatedPnlRoute
-  '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -792,79 +577,51 @@ export interface FileRoutesByFullPath {
   '/tools/what-if': typeof ToolsWhatIfRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/admin/hyper-liquid': typeof AuthenticatedAdminHyperLiquidRoute
-  '/admin/kucoin': typeof AuthenticatedAdminKucoinRoute
-  '/admin/lighter': typeof AuthenticatedAdminLighterRoute
   '/admin/markets': typeof AuthenticatedAdminMarketsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
-  '/admin/phemex': typeof AuthenticatedAdminPhemexRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
-  '/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/admin/solana': typeof AuthenticatedAdminSolanaRoute
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
-  '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
-  '/protocols/apex': typeof AuthenticatedProtocolsApexRoute
-  '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
-  '/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
-  '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
-  '/protocols/edgex': typeof AuthenticatedProtocolsEdgexRoute
-  '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
-  '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
-  '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
-  '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
-  '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
-  '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
-  '/social/$handle': typeof AuthenticatedSocialHandleRoute
-  '/social/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/t/share-image/$handle': typeof TShareImageHandleRoute
   '/tools/convert/$pair': typeof ToolsConvertPairRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
-  '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
-  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
-  '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
   '/admin/settings/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
-  '/admin/settings/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -888,12 +645,10 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
-  '/backtests': typeof AuthenticatedBacktestsRoute
-  '/flow-runs': typeof AuthenticatedFlowRunsRoute
+  '/bots': typeof AuthenticatedBotsRoute
+  '/changelog': typeof AuthenticatedChangelogRoute
   '/following': typeof AuthenticatedFollowingRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/pnl': typeof AuthenticatedPnlRoute
-  '/social': typeof AuthenticatedSocialRoute
   '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -905,79 +660,51 @@ export interface FileRoutesByTo {
   '/tools/what-if': typeof ToolsWhatIfRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/admin/hyper-liquid': typeof AuthenticatedAdminHyperLiquidRoute
-  '/admin/kucoin': typeof AuthenticatedAdminKucoinRoute
-  '/admin/lighter': typeof AuthenticatedAdminLighterRoute
   '/admin/markets': typeof AuthenticatedAdminMarketsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
-  '/admin/phemex': typeof AuthenticatedAdminPhemexRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
-  '/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/admin/solana': typeof AuthenticatedAdminSolanaRoute
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
-  '/flow-runs/$runId': typeof AuthenticatedFlowRunsRunIdRoute
-  '/protocols/apex': typeof AuthenticatedProtocolsApexRoute
-  '/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
-  '/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
-  '/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
-  '/protocols/edgex': typeof AuthenticatedProtocolsEdgexRoute
-  '/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
-  '/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
-  '/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
-  '/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
-  '/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
-  '/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
-  '/social/$handle': typeof AuthenticatedSocialHandleRoute
-  '/social/manage': typeof AuthenticatedSocialManageRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/t/share-image/$handle': typeof TShareImageHandleRoute
   '/tools/convert/$pair': typeof ToolsConvertPairRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
-  '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
-  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
-  '/admin/recipes/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/settings/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
   '/admin/settings/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
-  '/admin/settings/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1004,13 +731,10 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
-  '/_authenticated/backtests': typeof AuthenticatedBacktestsRoute
-  '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
-  '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
+  '/_authenticated/bots': typeof AuthenticatedBotsRoute
+  '/_authenticated/changelog': typeof AuthenticatedChangelogRoute
   '/_authenticated/following': typeof AuthenticatedFollowingRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
-  '/_authenticated/pnl': typeof AuthenticatedPnlRoute
-  '/_authenticated/social': typeof AuthenticatedSocialRoute
   '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
@@ -1022,79 +746,51 @@ export interface FileRoutesById {
   '/tools_/what-if': typeof ToolsWhatIfRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/_authenticated/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/_authenticated/admin/bnb': typeof AuthenticatedAdminBnbRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/copy-trading': typeof AuthenticatedAdminCopyTradingRoute
   '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/_authenticated/admin/hyper-liquid': typeof AuthenticatedAdminHyperLiquidRoute
-  '/_authenticated/admin/kucoin': typeof AuthenticatedAdminKucoinRoute
-  '/_authenticated/admin/lighter': typeof AuthenticatedAdminLighterRoute
   '/_authenticated/admin/markets': typeof AuthenticatedAdminMarketsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
-  '/_authenticated/admin/phemex': typeof AuthenticatedAdminPhemexRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/profiles': typeof AuthenticatedAdminProfilesRoute
-  '/_authenticated/admin/recipes': typeof AuthenticatedAdminRecipesRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/_authenticated/admin/solana': typeof AuthenticatedAdminSolanaRoute
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/_authenticated/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
-  '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
-  '/_authenticated/flow-runs_/$runId': typeof AuthenticatedFlowRunsRunIdRoute
-  '/_authenticated/protocols/apex': typeof AuthenticatedProtocolsApexRoute
-  '/_authenticated/protocols/aster': typeof AuthenticatedProtocolsAsterRoute
-  '/_authenticated/protocols/binance': typeof AuthenticatedProtocolsBinanceRoute
-  '/_authenticated/protocols/bnb': typeof AuthenticatedProtocolsBnbRoute
-  '/_authenticated/protocols/edgex': typeof AuthenticatedProtocolsEdgexRoute
-  '/_authenticated/protocols/hyper-liquid': typeof AuthenticatedProtocolsHyperLiquidRoute
-  '/_authenticated/protocols/kucoin': typeof AuthenticatedProtocolsKucoinRoute
-  '/_authenticated/protocols/lighter': typeof AuthenticatedProtocolsLighterRoute
-  '/_authenticated/protocols/phemex': typeof AuthenticatedProtocolsPhemexRoute
-  '/_authenticated/protocols/robinhood': typeof AuthenticatedProtocolsRobinhoodRoute
-  '/_authenticated/protocols/solana': typeof AuthenticatedProtocolsSolanaRoute
-  '/_authenticated/social_/$handle': typeof AuthenticatedSocialHandleRoute
-  '/_authenticated/social_/manage': typeof AuthenticatedSocialManageRoute
+  '/_authenticated/changelog_/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/t/share-image/$handle': typeof TShareImageHandleRoute
   '/tools_/convert_/$pair': typeof ToolsConvertPairRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
-  '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
-  '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
-  '/_authenticated/admin/recipes_/$recipeId': typeof AuthenticatedAdminRecipesRecipeIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/settings_/goals': typeof AuthenticatedAdminSettingsGoalsRoute
   '/_authenticated/admin/settings_/markets': typeof AuthenticatedAdminSettingsMarketsRoute
   '/_authenticated/admin/settings_/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
   '/_authenticated/admin/settings_/trading-rules': typeof AuthenticatedAdminSettingsTradingRulesRoute
-  '/_authenticated/admin/settings_/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1121,13 +817,10 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/account'
     | '/admin'
-    | '/backtests'
+    | '/bots'
     | '/changelog'
-    | '/flow-runs'
     | '/following'
     | '/home'
-    | '/pnl'
-    | '/social'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -1139,79 +832,51 @@ export interface FileRouteTypes {
     | '/tools/what-if'
     | '/admin/ai'
     | '/admin/ai-usage'
+    | '/admin/analytics'
     | '/admin/announcements'
-    | '/admin/aster'
     | '/admin/automations'
-    | '/admin/bnb'
     | '/admin/contacts'
     | '/admin/copy-trading'
     | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
-    | '/admin/hyper-liquid'
-    | '/admin/kucoin'
-    | '/admin/lighter'
     | '/admin/markets'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
-    | '/admin/phemex'
     | '/admin/plans'
     | '/admin/profiles'
-    | '/admin/recipes'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
-    | '/admin/solana'
     | '/admin/system-emails'
-    | '/admin/trading-overview'
     | '/admin/traffic'
     | '/admin/users'
-    | '/backtests/$groupId'
     | '/changelog/whats-new'
-    | '/flow-runs/$runId'
-    | '/protocols/apex'
-    | '/protocols/aster'
-    | '/protocols/binance'
-    | '/protocols/bnb'
-    | '/protocols/edgex'
-    | '/protocols/hyper-liquid'
-    | '/protocols/kucoin'
-    | '/protocols/lighter'
-    | '/protocols/phemex'
-    | '/protocols/robinhood'
-    | '/protocols/solana'
-    | '/social/$handle'
-    | '/social/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/t/share-image/$handle'
     | '/tools/convert/$pair'
     | '/admin/'
-    | '/changelog/'
     | '/account/billing/success'
-    | '/admin/automations/$automationId'
-    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
-    | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
     | '/admin/settings/goals'
     | '/admin/settings/markets'
     | '/admin/settings/trading-engine'
     | '/admin/settings/trading-rules'
-    | '/admin/settings/trading-widgets'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1235,12 +900,10 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
-    | '/backtests'
-    | '/flow-runs'
+    | '/bots'
+    | '/changelog'
     | '/following'
     | '/home'
-    | '/pnl'
-    | '/social'
     | '/trade'
     | '/workspaces'
     | '/api/health'
@@ -1252,79 +915,51 @@ export interface FileRouteTypes {
     | '/tools/what-if'
     | '/admin/ai'
     | '/admin/ai-usage'
+    | '/admin/analytics'
     | '/admin/announcements'
-    | '/admin/aster'
     | '/admin/automations'
-    | '/admin/bnb'
     | '/admin/contacts'
     | '/admin/copy-trading'
     | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
-    | '/admin/hyper-liquid'
-    | '/admin/kucoin'
-    | '/admin/lighter'
     | '/admin/markets'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
-    | '/admin/phemex'
     | '/admin/plans'
     | '/admin/profiles'
-    | '/admin/recipes'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
-    | '/admin/solana'
     | '/admin/system-emails'
-    | '/admin/trading-overview'
     | '/admin/traffic'
     | '/admin/users'
-    | '/backtests/$groupId'
     | '/changelog/whats-new'
-    | '/flow-runs/$runId'
-    | '/protocols/apex'
-    | '/protocols/aster'
-    | '/protocols/binance'
-    | '/protocols/bnb'
-    | '/protocols/edgex'
-    | '/protocols/hyper-liquid'
-    | '/protocols/kucoin'
-    | '/protocols/lighter'
-    | '/protocols/phemex'
-    | '/protocols/robinhood'
-    | '/protocols/solana'
-    | '/social/$handle'
-    | '/social/manage'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/t/share-image/$handle'
     | '/tools/convert/$pair'
     | '/admin'
-    | '/changelog'
     | '/account/billing/success'
-    | '/admin/automations/$automationId'
-    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
-    | '/admin/recipes/$recipeId'
     | '/admin/settings/$tab'
     | '/admin/settings/goals'
     | '/admin/settings/markets'
     | '/admin/settings/trading-engine'
     | '/admin/settings/trading-rules'
-    | '/admin/settings/trading-widgets'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/admin/automations/templates/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   id:
     | '__root__'
     | '/'
@@ -1350,13 +985,10 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/_authenticated/account'
     | '/_authenticated/admin'
-    | '/_authenticated/backtests'
+    | '/_authenticated/bots'
     | '/_authenticated/changelog'
-    | '/_authenticated/flow-runs'
     | '/_authenticated/following'
     | '/_authenticated/home'
-    | '/_authenticated/pnl'
-    | '/_authenticated/social'
     | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/api/health'
@@ -1368,79 +1000,51 @@ export interface FileRouteTypes {
     | '/tools_/what-if'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
+    | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/announcements'
-    | '/_authenticated/admin/aster'
     | '/_authenticated/admin/automations'
-    | '/_authenticated/admin/bnb'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/copy-trading'
     | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
-    | '/_authenticated/admin/hyper-liquid'
-    | '/_authenticated/admin/kucoin'
-    | '/_authenticated/admin/lighter'
     | '/_authenticated/admin/markets'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/newsletter'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/pages'
-    | '/_authenticated/admin/phemex'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/profiles'
-    | '/_authenticated/admin/recipes'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
-    | '/_authenticated/admin/solana'
     | '/_authenticated/admin/system-emails'
-    | '/_authenticated/admin/trading-overview'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
-    | '/_authenticated/backtests_/$groupId'
-    | '/_authenticated/changelog/whats-new'
-    | '/_authenticated/flow-runs_/$runId'
-    | '/_authenticated/protocols/apex'
-    | '/_authenticated/protocols/aster'
-    | '/_authenticated/protocols/binance'
-    | '/_authenticated/protocols/bnb'
-    | '/_authenticated/protocols/edgex'
-    | '/_authenticated/protocols/hyper-liquid'
-    | '/_authenticated/protocols/kucoin'
-    | '/_authenticated/protocols/lighter'
-    | '/_authenticated/protocols/phemex'
-    | '/_authenticated/protocols/robinhood'
-    | '/_authenticated/protocols/solana'
-    | '/_authenticated/social_/$handle'
-    | '/_authenticated/social_/manage'
+    | '/_authenticated/changelog_/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/t/share-image/$handle'
     | '/tools_/convert_/$pair'
     | '/_authenticated/admin/'
-    | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
-    | '/_authenticated/admin/automations_/$automationId'
-    | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
-    | '/_authenticated/admin/recipes_/$recipeId'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/settings_/goals'
     | '/_authenticated/admin/settings_/markets'
     | '/_authenticated/admin/settings_/trading-engine'
     | '/_authenticated/admin/settings_/trading-rules'
-    | '/_authenticated/admin/settings_/trading-widgets'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/auth/google_/callback'
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1482,6 +1086,7 @@ export interface RootRouteChildren {
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
   ApiV1TrafficViewRoute: typeof ApiV1TrafficViewRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1CrmFilesMessageIdIndexRoute: typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1647,11 +1252,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/backtests': {
-      id: '/_authenticated/backtests'
-      path: '/backtests'
-      fullPath: '/backtests'
-      preLoaderRoute: typeof AuthenticatedBacktestsRouteImport
+    '/_authenticated/bots': {
+      id: '/_authenticated/bots'
+      path: '/bots'
+      fullPath: '/bots'
+      preLoaderRoute: typeof AuthenticatedBotsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/changelog': {
@@ -1659,13 +1264,6 @@ declare module '@tanstack/react-router' {
       path: '/changelog'
       fullPath: '/changelog'
       preLoaderRoute: typeof AuthenticatedChangelogRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/flow-runs': {
-      id: '/_authenticated/flow-runs'
-      path: '/flow-runs'
-      fullPath: '/flow-runs'
-      preLoaderRoute: typeof AuthenticatedFlowRunsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/following': {
@@ -1680,20 +1278,6 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/pnl': {
-      id: '/_authenticated/pnl'
-      path: '/pnl'
-      fullPath: '/pnl'
-      preLoaderRoute: typeof AuthenticatedPnlRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/social': {
-      id: '/_authenticated/social'
-      path: '/social'
-      fullPath: '/social'
-      preLoaderRoute: typeof AuthenticatedSocialRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/trade': {
@@ -1780,6 +1364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAiUsageRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/analytics': {
+      id: '/_authenticated/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/announcements': {
       id: '/_authenticated/admin/announcements'
       path: '/announcements'
@@ -1787,25 +1378,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/aster': {
-      id: '/_authenticated/admin/aster'
-      path: '/aster'
-      fullPath: '/admin/aster'
-      preLoaderRoute: typeof AuthenticatedAdminAsterRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/automations': {
       id: '/_authenticated/admin/automations'
       path: '/automations'
       fullPath: '/admin/automations'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/bnb': {
-      id: '/_authenticated/admin/bnb'
-      path: '/bnb'
-      fullPath: '/admin/bnb'
-      preLoaderRoute: typeof AuthenticatedAdminBnbRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/contacts': {
@@ -1850,27 +1427,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/hyper-liquid': {
-      id: '/_authenticated/admin/hyper-liquid'
-      path: '/hyper-liquid'
-      fullPath: '/admin/hyper-liquid'
-      preLoaderRoute: typeof AuthenticatedAdminHyperLiquidRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/kucoin': {
-      id: '/_authenticated/admin/kucoin'
-      path: '/kucoin'
-      fullPath: '/admin/kucoin'
-      preLoaderRoute: typeof AuthenticatedAdminKucoinRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/lighter': {
-      id: '/_authenticated/admin/lighter'
-      path: '/lighter'
-      fullPath: '/admin/lighter'
-      preLoaderRoute: typeof AuthenticatedAdminLighterRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/markets': {
       id: '/_authenticated/admin/markets'
       path: '/markets'
@@ -1913,13 +1469,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/phemex': {
-      id: '/_authenticated/admin/phemex'
-      path: '/phemex'
-      fullPath: '/admin/phemex'
-      preLoaderRoute: typeof AuthenticatedAdminPhemexRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/plans': {
       id: '/_authenticated/admin/plans'
       path: '/plans'
@@ -1932,13 +1481,6 @@ declare module '@tanstack/react-router' {
       path: '/profiles'
       fullPath: '/admin/profiles'
       preLoaderRoute: typeof AuthenticatedAdminProfilesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/recipes': {
-      id: '/_authenticated/admin/recipes'
-      path: '/recipes'
-      fullPath: '/admin/recipes'
-      preLoaderRoute: typeof AuthenticatedAdminRecipesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/referrals': {
@@ -1962,25 +1504,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/solana': {
-      id: '/_authenticated/admin/solana'
-      path: '/solana'
-      fullPath: '/admin/solana'
-      preLoaderRoute: typeof AuthenticatedAdminSolanaRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/system-emails': {
       id: '/_authenticated/admin/system-emails'
       path: '/system-emails'
       fullPath: '/admin/system-emails'
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/trading-overview': {
-      id: '/_authenticated/admin/trading-overview'
-      path: '/trading-overview'
-      fullPath: '/admin/trading-overview'
-      preLoaderRoute: typeof AuthenticatedAdminTradingOverviewRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/traffic': {
@@ -1997,123 +1525,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/backtests_/$groupId': {
-      id: '/_authenticated/backtests_/$groupId'
-      path: '/backtests/$groupId'
-      fullPath: '/backtests/$groupId'
-      preLoaderRoute: typeof AuthenticatedBacktestsGroupIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/changelog/': {
-      id: '/_authenticated/changelog/'
-      path: '/'
-      fullPath: '/changelog/'
-      preLoaderRoute: typeof AuthenticatedChangelogIndexRouteImport
-      parentRoute: typeof AuthenticatedChangelogRoute
-    }
-    '/_authenticated/changelog/whats-new': {
-      id: '/_authenticated/changelog/whats-new'
-      path: '/whats-new'
+    '/_authenticated/changelog_/whats-new': {
+      id: '/_authenticated/changelog_/whats-new'
+      path: '/changelog/whats-new'
       fullPath: '/changelog/whats-new'
       preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
-      parentRoute: typeof AuthenticatedChangelogRoute
-    }
-    '/_authenticated/flow-runs_/$runId': {
-      id: '/_authenticated/flow-runs_/$runId'
-      path: '/flow-runs/$runId'
-      fullPath: '/flow-runs/$runId'
-      preLoaderRoute: typeof AuthenticatedFlowRunsRunIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/apex': {
-      id: '/_authenticated/protocols/apex'
-      path: '/protocols/apex'
-      fullPath: '/protocols/apex'
-      preLoaderRoute: typeof AuthenticatedProtocolsApexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/aster': {
-      id: '/_authenticated/protocols/aster'
-      path: '/protocols/aster'
-      fullPath: '/protocols/aster'
-      preLoaderRoute: typeof AuthenticatedProtocolsAsterRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/binance': {
-      id: '/_authenticated/protocols/binance'
-      path: '/protocols/binance'
-      fullPath: '/protocols/binance'
-      preLoaderRoute: typeof AuthenticatedProtocolsBinanceRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/bnb': {
-      id: '/_authenticated/protocols/bnb'
-      path: '/protocols/bnb'
-      fullPath: '/protocols/bnb'
-      preLoaderRoute: typeof AuthenticatedProtocolsBnbRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/edgex': {
-      id: '/_authenticated/protocols/edgex'
-      path: '/protocols/edgex'
-      fullPath: '/protocols/edgex'
-      preLoaderRoute: typeof AuthenticatedProtocolsEdgexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/hyper-liquid': {
-      id: '/_authenticated/protocols/hyper-liquid'
-      path: '/protocols/hyper-liquid'
-      fullPath: '/protocols/hyper-liquid'
-      preLoaderRoute: typeof AuthenticatedProtocolsHyperLiquidRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/kucoin': {
-      id: '/_authenticated/protocols/kucoin'
-      path: '/protocols/kucoin'
-      fullPath: '/protocols/kucoin'
-      preLoaderRoute: typeof AuthenticatedProtocolsKucoinRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/lighter': {
-      id: '/_authenticated/protocols/lighter'
-      path: '/protocols/lighter'
-      fullPath: '/protocols/lighter'
-      preLoaderRoute: typeof AuthenticatedProtocolsLighterRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/phemex': {
-      id: '/_authenticated/protocols/phemex'
-      path: '/protocols/phemex'
-      fullPath: '/protocols/phemex'
-      preLoaderRoute: typeof AuthenticatedProtocolsPhemexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/robinhood': {
-      id: '/_authenticated/protocols/robinhood'
-      path: '/protocols/robinhood'
-      fullPath: '/protocols/robinhood'
-      preLoaderRoute: typeof AuthenticatedProtocolsRobinhoodRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/protocols/solana': {
-      id: '/_authenticated/protocols/solana'
-      path: '/protocols/solana'
-      fullPath: '/protocols/solana'
-      preLoaderRoute: typeof AuthenticatedProtocolsSolanaRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/social_/$handle': {
-      id: '/_authenticated/social_/$handle'
-      path: '/social/$handle'
-      fullPath: '/social/$handle'
-      preLoaderRoute: typeof AuthenticatedSocialHandleRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/social_/manage': {
-      id: '/_authenticated/social_/manage'
-      path: '/social/manage'
-      fullPath: '/social/manage'
-      preLoaderRoute: typeof AuthenticatedSocialManageRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google': {
@@ -2158,20 +1574,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAccountBillingSuccessRouteImport
       parentRoute: typeof AuthenticatedAccountRoute
     }
-    '/_authenticated/admin/automations_/$automationId': {
-      id: '/_authenticated/admin/automations_/$automationId'
-      path: '/automations/$automationId'
-      fullPath: '/admin/automations/$automationId'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/automations_/templates': {
-      id: '/_authenticated/admin/automations_/templates'
-      path: '/automations/templates'
-      fullPath: '/admin/automations/templates'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
       path: '/newsletter/$broadcastId'
@@ -2184,13 +1586,6 @@ declare module '@tanstack/react-router' {
       path: '/pages/edit'
       fullPath: '/admin/pages/edit'
       preLoaderRoute: typeof AuthenticatedAdminPagesEditRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/recipes_/$recipeId': {
-      id: '/_authenticated/admin/recipes_/$recipeId'
-      path: '/recipes/$recipeId'
-      fullPath: '/admin/recipes/$recipeId'
-      preLoaderRoute: typeof AuthenticatedAdminRecipesRecipeIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/settings/$tab': {
@@ -2228,13 +1623,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTradingRulesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/settings_/trading-widgets': {
-      id: '/_authenticated/admin/settings_/trading-widgets'
-      path: '/settings/trading-widgets'
-      fullPath: '/admin/settings/trading-widgets'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTradingWidgetsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/system-emails_/$kind': {
       id: '/_authenticated/admin/system-emails_/$kind'
       path: '/system-emails/$kind'
@@ -2270,18 +1658,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1TrafficViewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/automations_/templates_/$templateKey': {
-      id: '/_authenticated/admin/automations_/templates_/$templateKey'
-      path: '/automations/templates/$templateKey'
-      fullPath: '/admin/automations/templates/$templateKey'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
       path: '/api/v1/media/$mediaId/file'
       fullPath: '/api/v1/media/$mediaId/file'
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/crm/files/$messageId/$index': {
+      id: '/api/v1/crm/files/$messageId/$index'
+      path: '/api/v1/crm/files/$messageId/$index'
+      fullPath: '/api/v1/crm/files/$messageId/$index'
+      preLoaderRoute: typeof ApiV1CrmFilesMessageIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -2316,97 +1704,69 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
+  AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
-  AuthenticatedAdminAsterRoute: typeof AuthenticatedAdminAsterRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
-  AuthenticatedAdminBnbRoute: typeof AuthenticatedAdminBnbRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminCopyTradingRoute: typeof AuthenticatedAdminCopyTradingRoute
   AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
-  AuthenticatedAdminHyperLiquidRoute: typeof AuthenticatedAdminHyperLiquidRoute
-  AuthenticatedAdminKucoinRoute: typeof AuthenticatedAdminKucoinRoute
-  AuthenticatedAdminLighterRoute: typeof AuthenticatedAdminLighterRoute
   AuthenticatedAdminMarketsRoute: typeof AuthenticatedAdminMarketsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
-  AuthenticatedAdminPhemexRoute: typeof AuthenticatedAdminPhemexRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminProfilesRoute: typeof AuthenticatedAdminProfilesRoute
-  AuthenticatedAdminRecipesRoute: typeof AuthenticatedAdminRecipesRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
-  AuthenticatedAdminSolanaRoute: typeof AuthenticatedAdminSolanaRoute
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
-  AuthenticatedAdminTradingOverviewRoute: typeof AuthenticatedAdminTradingOverviewRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
-  AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
-  AuthenticatedAdminRecipesRecipeIdRoute: typeof AuthenticatedAdminRecipesRecipeIdRoute
   AuthenticatedAdminSettingsGoalsRoute: typeof AuthenticatedAdminSettingsGoalsRoute
   AuthenticatedAdminSettingsMarketsRoute: typeof AuthenticatedAdminSettingsMarketsRoute
   AuthenticatedAdminSettingsTradingEngineRoute: typeof AuthenticatedAdminSettingsTradingEngineRoute
   AuthenticatedAdminSettingsTradingRulesRoute: typeof AuthenticatedAdminSettingsTradingRulesRoute
-  AuthenticatedAdminSettingsTradingWidgetsRoute: typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
-  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
+  AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
-  AuthenticatedAdminAsterRoute: AuthenticatedAdminAsterRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
-  AuthenticatedAdminBnbRoute: AuthenticatedAdminBnbRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminCopyTradingRoute: AuthenticatedAdminCopyTradingRoute,
   AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
-  AuthenticatedAdminHyperLiquidRoute: AuthenticatedAdminHyperLiquidRoute,
-  AuthenticatedAdminKucoinRoute: AuthenticatedAdminKucoinRoute,
-  AuthenticatedAdminLighterRoute: AuthenticatedAdminLighterRoute,
   AuthenticatedAdminMarketsRoute: AuthenticatedAdminMarketsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
-  AuthenticatedAdminPhemexRoute: AuthenticatedAdminPhemexRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminProfilesRoute: AuthenticatedAdminProfilesRoute,
-  AuthenticatedAdminRecipesRoute: AuthenticatedAdminRecipesRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
-  AuthenticatedAdminSolanaRoute: AuthenticatedAdminSolanaRoute,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
-  AuthenticatedAdminTradingOverviewRoute:
-    AuthenticatedAdminTradingOverviewRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
-  AuthenticatedAdminAutomationsAutomationIdRoute:
-    AuthenticatedAdminAutomationsAutomationIdRoute,
-  AuthenticatedAdminAutomationsTemplatesRoute:
-    AuthenticatedAdminAutomationsTemplatesRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
-  AuthenticatedAdminRecipesRecipeIdRoute:
-    AuthenticatedAdminRecipesRecipeIdRoute,
   AuthenticatedAdminSettingsGoalsRoute: AuthenticatedAdminSettingsGoalsRoute,
   AuthenticatedAdminSettingsMarketsRoute:
     AuthenticatedAdminSettingsMarketsRoute,
@@ -2414,90 +1774,35 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminSettingsTradingEngineRoute,
   AuthenticatedAdminSettingsTradingRulesRoute:
     AuthenticatedAdminSettingsTradingRulesRoute,
-  AuthenticatedAdminSettingsTradingWidgetsRoute:
-    AuthenticatedAdminSettingsTradingWidgetsRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
     AuthenticatedAdminSystemEmailsKindRoute,
-  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:
-    AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
-interface AuthenticatedChangelogRouteChildren {
-  AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
-  AuthenticatedChangelogIndexRoute: typeof AuthenticatedChangelogIndexRoute
-}
-
-const AuthenticatedChangelogRouteChildren: AuthenticatedChangelogRouteChildren =
-  {
-    AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
-    AuthenticatedChangelogIndexRoute: AuthenticatedChangelogIndexRoute,
-  }
-
-const AuthenticatedChangelogRouteWithChildren =
-  AuthenticatedChangelogRoute._addFileChildren(
-    AuthenticatedChangelogRouteChildren,
-  )
-
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
-  AuthenticatedBacktestsRoute: typeof AuthenticatedBacktestsRoute
-  AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
-  AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
+  AuthenticatedBotsRoute: typeof AuthenticatedBotsRoute
+  AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRoute
   AuthenticatedFollowingRoute: typeof AuthenticatedFollowingRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
-  AuthenticatedPnlRoute: typeof AuthenticatedPnlRoute
-  AuthenticatedSocialRoute: typeof AuthenticatedSocialRoute
   AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
-  AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
-  AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
-  AuthenticatedProtocolsApexRoute: typeof AuthenticatedProtocolsApexRoute
-  AuthenticatedProtocolsAsterRoute: typeof AuthenticatedProtocolsAsterRoute
-  AuthenticatedProtocolsBinanceRoute: typeof AuthenticatedProtocolsBinanceRoute
-  AuthenticatedProtocolsBnbRoute: typeof AuthenticatedProtocolsBnbRoute
-  AuthenticatedProtocolsEdgexRoute: typeof AuthenticatedProtocolsEdgexRoute
-  AuthenticatedProtocolsHyperLiquidRoute: typeof AuthenticatedProtocolsHyperLiquidRoute
-  AuthenticatedProtocolsKucoinRoute: typeof AuthenticatedProtocolsKucoinRoute
-  AuthenticatedProtocolsLighterRoute: typeof AuthenticatedProtocolsLighterRoute
-  AuthenticatedProtocolsPhemexRoute: typeof AuthenticatedProtocolsPhemexRoute
-  AuthenticatedProtocolsRobinhoodRoute: typeof AuthenticatedProtocolsRobinhoodRoute
-  AuthenticatedProtocolsSolanaRoute: typeof AuthenticatedProtocolsSolanaRoute
-  AuthenticatedSocialHandleRoute: typeof AuthenticatedSocialHandleRoute
-  AuthenticatedSocialManageRoute: typeof AuthenticatedSocialManageRoute
+  AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
-  AuthenticatedBacktestsRoute: AuthenticatedBacktestsRoute,
-  AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
-  AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
+  AuthenticatedBotsRoute: AuthenticatedBotsRoute,
+  AuthenticatedChangelogRoute: AuthenticatedChangelogRoute,
   AuthenticatedFollowingRoute: AuthenticatedFollowingRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
-  AuthenticatedPnlRoute: AuthenticatedPnlRoute,
-  AuthenticatedSocialRoute: AuthenticatedSocialRoute,
   AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
-  AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
-  AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,
-  AuthenticatedProtocolsApexRoute: AuthenticatedProtocolsApexRoute,
-  AuthenticatedProtocolsAsterRoute: AuthenticatedProtocolsAsterRoute,
-  AuthenticatedProtocolsBinanceRoute: AuthenticatedProtocolsBinanceRoute,
-  AuthenticatedProtocolsBnbRoute: AuthenticatedProtocolsBnbRoute,
-  AuthenticatedProtocolsEdgexRoute: AuthenticatedProtocolsEdgexRoute,
-  AuthenticatedProtocolsHyperLiquidRoute:
-    AuthenticatedProtocolsHyperLiquidRoute,
-  AuthenticatedProtocolsKucoinRoute: AuthenticatedProtocolsKucoinRoute,
-  AuthenticatedProtocolsLighterRoute: AuthenticatedProtocolsLighterRoute,
-  AuthenticatedProtocolsPhemexRoute: AuthenticatedProtocolsPhemexRoute,
-  AuthenticatedProtocolsRobinhoodRoute: AuthenticatedProtocolsRobinhoodRoute,
-  AuthenticatedProtocolsSolanaRoute: AuthenticatedProtocolsSolanaRoute,
-  AuthenticatedSocialHandleRoute: AuthenticatedSocialHandleRoute,
-  AuthenticatedSocialManageRoute: AuthenticatedSocialManageRoute,
+  AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -2543,6 +1848,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,
   ApiV1TrafficViewRoute: ApiV1TrafficViewRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1CrmFilesMessageIdIndexRoute: ApiV1CrmFilesMessageIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

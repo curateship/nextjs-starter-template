@@ -6,7 +6,6 @@ import {
   Loader2Icon,
   SendIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -145,7 +144,6 @@ function CopySettingsCard({
         realMoney: form.realMoney,
       })
       await onSaved()
-      toast.success("Copy trading settings saved.")
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {
@@ -283,15 +281,18 @@ function TradersTable({
       const result = await setAdminTradersCopyBlocked(userIds, blocked)
       await onChanged()
       selection.clear()
-      toast.success(
-        describeBulkResult({
-          done: result.done.length,
-          kept: result.kept.length,
-          one: "trader",
-          many: "traders",
-          verb: blocked ? "stopped" : "opened again",
-        })
-      )
+      // Only a refusal is said; a change that went through shows in the list.
+      if (result.kept.length > 0) {
+        showErrorToast(
+          describeBulkResult({
+            done: result.done.length,
+            kept: result.kept.length,
+            one: "trader",
+            many: "traders",
+            verb: blocked ? "stopped" : "opened again",
+          })
+        )
+      }
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {
@@ -499,7 +500,6 @@ function PayoutDialog({
         txLink: link.trim(),
       })
       await onPaid()
-      toast.success(`${formatUsd(amountUsd)} to @${row.handle} marked as sent.`)
       onClose()
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))

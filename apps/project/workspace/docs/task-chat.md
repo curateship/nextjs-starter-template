@@ -7,6 +7,11 @@ Tyler asked for the chat on 10 Oct 2026. His rules are in
 [What this app is](what-this-app-is.md), which wins wherever this file
 disagrees.
 
+On the task panel the chat is the Comments "/" block in the task's notes,
+or the same box under the notes while no block is placed (Tyler, 6 Nov 2026:
+"Make comments a block"; see [Notes and blocks](notes-and-blocks.md)). The
+Team dashboard's task window still shows it as a Chat card.
+
 Each project also has a chat of its own, the Chat tab on the project page.
 It works the same as a task's chat, except for who it tells (see
 [Projects and tasks](projects-and-tasks.md#the-projects-chat)).
@@ -46,7 +51,7 @@ It works the same as a task's chat, except for who it tells (see
   chat changed", never any words. The page then loads the task or the chat
   the normal way, which checks the person can still see it.
 - **The database says what changed.** Triggers on tasks, messages,
-  reactions, files, steps, labels and field values call `pg_notify` on the
+  reactions and files call `pg_notify` on the
   `project_live` channel, so no way of changing a task can forget to. The
   nudge waits for the change to be saved and is never sent for one that
   failed.
@@ -219,8 +224,11 @@ the launch?" is settled without twelve messages.
 
 ## Following a task
 
-- **Anyone who can see a task can follow it** with the Follow button at the
-  top of the task. It reads "Following" while on, and pressing it again stops.
+- **Anyone who can see a task can follow it** with Follow task in the
+  task's ⋮, in the General list between Needs review and Lock the notes
+  (Tyler, 11 Nov 2026: "Move follow task here"; it was a bell beside the ⋮
+  from 6 Nov 2026). While on, it reads Stop following with a ringing bell,
+  and pressing it stops.
 - **A follower gets the chat, Stuck and Done notices** without being assigned.
 - **Someone removed from the project stops being told**, because every notice
   first checks the person can still see the project. Their follow is kept, so
@@ -272,6 +280,10 @@ the launch?" is settled without twelve messages.
 - **How a link is saved.** In a message, as `#[Fix the contact
   form](<task id>)`, beside the `@[Name](<user id>)` tags. In notes, as an
   ordinary link to the task's address, `/projects/<project>?task=<task>`.
+- **# links a project's note too,** listed after the tasks with a notebook
+  icon. It reads the same way: the note's first line, "a note you can't see"
+  or "deleted note". See "Linking a note with #" in
+  [Project notes](project-notes.md).
 
 ## Notes
 
@@ -316,10 +328,12 @@ the launch?" is settled without twelve messages.
 
 ## Files
 
+- **Where a task's files show.** On the task panel there is no Files box
+  since 6 Nov 2026 (Tyler picked dropping it): a file comes in through a
+  File block in the notes or with a message, the File block's Delete file
+  deletes one, and the project's Files tab lists every one. The Team dashboard's task window keeps its Files card,
+  which the rest of this section describes.
 - **Files sent in the chat** are on the Files card too (above).
-- **A task type's File fields hold files too** (see
-  [Task types](task-types.md)). They count toward the same 10 and 5 GB, and
-  the Files card leaves them out.
 - **Drop files on the Files card or browse for them.** Pictures (PNG, JPEG,
   GIF, WebP) show small and open full size in a new tab. Anything else is a
   name to download.

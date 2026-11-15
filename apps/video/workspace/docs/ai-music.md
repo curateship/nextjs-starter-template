@@ -45,3 +45,12 @@ key, so it waits for Tyler's go.
 - `src/server/video/ai-music.ts`: the ask, the library row and the meter.
 - `MakeMusicDialog` in `src/components/video-editor/studio-music-panel.tsx`.
 - Test: `src/server/video/ai-music.test.ts`, with ElevenLabs stood in for.
+
+## Made for a Flow run
+
+A Flow run makes its music before it is saved into a project (flow.md), so
+it has no video yet. `makeAiMusic` then takes the length it is asked for
+(`forMs`) and no video: only the month's allowance holds it, and its meter row
+carries the run and step (`flowRunId`, `flowStepId`) so the step's cost counts
+it. Once the run is saved, the video's spend limit holds it as it does in the
+editor.

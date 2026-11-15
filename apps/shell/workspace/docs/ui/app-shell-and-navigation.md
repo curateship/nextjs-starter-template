@@ -68,7 +68,7 @@ rather than as an empty box.
 ## Whose settings a page is drawn with
 
 Everything a site decides about itself is saved on its workspace row: the
-content gutter and card borders from Settings → Styling, the name, the logo.
+content gutter and card borders from Admin → Styling, the name, the logo.
 
 **The site being looked at decides, not who owns a site.** `readShellSettings`
 asks for the workspace the person is IN first, so an admin who picked Beta in
@@ -142,7 +142,8 @@ The record's name comes from the page's loader. A page that shows one record
 returns its name as `recordTitle` alongside its data, and the shell reads it
 off the same route match the page draws from. The header and the page
 therefore change in the same frame, including between two records on one
-address (the page editor opens Home and About as `/admin/pages/edit?path=…`).
+address (the page builder opens Home and About inside Admin's Pages section,
+`/admin/dashboard?tab=pages&edit=…`; `/admin/pages/edit?path=…` forwards there).
 While the next page is still loading, the old page's name is not used. The
 page editor, automation, automation template, newsletter and system email
 pages return a name today. A page that does not ends on its route's known

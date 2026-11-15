@@ -192,6 +192,7 @@ export async function giveSampleTrip(userId: string, database: CustomShellDb = d
       startDate: addDays(todayIn(null), 30),
       currency: "JPY",
       timeZone: "Asia/Tokyo",
+      timeZoneGuessed: true,
       budgetCents: 25_000_000,
       status: "planning",
       coverUrl: null,

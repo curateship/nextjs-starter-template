@@ -20,6 +20,9 @@ import { videoMediaProxies } from "@/server/video/schema"
  *   still read the originals.
  * - **Pictures and sound are fetched whole** into the kept copies: they are
  *   small, and a picture is read again for every frame it is on screen.
+ * - **A looped video is fetched whole** (`whole`), because ffmpeg reads a
+ *   looped input from its start again on every pass, which over the network
+ *   would fetch it once a loop (clip-loop.md).
  * - **A dropped connection is picked up again.** ffmpeg reconnects for up to
  *   thirty seconds and asks again from where it was (`REMOTE_INPUT_ARGS`).
  */
@@ -58,7 +61,7 @@ export function inputArgs(input: string) {
 
 export async function openRenderSource(
   media: RenderSourceMedia,
-  { draft }: { draft: boolean }
+  { draft, whole = false }: { draft: boolean; whole?: boolean }
 ): Promise<RenderSource> {
   let storagePath = media.storagePath
   let sizeBytes = media.fileSize
@@ -85,7 +88,7 @@ export async function openRenderSource(
   const kept = await fileCache().peek(storagePath)
   if (kept) return { input: kept.path, release: kept.release }
 
-  if (media.fileType === "video") {
+  if (media.fileType === "video" && !whole) {
     return { input: await getPublicMediaUrl(storagePath), release: async () => undefined }
   }
   const fetched = await fileCache().open(storagePath, sizeBytes)

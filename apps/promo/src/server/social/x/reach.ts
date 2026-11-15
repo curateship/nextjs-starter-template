@@ -164,7 +164,7 @@ export async function recordXReach(
           targetId: target,
           message: `${NOTICE_HEADINGS.x_hidden} ${handleWords("x", account.handle)}`,
           detail: `${X_REACH_WORDS[reach]}: its latest reply ${reach === "hidden" ? "did not show in X's search" : "was folded behind \"Show more replies\""} for a stranger. Promo's best guess, because X never says. Slow it down for a few days.`,
-          href: `/admin/accounts?platform=x`,
+          href: `/admin/projects?section=accounts&platform=x`,
         },
         db,
         now

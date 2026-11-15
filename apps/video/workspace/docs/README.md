@@ -51,9 +51,17 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [thumbnails.md](thumbnails.md) — the Thumbnail section: the board, versions
   and the main one, text and picture looks, every AI tool, titles, the check,
   templates, the download and the export cover.
+- [timer.md](timer.md) — the Timer in Shapes: a countdown over its own
+  length with a ring that empties and words above and below, how it steps
+  once a second in the preview and the export, and why each second is drawn
+  once.
 - [progress-bar.md](progress-bar.md) — the bar that fills along one edge as
   the video plays: one per project, where it sits against the safe box, and
   how its thickness is counted.
+- [clip-loop.md](clip-loop.md) — a video or sound that starts again when
+  its file runs out, so it can be stretched as long as wanted: the Loop
+  switch, how the preview and the export keep the same place, and why a
+  looped sound is decoded to WAV.
 - [clip-motion.md](clip-motion.md) — the four slow moves a still picture can
   make across its time on screen, and why the export draws them with
   `perspective` rather than `zoompan`.
@@ -254,6 +262,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   script box, scene breaks and picture notes, references and their
   breakdowns, music, languages, the cap, To review, and redoing only the
   scenes whose words changed.
+- [flow.md](flow.md) — the Flow dashboard: a template of AI nodes on a
+  canvas, each following only its prompt and holding the boxes it asks you
+  for, lines carrying one node's result into the next, Wait for my OK, a run
+  as a stepped guide that ends by saving into a project, the worker, what
+  each node does, and what it costs.
 - [say-what-ai-made.md](say-what-ai-made.md) — the Made by AI card in an
   export's window: which parts are listed, how the render works them out from
   the timeline it draws, the Edited by hand tick, the one-paragraph copy for
@@ -354,6 +367,16 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   what deleting the file removes.
 - [teaser.md](teaser.md) — the Teaser tile: stills scored by Gemini, cuts on
   the music's beats, and the teaser laid at the start as one Undo step.
+- [clip-menu.md](clip-menu.md) — the right-click menu every timeline clip
+  has, with Copy, Paste, Duplicate and Delete first, and Delete taking away
+  every picked clip as one Undo step.
+- [windows-and-typing.md](windows-and-typing.md) — how Video's windows treat
+  typing: red only after Save, the reason under a refused box, the count near
+  a box's limit, Enter saving, why a greyed control is greyed, busy buttons
+  that keep their width, and the "so far" count on long AI jobs.
+- [times-and-lengths.md](times-and-lengths.md) — the one rule every length and
+  time on screen is written by, rounded to the nearest second, and why 0:60
+  no longer shows.
 
 The AI tools, the credit ledger and the rest of the export and render path were
 built before this folder existed, and none of them is written up.
@@ -362,3 +385,4 @@ built before this folder existed, and none of them is written up.
 
 One file per subject, named after the subject, plus its line above in the same
 turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

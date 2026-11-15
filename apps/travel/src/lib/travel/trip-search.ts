@@ -19,6 +19,11 @@ export type CostFilter = (typeof COST_FILTERS)[number]
  */
 export type TripSearch = {
   open?: string
+  /**
+   * A trip note to show in the left panel on arrival, from a pinned note on
+   * the Trips dashboard (12 Nov 2026). Taken out of the address once shown.
+   */
+  note?: string
   view?: TripView
   /** One activity type's id. */
   type?: string
@@ -65,6 +70,7 @@ export function readTripSearch(search: Record<string, unknown>): TripSearch {
   if (open) result.open = open
   const view = oneOf(TRIP_VIEWS, search.view)
   if (view) result.view = view
+  if (typeof search.note === "string" && search.note.length > 0 && search.note.length <= 36) result.note = search.note
   return result
 }
 

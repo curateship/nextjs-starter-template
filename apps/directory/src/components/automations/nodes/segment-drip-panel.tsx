@@ -1,3 +1,4 @@
+import { ListChecksIcon, SlidersHorizontalIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import {
@@ -26,7 +27,7 @@ export default function SegmentDripFields({
 
   return (
     <>
-      <InspectorCard title="Settings">
+      <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
         <SegmentSelectField
           id={`segment-drip-${node.id}`}
           segmentId={segmentId}
@@ -72,7 +73,7 @@ function SegmentDripProgressCard({
   const nextBatch = progress ? describeNextBatch(progress.nextBatchAt) : null
 
   return (
-    <InspectorCard title="Progress">
+    <InspectorCard icon={<ListChecksIcon />} title="Progress">
       {load.error ? (
         <ErrorRow
           message={load.error}

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { getRouteApi, useNavigate } from "@tanstack/react-router"
-import { BellIcon, Trash2Icon } from "lucide-react"
+import { BellIcon, SendIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { describeBulkResult } from "@/lib/format/bulk-result"
@@ -39,6 +39,7 @@ import {
   deleteAdminNotifications,
   getNotificationErrorMessage,
   listAdminNotifications,
+  sendTestNotification,
   type NotificationItem,
 } from "@/lib/api/notification"
 import {
@@ -219,6 +220,7 @@ export function NotificationsPage({
   const selection = useSelection()
   const selectedIds = selection.selected
   const [runDelete, deleting] = useAsyncAction(getNotificationErrorMessage)
+  const [runSendTest, sendingTest] = useAsyncAction(getNotificationErrorMessage)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [clearAllOpen, setClearAllOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -296,6 +298,16 @@ export function NotificationsPage({
       )
       selection.clear()
       setMassDeleteOpen(false)
+      await refresh()
+    })
+  }
+
+  // One made-up notice in the admin's own bell, to look at the red number and
+  // the tray without waiting for a real one (Tyler, 7 Nov 2026).
+  async function sendTest() {
+    await runSendTest(async () => {
+      await sendTestNotification()
+      toast.success("Test notification sent. Check the bell.")
       await refresh()
     })
   }
@@ -381,6 +393,15 @@ export function NotificationsPage({
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              disabled={sendingTest}
+              onClick={() => void sendTest()}
+            >
+              <SendIcon className="size-4" />
+              Send test
+            </DashboardToolbarButton>
             <DisabledReason
               disabled={deleting || (total === 0 && !filtersActive)}
               reason={

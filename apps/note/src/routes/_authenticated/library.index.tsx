@@ -1,6 +1,5 @@
 import * as React from "react"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { LibrariesPage } from "@/components/note-library/libraries-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
@@ -50,7 +49,6 @@ function SavingLink({ link, saveKey }: { link: string; saveKey: string | undefin
     }
     saveLinkToLibrary(link, saveKey)
       .then((result) => {
-        toast.success(result.alreadyThere ? "That link is already in this library." : "Importing the link.")
         void navigate({
           to: "/library/$libraryId",
           params: { libraryId: result.note.libraryId },

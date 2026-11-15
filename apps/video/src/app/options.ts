@@ -1,5 +1,6 @@
 import type { AppOptions } from "@/lib/app-options"
 import { defineSettingsTab } from "@/lib/settings-tab"
+import { FLOW_NODE_DESCRIPTORS } from "@/lib/video/flow/node-kinds"
 
 /**
  * What this app changes about the shell.
@@ -24,6 +25,15 @@ export const appOptions: AppOptions = {
      * `workspace/docs/big-files.md` says what that took.
      */
     videoMaxBytes: "bucket",
+  },
+  automations: {
+    /**
+     * Flow's nodes (workspace/docs/flow.md). Declared here only so the
+     * shell's canvas, which Flow draws on, knows their names, icons and
+     * ports. None has a palette entry, so none is offered on an automation,
+     * and none has an executor: Flow runs them itself.
+     */
+    nodes: FLOW_NODE_DESCRIPTORS,
   },
   workspaces: {
     /**

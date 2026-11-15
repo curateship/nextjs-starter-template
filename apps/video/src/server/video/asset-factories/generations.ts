@@ -81,7 +81,6 @@ import {
 import { recordVideoCharge } from "@/server/video/video-meter"
 import {
   requireVideoBudget,
-  type SpendTag,
 } from "@/server/video/project-spend"
 import { getOwnedVideo } from "@/server/video/project-videos"
 import { getOwnedProject } from "@/server/video/projects"
@@ -529,7 +528,7 @@ export async function getShot(userId: string, shotId: string) {
  * paid for too as they arrive. A shot stopped by a failed piece counts for
  * nothing until Try again.
  */
-async function shotsBeingMade(userId: string, projectId: string, videoId: string | null) {
+async function shotsBeingMade(userId: string, projectId: string | null, videoId: string | null) {
   const rows = await db
     .select({
       projectId: videoAiGenerations.projectId,
@@ -554,7 +553,7 @@ async function shotsBeingMade(userId: string, projectId: string, videoId: string
   const cents = (list: typeof rows) =>
     list.reduce((sum, row) => sum + rowCents(row), 0)
   return {
-    projectShots: running.filter((row) => row.projectId === projectId).length,
+    projectShots: projectId ? running.filter((row) => row.projectId === projectId).length : 0,
     personShots: running.length,
     videoCents: videoId ? cents(owed.filter((row) => row.videoId === videoId)) : 0,
     personCents: cents(owed),
@@ -569,7 +568,7 @@ async function shotsBeingMade(userId: string, projectId: string, videoId: string
  */
 export async function requireRoomForShot(
   userId: string,
-  shot: { projectId: string; videoId: string | null },
+  shot: { projectId: string | null; videoId: string | null },
   nextCents: number,
   shots = 1
 ) {
@@ -601,9 +600,20 @@ export async function requireRoomForShot(
   }
 }
 
-/** What a shot's meter rows carry, so the video that paid for it counts it. */
-function shotSpend(job: { projectId: string; videoId: string | null }): SpendTag {
-  return job.videoId ? { projectId: job.projectId, videoId: job.videoId } : { projectId: job.projectId }
+/**
+ * What a shot's meter rows carry, so the video that paid for it counts it,
+ * and the Flow step that asked for it counts it too (flow.md).
+ */
+function shotSpend(job: {
+  projectId: string | null
+  videoId: string | null
+  flowStepId?: string | null
+}): Record<string, string> {
+  return {
+    ...(job.projectId ? { projectId: job.projectId } : {}),
+    ...(job.videoId ? { videoId: job.videoId } : {}),
+    ...(job.flowStepId ? { flowStepId: job.flowStepId } : {}),
+  }
 }
 
 /**

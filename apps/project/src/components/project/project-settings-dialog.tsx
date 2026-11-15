@@ -13,7 +13,6 @@ import {
   ProjectWholeTeamField,
 } from "@/components/project/project-settings-fields"
 import { useArchiveProject } from "@/components/project/use-save-project"
-import { ProjectTaskTypesCard } from "@/components/project/project-task-types-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -72,7 +71,6 @@ export function ProjectSettingsDialog({
             <ProjectBannerField project={project} />
           </CollapsibleSettingsCard>
           <ProjectMembersCard page={page} />
-          <ProjectTaskTypesCard page={page} />
         </DialogBody>
         <DialogFooter>
           <Button type="button" onClick={close}>

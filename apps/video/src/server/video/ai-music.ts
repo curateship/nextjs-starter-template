@@ -43,10 +43,21 @@ export async function makeAiMusic({
   videoId,
   mood,
   forMs,
+  spend,
 }: {
   userId: string
-  videoId: string
+  /**
+   * The video it is made for, whose spend limit it is held to. Absent for a
+   * Flow run not yet saved into a project: then `forMs` says how long, and
+   * only the month's allowance holds it.
+   */
+  videoId?: string
   mood: string
+  /**
+   * What else goes on its meter row, such as the Flow run and step it was
+   * made for, so the step's cost counts it (flow.md).
+   */
+  spend?: Record<string, string>
   /**
    * How long the music must run, when the video isn't laid yet: a template's
    * brief asks for its music before its scenes land (templates.md).
@@ -58,21 +69,26 @@ export async function makeAiMusic({
   const apiKey = await getAiKey("elevenlabs")
   if (!apiKey) throw new Error(ELEVENLABS_KEY_MISSING_MESSAGE)
 
-  const unchecked = await requireVideoBudget(userId, videoId, 0)
-  const videoMs = forMs ?? timelineEndMs(requireCanonicalTimeline(unchecked.timeline).tracks)
+  const unchecked = videoId ? await requireVideoBudget(userId, videoId, 0) : null
+  const videoMs = forMs ?? (unchecked ? timelineEndMs(requireCanonicalTimeline(unchecked.timeline).tracks) : 0)
   if (videoMs <= 0) throw new Error(AI_MUSIC_EMPTY_VIDEO_MESSAGE)
   const lengthMs = aiMusicLengthMs(videoMs)
   const cents = aiMusicCostCents(lengthMs)
 
-  // The month's allowance and the video's own limit, with this track counted in.
+  // The month's allowance and, when there is a video, its own limit, with
+  // this track counted in.
   await requireAllowanceRoom(userId, cents)
-  const video = await requireVideoBudget(userId, videoId, cents)
+  const video = videoId ? await requireVideoBudget(userId, videoId, cents) : null
   const charge = {
     userId,
     company: "elevenlabs" as const,
     feature: "ai_music",
     model: AI_MUSIC_MODEL,
-    metadata: { ...videoSpendMetadata(video), seconds: Math.round(lengthMs / 1000) },
+    metadata: {
+      ...(video ? videoSpendMetadata(video) : {}),
+      ...spend,
+      seconds: Math.round(lengthMs / 1000),
+    },
   }
 
   let bytes: Uint8Array

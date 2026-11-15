@@ -168,7 +168,7 @@ export function StripeSettings() {
     await runRemove(async () => {
       loaded.setData(await removeStripeSecret(field))
       setRemoving(null)
-    }, `The ${SECRET_NAMES[field]} was removed.`)
+    })
   }
 
   const renderSecretField = ({ id, label, placeholder }: SecretFieldConfig) => {

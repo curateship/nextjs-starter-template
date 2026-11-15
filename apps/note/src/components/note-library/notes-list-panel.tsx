@@ -11,7 +11,6 @@ import {
   Undo2Icon,
   UserRoundIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import type { DashboardActions } from "@/components/note-library/library-dashboard"
 import { SourceMark } from "@/components/note-library/library-dot"
@@ -134,12 +133,11 @@ export function NotesListPanel({
   const [forGood, setForGood] = React.useState<NoteCard | null>(null)
   const [emptying, setEmptying] = React.useState(false)
 
-  async function act(work: () => Promise<unknown>, success: string) {
+  async function act(work: () => Promise<unknown>) {
     setBusy(true)
     dismissErrorToast()
     try {
       await work()
-      toast.success(success)
       return true
     } catch (error) {
       showErrorToast(getLibraryErrorMessage(error))
@@ -272,7 +270,7 @@ export function NotesListPanel({
                 void act(async () => {
                   await restoreNoteFromTrash(note.id)
                   actions.gone(note.id)
-                }, `Restored ${quoteOneLine(noteTitle(note.title))}.`)
+                })
               }
             >
               <Undo2Icon className="size-4" />
@@ -313,7 +311,7 @@ export function NotesListPanel({
                   await changeNotes([note.id], { change: "trash" })
                   actions.gone(note.id)
                   if (note.id === openId) actions.openNote(undefined)
-                }, `Moved ${quoteOneLine(noteTitle(note.title))} to Trash. It stays there ${TRASH_DAYS} days.`)
+                })
               }
             >
               <Trash2Icon className="size-4" />
@@ -539,7 +537,7 @@ export function NotesListPanel({
             setForGood(null)
             actions.gone(note.id)
             if (note.id === openId) actions.openNote(undefined)
-          }, `Deleted ${quoteOneLine(noteTitle(note.title))} for good.`)
+          })
         }}
       />
       <ConfirmDialog
@@ -556,7 +554,7 @@ export function NotesListPanel({
             if (openId) actions.openNote(undefined)
             await actions.refreshAll()
             return notes
-          }, "Trash is empty.")
+          })
         }
       />
     </div>

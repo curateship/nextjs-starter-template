@@ -100,6 +100,12 @@ import { Hint } from "@/components/video-assets/hint"
 import { usePlatformInset } from "@/components/video-editor/caption-settings-context"
 import { newProgressBar } from "@/lib/video/progress-bar"
 import {
+  DEFAULT_TIMER_COLOR,
+  DEFAULT_TIMER_FONT,
+  DEFAULT_TIMER_LINE_WIDTH,
+  newTimerPlacement,
+} from "@/lib/video/timer"
+import {
   DEFAULT_SHAPE_COLOR,
   DEFAULT_SHAPE_DURATION_MS,
   DEFAULT_SHAPE_LINE_WIDTH,
@@ -807,8 +813,7 @@ function MediaPanel() {
         open={creatingCollection}
         onOpenChange={setCreatingCollection}
         collection={null}
-        onSaved={(created) => {
-          toast.success(`Created “${created.name}”.`)
+        onSaved={() => {
           reloadCollections()
         }}
       />
@@ -859,7 +864,7 @@ function PreparationNote({
     return (
       <p
         role="status"
-        className="mt-1.5 px-0.5 text-[10.5px] leading-tight text-muted-foreground"
+        className="mt-1.5 px-0.5 text-xs leading-tight text-muted-foreground"
       >
         <Loader2
           aria-hidden
@@ -871,7 +876,7 @@ function PreparationNote({
   }
   return (
     <div role="status" className="mt-1.5 grid gap-1 px-0.5">
-      <p className="text-[10.5px] leading-tight font-medium text-foreground">
+      <p className="text-xs leading-tight font-medium text-foreground">
         Couldn't get it ready to scrub
       </p>
       <Button
@@ -1004,7 +1009,7 @@ function AudioMediaCard({
           >
             {item.original_name}
           </span>
-          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+          <span className="mt-0.5 block text-xs text-muted-foreground">
             {durationMs ? formatClock(durationMs) : "-"} ·{" "}
             {formatFileSize(item.file_size)}
           </span>
@@ -1099,6 +1104,29 @@ function TextPanel({
         trimStartMs: 0,
         startMs: 0,
         durationMs: DEFAULT_SHAPE_DURATION_MS,
+      },
+      atMs: clock.getTime(),
+    })
+  }
+
+  // A timer lands in the middle at the playhead, square on any shape of
+  // video, counting down five minutes in white Fredoka (timer.md).
+  function addTimer() {
+    const [across, down] = aspect.split(":").map(Number)
+    dispatch({
+      type: "ADD_OVERLAY",
+      clip: {
+        id: editorId(),
+        kind: "shape",
+        name: "Timer",
+        shape: "timer",
+        ...newTimerPlacement(across / down),
+        color: DEFAULT_TIMER_COLOR,
+        fontId: DEFAULT_TIMER_FONT,
+        lineWidth: DEFAULT_TIMER_LINE_WIDTH,
+        trimStartMs: 0,
+        startMs: 0,
+        durationMs: 5 * 60_000,
       },
       atMs: clock.getTime(),
     })
@@ -1211,6 +1239,7 @@ function TextPanel({
             label: SHAPE_LABELS[kind],
             onClick: () => addShape(kind),
           })),
+          { key: "timer", label: "Timer", onClick: addTimer },
           { key: "blur", label: "Blur", onClick: addBlur },
           { key: "progress", label: "Progress bar", onClick: addProgressBar },
         ].map((item) => (

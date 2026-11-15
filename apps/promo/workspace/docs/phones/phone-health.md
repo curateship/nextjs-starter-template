@@ -42,7 +42,7 @@ not one per sweep.
 - **The heading names the shelf slot,** such as "Phone offline: Pixel 8a in
   slot 4", so the right phone is picked up first time. A phone with no slot
   typed says so in the detail.
-- **Clicking it opens the phone** on the Phones dashboard (or the dashboard,
+- **Clicking it opens the phone** in the Anti Detect dashboard's Phones (or the Anti Detect dashboard's Phones,
   for the rack).
 - **A held phone never rings for being offline.** Someone took it out of use,
   usually to unplug it. Nor does a phone on a rack someone disconnected, and
@@ -99,7 +99,7 @@ profile's history. One line per event:
 
 Above the lines, an **Accounts** card lists every account the phone has held
 since 3 Nov 2026: handle, app, from and to, and how it left (moved, banned or
-retired). Each opens the account's settings on the Accounts dashboard.
+retired). Each opens the account on the Projects dashboard's Accounts.
 
 ## Where it is
 

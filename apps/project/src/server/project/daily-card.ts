@@ -20,7 +20,6 @@ import {
   type DayPart,
   type JournalField,
   type RoutineReminders,
-  type SkyKind,
   type Streak,
   type StreakDay,
   type WeatherKind,
@@ -28,13 +27,12 @@ import {
 } from "@/lib/project/daily-card"
 import type { ShellIcon } from "@/lib/custom-shell"
 import { READY_ROUTINES } from "@/lib/project/daily-words"
-import { addDays, localNow, momentOf, weekdayOf } from "@/lib/project/days"
+import { addDays, localNow, weekdayOf } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
-import { CLOSED_TASK_STATUSES } from "@/lib/project/rules"
+import { CLOSED_TASK_STATUSES, type ProjectColor } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { isSiteAdmin, requireSiteAdmin, type ProjectDb } from "@/server/project/access"
-import { meetingsOn, type TodayMeeting } from "@/server/project/admin-dashboard"
 import { loadClock } from "@/server/project/checkins"
 import { holidayOn } from "@/server/project/holidays"
 import { occurrencesBetween } from "@/server/project/meetings"
@@ -49,7 +47,6 @@ import {
   projectMeetings,
   projectProjects,
   projectSiteAdminPrefs,
-  projectTaskClockRuns,
   projectTasks,
   projectTeamHolidays,
   projectTeams,
@@ -73,8 +70,6 @@ export type DailySettings = {
   hours: DayHours
   /** The city in My settings, as the weather service named it. */
   city: string | null
-  sky: SkyKind
-  ownSkies: Record<DayPart, string>
   reminders: RoutineReminders
   /** The panel's sections in the site admin's order, every one named once. */
   sections: DailySection[]
@@ -155,8 +150,6 @@ export type DailyCard = {
   cardDay: string
   settings: DailySettings
   meetings: DailyMeeting[]
-  /** Time on the task clock today, counted to the moment the card loaded, and the clock still going. */
-  clock: { seconds: number; running: { taskId: string; projectId: string; title: string; since: string } | null }
   /** "Enjoy your day off", or the holiday's name, on a day off. */
   dayOff: string | null
   admin: SiteAdminDaily | null
@@ -165,8 +158,6 @@ export type DailyCard = {
 const DEFAULT_SETTINGS: DailySettings = {
   hours: DEFAULT_HOURS,
   city: null,
-  sky: "drawn",
-  ownSkies: { morning: "", afternoon: "", night: "" },
   reminders: DEFAULT_REMINDERS,
   sections: [...DAILY_SECTIONS],
   hidden: [],
@@ -184,8 +175,6 @@ function settingsOf(row: SettingsRow | undefined): DailySettings {
   return {
     hours: { morning: row.morningAt, afternoon: row.afternoonAt, night: row.nightAt },
     city: row.city,
-    sky: row.sky,
-    ownSkies: { morning: row.ownSkyMorning, afternoon: row.ownSkyAfternoon, night: row.ownSkyNight },
     reminders: { morning: row.reminderMorning, afternoon: row.reminderAfternoon, night: row.reminderNight },
     sections: sectionsInOrder(row.sectionOrder),
     hidden: knownSections(row.hiddenSections),
@@ -240,7 +229,6 @@ export async function loadDailyCard(userId: string, database: ProjectDb = db, at
           database
         ).then(asDailyMeetings)
       : await invitedMeetingsOn(userId, teamId!, today, zone, database),
-    clock: await clockToday(userId, today, zone, database, at),
     dayOff: siteAdmin
       ? daysOff!.has(today)
         ? "Enjoy your day off"
@@ -283,6 +271,43 @@ async function siteAdminDaysOff(userId: string, teamCount: number, database: Pro
   return days
 }
 
+/** One meeting on a day, in any team. */
+export type TodayMeeting = {
+  meetingId: string
+  title: string
+  color: ProjectColor
+  teamId: string
+  teamName: string
+  startsAt: string
+  endsAt: string
+}
+
+/** Every team's meetings falling on one day in the site admin's zone, earliest first. */
+async function meetingsOn(
+  today: string,
+  zone: string,
+  teamIds: string[],
+  teamName: Map<string, string>,
+  database: ProjectDb
+): Promise<TodayMeeting[]> {
+  if (teamIds.length === 0) return []
+  const rows = await database.select().from(projectMeetings).where(inArray(projectMeetings.teamId, teamIds))
+  return rows
+    .flatMap((row) =>
+      occurrencesBetween(row, zone, today, today).map((occurrence) => ({
+        meetingId: row.id,
+        title: row.title,
+        color: row.color,
+        teamId: row.teamId,
+        teamName: teamName.get(row.teamId) ?? "",
+        startsAt: occurrence.startsAt,
+        endsAt: occurrence.endsAt,
+      }))
+    )
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+}
+
+
 function asDailyMeetings(meetings: TodayMeeting[]): DailyMeeting[] {
   return meetings.map(({ meetingId, title, startsAt, endsAt }) => ({ meetingId, title, startsAt, endsAt }))
 }
@@ -319,44 +344,6 @@ async function invitedMeetingsOn(userId: string, teamId: string, day: string, zo
     }))
   )
   return (await withoutNotGoing(userId, meetings, database)).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-}
-
-/**
- * Seconds on the task clock today in the person's zone: every stretch since
- * midnight, one begun before it counting from midnight, and fixes made today.
- */
-async function clockToday(userId: string, today: string, zone: string, database: ProjectDb, at: Date) {
-  const start = momentOf(today, "00:00", zone)
-  const rows = await database
-    .select({
-      taskId: projectTaskClockRuns.taskId,
-      kind: projectTaskClockRuns.kind,
-      startedAt: projectTaskClockRuns.startedAt,
-      stoppedAt: projectTaskClockRuns.stoppedAt,
-      seconds: projectTaskClockRuns.seconds,
-      title: projectTasks.title,
-      projectId: projectTasks.projectId,
-    })
-    .from(projectTaskClockRuns)
-    .innerJoin(projectTasks, eq(projectTasks.id, projectTaskClockRuns.taskId))
-    .where(
-      and(
-        eq(projectTaskClockRuns.userId, userId),
-        isNull(projectTasks.deletedAt),
-        or(isNull(projectTaskClockRuns.stoppedAt), gte(projectTaskClockRuns.stoppedAt, start))
-      )
-    )
-  let seconds = 0
-  let running: DailyCard["clock"]["running"] = null
-  for (const row of rows) {
-    if (row.kind === "fix") {
-      if (row.startedAt >= start) seconds += row.seconds ?? 0
-      continue
-    }
-    seconds += Math.max(0, Math.floor(((row.stoppedAt ?? at).getTime() - Math.max(row.startedAt.getTime(), start.getTime())) / 1000))
-    if (!row.stoppedAt) running = { taskId: row.taskId, projectId: row.projectId, title: row.title, since: row.startedAt.toISOString() }
-  }
-  return { seconds: Math.max(0, seconds), running }
 }
 
 // --- The site admin's habits and journal ------------------------------------------
@@ -712,19 +699,6 @@ export async function saveDailyCity(userId: string, city: string, database: Proj
   if (!place) throw new Error(PROJECT_ERRORS.cityNotFound)
   await saveSettings(userId, { city: place.label, latitude: place.latitude, longitude: place.longitude }, database)
   return { city: place.label }
-}
-
-export async function saveDailySky(
-  userId: string,
-  input: { sky: SkyKind; own: Record<DayPart, string> },
-  database: ProjectDb = db
-) {
-  await requireSiteAdmin(userId, database)
-  await saveSettings(
-    userId,
-    { sky: input.sky, ownSkyMorning: input.own.morning, ownSkyAfternoon: input.own.afternoon, ownSkyNight: input.own.night },
-    database
-  )
 }
 
 export async function saveRoutineReminders(userId: string, reminders: RoutineReminders, database: ProjectDb = db) {

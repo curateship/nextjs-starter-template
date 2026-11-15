@@ -1,5 +1,3 @@
-import { readReferralCode } from "@/lib/billing/referrals"
-
 export type BillingInterval = "monthly" | "yearly"
 
 export type PricingChoice = {
@@ -8,8 +6,6 @@ export type PricingChoice = {
 }
 
 export type RegistrationChoice = PricingChoice & {
-  ref?: string
-  invalidReferral?: true
   /** An address typed on a public page, carried over to save retyping it. */
   email?: string
 }
@@ -48,18 +44,17 @@ export function readPricingChoice(
   return { plan, interval }
 }
 
-/** Keeps plan choices plus the public code an invite link carries. */
+/**
+ * Keeps plan choices plus an address carried from a public page. Anything else
+ * in the address bar, such as an old invite link's `ref`, is dropped.
+ */
 export function readRegistrationChoice(
   search: Record<string, unknown>
 ): RegistrationChoice {
   const pricing = readPricingChoice(search)
-  const ref = readReferralCode(search.ref) ?? undefined
-  const hasReferral = Object.prototype.hasOwnProperty.call(search, "ref")
   const email = readCarriedEmail(search.email)
   return {
     ...pricing,
-    ...(ref ? { ref } : {}),
     ...(email ? { email } : {}),
-    ...(hasReferral && !ref ? { invalidReferral: true as const } : {}),
   }
 }

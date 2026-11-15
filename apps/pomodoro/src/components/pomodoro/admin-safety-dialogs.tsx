@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -107,12 +106,7 @@ function WarnDialog({ person: asked, onClose }: { person: SafetyPerson | null; o
     }
     setSending(true)
     try {
-      const { emailed, emailProblem } = await warnPomodoroMembers([person.id], message.trim())
-      toast.success(
-        emailed
-          ? `${person.name} has the warning in the bell and by email.`
-          : `${person.name} has the warning in the bell. The email did not go out: ${emailProblem ?? "no reason given"}`
-      )
+      await warnPomodoroMembers([person.id], message.trim())
       onClose()
     } catch (error) {
       showErrorToast(getSafetyErrorMessage(error))
@@ -232,11 +226,6 @@ function SuspendDialog({
     setSaving(true)
     try {
       await suspendPomodoroMembers([person.id], choice.days, reason.trim())
-      toast.success(
-        choice.days
-          ? `${person.name} cannot use rooms for ${choice.label}.`
-          : `${person.name} cannot use rooms until you lift it.`
-      )
       await onDone?.()
       onClose()
     } catch (error) {

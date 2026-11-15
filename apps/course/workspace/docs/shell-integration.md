@@ -193,3 +193,55 @@ Every shell change up to 5 Nov is in Course: 85 files replaced and 25 added, wit
 **No migration was new.** The shell has added none since 0097, and Course already had every one.
 
 **Kept as Course's own.** `src/app/` stays Course's own, and so does `src/app/open-endpoints.ts`, which lists Course's own open endpoints.
+
+## Shell merge, 11 November 2026
+
+Every shell change since the 7 Nov merge (`e69b7243e`) is in Course, up to the shell at `32a7c20fe`: 243 files replaced, 179 added and 75 deleted. Each replaced or deleted file was an unedited older shell copy, so nothing Course changed was lost.
+
+**What arrived.**
+
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists and Leads as its own section, lead tags, unanswered and forwarded mail, and files on messages.
+- **Automations is one three-panel dashboard**: Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Pages, Styling and Navigations sit inside the Admin dashboard.** Navigations' link editors open as popovers, and the header's Settings cog can hold links.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with every Blocks setting on panel cards, edge to edge, Reset panels, and each widget's ⋮ holding its own options.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0098 to 0114. 0106 drops the referral and changelog tables, and 0111 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy.
+
+**Kept as Course's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes. The route list was rebuilt with the router generator, and the new `@tiptap/extension-list` package was added as the shell has it.
+
+**One Course file follows the shell.** The course editor puts the shell's remembered panel widths on its panels with `groupRef`, as the shell's layout hook now asks, instead of rebuilding the panels to take them.
+**Tests.** `delivery.test.ts` (expects the shell's port 3002) and `public-branding.test.ts` fail in the shell too.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `04d976ea4` is in Course, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited copy of the shell at that commit, which is newer than the `32a7c20fe` the last record names: a later shell fix had already been copied in.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 345 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.
+
+## Shell merge, 12 November 2026
+
+Every shell change since `3d6037c83` is in Course, up to the shell at `9757749ff`: 6 files replaced. Each was an unedited copy of the shell at `3d6037c83`.
+
+**What arrived.**
+
+- **The Automations dashboard block has a ⋮.** Automations and Waiting on you each have an eye and a grip, so an admin can hide one or drag it into a new place. The choice is saved with the site's styling (`hiddenAutomationSections`, `automationSectionOrder`), so no migration.
+- **Dashboards block rows are 34px tall instead of 36px**, so 16px sits between one name and the next. Tyler, 11 Nov 2026: "add this same feature for all apps that has dashboards block" and "decrease the gap between the items by 10%".
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 39 tests in the styling, automations and notes folders pass. Not checked in a browser: no dev server on this app's port runs from workspace-4.

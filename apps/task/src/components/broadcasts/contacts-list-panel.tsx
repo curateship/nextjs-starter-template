@@ -15,7 +15,7 @@ import { ContactImportMenu } from "@/components/broadcasts/contact-import"
 import { NewContactDropdown } from "@/components/broadcasts/new-contact-dropdown"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
-import { MassSelectChip } from "@/components/shared/mass-select"
+import { MassSelectButton } from "@/components/shared/mass-select"
 import { SearchToggle } from "@/components/shared/search-toggle"
 import {
   SelectAllTableHead,
@@ -124,7 +124,7 @@ function initials(contact: ContactItem) {
  * Put back and Delete. The open person's row is shaded with a bar down its
  * left.
  *
- * The tick boxes stay hidden until Mass select, beside the Person heading, is
+ * The tick boxes stay hidden until Mass select, in the header left of the search, is
  * pressed (Tyler kept them there on 20 Oct 2026). Pressing a row opens that
  * person in the right panel. The page footer shows only when there is more
  * than one page.
@@ -242,18 +242,15 @@ export function ContactsListPanel({
       sortable: false,
       column: "main",
       // The preset 320px minimum is for a full page; this table sits in a panel.
-      className: "group/title min-w-40",
+      className: "min-w-40",
       label: (
-        <span className="flex items-center gap-2">
-          <TableSortButton
-            active={sort === "name"}
-            direction={direction}
-            onClick={() => toggleSort("name")}
-          >
-            Person
-          </TableSortButton>
-          <MassSelectChip on={massSelect} onToggle={toggleMassSelect} />
-        </span>
+        <TableSortButton
+          active={sort === "name"}
+          direction={direction}
+          onClick={() => toggleSort("name")}
+        >
+          Person
+        </TableSortButton>
       ),
     },
     ...OTHER_COLUMNS,
@@ -288,6 +285,7 @@ export function ContactsListPanel({
                 onRefresh={onRefresh}
               />
             ) : null}
+            <MassSelectButton on={massSelect} onToggle={toggleMassSelect} />
             <SearchToggle
               name="contact-search"
               label="Search contacts"

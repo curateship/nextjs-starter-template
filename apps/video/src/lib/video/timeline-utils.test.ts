@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  formatClock,
   loadMediaDurationMs,
   MEDIA_DURATION_TIMEOUT_MS,
   MediaDurationError,
@@ -104,5 +105,21 @@ describe("a whole hour on the timeline", () => {
     expect(rulerLabel(45)).toBe("45s")
     expect(rulerLabel(600)).toBe("10:00")
     expect(rulerLabel(3900)).toBe("1:05:00")
+  })
+})
+
+describe("formatClock", () => {
+  it("rounds to the nearest second, so one length reads the same everywhere", () => {
+    expect(formatClock(33_700)).toBe("0:34")
+    expect(formatClock(33_400)).toBe("0:33")
+  })
+
+  it("never prints 60 seconds", () => {
+    expect(formatClock(59_996)).toBe("1:00")
+  })
+
+  it("adds hours once there are any", () => {
+    expect(formatClock(3_599_600)).toBe("1:00:00")
+    expect(formatClock(3_599_400)).toBe("59:59")
   })
 })

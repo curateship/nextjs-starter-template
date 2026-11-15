@@ -17,7 +17,6 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelBody, PanelEmpty, PanelHeader, RightEmpty } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
@@ -207,7 +206,6 @@ function LiveMiddle({ data, pick, go }: { data: WorkoutData; pick: string | unde
       await removeWorkout(workout.id)
       forgetQueue(browserStorage(), workout.id)
       live.clear(workout.id)
-      toast.success("Workout deleted.")
       setDeleting(false)
       go({ workout: undefined, open: undefined, view: "history" })
     } catch (error) {
@@ -232,7 +230,6 @@ function LiveMiddle({ data, pick, go }: { data: WorkoutData; pick: string | unde
       await removeWorkout(workout.id)
       forgetQueue(browserStorage(), workout.id)
       live.clear(workout.id)
-      toast.success("Nothing was ticked, so the workout was thrown away.")
       go({ workout: undefined, open: undefined })
     } catch (error) {
       reportFitnessError(error)
@@ -414,7 +411,6 @@ function LiveMiddle({ data, pick, go }: { data: WorkoutData; pick: string | unde
         exercises={data.exercises}
         onPick={(exercise) =>
           void changeWorkoutExercise({ action: "add", workoutId: workout.id, exerciseId: exercise.id }).then(async () => {
-            toast.success(`${exercise.name} added.`)
             await router.invalidate()
           }, reportFitnessError)
         }
@@ -895,7 +891,6 @@ function HowItWent({ workout, onSaved }: { workout: WorkoutView; onSaved: () => 
 
   function save(change: { effort?: number | null; note?: string }) {
     void saveWorkoutDetails({ workoutId: workout.id, ...change }).then(async () => {
-      toast.success("Saved.")
       await onSaved()
     }, reportFitnessError)
   }

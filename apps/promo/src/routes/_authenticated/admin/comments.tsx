@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { findProjectForOldScreen } from "@/lib/api/social/projects"
+import { findProjectForOldComments } from "@/lib/api/social/projects"
 
 type CommentsSearch = { tab?: "failed" | "posts"; replies?: string; comment?: string }
 
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/admin/comments")({
     comment: id(search.comment),
   }),
   beforeLoad: async ({ search }) => {
-    const { projectId } = await findProjectForOldScreen("comments", search.replies ?? search.comment ?? null)
+    const { projectId } = await findProjectForOldComments(search.replies ?? search.comment ?? null)
     if (search.tab === "posts") {
       if (!projectId) throw redirect({ to: "/admin/projects", replace: true })
       throw redirect({ to: "/admin/projects/$projectId", params: { projectId }, search: { network: "reddit" }, replace: true })

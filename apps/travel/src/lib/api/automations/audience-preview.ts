@@ -11,7 +11,6 @@ import {
   previewAutomationAudience,
   type AudiencePreview,
 } from "@/server/automations/audience"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import { adminGet } from "@/server/guards"
 import { requireCurrentWorkspace } from "@/server/people/workspaces"
 import {
@@ -71,7 +70,6 @@ const loadAudiencePreviewFn = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }): Promise<AudiencePreview> => {
     const workspace = await requireCurrentWorkspace(context.user.id)
-    await syncContactsFromUsers(workspace.id)
 
     try {
       return await previewAutomationAudience(

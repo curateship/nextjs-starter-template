@@ -145,11 +145,6 @@ export const appOptions: AppOptions = {
         panel: () => import("@/components/workers/workers-settings"),
       },
       {
-        id: "trading-widgets",
-        label: "Widgets",
-        panel: () => import("@/components/trade/dashboard-widget-settings"),
-      },
-      {
         id: "markets",
         label: "Markets",
         panel: () => import("@/components/trade/market-settings"),
@@ -168,13 +163,6 @@ export const appOptions: AppOptions = {
         id: "drawings",
         label: "Drawings",
         panel: () => import("@/components/trade/drawing-settings"),
-      },
-      {
-        // The one switch over how a creator's posts are read: coins only, or
-        // stocks, metals and currencies too.
-        id: "social",
-        label: "Social",
-        panel: () => import("@/components/social/social-settings"),
       },
       {
         // The rules a person builds for their real-money entries, each a stack

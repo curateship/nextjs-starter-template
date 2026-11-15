@@ -341,6 +341,7 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
               ...order,
               marketOnly: true,
               byHand: true,
+              aimedPx: "sent",
             }),
           }
         }
@@ -359,6 +360,7 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
               ...order,
               restingOnly: true,
               byHand: true,
+              aimedPx: "sent",
             }),
           }
         } catch (error) {

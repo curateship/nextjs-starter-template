@@ -12,6 +12,8 @@ type ProjectSearch = TaskFilters & {
   task?: string
   /** Opens the Chat tab, for a project chat's bell notice. */
   chat?: 1
+  /** Opens this note in the left panel, for a # link to it. */
+  note?: string
 }
 
 function readProjectSearch(search: Record<string, unknown>): ProjectSearch {
@@ -20,6 +22,7 @@ function readProjectSearch(search: Record<string, unknown>): ProjectSearch {
   const result: ProjectSearch = filters
   if (typeof search.task === "string" && search.task.length <= 36) result.task = search.task
   if (search.chat === 1 || search.chat === "1") result.chat = 1
+  if (typeof search.note === "string" && search.note.length <= 36) result.note = search.note
   return result
 }
 
@@ -36,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/projects/$projectId")({
 
 function ProjectRoute() {
   const page = Route.useLoaderData()
-  const { task, chat, ...filters } = Route.useSearch()
+  const { task, chat, note, ...filters } = Route.useSearch()
   // The site admin is on no team, so the page names the project's own.
   return (
     <TeamScope teamId={page.project.teamId}>
@@ -46,6 +49,7 @@ function ProjectRoute() {
         openTaskId={task}
         filters={filters}
         openChat={chat === 1}
+        openNoteId={note}
       />
     </TeamScope>
   )

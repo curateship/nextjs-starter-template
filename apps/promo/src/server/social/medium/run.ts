@@ -89,7 +89,7 @@ export async function runMediumAccountJob(
     if (!state.handle) {
       throw new Refusal(
         state.blocked
-          ? `The link opened, but Medium is in the way: ${state.reason}. Take control of the browser on the Browser profiles dashboard.`
+          ? `The link opened, but Medium is in the way: ${state.reason}. Take control of the browser in the Anti Detect dashboard's Profiles.`
           : "The link opened, but the browser is not signed in to Medium. The link may have run out; ask Medium for a new one and paste it straight away."
       )
     }

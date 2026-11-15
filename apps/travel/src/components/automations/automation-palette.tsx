@@ -1,13 +1,10 @@
 import * as React from "react"
-import { LayoutGridIcon, PlusIcon, StarIcon } from "lucide-react"
+import { LayoutGridIcon, LayoutTemplateIcon, PlusIcon, StarIcon, type LucideIcon } from "lucide-react"
 
 import { EmptyRow } from "@/components/shared/feed-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  DashboardCardTab,
-  DashboardCardTabsHeader,
-} from "@/components/shared/dashboard-card-header"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import {
   automationPaletteGroups,
   automationPaletteItems,
@@ -16,7 +13,15 @@ import {
 import { cn } from "@/lib/utils"
 import { focusRingInset, focusRing } from "@/lib/layout/focus-ring"
 
+import type { AutomationTemplateListItem } from "@/lib/api/automations/automation-templates"
+
 import { AutomationNodeIcon } from "./automation-node-icon"
+import {
+  AutomationTemplateCards,
+  type AutomationTemplateChangeHooks,
+} from "./automation-template-cards"
+
+type PaletteView = "fav" | "all" | "templates"
 
 // Read inside the call, never at the top of the file: both lists include what
 // the app added, and that is not there yet while modules are loading.
@@ -38,13 +43,27 @@ function paletteGroupsFor(
 export function AutomationPalette({
   className,
   favoriteNodeKeys,
+  templates,
   onSelect,
   onAdd,
   onDragStart,
   onDragEnd,
+  headerStart,
 }: {
   className?: string
+  /** At the header's start: the step list's collapse button on the Automations dashboard. */
+  headerStart?: React.ReactNode
   favoriteNodeKeys: string[]
+  /**
+   * The Templates tab: the cards, the template on the canvas when the editor
+   * is editing one, and what the editor is told when one changes. Left out,
+   * the tab is not drawn.
+   */
+  templates?: {
+    items: AutomationTemplateListItem[]
+    openKey?: string
+    hooks: AutomationTemplateChangeHooks
+  }
   onSelect: (key: string) => void
   onAdd: (key: string) => void
   onDragStart: (key: string) => void
@@ -53,48 +72,81 @@ export function AutomationPalette({
   // Opening on Fav with nothing starred means the first thing anyone ever sees
   // is the "no favourites yet" line instead of the nodes. Read once, on mount:
   // starring your first node then moves the tab out from under you mid-edit.
-  const [tab, setTab] = React.useState<"fav" | "all">(
-    favoriteNodeKeys.length > 0 ? "fav" : "all"
+  // A template opens on Templates: picking one from that tab reloads the
+  // editor, and the list should still be where it was clicked.
+  const [tab, setTab] = React.useState<PaletteView>(
+    templates?.openKey
+      ? "templates"
+      : favoriteNodeKeys.length > 0
+        ? "fav"
+        : "all"
   )
 
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => setTab(value as "fav" | "all")}
+    <div
       className={cn(
-        "h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card",
+        "@container/palette flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card",
         className
       )}
     >
-      <DashboardCardTabsHeader>
-        <DashboardCardTab
-          value="fav"
-          icon={<StarIcon className="size-4 fill-current" />}
-          label="Fav"
+      {/* Words only, no icons, drawn as Settings → Styling says, pills or
+          underlined, like every dashboard's tabs (Tyler, 9 Nov 2026: "remove
+          icons and wire the tabs styling to the setting"). On the step
+          list's header they sit at the right, after the collapse button. */}
+      <DashboardCardHeader className="gap-1">
+        {headerStart}
+        <DashboardTabs
+          className={cn("min-w-0", headerStart ? "ml-auto flex-initial" : "")}
+          value={tab}
+          onValueChange={(value) => setTab(value as PaletteView)}
+          tabs={[
+            { value: "fav", label: <PaletteTabLabel icon={StarIcon}>Fav</PaletteTabLabel> },
+            { value: "all", label: <PaletteTabLabel icon={LayoutGridIcon}>All nodes</PaletteTabLabel> },
+            ...(templates
+              ? [{ value: "templates", label: <PaletteTabLabel icon={LayoutTemplateIcon}>Templates</PaletteTabLabel> }]
+              : []),
+          ]}
         />
-        <DashboardCardTab
-          value="all"
-          icon={<LayoutGridIcon className="size-4" />}
-          label="All nodes"
+      </DashboardCardHeader>
+      {tab === "fav" || tab === "all" ? (
+        <PaletteTab
+          key={tab}
+          value={tab}
+          groups={paletteGroupsFor(tab, favoriteNodeKeys)}
+          onSelect={onSelect}
+          onAdd={onAdd}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
         />
-      </DashboardCardTabsHeader>
-      <PaletteTab
-        value="fav"
-        groups={paletteGroupsFor("fav", favoriteNodeKeys)}
-        onSelect={onSelect}
-        onAdd={onAdd}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      />
-      <PaletteTab
-        value="all"
-        groups={paletteGroupsFor("all", favoriteNodeKeys)}
-        onSelect={onSelect}
-        onAdd={onAdd}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      />
-    </Tabs>
+      ) : templates ? (
+        <div role="tabpanel" className="min-h-0 flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-3">
+              <AutomationTemplateCards
+                templates={templates.items}
+                openTemplateKey={templates.openKey}
+                hooks={templates.hooks}
+              />
+            </div>
+          </ScrollArea>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * A tab's word, or its icon when the panel has no room for the words (Tyler,
+ * 9 Nov 2026: "remove icons", then "return back the icons for when theres no
+ * room for the tabs text"). The three words and the collapse button need
+ * 17rem (272px); narrower, each tab is its icon, the word kept for screen readers.
+ */
+function PaletteTabLabel({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <>
+      <Icon aria-hidden className="size-4 @[17rem]/palette:hidden" />
+      <span className="sr-only @[17rem]/palette:not-sr-only">{children}</span>
+    </>
   )
 }
 
@@ -114,9 +166,13 @@ function PaletteTab({
   onDragEnd: () => void
 }) {
   return (
-    <TabsContent value={value} className="min-h-0 overflow-hidden">
+    <div role="tabpanel" className="min-h-0 flex-1 overflow-hidden">
       <ScrollArea className="h-full">
-        <div className="flex flex-col gap-4 p-3">
+        {/* 6px in, so each card's icon tile (its 1px edge, 1px of frame and 8px padding
+            further) starts 16px from the panel's edge, under the step list's
+            collapse button (Tyler, 9 Nov 2026: "the items has to align with
+            the collapse toggle"). The headings take the same 9px. */}
+        <div className="flex flex-col gap-4 px-1.5 py-3">
           {groups.map((group) => (
             <section
               key={group.label}
@@ -124,11 +180,14 @@ function PaletteTab({
             >
               <h2
                 id={`palette-${value}-${group.label}`}
-                className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
+                className="mb-2 px-[9px] text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
               >
                 {group.label}
               </h2>
-              <div className="grid gap-2">
+              {/* A column the panel's own width: an "auto" one grew to the
+                  longest name, and at the panel's narrowest the cards ran past
+                  its edge. */}
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
                 {group.items.map((item) => (
                   <PaletteNodeCard
                     key={item.key}
@@ -151,7 +210,7 @@ function PaletteTab({
           ) : null}
         </div>
       </ScrollArea>
-    </TabsContent>
+    </div>
   )
 }
 
@@ -181,23 +240,19 @@ function PaletteNodeCard({
         }}
         onDragEnd={onDragEnd}
         className={cn(
-          "flex w-full cursor-grab items-start gap-2 overflow-hidden rounded-lg border bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 active:cursor-grabbing active:[clip-path:inset(0_round_var(--radius-lg))]",
+          "flex w-full cursor-grab items-center gap-2 overflow-hidden rounded-lg border bg-card p-2 pr-10 text-left transition-colors hover:border-primary/40 hover:bg-muted/30 active:cursor-grabbing active:[clip-path:inset(0_round_var(--radius-lg))]",
           focusRingInset
         )}
       >
-        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <AutomationNodeIcon icon={item.icon} className="size-3.5" />
         </span>
-        <span className="min-w-0 flex-1 overflow-hidden">
-          <span className="block truncate text-xs font-medium">
-            {item.name}
-          </span>
-          <span
-            className="line-clamp-2 text-[10px] leading-4 text-muted-foreground"
-            title={item.description}
-          >
-            {item.description}
-          </span>
+        {/* The name, then the description on one line, cut short with "…"
+            (Tyler, 9 Nov 2026: "Remove subheader", then "return the
+            subheader but make it shorter"). */}
+        <span className="grid min-w-0 flex-1">
+          <span className="truncate text-xs font-medium">{item.name}</span>
+          <span className="truncate text-[10px] leading-4 text-muted-foreground">{item.description}</span>
         </span>
       </button>
       <button

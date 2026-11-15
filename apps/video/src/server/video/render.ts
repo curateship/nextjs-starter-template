@@ -21,6 +21,8 @@ import {
   clipSpeed,
   clipVolume,
   DEFAULT_CLIP_VOLUME,
+  clipLoops,
+  playbackSourceMsAt,
   sourceMsAt,
   sourceSpanMs,
 } from "@/lib/video/clip-playback"
@@ -82,6 +84,7 @@ import {
 } from "@/lib/video/progress-bar"
 import { adBreakStarts } from "@/lib/video/ads"
 import { shapeExportWindows, shapeSvg } from "@/lib/video/shapes"
+import { isTimerClip, timerBox, timerExportWindows, timerSvg } from "@/lib/video/timer"
 import {
   isSocialClip,
   socialExportWindows,
@@ -669,6 +672,13 @@ async function openOwnedSources(
   )
   const steadyCopies = await steadyCopiesForRender(steadyIds)
 
+  // A looped clip's file is read from its start again on every pass, so it
+  // is fetched whole rather than read over the network (clip-loop.md).
+  const loopedIds = new Set(
+    clips
+      .filter(({ clip }) => clipLoops(clip) && clip.mediaId)
+      .map(({ clip }) => clip.mediaId!)
+  )
   const sourceFiles = new Map<string, string>()
   const opened: RenderSource[] = []
   const release = async () => {
@@ -676,14 +686,15 @@ async function openOwnedSources(
   }
   try {
     for (const media of mediaRows) {
-      const source = await openRenderSource(media, { draft })
+      const whole = loopedIds.has(media.id)
+      const source = await openRenderSource(media, { draft, whole })
       opened.push(source)
       sourceFiles.set(media.id, source.input)
       const steady = steadyCopies.get(media.id)
       if (steady) {
         const steadySource = await openRenderSource(
           { ...media, ...steady },
-          { draft: false }
+          { draft: false, whole }
         )
         opened.push(steadySource)
         sourceFiles.set(steadySourceKey(media.id), steadySource.input)
@@ -857,6 +868,10 @@ async function buildFfmpegCommand(options: {
   const inputs: string[] = []
   // Each film look's LUT, written once however many clips use it.
   const lookFiles = new Map<FilmLookId, string>()
+  // Each looped sound's WAV, made once however many clips loop it.
+  const loopedSounds = new Map<string, string>()
+  // Each distinct second of every timer, drawn once (timer.ts).
+  const timerPictures = new Map<string, string>()
   // Moved on in whole frames: ffmpeg drops the fraction of a time it is
   // given, and a start a hair under a frame lands on the one before it.
   const filters: string[] = [
@@ -1097,18 +1112,36 @@ async function buildFfmpegCommand(options: {
       const option = `option framerate ${fps}`
       const lines = ["ffconcat version 1.0"]
       const social = isSocialClip(clip)
+      // A timer is one picture per whole second at its box's own size, each
+      // distinct picture drawn once however many seconds and clips show it
+      // (timer.ts), and laid at its box rather than over the whole frame.
+      const timer = isTimerClip(clip)
+      const timerAt = timer ? timerBox(clip, size) : null
       const picture = social && clip.pictureUrl ? (pictures.get(clip.pictureUrl) ?? null) : null
-      const windows: { fromMs: number; toMs: number; atMs: number; progress: number }[] = social
-        ? socialExportWindows(clip, fps).map((window) => ({ ...window, progress: 1 }))
-        : shapeExportWindows(clip, fps).map((window) => ({ ...window, atMs: 0 }))
+      const windows: { fromMs: number; toMs: number; atMs: number; progress: number }[] = timer
+        ? timerExportWindows(clip).map((window) => ({ ...window, atMs: window.second, progress: 1 }))
+        : social
+          ? socialExportWindows(clip, fps).map((window) => ({ ...window, progress: 1 }))
+          : shapeExportWindows(clip, fps).map((window) => ({ ...window, atMs: 0 }))
       for (const [index, window] of windows.entries()) {
-        const file = path.join(dir, `shape-${visualStep}-${index}.png`)
-        await writeFile(
-          file,
-          social
-            ? renderWordsPng(socialStickerSvg(clip, size, window.atMs, picture))
-            : renderSvgPng(shapeSvg(clip, size, window.progress))
-        )
+        let file = path.join(dir, `shape-${visualStep}-${index}.png`)
+        if (timer) {
+          const svg = timerSvg(clip, size, window.atMs)
+          const drawn = timerPictures.get(svg)
+          if (drawn) file = drawn
+          else {
+            file = path.join(dir, `timer-${timerPictures.size}.png`)
+            await writeFile(file, renderWordsPng(svg))
+            timerPictures.set(svg, file)
+          }
+        } else {
+          await writeFile(
+            file,
+            social
+              ? renderWordsPng(socialStickerSvg(clip, size, window.atMs, picture))
+              : renderSvgPng(shapeSvg(clip, size, window.progress))
+          )
+        }
         lines.push(
           `file '${path.basename(file)}'`,
           option,
@@ -1125,7 +1158,7 @@ async function buildFfmpegCommand(options: {
       const moved = followOffsetExpressions(clip, size, startS)
       filters.push(
         `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${startS}/TB`, ...shapeFades].join(",")}[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x='${moved.x}':y='${moved.y}':enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+        `[v${visualStep}][l${visualStep}]overlay=x='${timerAt ? `${Math.round(timerAt.left)}+(${moved.x})` : moved.x}':y='${timerAt ? `${Math.round(timerAt.top)}+(${moved.y})` : moved.y}':enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
       )
     } else {
       const file =
@@ -1207,9 +1240,12 @@ async function buildFfmpegCommand(options: {
         // Before the input, so ffmpeg jumps to the moment rather than
         // reading up to it: from a storage address that is the difference
         // between fetching the clip and fetching the recording.
+        // A looped clip reads its file round and round (-stream_loop), its
+        // first pass from where the loop has got to (clip-loop.md).
         inputs.push(
+          ...(clipLoops(clip) ? ["-stream_loop", "-1"] : []),
           "-ss",
-          String(sourceMsAt(clip, skipS * 1000) / 1000),
+          String(playbackSourceMsAt(clip, skipS * 1000) / 1000),
           "-t",
           String((sourceSpanMs(clip) - skipS * 1000 * speed) / 1000),
           ...inputArgs(file)
@@ -1336,12 +1372,17 @@ async function buildFfmpegCommand(options: {
         ? sourceFiles.get(clip.mediaId)
         : undefined
     if (!file) continue
+    // A looped sound plays round and round from a WAV made once, because an
+    // mp3's padding would click at every wrap (clip-loop.md).
+    const looped = clipLoops(clip)
+    const read = looped ? await loopableSound(file, dir, loopedSounds) : file
     inputs.push(
+      ...(looped ? ["-stream_loop", "-1"] : []),
       "-ss",
-      String(clip.trimStartMs / 1000),
+      String(playbackSourceMsAt(clip, 0) / 1000),
       "-t",
       String(sourceSpanMs(clip) / 1000),
-      ...inputArgs(file)
+      ...inputArgs(read)
     )
     pushAudio(inputIndex, clip, duck)
     inputIndex += 1
@@ -1614,6 +1655,22 @@ function hasAudioStream(file: string) {
 }
 
 /** Every ffmpeg run in the exporter says the same thing when it fails. */
+/**
+ * A sound file ffmpeg can loop without a gap: decoded once to WAV in the
+ * render's own folder. An mp3 carries a few milliseconds of padding at each
+ * end, which -stream_loop would play at every wrap, a click every half
+ * minute under a long rain (clip-loop.md). Decoding reads the encoder's
+ * gapless note and drops the padding.
+ */
+async function loopableSound(file: string, dir: string, made: Map<string, string>) {
+  const kept = made.get(file)
+  if (kept) return kept
+  const out = path.join(dir, `loop-${made.size}.wav`)
+  await runFfmpeg(["-y", ...inputArgs(file), "-vn", "-c:a", "pcm_s16le", out])
+  made.set(file, out)
+  return out
+}
+
 function runFfmpeg(args: string[], signal?: AbortSignal, timeoutMs?: number) {
   return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal, timeoutMs)
 }

@@ -14,12 +14,12 @@ import {
   Trash2Icon,
   type LucideIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { LoadMoreButton } from "@/components/shared/load-more-button"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -54,7 +54,6 @@ import {
 } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ChoiceRow, SectionLabel } from "@/components/video-assets/filter-menu-rows"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -186,7 +185,7 @@ export function PiecesPanel<T extends PieceItem>({ adapter }: { adapter: PiecesA
   const [total, setTotal] = React.useState(kept?.total ?? 0)
   const [page, setPage] = React.useState(kept?.page ?? 1)
   const [pages, setPages] = React.useState(kept?.pages ?? 1)
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [reads, setReads] = React.useState(0)
   const [busyId, setBusyId] = React.useState<string | null>(null)
@@ -255,12 +254,11 @@ export function PiecesPanel<T extends PieceItem>({ adapter }: { adapter: PiecesA
         setTotal(loaded.total)
         setPage(1)
         setPages(loaded.total_pages)
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(adapterRef.current.errorMessage(error))
+        setLoadError(adapterRef.current.errorMessage(error))
       })
     return () => {
       active = false
@@ -308,17 +306,7 @@ export function PiecesPanel<T extends PieceItem>({ adapter }: { adapter: PiecesA
 
   async function archive(ids: string[], archived: boolean) {
     try {
-      const result = await adapter.archive(ids, archived)
-      toast.success(
-        describeBulkResult({
-          done: result.done_ids.length,
-          kept: result.skipped_ids.length,
-          one,
-          many,
-          verb: archived ? "archived" : "brought back",
-          keptReason: archived ? "already archived" : "not archived",
-        })
-      )
+      await adapter.archive(ids, archived)
       selection.clear()
       reload()
     } catch (error) {
@@ -456,14 +444,12 @@ export function PiecesPanel<T extends PieceItem>({ adapter }: { adapter: PiecesA
       />
       <ScrollArea className="min-h-0 flex-1">
         <div ref={listRef} className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          {items === null && !loadFailed ? null : loadFailed ? (
-            <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              The {many} could not be loaded.
-              <Button type="button" variant="outline" onClick={reload}>
-                Try again
-              </Button>
-            </div>
-          ) : !items?.length ? (
+          {loadError ? (
+            <ErrorRow
+              message={loadError}
+              onRetry={reload}
+            />
+          ) : items === null ? null : !items?.length ? (
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               {asked || filterCount
                 ? `No ${one} matches. Clear the search or the filter to see them all.`
@@ -705,7 +691,7 @@ function PieceRow<T extends PieceItem>({
                 ) : null}
                 {name}
               </span>
-              <span className="grid min-w-0 text-[0.625rem] leading-tight text-muted-foreground tabular-nums">
+              <span className="grid min-w-0 text-xs leading-tight text-muted-foreground tabular-nums">
                 <span className="truncate">{details.lines[0]}</span>
                 <span className="truncate">{details.lines[1]}</span>
                 {details.note ? (
@@ -841,16 +827,6 @@ function MoveDialog<T extends PieceItem>({
     setBusy(true)
     try {
       const result = await adapter.move(ids, target)
-      toast.success(
-        describeBulkResult({
-          done: result.done_ids.length,
-          kept: result.skipped_ids.length,
-          one: adapter.one,
-          many: adapter.many,
-          verb: "moved",
-          keptReason: "already there or not yours",
-        })
-      )
       setTarget("")
       onMoved(result.done_ids, target)
     } catch (error) {
@@ -960,10 +936,6 @@ function DeleteDialog<T extends PieceItem>({
       if (failed) {
         showErrorToast(
           `${failed} ${plural(failed, adapter.one, adapter.many)} could not be deleted, because a file would not come out of storage. Try again.`
-        )
-      } else {
-        toast.success(
-          `${result.deleted_ids.length} ${plural(result.deleted_ids.length, adapter.one, adapter.many)} deleted.`
         )
       }
       onDeleted(result.deleted_ids)

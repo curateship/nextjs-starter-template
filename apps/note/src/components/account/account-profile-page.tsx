@@ -280,9 +280,7 @@ function EmailCard({
             onRetry={() => setReloads((count) => count + 1)}
           />
         ) : !change ? (
-          <div className="flex justify-center py-2">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          </div>
+          <div className="py-2" />
         ) : change.pendingEmail ? (
           <div className="flex flex-col gap-4">
             <span role="status" className="text-sm text-muted-foreground">

@@ -95,8 +95,8 @@ export async function remindAppeals(db: CustomShellDb = defaultDb, now: Date = n
         kind: "appeal_waiting",
         targetId: ban.accountId ?? ban.id,
         message: `No answer to ${who}'s appeal yet`,
-        detail: `No answer to ${who}'s appeal yet. It went in 7 days ago. Record the answer on the Bans dashboard when it comes, or press Clean up to put its phone back to work.`,
-        href: `/admin/bans?open=${encodeURIComponent(ban.id)}`,
+        detail: `No answer to ${who}'s appeal yet. It went in 7 days ago. Record the answer in the Anti Detect dashboard's Bans when it comes, or press Clean up to put its phone back to work.`,
+        href: `/admin/anti-detect?section=bans&open=${encodeURIComponent(ban.id)}`,
       },
       db,
       now

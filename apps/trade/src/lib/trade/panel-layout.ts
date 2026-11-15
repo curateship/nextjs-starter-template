@@ -11,15 +11,13 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
+import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { ALL_ROW } from "@/lib/trade/market-folders"
+import { TRADE_MAKERS, type TradeMaker } from "@/lib/trade/trade-maker"
 import {
-  TRADE_PANEL_LAYOUT_KEYS,
-  type TradePanelLayoutKey,
-  tradePanelIds,
-  tradePanelLayoutKey,
-} from "@/lib/trade/panel-keys"
-
-export const MAX_NAMED_PANEL_LAYOUTS = 5
+  readHiddenTradeColumns,
+  type HiddenTradeColumns,
+} from "@/lib/trade/trades-popover-columns"
 
 export type MarketPanelScope = { protocol: ProtocolId; network: NetworkId }
 
@@ -33,48 +31,64 @@ export type OpenMarketRows = Record<string, string | null>
 /** The drawing rail's place inside the candle area, as shares of its travel. */
 export type ChartToolbarPosition = { x: number; y: number }
 
-export type NamedPanelLayout = {
-  id: string
-  name: string
-  horizontal: Layout
-  vertical: Layout
-  /** The folder row this layout opens on each exchange where it was saved. */
-  openMarketRows: OpenMarketRows
-  /** Older saved layouts leave the current header choice alone. */
-  headerProfitVisible?: boolean
-  /** Older saved layouts leave the drawing rail where it is. */
-  chartToolbarPosition?: ChartToolbarPosition | null
-}
-
-/** Every panel arrangement kept in the account's one preference column. */
+/**
+ * The panel choices kept in the account's one preference column. It held the
+ * backtest's and bot's chart-over-trades split too, until those pages lost
+ * their bottom trades panel (10 Nov 2026); a stored row may still carry that
+ * old `current` and `legacyImported`, which nothing reads.
+ */
 export type TradePanelLayouts = {
-  legacyImported: boolean
-  current: Partial<Record<TradePanelLayoutKey, Layout>>
   /** The folder row currently open on each exchange, including closed rows. */
   openMarketRows: OpenMarketRows
   /** Whether the sticky header shows profit beside the active-trade value. */
   headerProfitVisible: boolean
   /** Null is the home position, equally inset from the top and right. */
   chartToolbarPosition: ChartToolbarPosition | null
-  /** The named layout that follows later dashboard changes. */
-  activeNamedId: string | null
-  named: NamedPanelLayout[]
+  /** The columns hidden in the Bots dashboard's trades popover, per table. */
+  hiddenTradeColumns: HiddenTradeColumns
+  /** The Trade dashboard Journal's filter and its hide-practice switch. */
+  journalView: JournalView
+  /**
+   * The chart's zoom and scroll under 1280px, kept apart from the wide
+   * screen's `chartView` so neither ever opens at the other's zoom (Tyler,
+   * 13 Nov 2026: candles fill the width when the chart opens on a phone).
+   * Null until a narrow chart has been moved.
+   */
+  narrowChartView: ChartView | null
+}
+
+/**
+ * Which Journal rows show: only real money when `hidePractice`, and only the
+ * makers listed, every maker when the list is empty (Tyler, 10 Nov 2026,
+ * picks "Filter the Journal by who placed it" and "Hide practice trades").
+ */
+export type JournalView = { hidePractice: boolean; makers: TradeMaker[] }
+
+export const EMPTY_JOURNAL_VIEW: JournalView = { hidePractice: false, makers: [] }
+
+/** A stored view, with anything unknown dropped. */
+export function readJournalView(value: unknown): JournalView {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return EMPTY_JOURNAL_VIEW
+  const record = value as Record<string, unknown>
+  const makers = Array.isArray(record.makers)
+    ? TRADE_MAKERS.filter((maker) => (record.makers as unknown[]).includes(maker))
+    : []
+  return { hidePractice: record.hidePractice === true, makers }
 }
 
 export function emptyTradePanelLayouts(): TradePanelLayouts {
   return {
-    legacyImported: false,
-    current: {},
     openMarketRows: {},
     headerProfitVisible: true,
     chartToolbarPosition: null,
-    activeNamedId: null,
-    named: [],
+    hiddenTradeColumns: {},
+    journalView: EMPTY_JOURNAL_VIEW,
+    narrowChartView: null,
   }
 }
 
 /**
- * Applies an account-owned layout to the panel group already on screen.
+ * Applies a remembered layout to the panel group already on screen.
  *
  * The first layout callback fires when the group registers its panels. The
  * saved answer is handed to that group through `setLayout`; no React key is
@@ -167,7 +181,7 @@ export function useRememberedPanelLayoutInPlace(
     [panelIds]
   )
 
-  // A first-browser import or a named-layout switch can land after the group
+  // A first-browser import can land after the group
   // has registered. Hand the answer to that same group; never key-remount it.
   useEffectBeforePaint(() => {
     const next = matchingPanelLayout(savedLayout, panelIds)
@@ -201,6 +215,38 @@ export function useRememberedPanelLayoutInPlace(
     setLayout,
     rememberLayout,
   }
+}
+
+/**
+ * A panel layout kept in this browser under `key`, for
+ * `useRememberedPanelLayoutInPlace`. It is read before the first paint, never
+ * on the server, and read again whenever `key` changes; a key with nothing
+ * kept under it hands back null, so the panels' own default sizes stand.
+ */
+export function useBrowserPanelLayout(key: string, panelIds: readonly string[]) {
+  const [stored, setStored] = React.useState<{ key: string; layout: Layout | null } | null>(null)
+  useEffectBeforePaint(() => {
+    let layout: Layout | null = null
+    try {
+      const text = localStorage.getItem(key)
+      layout = text ? matchingPanelLayout(JSON.parse(text), panelIds) : null
+    } catch {
+      // Storage that cannot be read, or holds something else, keeps the defaults.
+    }
+    setStored({ key, layout })
+  }, [key, panelIds])
+  const save = React.useCallback(
+    (layout: Layout) => {
+      setStored({ key, layout })
+      try {
+        localStorage.setItem(key, JSON.stringify(layout))
+      } catch {
+        // Storage may be blocked; the drag still holds for this visit.
+      }
+    },
+    [key]
+  )
+  return { layout: stored?.key === key ? (stored.layout ?? undefined) : undefined, save }
 }
 
 /** A saved layout only when it names every panel on the current screen. */
@@ -252,33 +298,7 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
     return emptyTradePanelLayouts()
   }
   const record = value as Record<string, unknown>
-  const currentRecord =
-    record.current &&
-    typeof record.current === "object" &&
-    !Array.isArray(record.current)
-      ? (record.current as Record<string, unknown>)
-      : {}
-  const current: TradePanelLayouts["current"] = {}
-  for (const key of TRADE_PANEL_LAYOUT_KEYS) {
-    const layout = matchingPanelLayout(currentRecord[key], tradePanelIds[key])
-    if (layout) current[key] = layout
-  }
-
-  const named = Array.isArray(record.named)
-    ? record.named
-        .map(readNamedPanelLayout)
-        .filter((layout): layout is NamedPanelLayout => layout !== null)
-        .slice(0, MAX_NAMED_PANEL_LAYOUTS)
-    : []
-  const activeNamedId =
-    typeof record.activeNamedId === "string" &&
-    named.some((layout) => layout.id === record.activeNamedId)
-      ? record.activeNamedId
-      : null
-
   return {
-    legacyImported: record.legacyImported === true,
-    current,
     openMarketRows: readOpenMarketRows(record.openMarketRows),
     headerProfitVisible:
       typeof record.headerProfitVisible === "boolean"
@@ -286,53 +306,10 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
         : true,
     chartToolbarPosition:
       readChartToolbarPosition(record.chartToolbarPosition) ?? null,
-    activeNamedId,
-    named,
+    hiddenTradeColumns: readHiddenTradeColumns(record.hiddenTradeColumns),
+    journalView: readJournalView(record.journalView),
+    narrowChartView: readChartView(record.narrowChartView ?? null),
   }
-}
-
-function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return null
-  }
-  const record = value as Record<string, unknown>
-  const name = typeof record.name === "string" ? record.name.trim() : ""
-  const horizontal = matchingPanelLayout(
-    record.horizontal,
-    tradePanelIds[tradePanelLayoutKey.workspaceHorizontal]
-  )
-  const vertical = matchingPanelLayout(
-    record.vertical,
-    tradePanelIds[tradePanelLayoutKey.workspaceVertical]
-  )
-  if (
-    typeof record.id !== "string" ||
-    record.id.length === 0 ||
-    record.id.length > 36 ||
-    name.length === 0 ||
-    name.length > 32 ||
-    !horizontal ||
-    !vertical
-  ) {
-    return null
-  }
-  const layout: NamedPanelLayout = {
-    id: record.id,
-    name,
-    horizontal,
-    vertical,
-    openMarketRows: readOpenMarketRows(record.openMarketRows),
-  }
-  if (typeof record.headerProfitVisible === "boolean") {
-    layout.headerProfitVisible = record.headerProfitVisible
-  }
-  const chartToolbarPosition = readChartToolbarPosition(
-    record.chartToolbarPosition
-  )
-  if (chartToolbarPosition !== undefined) {
-    layout.chartToolbarPosition = chartToolbarPosition
-  }
-  return layout
 }
 
 /** Invalid stored coordinates are ignored; null is the deliberate home spot. */
@@ -382,36 +359,4 @@ export function readOpenMarketRows(value: unknown): OpenMarketRows {
     }
   }
   return rows
-}
-
-/** Read all seven old browser keys for the one-time account import. */
-export function readLegacyTradePanelLayouts(
-  storage: Pick<Storage, "getItem">
-): TradePanelLayouts["current"] {
-  const current: TradePanelLayouts["current"] = {}
-  for (const key of TRADE_PANEL_LAYOUT_KEYS) {
-    try {
-      const raw = storage.getItem(key)
-      const layout = raw
-        ? matchingPanelLayout(JSON.parse(raw), tradePanelIds[key])
-        : null
-      if (layout) current[key] = layout
-    } catch {
-      // One blocked or malformed browser value does not hide the other six.
-    }
-  }
-  return current
-}
-
-/** The server is authoritative after import, so the old copies can go. */
-export function clearLegacyTradePanelLayouts(
-  storage: Pick<Storage, "removeItem">
-) {
-  for (const key of TRADE_PANEL_LAYOUT_KEYS) {
-    try {
-      storage.removeItem(key)
-    } catch {
-      // A blocked browser store is already unusable and needs no cleanup.
-    }
-  }
 }

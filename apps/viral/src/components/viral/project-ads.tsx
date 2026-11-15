@@ -1,11 +1,10 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, PenLineIcon, SearchIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -142,7 +141,6 @@ export function AdPanel({ ad, projectId, sample }: { ad: WinningAd | null; proje
   async function copy(current: WinningAd) {
     try {
       await navigator.clipboard.writeText([current.title, current.body].filter(Boolean).join("\n\n"))
-      toast.success("Ad text copied.")
     } catch {
       showErrorToast("The text could not be copied. Select it and copy it instead.")
     }
@@ -182,21 +180,21 @@ export function AdPanel({ ad, projectId, sample }: { ad: WinningAd | null; proje
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-ad-words" title="The ad">
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-ad-words" title="The ad">
             <div className="grid gap-2 text-sm break-words">
               {ad.title ? <p className="font-medium">{ad.title}</p> : null}
               <p className="whitespace-pre-wrap">{ad.body || "This ad has no words, only a picture or video."}</p>
             </div>
-          </InspectorCard>
-          <InspectorCard storageId="viral-ad-details" title="Details">
+          </PanelCard>
+          <PanelCard storageId="viral-ad-details" title="Details">
             <dl className="grid gap-2 text-sm">
               <Detail label="Running since" value={formatShortDay(ad.startedAt)} />
               <Detail label="Days running" value={String(ad.daysRunning)} />
               <Detail label="Shown on" value={platformNames(ad.platforms) || "-"} />
               <Detail label="Found by" value={ad.keyword ? `"${ad.keyword}"` : "-"} />
             </dl>
-          </InspectorCard>
+          </PanelCard>
           <AdCopyCards projectId={projectId} adArchiveId={ad.adArchiveId} sample={sample} />
         </div>
       </ScrollArea>
@@ -256,7 +254,6 @@ export function AdCopyCards({ projectId, adArchiveId, sample }: { projectId: str
     try {
       const written = await writeAdCopyFn(projectId, adArchiveId)
       setCopies((was) => (was.state === "ready" ? { ...was, copies: [written, ...was.copies] } : was))
-      toast.success("The ad is written.")
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -267,10 +264,10 @@ export function AdCopyCards({ projectId, adArchiveId, sample }: { projectId: str
   const priceLine = copies.state === "ready" ? writerPriceWords(copies.price) : null
 
   return (
-    <InspectorCard
+    <PanelCard
       storageId="viral-ad-write"
       title="Write an ad like this"
-      description={sample ? undefined : priceLine ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1) : undefined}
+      meta={sample ? undefined : priceLine ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1) : undefined}
     >
       {copies.state === "loading" ? (
         <LoadingRow label="Reading the ads written" />
@@ -302,7 +299,7 @@ export function AdCopyCards({ projectId, adArchiveId, sample }: { projectId: str
           ) : null}
         </div>
       )}
-    </InspectorCard>
+    </PanelCard>
   )
 }
 
@@ -322,7 +319,6 @@ function AdBox({ label, text, aim }: { label: string; text: string; aim: number 
   async function copy() {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success(`${label} copied.`)
     } catch {
       showErrorToast("The text could not be copied. Select it and copy it instead.")
     }

@@ -3,8 +3,8 @@ import { dayKeyOf, dayStart } from "@/lib/trade/pnl/periods"
 /**
  * The figures on a public profile, worked out from the permanent record.
  *
- * **The same counting as the P&L page.** Money comes from each fill's `money`,
- * priced exactly as the P&L page's month grid prices it (`priceFills` on the
+ * **The same counting as the month grid.** Money comes from each fill's `money`,
+ * priced exactly as the month grid prices it (`priceFills` on the
  * server), so the 30-day figure is the sum of the last 30 tiles of that grid.
  * A fill the exchange has not priced is counted apart, never as zero. Trades
  * are the Journal's flat-to-flat trades, and one "made money" when its own

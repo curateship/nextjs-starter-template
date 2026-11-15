@@ -107,9 +107,9 @@ An analysis on the project page's right panel stays as the AI wrote it.
   left, as the notes do. Saves go one at a time in the order they were
   made, so a slow save never lands after a newer one, and Go back to the
   AI's version waits for any save still on its way. The pencil turns into a
-  tick to stop editing. The
-  shared card has no place in its header for a button, so the pencil is laid
-  over the header, left of the fold arrow (`analysis-cards.tsx`).
+  tick to stop editing. It sits in the card's own button slot in the header,
+  so like the other cards' buttons it shows while the card is pointed at, and
+  stays in view while editing. A shut card hides it (`analysis-cards.tsx`).
 - **The original.** The AI's script is never changed. Your version is kept
   apart (`viral_vault_items.edited_script`). Show original puts the AI's
   version on screen, and Go back to the AI's version throws your edit away
@@ -178,9 +178,10 @@ keeps a copy of the video.
   tag already used, or type a new one), then Delete, then Clear selection.
   Delete asks first, because each idea takes its kept copy of the video with
   it. Each change is one request (`changeVaultItems`). The answer lists the
-  ids changed, the ones already that way and the ones skipped with a reason,
-  and the toast says it in one line: "2 ideas set to Posted, 1 was already
-  set to Posted. 1 was no longer in the vault." (`src/lib/viral/vault-bulk.ts`).
+  ids changed, the ones already that way and the ones skipped with a reason.
+  Nothing pops up when every idea changed. When some were skipped, the error
+  toast says it in one line: "2 ideas set to Posted, 1 was already set to
+  Posted. 1 was no longer in the vault." (`src/lib/viral/vault-bulk.ts`).
   The menu is `src/components/viral/vault-selected-menu.tsx`, the same on the
   Vault page and on a project's vault.
 

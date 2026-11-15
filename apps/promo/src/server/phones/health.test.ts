@@ -16,7 +16,7 @@ vi.mock("@/server/media/storage", () => ({
 import { phoneReadings, sweepPhoneHealth, tidyPhoneReadings, type ReportedVitals } from "./health"
 import { phoneHistory } from "./history"
 import { listPhones, phonesFreeFor } from "./phones"
-import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type ReportedPhone, type VerifiedRack } from "./rack"
+import { checkIn, createPairingCode, createRack, finishAction, nextAction, pairRack, type ReportedPhone, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
 import { promoAppRollouts, promoPhoneActions, promoPhoneActionChecks, promoPhones, promoPhoneSettings } from "./schema"
 import { refuseBrokenAction } from "./action-checks"
@@ -61,8 +61,8 @@ describe("phone health", () => {
     client = made.client
     db = made.db
     userId = (await insertUser(db, { role: "admin" })).id
-    const { code } = await createPairingCode(userId, db, T0)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db, T0)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db, T0)
     rack = { id: paired.rackId, userId, key: paired.key }
   })
 

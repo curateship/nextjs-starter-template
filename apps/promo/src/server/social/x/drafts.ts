@@ -37,7 +37,7 @@ import { promoXDrafts, promoXReplies } from "./schema"
  * "Platform manipulation and spam policy" and its "Authenticity" rules
  * (help.x.com/en/rules-and-policies/platform-manipulation) and put in short.
  * Handed to the rules check and to every prompt. Re-read the page when X
- * changes it.
+ * changes it. Read on 21 Oct 2026.
  */
 export const X_RULES = [
   "No posting the same or nearly the same reply or post again and again, from one account or several.",
@@ -47,8 +47,6 @@ export const X_RULES = [
   "No hashtag stuffing: hashtags that have nothing to do with what is said, or many of them in one post.",
   "Paid promotion must be disclosed when the account was given something for it.",
 ]
-
-export const X_RULES_READ_ON = "21 Oct 2026"
 
 /**
  * Tyler's rule for when a reply names the product, 21 Oct 2026: "Only when

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -155,14 +154,13 @@ export function XBehaviourCard({
     timer.current = setTimeout(() => void save(next.settings), SAVE_DELAY_MS)
   }
 
-  async function searcherChange(change: Parameters<typeof changeXSearcher>[0], done: string) {
+  async function searcherChange(change: Parameters<typeof changeXSearcher>[0]) {
     setBusy(true)
     setSaveStatus("saving")
     try {
       await changeXSearcher(change)
       await read()
       setSaveStatus("saved")
-      toast.success(done)
       return true
     } catch (failure) {
       setSaveStatus("idle")
@@ -226,8 +224,7 @@ export function XBehaviourCard({
               value=""
               disabled={busy}
               onValueChange={(profileId) => {
-                const profile = free.find((item) => item.id === profileId)
-                void searcherChange({ change: "add", profileId }, `${profile?.name ?? "The profile"} searches X now. Sign it in to a throwaway X account that never posts.`)
+                void searcherChange({ change: "add", profileId })
               }}
             >
               <SelectTrigger id="promo-x-add-searcher" className="w-full sm:w-fit sm:min-w-64">
@@ -250,8 +247,8 @@ export function XBehaviourCard({
             X shows nothing to a visitor who is not signed in, so X is read by a browser profile signed in to a throwaway X account that only ever reads.
             It is never offered as an account that replies or posts. Profiles that hold an account, and the reader, are not offered. Make a new one, with a
             proxy of its own, on the{" "}
-            <Link to="/admin/profiles" search={{ open: undefined }} className="font-medium text-foreground underline underline-offset-2">
-              Browser profiles dashboard
+            <Link to="/admin/anti-detect" search={{ section: "profiles" }} className="font-medium text-foreground underline underline-offset-2">
+              Anti Detect dashboard&apos;s Profiles
             </Link>
             , and sign it in to X there. With two or more, each read goes to the one with the most views left. A search account X has stopped for the day is skipped until tomorrow.
           </p>
@@ -284,7 +281,7 @@ export function XBehaviourCard({
         loading={busy}
         onConfirm={() =>
           removing
-            ? void searcherChange({ change: "remove", searcherId: removing.id }, `${removing.profileName} no longer searches X.`).then((done) => {
+            ? void searcherChange({ change: "remove", searcherId: removing.id }).then((done) => {
                 if (done) setRemoving(null)
               })
             : undefined

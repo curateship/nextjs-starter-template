@@ -2,15 +2,20 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { DASHBOARD_PROTOCOLS } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
-import { createDefaultTradingDashboardWidgets } from "@/lib/trade/dashboard/widgets"
+import { DEFAULT_TRADING_WIDGET_LAYOUT } from "@/lib/trade/dashboard/widgets"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
-  loadTradingDashboardWidgets,
+  loadTradingOverviewWidgets,
+  loadTradeDashboardStart,
+  saveHiddenProtocols,
+  saveProtocolOrder,
+  saveHideEmptyBlocks,
+  saveTradeDashboardView,
   loadChartView,
   loadChartOptions,
   loadLastMarketKey,
@@ -26,19 +31,16 @@ import {
   saveChartView,
   saveChartOptions,
   saveChartToolbarPosition,
+  saveHiddenTradeColumns,
   saveHeaderProfitVisibility,
   saveLastMarketKey,
   saveLastWalletId,
   saveMinimumMarketVolume,
   saveLiquidationWarning,
-  saveTradingDashboardWidgets,
-  applyNamedTradePanelLayout,
-  createNamedTradePanelLayout,
-  deleteNamedTradePanelLayout,
-  importLegacyTradePanelLayouts,
+  saveTradingOverviewWidgets,
   loadTradePanelLayouts,
   saveOpenMarketRow,
-  saveTradePanelLayout,
+  saveNarrowChartView,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -71,7 +73,6 @@ describe("the remembered chart options", () => {
       extendTrendlines: false,
       lineAlertsOn: false,
       lineAlertBuffer: 2.5,
-      hideEmptyOrderPanels: true,
       zone: "America/New_York" as const,
     }
     await saveChartOptions(id, options)
@@ -93,7 +94,6 @@ describe("the remembered chart options", () => {
       extendTrendlines: true,
       lineAlertsOn: false,
       lineAlertBuffer: null,
-      hideEmptyOrderPanels: false,
       zone: "Europe/London" as const,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)
@@ -268,307 +268,147 @@ describe("the remembered order window", () => {
   })
 })
 
-describe("the trading dashboard arrangement", () => {
-  it("opens on the trading default before anything is saved", async () => {
+describe("the Trade dashboard's Overview layout", () => {
+  it("opens on the fresh start before anything is saved", async () => {
     const { id } = await insertUser(database)
-    // Read off the default itself rather than copied out of it. A copy is a
-    // second place the layout lives, and it went stale the day a widget was
-    // added to the real one — this test then failed for a feature working
-    // exactly as intended.
-    expect(await loadTradingDashboardWidgets(id)).toEqual(
-      createDefaultTradingDashboardWidgets()
-    )
+    expect(await loadTradingOverviewWidgets(id)).toEqual(DEFAULT_TRADING_WIDGET_LAYOUT)
   })
 
-  it("keeps each account's trading dashboard separate", async () => {
+  it("keeps each account's layout its own, cleaned of widgets it does not know", async () => {
     const mine = await insertUser(database)
     const theirs = await insertUser(database)
-    await saveTradingDashboardWidgets(theirs.id, {
-      top: [],
-      left: ["trades"],
-      right: [],
+    const saved = await saveTradingOverviewWidgets(theirs.id, {
+      top: { columns: 3, spots: ["trades", "views", "trades"] },
+      bottom: { columns: 0, spots: [] },
     })
-    expect(await loadTradingDashboardWidgets(mine.id)).toEqual(
-      createDefaultTradingDashboardWidgets()
-    )
-    expect(await loadTradingDashboardWidgets(theirs.id)).toEqual({
-      top: [],
-      left: ["trades"],
-      right: [],
+    // "views" is the shell's, not Trade's, and a widget shows once.
+    expect(saved).toEqual({
+      top: { columns: 3, spots: ["trades", null, null] },
+      bottom: { columns: 0, spots: [] },
     })
+    expect(await loadTradingOverviewWidgets(theirs.id)).toEqual(saved)
+    expect(await loadTradingOverviewWidgets(mine.id)).toEqual(DEFAULT_TRADING_WIDGET_LAYOUT)
   })
 })
 
-describe("the remembered trade panel layouts", () => {
-  const horizontal = { markets: 20, chart: 58, "smart-orders": 22 }
-  const vertical = { workspace: 72, activity: 28 }
-  const scope = { protocol: "hyperliquid", network: "mainnet" } as const
+describe("where a bare /trade opens", () => {
+  it("has nothing saved on a first visit", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadTradeDashboardStart(id)).toEqual({
+      view: null,
+      protocol: null,
+      hiddenProtocols: [],
+      protocolOrder: DASHBOARD_PROTOCOLS,
+      hideEmptyBlocks: false,
+    })
+  })
 
-  it("starts empty and keeps each panel group in the account", async () => {
+  it("keeps Hide empty blocks on the account, off until switched on", async () => {
+    const { id } = await insertUser(database)
+    expect(await saveHideEmptyBlocks(id, true)).toBe(true)
+    expect((await loadTradeDashboardStart(id)).hideEmptyBlocks).toBe(true)
+    await saveHideEmptyBlocks(id, false)
+    expect((await loadTradeDashboardStart(id)).hideEmptyBlocks).toBe(false)
+  })
+
+  it("remembers the row picked, and keeps the exchange while Overview is picked", async () => {
+    const { id } = await insertUser(database)
+    await saveTradeDashboardView(id, "phemex")
+    expect(await loadTradeDashboardStart(id)).toMatchObject({ view: "phemex", protocol: "phemex" })
+    await saveTradeDashboardView(id, "overview")
+    expect(await loadTradeDashboardStart(id)).toMatchObject({ view: "overview", protocol: "phemex" })
+  })
+
+  it("keeps the hidden exchanges in the block's order, dropping ones it does not know", async () => {
+    const { id } = await insertUser(database)
+    expect(await saveHiddenProtocols(id, ["kucoin", "nowhere", "phemex", "kucoin"])).toEqual([
+      "phemex",
+      "kucoin",
+    ])
+    expect((await loadTradeDashboardStart(id)).hiddenProtocols).toEqual(["phemex", "kucoin"])
+  })
+
+  it("keeps the dragged order, made whole, dropping ones it does not know", async () => {
+    const { id } = await insertUser(database)
+    const saved = await saveProtocolOrder(id, ["aster", "nowhere", "kucoin", "aster"])
+    expect(saved.slice(0, 2)).toEqual(["aster", "kucoin"])
+    expect(saved).toHaveLength(DASHBOARD_PROTOCOLS.length)
+    expect((await loadTradeDashboardStart(id)).protocolOrder).toEqual(saved)
+  })
+})
+
+describe("the remembered trade panel choices", () => {
+  it("starts with nothing chosen", async () => {
     const { id } = await insertUser(database)
     expect(await loadTradePanelLayouts(id, database)).toEqual({
-      legacyImported: false,
-      current: {},
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-      activeNamedId: null,
-      named: [],
+      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
     })
+  })
 
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.workspaceHorizontal,
-      horizontal,
-      database
+  it("keeps the trades popover's hidden columns per table, and refuses unknown ones", async () => {
+    const { id } = await insertUser(database)
+    await saveHiddenTradeColumns(id, "backtest", ["exit", "side"], database)
+    await saveHiddenTradeColumns(id, "bot", ["market"], database)
+
+    expect((await loadTradePanelLayouts(id, database)).hiddenTradeColumns).toEqual({
+      backtest: ["side", "exit"],
+      bot: ["market"],
+    })
+    await expect(saveHiddenTradeColumns(id, "bot", ["closed"], database)).rejects.toThrow(
+      "PANEL_LAYOUT_INVALID"
     )
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.workspaceVertical,
-      vertical,
-      database
+  })
+
+  it("keeps the header Active trades panel's hidden columns per tab, and never hides its Ticker", async () => {
+    const { id } = await insertUser(database)
+    await saveHiddenTradeColumns(id, "active", ["profit", "type"], database)
+    await saveHiddenTradeColumns(id, "watching", ["wallet"], database)
+
+    expect((await loadTradePanelLayouts(id, database)).hiddenTradeColumns).toEqual({
+      active: ["type", "profit"],
+      watching: ["wallet"],
+    })
+    await expect(saveHiddenTradeColumns(id, "active", ["market"], database)).rejects.toThrow(
+      "PANEL_LAYOUT_INVALID"
     )
+  })
+
+  it("keeps the drawing rail and the open folder row on the account", async () => {
+    const { id } = await insertUser(database)
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
+    await saveChartToolbarPosition(id, { x: 0.2, y: 0.4 }, database)
+    await saveOpenMarketRow(id, scope, null, database)
 
     expect(await loadTradePanelLayouts(id, database)).toMatchObject({
-      legacyImported: true,
-      current: {
-        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
-        [tradePanelLayoutKey.workspaceVertical]: vertical,
-      },
+      chartToolbarPosition: { x: 0.2, y: 0.4 },
+      openMarketRows: { "hyperliquid:mainnet": null },
     })
   })
 
-  it("replaces a damaged current value when the next valid group is saved", async () => {
+  it("keeps the narrow chart's zoom apart from the wide one's, and refuses a view it cannot read", async () => {
     const { id } = await insertUser(database)
-    await database
-      .update(tradePrefs)
-      .set({
-        panelLayouts: {
-          legacyImported: true,
-          current: [],
-          named: [],
-        } as never,
-      })
-      .where(eq(tradePrefs.userId, id))
+    const wide: ChartView = { bars: 300, gap: -120, marginTop: 0.2, marginBottom: 0.1 }
+    const narrow: ChartView = { bars: 60, gap: -2, marginTop: 0.2, marginBottom: 0.1 }
+    await saveChartView(id, wide)
+    await saveNarrowChartView(id, narrow, database)
 
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.workspaceHorizontal,
-      horizontal,
-      database
-    )
-
-    expect(await loadTradePanelLayouts(id, database)).toMatchObject({
-      current: {
-        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
-      },
-    })
-  })
-
-  it("accepts the first old browser layout and refuses a later import", async () => {
-    const { id } = await insertUser(database)
-    await importLegacyTradePanelLayouts(
-      id,
-      { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
-      database
-    )
-    const saved = await importLegacyTradePanelLayouts(
-      id,
-      {
-        [tradePanelLayoutKey.workspaceHorizontal]: {
-          markets: 10,
-          chart: 80,
-          "smart-orders": 10,
-        },
-      },
-      database
-    )
-
-    expect(saved.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
-      horizontal
+    expect((await loadTradePanelLayouts(id, database)).narrowChartView).toEqual(narrow)
+    expect(await loadChartView(id)).toEqual(wide)
+    await expect(saveNarrowChartView(id, { bars: 1 }, database)).rejects.toThrow(
+      "PANEL_LAYOUT_INVALID"
     )
   })
 
-  it("keeps the eye choice when old browser panel sizes are imported", async () => {
+  it("keeps the eye choice when the folder row is saved after it", async () => {
     const { id } = await insertUser(database)
     await saveHeaderProfitVisibility(id, false, database)
-
-    const saved = await importLegacyTradePanelLayouts(
-      id,
-      { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
-      database
-    )
-
-    expect(saved.headerProfitVisible).toBe(false)
-    expect(saved.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
-      horizontal
-    )
-  })
-
-  it("creates, automatically updates, applies and deletes a named workspace layout", async () => {
-    const { id } = await insertUser(database)
-    const created = await createNamedTradePanelLayout(
-      id,
-      {
-        name: "Reading",
-        horizontal,
-        vertical,
-        scope,
-        openMarketRowId: "all",
-        headerProfitVisible: false,
-        chartToolbarPosition: { x: 0.25, y: 0.6 },
-      },
-      database
-    )
-    const named = created.named[0]
-    expect(named?.name).toBe("Reading")
-    expect(created.activeNamedId).toBe(named?.id)
-    expect(named?.headerProfitVisible).toBe(false)
-    expect(named?.chartToolbarPosition).toEqual({ x: 0.25, y: 0.6 })
-    expect(named?.openMarketRows).toEqual({
-      "hyperliquid:mainnet": "all",
-    })
-
-    const overwrittenHorizontal = {
-      markets: 10,
-      chart: 80,
-      "smart-orders": 10,
-    }
-    const overwrittenVertical = { workspace: 60, activity: 40 }
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.workspaceHorizontal,
-      overwrittenHorizontal,
-      database
-    )
-    await saveTradePanelLayout(
-      id,
-      tradePanelLayoutKey.workspaceVertical,
-      overwrittenVertical,
-      database
-    )
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
     await saveOpenMarketRow(id, scope, null, database)
-    await saveHeaderProfitVisibility(id, true, database)
-    await saveChartToolbarPosition(id, { x: 0.4, y: 0.7 }, database)
 
-    const automaticallySaved = await loadTradePanelLayouts(id, database)
-    expect(automaticallySaved.named[0]).toMatchObject({
-      id: named!.id,
-      horizontal: overwrittenHorizontal,
-      vertical: overwrittenVertical,
-      openMarketRows: { "hyperliquid:mainnet": null },
-      headerProfitVisible: true,
-      chartToolbarPosition: { x: 0.4, y: 0.7 },
-    })
-
-    const applied = await applyNamedTradePanelLayout(
-      id,
-      named!.id,
-      scope,
-      database
-    )
-    expect(applied.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
-      overwrittenHorizontal
-    )
-    expect(applied.current[tradePanelLayoutKey.workspaceVertical]).toEqual(
-      overwrittenVertical
-    )
-    expect(applied.openMarketRows["hyperliquid:mainnet"]).toBeNull()
-    expect(applied.headerProfitVisible).toBe(true)
-    expect(applied.chartToolbarPosition).toEqual({ x: 0.4, y: 0.7 })
-
-    const deleted = await deleteNamedTradePanelLayout(id, named!.id, database)
-    expect(deleted.named).toEqual([])
-    expect(deleted.activeNamedId).toBeNull()
-  })
-
-  it("keeps another account's named layouts out of reach", async () => {
-    const mine = await insertUser(database)
-    const theirs = await insertUser(database)
-    const created = await createNamedTradePanelLayout(
-      theirs.id,
-      {
-        name: "Reading",
-        horizontal,
-        vertical,
-        scope,
-        openMarketRowId: "all",
-        headerProfitVisible: true,
-        chartToolbarPosition: null,
-      },
-      database
-    )
-
-    await expect(
-      applyNamedTradePanelLayout(mine.id, created.named[0]!.id, scope, database)
-    ).rejects.toThrow("PANEL_LAYOUT_NOT_FOUND")
-    expect((await loadTradePanelLayouts(mine.id, database)).named).toEqual([])
-    expect(
-      (await loadTradePanelLayouts(theirs.id, database)).named
-    ).toHaveLength(1)
-  })
-
-  it("refuses duplicate names and a sixth saved layout", async () => {
-    const { id } = await insertUser(database)
-    await createNamedTradePanelLayout(
-      id,
-      {
-        name: "Reading",
-        horizontal,
-        vertical,
-        scope,
-        openMarketRowId: "all",
-        headerProfitVisible: true,
-        chartToolbarPosition: null,
-      },
-      database
-    )
-    await expect(
-      createNamedTradePanelLayout(
-        id,
-        {
-          name: "reading",
-          horizontal,
-          vertical,
-          scope,
-          openMarketRowId: "all",
-          headerProfitVisible: true,
-          chartToolbarPosition: null,
-        },
-        database
-      )
-    ).rejects.toThrow("PANEL_LAYOUT_NAME_TAKEN")
-
-    for (const name of ["Two", "Three", "Four", "Five"]) {
-      await createNamedTradePanelLayout(
-        id,
-        {
-          name,
-          horizontal,
-          vertical,
-          scope,
-          openMarketRowId: "all",
-          headerProfitVisible: true,
-          chartToolbarPosition: null,
-        },
-        database
-      )
-    }
-    await expect(
-      createNamedTradePanelLayout(
-        id,
-        {
-          name: "Six",
-          horizontal,
-          vertical,
-          scope,
-          openMarketRowId: "all",
-          headerProfitVisible: true,
-          chartToolbarPosition: null,
-        },
-        database
-      )
-    ).rejects.toThrow("PANEL_LAYOUT_LIMIT")
+    expect((await loadTradePanelLayouts(id, database)).headerProfitVisible).toBe(false)
   })
 })
 

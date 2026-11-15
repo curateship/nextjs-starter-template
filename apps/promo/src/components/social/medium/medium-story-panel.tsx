@@ -13,7 +13,6 @@ import {
   Undo2Icon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Hint } from "@/components/social/hint"
@@ -162,7 +161,6 @@ export function MediumStoryPanel({
             onClick={() =>
               void run("list", async () => {
                 await addToMediumList({ accountId: account.id, findId: story.id })
-                toast.success("On its way to the account's Medium list. It shows on the Articles tab.")
               })
             }
           >
@@ -370,7 +368,6 @@ export function MediumStoryPanel({
                   await takeBackMediumResponse(undo.responseId)
                   setText(undo.text)
                   setUndo(null)
-                  toast.success("Taken back. Nothing was sent.")
                   await onChanged()
                 })
               }
@@ -393,7 +390,6 @@ export function MediumStoryPanel({
               onClick={() =>
                 void run("post", async () => {
                   await takeBackMediumResponse(held.responseId)
-                  toast.success("Cancelled. Nothing was sent.")
                   await onChanged()
                 })
               }
@@ -491,8 +487,6 @@ export function MediumStoryPanel({
                     if (sent.undoUntil) {
                       setUndo({ responseId: sent.responseId, text: words, until: new Date(sent.undoUntil).getTime() })
                       setClock(Date.now())
-                    } else if (sent.runAfter) {
-                      toast.success(mediumWaitingText(new Date(sent.runAfter), account.handle))
                     }
                     setText("")
                     setLine("")

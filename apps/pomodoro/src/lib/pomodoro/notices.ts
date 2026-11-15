@@ -409,7 +409,7 @@ export function shareWaitingMessage(files: number) {
     : `${files} shared files are waiting for a check.`
 }
 
-export const SHARE_WAITING_PAGE = "/admin/pomodoro-uploads?sharing=waiting"
+export const SHARE_WAITING_PAGE = "/admin/flowfly?section=library&list=uploads&sharing=waiting"
 
 /** What a report in the queue is about, as the admins' notice names it. */
 export type ReportedThing =

@@ -11,6 +11,25 @@ for one app**, built from the same commit.
 Both are built from the root `Dockerfile`, which takes the app's folder name as
 its one argument.
 
+**Where a deploy's time goes** (Trade's website, 4 Nov 2026, 25 minutes in
+all, 22 of them building): installing packages twice, about 340 seconds each,
+once for the build and once without the build tools; copying the installed
+packages between stages, about 250 seconds each time; Trade's own build, 141
+seconds; then about 2 minutes to start the new container and pass its health
+check. Small steps take 10 to 20 seconds on the German server, so its disk is
+slow too.
+
+- **Downloaded packages are kept between builds** in a BuildKit cache on the
+  server (`/pnpm/store`), shared by every app, so a deploy downloads only what
+  changed. The first deploy after the cache is emptied (a server prune) still
+  downloads everything.
+- **The build runs on top of the install** instead of copying the installed
+  packages into a fresh stage first, which removes one of the two copies.
+- **The finished image still carries the full package folder.** The built
+  website imports packages from it at run time (`dukascopy-node`, for one),
+  and the database update on the way in needs `pg`; started without it on 7
+  Nov 2026, the server stopped with "Cannot find module".
+
 ## Apps never share anything
 
 This is the rule the rest of the page is arranged around, and it is not a

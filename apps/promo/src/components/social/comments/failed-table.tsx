@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { AlertTriangleIcon, Loader2Icon, MessagesSquareIcon, RotateCcwIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -15,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { dismissFailed, getCommentsErrorMessage, type FailureRow } from "@/lib/api/social/comments"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -116,17 +114,7 @@ export function FailedTable({
   async function dismiss(ids: string[]) {
     setBusy(true)
     try {
-      const answer = await dismissFailed(ids)
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "failure",
-          many: "failures",
-          verb: "dismissed",
-          keptReason: "already dismissed",
-        })
-      )
+      await dismissFailed(ids)
       selection.clear()
       await onRefresh()
     } catch (failure) {

@@ -103,6 +103,12 @@ const signalPlanSchema = z.object({
   chases: z.number().int().min(0).default(0),
   /** When this plan came into existence, in epoch milliseconds. */
   startedAt: z.number().default(0),
+  /**
+   * The price the current order first went out at, for slippage (10 Nov
+   * 2026): kept through the chase, cleared when the order is done so the next
+   * signal's order starts its own. Absent on plans from before then.
+   */
+  aimedPx: z.number().positive().optional(),
 })
 
 export type SignalPlan = z.infer<typeof signalPlanSchema>

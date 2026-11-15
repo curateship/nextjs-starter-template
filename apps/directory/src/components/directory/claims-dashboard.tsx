@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { BadgeCheckIcon, PencilRulerIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ClaimDialog } from "@/components/directory/claim-dialog"
 import { EditRequestDialog } from "@/components/directory/edit-request-dialog"
@@ -303,13 +302,8 @@ export function ClaimsDashboard({
         open={Boolean(openClaim)}
         claim={openClaim}
         onClose={() => setListSearch({ open: undefined })}
-        onDecided={(decision) => {
+        onDecided={() => {
           setListSearch({ open: undefined })
-          toast.success(
-            decision === "approve"
-              ? "Approved. They can now suggest changes, and the page shows the claimed mark."
-              : "Rejected. They have been emailed."
-          )
           void router.invalidate()
         }}
       />
@@ -318,13 +312,8 @@ export function ClaimsDashboard({
         open={Boolean(openRequest)}
         request={openRequest}
         onClose={() => setListSearch({ request: undefined })}
-        onDecided={(decision) => {
+        onDecided={() => {
           setListSearch({ request: undefined })
-          toast.success(
-            decision === "approve"
-              ? "Applied. The public page has changed."
-              : "Rejected. The page is unchanged and they have been emailed."
-          )
           void router.invalidate()
         }}
       />
@@ -428,7 +417,6 @@ function ClaimSettingsCard({ settings }: { settings: ClaimsScreen["settings"] })
                   claimApprovedMessage: approved,
                 })
                 await router.invalidate()
-                toast.success("Saved.")
               })
             }
           >

@@ -45,7 +45,7 @@ Without one, it is what stops the heading against the menu bar.
 
 Two other numbers look similar and are not this one:
 
-- **Settings > Styling > Main spacing** does not touch the front page at all,
+- **Admin > Styling > Public > Main spacing** does not touch the front page at all,
   which is why the hero needs a number of its own.
 - **Space between rows** is the gap between two blocks. It sits outside a
   hero's background colour; this sits inside it.
@@ -74,7 +74,7 @@ that is not first, with the reason written beside it. Drag the row to the top of
 the list and the switch comes back. The switch is also greyed out until the row
 has a colour.
 
-The footer keeps whatever colour Settings > Styling gave it. A hero at the top
+The footer keeps whatever colour Admin > Styling > Public gave it. A hero at the top
 of the page says nothing about the bottom of it.
 
 ## Two things worth knowing

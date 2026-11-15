@@ -27,7 +27,7 @@ job, not editable public pages.
 
 ## Signed-in pages
 
-Members can open `/home`, `/account`, `/workspaces`, and `/changelog`. Account
+Members can open `/home`, `/account`, and `/workspaces`. Account
 tabs may also open through the `account` search value while the person stays on
 the current page. Admins use their configured home route instead of the member
 home when one is set.
@@ -36,20 +36,26 @@ Admin routes sit under `/admin` and cover:
 
 - Overview, Users, Workspaces, and Membership.
 - Billing and Plans.
-- Contacts and Segments.
-- Newsletters, System emails, and Notifications.
+- CRM, which holds the newsletters, the app's own emails, contacts,
+  segments, leads, the inbox and the Dev outbox. `/admin/newsletter`,
+  `/admin/newsletter/<id>`, `/admin/contacts`, `/admin/segments`,
+  `/admin/system-emails`, `/admin/system-emails/<kind>` and
+  `/admin/dev-outbox` forward into it.
+- Notifications.
 - Announcements, Feedback, Media, and Pages.
 - AI, Automations, and Traffic.
-- Dev outbox and Settings.
+- Settings.
 
-Automation, newsletter, system-email, and settings routes have child addresses
-for the open editor or tab.
+Automation and settings routes have child addresses for the open editor or
+tab.
 
 ## Open endpoints
 
 - `/api/auth/google` starts Google OAuth and its callback completes it.
 - `/api/v1/media/:mediaId/file` serves an allowed media object.
-- `/api/v1/notifications/stream` carries notification update signals.
+- `/api/v1/notifications/stream` carries notification update signals: one
+  person's ("you have a new notice") or everyone's ("an announcement
+  changed"), after which each tab reads its banners and then its bell.
 - `/api/v1/traffic/view` accepts the browser traffic beacon.
 - `/api/webhooks/resend` and `/api/webhooks/stripe` receive signed provider
   events.

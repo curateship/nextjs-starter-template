@@ -1,4 +1,6 @@
 import * as React from "react"
+
+import { SkyCityField } from "@/components/settings/sky-city-field"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { NotificationSettings } from "@/components/settings/notification-settings"
@@ -46,7 +48,7 @@ type SessionPolicyProps = {
 
 /**
  * General settings — the one screen for everything app-wide that is not
- * navigation, widgets, styling, email or payments.
+ * navigation, styling, email or payments.
  *
  * Security, Notifications, Storage and AI were four more rows in the settings
  * rail until 25 Sep 2026. Each was a single card, so each is a card here. They
@@ -63,6 +65,15 @@ export function GeneralSettings({
   // The auto-save refuses a blank workspace name (saveConfigNow in
   // shell-layout.tsx), so say so on blur rather than letting the edit sit on
   // screen looking saved.
+
+  // The sky city arrives after its lookup, which can take a few seconds; it
+  // goes onto the settings as they are then, so an edit made meanwhile stays
+  // (found by the audit, 8 Nov 2026).
+  const latestConfig = React.useRef(config)
+  React.useEffect(() => {
+    latestConfig.current = config
+  })
+  const setSkyCity = (skyCity: ShellConfig["skyCity"]) => onConfigChange({ ...latestConfig.current, skyCity })
 
   const workspaceNameMissing = !config.workspaceName.trim()
   // An app that serves one website has one logo and nothing to choose between.
@@ -126,7 +137,7 @@ export function GeneralSettings({
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="admin-route"
-            hint="Where the home page and /admin open for admins, for example /admin/media. Empty opens the Overview dashboard. It has to be a real route — an unknown path will 404."
+            hint="Where the home page and /admin open for admins, for example /admin/crm. Empty opens the Admin dashboard. It has to be a real route — an unknown path will 404."
           >
             Admin home route
           </FieldLabel>
@@ -139,14 +150,14 @@ export function GeneralSettings({
                 adminRoute: event.target.value,
               })
             }
-            placeholder="Leave empty for the Overview"
+            placeholder="Leave empty for the Admin dashboard"
           />
         </div>
 
         <div className="grid gap-2">
           <FieldLabel
             htmlFor="member-home-route"
-            hint="Where the home page opens for everybody who is not an admin, for example /changelog/whats-new. Empty shows them their own home page: their plan, their notices and their feedback. It has to be a real route — an unknown path will 404."
+            hint="Where the home page opens for everybody who is not an admin, for example /pricing. Empty shows them their own home page: their plan, their notices and their feedback. It has to be a real route — an unknown path will 404."
           >
             Member home route
           </FieldLabel>
@@ -162,6 +173,8 @@ export function GeneralSettings({
             placeholder="Leave empty for their own home page"
           />
         </div>
+
+        <SkyCityField city={config.skyCity} onChange={(skyCity) => setSkyCity(skyCity)} />
 
         <div className="grid gap-2">
           <Label htmlFor="dashboard-rows-per-page">

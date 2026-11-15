@@ -97,7 +97,7 @@ async function benWithTasks(titles: string[]) {
   for (const title of titles) {
     const task = await createTask(
       actor(ben),
-      { projectId: project.id, title, notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId: project.id, title, notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     ids.push(task.id)
@@ -391,7 +391,7 @@ describe("history", () => {
       await addProjectMember(admin.id, project.id, ben.id, database)
       const task = await createTask(
         actor(anna),
-        { projectId: project.id, title: "Photos", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+        { projectId: project.id, title: "Photos", notes: "", assigneeUserId: ben.id, dueDate: null },
         database
       )
       await acceptTask(actor(ben), task.id, database)

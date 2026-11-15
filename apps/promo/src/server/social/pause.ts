@@ -156,7 +156,7 @@ export async function refuseWhileCommentingPaused(
 ): Promise<void> {
   if (!(await commentingPaused(userId, account, db))) return
   const name = isNetwork(account.platform) ? NETWORK_NAMES[account.platform] : "This network"
-  throw new Refusal(`Commenting on ${name} is paused on this project. Resume it on the network's Commenting row in the project's left column first.`)
+  throw new Refusal(`Commenting on ${name} is paused on this project. Resume it at the foot of the keywords dropdown on the network's Commenting first.`)
 }
 
 /**

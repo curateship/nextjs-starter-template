@@ -7,9 +7,9 @@ import {
   Loader2Icon,
   MicIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Card,
   CardContent,
@@ -58,6 +58,7 @@ import {
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
 import { useSavedTranscripts } from "@/components/video-editor/use-saved-transcripts"
+import { TimeSoFar } from "@/components/video-assets/time-so-far"
 import type { TranscriberId, WriterId } from "@/lib/video/ai-choices"
 import {
   translateCostCents,
@@ -433,9 +434,6 @@ export function TranslateDialog({
     }
     dispatch({ type: "INSERT_CAPTIONS", captions })
     dismissErrorToast()
-    toast.success(
-      `${captions.length} ${plural(captions.length, "caption", "captions")} in ${actOn} added. Undo takes them all back off.`
-    )
     close()
   }
 
@@ -496,9 +494,6 @@ export function TranslateDialog({
         },
       })
       dismissErrorToast()
-      toast.success(
-        `Read aloud in ${actOn}, with the original turned down to ${Math.round(TRANSLATE_ORIGINAL_VOLUME * 100)}%. Undo puts it back.`
-      )
       close()
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
@@ -578,9 +573,6 @@ export function TranslateDialog({
       )
     } else {
       dismissErrorToast()
-      toast.success(
-        `${finished.length} ${plural(finished.length, "copy", "copies")} made, each with its export queued.`
-      )
     }
   }
 
@@ -760,34 +752,44 @@ export function TranslateDialog({
                       {!keyMissing ? (
                         <div className="grid gap-2">
                           <Label htmlFor="translate-voice">Voice</Label>
-                          <Select
-                            value={voiceId}
-                            onValueChange={setVoiceId}
+                          <DisabledReason
                             disabled={!voices?.length}
+                            className="flex w-full"
+                            reason={
+                              voices === null
+                                ? "The voices are still on their way."
+                                : "The voices could not be loaded. Close this window and open it again to try again."
+                            }
                           >
-                            <SelectTrigger
-                              id="translate-voice"
-                              className="w-full"
+                            <Select
+                              value={voiceId}
+                              onValueChange={setVoiceId}
+                              disabled={!voices?.length}
                             >
-                              <SelectValue
-                                placeholder={
-                                  voices === null
-                                    ? "Fetching voices…"
-                                    : "No voices"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(voices ?? []).map((voice) => (
-                                <SelectItem key={voice.id} value={voice.id}>
-                                  {voice.name}
-                                  {voice.description
-                                    ? `: ${voice.description}`
-                                    : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                              <SelectTrigger
+                                id="translate-voice"
+                                className="w-full"
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    voices === null
+                                      ? "Fetching voices…"
+                                      : "No voices"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(voices ?? []).map((voice) => (
+                                  <SelectItem key={voice.id} value={voice.id}>
+                                    {voice.name}
+                                    {voice.description
+                                      ? `: ${voice.description}`
+                                      : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </DisabledReason>
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">
@@ -801,6 +803,7 @@ export function TranslateDialog({
             )}
           </DialogBody>
           <DialogFooter>
+            <TimeSoFar running={busy !== null} />
             {outcomes ? (
               <>
                 {failedLanguages.length ? (

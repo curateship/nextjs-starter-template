@@ -27,7 +27,6 @@ import {
 import { useStopViewingAs } from "@/lib/hooks/use-stop-viewing-as"
 import {
   BadgeCheckIcon,
-  BellIcon,
   ChevronsUpDownIcon,
   CreditCardIcon,
   EyeOffIcon,
@@ -177,23 +176,12 @@ export function UserDropdown({
                 Security
               </DropdownMenuItem>
               {isAdmin ? (
-                <>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to="/admin/notifications"
-                      onClick={closeMobileSidebar}
-                    >
-                      <BellIcon />
-                      Notifications
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/admin/settings" onClick={closeMobileSidebar}>
-                      <SettingsIcon />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem asChild>
+                  <Link to="/admin/settings" onClick={closeMobileSidebar}>
+                    <SettingsIcon />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
               ) : null}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

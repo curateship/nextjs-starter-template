@@ -9,14 +9,18 @@ import {
   FoldHorizontalIcon,
   LightbulbIcon,
   LightbulbOffIcon,
+  ListChecksIcon,
+  SearchIcon,
   UnfoldHorizontalIcon,
   MailOpenIcon,
   MapPinPlusIcon,
   PlusIcon,
   SparklesIcon,
+  WandSparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
+import { SectionTabs } from "@/components/travel/section-tabs"
 import { BinDialog } from "@/components/travel/bin-dialog"
 import { useBoardActions } from "@/components/travel/board-actions"
 import { CalendarLinkDialog } from "@/components/travel/calendar-link-dialog"
@@ -35,22 +39,19 @@ import { TripCalendarView } from "@/components/travel/trip-calendar-view"
 import { useTrip } from "@/components/travel/trip-context"
 import { wantsDraftOnArrival } from "@/components/travel/draft-on-arrival"
 import { NoSignalLine } from "@/components/travel/no-signal-line"
+import { MenuSearch } from "@/components/travel/menu-search"
 import { DraftPlanDialog } from "@/components/travel/draft-plan-dialog"
 import { TripListView } from "@/components/travel/trip-list-view"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
-import { MassSelectChip, SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
+import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { SavedViewsControls, SaveViewDialog, type SavedViewsScreen } from "@/components/shared/saved-views"
-import { SearchToggle } from "@/components/shared/search-toggle"
-import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { DEFAULT_DASHBOARD_TABS } from "@/lib/layout/styling-values"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { COMPACT_CARDS_KEY, TRIP_VIEW_KEY } from "@/lib/travel/panel-keys"
 import {
@@ -70,7 +71,6 @@ import {
 } from "@/lib/travel/trip-views"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 const ANY = "any"
 const ON_OFF = ["on", "off"] as const
@@ -96,7 +96,7 @@ export function SchedulePanel({
   const newActivity = useNewActivity()
   const layout = useBoardLayout(trip.id, trip.days)
   // A trip just made with "Fill it with a first plan" opens on its drafted plan (Travel features part 7).
-  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "ideas" | "calendar" | null>(
+  const [windowOpen, setWindowOpen] = React.useState<"bin" | "saved" | "paste" | "links" | "draft" | "gaps" | "ideas" | "calendar" | null>(
     () => (wantsDraftOnArrival(trip.id) ? "draft" : null)
   )
   const actions = useBoardActions()
@@ -108,6 +108,7 @@ export function SchedulePanel({
   const view: TripView = search.view ?? rememberedView
   const [compact, setCompact] = useRememberedChoice(COMPACT_CARDS_KEY, "off", ON_OFF)
   const [selecting, setSelecting] = React.useState(false)
+  const [searchOpen, setSearchOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
@@ -130,6 +131,8 @@ export function SchedulePanel({
   function pickView(next: TripView) {
     rememberView(next)
     onSearch({ view: next })
+    // Mass select belongs to one tab's cards, the Board's or the List's; changing tab turns it off.
+    stopSelecting()
   }
 
   function toggleSelected(id: string) {
@@ -146,13 +149,27 @@ export function SchedulePanel({
     setSelected(new Set())
   }
 
+  /**
+   * Mass select on or off, from the ⋮ or a card's right-click. Turned on from
+   * a card, that card starts ticked, as on Project's lists; from the ⋮,
+   * nothing is.
+   */
+  function toggleMassSelect(tickId?: string) {
+    if (selecting) {
+      stopSelecting()
+      return
+    }
+    setSelecting(true)
+    setSelected(tickId ? new Set([tickId]) : new Set())
+  }
+
   return (
     <>
-      {/* group/title: the shell's Mass select chip shows while this header is pointed at. Without it the chip
-          stayed invisible, since the board has no heading cell to point at (Tyler, 4 Nov 2026: "How do I access
-          mass select?"). */}
-      <DashboardCardHeader className="group/title @container">
-        <DashboardTabs
+      <DashboardCardHeader className="@container">
+        {/* A dropdown when the header is narrow, as the Trips dashboard's sections, so Map and Photos
+            stay in reach on a phone (Travel polish part 12). */}
+        <SectionTabs
+          label="Which view"
           value={view}
           onValueChange={(value) => pickView(value as TripView)}
           tabs={[
@@ -162,7 +179,6 @@ export function SchedulePanel({
             { value: "map", label: "Map" },
             { value: "photos", label: "Photos" },
           ]}
-          after={readOnly ? undefined : <ScheduleMenu binCount={page.binCount} onBin={() => setWindowOpen("bin")} />}
         />
         <div className="flex shrink-0 items-center gap-1">
           {selectedIds.length && !readOnly ? (
@@ -222,10 +238,11 @@ export function SchedulePanel({
               }}
             />
           ) : null}
-          {view !== "board" || readOnly ? null : (
-            <MassSelectChip on={selecting} onToggle={() => (selecting ? stopSelecting() : setSelecting(true))} />
-          )}
-          <SearchToggle
+          {/* Opened from the ⋮ after the tabs, which holds Search and Mass select (the Admin 3 panel design,
+              Tyler, 6 Nov 2026: "mass selects is also not ui standards"). */}
+          <MenuSearch
+            open={searchOpen}
+            onOpenChange={setSearchOpen}
             name="activity-search"
             label="Search activities"
             placeholder="Search activities…"
@@ -368,16 +385,63 @@ export function SchedulePanel({
             newActivity={newActivity}
             onLinks={() => setWindowOpen("links")}
             onDraft={() => setWindowOpen("draft")}
+            onGaps={() => setWindowOpen("gaps")}
             onIdeas={() => setWindowOpen("ideas")}
             onPaste={() => setWindowOpen("paste")}
             onCalendar={() => setWindowOpen("calendar")}
           />}
+          {/* The ⋮ sits after "+ Add", the last thing in the header, as Project's does (Tyler, 6 Nov 2026,
+              pointing past "+ Add": "The 3 dots icon is supposed to be here"). */}
+          {readOnly ? null : (
+            <ScheduleMenu
+              binCount={page.binCount}
+              onBin={() => setWindowOpen("bin")}
+              onSearch={() => setSearchOpen(true)}
+              massSelect={view === "board" || view === "list" ? { on: selecting, onToggle: () => toggleMassSelect() } : undefined}
+            />
+          )}
         </div>
       </DashboardCardHeader>
       {/* With no signal the trip is the copy kept from the last visit, and every change is off (Travel features part 10). */}
       {readOnly ? <NoSignalLine /> : null}
+      {/* A search or filter that hides every card says so, with the way back (the Admin 3 panel design:
+          "No tasks match "x"." with Clear filters, never a line telling the person what to do). */}
+      {filtering && shown.length === 0 && page.activities.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            {search.q ? `No activities match "${search.q}".` : "No activities match these filters."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onSearch({ q: undefined, ...Object.fromEntries(TRIP_FILTER_KEYS.map((key) => [key, undefined])) })}
+          >
+            Clear filters
+          </Button>
+        </div>
+      ) : null}
       {view === "list" ? (
-        <TripListView activities={shown} />
+        <TripListView
+          activities={shown}
+          newActivity={newActivity}
+          actions={actions}
+          selecting={selecting && !readOnly}
+          selected={selected}
+          onToggleSelected={toggleSelected}
+          onSelectMany={(ids) =>
+            setSelected((was) => {
+              const next = new Set(was)
+              const all = ids.every((id) => next.has(id))
+              for (const id of ids) {
+                if (all) next.delete(id)
+                else next.add(id)
+              }
+              return next
+            })
+          }
+          onMassSelect={readOnly ? undefined : toggleMassSelect}
+        />
       ) : view === "calendar" ? (
         <TripCalendarView activities={shown} />
       ) : view === "map" ? (
@@ -395,6 +459,7 @@ export function SchedulePanel({
             selecting={selecting && !readOnly}
             selected={selected}
             onToggleSelected={toggleSelected}
+            onMassSelect={readOnly ? undefined : toggleMassSelect}
             layout={layout}
             showGaps={!filtering}
             onFillDay={(day) => setFilling({ day, open: true })}
@@ -467,6 +532,15 @@ export function SchedulePanel({
         tripId={trip.id}
         startDate={trip.startDate}
         types={page.types}
+        onClose={() => setWindowOpen(null)}
+        onMade={refresh}
+      />
+      <DraftPlanDialog
+        open={windowOpen === "gaps"}
+        tripId={trip.id}
+        startDate={trip.startDate}
+        types={page.types}
+        gaps
         onClose={() => setWindowOpen(null)}
         onMade={refresh}
       />
@@ -588,14 +662,16 @@ function BoardCorner({
  * activity" button to "+ Add" clicking on this opens a dropdown to give me 3
  * options: New activity, Paste a booking, Add to calender"). New activity
  * opens the New activity dropdown in the same place; the others open their
- * windows. Paste Maps links, Draft a plan and Suggest Ideas (Travel features
- * parts 6 and 7, Travel features 3 part 9) sit after New activity, as the
- * other ways to add places. In a narrow panel the button is the + alone.
+ * windows. Paste Maps links, Draft a plan, Fill every gap and Suggest Ideas
+ * (Travel features parts 6 and 7, Travel features 4 part 10, Travel features
+ * 3 part 9) sit after New activity, as the other ways to add places. In a
+ * narrow panel the button is the + alone.
  */
 function AddMenu({
   newActivity,
   onLinks,
   onDraft,
+  onGaps,
   onIdeas,
   onPaste,
   onCalendar,
@@ -603,6 +679,7 @@ function AddMenu({
   newActivity: ReturnType<typeof useNewActivity>
   onLinks: () => void
   onDraft: () => void
+  onGaps: () => void
   onIdeas: () => void
   onPaste: () => void
   onCalendar: () => void
@@ -655,6 +732,15 @@ function AddMenu({
           }}
         >
           Draft a plan
+        </MenuAction>
+        <MenuAction
+          icon={<WandSparklesIcon className="size-4" />}
+          onClick={() => {
+            setOpen(false)
+            onGaps()
+          }}
+        >
+          Fill every gap
         </MenuAction>
         <MenuAction
           icon={<LightbulbIcon className="size-4" />}
@@ -733,37 +819,85 @@ function JumpToDay({ days, startDate, onJump }: { days: number; startDate: strin
   )
 }
 
-/** The ⋮ after the tabs, where the More dropdown was (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot"). */
-function ScheduleMenu({ binCount, onBin }: { binCount: number; onBin: () => void }) {
+/**
+ * The ⋮ at the end of the header, after "+ Add" (Tyler, 6 Nov 2026: "The 3
+ * dots icon is supposed to be here"). It took the place of the More dropdown
+ * (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot"),
+ * and sat after the tabs until 6 Nov 2026. Since 6 Nov 2026 it
+ * also holds Search activities and, on the Board, Mass select, which were
+ * buttons in the header (the Admin 3 panel design: "The ⋮ holds Search and
+ * Mass select"; Tyler: "mass selects is also not ui standards"). Search opens
+ * its box once the menu has closed, so the cursor lands in the box rather
+ * than back on the ⋮.
+ */
+function ScheduleMenu({
+  binCount,
+  onBin,
+  onSearch,
+  massSelect,
+}: {
+  binCount: number
+  onBin: () => void
+  onSearch: () => void
+  /** Only where the view has Mass select, the Board and the List. */
+  massSelect?: { on: boolean; onToggle: () => void }
+}) {
   const [open, setOpen] = React.useState(false)
-  const runtime = useOptionalShellRuntime()
-  const pills = (runtime?.config.styling.dashboardTabs ?? DEFAULT_DASHBOARD_TABS) === "pills"
+  const searchNext = React.useRef(false)
+  const named = massSelect ? "Search, Mass select and the bin" : "Search and the bin"
   return (
-    // It sits level with the tab names ("not aligned"). Underlined tabs stretch to the header's height with a
-    // 2px see-through line under each, so the ⋮ is centred with the same line; pills are 28px, so it is 28px.
-    <div className={cn("flex items-center", !pills && "border-b-2 border-transparent")}>
-      <FoldingMenu
-        label="More for this trip"
-        align="start"
-        fit
-        open={open}
-        onOpenChange={setOpen}
-        trigger={
-          <Button type="button" variant="ghost" size={pills ? "icon-sm" : "icon"} aria-label="More for this trip">
-            <EllipsisVerticalIcon className="size-4" />
-          </Button>
-        }
-      >
-        <MenuAction
-          icon={<Trash2Icon className="size-4" />}
-          onClick={() => {
-            setOpen(false)
-            onBin()
+    <Tooltip>
+        <FoldingMenu
+          label="More for this trip"
+          align="end"
+          fit
+          open={open}
+          onOpenChange={setOpen}
+          onCloseAutoFocus={(event) => {
+            if (!searchNext.current) return
+            event.preventDefault()
+            searchNext.current = false
+            onSearch()
           }}
+          trigger={
+            <TooltipTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" aria-label="More for this trip" className="size-8">
+                <EllipsisVerticalIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+          }
         >
-          Bin{binCount ? ` (${binCount})` : ""}
-        </MenuAction>
-      </FoldingMenu>
-    </div>
+          <MenuAction
+            icon={<SearchIcon className="size-4" />}
+            onClick={() => {
+              searchNext.current = true
+              setOpen(false)
+            }}
+          >
+            Search activities
+          </MenuAction>
+          {massSelect ? (
+            <MenuAction
+              icon={<ListChecksIcon className="size-4" />}
+              onClick={() => {
+                setOpen(false)
+                massSelect.onToggle()
+              }}
+            >
+              {massSelect.on ? "Hide select" : "Mass select"}
+            </MenuAction>
+          ) : null}
+          <MenuAction
+            icon={<Trash2Icon className="size-4" />}
+            onClick={() => {
+              setOpen(false)
+              onBin()
+            }}
+          >
+            Bin{binCount ? ` (${binCount})` : ""}
+          </MenuAction>
+        </FoldingMenu>
+        <TooltipContent>{named}</TooltipContent>
+      </Tooltip>
   )
 }

@@ -174,13 +174,6 @@ export function daysBetween(from: Date, to: Date) {
   )
 }
 
-/** "Jul 30, 2025", or "Jul 28, 2025 – Jul 30, 2025" when they differ. */
-export function dayRangeText(from: string | Date, to: string | Date) {
-  const start = formatDate(from)
-  const end = formatDate(to)
-  return start === end ? start : `${start} – ${end}`
-}
-
 /**
  * How an activity stream says when: "Just now", "5 minutes ago", "2 hours ago"
  * while it is still today's news, and the plain date once it is a day old. A

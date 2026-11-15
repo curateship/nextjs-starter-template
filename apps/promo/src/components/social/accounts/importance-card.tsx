@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { AlertTriangleIcon, ArrowRightLeftIcon, Loader2Icon, RefreshCwIcon, ShieldCheckIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -48,11 +47,10 @@ export function ImportanceCard({
     return () => clearInterval(timer)
   }, [asking, onChanged])
 
-  async function run(step: NonNullable<typeof busy>, work: () => Promise<void>, success: string) {
+  async function run(step: NonNullable<typeof busy>, work: () => Promise<void>) {
     setBusy(step)
     try {
       await work()
-      toast.success(success)
       await onChanged()
     } catch (error) {
       showErrorToast(getRedditAccountsErrorMessage(error))
@@ -101,7 +99,7 @@ export function ImportanceCard({
           <>
             <p className="text-sm">
               Moving to the phone{" "}
-              <Link to="/admin/phones" search={{ open: move.phone.id }} className="font-medium hover:underline">
+              <Link to="/admin/anti-detect" search={{ section: "phones", open: move.phone.id }} className="font-medium hover:underline">
                 {move.phone.name}
               </Link>
               . Open its screen there, sign in to Reddit as {name} by hand, then press Check sign-in.
@@ -126,8 +124,7 @@ export function ImportanceCard({
                 onClick={() =>
                   void run(
                     "check",
-                    () => moveRedditAccountToPhone({ step: "check", accountId: account.id }),
-                    "Asked the phone who is signed in."
+                    () => moveRedditAccountToPhone({ step: "check", accountId: account.id })
                   )
                 }
               >
@@ -141,8 +138,7 @@ export function ImportanceCard({
                 onClick={() =>
                   void run(
                     "cancel",
-                    () => moveRedditAccountToPhone({ step: "cancel", accountId: account.id }),
-                    "Move cancelled. It stays on its browser profile."
+                    () => moveRedditAccountToPhone({ step: "cancel", accountId: account.id })
                   )
                 }
               >
@@ -161,7 +157,7 @@ export function ImportanceCard({
               <Label htmlFor="move-to-phone">Phone</Label>
               <div className="flex flex-wrap gap-2">
                 <Select value={phoneId} onValueChange={setPhoneId}>
-                  <SelectTrigger id="move-to-phone" className="w-full sm:w-fit sm:min-w-64">
+                  <SelectTrigger id="move-to-phone" className="w-full">
                     <SelectValue placeholder={phones.length ? "Pick a phone" : "No free phone"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -182,14 +178,13 @@ export function ImportanceCard({
                       showErrorToast(
                         phones.length
                           ? "Pick the phone it moves to first."
-                          : "There is no free phone. Add one on the Phones dashboard, or free one up."
+                          : "There is no free phone. Add one on a rack's page, or free one up."
                       )
                       return
                     }
                     void run(
                       "start",
-                      () => moveRedditAccountToPhone({ step: "start", accountId: account.id, phoneId }),
-                      "Move started. Sign in on the phone, then press Check sign-in."
+                      () => moveRedditAccountToPhone({ step: "start", accountId: account.id, phoneId })
                     )
                   }}
                 >
@@ -216,8 +211,7 @@ export function ImportanceCard({
         onConfirm={() =>
           void run(
             "mark",
-            () => markRedditAccountImportant(account.id),
-            `${name} is important now.`
+            () => markRedditAccountImportant(account.id)
           ).then(() => setConfirming(false))
         }
       />

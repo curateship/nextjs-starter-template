@@ -28,10 +28,8 @@ import type {
   TaskStatus,
   TeamRole,
 } from "@/lib/project/rules"
-import type { DailySection, DayPart, SkyKind } from "@/lib/project/daily-card"
+import type { DailySection, DayPart } from "@/lib/project/daily-card"
 import type { SavedViewFilters, SavedViewNames } from "@/lib/project/saved-views"
-import type { StartingStepFields, StepField } from "@/lib/project/step-fields"
-import type { FieldKind, FieldSettings, WhoCanChange } from "@/lib/project/task-fields"
 import { customShellNotifications, customShellUsers } from "@/server/schema"
 
 /**
@@ -59,10 +57,13 @@ export const projectTeams = pgTable("project_teams", {
   /** A fingerprint of the join link's secret, never the link itself. */
   joinTokenHash: varchar("join_token_hash", { length: 64 }),
   joinExpiresAt: timestamp("join_expires_at", { withTimezone: true }),
-  /** The team's photo, a media library address (`drizzle/0105_project_team_dashboard.sql`). */
+  /**
+   * The team's cover, a media library address (`drizzle/0105_project_team_dashboard.sql`),
+   * or "sky" for the drawn sky (`drizzle/0173_project_cover_images.sql`).
+   */
   photoUrl: text("photo_url"),
-  /** The team's square avatar beside its name; null shows its initials (`drizzle/0120_project_team_avatar.sql`). */
-  avatarUrl: text("avatar_url"),
+  /** The pictures the cover has had, each a tile to pick again. */
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   /** The team's own words for the check-in's boxes; null keeps the usual ones (`drizzle/0106_project_checkin_and_handing_out.sql`). */
   questionYesterday: varchar("question_yesterday", { length: 40 }),
   questionToday: varchar("question_today", { length: 40 }),
@@ -76,6 +77,12 @@ export const projectTeams = pgTable("project_teams", {
     onDelete: "set null",
   }),
   announcementAt: timestamp("announcement_at", { withTimezone: true }),
+  /** How important it is, which colours its bar (`drizzle/0157_project_announcement_kind.sql`). */
+  announcementKind: varchar("announcement_kind", { length: 16 }).notNull().default("info"),
+  /** The team's page of notes and "/" blocks, the site admin's to write (`drizzle/0156_project_team_page.sql`). */
+  notes: text("notes").notNull().default(""),
+  /** The team's page reads only until it's unlocked (`drizzle/0159_project_team_page_lock.sql`). */
+  notesLocked: boolean("notes_locked").notNull().default(false),
   /**
    * Set on a site admin's own space, which holds only their personal list:
    * no members, and left out of every list of teams
@@ -155,13 +162,6 @@ export const projectProjects = pgTable("project_projects", {
   }),
   /** Warn when one person has more than this many tasks in Doing; null warns never. */
   doingLimit: smallint("doing_limit"),
-  /** The team's task types this project leaves out (`drizzle/0107_project_task_types.sql`). */
-  hiddenTypeIds: text("hidden_type_ids").array().notNull().default([]),
-  /** The type New task starts on here. */
-  defaultTypeId: varchar("default_type_id", { length: 36 }).references(
-    (): AnyPgColumn => projectTaskTypes.id,
-    { onDelete: "set null" }
-  ),
   /** The Board's column order (`drizzle/0115_project_status_order.sql`); empty is the usual one. */
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   /**
@@ -185,9 +185,12 @@ export const projectProjects = pgTable("project_projects", {
   /**
    * The banner behind the top of the project page's left panel
    * (`drizzle/0121_project_pictures.sql`). A media library address, or null
-   * for none. Projects have no avatar (`drizzle/0145_project_no_avatar.sql`).
+   * for none, or "sky" for the drawn sky (`drizzle/0173_project_cover_images.sql`).
+   * Projects have no avatar (`drizzle/0145_project_no_avatar.sql`).
    */
   bannerUrl: text("banner_url"),
+  /** The pictures the banner has had, each a tile to pick again. */
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   /**
    * The status from late tasks: Slowing down from this many, Behind from
    * `behindAt` (`drizzle/0122_project_pace_rule.sql`, `lib/project/project-pace.ts`).
@@ -310,17 +313,6 @@ export const projectTasks = pgTable("project_tasks", {
     onDelete: "set null",
   }),
   reviewWaitingSince: timestamp("review_waiting_since", { withTimezone: true }),
-  /**
-   * Who first handed it out; null until someone does, which then means whoever
-   * made it. It never moves with later hand-overs (`drizzle/0108_project_first_handed_out_by.sql`).
-   */
-  firstHandedOutByUserId: varchar("first_handed_out_by_user_id", { length: 36 }).references(userRef, {
-    onDelete: "set null",
-  }),
-  /** The kind of task, such as "Video editing"; null is a plain task (`drizzle/0107_project_task_types.sql`). */
-  typeId: varchar("type_id", { length: 36 }).references((): AnyPgColumn => projectTaskTypes.id, {
-    onDelete: "set null",
-  }),
   /** High, Normal or Low (`drizzle/0111_project_planning_tasks.sql`). */
   priority: varchar("priority", { length: 8 }).$type<TaskPriority>().notNull().default("normal"),
   /** An optional first day, drawn with the due date on the Timeline (`drizzle/0113_project_nine_features.sql`). */
@@ -338,8 +330,6 @@ export const projectTasks = pgTable("project_tasks", {
   linkedApp: varchar("linked_app", { length: 16 }),
   linkedRecordId: varchar("linked_record_id", { length: 64 }),
   linkedAddress: text("linked_address"),
-  /** A guess at how long it takes, in minutes; null is no guess (`drizzle/0125_project_task_clock.sql`). */
-  guessMinutes: integer("guess_minutes"),
   /**
    * The open ask for more time: the later day asked for, why, who asked and
    * when (`drizzle/0130_project_more_time.sql`). How it works is in
@@ -351,26 +341,6 @@ export const projectTasks = pgTable("project_tasks", {
     onDelete: "set null",
   }),
   moreTimeAskedAt: timestamp("more_time_asked_at", { withTimezone: true }),
-})
-
-/**
- * The task clock (`drizzle/0125_project_task_clock.sql`). A "run" is one
- * stretch between Start and Pause, counted for the person doing the task;
- * `stoppedAt` and `seconds` stay empty while it runs. A "fix" is a total set
- * by hand: it holds the difference in `seconds`, which may be below zero. A
- * task's time is the sum of its rows. How it works is in
- * `workspace/docs/task-clock.md`.
- */
-export const projectTaskClockRuns = pgTable("project_task_clock_runs", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  taskId: varchar("task_id", { length: 36 })
-    .notNull()
-    .references(() => projectTasks.id, { onDelete: "cascade" }),
-  userId: varchar("user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
-  kind: varchar("kind", { length: 8 }).$type<"run" | "fix">().notNull().default("run"),
-  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
-  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
-  seconds: integer("seconds"),
 })
 
 /**
@@ -408,77 +378,6 @@ export const projectTaskReminders = pgTable(
   (table) => [primaryKey({ columns: [table.taskId, table.userId] })]
 )
 
-/** The team's saved step lists, such as "Payroll", dropped into any task. */
-export const projectStepLists = pgTable("project_step_lists", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  teamId: varchar("team_id", { length: 36 })
-    .notNull()
-    .references(() => projectTeams.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  steps: text("steps").array().notNull(),
-  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
-    onDelete: "set null",
-  }),
-  createdAt: createdAt(),
-})
-
-/** The team's kinds of task. Archived, never deleted, so their tasks keep them. */
-export const projectTaskTypes = pgTable("project_task_types", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  teamId: varchar("team_id", { length: 36 })
-    .notNull()
-    .references(() => projectTeams.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  icon: varchar("icon", { length: 32 }).notNull(),
-  color: varchar("color", { length: 16 }).$type<ProjectColor>().notNull(),
-  position: integer("position").notNull(),
-  archivedAt: timestamp("archived_at", { withTimezone: true }),
-  /** The steps and notes New task starts with when the type is picked. */
-  steps: text("steps").array().notNull().default([]),
-  /** The fields each starting step brings, by the step's words (`drizzle/0135_project_step_fields.sql`). */
-  stepFields: jsonb("step_fields").$type<StartingStepFields>().notNull().default({}),
-  notes: text("notes").notNull().default(""),
-  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
-    onDelete: "set null",
-  }),
-  createdAt: createdAt(),
-})
-
-/** One type's fields, such as "Footage link" or "Platform". */
-export const projectTaskTypeFields = pgTable("project_task_type_fields", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  typeId: varchar("type_id", { length: 36 })
-    .notNull()
-    .references(() => projectTaskTypes.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  kind: varchar("kind", { length: 16 }).$type<FieldKind>().notNull(),
-  position: integer("position").notNull(),
-  neededBeforeDone: boolean("needed_before_done").notNull().default(false),
-  neededWhenMade: boolean("needed_when_made").notNull().default(false),
-  whoCanChange: varchar("who_can_change", { length: 16 }).$type<WhoCanChange>().notNull().default("anyone"),
-  settings: jsonb("settings").$type<FieldSettings>().notNull().default({}),
-  createdAt: createdAt(),
-})
-
-/** What a task holds in one field. An empty field has no row. */
-export const projectTaskFieldValues = pgTable(
-  "project_task_field_values",
-  {
-    taskId: varchar("task_id", { length: 36 })
-      .notNull()
-      .references(() => projectTasks.id, { onDelete: "cascade" }),
-    fieldId: varchar("field_id", { length: 36 })
-      .notNull()
-      .references(() => projectTaskTypeFields.id, { onDelete: "cascade" }),
-    value: jsonb("value").notNull(),
-    updatedByUserId: varchar("updated_by_user_id", { length: 36 }).references(userRef, {
-      onDelete: "set null",
-    }),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.taskId, table.fieldId] })]
-)
-
 /** One copy of a repeating task per day, claimed before it is made. */
 export const projectRepeatRuns = pgTable(
   "project_repeat_runs",
@@ -501,33 +400,6 @@ export const projectSections = pgTable("project_sections", {
   createdAt: createdAt(),
 })
 
-/** The team's labels, such as "Bug" or "Client", which cut across projects. */
-export const projectLabels = pgTable("project_labels", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  teamId: varchar("team_id", { length: 36 })
-    .notNull()
-    .references(() => projectTeams.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  color: varchar("color", { length: 16 }).$type<ProjectColor>().notNull(),
-  createdByUserId: varchar("created_by_user_id", { length: 36 }).references(userRef, {
-    onDelete: "set null",
-  }),
-  createdAt: createdAt(),
-})
-
-export const projectTaskLabels = pgTable(
-  "project_task_labels",
-  {
-    taskId: varchar("task_id", { length: 36 })
-      .notNull()
-      .references(() => projectTasks.id, { onDelete: "cascade" }),
-    labelId: varchar("label_id", { length: 36 })
-      .notNull()
-      .references(() => projectLabels.id, { onDelete: "cascade" }),
-  },
-  (table) => [primaryKey({ columns: [table.taskId, table.labelId] })]
-)
-
 /** Each person's own starred projects, which sit first on the Projects page. */
 export const projectProjectStars = pgTable(
   "project_project_stars",
@@ -543,22 +415,24 @@ export const projectProjectStars = pgTable(
   (table) => [primaryKey({ columns: [table.projectId, table.userId] })]
 )
 
-export const projectTaskSteps = pgTable("project_task_steps", {
+/**
+ * A project's notes, behind the note icon in the left panel's header
+ * (`drizzle/0148_project_notes.sql`). `position` orders them for everyone,
+ * pinned ones first; a deleted one waits in the bin like a task.
+ */
+export const projectNotes = pgTable("project_notes", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  taskId: varchar("task_id", { length: 36 })
+  projectId: varchar("project_id", { length: 36 })
     .notNull()
-    .references(() => projectTasks.id, { onDelete: "cascade" }),
-  text: text("text").notNull(),
-  done: boolean("done").notNull(),
+    .references(() => projectProjects.id, { onDelete: "cascade" }),
+  writerUserId: varchar("writer_user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
+  body: text("body").notNull().default(""),
+  pinned: boolean("pinned").notNull().default(false),
   position: integer("position").notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedByUserId: varchar("deleted_by_user_id", { length: 36 }).references(userRef, { onDelete: "set null" }),
   createdAt: createdAt(),
-  /** Someone on the project doing this step (`drizzle/0100_project_making_and_changing.sql`). */
-  assigneeUserId: varchar("assignee_user_id", { length: 36 }).references(userRef, {
-    onDelete: "set null",
-  }),
-  dueDate: date("due_date", { mode: "string" }),
-  /** The step's own name-and-value fields (`drizzle/0135_project_step_fields.sql`). */
-  fields: jsonb("fields").$type<StepField[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
 /**
@@ -653,10 +527,6 @@ export const projectTaskFiles = pgTable("project_task_files", {
   sizeBytes: integer("size_bytes").notNull(),
   storagePath: text("storage_path").notNull(),
   createdAt: createdAt(),
-  /** Set when the file sits in a File field rather than the task's Files card. */
-  fieldId: varchar("field_id", { length: 36 }).references(() => projectTaskTypeFields.id, {
-    onDelete: "cascade",
-  }),
   /** The chat message it was sent in (`drizzle/0109_project_chat_and_talking.sql`). */
   commentId: varchar("comment_id", { length: 36 }).references(() => projectTaskComments.id, {
     onDelete: "cascade",
@@ -826,10 +696,6 @@ export const projectTaskEvents = pgTable("project_task_events", {
   }),
   reason: text("reason"),
   createdAt: createdAt(),
-  /** The task a step became, or the one it came from. */
-  relatedTaskId: varchar("related_task_id", { length: 36 }).references(() => projectTasks.id, {
-    onDelete: "set null",
-  }),
 })
 
 /** A person's days off, first to last inclusive (`drizzle/0103_project_time_off.sql`). */
@@ -1021,9 +887,9 @@ export const projectSavedViews = pgTable("project_saved_views", {
     onDelete: "cascade",
   }),
   name: text("name").notNull(),
-  /** The address's filters: q, status, person, label, type. */
+  /** The address's filters: q, status, person. */
   filters: jsonb("filters").$type<SavedViewFilters>().notNull(),
-  /** The person's and label's names when saved, so a view can say who has left. */
+  /** The person's name when saved, so a view can say who has left. */
   names: jsonb("names").$type<SavedViewNames>().notNull().default({}),
   createdAt: createdAt(),
 })
@@ -1132,10 +998,19 @@ export const projectSiteAdminPrefs = pgTable("project_site_admin_prefs", {
   timeZone: text("time_zone"),
   statusOrder: text("status_order").array().$type<TaskStatus[]>().notNull().default([]),
   /**
-   * My dashboard's Pinned projects card in the order they dragged it into;
-   * empty is late first (`drizzle/0136_project_admin_project_cards.sql`).
+   * Their own page of notes and "/" blocks at the top of My dashboard's left
+   * panel, as saved, or "" (`drizzle/0149_project_admin_page.sql`).
    */
-  projectOrder: text("project_order").array().notNull().default([]),
+  notes: text("notes").notNull().default(""),
+  /** Their page reads only until it's unlocked (`drizzle/0155_project_admin_page_lock.sql`). */
+  notesLocked: boolean("notes_locked").notNull().default(false),
+  /**
+   * Their page's cover from the shell's Cover photo row: a picture, "sky" for
+   * the drawn sky, or null for none; and the pictures kept as tiles
+   * (`drizzle/0180_project_admin_page_cover.sql`).
+   */
+  coverUrl: text("cover_url").default("sky"),
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
 
@@ -1174,10 +1049,6 @@ export const projectDailyCards = pgTable("project_daily_cards", {
   city: text("city"),
   latitude: doublePrecision("latitude"),
   longitude: doublePrecision("longitude"),
-  sky: varchar("sky", { length: 16 }).$type<SkyKind>().notNull().default("drawn"),
-  ownSkyMorning: text("own_sky_morning").notNull().default(""),
-  ownSkyAfternoon: text("own_sky_afternoon").notNull().default(""),
-  ownSkyNight: text("own_sky_night").notNull().default(""),
   reminderMorning: varchar("reminder_morning", { length: 5 }).default("10:00"),
   reminderAfternoon: varchar("reminder_afternoon", { length: 5 }).default("15:00"),
   reminderNight: varchar("reminder_night", { length: 5 }).default("21:00"),

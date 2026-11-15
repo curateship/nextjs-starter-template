@@ -226,15 +226,6 @@ export function aiCostCents(
 }
 
 /**
- * The windows the AI usage dashboard can show. Living here — not in
- * server/ai/usage.ts — keeps the constant importable by the browser: a runtime
- * value re-exported out of a `@/server/*` module drags the database driver
- * into the client bundle and kills hydration app-wide.
- */
-export const AI_USAGE_RANGES = ["month", "30d", "90d"] as const
-export type AiUsageRange = (typeof AI_USAGE_RANGES)[number]
-
-/**
  * The plan-features key that carries a plan's monthly AI allowance, typed as
  * dollars a month (e.g. `"aiDollars": 20` is $20 of AI use a month).
  */

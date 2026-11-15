@@ -120,8 +120,8 @@ cards on this one page used to report the same event three different ways and
 two of them never cleared, so "Focus rhythm saved." sat beside the button for
 the rest of the visit.
 
-- **A save that worked raises a success toast** (`toast.success`), which
-  clears itself.
+- **A save that worked shows nothing but the saved value.** No app shows a
+  success toast (Tyler, 10 Nov 2026: "Remove all success toast").
 - **A save that failed raises the shared error toast**
   (`src/lib/toast/error-toast.ts`), which stays until it is dismissed, because
   a failure you did not see is a failure you think did not happen.

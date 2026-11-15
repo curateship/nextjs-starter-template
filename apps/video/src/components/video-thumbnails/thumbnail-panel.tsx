@@ -13,9 +13,6 @@ import {
   Trash2Icon,
   WandSparklesIcon,
 } from "lucide-react"
-import {
-  toast,
-} from "sonner"
 
 import {
   InspectorCard,
@@ -220,7 +217,7 @@ function Versions() {
   if (!list.length) {
     return (
       <p className="text-sm text-muted-foreground">
-        No thumbnail yet. The + above makes one from the frame under the playhead.
+        No thumbnail yet. The + at the top of this panel makes one from the frame under the playhead.
       </p>
     )
   }
@@ -361,7 +358,6 @@ function IdeasCard() {
               void run(`Making ${tries} ${tries === 1 ? "version" : "versions"}…`, async () => {
                 const rows = await makeThumbnailIdea({ videoId, shape, idea, model, tries })
                 for (const row of rows.reverse()) addVersion(row)
-                toast.success(`${rows.length} new ${rows.length === 1 ? "version" : "versions"} on the left.`)
               })
             }
           >
@@ -422,7 +418,7 @@ function TitlesCard() {
               size="icon-xs"
               variant="ghost"
               aria-label={`Copy "${title}"`}
-              onClick={() => void navigator.clipboard.writeText(title).then(() => toast.success("Copied."))}
+              onClick={() => void navigator.clipboard.writeText(title)}
             >
               <CopyIcon />
             </Button>
@@ -476,7 +472,6 @@ function LanguagesCard() {
           onClick={() =>
             void run(`Translating into ${copy.language}…`, async () => {
               await translateThumbnailTo(main.id, copy.id)
-              toast.success(`Made. Open the ${copy.language} copy to see it.`)
             })
           }
         >
@@ -503,7 +498,6 @@ function DownloadCard() {
           link.href = file.data_url
           link.download = file.file_name
           link.click()
-          toast.success(`Downloaded, ${(file.bytes / 1024).toFixed(0)} KB.`)
         })
       }
     >

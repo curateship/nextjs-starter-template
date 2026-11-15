@@ -123,8 +123,11 @@
   appearance: none;
   height: 4px;
   border-radius: 4px;
-  outline: none;
   background: transparent;
+}
+.studio-root input[type="range"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
 }
 .studio-root input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

@@ -1,6 +1,4 @@
-import { toast } from "sonner"
 
-import { plural } from "@/lib/format/plural"
 
 /**
  * One toast for the focus that reaches today's goal. It is called only from a
@@ -11,8 +9,4 @@ import { plural } from "@/lib/format/plural"
  */
 export function announceGoalReached(before: number, after: number, goal: number) {
   if (before >= goal || after < goal) return
-  toast.success(
-    `Daily goal reached: ${after} ${plural(after, "session")} today.`,
-    { id: "daily-goal-reached" }
-  )
 }

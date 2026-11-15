@@ -148,7 +148,7 @@ Binance does not let Canadian customers open futures trades.
   src/lib/protocols/binance/` and `npx vitest run
   src/server/protocols/fence.test.ts src/server/protocols/registry.test.ts
   src/server/protocols/order-values.test.ts`.
-- **Page:** `/protocols/binance`.
+- **Page:** `/trade?view=binance`.
 - **The first real walk:** add the wallet, place the smallest order, set a
   stop, move it, cancel, close. Read the console and the network tab on every
   step. Both real-money switches must be on.

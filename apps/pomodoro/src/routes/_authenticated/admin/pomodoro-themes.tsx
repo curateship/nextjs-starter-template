@@ -1,42 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminCatalogDashboard } from "@/components/pomodoro/admin-catalog-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getCatalogAdminErrorMessage,
-  loadCatalogPage,
-} from "@/lib/api/pomodoro/admin-catalog"
-import { readCatalogSearch } from "@/lib/pomodoro/admin-catalog"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-themes")({
-  // Search, filters, sort, page and the open window live in the address, so
-  // Back returns this exact list and closes the window.
-  validateSearch: readCatalogSearch,
-  loaderDeps: ({ search }) => ({ ...search, open: undefined }),
-  loader: ({ deps }) =>
-    loadCatalogPage({
-      kind: "theme",
-      search: deps.q ?? "",
-      status: deps.status ?? "all",
-      access: deps.access ?? "all",
-      tag: deps.tag ?? null,
-      sort: deps.sort ?? "position",
-      direction: deps.direction ?? "asc",
-      page: deps.page ?? 1,
-    }),
-  component: AdminPomodoroThemesRoute,
-  errorComponent: routeErrorComponent(getCatalogAdminErrorMessage),
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-themes", location.search as Record<string, unknown>),
+      replace: true,
+    })
+  },
 })
-
-function AdminPomodoroThemesRoute() {
-  const { list, pageSize, tags } = Route.useLoaderData()
-  return (
-    <AdminCatalogDashboard
-      kind="theme"
-      search={Route.useSearch()}
-      initial={list}
-      initialPageSize={pageSize}
-      initialTags={tags}
-    />
-  )
-}

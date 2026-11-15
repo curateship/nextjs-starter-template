@@ -3,8 +3,10 @@
 **Jobs**, a button in the middle column's header on the network's Commenting row,
 opens a window that shows whether the browser program is running, and lists
 every job it is doing, waiting to do, or did lately, for every project. The
-button shows how many are running or waiting. **See the jobs**, in the red line
-under the column's header, opens the same window.
+button shows how many are running or waiting. While the program is stopped,
+Reddit's header has a small amber warning with how many wait, and Medium's,
+X's and LinkedIn's a red line with **See the jobs**; each opens the same
+window.
 
 Tyler asked for it on 13 Oct 2026: "should there be jobs visible somewhere in
 the settings so I can see what's running?" His searches had sat waiting since
@@ -14,8 +16,8 @@ Settings tab, and the same day he asked for it to be "its own route and put it
 under projects". The menu link was added by `drizzle/0113_promo_jobs_menu.sql`.
 On 14 Oct 2026 Tyler moved it inside the project: "Jobs can be a button in
 middle header panel that opens up a modal". `drizzle/0118_promo_project_networks.sql`
-took the menu link out, and `/admin/jobs` now opens the window on the first
-project. The list is read when the window opens, then again every five seconds
+took the menu link out. The old `/admin/jobs` is gone since 13 Nov 2026
+([Old addresses](../old-addresses.md)). The list is read when the window opens, then again every five seconds
 while it is open.
 
 ## Why there is a program to watch
@@ -47,8 +49,8 @@ slow database answer never reads as a stop.
   database on port 54320 that is not there.
 - **The Projects dashboard** reads the same answer through its job counts
   (`programRunning` on `JobCounts` in `src/server/social/jobs.ts`). While the
-  program is stopped and jobs wait, it shows a red line under the column's
-  header linking here (**See the jobs**), and a waiting keyword says "waiting"
+  program is stopped and jobs wait, it shows the warning above in the
+  middle's header, and a waiting keyword says "waiting"
   in the keywords list instead of spinning.
 
 ## The list
@@ -86,8 +88,7 @@ deleted post does the same.
 ## Where the code is
 
 - `src/components/social/reddit/jobs-window.tsx`: the window, which reads
-  the list as it opens. `src/routes/_authenticated/admin/jobs.tsx` only sends
-  the old address on.
+  the list as it opens.
 - `src/components/social/jobs/jobs-dashboard.tsx`: the card and the table.
 - `src/server/social/job-list.ts`: the list, Cancel and Try again.
 - `src/server/social/browser-program.ts`: check-in, check-out and the reading.

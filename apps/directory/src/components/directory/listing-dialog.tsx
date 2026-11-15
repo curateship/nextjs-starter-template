@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   MenuLinksFields,
@@ -425,7 +424,6 @@ export function ListingDialog({
         await saveListing({ id, ...next })
       }
       onSaved()
-      toast.success(listingId ? "Listing saved." : "Listing created.")
       onClose()
     } catch (error) {
       // Everything the server refuses a listing over — a missing title, an

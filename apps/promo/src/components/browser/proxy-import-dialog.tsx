@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,7 +49,6 @@ export function ProxyImportDialog({
       setReport(result)
       setText(result.problems.map((problem) => lines[problem.line - 1] ?? "").join("\n"))
       if (result.added) {
-        toast.success(`${result.added} ${result.added === 1 ? "proxy" : "proxies"} added.`)
         await onImported()
       }
       if (!result.problems.length) onClose()

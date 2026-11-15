@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, SendIcon, SparklesIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
@@ -89,7 +88,6 @@ export function InboxAnswer({
     setBusy("send")
     try {
       await sendInboxAnswer(item.id, words)
-      toast.success("Sent to the phone. It types the answer in the app and presses Send once.")
       await onChanged(false)
     } catch (failure) {
       showErrorToast(getPhoneAppErrorMessage(failure))
@@ -102,7 +100,6 @@ export function InboxAnswer({
     setBusy("skip")
     try {
       await skipInboxItems([item.id])
-      toast.success(item.kind === "message" ? "Skipped. The conversation was deleted from Promo." : "Skipped.")
       await onChanged(true)
     } catch (failure) {
       showErrorToast(getPhoneAppErrorMessage(failure))

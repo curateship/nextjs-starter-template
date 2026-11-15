@@ -10,14 +10,16 @@ the repo's `docs/`, and is never copied here.
 
 ## Projects
 
-- [The Projects dashboard](projects-dashboard.md): the table of every project
-  with its Posts and Last post, and one project's description, networks and
-  its own posts on one screen, the count of posts that need you on each
-  network's row, what the AI is told about what you make, and pausing a
-  project.
+- [The Projects dashboard](projects-dashboard.md): Tyler's answers of
+  12 Nov 2026, one three-panel dashboard of Overview, Projects, Voices,
+  Accounts, Archive and Messages, the left page with its Dashboards and
+  Projects blocks, Overview's five widgets, a project's summary with Open
+  project, the old addresses that still land; and a project's own page with
+  its description, networks and posts, what the AI is told about what you
+  make, and pausing a project.
 - [Commenting inside a project](commenting.md): Tyler's answers of 5 Nov 2026,
   each network a folding card with a Posts row and a Commenting row, the
-  keywords listed under Commenting, what sits on each row, the counts, Pause
+  keywords dropdown in Commenting's header, what sits on each row, the counts, Pause
   commenting, the first post opening by itself, the address and old
   addresses, guests, and Reddit's keywords, posts, comment box, Today and
   accounts dropdown.
@@ -26,8 +28,9 @@ the repo's `docs/`, and is never copied here.
   with your own posts on it, the two sides of each network,
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
-- [The Archive](archive.md): each project's videos, carousels and pictures, sent
-  from Video or uploaded, the key on Settings → Video, how a send is copied,
+- [The Archive](archive.md): the Projects dashboard's Archive section, every
+  project's videos, carousels and pictures or one project's, sent from Video
+  or uploaded, the key on Settings → Video, how a send is copied,
   the Bin, the zip, and posting from it with drafts, warnings and several
   accounts at once.
 - [The link with Viral](viral-link.md): the key on Settings → Viral, the X,
@@ -130,18 +133,18 @@ the repo's `docs/`, and is never copied here.
 
 ## Messages
 
-- [The Messages dashboard](messages-dashboard.md): every phone account's
-  direct messages on Reddit, Instagram and TikTok, read when a notification
-  says one arrived, answered only on a press, and deleted once answered or
-  skipped.
+- [Messages](messages-dashboard.md): the Projects dashboard's Messages
+  section, every account's direct messages, read when a notification says one
+  arrived, answered on the right only on a press, and deleted once answered
+  or skipped.
 
 ## Reddit
 
-- [The Accounts dashboard](reddit/accounts-dashboard.md): `/admin/accounts`,
-  under Projects after Voices, every account on every platform with a Platform
-  filter, and its status (Warming up, Ready, Working, Banned), project, profile and
-  proxy, adding one, setting a status by hand, pausing, help-only posts, and
-  retiring.
+- [Accounts](reddit/accounts-dashboard.md): the Projects dashboard's Accounts
+  section, every account on every platform with In use and Retired tabs and
+  Filter, its status, project, profile and proxy, the account on the right
+  with its ⋮ and the old window's cards, adding one, setting a status by
+  hand, pausing, help-only posts, and retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
   watching a subreddit, why there is no Reddit API, how the order is worked
   out, the Everything list, searching the posts, the best posts' replies read
@@ -195,22 +198,29 @@ the repo's `docs/`, and is never copied here.
   finished or failed, with Cancel and Try again.
 - [Browser profiles](browser/profiles.md) — one isolated browser as a record of
   its own, which an account points at, and how the first accounts were adopted.
-- [The Browser profiles dashboard](browser/profiles-dashboard.md) — the table,
+- [The Anti Detect dashboard](anti-detect-dashboard.md) — Browser profiles,
+  Proxies, Racks and Bans as one three-panel dashboard: the Dashboards and
+  Projects blocks, Overview's four widgets, each section and its record on
+  the right, and the old addresses.
+- [The Anti Detect dashboard's Profiles](browser/profiles-dashboard.md) — the table,
   the browser inside the app, a profile's backups and history, folders, labels
   and tags.
 - [Backing a profile up](browser/backups.md) — the volume, encrypted with the
   server's key and kept in R2, restoring it here or on another machine, and the
   newest five kept.
-- [The Proxies dashboard](browser/proxies-dashboard.md) — the table, pasting in
+- [The Anti Detect dashboard's Proxies](browser/proxies-dashboard.md) — the table, pasting in
   a list, the re-test that reaches every proxy, the dead-proxy notice, the
   record of each proxy's outside address, and what each costs and when it renews.
 
 ## Phones
 
-- [The Phones dashboard](phones/phones-dashboard.md): every phone on the
-  rack, Android or iPhone, as a record, its status (Connected, Offline, Busy, Held), the shelf
-  slot, the five tabs of its window, app versions on each row, the Mix window,
-  and an account that runs on a phone instead of a browser profile.
+- [Phones and racks](phones/racks-dashboard.md): every phone on every rack
+  in the Anti Detect dashboard's Phones, filtered by the Racks block; the rack
+  blocks on its left page (Racks, Phones), the Rack program tab in its ⋮, New
+  rack with a code made for it, a rack's settings window with its "/" notes,
+  the phones list with Filter, saved views and New phone, and the open phone's
+  screen and ⋮. Also what a phone holds, its status, the old addresses, and an
+  account that runs on a phone.
 - [The rack program](phones/rack-program.md): the program at home that drives
   the phones, how it reaches Promo without opening a port, the named actions,
   pairing with a one-time code, signed messages, Disconnect, the one install
@@ -219,7 +229,8 @@ the repo's `docs/`, and is never copied here.
   same job list, one at a time per phone and side by side across phones, the
   phones' own limit, waking hours on the phone's clock, an offline phone
   refusing at once, pausing the rack, and Settings → Phones.
-- [A phone's screen window](phones/screen-window.md): the live picture, control
+- [A phone's screen](phones/screen-window.md): the live picture on the Screen
+  tab and the bigger window, asked for only while it is on screen, control
   and the hold while a person taps, authenticator codes and texted codes.
 - [A phone's health](phones/phone-health.md): what the rack reads once a
   minute, the bell for a phone offline, hot, with no signal or nearly full and
@@ -234,7 +245,7 @@ the repo's `docs/`, and is never copied here.
   clearing a failed one's.
 - [Making each phone look like one person's](phones/looking-like-a-real-person.md):
   the setup check, what the platform sees, wiping a phone between accounts,
-  the rack mix warning, and Wi-Fi phones that must show their proxy's address.
+  and Wi-Fi phones that must show their proxy's address.
 - [The daily self-test and app updates](phones/self-test-and-app-updates.md):
   the spare test phone, walking each action to its last button without
   pressing it, broken actions refused, and app updates on the test phone
@@ -242,10 +253,10 @@ the repo's `docs/`, and is never copied here.
 - [iPhones on the rack](phones/iphones.md): a phone's kind, one test phone
   per kind, hourly inbox reads, the iCloud check before a wipe, the one-time
   media link, texted codes off the Messages app, and the WebDriverAgent bell.
-- [Seeing the rack](phones/seeing-the-rack.md): the wall of live pictures
-  every 5 seconds, a Jobs tab on each phone, filters and search kept in the
-  address, the rack map drawn by shelf slot, and the rack program's own log
-  inside Promo.
+- [Seeing the rack](phones/seeing-the-rack.md): a rack's Wall tab of live
+  pictures every 5 seconds, the Jobs tabs on a phone and on a rack, filters
+  and search kept in the address, the shelf map drawn by slot, and the rack
+  program's own log inside Promo.
 
 ## Bans
 
@@ -259,8 +270,9 @@ the repo's `docs/`, and is never copied here.
 
 ## Writing
 
-- [The Voices dashboard](voices-dashboard.md) — how the AI sounds and the lines
-  it must not cross, as a record any number of accounts share, how the
+- [Voices](voices-dashboard.md): the Projects dashboard's Voices section, how
+  the AI sounds and the lines it must not cross, as a record any number of
+  accounts share, saved as it is typed, how the
   first account's words moved, and trying a voice on a real post.
 
 ## Notices
@@ -273,3 +285,8 @@ the repo's `docs/`, and is never copied here.
 
 - [What promo changes about the shell](shell-integration.md) — the options it
   sets, the tables it owns, and the fact that it forks no shell file.
+- [Old addresses](old-addresses.md): the pages that only sent an old address
+  on are gone since 13 Nov 2026, apart from `/admin/comments`; bell notices
+  that held one were moved to the new place, and every link to a phone names
+  the Anti Detect dashboard.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, Undo bars included.

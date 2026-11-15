@@ -1,7 +1,12 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { ExternalLinkIcon, FileTextIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
+import {
+  ExternalLinkIcon,
+  FileTextIcon,
+  Loader2Icon,
+  MoveVerticalIcon,
+  SearchIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -41,7 +46,6 @@ import { MAX_WRITTEN_PAGE_DESCRIPTION } from "@/lib/pages/front-page"
 import {
   PAGE_VISIBILITIES,
   PAGE_VISIBILITY_LABELS,
-  PAGE_VISIBILITY_SENTENCES,
   type PageVisibility,
 } from "@/lib/pages/page-visibility"
 import {
@@ -56,6 +60,8 @@ import {
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { ShellConfig } from "@/lib/custom-shell"
 import { useSiteAddress } from "@/lib/hooks/use-site-address"
+import { pageEditSearch } from "@/lib/admin-dashboard/page-edit-search"
+import type { WrittenPageDraft } from "@/components/pages/use-written-page-draft"
 
 /**
  * The right panel with no block selected: the settings that belong to the page
@@ -67,12 +73,15 @@ import { useSiteAddress } from "@/lib/hooks/use-site-address"
 export function FrontPageSettingsPanel({
   page,
   writtenPage,
+  draft,
   config,
   onConfigChange,
 }: {
   page: PublicPageRow
   /** The row behind a page an admin added, or null for one the code declares. */
   writtenPage: WrittenPage | null
+  /** The typed, unsaved page settings, held above this panel. */
+  draft: WrittenPageDraft
   config: ShellConfig
   onConfigChange: (config: ShellConfig) => void
 }) {
@@ -81,31 +90,10 @@ export function FrontPageSettingsPanel({
   const [savingVisibility, setSavingVisibility] =
     React.useState<PageVisibility | null>(null)
   const [savingPage, setSavingPage] = React.useState(false)
-  const [title, setTitle] = React.useState(writtenPage?.title ?? "")
-  const [path, setPath] = React.useState(writtenPage?.path ?? "")
-  const [hiddenFromSearch, setHiddenFromSearch] = React.useState(
-    writtenPage?.hiddenFromSearch ?? false
-  )
-  const [canonicalUrl, setCanonicalUrl] = React.useState(
-    writtenPage?.canonicalUrl ?? ""
-  )
-  const [image, setImage] = React.useState(writtenPage?.image ?? "")
-  const [imageAlt, setImageAlt] = React.useState(writtenPage?.imageAlt ?? "")
-  const [description, setDescription] = React.useState(
-    writtenPage?.description ?? ""
-  )
+  const { title, path, hiddenFromSearch, canonicalUrl, image, imageAlt, description } =
+    draft.fields
   const [canonicalInvalid, setCanonicalInvalid] = React.useState(false)
-
-  const pageDirty = Boolean(
-    writtenPage &&
-      (title !== writtenPage.title ||
-        path !== writtenPage.path ||
-        hiddenFromSearch !== writtenPage.hiddenFromSearch ||
-        canonicalUrl !== writtenPage.canonicalUrl ||
-        image !== writtenPage.image ||
-        imageAlt !== writtenPage.imageAlt ||
-        description !== writtenPage.description)
-  )
+  const pageDirty = draft.dirty
 
   /**
    * Saves the page itself: its name, its address and the two things search
@@ -133,12 +121,11 @@ export function FrontPageSettingsPanel({
         imageAlt,
         description,
       })
-      toast.success(`${saved.title} was saved.`)
       // The address can have changed, and this screen is keyed by it, so the
       // editor moves with the page rather than looking at one that is gone.
       await router.navigate({
-        to: "/admin/pages/edit",
-        search: { path: saved.path },
+        to: "/admin/dashboard",
+        search: pageEditSearch(saved.path),
         replace: true,
       })
       await router.invalidate()
@@ -161,7 +148,6 @@ export function FrontPageSettingsPanel({
     try {
       await savePageVisibility({ path: page.path, visibility: next })
       await router.invalidate()
-      toast.success(`${page.name} is now ${PAGE_VISIBILITY_SENTENCES[next]}`)
     } catch (error) {
       showErrorToast(getPageVisibilityErrorMessage(error))
     } finally {
@@ -191,7 +177,7 @@ export function FrontPageSettingsPanel({
       <ScrollArea className="min-h-0 flex-1">
         <InspectorCollapseAllProvider signal={collapseAll.signal}>
           <div className="grid gap-4 p-4 sm:p-5">
-            <InspectorCard
+            <InspectorCard icon={<FileTextIcon />}
               storageId="front-page-page-settings"
               title="This page"
               description="What this page is called in the app, where it answers, and who may reach it."
@@ -213,7 +199,7 @@ export function FrontPageSettingsPanel({
                       id="written-page-settings-title"
                       value={title}
                       disabled={savingPage}
-                      onChange={(event) => setTitle(event.target.value)}
+                      onChange={(event) => draft.change({ title: event.target.value })}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -229,7 +215,7 @@ export function FrontPageSettingsPanel({
                         value={path}
                         placeholder="/about"
                         disabled={savingPage}
-                        onChange={(event) => setPath(event.target.value)}
+                        onChange={(event) => draft.change({ path: event.target.value })}
                       />
                       <Button asChild variant="outline" size="sm">
                         <a href={siteAddress(page.path)} target="_blank" rel="noreferrer">
@@ -252,7 +238,9 @@ export function FrontPageSettingsPanel({
                       value={description}
                       maxLength={MAX_WRITTEN_PAGE_DESCRIPTION}
                       disabled={savingPage}
-                      onChange={(event) => setDescription(event.target.value)}
+                      onChange={(event) =>
+                        draft.change({ description: event.target.value })
+                      }
                     />
                   </div>
                   {/* The page's own picture, beside its name and address
@@ -269,13 +257,12 @@ export function FrontPageSettingsPanel({
                     className="max-w-24"
                     disabled={savingPage}
                     onChange={(picked, altText) => {
-                      setImage(picked)
                       // The library's own name for the file is what a screen
                       // reader says, so there is no field here to type it in.
                       // Set whatever came back, empty included: a new picture
                       // keeping the last one's name would have a screen reader
                       // describing the wrong picture.
-                      setImageAlt(altText ?? "")
+                      draft.change({ image: picked, imageAlt: altText ?? "" })
                     }}
                   />
                 </>
@@ -346,7 +333,7 @@ export function FrontPageSettingsPanel({
               </div>
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<SearchIcon />}
               storageId="front-page-page-seo"
               title="Search engines"
               description={
@@ -361,7 +348,9 @@ export function FrontPageSettingsPanel({
                     id="written-page-settings-hidden"
                     checked={hiddenFromSearch}
                     disabled={savingPage}
-                    onCheckedChange={setHiddenFromSearch}
+                    onCheckedChange={(checked) =>
+                      draft.change({ hiddenFromSearch: checked })
+                    }
                     label="Hide from search engines"
                     hint="The page drops out of the sitemap and asks search engines not to list it. It stays open to anyone who has the link, which is what a thank-you page wants."
                   />
@@ -380,7 +369,7 @@ export function FrontPageSettingsPanel({
                       disabled={savingPage}
                       aria-invalid={canonicalInvalid || undefined}
                       onChange={(event) => {
-                        setCanonicalUrl(event.target.value)
+                        draft.change({ canonicalUrl: event.target.value })
                         setCanonicalInvalid(false)
                       }}
                     />
@@ -429,7 +418,7 @@ export function FrontPageSettingsPanel({
               )}
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<MoveVerticalIcon />}
               storageId="front-page-page-spacing"
               title="Spacing"
               description="How much air the page leaves between one block and the next."

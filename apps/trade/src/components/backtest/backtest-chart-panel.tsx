@@ -1,26 +1,22 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
-import {
-  CandlestickChartIcon,
-  TrendingUpIcon,
-} from "lucide-react"
 
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
 import {
   BacktestMarksLayer,
   type ChartFillMark,
 } from "@/components/backtest/backtest-marks-layer"
-import { BacktestGraph } from "@/components/backtest/backtest-graph"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { BacktestGraph, GraphPresetTabs } from "@/components/backtest/backtest-graph"
+import { GraphMenu } from "@/components/backtest/graph-menu"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
 import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PriceChart } from "@/components/trade/price-chart"
-import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useErrorToast } from "@/lib/toast/error-toast"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { BacktestSpecSnapshot } from "@/lib/trade/backtest/result"
@@ -29,6 +25,7 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import type {
+  GraphOverlays,
   BacktestRunTrade,
   GraphSeries,
   GraphWindow,
@@ -38,6 +35,7 @@ import {
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
+import { ALL_GRAPH_OVERLAYS } from "@/lib/trade/backtest/graph"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
 import { emaIndicator } from "@/lib/trade/indicators/ema"
@@ -77,12 +75,13 @@ export function BacktestChartPanel({
   window,
   onWindow,
   view,
-  onSwapView,
+  onView,
   interval,
   loading,
   error,
   live,
-  automationId,
+  headerEnd,
+  savedView = null,
   chartToolbarPosition,
   onChartToolbarPositionChange,
   onRetry,
@@ -107,20 +106,26 @@ export function BacktestChartPanel({
   onWindow: (next: GraphWindow) => void
   /** Which of the two this panel is showing. */
   view: "graph" | "chart"
-  /** Swap to the other one. */
-  onSwapView: () => void
+  /** Shows the other one, from the header's Chart and Graph tabs. */
+  onView: (view: "graph" | "chart") => void
   interval: string
   loading: boolean
   error: string | null
   /** The run has not finished, so more marks may still appear. */
   live: boolean
-  /** The flow this run came from — where the back arrow goes. */
-  automationId: string
+  /** The end of the header: the button that reopens a shut right panel. */
+  headerEnd: React.ReactNode
+  /**
+   * The Trade chart's remembered zoom and position, which a coin's chart opens
+   * at while no trade is picked (Tyler, 10 Nov 2026: "Check my currant chart
+   * view setting and make default chart loading to it"). Only read: panning a
+   * backtest leaves the Trade chart's view alone.
+   */
+  savedView?: ChartView | null
   chartToolbarPosition?: ChartToolbarPosition | null
   onChartToolbarPositionChange?: (position: ChartToolbarPosition | null) => void
   onRetry: () => void
 }) {
-  const navigate = useNavigate()
   const chartable = coins.filter((coin) => coin.summary)
   // A run with nothing to draw has no Graph to offer: no button, and the
   // candles whatever the page asked for. One point is not a line — the same
@@ -254,83 +259,48 @@ export function BacktestChartPanel({
   }, [focusTrade, focusTrades, bars, barMs])
 
   useErrorToast(!showGraph || !graphSeries ? error : null, onRetry)
+  const [overlays, setOverlays] = React.useState<GraphOverlays>(ALL_GRAPH_OVERLAYS)
 
   return (
     <>
-      <DashboardCardTitleHeader
-        // The way back to the other picture: from the Graph to the market's
-        // candles, and from the candles to the Graph. On a run with no Graph to
-        // go to it falls back to the list of runs, which is the only other
-        // place there is. The header draws it, so this arrow is the same one
-        // an automation and a newsletter get.
-        icon={null}
-        back={
-          hasGraph
-            ? {
-                onClick: onSwapView,
-                label: showGraph
-                  ? "Back to the market's chart"
-                  : "Back to the graph",
-              }
-            : { to: "/backtests", label: "Back to every backtest" }
-        }
-        title={
-          showGraph
-            ? "Graph"
-            : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
-              "No market picked")
-        }
-        // The Graph carries no meta: the dates it covers are along its own
-        // bottom axis, and saying them again up here was the same fact twice.
-        meta={
-          showGraph
-            ? undefined
-            : `${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`
-        }
-        action={
-          <div className="flex items-center gap-2">
-            {/* The two pictures are called the Graph — the pot's line over the
-                whole run — and the Chart, one coin's candles.
-
-                One button, two labels: it always names the one you are not
-                looking at, so it reads as the way over to that one. Two
-                buttons sitting there permanently would mean one of them never
-                does anything. Hidden entirely on a run with no line to draw,
-                where there is only ever one thing to show. */}
-            {hasGraph ? (
-              <Button type="button" variant="outline" onClick={onSwapView}>
-                {showGraph ? (
-                  <>
-                    <CandlestickChartIcon className="size-4" />
-                    Chart
-                  </>
-                ) : (
-                  <>
-                    <TrendingUpIcon className="size-4" />
-                    Graph
-                  </>
-                )}
-              </Button>
-            ) : null}
-            <Tabs value="results">
-              <TabsList aria-label="Recipe view">
-                <TabsTrigger
-                  value="canvas"
-                  onClick={() =>
-                    void navigate({
-                      to: "/admin/recipes/$recipeId",
-                      params: { recipeId: automationId },
-                    })
-                  }
-                >
-                  Canvas
-                </TabsTrigger>
-                <TabsTrigger value="results">Results</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        }
-      />
+      {/* The middle's one header on the Bots dashboard: the button that
+          reopens a shut page panel, then the Chart (one coin's candles) and
+          Graph (the pot over the whole run) tabs (Tyler, 10 Nov 2026: "this
+          should be 3 tabs", then "remoev the arrow back ... this spot should
+          house this uncollapse icon", "remove canvas from the tab"). The
+          Dashboards block's Backtests row goes back to the table. Graph is
+          left out on a run with no line to draw. */}
+      <DashboardCardHeader className="gap-2">
+        <PanelReopenButton side="left" label="Show the page" />
+        <DashboardTabs
+          className="flex-none"
+          value={showGraph ? "graph" : "chart"}
+          onValueChange={(value) => {
+            if (value === "graph" || value === "chart") onView(value)
+          }}
+          tabs={[
+            { value: "chart", label: "Chart" },
+            ...(hasGraph ? [{ value: "graph", label: "Graph" }] : []),
+          ]}
+        />
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+          {/* On the Graph, its window (Tyler, 10 Nov 2026: "move this to
+              header right"); on the Chart, the coin it draws. */}
+          {showGraph ? (
+            // 1W to All in the header; the lines, From, To and Reset in the
+            // ⋮ after them (Tyler, 10 Nov 2026).
+            <>
+              <GraphPresetTabs window={window} onWindow={onWindow} />
+              <GraphMenu overlays={overlays} onOverlays={setOverlays} window={window} onWindow={onWindow} />
+            </>
+          ) : (
+            <span className="hidden truncate text-xs text-muted-foreground xl:inline">
+              {`${coins.find((coin) => coin.marketKey === openCoin)?.symbol ?? "No market picked"} · ${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`}
+            </span>
+          )}
+          {headerEnd}
+        </div>
+      </DashboardCardHeader>
 
       {live && !showGraph ? (
         <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
@@ -348,6 +318,7 @@ export function BacktestChartPanel({
             leverage={leverage}
             window={window}
             onWindow={onWindow}
+            overlays={overlays}
           />
         ) : error ? (
           <ErrorRow message={error} onRetry={onRetry} />
@@ -355,7 +326,7 @@ export function BacktestChartPanel({
           <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {chartable.length === 0
               ? "No market was tested, so there is nothing to chart."
-              : "Pick a market above, or click a row in the Results tab below."}
+              : "Pick a market above, or press one in the Trades card."}
           </p>
         ) : loading ? (
           <div
@@ -375,7 +346,7 @@ export function BacktestChartPanel({
               // The picked trade is part of the key: changing it re-frames the
               // chart, which is what moves it to the trade and back again.
               viewKey={`${openCoin}:${interval}:${focusTrade?.n ?? "all"}`}
-              readView={() => focusView}
+              readView={() => focusView ?? savedView}
               overlay={(surface) => (
                 <>
                   {/* First, so everything else sits over it. The base is the

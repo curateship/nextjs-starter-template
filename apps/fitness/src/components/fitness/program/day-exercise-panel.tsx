@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ArrowDownIcon, ArrowLeftRightIcon, ArrowUpIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelBody, RightHeader } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
@@ -108,11 +107,10 @@ export function DayExercisePanel({
     })
   }
 
-  async function act(action: () => Promise<unknown>, success?: string) {
+  async function act(action: () => Promise<unknown>) {
     setBusy(true)
     try {
       await action()
-      if (success) toast.success(success)
       await router.invalidate()
       return true
     } catch (error) {
@@ -350,8 +348,7 @@ export function DayExercisePanel({
         description={calisthenics ? "The sets, range and rest stay as they are." : "The sets, reps, weight and rest stay as they are."}
         onPick={(picked) =>
           void act(
-            () => changeWeek({ action: "updateExercise", dayExerciseId: row.id, change: { exerciseId: picked.id } }),
-            `${name} swapped for ${picked.name}.`
+            () => changeWeek({ action: "updateExercise", dayExerciseId: row.id, change: { exerciseId: picked.id } })
           )
         }
       />
@@ -364,7 +361,7 @@ export function DayExercisePanel({
         destructive
         loading={busy}
         onConfirm={() =>
-          void act(() => changeWeek({ action: "removeExercise", dayExerciseId: row.id }), `${name} removed.`).then(
+          void act(() => changeWeek({ action: "removeExercise", dayExerciseId: row.id })).then(
             (done) => {
               if (done) {
                 setRemoving(false)

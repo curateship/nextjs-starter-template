@@ -5,7 +5,6 @@ import {
   TriangleAlertIcon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
@@ -202,7 +201,6 @@ export function PublicThemeSettings({
       }
       const state = await uploadPublicFont(file)
       onFontStateChange(state.publicTheme, state.publicFont)
-      toast.success("Public font uploaded.")
     } catch (uploadError) {
       showErrorToast(getPublicFontErrorMessage(uploadError))
     } finally {
@@ -223,7 +221,6 @@ export function PublicThemeSettings({
       const state = await removePublicFont()
       onFontStateChange(state.publicTheme, state.publicFont)
       setRemoveFontOpen(false)
-      toast.success("Uploaded font removed.")
     } catch (removeError) {
       showErrorToast(getPublicFontErrorMessage(removeError))
     } finally {

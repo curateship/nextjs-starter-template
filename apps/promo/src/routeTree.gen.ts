@@ -37,43 +37,32 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as GuestRefusedRouteImport } from './routes/guest/refused'
 import { Route as HandoffProjectRouteImport } from './routes/handoff/project'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin/accounts'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAiUsageRouteImport } from './routes/_authenticated/admin/ai-usage'
+import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
-import { Route as AuthenticatedAdminArchiveRouteImport } from './routes/_authenticated/admin/archive'
+import { Route as AuthenticatedAdminAntiDetectRouteImport } from './routes/_authenticated/admin/anti-detect'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
-import { Route as AuthenticatedAdminBansRouteImport } from './routes/_authenticated/admin/bans'
 import { Route as AuthenticatedAdminCommentsRouteImport } from './routes/_authenticated/admin/comments'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
 import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticated/admin/crm'
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminJobsRouteImport } from './routes/_authenticated/admin/jobs'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
-import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin/messages'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
-import { Route as AuthenticatedAdminPhonesRouteImport } from './routes/_authenticated/admin/phones'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
-import { Route as AuthenticatedAdminProfilesRouteImport } from './routes/_authenticated/admin/profiles'
 import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin/projects'
-import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
-import { Route as AuthenticatedAdminRedditRouteImport } from './routes/_authenticated/admin/reddit'
-import { Route as AuthenticatedAdminRedditAccountsRouteImport } from './routes/_authenticated/admin/reddit-accounts'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
-import { Route as AuthenticatedAdminTodayRouteImport } from './routes/_authenticated/admin/today'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
-import { Route as AuthenticatedAdminVoicesRouteImport } from './routes/_authenticated/admin/voices'
-import { Route as AuthenticatedChangelogIndexRouteImport } from './routes/_authenticated/changelog/index'
-import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog/whats-new'
+import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog_.whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiMediaLinkTokenRouteImport } from './routes/api/media-link/$token'
 import { Route as ApiRackCheckInRouteImport } from './routes/api/rack/check-in'
@@ -91,8 +80,6 @@ import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/res
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as GuestPromoProjectIdRouteImport } from './routes/guest/promo.$projectId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
-import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
-import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
 import { Route as AuthenticatedAdminProjectsProjectIdRouteImport } from './routes/_authenticated/admin/projects_.$projectId'
@@ -111,10 +98,10 @@ import { Route as ApiConnectViralReadsRouteImport } from './routes/api/connect/v
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
 import { Route as ApiV1TrafficViewRouteImport } from './routes/api/v1/traffic/view'
-import { Route as AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport } from './routes/_authenticated/admin/automations_.templates_.$templateKey'
 import { Route as ApiConnectVideoSendsSendIdRouteImport } from './routes/api/connect/video/sends/$sendId'
 import { Route as ApiConnectViralReadsReadIdRouteImport } from './routes/api/connect/viral/reads_.$readId'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as ApiV1CrmFilesMessageIdIndexRouteImport } from './routes/api/v1/crm/files/$messageId/$index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -255,12 +242,6 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminAccountsRoute =
-  AuthenticatedAdminAccountsRouteImport.update({
-    id: '/accounts',
-    path: '/accounts',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminAiRoute = AuthenticatedAdminAiRouteImport.update({
   id: '/ai',
   path: '/ai',
@@ -272,16 +253,22 @@ const AuthenticatedAdminAiUsageRoute =
     path: '/ai-usage',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAnalyticsRoute =
+  AuthenticatedAdminAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAnnouncementsRoute =
   AuthenticatedAdminAnnouncementsRouteImport.update({
     id: '/announcements',
     path: '/announcements',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminArchiveRoute =
-  AuthenticatedAdminArchiveRouteImport.update({
-    id: '/archive',
-    path: '/archive',
+const AuthenticatedAdminAntiDetectRoute =
+  AuthenticatedAdminAntiDetectRouteImport.update({
+    id: '/anti-detect',
+    path: '/anti-detect',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminAutomationsRoute =
@@ -290,11 +277,6 @@ const AuthenticatedAdminAutomationsRoute =
     path: '/automations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminBansRoute = AuthenticatedAdminBansRouteImport.update({
-  id: '/bans',
-  path: '/bans',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminCommentsRoute =
   AuthenticatedAdminCommentsRouteImport.update({
     id: '/comments',
@@ -330,11 +312,6 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminJobsRoute = AuthenticatedAdminJobsRouteImport.update({
-  id: '/jobs',
-  path: '/jobs',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -344,12 +321,6 @@ const AuthenticatedAdminMembershipRoute =
   AuthenticatedAdminMembershipRouteImport.update({
     id: '/membership',
     path: '/membership',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminMessagesRoute =
-  AuthenticatedAdminMessagesRouteImport.update({
-    id: '/messages',
-    path: '/messages',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminNewsletterRoute =
@@ -369,45 +340,15 @@ const AuthenticatedAdminPagesRoute = AuthenticatedAdminPagesRouteImport.update({
   path: '/pages',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminPhonesRoute =
-  AuthenticatedAdminPhonesRouteImport.update({
-    id: '/phones',
-    path: '/phones',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminProfilesRoute =
-  AuthenticatedAdminProfilesRouteImport.update({
-    id: '/profiles',
-    path: '/profiles',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminProjectsRoute =
   AuthenticatedAdminProjectsRouteImport.update({
     id: '/projects',
     path: '/projects',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminProxiesRoute =
-  AuthenticatedAdminProxiesRouteImport.update({
-    id: '/proxies',
-    path: '/proxies',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminRedditRoute =
-  AuthenticatedAdminRedditRouteImport.update({
-    id: '/reddit',
-    path: '/reddit',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminRedditAccountsRoute =
-  AuthenticatedAdminRedditAccountsRouteImport.update({
-    id: '/reddit-accounts',
-    path: '/reddit-accounts',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminReferralsRoute =
@@ -434,11 +375,6 @@ const AuthenticatedAdminSystemEmailsRoute =
     path: '/system-emails',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminTodayRoute = AuthenticatedAdminTodayRouteImport.update({
-  id: '/today',
-  path: '/today',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminTrafficRoute =
   AuthenticatedAdminTrafficRouteImport.update({
     id: '/traffic',
@@ -450,23 +386,11 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminVoicesRoute =
-  AuthenticatedAdminVoicesRouteImport.update({
-    id: '/voices',
-    path: '/voices',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedChangelogIndexRoute =
-  AuthenticatedChangelogIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedChangelogRoute,
-  } as any)
 const AuthenticatedChangelogWhatsNewRoute =
   AuthenticatedChangelogWhatsNewRouteImport.update({
-    id: '/whats-new',
-    path: '/whats-new',
-    getParentRoute: () => AuthenticatedChangelogRoute,
+    id: '/changelog_/whats-new',
+    path: '/changelog/whats-new',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
   id: '/api/auth/google',
@@ -553,18 +477,6 @@ const AuthenticatedAccountBillingSuccessRoute =
     id: '/billing_/success',
     path: '/billing/success',
     getParentRoute: () => AuthenticatedAccountRoute,
-  } as any)
-const AuthenticatedAdminAutomationsAutomationIdRoute =
-  AuthenticatedAdminAutomationsAutomationIdRouteImport.update({
-    id: '/automations_/$automationId',
-    path: '/automations/$automationId',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminAutomationsTemplatesRoute =
-  AuthenticatedAdminAutomationsTemplatesRouteImport.update({
-    id: '/automations_/templates',
-    path: '/automations/templates',
-    getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminNewsletterBroadcastIdRoute =
   AuthenticatedAdminNewsletterBroadcastIdRouteImport.update({
@@ -663,12 +575,6 @@ const ApiV1TrafficViewRoute = ApiV1TrafficViewRouteImport.update({
   path: '/api/v1/traffic/view',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute =
-  AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport.update({
-    id: '/automations_/templates_/$templateKey',
-    path: '/automations/templates/$templateKey',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const ApiConnectVideoSendsSendIdRoute =
   ApiConnectVideoSendsSendIdRouteImport.update({
     id: '/api/connect/video/sends/$sendId',
@@ -686,6 +592,12 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1CrmFilesMessageIdIndexRoute =
+  ApiV1CrmFilesMessageIdIndexRouteImport.update({
+    id: '/api/v1/crm/files/$messageId/$index',
+    path: '/api/v1/crm/files/$messageId/$index',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -708,47 +620,37 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/admin': typeof AuthenticatedAdminRouteWithChildren
-  '/changelog': typeof AuthenticatedChangelogRouteWithChildren
+  '/changelog': typeof AuthenticatedChangelogRoute
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/guest/refused': typeof GuestRefusedRoute
   '/handoff/project': typeof HandoffProjectRoute
-  '/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/admin/archive': typeof AuthenticatedAdminArchiveRoute
+  '/admin/anti-detect': typeof AuthenticatedAdminAntiDetectRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/bans': typeof AuthenticatedAdminBansRoute
   '/admin/comments': typeof AuthenticatedAdminCommentsRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/admin/jobs': typeof AuthenticatedAdminJobsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
-  '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
-  '/admin/phones': typeof AuthenticatedAdminPhonesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
-  '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
-  '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
-  '/admin/reddit': typeof AuthenticatedAdminRedditRoute
-  '/admin/reddit-accounts': typeof AuthenticatedAdminRedditAccountsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/media-link/$token': typeof ApiMediaLinkTokenRoute
@@ -767,10 +669,7 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/guest/promo/$projectId': typeof GuestPromoProjectIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
-  '/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
-  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/projects/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
@@ -789,10 +688,10 @@ export interface FileRoutesByFullPath {
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/video/sends/$sendId': typeof ApiConnectVideoSendsSendIdRoute
   '/api/connect/viral/reads/$readId': typeof ApiConnectViralReadsReadIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -814,46 +713,37 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRouteWithChildren
+  '/changelog': typeof AuthenticatedChangelogRoute
   '/home': typeof AuthenticatedHomeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/guest/refused': typeof GuestRefusedRoute
   '/handoff/project': typeof HandoffProjectRoute
-  '/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/admin/archive': typeof AuthenticatedAdminArchiveRoute
+  '/admin/anti-detect': typeof AuthenticatedAdminAntiDetectRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/admin/bans': typeof AuthenticatedAdminBansRoute
   '/admin/comments': typeof AuthenticatedAdminCommentsRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/admin/jobs': typeof AuthenticatedAdminJobsRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
-  '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
-  '/admin/phones': typeof AuthenticatedAdminPhonesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
-  '/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/admin/projects': typeof AuthenticatedAdminProjectsRoute
-  '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
-  '/admin/reddit': typeof AuthenticatedAdminRedditRoute
-  '/admin/reddit-accounts': typeof AuthenticatedAdminRedditAccountsRoute
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/admin/voices': typeof AuthenticatedAdminVoicesRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/media-link/$token': typeof ApiMediaLinkTokenRoute
@@ -872,10 +762,7 @@ export interface FileRoutesByTo {
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/guest/promo/$projectId': typeof GuestPromoProjectIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
-  '/changelog': typeof AuthenticatedChangelogIndexRoute
   '/account/billing/success': typeof AuthenticatedAccountBillingSuccessRoute
-  '/admin/automations/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/pages/edit': typeof AuthenticatedAdminPagesEditRoute
   '/admin/projects/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
@@ -894,10 +781,10 @@ export interface FileRoutesByTo {
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/admin/automations/templates/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/video/sends/$sendId': typeof ApiConnectVideoSendsSendIdRoute
   '/api/connect/viral/reads/$readId': typeof ApiConnectViralReadsReadIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -922,48 +809,38 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
-  '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
+  '/_authenticated/changelog': typeof AuthenticatedChangelogRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/guest/refused': typeof GuestRefusedRoute
   '/handoff/project': typeof HandoffProjectRoute
-  '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/ai-usage': typeof AuthenticatedAdminAiUsageRoute
+  '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
-  '/_authenticated/admin/archive': typeof AuthenticatedAdminArchiveRoute
+  '/_authenticated/admin/anti-detect': typeof AuthenticatedAdminAntiDetectRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
-  '/_authenticated/admin/bans': typeof AuthenticatedAdminBansRoute
   '/_authenticated/admin/comments': typeof AuthenticatedAdminCommentsRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
   '/_authenticated/admin/crm': typeof AuthenticatedAdminCrmRoute
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/_authenticated/admin/jobs': typeof AuthenticatedAdminJobsRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
-  '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
-  '/_authenticated/admin/phones': typeof AuthenticatedAdminPhonesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
-  '/_authenticated/admin/profiles': typeof AuthenticatedAdminProfilesRoute
   '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRoute
-  '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
-  '/_authenticated/admin/reddit': typeof AuthenticatedAdminRedditRoute
-  '/_authenticated/admin/reddit-accounts': typeof AuthenticatedAdminRedditAccountsRoute
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/_authenticated/admin/today': typeof AuthenticatedAdminTodayRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/_authenticated/admin/voices': typeof AuthenticatedAdminVoicesRoute
-  '/_authenticated/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
+  '/_authenticated/changelog_/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/media-link/$token': typeof ApiMediaLinkTokenRoute
   '/api/rack/check-in': typeof ApiRackCheckInRoute
@@ -981,10 +858,7 @@ export interface FileRoutesById {
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/guest/promo/$projectId': typeof GuestPromoProjectIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
-  '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
   '/_authenticated/account/billing_/success': typeof AuthenticatedAccountBillingSuccessRoute
-  '/_authenticated/admin/automations_/$automationId': typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/pages_/edit': typeof AuthenticatedAdminPagesEditRoute
   '/_authenticated/admin/projects_/$projectId': typeof AuthenticatedAdminProjectsProjectIdRoute
@@ -1003,10 +877,10 @@ export interface FileRoutesById {
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/_authenticated/admin/automations_/templates_/$templateKey': typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
   '/api/connect/video/sends/$sendId': typeof ApiConnectVideoSendsSendIdRoute
   '/api/connect/viral/reads_/$readId': typeof ApiConnectViralReadsReadIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1037,41 +911,31 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/guest/refused'
     | '/handoff/project'
-    | '/admin/accounts'
     | '/admin/ai'
     | '/admin/ai-usage'
+    | '/admin/analytics'
     | '/admin/announcements'
-    | '/admin/archive'
+    | '/admin/anti-detect'
     | '/admin/automations'
-    | '/admin/bans'
     | '/admin/comments'
     | '/admin/contacts'
     | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
-    | '/admin/jobs'
     | '/admin/media'
     | '/admin/membership'
-    | '/admin/messages'
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
-    | '/admin/phones'
     | '/admin/plans'
-    | '/admin/profiles'
     | '/admin/projects'
-    | '/admin/proxies'
-    | '/admin/reddit'
-    | '/admin/reddit-accounts'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
-    | '/admin/today'
     | '/admin/traffic'
     | '/admin/users'
-    | '/admin/voices'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/media-link/$token'
@@ -1090,10 +954,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/stripe'
     | '/guest/promo/$projectId'
     | '/admin/'
-    | '/changelog/'
     | '/account/billing/success'
-    | '/admin/automations/$automationId'
-    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/projects/$projectId'
@@ -1112,10 +973,10 @@ export interface FileRouteTypes {
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/admin/automations/templates/$templateKey'
     | '/api/connect/video/sends/$sendId'
     | '/api/connect/viral/reads/$readId'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1137,46 +998,37 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/verify-email'
     | '/account'
+    | '/changelog'
     | '/home'
     | '/workspaces'
     | '/api/health'
     | '/guest/refused'
     | '/handoff/project'
-    | '/admin/accounts'
     | '/admin/ai'
     | '/admin/ai-usage'
+    | '/admin/analytics'
     | '/admin/announcements'
-    | '/admin/archive'
+    | '/admin/anti-detect'
     | '/admin/automations'
-    | '/admin/bans'
     | '/admin/comments'
     | '/admin/contacts'
     | '/admin/crm'
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
-    | '/admin/jobs'
     | '/admin/media'
     | '/admin/membership'
-    | '/admin/messages'
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
-    | '/admin/phones'
     | '/admin/plans'
-    | '/admin/profiles'
     | '/admin/projects'
-    | '/admin/proxies'
-    | '/admin/reddit'
-    | '/admin/reddit-accounts'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
-    | '/admin/today'
     | '/admin/traffic'
     | '/admin/users'
-    | '/admin/voices'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/media-link/$token'
@@ -1195,10 +1047,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/stripe'
     | '/guest/promo/$projectId'
     | '/admin'
-    | '/changelog'
     | '/account/billing/success'
-    | '/admin/automations/$automationId'
-    | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/pages/edit'
     | '/admin/projects/$projectId'
@@ -1217,10 +1066,10 @@ export interface FileRouteTypes {
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/admin/automations/templates/$templateKey'
     | '/api/connect/video/sends/$sendId'
     | '/api/connect/viral/reads/$readId'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   id:
     | '__root__'
     | '/'
@@ -1250,42 +1099,32 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/guest/refused'
     | '/handoff/project'
-    | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/ai-usage'
+    | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/announcements'
-    | '/_authenticated/admin/archive'
+    | '/_authenticated/admin/anti-detect'
     | '/_authenticated/admin/automations'
-    | '/_authenticated/admin/bans'
     | '/_authenticated/admin/comments'
     | '/_authenticated/admin/contacts'
     | '/_authenticated/admin/crm'
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
-    | '/_authenticated/admin/jobs'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
-    | '/_authenticated/admin/messages'
     | '/_authenticated/admin/newsletter'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/pages'
-    | '/_authenticated/admin/phones'
     | '/_authenticated/admin/plans'
-    | '/_authenticated/admin/profiles'
     | '/_authenticated/admin/projects'
-    | '/_authenticated/admin/proxies'
-    | '/_authenticated/admin/reddit'
-    | '/_authenticated/admin/reddit-accounts'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/system-emails'
-    | '/_authenticated/admin/today'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
-    | '/_authenticated/admin/voices'
-    | '/_authenticated/changelog/whats-new'
+    | '/_authenticated/changelog_/whats-new'
     | '/api/auth/google'
     | '/api/media-link/$token'
     | '/api/rack/check-in'
@@ -1303,10 +1142,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/stripe'
     | '/guest/promo/$projectId'
     | '/_authenticated/admin/'
-    | '/_authenticated/changelog/'
     | '/_authenticated/account/billing_/success'
-    | '/_authenticated/admin/automations_/$automationId'
-    | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/pages_/edit'
     | '/_authenticated/admin/projects_/$projectId'
@@ -1325,10 +1161,10 @@ export interface FileRouteTypes {
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/_authenticated/admin/automations_/templates_/$templateKey'
     | '/api/connect/video/sends/$sendId'
     | '/api/connect/viral/reads_/$readId'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/crm/files/$messageId/$index'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1386,6 +1222,7 @@ export interface RootRouteChildren {
   ApiConnectVideoSendsSendIdRoute: typeof ApiConnectVideoSendsSendIdRoute
   ApiConnectViralReadsReadIdRoute: typeof ApiConnectViralReadsReadIdRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1CrmFilesMessageIdIndexRoute: typeof ApiV1CrmFilesMessageIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1586,13 +1423,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/accounts': {
-      id: '/_authenticated/admin/accounts'
-      path: '/accounts'
-      fullPath: '/admin/accounts'
-      preLoaderRoute: typeof AuthenticatedAdminAccountsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/ai': {
       id: '/_authenticated/admin/ai'
       path: '/ai'
@@ -1607,6 +1437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAiUsageRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/analytics': {
+      id: '/_authenticated/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/announcements': {
       id: '/_authenticated/admin/announcements'
       path: '/announcements'
@@ -1614,11 +1451,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/archive': {
-      id: '/_authenticated/admin/archive'
-      path: '/archive'
-      fullPath: '/admin/archive'
-      preLoaderRoute: typeof AuthenticatedAdminArchiveRouteImport
+    '/_authenticated/admin/anti-detect': {
+      id: '/_authenticated/admin/anti-detect'
+      path: '/anti-detect'
+      fullPath: '/admin/anti-detect'
+      preLoaderRoute: typeof AuthenticatedAdminAntiDetectRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/automations': {
@@ -1626,13 +1463,6 @@ declare module '@tanstack/react-router' {
       path: '/automations'
       fullPath: '/admin/automations'
       preLoaderRoute: typeof AuthenticatedAdminAutomationsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/bans': {
-      id: '/_authenticated/admin/bans'
-      path: '/bans'
-      fullPath: '/admin/bans'
-      preLoaderRoute: typeof AuthenticatedAdminBansRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/comments': {
@@ -1677,13 +1507,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/jobs': {
-      id: '/_authenticated/admin/jobs'
-      path: '/jobs'
-      fullPath: '/admin/jobs'
-      preLoaderRoute: typeof AuthenticatedAdminJobsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/media': {
       id: '/_authenticated/admin/media'
       path: '/media'
@@ -1696,13 +1519,6 @@ declare module '@tanstack/react-router' {
       path: '/membership'
       fullPath: '/admin/membership'
       preLoaderRoute: typeof AuthenticatedAdminMembershipRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/messages': {
-      id: '/_authenticated/admin/messages'
-      path: '/messages'
-      fullPath: '/admin/messages'
-      preLoaderRoute: typeof AuthenticatedAdminMessagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/newsletter': {
@@ -1726,13 +1542,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPagesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/phones': {
-      id: '/_authenticated/admin/phones'
-      path: '/phones'
-      fullPath: '/admin/phones'
-      preLoaderRoute: typeof AuthenticatedAdminPhonesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/plans': {
       id: '/_authenticated/admin/plans'
       path: '/plans'
@@ -1740,39 +1549,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/profiles': {
-      id: '/_authenticated/admin/profiles'
-      path: '/profiles'
-      fullPath: '/admin/profiles'
-      preLoaderRoute: typeof AuthenticatedAdminProfilesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/projects': {
       id: '/_authenticated/admin/projects'
       path: '/projects'
       fullPath: '/admin/projects'
       preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/proxies': {
-      id: '/_authenticated/admin/proxies'
-      path: '/proxies'
-      fullPath: '/admin/proxies'
-      preLoaderRoute: typeof AuthenticatedAdminProxiesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/reddit': {
-      id: '/_authenticated/admin/reddit'
-      path: '/reddit'
-      fullPath: '/admin/reddit'
-      preLoaderRoute: typeof AuthenticatedAdminRedditRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/reddit-accounts': {
-      id: '/_authenticated/admin/reddit-accounts'
-      path: '/reddit-accounts'
-      fullPath: '/admin/reddit-accounts'
-      preLoaderRoute: typeof AuthenticatedAdminRedditAccountsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/referrals': {
@@ -1803,13 +1584,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/today': {
-      id: '/_authenticated/admin/today'
-      path: '/today'
-      fullPath: '/admin/today'
-      preLoaderRoute: typeof AuthenticatedAdminTodayRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/traffic': {
       id: '/_authenticated/admin/traffic'
       path: '/traffic'
@@ -1824,26 +1598,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/voices': {
-      id: '/_authenticated/admin/voices'
-      path: '/voices'
-      fullPath: '/admin/voices'
-      preLoaderRoute: typeof AuthenticatedAdminVoicesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/changelog/': {
-      id: '/_authenticated/changelog/'
-      path: '/'
-      fullPath: '/changelog/'
-      preLoaderRoute: typeof AuthenticatedChangelogIndexRouteImport
-      parentRoute: typeof AuthenticatedChangelogRoute
-    }
-    '/_authenticated/changelog/whats-new': {
-      id: '/_authenticated/changelog/whats-new'
-      path: '/whats-new'
+    '/_authenticated/changelog_/whats-new': {
+      id: '/_authenticated/changelog_/whats-new'
+      path: '/changelog/whats-new'
       fullPath: '/changelog/whats-new'
       preLoaderRoute: typeof AuthenticatedChangelogWhatsNewRouteImport
-      parentRoute: typeof AuthenticatedChangelogRoute
+      parentRoute: typeof AuthenticatedRoute
     }
     '/api/auth/google': {
       id: '/api/auth/google'
@@ -1963,20 +1723,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/account/billing/success'
       preLoaderRoute: typeof AuthenticatedAccountBillingSuccessRouteImport
       parentRoute: typeof AuthenticatedAccountRoute
-    }
-    '/_authenticated/admin/automations_/$automationId': {
-      id: '/_authenticated/admin/automations_/$automationId'
-      path: '/automations/$automationId'
-      fullPath: '/admin/automations/$automationId'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsAutomationIdRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/automations_/templates': {
-      id: '/_authenticated/admin/automations_/templates'
-      path: '/automations/templates'
-      fullPath: '/admin/automations/templates'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/newsletter_/$broadcastId': {
       id: '/_authenticated/admin/newsletter_/$broadcastId'
@@ -2104,13 +1850,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1TrafficViewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/automations_/templates_/$templateKey': {
-      id: '/_authenticated/admin/automations_/templates_/$templateKey'
-      path: '/automations/templates/$templateKey'
-      fullPath: '/admin/automations/templates/$templateKey'
-      preLoaderRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/api/connect/video/sends/$sendId': {
       id: '/api/connect/video/sends/$sendId'
       path: '/api/connect/video/sends/$sendId'
@@ -2130,6 +1869,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/media/$mediaId/file'
       fullPath: '/api/v1/media/$mediaId/file'
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/crm/files/$messageId/$index': {
+      id: '/api/v1/crm/files/$messageId/$index'
+      path: '/api/v1/crm/files/$messageId/$index'
+      fullPath: '/api/v1/crm/files/$messageId/$index'
+      preLoaderRoute: typeof ApiV1CrmFilesMessageIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -2162,92 +1908,65 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedAdminRouteChildren {
-  AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRoute
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAiUsageRoute: typeof AuthenticatedAdminAiUsageRoute
+  AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
-  AuthenticatedAdminArchiveRoute: typeof AuthenticatedAdminArchiveRoute
+  AuthenticatedAdminAntiDetectRoute: typeof AuthenticatedAdminAntiDetectRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
-  AuthenticatedAdminBansRoute: typeof AuthenticatedAdminBansRoute
   AuthenticatedAdminCommentsRoute: typeof AuthenticatedAdminCommentsRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
   AuthenticatedAdminCrmRoute: typeof AuthenticatedAdminCrmRoute
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
-  AuthenticatedAdminJobsRoute: typeof AuthenticatedAdminJobsRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
-  AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
-  AuthenticatedAdminPhonesRoute: typeof AuthenticatedAdminPhonesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
-  AuthenticatedAdminProfilesRoute: typeof AuthenticatedAdminProfilesRoute
   AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRoute
-  AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
-  AuthenticatedAdminRedditRoute: typeof AuthenticatedAdminRedditRoute
-  AuthenticatedAdminRedditAccountsRoute: typeof AuthenticatedAdminRedditAccountsRoute
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
-  AuthenticatedAdminTodayRoute: typeof AuthenticatedAdminTodayRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
-  AuthenticatedAdminVoicesRoute: typeof AuthenticatedAdminVoicesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
-  AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
-  AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
   AuthenticatedAdminProjectsProjectIdRoute: typeof AuthenticatedAdminProjectsProjectIdRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
-  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRoute,
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAiUsageRoute: AuthenticatedAdminAiUsageRoute,
+  AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
-  AuthenticatedAdminArchiveRoute: AuthenticatedAdminArchiveRoute,
+  AuthenticatedAdminAntiDetectRoute: AuthenticatedAdminAntiDetectRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
-  AuthenticatedAdminBansRoute: AuthenticatedAdminBansRoute,
   AuthenticatedAdminCommentsRoute: AuthenticatedAdminCommentsRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,
   AuthenticatedAdminCrmRoute: AuthenticatedAdminCrmRoute,
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
-  AuthenticatedAdminJobsRoute: AuthenticatedAdminJobsRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
-  AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
-  AuthenticatedAdminPhonesRoute: AuthenticatedAdminPhonesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
-  AuthenticatedAdminProfilesRoute: AuthenticatedAdminProfilesRoute,
   AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRoute,
-  AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
-  AuthenticatedAdminRedditRoute: AuthenticatedAdminRedditRoute,
-  AuthenticatedAdminRedditAccountsRoute: AuthenticatedAdminRedditAccountsRoute,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
-  AuthenticatedAdminTodayRoute: AuthenticatedAdminTodayRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
-  AuthenticatedAdminVoicesRoute: AuthenticatedAdminVoicesRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
-  AuthenticatedAdminAutomationsAutomationIdRoute:
-    AuthenticatedAdminAutomationsAutomationIdRoute,
-  AuthenticatedAdminAutomationsTemplatesRoute:
-    AuthenticatedAdminAutomationsTemplatesRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
   AuthenticatedAdminPagesEditRoute: AuthenticatedAdminPagesEditRoute,
@@ -2255,43 +1974,27 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminProjectsProjectIdRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
     AuthenticatedAdminSystemEmailsKindRoute,
-  AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:
-    AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
-interface AuthenticatedChangelogRouteChildren {
-  AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
-  AuthenticatedChangelogIndexRoute: typeof AuthenticatedChangelogIndexRoute
-}
-
-const AuthenticatedChangelogRouteChildren: AuthenticatedChangelogRouteChildren =
-  {
-    AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
-    AuthenticatedChangelogIndexRoute: AuthenticatedChangelogIndexRoute,
-  }
-
-const AuthenticatedChangelogRouteWithChildren =
-  AuthenticatedChangelogRoute._addFileChildren(
-    AuthenticatedChangelogRouteChildren,
-  )
-
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRouteWithChildren
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
-  AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
+  AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+  AuthenticatedChangelogWhatsNewRoute: typeof AuthenticatedChangelogWhatsNewRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRouteWithChildren,
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
-  AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
+  AuthenticatedChangelogRoute: AuthenticatedChangelogRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+  AuthenticatedChangelogWhatsNewRoute: AuthenticatedChangelogWhatsNewRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -2353,6 +2056,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConnectVideoSendsSendIdRoute: ApiConnectVideoSendsSendIdRoute,
   ApiConnectViralReadsReadIdRoute: ApiConnectViralReadsReadIdRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1CrmFilesMessageIdIndexRoute: ApiV1CrmFilesMessageIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

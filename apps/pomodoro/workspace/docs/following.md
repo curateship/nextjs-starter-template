@@ -32,8 +32,8 @@ A Follow button on a profile, and a Following tab on the leaderboard.
 - **Not following:** Follow. A screen reader hears "Follow Sam".
 - **Following:** the button reads Following, and turns into Unfollow on hover
   and on keyboard focus. A screen reader hears "Unfollow Sam".
-- **Unfollowing is still one press**, and a toast confirms it: "You unfollowed
-  Sam." Following says "You follow Sam." the same way.
+- **Unfollowing is still one press.** The button going back to Follow is the
+  only sign; no toast pops up either way.
 - **The follower count on the page moves with the press.** Once the server
   agrees, "12 followers" turns into 13, or back to 11 on Unfollow, without a
   reload. A refused press leaves it where it was. The next load of the page
@@ -116,12 +116,12 @@ block.
 
 ## When an admin removes a follow or a cheer
 
-An admin can delete follows and cheers from `/admin/pomodoro-follows`, one at a
+An admin can delete follows and cheers from Flowfly → Social → Follows, one at a
 time or over ticked rows (admin task 06, 8 Oct 2026). A deleted follow works
 like an unfollow: nobody is told, the person drops off the follower's Following
 tab and feed on their next load, and they can follow again. A deleted cheer
 comes off the record, which also frees one of that pair's three cheers for the last 24 hours, because the cap counts the rows. The
-bell notice it already sent stays. Blocks are on `/admin/pomodoro-blocks` to
+bell notice it already sent stays. Blocks are on Flowfly → Safety → Blocks to
 read only, because a block is a private choice an admin never undoes. See
 [Members in the admin](admin-members.md).
 
@@ -159,6 +159,9 @@ Twitter tags at it.
   `card.png` as a year.
 - Held five minutes, the same window the response says it may be cached for,
   so a link pasted into a busy channel is one read rather than one per reader.
+  Whatever clears the profile's held page (its owner saving, an admin hiding
+  or editing it, a block) drops the held card with it (`forgetPublicProfile`
+  calls `forgetShareCard`), so a switched-off profile's card stops at once.
 - Every value a person typed goes through the streak badge's own `escapeXml`.
   The picture is served from our address, so an unescaped `<` in a display
   name would put markup on a page we serve.

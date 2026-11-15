@@ -12,6 +12,9 @@ with the outro. Tyler, 4 Nov 2026: "Per project".
   choice, each None or one of the videos in this project's Media.
 - **A video from another project** has to be added to this project's Media
   first. The choice lists only this project's videos, up to 100.
+- **When the list can't be read**, the card says "This project's videos could
+  not be loaded." with Try again, instead of passing for a project with no
+  videos. The two choices stay greyed until the list arrives.
 - **Saved with Save changes**, like the name and the look. The server refuses
   anything that isn't one of the person's own videos.
 - **Kept on the project** as `video_projects.intro_media_id` and

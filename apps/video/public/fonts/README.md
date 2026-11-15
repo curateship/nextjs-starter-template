@@ -37,6 +37,16 @@ ttf files in `src/server/assets`, see `src/lib/video/text-fonts.ts`.
   <https://fonts.google.com/specimen/Caveat>
 - Licence: SIL Open Font License 1.1, <https://openfontlicense.org>
 
+## Fredoka
+
+`fredoka-latin.woff2`, `fredoka-latin-ext.woff2`, the static SemiBold (600),
+the soft round face for study timers and thumbnails. Declared in
+`src/components/video-editor/text-fonts.css`, with its ttf in
+`src/server/assets`.
+
+- Source: <https://fonts.google.com/specimen/Fredoka>
+- Licence: SIL Open Font License 1.1, <https://openfontlicense.org>
+
 All of these licences allow bundling the files with an application and serving them.
 They ask that the font names not be changed and that the licence travel with
 the files, which is what this file is for.

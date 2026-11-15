@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PauseIcon, PlayIcon, RotateCwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { getFixWordErrorMessage, sayWordsInTheirVoice } from "@/lib/api/video/fix-a-word"
 import { withEstimate } from "@/lib/video/ai-estimates"
 import {
@@ -100,7 +100,6 @@ export function FixWordsDialog({
       return
     }
     dispatch({ type: "FIX_SPOKEN_WORDS", ...action })
-    toast.success("Swapped in. Undo puts the old words back.")
     onOpenChange(false)
   }
 
@@ -144,6 +143,7 @@ export function FixWordsDialog({
                     setMade(null)
                   }}
                 />
+                <LengthCounter length={text.length} max={FIX_WORD_TEXT_MAX} />
               </div>
               {made ? (
                 <div className="flex items-center gap-2">

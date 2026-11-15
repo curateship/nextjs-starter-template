@@ -22,15 +22,10 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { keepOpenForInnerBoxes } from "@/components/trade/notes/pick-rows"
+import { Popover as PopoverPrimitive } from "radix-ui"
+import { Popover, PopoverContent } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -39,7 +34,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  createFolder,
   deleteFolder,
   getMarketFolderErrorMessage,
   renameFolder,
@@ -58,6 +52,7 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { createFolderAtOnce } from "@/components/trade/create-folder-at-once"
 import { cn } from "@/lib/utils"
 
 /**
@@ -95,9 +90,10 @@ function CreateFolderForm({
       showErrorToast("Enter a folder name.")
       return
     }
-    await onCreate(trimmed)
+    // The box clears at once: the folder is already in the list while it saves.
     setName("")
     setAttempted(false)
+    await onCreate(trimmed)
   }
 
   return (
@@ -121,6 +117,13 @@ function CreateFolderForm({
   )
 }
 
+/**
+ * Manage folders: rename, reorder, hide and delete the Folders block's rows,
+ * make a folder, and show markets hidden by hand. A popover beside the
+ * Folders block, opened from its ⋮ (Tyler, 8 Nov 2026: "replace the manage
+ * folder modal with a popover instead"), not a window over the page. A box
+ * it opens, such as a delete's question, keeps it open.
+ */
 export function MarketFoldersManager({
   folders,
   panelRows,
@@ -209,17 +212,9 @@ export function MarketFoldersManager({
     },
   ].sort((left, right) => left.position - right.position)
 
+  /** Shows the folder at once, in Order too, while it saves (`createFolderAtOnce`). */
   async function createNewFolder(name: string) {
-    if (busy) return
-    setBusy(true)
-    try {
-      onFoldersChange(await createFolder({ protocol, network, name }))
-    } catch (error) {
-      showErrorToast(getMarketFolderErrorMessage(error))
-      throw error
-    } finally {
-      setBusy(false)
-    }
+    await createFolderAtOnce({ protocol, network, name, folders, onFoldersChange })
   }
 
   /**
@@ -338,17 +333,45 @@ export function MarketFoldersManager({
 
   return (
     <>
-      <Dialog open={managing} onOpenChange={setManaging}>
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Manage folders</DialogTitle>
-            <DialogDescription>
-              Rename a folder, drag any row into the order you want, or press an
-              eye to keep a row out of the folder menu. Deleting is for folders
-              only.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
+      <Popover open={managing} onOpenChange={setManaging}>
+        {/* The block's top right corner, so the popover opens beside it,
+            over the middle, from its top. */}
+        <PopoverPrimitive.Anchor asChild>
+          <span aria-hidden className="pointer-events-none absolute top-0 right-0 size-0" />
+        </PopoverPrimitive.Anchor>
+        <PopoverContent
+          side="right"
+          align="start"
+          sideOffset={16}
+          collisionPadding={16}
+          onInteractOutside={keepOpenForInnerBoxes}
+          aria-label="Manage folders"
+          // Its cards follow Settings → Styling, as cards on the page do
+          // (Tyler, 8 Nov 2026: "wire the cards to the styling settings").
+          // The styling's values reach a popover; its card rule looks for
+          // this mark, which the page's content area carries.
+          data-content-styling=""
+          className="flex max-h-[min(80vh,44rem)] w-[26rem] flex-col gap-0 p-0"
+        >
+          {/* The name alone: the line explaining the controls went (Tyler,
+              8 Nov 2026: "remove ..."). */}
+          <div className="shrink-0 border-b px-4 py-3">
+            <h2 className="text-base font-semibold">Manage folders</h2>
+          </div>
+          {/* Scrolls between its title and Done with the app's own scrollbar
+              (Tyler, 8 Nov 2026: "also add areascroll"), clipped to its room
+              so nothing it holds runs over Done. The cards sit in a grid
+              inside it, never the grid itself: a grid given less height than
+              they need squashes them, and the Order card showed one of its
+              eight rows ("fix the folders first"). */}
+          <ScrollArea
+            // A column, so its scrolling part shrinks to the popover's room:
+            // a percentage height never resolves under a height that is only
+            // a maximum, and it grew to its whole content instead.
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            viewportClassName="h-auto min-h-0 flex-1"
+          >
+          <div className="grid gap-3 p-3">
             <Card size="sm">
               <CardHeader>
                 <CardTitle>New folder</CardTitle>
@@ -449,14 +472,15 @@ export function MarketFoldersManager({
                 )}
               </CardContent>
             </Card>
-          </DialogBody>
-          <DialogFooter>
+          </div>
+          </ScrollArea>
+          <div className="flex shrink-0 justify-end border-t p-3">
             <Button type="button" onClick={() => setManaging(false)}>
               Done
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </PopoverContent>
+      </Popover>
 
       <ConfirmDialog
         open={deleting !== null}

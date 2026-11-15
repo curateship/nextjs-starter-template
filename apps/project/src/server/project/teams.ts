@@ -2,18 +2,16 @@ import { and, asc, count, eq, inArray, isNull, notInArray, sql, type SQL } from 
 
 import { localNow } from "@/lib/project/days"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { storedNotesForCopy } from "@/lib/project/notes"
 import { CLOSED_TASK_STATUSES, DEFAULT_CHECKIN_TIME, DEFAULT_WORK_DAYS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
-import { isOwnedImageUrl } from "@/server/media/library"
+import { readCoverImages } from "@/lib/notes/page-cover"
+import { checkCoverPictures } from "@/server/project/cover"
 import { loadAnnouncement, type Announcement } from "@/server/project/announcements"
 import { requireKnownZone } from "@/server/project/checkins"
 import { holidayOn, listHolidays, type Holiday } from "@/server/project/holidays"
-import { listTeamLabels, type Label } from "@/server/project/labels"
-import { listStepLists, type StepList } from "@/server/project/step-lists"
-import { clearPersonValues } from "@/server/project/task-types"
-import { pauseClocksOf } from "@/server/project/task-clock-runs"
-import { projectViewScreen } from "@/server/project/saved-views"
+import { projectViewScreen, teamTasksViewScreen } from "@/server/project/saved-views"
 import { countTeamToday } from "@/server/project/team-days"
 import { joinLinkState, type JoinLinkState } from "@/server/project/team-running"
 import {
@@ -27,7 +25,6 @@ import {
   projectProjectMembers,
   projectProjectStars,
   projectTaskReminders,
-  projectTaskSteps,
   projectProjects,
   projectTasks,
   projectTeamMembers,
@@ -45,8 +42,8 @@ export type TeamSummary = {
   createdAt: string
   /** The team photo's address, drawn as the wide cover; or null. */
   photoUrl: string | null
-  /** The team's square avatar beside its name; null shows its initials. */
-  avatarUrl: string | null
+  /** The pictures the cover has had, tiles in the team page's Cover photo row. */
+  coverImages: string[]
   /** The team's own words for the check-in's boxes; null keeps the usual one. */
   questions: { yesterday: string | null; today: string | null; blocker: string | null }
   /** Titles each new member gets as "Just me" tasks. */
@@ -71,9 +68,6 @@ export type TeamDashboard = {
   myRole: TeamRole
   myUserId: string
   members: TeamMemberRow[]
-  labels: Label[]
-  /** The team's saved step lists, renamed and deleted in Team settings. */
-  stepLists: StepList[]
   /** The join link's state, for the site admin; null for everyone else. */
   joinLink: JoinLinkState | null
   /** The team's holidays from today on. */
@@ -82,6 +76,10 @@ export type TeamDashboard = {
   announcement: Announcement | null
   /** Clients of the projects I can see, for the Client choice on the calendar and Workload. */
   clients: string[]
+  /** The team's page at the top of the left panel, as kept: "" or a note's document. */
+  page: string
+  /** The page reads only, even for the site admin, until it's unlocked. */
+  pageLocked: boolean
 }
 
 /**
@@ -115,7 +113,6 @@ export async function createTeam(
 export type TeamListRow = {
   id: string
   name: string
-  avatarUrl: string | null
   checkinTime: string
   timeZone: string
   /** Employees on the team; the site admin is never counted. */
@@ -207,7 +204,6 @@ export async function listTeams(userId: string, database = db, at = new Date()):
     return {
       id: team.id,
       name: team.name,
-      avatarUrl: team.avatarUrl,
       checkinTime: team.checkinTime,
       timeZone: team.timeZone,
       people: peopleOf.get(team.id) ?? 0,
@@ -225,9 +221,9 @@ export async function listTeams(userId: string, database = db, at = new Date()):
  * refused while anyone is on the team or a shared project is still open, so a
  * slip can't take live work with it. What is left goes with the team row: its
  * archived projects and their tasks, "Just me" lists, check-ins, meetings,
- * labels, task types, step lists, days off and saved views, every
- * one of the 15 tables holding a team's rows deleting with it (`onDelete:
- * "cascade"` in `src/server/project/schema.ts`).
+ * days off and saved views, every one of the 12 tables
+ * holding a team's rows deleting with it (`onDelete: "cascade"` in
+ * `src/server/project/schema.ts`).
  */
 export async function deleteTeam(userId: string, teamId: string, database = db) {
   await database.transaction(async (tx) => {
@@ -277,8 +273,6 @@ export async function loadTeamDashboard(
     myRole: membership.role,
     myUserId: userId,
     members,
-    labels: await listTeamLabels(membership.teamId, database),
-    stepLists: await listStepLists(membership.teamId, database),
     joinLink: runsTheTeam(membership.role) ? await joinLinkState(membership.teamId, database) : null,
     holidays: await listHolidays(
       membership.teamId,
@@ -287,6 +281,8 @@ export async function loadTeamDashboard(
     ),
     announcement: await loadAnnouncement(membership, database),
     clients: await visibleClients(membership, database),
+    page: team.notes,
+    pageLocked: team.notesLocked,
   }
 }
 
@@ -350,39 +346,66 @@ export async function updateTeam(
  * address outside the library. "" takes the photo away.
  */
 export async function setTeamPhoto(userId: string, photoUrl: string, database = db) {
+  await setTeamCover(userId, { photoUrl }, database)
+}
+
+/**
+ * The team page's cover as its Cover photo row saves it (the shell's look,
+ * 9 Nov 2026): the pick, "" for none, "sky" for the drawn sky or a picture,
+ * and the pictures kept as tiles. A picture new to the team must be one the
+ * site admin uploaded, as the photo always had to be.
+ */
+export async function setTeamCover(
+  userId: string,
+  { photoUrl, coverImages }: { photoUrl: string; coverImages?: string[] },
+  database = db
+) {
   const membership = await requireTeamRunner(userId, database)
   const [team] = await database
-    .select({ photoUrl: projectTeams.photoUrl })
+    .select({ photoUrl: projectTeams.photoUrl, coverImages: projectTeams.coverImages })
     .from(projectTeams)
     .where(eq(projectTeams.id, membership.teamId))
-  const unchanged = photoUrl === (team?.photoUrl ?? "")
-  if (photoUrl && !unchanged && !(await isOwnedImageUrl(userId, photoUrl, database))) {
-    throw new Error(PROJECT_ERRORS.photoNotYours)
-  }
+  await checkCoverPictures(
+    userId,
+    { url: photoUrl, images: coverImages },
+    { url: team?.photoUrl ?? null, images: readCoverImages(team?.coverImages) },
+    database
+  )
   await database
     .update(projectTeams)
-    .set({ photoUrl: photoUrl || null, updatedAt: now() })
+    .set({ photoUrl: photoUrl || null, ...(coverImages === undefined ? null : { coverImages }), updatedAt: now() })
     .where(eq(projectTeams.id, membership.teamId))
 }
 
 /**
- * The team's square avatar, the site admin's to change, with the same rule as
- * the cover photo: a picture they uploaded to the media library themselves.
- * "" takes it away and the team's initials show again.
+ * The team's page locked so it reads only, or unlocked again, from Team
+ * settings (Tyler, 7 Nov 2026: "the lock blocks button is missing"). The
+ * site admin's alone.
  */
-export async function setTeamAvatar(userId: string, avatarUrl: string, database = db) {
+export async function setTeamPageLock(userId: string, locked: boolean, database = db) {
   const membership = await requireTeamRunner(userId, database)
-  const [team] = await database
-    .select({ avatarUrl: projectTeams.avatarUrl })
-    .from(projectTeams)
-    .where(eq(projectTeams.id, membership.teamId))
-  const unchanged = avatarUrl === (team?.avatarUrl ?? "")
-  if (avatarUrl && !unchanged && !(await isOwnedImageUrl(userId, avatarUrl, database))) {
-    throw new Error(PROJECT_ERRORS.photoNotYours)
-  }
   await database
     .update(projectTeams)
-    .set({ avatarUrl: avatarUrl || null, updatedAt: now() })
+    .set({ notesLocked: locked, updatedAt: now() })
+    .where(eq(projectTeams.id, membership.teamId))
+}
+
+/**
+ * The team's page at the top of the Team dashboard's left panel, the site
+ * admin's to write (Tyler, 7 Nov 2026). Cleaned as a page with no task, so a
+ * Task card or Comments block that slipped in is dropped, keeping the team
+ * blocks.
+ */
+export async function setTeamPage(userId: string, notes: string, database = db) {
+  const membership = await requireTeamRunner(userId, database)
+  const [team] = await database
+    .select({ locked: projectTeams.notesLocked })
+    .from(projectTeams)
+    .where(eq(projectTeams.id, membership.teamId))
+  if (team?.locked) throw new Error(PROJECT_ERRORS.teamPageLocked)
+  await database
+    .update(projectTeams)
+    .set({ notes: storedNotesForCopy(notes, { noTask: true, team: true }), updatedAt: now() })
     .where(eq(projectTeams.id, membership.teamId))
 }
 
@@ -453,8 +476,8 @@ async function takePersonOffTeam(teamId: string, userId: string, tx: ProjectDb) 
 }
 
 /**
- * Takes someone off the tasks matched by `where`, and off those tasks'
- * steps, keeping their name on each task so it still says whose it was. Shared with removing someone from one
+ * Takes someone off the tasks matched by `where`, keeping their name on each
+ * task so it still says whose it was. Shared with removing someone from one
  * project.
  */
 export async function clearAssignee(
@@ -467,8 +490,6 @@ export async function clearAssignee(
     .from(customShellUsers)
     .where(eq(customShellUsers.id, userId))
     .limit(1)
-  // Their clock on those tasks stops with them.
-  await pauseClocksOf(tx, userId, null, where)
   await tx
     .update(projectTasks)
     .set({
@@ -478,22 +499,6 @@ export async function clearAssignee(
       updatedAt: now(),
     })
     .where(and(eq(projectTasks.assigneeUserId, userId), where))
-  // A Person field in those tasks loses them too, the same as the task.
-  await clearPersonValues(userId, where, tx)
-  // Their steps in those tasks lose their name too: a step's person must be
-  // on the project.
-  await tx
-    .update(projectTaskSteps)
-    .set({ assigneeUserId: null })
-    .where(
-      and(
-        eq(projectTaskSteps.assigneeUserId, userId),
-        inArray(
-          projectTaskSteps.taskId,
-          tx.select({ id: projectTasks.id }).from(projectTasks).where(where)
-        )
-      )
-    )
 }
 
 async function requireTeammate(teamId: string, userId: string, database: ProjectDb) {
@@ -516,7 +521,7 @@ function toTeamSummary(
     Partial<
       Pick<
         typeof projectTeams.$inferSelect,
-        "photoUrl" | "avatarUrl" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
+        "photoUrl" | "coverImages" | "questionYesterday" | "questionToday" | "questionBlocker" | "starterTasks"
       >
     >
 ): TeamSummary {
@@ -528,7 +533,7 @@ function toTeamSummary(
     workDays: [...team.workDays],
     createdAt: team.createdAt.toISOString(),
     photoUrl: team.photoUrl ?? null,
-    avatarUrl: team.avatarUrl ?? null,
+    coverImages: readCoverImages(team.coverImages),
     questions: {
       yesterday: team.questionYesterday ?? null,
       today: team.questionToday ?? null,
@@ -567,5 +572,9 @@ async function teamViewScreens(teamId: string, database: ProjectDb) {
     .select({ id: projectProjects.id })
     .from(projectProjects)
     .where(eq(projectProjects.teamId, teamId))
-  return [projectViewScreen(teamId, null), ...projects.map((project) => projectViewScreen(teamId, project.id))]
+  return [
+    projectViewScreen(teamId, null),
+    teamTasksViewScreen(teamId),
+    ...projects.map((project) => projectViewScreen(teamId, project.id)),
+  ]
 }

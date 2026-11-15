@@ -1,9 +1,17 @@
 import * as React from "react"
-import { HeartPulseIcon, ImagesIcon, Loader2Icon, SmartphoneIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
+import { ImagesIcon, Loader2Icon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { PhoneSectionCard } from "@/components/phones/phone-section-card"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -15,12 +23,11 @@ import {
 import {
   getPhoneErrorMessage,
   loadPhoneActions,
-  runPhoneAction,
   type PhoneActionView,
   type PhoneRecord,
 } from "@/lib/api/phones/phones"
 import { formatDateTime } from "@/lib/format/format-time"
-import { actionWords, MANUAL_PHONE_ACTIONS } from "@/lib/phones/options"
+import { actionWords } from "@/lib/phones/options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** How often the list is read again while an action is waiting or running. */
@@ -39,12 +46,11 @@ const RECOVERED_WORDS: Record<string, string> = {
   phone: "The phone stopped answering, so the rack restarted it.",
 }
 
-type ManualAction = (typeof MANUAL_PHONE_ACTIONS)[number]
-
 /**
- * The phone's actions: ask the rack to read the system version off the
- * phone's own Settings screen, or take a health reading, and see the last
- * twenty actions, including a job's Reddit steps and the daily self-test.
+ * The phone's last twenty actions, including a job's Reddit steps and the
+ * daily self-test. Read the version and Health check, which ask for one, are
+ * at the foot of the phone's ⋮ (Tyler, 12 Nov 2026: "move these 2 function
+ * down here").
  *
  * Each action keeps a picture of every step (part 17 of the phone farm). A
  * failed one says the step it stopped at; its pictures stay until cleared
@@ -55,7 +61,6 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
   const [actions, setActions] = React.useState<PhoneActionView[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [attempt, setAttempt] = React.useState(0)
-  const [asking, setAsking] = React.useState<ManualAction | null>(null)
 
   React.useEffect(() => {
     let live = true
@@ -88,52 +93,10 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
     wasWaiting.current = waiting
   }, [waiting, onChanged])
 
-  async function ask(action: ManualAction) {
-    setAsking(action)
-    try {
-      await runPhoneAction(phone.id, action)
-      setAttempt((count) => count + 1)
-    } catch (askError) {
-      showErrorToast(getPhoneErrorMessage(askError))
-    } finally {
-      setAsking(null)
-    }
-  }
-
   return (
-    <div className="grid gap-6">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Ask the phone</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <p className="text-sm text-muted-foreground">
-            The rack runs each check on the phone and sends back the answer. Reading the
-            version opens Settings on the phone, reads the screen and goes back home.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={asking !== null}
-              onClick={() => void ask("phone/android-version")}
-            >
-              {asking === "phone/android-version" ? <Loader2Icon className="animate-spin" /> : <SmartphoneIcon />}
-              Read the system version from Settings
-            </Button>
-            <Button type="button" variant="outline" disabled={asking !== null} onClick={() => void ask("phone/health")}>
-              {asking === "phone/health" ? <Loader2Icon className="animate-spin" /> : <HeartPulseIcon />}
-              Health check
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Last actions</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+    <div className="grid min-w-0 gap-3">
+      <PhoneSectionCard storageId="promo-phone-actions-last-actions" title="Last actions">
+        <div className="-mx-4 -mb-4 border-t">
           {error ? (
             <ErrorRow message={error} onRetry={() => setAttempt((count) => count + 1)} />
           ) : !actions ? (
@@ -147,8 +110,8 @@ export function PhoneActionsPanel({ phone, onChanged }: { phone: PhoneRecord; on
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </PhoneSectionCard>
     </div>
   )
 }
@@ -158,6 +121,8 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
   const [pictures, setPictures] = React.useState<StepPicture[] | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [clearing, setClearing] = React.useState(false)
+  // A step picture opened full size (Racks dashboard, part 114): the panel shows them small.
+  const [big, setBig] = React.useState<{ src: string; step: string; index: number } | null>(null)
   const failed = action.status === "failed"
   const stoppedAt = failed ? action.steps[action.steps.length - 1] : ""
 
@@ -181,7 +146,6 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
     setClearing(true)
     try {
       await clearActionPictures(action.id)
-      toast.success("Pictures cleared.")
       setOpen(false)
       setPictures(null)
       onCleared()
@@ -226,17 +190,24 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
         ) : !pictures ? (
           <LoadingRow label="Opening the pictures" className="min-h-24" />
         ) : (
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2">
             {pictures.map((picture, index) => (
-              <figure key={picture.id} className="grid w-40 gap-1">
+              <figure key={picture.id} className="grid w-24 gap-1">
                 {picture.src ? (
-                  <img
-                    src={picture.src}
-                    alt={`Step ${index + 1}: ${picture.step || "the screen"}`}
-                    className="h-72 w-40 rounded-md border object-cover object-top"
-                  />
+                  <button
+                    type="button"
+                    className="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    aria-label={`Open step ${index + 1} full size`}
+                    onClick={() => setBig({ src: picture.src as string, step: picture.step, index })}
+                  >
+                    <img
+                      src={picture.src}
+                      alt={`Step ${index + 1}: ${picture.step || "the screen"}`}
+                      className="h-44 w-24 rounded-md border object-cover object-top"
+                    />
+                  </button>
                 ) : (
-                  <div className="flex h-72 w-40 items-center justify-center rounded-md border p-2 text-center text-xs text-muted-foreground">
+                  <div className="flex h-44 w-24 items-center justify-center rounded-md border p-2 text-center text-xs text-muted-foreground">
                     This picture could not be kept.
                   </div>
                 )}
@@ -248,6 +219,22 @@ function ActionRow({ action, onCleared }: { action: PhoneActionView; onCleared: 
           </div>
         )
       ) : null}
+      <Dialog open={big !== null} onOpenChange={(next) => (next ? undefined : setBig(null))}>
+        <DialogContent variant="admin" className="data-[variant=admin]:sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{big ? `Step ${big.index + 1}: ${big.step || "the screen"}` : "Step"}</DialogTitle>
+            <DialogDescription>{actionWords(action.action)}, {formatDateTime(action.createdAt)}</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {big ? <img src={big.src} alt={`Step ${big.index + 1}: ${big.step || "the screen"}`} className="mx-auto max-h-[70vh] w-auto rounded-md border" /> : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" onClick={() => setBig(null)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

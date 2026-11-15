@@ -52,14 +52,6 @@ const GATED_FILES: {
   },
   { file: "people/member-home.ts", feature: "billing" },
   { file: "feedback.ts", feature: "feedback" },
-  {
-    file: "content/changelog.ts",
-    feature: "changelog",
-    except: {
-      listAdminFn:
-        "Answers null to anyone who is not an admin, so an app role learns nothing.",
-    },
-  },
   { file: "ai.ts", feature: "aiUsage" },
 ]
 
@@ -113,7 +105,6 @@ describe("the feature guards, called as each kind of account", () => {
     "billing",
     "aiUsage",
     "feedback",
-    "changelog",
   ]
 
   for (const feature of features) {
@@ -135,7 +126,7 @@ describe("the feature guards, called as each kind of account", () => {
   it("lets an app role through at the parts its app gave it", async () => {
     caller = { id: "d1", role: "editor" }
     await expect(call(featurePost("feedback"))).resolves.toBeTruthy()
-    await expect(call(featureGet("changelog"))).resolves.toBeTruthy()
+    await expect(call(featureGet("aiUsage"))).resolves.toBeTruthy()
     await expect(call(featureGet("billing"))).rejects.toThrow("FORBIDDEN")
   })
 

@@ -1,8 +1,8 @@
 import * as React from "react"
 import { PauseIcon, PlayIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   deleteOwnVoice,
@@ -27,7 +27,7 @@ export function OwnVoices({
   onMakingChange: (open: boolean) => void
 }) {
   const [voices, setVoices] = React.useState<ClonedVoice[] | null>(null)
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [refresh, setRefresh] = React.useState(0)
   const [deleting, setDeleting] = React.useState<ClonedVoice | null>(null)
   const [busy, setBusy] = React.useState(false)
@@ -39,12 +39,11 @@ export function OwnVoices({
       .then((loaded) => {
         if (!active) return
         setVoices(loaded)
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(getVoiceCloneErrorMessage(error))
+        setLoadError(getVoiceCloneErrorMessage(error))
       })
     return () => {
       active = false
@@ -59,7 +58,6 @@ export function OwnVoices({
       setVoices((current) =>
         (current ?? []).filter((voice) => voice.id !== deleting.id)
       )
-      toast.success(`"${deleting.name}" is deleted, here and at ElevenLabs.`)
       setDeleting(null)
     } catch (error) {
       showErrorToast(getVoiceCloneErrorMessage(error))
@@ -71,19 +69,13 @@ export function OwnVoices({
   return (
     <section className="grid min-w-0 gap-2 border-b p-4" aria-label="Your voices">
       <h3 className="text-xs font-medium text-muted-foreground">Your voices</h3>
-      {voices === null && !loadFailed ? null : loadFailed ? (
-        <div className="grid justify-items-start gap-2 text-sm text-muted-foreground">
-          Your voices could not be loaded.
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setRefresh((count) => count + 1)}
-          >
-            Try again
-          </Button>
-        </div>
-      ) : voices?.length ? (
+      {loadError ? (
+        <ErrorRow
+          message={loadError}
+          onRetry={() => setRefresh((count) => count + 1)}
+          className="py-2"
+        />
+      ) : voices === null ? null : voices?.length ? (
         <ul className="grid gap-2">
           {voices.map((voice) => (
             <OwnVoiceRow

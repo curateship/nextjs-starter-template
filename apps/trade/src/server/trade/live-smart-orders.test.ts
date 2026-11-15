@@ -772,6 +772,7 @@ describe("live Smart orders", () => {
       filledSz: null,
     })
     await placeLiveOrder(userId, {
+      aimedPx: "sent",
       walletId: wallet.id,
       marketKey: MARKET,
       side: "buy",

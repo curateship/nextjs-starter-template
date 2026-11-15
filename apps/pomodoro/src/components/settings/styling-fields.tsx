@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { SettingsSliderRow as SliderRow } from "@/components/settings/settings-slider-row"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -206,6 +206,15 @@ function modalPreviewVars(modal: ShellModalStyling): React.CSSProperties {
   } as React.CSSProperties
 }
 
+/** A drawn input box for a preview: the field, not the card it sits in. */
+function PreviewField({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-8 items-center truncate rounded-md border bg-background px-2.5 text-sm">
+      {children}
+    </div>
+  )
+}
+
 export function ModalPreview({ modal }: { modal: ShellModalStyling }) {
   return (
     <FieldGroup label="Preview" className="gap-2">
@@ -226,20 +235,32 @@ export function ModalPreview({ modal }: { modal: ShellModalStyling }) {
           className="relative mx-auto flex max-w-sm flex-col overflow-hidden rounded-xl"
         >
           <div data-slot="dialog-header" className="flex flex-col gap-1 text-left">
-            <div className="text-base leading-none font-medium">Send Feedback</div>
+            <div className="text-base leading-none font-medium">Admin</div>
             <div className="text-sm text-muted-foreground">
-              Share a request, report, question, or win.
+              A sidebar link.
             </div>
           </div>
+          {/* Two cards drawn as cards: a heading and the fields inside, so the
+              setting plainly paints the card and not the boxes in it (Tyler,
+              10 Nov 2026: "it shows that I change the fields shades and not
+              the card itself"). */}
           <div data-slot="dialog-body" className="grid gap-4">
             <Card size="sm">
-              <CardContent className="text-sm text-muted-foreground">
-                What&apos;s on your mind?
+              <CardHeader>
+                <CardTitle>Link</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <PreviewField>Admin</PreviewField>
+                <PreviewField>/admin</PreviewField>
               </CardContent>
             </Card>
             <Card size="sm">
-              <CardContent className="text-sm text-muted-foreground">
-                Feedback
+              <CardHeader>
+                <CardTitle>Children</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <PreviewField>CRM</PreviewField>
+                <PreviewField>Settings</PreviewField>
               </CardContent>
             </Card>
           </div>

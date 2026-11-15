@@ -134,7 +134,10 @@ export function LeadPanel({
         <>
           <OpeningRow lead={lead} profile={profile} busy={busy} actions={actions} />
           <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
+            {/* A side panel's body, so its first card follows Settings ->
+                Styling -> Panel cards -> Opacity (UI standard, "A side
+                panel's body"). */}
+            <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
               {shownTab === "profile" ? (
                 <>
                   {match ? (

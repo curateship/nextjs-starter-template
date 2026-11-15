@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CalendarClockIcon, Loader2Icon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { Button } from "@/components/ui/button"
@@ -252,8 +251,7 @@ export function SendBroadcastDialog({
     setError(null)
     try {
       const result = await sendTestEmail(broadcast.id, testEmail.trim())
-      if (result.ok) toast.success(`Test copy sent to ${testEmail.trim()}`)
-      else setError(result.error ?? "We could not send the test copy.")
+      if (!result.ok) setError(result.error ?? "We could not send the test copy.")
     } catch (testError) {
       setError(getBroadcastErrorMessage(testError))
     } finally {
@@ -294,13 +292,6 @@ export function SendBroadcastDialog({
             )
       onUpdated(updated)
       onOpenChange(false)
-      toast.success(
-        mode === "now"
-          ? drip.enabled
-            ? "The first batch is going out now. Watch the bar along the bottom."
-            : "It is going out now. Watch the bar along the bottom."
-          : "Scheduled. It goes out on its own at that time."
-      )
     } catch (confirmError) {
       setError(getBroadcastErrorMessage(confirmError))
     } finally {
@@ -315,7 +306,6 @@ export function SendBroadcastDialog({
       const updated = await cancelBroadcastScheduleSend(broadcast.id)
       onUpdated(updated)
       onOpenChange(false)
-      toast.success("Back to a draft. Nothing will go out.")
     } catch (cancelError) {
       setError(getBroadcastErrorMessage(cancelError))
     } finally {

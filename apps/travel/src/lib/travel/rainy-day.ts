@@ -1,5 +1,7 @@
+import { formatTime } from "@/lib/travel/board"
 import { dateOfDay, formatDayDate } from "@/lib/travel/dates"
 import type { Place } from "@/lib/travel/rules"
+import { RAIN_SHOWN_FROM } from "@/lib/travel/weather"
 
 /**
  * Swap a rainy day (More Travel features part 9; Tyler: "From Google's place
@@ -65,4 +67,22 @@ export function rainyDayMove(
     .filter((item): item is { day: number; rain: number } => item.day !== from && item.rain !== null && item.rain < DRY_BELOW)
     .sort((a, b) => a.rain - b.rain || Math.abs(a.day - from) - Math.abs(b.day - from) || b.day - a.day)
   return { warning, toDay: dry[0]?.day ?? null }
+}
+
+/**
+ * Rain at the card's hour (Travel features 4, part 3; Tyler, 6 Nov 2026:
+ * "Card + panel"): "40% rain at 2:30 PM" for an outdoor card with a start
+ * time, from the chance in the hour it starts. It shows from 30 out of 100,
+ * the same as the day's own rain line. Null for an indoor or untimed card, a
+ * day past the forecast, or an hour with no chance given.
+ */
+export function cardRainLine(
+  card: { day: number | null; startTime: string | null; place: Pick<Place, "kinds"> | null },
+  forecast: readonly { day: number; hourlyRain?: readonly (number | null)[] }[]
+) {
+  if (card.day === null || !card.startTime || !isOutdoors(card.place)) return null
+  const hour = Number(card.startTime.slice(0, 2))
+  const rain = forecast.find((item) => item.day === card.day)?.hourlyRain?.[hour]
+  if (typeof rain !== "number" || rain < RAIN_SHOWN_FROM) return null
+  return `${rain}% rain at ${formatTime(card.startTime)}`
 }

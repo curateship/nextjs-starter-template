@@ -10,15 +10,15 @@ import {
 describe("market keys", () => {
   it("opens a supported market on its protocol chart", () => {
     expect(marketChartHref("kucoin:mainnet:SOLUSDTM")).toBe(
-      "/protocols/kucoin?market=kucoin%3Amainnet%3ASOLUSDTM"
+      "/trade?market=kucoin%3Amainnet%3ASOLUSDTM"
     )
     expect(marketChartHref("binance:mainnet:BTC")).toBe(
-      "/protocols/binance?market=binance%3Amainnet%3ABTC"
+      "/trade?market=binance%3Amainnet%3ABTC"
     )
     // Dukascopy is candles only and has no chart page of its own.
     expect(marketChartHref("dukascopy:mainnet:tslaususd")).toBeNull()
     expect(marketChartHref("aster:testnet:BTCUSDT")).toBe(
-      "/protocols/aster?market=aster%3Atestnet%3ABTCUSDT"
+      "/trade?market=aster%3Atestnet%3ABTCUSDT"
     )
   })
 

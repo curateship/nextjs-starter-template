@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
 import { TargetIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -153,7 +152,6 @@ export default function GoalHeader() {
             failed={failed}
             hiddenPnl={hiddenPnl}
             onRetry={() => void refresh()}
-            onOpenPnl={() => setOpen(false)}
           />
         )}
       </PopoverContent>
@@ -167,14 +165,12 @@ function GoalPanel({
   failed,
   hiddenPnl,
   onRetry,
-  onOpenPnl,
 }: {
   goal: Goal
   progress: GoalProgress
   failed: boolean
   hiddenPnl: string | undefined
   onRetry: () => void
-  onOpenPnl: () => void
 }) {
   const remaining = goalRemaining(progress)
 
@@ -239,10 +235,6 @@ function GoalPanel({
           className="p-0 text-xs"
         />
       ) : null}
-
-      <Button type="button" variant="outline" asChild onClick={onOpenPnl}>
-        <Link to="/pnl">Open P&amp;L</Link>
-      </Button>
     </>
   )
 }

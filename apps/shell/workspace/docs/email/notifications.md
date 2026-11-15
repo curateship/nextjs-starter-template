@@ -3,7 +3,7 @@
 Notifications are private, in-app messages for one user. They cover:
 
 - Feedback activity.
-- Changelog entries and announcements.
+- Announcements.
 - AI allowance warnings.
 - Account updates and system email failures.
 - Automation approvals and failures.
@@ -23,6 +23,12 @@ Shell settings does the same for sign-in and access failures, and keeps its own
 written reasons, such as a logo missing from the media library.
 
 ## Seen and read are two different things
+
+The bell sits in a round button that turns grey only under the pointer. Its
+number sits in a solid red 20px circle at the button's top right, in white bold
+digits, and stays a circle at one digit, two, or "99+". Tyler drew that look on
+7 Nov 2026 (`workspace/docs/assets/pasted-image-1794063523663072000.png`). It
+replaced a pale red pill with red digits.
 
 The bell carries a red number and opens the tray. The number is not the unread
 count. It counts notices that have arrived **since the bell was last opened**,
@@ -61,16 +67,13 @@ a small update signal, then the browser loads the current list and unread count
 through the normal guarded server function. A reconnect loads current state
 rather than assuming no notifications arrived while the connection was away.
 
-## Admin and personal settings
+## Settings
 
 Every row shows its own second line: the person who set the notice off, or,
 when the app wrote it, the notice's own second sentence.
 
-The Notifications dashboard lets an admin:
-
-- Search, filter, sort, and page through notifications.
-- Delete selected records.
-- Clear all records in the active workspace.
+There is no admin page listing everybody's notifications. Each person sees
+their own, in the bell and on their home page.
 
 Platform settings control which notification types the product may create.
 Account preferences control what an individual wants to receive where the type

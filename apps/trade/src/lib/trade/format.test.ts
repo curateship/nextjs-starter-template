@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  formatAxisPrice,
   formatChange,
   formatCompactUsd,
   formatFeeUsd,
@@ -14,6 +15,15 @@ import {
 } from "@/lib/trade/format"
 
 describe("trade figures", () => {
+  it("prints the narrow chart's prices without cents from $1,000 up", () => {
+    expect(formatAxisPrice(69012)).toBe("69,012")
+    expect(formatAxisPrice(69012.49)).toBe("69,012")
+    expect(formatAxisPrice(1000)).toBe("1,000")
+    expect(formatAxisPrice(142.38)).toBe("142.38")
+    expect(formatAxisPrice(0.0001234)).toBe("0.0001234")
+    expect(formatAxisPrice(Number.NaN)).toBe("")
+  })
+
   it("prints prices at five significant digits", () => {
     expect(formatPrice(67412.9)).toBe("$67,413")
     expect(formatPrice(142.38)).toBe("$142.38")

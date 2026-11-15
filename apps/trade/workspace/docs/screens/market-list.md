@@ -1,9 +1,8 @@
 # The market list
 
-The market scanner opens from the radar button in the chart header, and the
-left column holds the Rules box. `market-scanner.md` explains the scanner's
-results and candle coverage.
-Saved folders remain in the chart header's folder menu.
+The market scanner, the Rules box and saved folders are blocks on the
+exchange's page, the dashboard's left panel (`dashboard-blocks.md`).
+`market-scanner.md` explains the scanner's results and candle coverage.
 
 - **Searching lives in the market picker** — the market name at the top of
   the chart opens the whole catalogue with its own search. The panel has no
@@ -78,11 +77,11 @@ Saved folders remain in the chart header's folder menu.
   crypto, stocks, indices, commodities, forex, other; only kinds actually in
   the list are offered. It narrows the All tab only (stars are stars), is
   remembered per browser, and reads as switched off on the other tabs.
-- **The (i) tooltip ends with the market's ground rules:** the smallest size
+- **The (i) popover ends with the market's ground rules:** the smallest size
   an order may use, the max leverage, and — where it applies — "Isolated
   only", explained in the same line. A rule the exchange does not state
   shows nothing, never a guess.
-- **The market header's (i) tooltip names both kinds of price and the daily
+- **The market header's (i) popover names both kinds of price and the daily
   dollar volume.** The list and every order rule use the exchange's mark price.
   Chart bars show traded prices, so the newest candle may sit above or below
   the number the exchange uses for stops and account value.
@@ -137,8 +136,9 @@ Saved folders remain in the chart header's folder menu.
   markets says so and points at the cog.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
-  when a second exchange exists. The selected row keeps its gray fill and adds
-  a right border in the theme's text color in saved folders and All markets.
+  when a second exchange exists. The selected row has the small dark bar
+  before its name that every block's picked row has, and no gray fill or
+  right border (`dashboard-blocks.md`, "A picked row").
 
 ### The Manual orders panel
 
@@ -151,8 +151,6 @@ at a time on the chart, or mixed in with everything else under Open orders.
 
 When the panel also shows a hand-held position, a muted **Waiting orders**
 header separates the positions already open from prices that have not fired.
-With View options' "Hide on empty" switched on, this panel is not drawn while
-it has nothing to list; `panels-and-loading.md` holds that rule.
 
 - **One row per market.** When several orders wait on the same market, the row
   shows the order nearest today's price. The market keeps the place given to

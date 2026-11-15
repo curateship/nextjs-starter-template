@@ -7,7 +7,6 @@ import {
   Pause,
   Play,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   getSavedFrameErrorMessage,
@@ -374,10 +373,9 @@ function SaveFrameButton({ clock }: { clock: PlaybackClock }) {
         )
         return
       }
-      const saved = await saveVideoFrame(videoId, atMs)
+      await saveVideoFrame(videoId, atMs)
       dismissErrorToast()
       store.refreshMediaShelf()
-      toast.success(`Saved "${saved.name}" to the media panel.`)
     } catch (error) {
       showErrorToast(getSavedFrameErrorMessage(error))
     } finally {

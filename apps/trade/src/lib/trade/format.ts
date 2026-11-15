@@ -19,6 +19,22 @@ export function formatPrice(price: number): string {
   return `$${PRICE.format(price)}`
 }
 
+const AXIS_WHOLE = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+})
+
+/**
+ * A price on the chart's own scale under 1280px, where its column is a fifth
+ * of a phone's width: whole dollars with commas from $1,000 up ("69,012" for
+ * 69012.00), and below that the same five significant digits every Trade
+ * price uses, so a small coin still reads in full ("0.0001234"). No dollar
+ * sign: the whole column is dollars.
+ */
+export function formatAxisPrice(price: number): string {
+  if (!Number.isFinite(price)) return ""
+  return Math.abs(price) >= 1000 ? AXIS_WHOLE.format(price) : PRICE.format(price)
+}
+
 const USD = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,

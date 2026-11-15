@@ -15,6 +15,7 @@ import {
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { SettingsFoldCard } from "@/components/video-assets/settings-fold-card"
 import { Button } from "@/components/ui/button"
+import { FieldError } from "@/components/video-assets/field-error"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,6 +31,7 @@ import { useCaptionSettings } from "@/components/video-editor/caption-settings-c
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
 import { useSaveAfterTyping } from "@/components/video-editor/use-save-after-typing"
 import { useTemplateSources } from "@/components/video-templates/template-sources"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import {
   addTemplateReference,
   deleteTemplate,
@@ -250,6 +252,9 @@ export function TemplateEditor({
     template.fields.spendCapCents ? (template.fields.spendCapCents / 100).toFixed(2) : ""
   )
   const [capInvalid, setCapInvalid] = React.useState(false)
+  // The reason under the cap shows once the box is left, not mid-typing.
+  const [capLeft, setCapLeft] = React.useState(false)
+  const capRefused = capInvalid && capLeft
   const [busy, setBusy] = React.useState<null | "duplicate" | "delete" | "pin">(null)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   // Changes waiting for the save after typing stops, merged as they come.
@@ -720,8 +725,11 @@ export function TemplateEditor({
               inputMode="decimal"
               value={capText}
               placeholder="No cap"
-              aria-invalid={capInvalid || undefined}
+              aria-invalid={capRefused || undefined}
+              aria-describedby={capRefused ? `template-${template.id}-cap-error` : undefined}
+              onBlur={() => setCapLeft(true)}
               onChange={(event) => {
+                setCapLeft(false)
                 setCapText(event.target.value)
                 const cents = dollarsToCents(event.target.value)
                 if (Number.isNaN(cents)) {
@@ -732,7 +740,15 @@ export function TemplateEditor({
                 change({ spendCapCents: cents })
               }}
             />
-            <p className="text-muted-foreground">Make it says so and stops before a video would cost more.</p>
+            <FieldError
+              id={`template-${template.id}-cap-error`}
+              message={
+                capRefused
+                  ? "Type the cap in dollars, more than $0, like 2.50, or leave it empty for no cap. It is not saved until then."
+                  : null
+              }
+            />
+            <p className="text-muted-foreground">Pressing Make it stops and says why before a video would cost more than this.</p>
           </div>
         </Row>
 
@@ -1059,6 +1075,7 @@ function TryTemplate({
         value={script}
         onChange={(event) => setScript(event.target.value)}
       />
+      <LengthCounter length={script.length} max={TEMPLATE_SCRIPT_MAX} />
       <Button type="button" variant="outline" className="justify-self-start" disabled={busy} onClick={() => void run()}>
         {busy ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
         {withEstimate("Try it", writer ? cents : null)}
@@ -1141,6 +1158,7 @@ function InstructionsEditor({
         className="font-mono text-xs"
         onChange={(event) => onChange({ scriptPrompt: event.target.value })}
       />
+      <LengthCounter length={value.length} max={TEMPLATE_PROMPT_MAX} />
       {own !== null ? (
         <Button type="button" variant="outline" className="justify-self-start" onClick={() => onChange({ scriptPrompt: null }, true)}>
           <RotateCcwIcon />

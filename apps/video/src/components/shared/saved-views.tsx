@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { BookmarkIcon, BookmarkPlusIcon, CheckIcon, Loader2Icon, SettingsIcon, Trash2Icon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
@@ -145,7 +144,7 @@ export function SavedViewsControls({
 
   async function remove(view: SavedView) {
     setDeleting(view.id)
-    const ok = await run(() => deleteView(view.id), `"${view.name}" deleted.`)
+    const ok = await run(() => deleteView(view.id))
     setDeleting(null)
     if (ok) await router.invalidate()
   }
@@ -299,7 +298,6 @@ export function SaveViewDialog({
     }
     const ok = await run(() => saveView({ screen: here.screen, name: next, filters: kept }))
     if (!ok) return
-    toast.success(`Saved "${next}". It's in Views.`)
     onClose()
     await router.invalidate()
   }
@@ -418,7 +416,6 @@ function EditViewDialog({
     }
     const ok = await run(() => updateView({ viewId: view.id, name: next, filters: kept }))
     if (!ok) return
-    toast.success(`Saved changes to "${next}".`)
     onClose()
     await router.invalidate()
   }

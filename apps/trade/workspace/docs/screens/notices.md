@@ -134,18 +134,6 @@ has none. Backfilling the columns instead would have meant rebuilding every
 fill, alert and grid sale from the tables they came off, for rows nobody will
 write to again.
 
-### The admin table draws the same rows
-
-The notifications table at `/admin/notifications` uses the same tile, heading
-and figures, so one fill never reads two ways. It asks the app the same question
-the bell asks.
-
-An admin reading somebody else's notice gets no saved row back, because those
-are scoped to the person the notice was sent to. The heading and figures still
-appear, recovered from the words already on the row; only the address is
-missing, which is right — an admin has no business opening another person's
-chart from their notice.
-
 ### Where the pieces are stored
 
 `drizzle/0202_trade_notice_pieces.sql` adds `headline`, `meta` and `kind` to
@@ -228,7 +216,7 @@ always carry the dollars, the price and the wallet's own label:
   average. Tyler's rule, 22 Sep 2026: "It should measure against its own
   rung." The body reads "Made $5.00 on this close, after fees. Measured
   against rung 2, which bought these coins at $0.9." The dollars are the
-  same figure the chart arrow, the overview and the P&L page show
+  same figure the chart arrow, the overview and the month grid show
   (`gridRoundTrips`). A sale whose buy is not in the stored fills keeps the
   exchange's wording above.
 - **The dollars in the headline are the coins the money was worked out on.**
@@ -272,8 +260,14 @@ writes the fill. All three paths call the same `recordLiveFills` function as the
 REST recovery sweep. The `trade_live_fills` primary key decides which process
 inserted the fill, and only that process creates or updates its order notice.
 If KuCoin publishes a close before its final profit or loss is ready, the later
-recovery fills in that money on the existing row without sending another
-notice.
+recovery fills in that money on the existing row and rewrites the close's
+notice from it. KuCoin's sale carries no profit at all, only its closed
+position does, so the first notice can only say "filled". The rewrite uses the
+same notice key, so it is the same row in the bell: its time, its read dot and
+its sound stay as they were, and "filled" becomes "lost $38.02". A stop or
+target behind the close gets its own notice at that moment, because that
+notice waits for the money too. A close older than the bell's fifteen-minute
+news window keeps its first words.
 
 Polling remains the safety net. Hyperliquid asks for history at startup and
 after a reconnect. Phemex and KuCoin also reconcile against REST every two

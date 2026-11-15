@@ -48,6 +48,14 @@ calendar next checks the link.
 - **An event lasts the activity's length**, or an hour when none is set.
 - **The event's title is the activity's name.** Its location is the place's
   name and address.
+- **Each event links back to its card** (Tyler, 6 Nov 2026: "Link to the
+  card"), such as `https://travel.example.com/trips/<trip>?open=<card>`. The
+  link is the event's `URL`, and again its notes, because some phones never
+  show `URL`. Opening it signed in shows the trip with that card in the right
+  panel; signed out, it goes to sign-in first and then on to the card. The
+  link only opens for the trip's owner, so the calendar's secret still
+  shows nothing more than the timed activities. The event carries nothing
+  else from the card: no phone, website or notes.
 - **The calendar asks phones to check every hour.** Apple and Google keep
   their own schedules, and Google can take several hours, so this is a
   request, not a promise.

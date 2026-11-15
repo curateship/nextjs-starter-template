@@ -311,3 +311,70 @@ Every shell change up to 5 Nov is in Trade: 84 files replaced and 25 added, with
 **No migration was new.** The shell has added none since 0097, and Trade already had every one.
 
 **Kept as Trade's own.** `src/app/` stays Trade's own, and so does `src/app/open-endpoints.ts`, which lists Trade's own open endpoints. `.prettierrc`, `.prettierignore`, `scripts/build-worker.mjs` and `scripts/worker-drop-css.mjs` stay Trade's own, because the shell has not changed them since Trade's copy. `vite.config.ts` was the one file changed on both sides. It was merged three ways: Trade keeps its build stamp, and gains the shell's `optimizeDeps` line that keeps `playwright-core` out of the dev server's start-up scan. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Trade keeps its own `scripts/setup-database.mjs`, which never loads them.
+
+## Shell merge, 10 November 2026
+
+Every shell change since the 9 Nov merge (shell `6c188c318`) is in Trade, up to the shell at `4bf2671f8`: 21 files replaced and 3 added, with nothing deleted. Each replaced file matched an older shell copy, so nothing Trade changed was lost. 13 more were already the shell's, copied in by Trade's own work. `panel-card.tsx` was Trade's copy of the shell's collapse-all change, which the shell now holds too.
+
+**What arrived.**
+
+- **Settings → Styling → Panel cards has every Blocks setting**: Rounded corners, Grey shade, Edge around the tile, Body shade, Border, Border shade, Shadow and "Panel cards reach the panel's edges". With nothing changed the cards look as before. A card's heading no longer grows when pointed at. See the shell's `workspace/docs/settings/block-styling.md`.
+- **The automation step panel's cards are the side panels' `PanelCard`**, with its 15px heading and 16px spacing, and the line describing the step under its name is gone.
+- **The header's Settings cog can hold links**, set in Navigations, whose link editors now open as popovers (`edit-popover.tsx`). Settings → Styling → Modal is now "Modal and popover".
+
+**Trade's own change to follow the shell.** The recipe step panel (`recipes/recipe-inspector.tsx`) is Trade's copy of the automation step panel, so it took the same two changes: its 16px is the panel gutter, so edge-to-edge cards reach its sides, and the step's description line under its name is gone.
+
+**No migration was new.** The panel card settings are stored in the workspace's styling settings.
+
+## Shell fix copied in, 11 November 2026
+
+`src/lib/api/shell-settings.ts` was fixed in `apps/shell` and copied here
+unchanged: the Styling save now accepts the right panel width down to 12%,
+the Side panels slider's own floor, where it said 16% and refused the save
+with a raw "too_small" message (Tyler hit it while resizing panels). The other
+apps get it at their next shell merge.
+
+The same day these shell changes were made in `apps/shell` and copied here
+unchanged, for the other apps to take at their next merge: side panels slide
+when folded (`usePanelFold`, used by `ThreePanels`, the page and automation
+editors, Trade's dashboard and Trade's recipe editor), a header's ⋮ sits 24px
+from its neighbours (`DashboardCardHeader`, `TabbedMenu`), every right panel
+card has an icon, and `MainCell` clamps a long name to one line instead of
+squeezing the column to 160px. `docs/shell/three-column-dashboards.md` has
+each.
+
+Later the same day: side panel cards sit flush with no gap (`PANEL_GUTTER`,
+the automation step panel), and two "/" blocks in a row on a left page lose
+the 15px between them. Trade keeps its own page editor
+(`src/components/trade/notes/saving-document.tsx`), which took the same rule.
+
+## Sidebar & Top navigation border shade, 11 November 2026
+
+Settings -> Styling's Left menu shade card is now Sidebar & Top navigation,
+with a Border shade slider for the line down the left menu's edge and under the
+top bar on its own (`sidebarBorderShade`; unset, it follows Divider lines).
+Made in `apps/shell` and copied here unchanged (`styling-values.ts`,
+`shell-layout.tsx`, `styling-settings.tsx`, `styling-tab.tsx`,
+`shell-settings.ts` and its test); `theme.css` differs from the shell's, so only
+its comment naming the card was changed here. The shell's
+`workspace/docs/settings/left-menu-shade.md` has the details.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `04d976ea4` is in Trade, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited copy of the shell at that commit.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean apart from `block-heights.ts`, which fails the same way before the merge. 344 of 345 tests in the changed folders pass; `page-visibility.test.ts` looks for `src/routes/tools/compound-growth.tsx`, which Trade does not have, and fails the same way before the merge. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

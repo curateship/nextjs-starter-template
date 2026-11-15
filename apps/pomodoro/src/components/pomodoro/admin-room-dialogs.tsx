@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -226,7 +225,6 @@ export function AdminRoomDialog({
     setSaving(true)
     try {
       await savePomodoroRoom({ id: loaded.room.id, ...draft })
-      toast.success("Room saved. The people in it see the change.")
       await onSaved()
       onClose()
     } catch (error) {
@@ -453,7 +451,6 @@ export function RoomPresetDialog({
         sound: draft.sound || null,
         background: draft.background || null,
       })
-      toast.success(editing ? "Changes saved." : "Preset created.")
       await onSaved()
       onClose()
     } catch (error) {

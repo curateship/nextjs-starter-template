@@ -1,4 +1,5 @@
 import * as React from "react"
+import { HeaderActions } from "@/components/social/header-actions"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import {
   AlertTriangleIcon,
@@ -17,7 +18,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -61,7 +61,7 @@ import {
   MEDIUM_ARTICLE_STATUS_WORDS,
   wordCount,
 } from "@/lib/social/medium/options"
-import { mediumPostingRefusal, mediumWaitingText } from "@/lib/social/medium/wording"
+import { mediumPostingRefusal } from "@/lib/social/medium/wording"
 import { postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -141,7 +141,7 @@ export function MediumArticlesList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+      <HeaderActions>
         <Button
           type="button"
           size="sm"
@@ -171,8 +171,7 @@ export function MediumArticlesList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkMediumNow({ articleIds: published.slice(0, 50) })
-                  toast.success(queued ? "Reading the numbers again." : "Every article is being read already.")
+                  await checkMediumNow({ articleIds: published.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getMediumErrorMessage(failure))
@@ -186,9 +185,8 @@ export function MediumArticlesList({
             </Button>
           </Hint>
         ) : null}
-        <span className="flex-1" />
         <NewArticleButton projectId={projectId} accounts={accounts} onCreate={start} />
-      </div>
+      </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
           <div className="grid justify-items-start gap-3 p-4">
@@ -707,7 +705,6 @@ function ArticleDraft({
                         })
                         setFields((current) => ({ ...current, title: written.title, subtitle: written.subtitle, body: written.body, tags: written.tags.join(", ") }))
                         await onChanged()
-                        toast.success(`Written: ${wordCount(written.body)} words. Read it through and change what you like.`)
                       })
                     }
                   >
@@ -764,7 +761,6 @@ function ArticleDraft({
                       await flush()
                       const { coverUrl } = await makeMediumArticleCover(article.id)
                       setFields((current) => ({ ...current, coverUrl }))
-                      toast.success("Cover made and saved to the media library.")
                     })
                   }
                 >
@@ -847,7 +843,6 @@ function ArticleDraft({
               onClick={() =>
                 void run("cancel", async () => {
                   await cancelMediumArticle(article.id)
-                  toast.success("Taken back. It is a draft again.")
                   await onChanged()
                 })
               }
@@ -879,8 +874,7 @@ function ArticleDraft({
                 onClick={() =>
                   void run("publish", async () => {
                     await flush()
-                    const queued = await publishMediumArticle(article.id)
-                    toast.success(queued.runAfter && account ? mediumWaitingText(new Date(queued.runAfter), account.handle) : "Publishing on Medium. It shows as Published once it is live.")
+                    await publishMediumArticle(article.id)
                     await onChanged()
                   })
                 }
@@ -965,7 +959,6 @@ function PublishedArticle({
                   disabled={busy !== null}
                   onClick={() => void run("list", async () => {
                     await addToMediumList({ accountId: account.id, articleId: article.id })
-                    toast.success("On its way to the account's Medium list.")
                   })}
                 >
                   <BookmarkPlusIcon />
@@ -1073,7 +1066,6 @@ function PublishedArticle({
                     void run("edit", async () => {
                       await changeOnMedium({ articleId: article.id, action: "edit", text: body, title: article.title })
                       setEditing(false)
-                      toast.success("The new words are on their way to Medium.")
                     })
                   }
                 >
@@ -1120,7 +1112,6 @@ function PublishedArticle({
           void run("delete", async () => {
             await changeOnMedium({ articleId: article.id, action: "delete" })
             setConfirmDelete(false)
-            toast.success("On its way to being deleted on Medium.")
           })
         }
       />

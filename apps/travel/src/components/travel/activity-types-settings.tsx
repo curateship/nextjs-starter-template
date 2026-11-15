@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -55,18 +56,25 @@ export default function ActivityTypesSettings() {
   const setStatus = useReportedSaveStatus()
   const [removing, setRemoving] = React.useState<{ type: ActivityType; uses: number } | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // A failed first read says why, with Try again, rather than loading for good.
+  const [failed, setFailed] = React.useState<string | null>(null)
+  const [ask, setAsk] = React.useState(0)
 
   React.useEffect(() => {
     let alive = true
     getActivityTypes()
       .then((loaded) => {
-        if (alive) setTypes(loaded)
+        if (!alive) return
+        setFailed(null)
+        setTypes(loaded)
       })
-      .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error)))
+      .catch((error: unknown) => {
+        if (alive) setFailed(getTravelErrorMessage(error))
+      })
     return () => {
       alive = false
     }
-  }, [setTypes])
+  }, [setTypes, ask])
 
   /** Runs one save, says Saving… then Saved, and on a refusal puts the list back and says why. */
   const saveWith = React.useCallback(
@@ -86,7 +94,11 @@ export default function ActivityTypesSettings() {
     [setStatus, setTypes]
   )
 
-  if (!types) return <LoadingRow label="Loading activity types" />
+  if (!types && failed) return <ErrorRow message={failed} onRetry={() => {
+        setFailed(null)
+        setAsk((was) => was + 1)
+      }} />
+  if (!types) return <LoadingRow label="Loading activity types…" />
 
   const change = (type: ActivityType, patch: Partial<Pick<ActivityType, "name" | "icon" | "color">>) =>
     saveWith(

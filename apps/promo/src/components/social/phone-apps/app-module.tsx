@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import {
   getPhoneAppErrorMessage,
   loadAppModule,
@@ -25,6 +25,7 @@ import { AppAccountPicker } from "./app-account-picker"
 import { AppCommentsTable, AppPostsTable } from "./app-tables"
 import { InboxAnswer } from "./inbox-answer"
 import { PostComposer } from "./post-composer"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -112,19 +113,20 @@ export function AppModule({
   const comment = view?.comments.find((row) => row.id === openComment) ?? null
   const jobsWaiting = view ? view.jobs.queued + view.jobs.running : 0
 
+  // The arrow back to the Projects dashboard first, then the tabs (Tyler, 12 Nov 2026: "put the arrow back again").
   const tabs = (
-    <Tabs value={tab} onValueChange={(next) => onSearch({ view: next === "comments" ? "comments" : undefined, comment: undefined })}>
-      <TabsList>
-        <TabsTrigger value="posts">
-          Posts
-          {view ? <TabsCount>{view.posts.length}</TabsCount> : null}
-        </TabsTrigger>
-        <TabsTrigger value="comments">
-          Comments
-          {view ? <TabsCount>{view.comments.filter((row) => row.status === "open").length}</TabsCount> : null}
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <>
+    <ProjectBackButton />
+    {/* The tabs every dashboard draws, as Reddit's (Tyler, 14 Nov 2026: "some networks is not using the correct tab ui"). */}
+    <DashboardTabs
+      value={tab}
+      onValueChange={(next) => onSearch({ view: next === "comments" ? "comments" : undefined, comment: undefined })}
+      tabs={[
+        { value: "posts", label: "Posts", count: view ? view.posts.length : undefined },
+        { value: "comments", label: "Comments", count: view ? view.comments.filter((row) => row.status === "open").length : undefined },
+      ]}
+    />
+    </>
   )
 
   const controls = (

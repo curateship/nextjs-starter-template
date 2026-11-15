@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -61,17 +60,10 @@ export function CancelSubscriptionDialog({
     if (!account) return
 
     await run(async () => {
-      const result = await cancelAccountSubscription(account.id, mode)
-      toast.success(
-        granted
-          ? "Granted plan removed. They are back on the free plan."
-          : result.endsAt
-            ? `Their plan ends on ${formatDate(result.endsAt)}. They will not be charged again.`
-            : "Subscription cancelled. They are back on the free plan."
-      )
+      await cancelAccountSubscription(account.id, mode)
       await onDone()
     })
-  }, [account, granted, mode, onDone, run])
+  }, [account, mode, onDone, run])
 
   return (
     <ConfirmDialog

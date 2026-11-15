@@ -16,6 +16,7 @@ import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { writeVideoTimeline } from "@/server/video/project-videos"
+import { listOwnedExports } from "@/server/video/exports"
 import { createOwnedProject } from "@/server/video/projects"
 import {
   cancelRenderJob,
@@ -240,6 +241,23 @@ describe("asking for an export", () => {
     await ask(first.id)
     const [later] = await ask(second.id)
     expect(later.queue_position).toBe(2)
+  })
+
+  it("gives the Exports page the same places in the queue as the Export window", async () => {
+    const first = await projectWithContent()
+    const second = await projectWithContent()
+    const [sooner] = await ask(first.id)
+    const [later] = await ask(second.id)
+    const listed = await listOwnedExports({ userId: user.id, database })
+    const place = (id: string) => listed.exports.find((job) => job.id === id)?.queue_position
+    expect(place(sooner.id)).toBe(1)
+    expect(place(later.id)).toBe(later.queue_position)
+
+    // A finished export has no place in the queue.
+    await finish(sooner.id)
+    const after = await listOwnedExports({ userId: user.id, database })
+    expect(after.exports.find((job) => job.id === sooner.id)?.queue_position).toBeNull()
+    expect(after.exports.find((job) => job.id === later.id)?.queue_position).toBe(1)
   })
 })
 

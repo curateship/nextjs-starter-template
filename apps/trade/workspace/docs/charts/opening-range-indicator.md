@@ -115,7 +115,7 @@ The shared indicator module applies the rule to market, backtest and run charts.
 The filter does not add trading signals. Any future ORB signals function must
 reuse the filtered breaks from this same calculation.
 
-To check the setting, open Chart menu, Indicators, then Opening range settings.
+To check the setting, press Indicators in the chart header, then Opening range settings.
 Turn Volume filter on and save. A close outside the range with volume at or below
 the previous 20 candles' average loses its arrow. A later qualifying close may
 gain the session's arrow. Turn the filter off to restore the original arrows.

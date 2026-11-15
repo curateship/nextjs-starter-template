@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { Loader2Icon, NotebookPenIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { dayLabel } from "@/components/travel/new-activity"
 import { typeOf, useTrip } from "@/components/travel/trip-context"
@@ -15,11 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { loadBin, purgeActivity, restoreActivity, type BinEntry } from "@/lib/api/travel/trip-admin"
+import { loadBin, purgeActivity, restoreActivity, type BinEntry, type BinNote } from "@/lib/api/travel/trip-admin"
+import { purgeNote, restoreNote } from "@/lib/api/travel/trip-notes"
+import { noteFirstLine } from "@/lib/travel/notes"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** "today", "yesterday", "4 days ago". */
 function ago(iso: string) {
@@ -27,43 +29,64 @@ function ago(iso: string) {
   return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`
 }
 
+/** One row of the bin: a deleted card, or a deleted trip note (Travel features 4, part 6). */
+type BinItem = { kind: "activity"; entry: BinEntry } | { kind: "note"; entry: BinNote }
+
+const itemName = (item: BinItem) => (item.kind === "activity" ? item.entry.title : noteFirstLine(item.entry.body))
+
 /**
  * The trip's bin (task part 38), copied from Project's: deleted activities
- * stay 30 days. Put back returns one to the end of its old day, or to Ideas
- * when that day is gone. Delete for good empties it now.
+ * and deleted trip notes (Travel features 4, part 6; Tyler, 6 Nov 2026: "Same
+ * Bin as cards") stay 30 days, newest first. Put back returns a card to the
+ * end of its old day, or to Ideas when that day is gone, and a note to the
+ * notes list. Delete for good asks first on the row itself, since it can't be
+ * undone and a window over this one would be a window inside a window.
  */
 export function BinDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { page, typesById, refresh, openActivity } = useTrip()
-  const [entries, setEntries] = React.useState<BinEntry[] | null>(null)
+  const [entries, setEntries] = React.useState<BinItem[] | null>(null)
   const [run, busy] = useAsyncAction(getTravelErrorMessage)
   const [working, setWorking] = React.useState<string | null>(null)
+  const [purging, setPurging] = React.useState<BinItem | null>(null)
+  const [failed, setFailed] = React.useState<string | null>(null)
+  // Bumped by Try again, to read the bin again after a failed load.
+  const [ask, setAsk] = React.useState(0)
 
   React.useEffect(() => {
     if (!open) return
     let alive = true
     loadBin(page.trip.id)
       .then((loaded) => {
-        if (alive) setEntries(loaded)
+        if (!alive) return
+        setFailed(null)
+        const items: BinItem[] = [
+          ...loaded.activities.map((entry): BinItem => ({ kind: "activity", entry })),
+          ...loaded.notes.map((entry): BinItem => ({ kind: "note", entry })),
+        ]
+        setEntries(items.sort((a, b) => b.entry.deletedAt.localeCompare(a.entry.deletedAt)))
       })
-      .catch((error: unknown) => showErrorToast(getTravelErrorMessage(error)))
+      .catch((error: unknown) => {
+        if (alive) setFailed(getTravelErrorMessage(error))
+      })
     return () => {
       alive = false
     }
-  }, [open, page.trip.id])
+  }, [open, page.trip.id, ask])
 
-  async function act(entry: BinEntry, kind: "restore" | "purge") {
-    setWorking(entry.id)
+  async function act(item: BinItem, kind: "restore" | "purge") {
+    const { id } = item.entry
+    setWorking(id)
     const ok = await run(
       async () => {
-        await (kind === "restore" ? restoreActivity(entry.id) : purgeActivity(entry.id))
+        if (item.kind === "activity") await (kind === "restore" ? restoreActivity(id) : purgeActivity(id))
+        else await (kind === "restore" ? restoreNote(id) : purgeNote(id))
         await refresh()
-      },
-      kind === "restore" ? `${entry.title} is back.` : `${entry.title} deleted for good.`
+      }
     )
     setWorking(null)
     if (!ok) return
-    setEntries((was) => (was ?? []).filter((item) => item.id !== entry.id))
-    if (kind === "restore") openActivity(entry.id)
+    setEntries((was) => (was ?? []).filter((each) => each.entry.id !== id))
+    if (kind === "restore" && item.kind === "activity") openActivity(id)
   }
 
   return (
@@ -71,41 +94,77 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
       <DialogContent variant="admin" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Bin</DialogTitle>
-          <DialogDescription>Deleted activities stay here for 30 days, then go for good.</DialogDescription>
+          <DialogDescription>Deleted activities and notes stay here for 30 days, then go for good.</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <Card size="sm">
             <CardContent>
-              {entries === null ? (
-                <LoadingRow label="Loading the bin" />
+              {failed ? (
+                <ErrorRow message={failed} onRetry={() => {
+                    setFailed(null)
+                    setAsk((was) => was + 1)
+                  }} className="py-4" />
+              ) : entries === null ? (
+                <LoadingRow label="Loading the bin…" />
               ) : entries.length === 0 ? (
                 <p className="py-2 text-sm text-muted-foreground">The bin is empty.</p>
               ) : (
                 <ul className="grid grid-cols-[minmax(0,1fr)] divide-y">
-                  {entries.map((entry) => (
-                    <li key={entry.id} className="flex min-w-0 items-center gap-3 py-2">
-                      <ActivityTypeIcon type={typeOf(entry, typesById)} />
+                  {entries.map((item) => (
+                    <li key={item.entry.id} className="flex min-w-0 items-center gap-3 py-2">
+                      {item.kind === "activity" ? (
+                        <ActivityTypeIcon type={typeOf(item.entry, typesById)} />
+                      ) : (
+                        <NotebookPenIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      )}
                       <span className="grid min-w-0 flex-1">
-                        <span className="truncate text-sm font-medium">{entry.title}</span>
+                        <span className="truncate text-sm font-medium">{itemName(item)}</span>
                         <span className="truncate text-xs text-muted-foreground">
-                          {entry.day === null || entry.day > page.trip.days ? "Ideas" : dayLabel(entry.day, page.trip.startDate)} ·
-                          deleted {ago(entry.deletedAt)}
+                          {item.kind === "note"
+                            ? "Note"
+                            : item.entry.day === null || item.entry.day > page.trip.days
+                              ? "Ideas"
+                              : dayLabel(item.entry.day, page.trip.startDate)}{" "}
+                          · deleted {ago(item.entry.deletedAt)}
                         </span>
                       </span>
-                      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void act(entry, "restore")}>
-                        {working === entry.id ? <Loader2Icon className="size-4 animate-spin" /> : <RotateCcwIcon className="size-4" />}
-                        Put back
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete ${entry.title} for good`}
-                        disabled={busy}
-                        onClick={() => void act(entry, "purge")}
-                      >
-                        <Trash2Icon className="size-4" />
-                      </Button>
+                      {purging?.entry.id === item.entry.id ? (
+                        <>
+                          <span className="shrink-0 text-xs text-muted-foreground">Can't be put back.</span>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => {
+                              setPurging(null)
+                              void act(item, "purge")
+                            }}
+                          >
+                            Delete for good
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setPurging(null)}>
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void act(item, "restore")}>
+                            {working === item.entry.id ? <Loader2Icon className="size-4 animate-spin" /> : <RotateCcwIcon className="size-4" />}
+                            Put back
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${itemName(item)} for good`}
+                            disabled={busy}
+                            onClick={() => setPurging(item)}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -118,6 +177,7 @@ export function BinDialog({ open, onClose }: { open: boolean; onClose: () => voi
             Done
           </Button>
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   )

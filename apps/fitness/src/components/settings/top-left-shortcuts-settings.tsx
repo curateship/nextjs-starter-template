@@ -12,7 +12,7 @@ import {
   reorderByDrag,
   useNavSensors,
 } from "@/components/settings/nav-editor-shared"
-import { SortableLinkChip } from "@/components/settings/top-right-settings"
+import { ADD_CHIP_CLASS, SortableLinkChip } from "@/components/settings/top-right-settings"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Tooltip,
@@ -115,10 +115,11 @@ export function TopLeftShortcutsSettings({
                   <button
                     type="button"
                     onClick={handleAdd}
-                    className="flex size-13 shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
+                    className={ADD_CHIP_CLASS}
                     aria-label="Add shortcut"
                   >
                     <PlusIcon className="h-4 w-4" />
+                    Add
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Add shortcut</TooltipContent>

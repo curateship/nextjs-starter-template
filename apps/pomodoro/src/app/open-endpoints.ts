@@ -29,6 +29,8 @@
  * behind the door is safe for anyone to read.
  */
 export const appOpenEndpoints: Record<string, string> = {
+  "pomodoro/embed-timer.ts:readEmbedTimerFn":
+    "The timer at /embed/timer is shown inside other sites' pages, such as Notion, where nobody is signed in, so it must ask before sign-in whether the admin switched it on. It answers that one true or false and nothing else, read through the settings' five-second hold.",
   "pomodoro/rooms.ts:listGuestRoomsFn":
     "The Rooms page shows open rooms to visitors who are not signed in, so the list must answer before sign-in. A host or member is named only by the public name and picture they switched on for their own profile and \"Member\" otherwise, no user id or email is sent, and one copy is shared by every visitor for 15 seconds, so asking often costs nothing.",
   "pomodoro/rooms.ts:lookupRoomFn":

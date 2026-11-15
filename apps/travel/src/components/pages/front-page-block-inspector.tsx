@@ -1,5 +1,11 @@
 import * as React from "react"
-import { SlidersHorizontalIcon, XIcon } from "lucide-react"
+import {
+  EyeIcon,
+  MoveVerticalIcon,
+  SlidersHorizontalIcon,
+  TypeIcon,
+  XIcon,
+} from "lucide-react"
 
 import { AppFrontPageRowEditor } from "@/components/pages/app-front-page-row-editor"
 import { FrontPageRowContentEditor } from "@/components/pages/front-page-row-content-editor"
@@ -216,7 +222,7 @@ export function FrontPageBlockInspector({
       <ScrollArea className="min-h-0 flex-1">
         <InspectorCollapseAllProvider signal={collapseAll.signal}>
           <div className="grid gap-4 p-4 sm:p-5">
-            <InspectorCard
+            <InspectorCard icon={<TypeIcon />}
               storageId="front-page-row-content"
               title="Block content"
               description="Every block uses a fixed shape, so the front page stays consistent on phones and larger screens."
@@ -589,7 +595,7 @@ export function FrontPageBlockInspector({
               }
             />
 
-            <InspectorCard
+            <InspectorCard icon={<MoveVerticalIcon />}
               storageId="front-page-row-spacing"
               title="Spacing"
               description="How much air this block keeps above and below itself, instead of the page's own."
@@ -649,7 +655,7 @@ export function FrontPageBlockInspector({
               ) : null}
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<EyeIcon />}
               storageId="front-page-row-visibility"
               title="Visibility"
               description="Switch off a part of the block to leave it out of the public page. The part keeps whatever you typed into it, so switching it back on brings the same words back."

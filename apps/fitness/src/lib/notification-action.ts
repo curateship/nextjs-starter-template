@@ -3,6 +3,7 @@ import {
 } from "@/lib/api/notification"
 import {
   isAiLimitNotification,
+  opensCrmConversation,
 } from "@/lib/notification-types"
 
 /**
@@ -12,14 +13,14 @@ import {
  */
 export type NotificationAction =
   | { kind: "none" }
-  | { kind: "changelog" }
   | { kind: "billing" }
   | { kind: "feedback"; feedbackId: string }
   | {
       kind: "automationRun"
       automationId: string
       runId: string
-      nodeId?: string
+      /** An approval notice: its run opens in Waiting on you, a failure's on its flow's Runs tab. */
+      waiting: boolean
     }
   | { kind: "crmThread"; threadId: string }
 
@@ -58,9 +59,9 @@ export function isOwnAppHref(href: string): boolean {
 
 export function notificationAction(item: NotificationItem): NotificationAction {
   if (item.type === "announcement") return { kind: "none" }
-  if (item.type === "changelog") return { kind: "changelog" }
-  // The buttons live in the flow's own editor, in the panel under the canvas,
-  // so the notice opens the run there rather than repeating what it says.
+  // The run opens on the Automations dashboard's right panel: an approval in
+  // Waiting on you, where Approve and Reject are, and a failure on its flow's
+  // Runs tab, its failed step marked (Tyler, 9 Nov 2026).
   if (
     item.type === "automation_approval" ||
     item.type === "automation_failed"
@@ -70,16 +71,15 @@ export function notificationAction(item: NotificationItem): NotificationAction {
           kind: "automationRun",
           automationId: item.automation_id,
           runId: item.automation_run_id,
-          ...(item.automation_failure_node_id
-            ? { nodeId: item.automation_failure_node_id }
-            : {}),
+          waiting: item.type === "automation_approval",
         }
       : { kind: "none" }
   }
   // A follow-up notice is about a person, and the conversation with them is
   // where the chasing happens. A lead added by hand has no conversation yet,
   // and then the notice's own words are all there is.
-  if (item.type === "crm_follow_up") {
+  // A notice that mail landed opens that conversation too.
+  if (opensCrmConversation(item.type)) {
     return item.crm_thread_id
       ? { kind: "crmThread", threadId: item.crm_thread_id }
       : { kind: "none" }

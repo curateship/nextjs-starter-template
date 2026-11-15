@@ -228,14 +228,15 @@ They were the Reddit dashboard's left and middle columns until 12 Oct 2026,
 and a project's Reddit module until 5 Nov 2026. Every list below is one
 project's.
 
-- **Keywords**, as a list in the project's left column, under Commenting since 5 Nov 2026 (a
-  dropdown in the middle column's header from 21 Oct, chips from Tyler's
-  design of 13 Oct 2026 before that).
+- **Keywords**, a dropdown in Commenting's middle header beside Select since
+  14 Nov 2026 (a list in the project's left column from 5 Nov, a dropdown in
+  the header from 21 Oct, chips from Tyler's design of 13 Oct 2026 before
+  that).
   Each keyword's row is its name, its post count, when it last searched and
   what it searches ("Past week · All of Reddit", or "Watching · Newest first"),
-  a timer switch, an arrow to search again and a "⋮" with Remove. **Add
-  keyword**, last in the list, opens the box that adds one
-  ([The keywords list](../commenting.md#the-keywords-list)).
+  a timer switch, an arrow to search again and a "⋮" with Remove. The **+**
+  beside "Keywords · 1" at the top of the dropdown opens the box that adds one
+  ([The keywords](../commenting.md#the-keywords)).
 - **Every keyword's posts together** is All keywords, first in the list and
   what shows when the screen opens. Picking a keyword lists its posts alone. See
   "Every keyword together" below.
@@ -318,11 +319,10 @@ put it ("match 9" in a search, "newest 3" in a watch), and the keyword that
 found it when several are listed together. On the right, the upvotes, the
 replies and the button that blocks the row's subreddit. The bands are the
 order said in words; the row has no tooltip, as Tyler asked on 13 Oct 2026.
-The chosen row has a grey ground and a dark line
-down its left edge. It is a plain list rather than the dashboard table since
-the 13 Oct 2026 design. Posts under To look at have tick boxes, and ticking any
-shows **Skip** for the ticked posts; one post is also skipped from the right
-column.
+Since 12 Nov 2026 the list is the dashboard's table again, with the open
+row marked by the small bar, tick boxes only after Select, and Block in a
+row's right-click menu
+([Commenting inside a project](../commenting.md#the-posts)).
 
 The date is said the way a person would: Today, Yesterday, 5 days ago, Last
 week. Whole days apart, not hours, or a post from 11pm last night would read as

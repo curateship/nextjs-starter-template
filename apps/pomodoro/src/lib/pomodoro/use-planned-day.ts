@@ -85,6 +85,7 @@ export function usePlannedDay(plannedDate: string, projects: ProjectRow[]) {
         pomodoros: 0,
         priority: "normal",
         estimatedPomodoros: null,
+        dueDate: null,
         repeatWeekdays: null,
         projectId: null,
         projectName: null,
@@ -132,6 +133,7 @@ export function usePlannedDay(plannedDate: string, projects: ProjectRow[]) {
       title: string
       priority: TaskPriority
       estimatedPomodoros: number | null
+      dueDate?: string | null
       projectId: string | null
     }
   ) => {

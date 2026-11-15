@@ -21,14 +21,12 @@ const BOX = "grid grid-cols-[minmax(0,1fr)] gap-2 rounded-lg border bg-muted/40 
  * remembers it under `foldId` (Tyler, 30 Oct 2026: "Add collapsible to the
  * cards in my daily card"). `action` sits at the heading's right, such as Tick
  * yesterday. A section with no heading, such as the afternoon's progress line,
- * doesn't fold. `plainTitle` keeps the heading's own capitals, as the habits'
- * "Morning - 5:00 AM" does to match its Afternoon and Night labels.
+ * doesn't fold.
  */
 export function DailySection({
   title,
   foldId,
   action,
-  plainTitle,
   className,
   children,
 }: {
@@ -36,13 +34,12 @@ export function DailySection({
   /** Plain characters; names the section's remembered open or folded state. */
   foldId?: string
   action?: React.ReactNode
-  plainTitle?: boolean
   className?: string
   children: React.ReactNode
 }) {
-  if (!title || !foldId) return <div className={cn(BOX, className)}>{children}</div>
+  if (!title || !foldId) return <div data-daily-section="" className={cn(BOX, className)}>{children}</div>
   return (
-    <FoldingSection title={title} foldId={foldId} action={action} plainTitle={plainTitle} className={className}>
+    <FoldingSection title={title} foldId={foldId} action={action} className={className}>
       {children}
     </FoldingSection>
   )
@@ -52,28 +49,25 @@ function FoldingSection({
   title,
   foldId,
   action,
-  plainTitle,
   className,
   children,
 }: {
   title: React.ReactNode
   foldId: string
   action?: React.ReactNode
-  plainTitle?: boolean
   className?: string
   children: React.ReactNode
 }) {
   const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard(`project-daily-${foldId}`))
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className={cn(BOX, "group/section", className)}>
+    <Collapsible data-daily-section="" open={open} onOpenChange={setOpen} className={cn(BOX, "group/section", className)}>
       <div className="flex min-h-5 items-center gap-2">
         <h3 className="min-w-0 flex-1">
           <CollapsibleTrigger asChild>
             <button
               type="button"
               className={cn(
-                "flex w-full cursor-pointer items-center rounded-md text-left text-xs font-medium text-muted-foreground select-none",
-                !plainTitle && "tracking-wide uppercase",
+                "flex w-full cursor-pointer items-center rounded-md text-left text-xs font-medium tracking-wide text-muted-foreground uppercase select-none",
                 focusRingInset
               )}
             >

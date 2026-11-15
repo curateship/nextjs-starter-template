@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, MessageSquarePlusIcon, SettingsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelCard } from "@/components/fitness/panel-card"
 import { Button } from "@/components/ui/button"
@@ -148,7 +147,6 @@ function NoteEditor({
     setBusy(true)
     try {
       onChange(await changeCoachNote({ action: "save", workoutId, position, text }))
-      toast.success(note ? "Note changed." : "Note saved. They get a notice in their bell.")
       setEditing(false)
       onDone?.()
     } catch (error) {
@@ -163,7 +161,6 @@ function NoteEditor({
     setBusy(true)
     try {
       onChange(await changeCoachNote({ action: "delete", workoutId, noteId: note.id }))
-      toast.success("Note deleted.")
       setDeleting(false)
       setText("")
       onDone?.()

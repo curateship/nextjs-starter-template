@@ -97,6 +97,64 @@ export function planMusicClips(
   return clips
 }
 
+/** How long two repeats of a track overlap and blend when blending is on. */
+export const MUSIC_BLEND_MS = 3_000
+
+/**
+ * The clips that cover `fromMs` to `toMs` with one sound file played over and
+ * over, each copy fading into the next instead of cutting (Blend the repeats,
+ * background-music.md). The copies alternate between two lanes, each starting
+ * `crossfadeMs` before the one before it ends, so one fades out while the
+ * next fades in over the same stretch. Sound has no transitions of its own
+ * (clip-transitions.ts), so the blend is two fades on two lanes; the preview
+ * and the export already play both. The first copy starts at full, and the
+ * last fades out over `MUSIC_FADE_OUT_MS` where it is cut. Returns the two
+ * lanes' clips, the second empty when one copy covers it all.
+ */
+export function layAudioRepeats(
+  source: MusicSource,
+  options: { fromMs: number; toMs: number; crossfadeMs?: number; volume?: number }
+): [Clip[], Clip[]] {
+  const trackMs = source.sourceDurationMs
+  const spanMs = options.toMs - options.fromMs
+  if (!(trackMs > 0) || !(spanMs > 0)) return [[], []]
+  // Never more than a third of the track, so each copy is mostly heard whole.
+  const crossfadeMs = Math.max(200, Math.min(options.crossfadeMs ?? MUSIC_BLEND_MS, 5_000, trackMs / 3))
+  const stepMs = trackMs - crossfadeMs
+  const lanes: [Clip[], Clip[]] = [[], []]
+  let startMs = options.fromMs
+  for (let index = 0; startMs < options.toMs && index <= 2 * MAX_TRACK_CLIPS; index += 1) {
+    const durationMs = Math.min(trackMs, options.toMs - startMs)
+    const last = startMs + durationMs >= options.toMs
+    // A short leftover past the last full copy is dropped, as planMusicClips does.
+    if (last && index > 0 && durationMs < MUSIC_SHORTEST_TAIL_MS + crossfadeMs) {
+      const previous = lanes[(index - 1) % 2].at(-1)!
+      // The copy before it then runs on to the end and fades there.
+      const runsTo = Math.min(previous.startMs + trackMs, options.toMs)
+      previous.durationMs = runsTo - previous.startMs
+      previous.fadeOutMs = Math.min(MUSIC_FADE_OUT_MS, previous.durationMs)
+      break
+    }
+    lanes[index % 2].push({
+      id: editorId(),
+      kind: "audio",
+      name: source.name,
+      mediaId: source.mediaId,
+      url: source.url,
+      sourceDurationMs: trackMs,
+      trimStartMs: 0,
+      startMs,
+      durationMs,
+      volume: options.volume ?? MUSIC_START_VOLUME,
+      ...(index > 0 ? { fadeInMs: crossfadeMs } : {}),
+      fadeOutMs: last ? Math.min(MUSIC_FADE_OUT_MS, durationMs) : crossfadeMs,
+    })
+    if (last) break
+    startMs += stepMs
+  }
+  return lanes
+}
+
 /**
  * Why a music track cannot be laid down, or null when it can. Asked before the
  * edit, so the person hears the reason instead of the press doing nothing.

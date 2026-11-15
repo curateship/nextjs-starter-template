@@ -1,25 +1,19 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
-import { SparklesIcon } from "lucide-react"
+import { SparklesIcon, Trash2Icon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import {
-  DashboardToolbarSearch,
-  DashboardToolbarSelectTrigger,
-} from "@/components/shared/dashboard-toolbar"
+import { Button } from "@/components/ui/button"
+import { TableCell } from "@/components/ui/table"
+import { SelectedMenuRow } from "@/components/shared/mass-select"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { AdminListTable, AdminSelectCell, useAdminList } from "@/components/pomodoro/admin-list"
-import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
-import {
-  AdminBulkDeleteButton,
-  AdminDeleteConfirm,
-  AdminRowDeleteButton,
-  useAdminDelete,
-} from "@/components/pomodoro/admin-delete"
+import { Chip, MainCell } from "@/components/crm/crm-table"
+import { AdminListTable, AdminRow, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminDeleteConfirm, useAdminDelete } from "@/components/pomodoro/admin-delete"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
-import { PreviewPlayButton, UploadThumbnail } from "@/components/pomodoro/admin-uploads-dashboard"
+import { UploadThumbnail } from "@/components/pomodoro/admin-uploads-dashboard"
+import { DetailRecord, NoRecord } from "@/components/pomodoro/flowfly/detail-record"
+import { FilterPick } from "@/components/pomodoro/flowfly/filter-pick"
+import { useFlowflySearch } from "@/components/pomodoro/flowfly/flowfly-context"
+import { MediaPreview } from "@/components/pomodoro/flowfly/media-preview"
 import {
   deletePomodoroGenerationFiles,
   listPomodoroGenerations,
@@ -28,19 +22,26 @@ import {
 import { formatDateTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/nav/list-search"
-import type { GenerationSortColumn } from "@/lib/pomodoro/admin-lists"
-import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
-
-const route = getRouteApi("/_authenticated/admin/pomodoro-generations")
+import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
+import type { GENERATION_KIND_FILTERS, GENERATION_STATUS_FILTERS, GenerationSortColumn } from "@/lib/pomodoro/admin-lists"
 
 type SortColumn = GenerationSortColumn
 
+type GenerationsSearch = {
+  q?: string
+  kind?: (typeof GENERATION_KIND_FILTERS)[number]
+  status?: (typeof GENERATION_STATUS_FILTERS)[number]
+  user?: string
+  sort?: SortColumn
+  direction?: "asc" | "desc"
+  page?: number
+}
+
 const COLUMNS: TableHeaderColumn<SortColumn>[] = [
   { key: "prompt", label: "Prompt", column: "main", sortable: false },
-  { key: "person", label: "Asked by", column: "meta" },
+  { key: "person", label: "Asked by", column: "meta", className: "hidden md:hidden @lg:table-cell" },
   { key: "status", label: "Result", column: "meta" },
-  { key: "created", label: "Asked", column: "meta", className: "hidden 2xl:table-cell" },
+  { key: "created", label: "Asked", column: "meta", className: "hidden md:hidden @3xl:table-cell" },
 ]
 
 const STATUS_LOOK: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -53,9 +54,11 @@ const STATUS_LOOK: Record<string, { label: string; variant: "default" | "seconda
 const PROVIDER_NAMES: Record<string, string> = { gemini: "Google", elevenlabs: "ElevenLabs" }
 
 /**
- * Every AI background and soundscape a member asked for (admin task 06, part
- * 12): the prompt, what came back and who asked. Delete removes the file and
- * keeps the request on record. See `workspace/docs/ai-generation.md`.
+ * Library → AI generations on the Flowfly dashboard: every AI background
+ * and soundscape a member asked for (admin task 06, part 12), the prompt,
+ * what came back and who asked. Delete removes the file and keeps the
+ * request on record. A request opens on the right with the file itself to
+ * look at or play. See `workspace/docs/ai-generation.md`.
  */
 export function AdminGenerationsDashboard({
   initial,
@@ -64,7 +67,7 @@ export function AdminGenerationsDashboard({
   initial: { rows: AdminGenerationRow[]; total: number }
   initialPageSize: number
 }) {
-  const search = route.useSearch()
+  const search = useFlowflySearch<GenerationsSearch>()
   const setListSearch = useListSearchNavigate()
   const query = search.q ?? ""
   const kind = search.kind ?? "all"
@@ -77,21 +80,14 @@ export function AdminGenerationsDashboard({
     (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
     [setListSearch]
   )
-  const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
-    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
-  )
   const load = React.useCallback(
-    (pageSize: number) =>
-      listPomodoroGenerations({ search: query, kind, status, user: userId, sort, direction, page, pageSize }),
+    (pageSize: number) => listPomodoroGenerations({ search: query, kind, status, user: userId, sort, direction, page, pageSize }),
     [direction, kind, page, query, sort, status, userId]
   )
   const list = useAdminList({ initial, initialPageSize, page, onPageChange: setPage, load })
-  const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) =>
-    column === "created" ? "desc" : "asc"
-  )
+  const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) => (column === "created" ? "desc" : "asc"))
   const selection = useSelection()
   const rowIds = React.useMemo(() => list.rows.map((row) => row.id), [list.rows])
-  const selectedIds = rowIds.filter((id) => selection.selected.has(id))
   const del = useAdminDelete({
     one: "file",
     many: "files",
@@ -100,134 +96,149 @@ export function AdminGenerationsDashboard({
     selection,
     onDone: list.refresh,
   })
-  const preview = usePreviewAudio()
   const filteredOwner = userId ? (list.rows[0]?.ownerName ?? null) : null
+  const look = (row: AdminGenerationRow) => STATUS_LOOK[row.status] ?? { label: row.status, variant: "outline" as const }
+  const subline = (row: AdminGenerationRow) =>
+    [
+      row.kind === "background" ? "Background" : "Soundscape",
+      `${PROVIDER_NAMES[row.provider] ?? row.provider} ${row.model}`,
+      row.status === "ready" && !row.mediaId ? "File deleted" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
 
   return (
-    <>
-      <AdminListTable
-        title="AI generations"
-        icon={<SparklesIcon />}
-        noun="generations"
-        columns={COLUMNS}
-        sort={sort}
-        direction={direction}
-        onSort={toggleSort}
-        trailing={<TableHead column="meta">Actions</TableHead>}
-        selection={{ noun: "generations", rowIds, state: selection }}
-        filters={
-          userId ? (
-            <AdminPersonFilter
-              name={filteredOwner}
-              onClear={() => setListSearch({ user: undefined, page: undefined })}
-            />
-          ) : undefined
-        }
-        list={list}
-        page={page}
-        onPageChange={setPage}
-        controls={
+    <AdminListTable
+      noun="generations"
+      columns={COLUMNS}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      selection={{ noun: "generations", rowIds, state: selection }}
+      list={list}
+      page={page}
+      onPageChange={setPage}
+      search={{
+        name: "generation-search",
+        label: "Search generations",
+        placeholder: "Search prompt, name or email",
+        value: query,
+        onChange: (text) => setListSearch({ q: text.trim() ? text : undefined, page: undefined }),
+      }}
+      person={userId ? { name: filteredOwner, onClear: () => setListSearch({ user: undefined, page: undefined }) } : undefined}
+      filter={{
+        count: (kind !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0),
+        onClear: () => setListSearch({ kind: undefined, status: undefined, page: undefined }),
+        children: (
           <>
-            <AdminBulkDeleteButton del={del} ids={selectedIds} label="Delete files" />
-            <DashboardToolbarSearch
-              name="generation-search"
-              aria-label="Search generations"
-              placeholder="Search prompt, name or email…"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
+            <FilterPick
+              id="generations-kind"
+              label="Kind"
+              value={kind === "all" ? undefined : kind}
+              any="Backgrounds and soundscapes"
+              options={[
+                ["background", "Backgrounds"],
+                ["soundscape", "Soundscapes"],
+              ]}
+              onChange={(next) => setListSearch({ kind: next, page: undefined })}
             />
-            <Select
-              value={kind}
-              onValueChange={(value) => setListSearch({ kind: value === "all" ? undefined : value, page: undefined })}
-            >
-              <DashboardToolbarSelectTrigger aria-label="Filter by kind">
-                <SelectValue placeholder="Kind" />
-              </DashboardToolbarSelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Backgrounds and soundscapes</SelectItem>
-                <SelectItem value="background">Backgrounds</SelectItem>
-                <SelectItem value="soundscape">Soundscapes</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={status}
-              onValueChange={(value) => setListSearch({ status: value === "all" ? undefined : value, page: undefined })}
-            >
-              <DashboardToolbarSelectTrigger aria-label="Filter by result">
-                <SelectValue placeholder="Result" />
-              </DashboardToolbarSelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Every result</SelectItem>
-                <SelectItem value="ready">Worked</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-                <SelectItem value="running">Making</SelectItem>
-                <SelectItem value="queued">Waiting</SelectItem>
-              </SelectContent>
-            </Select>
+            <FilterPick
+              id="generations-result"
+              label="Result"
+              value={status === "all" ? undefined : status}
+              any="Every result"
+              options={[
+                ["ready", "Worked"],
+                ["failed", "Failed"],
+                ["running", "Making"],
+                ["queued", "Waiting"],
+              ]}
+              onChange={(next) => setListSearch({ status: next, page: undefined })}
+            />
           </>
-        }
-      >
-        {list.rows.map((row) => {
-          const look = STATUS_LOOK[row.status] ?? { label: row.status, variant: "outline" as const }
-          const what = row.kind === "background" ? "background" : "soundscape"
+        ),
+      }}
+      bulk={(ids, menu) => (
+        <SelectedMenuRow
+          className="text-destructive"
+          onClick={() => {
+            menu.close()
+            del.ask(ids)
+          }}
+        >
+          <Trash2Icon className="size-4" />
+          Delete files
+        </SelectedMenuRow>
+      )}
+      bulkBusy={del.deleting}
+      rowIds={rowIds}
+      record={{
+        label: "Generation",
+        content: (openId) => {
+          const row = list.rows.find((each) => each.id === openId)
+          if (!row) return <NoRecord title="Generation" icon={<SparklesIcon aria-hidden />} line="No member has asked AI for anything yet." />
           return (
-            <TableRow key={row.id}>
-              <AdminSelectCell selection={selection} id={row.id} label={`Select the ${what} "${row.prompt}"`} />
-              <TableCell column="main">
-                <div className="flex min-w-0 items-center gap-3">
-                  <UploadThumbnail kind={row.fileType ?? (row.kind === "soundscape" ? "audio" : null)} url={row.url} />
-                  <div className="min-w-0">
-                    <span className="block max-w-80 truncate text-sm" title={row.prompt}>
-                      {row.prompt}
-                    </span>
-                    <span className="block max-w-80 truncate text-xs text-muted-foreground">
-                      {[
-                        row.kind === "background" ? "Background" : "Soundscape",
-                        `${PROVIDER_NAMES[row.provider] ?? row.provider} ${row.model}`,
-                        row.status === "ready" && !row.mediaId ? "File deleted" : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell column="meta">
-                <MemberName id={row.userId} name={row.ownerName} title={row.ownerEmail} className="max-w-48" />
-              </TableCell>
-              <TableCell column="meta">
-                <Badge variant={look.variant}>{look.label}</Badge>
-                {row.status === "failed" && row.failureReason ? (
-                  <span className="block max-w-48 truncate text-xs text-muted-foreground" title={row.failureReason}>
-                    {row.failureReason}
-                  </span>
-                ) : null}
-              </TableCell>
-              <TableCell column="mutedMeta" className="hidden 2xl:table-cell">
-                {formatDateTime(row.createdAt)}
-              </TableCell>
-              <TableCell column="actions">
-                <PreviewPlayButton
-                  preview={preview}
-                  mediaId={row.mediaId}
-                  url={row.url}
-                  kind={row.fileType}
-                  name={row.prompt}
-                />
-                {row.mediaId ? (
-                  <AdminRowDeleteButton del={del} id={row.id} label={`Delete the file made for "${row.prompt}"`} />
-                ) : null}
-              </TableCell>
-            </TableRow>
+            <DetailRecord
+              key={row.id}
+              icon={<SparklesIcon aria-hidden />}
+              title={row.prompt}
+              line={subline(row)}
+              hideLabel="Hide the generation"
+              facts={[
+                ["Asked by", <MemberName key="owner" id={row.userId} name={row.ownerName} title={row.ownerEmail} />],
+                ["Kind", row.kind === "background" ? "Background" : "Soundscape"],
+                ["Made with", `${PROVIDER_NAMES[row.provider] ?? row.provider} ${row.model}`],
+                ["Asked", formatDateTime(row.createdAt)],
+                ...(row.status === "failed" && row.failureReason ? ([["Why it failed", row.failureReason]] as [string, string][]) : []),
+              ]}
+              state={look(row).label}
+              footer={
+                row.mediaId ? (
+                  <Button type="button" variant="outline" className="text-destructive" onClick={() => del.ask([row.id])}>
+                    <Trash2Icon />
+                    Delete the file
+                  </Button>
+                ) : null
+              }
+            >
+              {row.status === "ready" ? (
+                <MediaPreview kind={row.fileType ?? (row.kind === "soundscape" ? "audio" : "image")} url={row.mediaId ? row.url : null} />
+              ) : null}
+            </DetailRecord>
           )
-        })}
-      </AdminListTable>
-      <AdminDeleteConfirm
-        del={del}
-        title={`Delete ${del.ids.length} ${plural(del.ids.length, "file", "files")}?`}
-        description="The file is removed from storage and from the member's picker. A room background using it goes back to the default background, a room sound to silence. The request stays on this page with its prompt and result, marked File deleted. The credit is not given back, and the member is not told. This cannot be undone."
-        confirmLabel={plural(del.ids.length, "Delete file", "Delete files")}
-      />
-    </>
+        },
+      }}
+      windows={
+        <AdminDeleteConfirm
+          del={del}
+          title={`Delete ${del.ids.length} ${plural(del.ids.length, "file", "files")}?`}
+          description="The file is removed from storage and from the member's picker. A room background using it goes back to the default background, a room sound to silence. The request stays on this list with its prompt and result, marked File deleted. The credit is not given back, and the member is not told. This cannot be undone."
+          confirmLabel={plural(del.ids.length, "Delete file", "Delete files")}
+        />
+      }
+    >
+      {list.rows.map((row) => (
+        <AdminRow
+          key={row.id}
+          id={row.id}
+          label={`the ${row.kind === "background" ? "background" : "soundscape"} "${row.prompt}"`}
+          tickable={Boolean(row.mediaId)}
+          onDelete={row.mediaId ? () => del.ask([row.id]) : undefined}
+        >
+          <MainCell name={row.prompt} lead={<UploadThumbnail kind={row.fileType ?? (row.kind === "soundscape" ? "audio" : null)} url={row.url} />}>
+            <span className="min-w-0 truncate text-xs text-muted-foreground">{subline(row)}</span>
+          </MainCell>
+          <TableCell column="meta" className="hidden md:hidden @lg:table-cell">
+            <MemberName id={row.userId} name={row.ownerName} title={row.ownerEmail} className="max-w-48" />
+          </TableCell>
+          <TableCell column="meta">
+            <Chip muted={row.status !== "failed"}>{look(row).label}</Chip>
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden md:hidden @3xl:table-cell">
+            {formatDateTime(row.createdAt)}
+          </TableCell>
+        </AdminRow>
+      ))}
+    </AdminListTable>
   )
 }

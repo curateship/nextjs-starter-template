@@ -6,8 +6,8 @@ import {
   aiUnitCostCents,
   isUnitPricedModel,
   type AiProvider,
-  type AiUsageRange,
 } from "@/lib/ai/ai-models"
+import { analyticsRangeStart, type AnalyticsRange } from "@/lib/analytics/range"
 import { type AiLimitNotificationType } from "@/lib/notification-types"
 import { appUrlFor } from "@/server/app-url"
 import { db } from "@/server/db"
@@ -414,17 +414,10 @@ async function sendAiAlertEmail(userId: string, type: AiLimitNotificationType) {
 // the (user, month) and (month, created_at) indexes, so a heavy month never
 // gets pulled into memory row by row.
 
-// The ranges themselves live in `lib/ai/ai-models.ts` so the browser can import
-// them without dragging this module — and the database driver — along.
+// The range is the Admin dashboard's one range (`lib/analytics/range.ts`),
+// whole UTC days counted back from today.
 
-/** Where each range starts, counted back from `at`. */
-export function aiUsageRangeStart(range: AiUsageRange, at: Date): Date {
-  if (range === "month") return new Date(`${aiUsageMonthStart(at)}T00:00:00Z`)
-  const days = range === "30d" ? 30 : 90
-  return new Date(at.getTime() - days * 24 * 60 * 60 * 1000)
-}
-
-export type AiUsageTotals = {
+type AiUsageTotals = {
   costCents: number
   calls: number
   tokens: number
@@ -468,7 +461,7 @@ export type AiUsageModelRow = {
 }
 
 export type AiUsageDashboard = {
-  range: AiUsageRange
+  days: AnalyticsRange
   totals: AiUsageTotals
   daily: AiUsageDay[]
   byPerson: AiUsagePersonRow[]
@@ -476,15 +469,10 @@ export type AiUsageDashboard = {
   byModel: AiUsageModelRow[]
 }
 
-export async function loadAiUsageDashboard(
-  range: AiUsageRange
-): Promise<AiUsageDashboard> {
+/** Spend, calls, tokens and failed calls since `start`. */
+async function aiUsageTotals(start: Date): Promise<AiUsageTotals> {
   const events = customShellAiUsageEvents
-  const at = now()
-  const start = aiUsageRangeStart(range, at)
-  const inRange = gte(events.createdAt, start)
-
-  const [totalsRow] = await db
+  const [row] = await db
     .select({
       costCents: sql<string>`coalesce(sum(${events.costCents}), 0)`,
       calls: sql<string>`count(*)`,
@@ -492,7 +480,24 @@ export async function loadAiUsageDashboard(
       failed: sql<string>`count(*) filter (where ${events.status} = 'failed')`,
     })
     .from(events)
-    .where(inRange)
+    .where(gte(events.createdAt, start))
+  return {
+    costCents: Number(row?.costCents ?? 0),
+    calls: Number(row?.calls ?? 0),
+    tokens: Number(row?.tokens ?? 0),
+    failed: Number(row?.failed ?? 0),
+  }
+}
+
+export async function loadAiUsageDashboard(
+  days: AnalyticsRange
+): Promise<AiUsageDashboard> {
+  const events = customShellAiUsageEvents
+  const at = now()
+  const start = analyticsRangeStart(days, at)
+  const inRange = gte(events.createdAt, start)
+
+  const totals = await aiUsageTotals(start)
 
   const dailyRows = await db
     .select({
@@ -582,13 +587,8 @@ export async function loadAiUsageDashboard(
   }
 
   return {
-    range,
-    totals: {
-      costCents: Number(totalsRow?.costCents ?? 0),
-      calls: Number(totalsRow?.calls ?? 0),
-      tokens: Number(totalsRow?.tokens ?? 0),
-      failed: Number(totalsRow?.failed ?? 0),
-    },
+    days,
+    totals,
     daily,
     byPerson: personRows.map((row) => ({
       userId: row.userId,

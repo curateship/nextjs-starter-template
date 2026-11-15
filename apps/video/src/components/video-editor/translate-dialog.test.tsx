@@ -60,6 +60,7 @@ import {
   createEditorStore,
   createInitialEditorState,
 } from "@/components/video-editor/editor-store"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { TranslateDialog } from "@/components/video-editor/translate-dialog"
 import { PlaybackClock } from "@/lib/video/playback-clock"
 import { unreadLanguagesMessage } from "@/lib/video/translate"
@@ -119,6 +120,8 @@ async function openWindow() {
   root = createRoot(host)
   await act(async () => {
     root!.render(
+      // The app wraps every page in one; the greyed voice picker's reason needs it.
+      <TooltipProvider>
       <EditorContext.Provider
         value={{
           store,
@@ -144,6 +147,7 @@ async function openWindow() {
           }}
         />
       </EditorContext.Provider>
+      </TooltipProvider>
     )
   })
   await settle()

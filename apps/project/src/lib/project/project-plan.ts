@@ -1,5 +1,4 @@
 import type { ProjectColor, TaskPriority } from "@/lib/project/rules"
-import type { StepField } from "@/lib/project/step-fields"
 
 /**
  * A project's plan without its people, dates or progress: what Copy project
@@ -12,17 +11,11 @@ export type PlanTask = {
   title: string
   notes: string
   milestone: number | null
-  typeId: string | null
   priority: TaskPriority
-  steps: { text: string; fields: StepField[] }[]
-  labelIds: string[]
-  fieldValues: { fieldId: string; value: unknown }[]
 }
 
 export type ProjectPlan = {
   color: ProjectColor
-  hiddenTypeIds: string[]
-  defaultTypeId: string | null
   milestones: string[]
   tasks: PlanTask[]
 }

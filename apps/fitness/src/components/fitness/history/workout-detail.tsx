@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { CopyIcon, ExternalLinkIcon, HistoryIcon, Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { LiftCoachNotes, WorkoutCoachNotes } from "@/components/fitness/history/coach-notes"
 import { PanelCard } from "@/components/fitness/panel-card"
@@ -148,7 +147,6 @@ function PickedWorkout({
     setBusy(true)
     try {
       await removeWorkout(workoutId)
-      toast.success("Workout deleted.")
       setConfirming(false)
       onClose()
       await router.invalidate()

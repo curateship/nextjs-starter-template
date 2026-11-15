@@ -16,6 +16,14 @@ the link and the time, and the room opens itself with nobody's browser open.
   address. `src/lib/pomodoro/scheduled-rooms.ts` holds all four so the two
   sides cannot disagree. One person may have 10 bookings at a time and may
   book 10 times an hour.
+- **At most 50 invitation emails a day per host** (Tyler, 13 Nov 2026).
+  A booking or a new weekly room whose addresses would take the host past 50
+  in the last 24 hours is refused with "You've sent today's invites, try again
+  tomorrow." Cancelled rooms' invitations count, because booking, cancelling
+  and booking again was a way to email about 200 strangers an hour. The weekly
+  worker's own invitations count too but always go out, so a weekly room
+  never reaches half its list (`assertInviteAllowance` in
+  `src/server/pomodoro/scheduled-rooms.ts`).
 - **The window shows a booking problem once, and an address problem only
   after the box is left.** A bad time is one red line under the form, drawn
   as it is typed; pressing Book with it showing does nothing more. A

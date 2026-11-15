@@ -18,6 +18,54 @@ export function usePanelToggle(
   }, [panelRef])
 }
 
+/** How long a side panel takes to fold or open. */
+export const PANEL_FOLD_MS = 240
+
+/**
+ * On a panel group while a side panel folds or opens: the panels' widths
+ * (their `flex` numbers) and the gaps between them ease. None with less
+ * motion asked for.
+ */
+const PANEL_FOLDING_CLASS =
+  "[&>[data-panel]]:transition-[flex-grow] [&>[data-slot=resizable-handle]]:transition-[width] [&>*]:duration-[240ms] [&>*]:ease-in-out motion-reduce:[&>*]:transition-none"
+
+/**
+ * A side panel folding or opening slides there over 240ms, rather than
+ * snapping and then jumping again a frame later when the gap beside it closes
+ * (Tyler, 11 Nov 2026: "too jaggy like it bounces a bit on collapsing and
+ * uncollpasing, make it smooth", first on Trade, then "should be made to the
+ * shells too").
+ *
+ * `fold(change)` runs a collapse or expand with the ease on, and `className`
+ * goes on the panel group. The ease is on only for the fold, so a dragged
+ * divider still follows the pointer at once.
+ */
+export function usePanelFold() {
+  const [folding, setFolding] = React.useState(false)
+  const timer = React.useRef<number | null>(null)
+  React.useEffect(
+    () => () => {
+      if (timer.current !== null) window.clearTimeout(timer.current)
+    },
+    []
+  )
+  const fold = React.useCallback((change: () => void) => {
+    if (timer.current !== null) window.clearTimeout(timer.current)
+    setFolding(true)
+    // Two frames: the transition has to be on screen before the widths move.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        change()
+        timer.current = window.setTimeout(() => {
+          timer.current = null
+          setFolding(false)
+        }, PANEL_FOLD_MS + 50)
+      })
+    )
+  }, [])
+  return { fold, className: folding ? PANEL_FOLDING_CLASS : undefined }
+}
+
 /**
  * Whether a panel is currently shut, as a value a component can draw with.
  *

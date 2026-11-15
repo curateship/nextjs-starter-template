@@ -142,7 +142,7 @@ export function XAccountPicker({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem asChild>
-          <Link to="/admin/accounts" search={{ platform: "x" }}>
+          <Link to="/admin/projects" search={{ section: "accounts", platform: "x" }}>
             <UsersIcon />
             Manage accounts
           </Link>

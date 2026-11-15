@@ -8,7 +8,6 @@ import {
   RefreshCwIcon,
   SparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
@@ -151,7 +150,7 @@ export function CommentRepliesDialog({
     }
     setBusy({ replyId: reply.id, what: "send" })
     try {
-      const { runAfter, handle } = await sendReply({
+      await sendReply({
         commentId,
         replyId: reply.id,
         text,
@@ -159,11 +158,6 @@ export function CommentRepliesDialog({
       })
       setTexts((current) => ({ ...current, [reply.id]: "" }))
       setFromDraft((current) => ({ ...current, [reply.id]: null }))
-      toast.success(
-        runAfter
-          ? waitingReplyText(new Date(runAfter), handle || null)
-          : "Your answer is on its way. It takes a few minutes, because the account looks around Reddit first."
-      )
       await reload(commentId)
     } catch (error) {
       showErrorToast(getReplyErrorMessage(error))

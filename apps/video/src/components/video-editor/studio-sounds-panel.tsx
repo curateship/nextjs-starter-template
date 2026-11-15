@@ -38,6 +38,7 @@ import {
 } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SoundsTabsHeader } from "@/components/video-editor/sounds-tabs"
 import { Hint } from "@/components/video-assets/hint"
@@ -266,18 +267,13 @@ export function SoundsPanel() {
             <h3 className="text-xs font-medium text-muted-foreground">
               Your sounds{own ? ` · ${own.length}` : ""}
             </h3>
-            {own === null && !loadFailed ? null : loadFailed ? (
-              <div className="grid justify-items-center gap-2 py-4 text-center text-sm text-muted-foreground">
-                Your sounds could not be loaded.
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setRefresh((count) => count + 1)}
-                >
-                  Try again
-                </Button>
-              </div>
-            ) : own?.length ? (
+            {loadFailed ? (
+              <ErrorRow
+                message="Your sounds could not be loaded."
+                onRetry={() => setRefresh((count) => count + 1)}
+                className="py-4"
+              />
+            ) : own === null ? null : own?.length ? (
               <ul className="grid gap-3">
                 {own.map((file) => {
                   const item: SoundItem = { kind: "own", file }
@@ -417,7 +413,7 @@ function SoundRow({
       </Hint>
       <div className="grid min-w-0">
         <span className="truncate text-xs font-medium">{name}</span>
-        <span className="text-[0.625rem] text-muted-foreground tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {formatSoundLength(lengthMs)}
         </span>
       </div>

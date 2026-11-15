@@ -1,6 +1,5 @@
 import * as React from "react"
 import { BookmarkIcon, CheckIcon, Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -241,7 +240,7 @@ export function ViewsMenu({
     const ok = await run(async () => {
       await deleteSavedView(view.id)
       await onDeleted(view)
-    }, `Deleted the view ${quoteOneLine(view.name)}.`)
+    })
     setDeleting(null)
     return ok
   }
@@ -341,7 +340,6 @@ function SaveViewDialog({
     try {
       const view = await saveView(libraryId, name, filters)
       await onSaved(view)
-      toast.success(`Saved the view ${quoteOneLine(name.trim())}.`)
       setBusy(false)
       onClose()
     } catch (error) {

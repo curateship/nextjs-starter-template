@@ -96,9 +96,26 @@ export function sanitizeBlocks(blocks: BroadcastBlock[]): BroadcastBlock[] {
   })
 }
 
+/**
+ * The CRM Broadcasts tab's pills, and which statuses each holds. Sent takes a
+ * send still going or paused too: it has left, and the row's badge says which.
+ */
+export const BROADCAST_STATUS_GROUPS = {
+  drafts: ["draft"],
+  scheduled: ["scheduled"],
+  sent: ["sending", "paused", "sent"],
+} as const
+export type BroadcastStatusGroup = keyof typeof BROADCAST_STATUS_GROUPS
+
 export async function listWorkspaceBroadcasts(
   workspaceId: string,
-  options: { search?: string; limit?: number; offset?: number } = {},
+  options: {
+    search?: string
+    limit?: number
+    offset?: number
+    /** Only one pill's newsletters. Every status when unsaid. */
+    group?: BroadcastStatusGroup
+  } = {},
   database: CustomShellDb = db
 ) {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
@@ -106,6 +123,11 @@ export async function listWorkspaceBroadcasts(
   const search = options.search?.trim()
 
   const filters = [eq(customShellBroadcasts.workspaceId, workspaceId)]
+  if (options.group) {
+    filters.push(
+      inArray(customShellBroadcasts.status, [...BROADCAST_STATUS_GROUPS[options.group]])
+    )
+  }
   if (search) {
     const pattern = `%${search}%`
     const searchFilter = or(
@@ -131,6 +153,30 @@ export async function listWorkspaceBroadcasts(
   ])
 
   return { broadcasts: rows, total: countRow?.total ?? 0 }
+}
+
+/** How many newsletters each Broadcasts pill holds, in one pass. */
+export async function countBroadcastGroups(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<Record<BroadcastStatusGroup, number>> {
+  const rows = await database
+    .select({
+      status: customShellBroadcasts.status,
+      total: sql<number>`count(*)::int`,
+    })
+    .from(customShellBroadcasts)
+    .where(eq(customShellBroadcasts.workspaceId, workspaceId))
+    .groupBy(customShellBroadcasts.status)
+  const counts: Record<BroadcastStatusGroup, number> = { drafts: 0, scheduled: 0, sent: 0 }
+  for (const row of rows) {
+    for (const [group, statuses] of Object.entries(BROADCAST_STATUS_GROUPS)) {
+      if ((statuses as readonly string[]).includes(row.status)) {
+        counts[group as BroadcastStatusGroup] += Number(row.total)
+      }
+    }
+  }
+  return counts
 }
 
 export async function getWorkspaceBroadcast(

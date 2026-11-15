@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { ChapterEditor } from "@/components/courses/admin/chapter-editor"
@@ -161,7 +160,6 @@ export function CourseEditor({ data }: { data: CourseForEdit }) {
     if (!outline) return
     setGroups(outline.groups)
     setChapters(outline.chapters)
-    toast.success(`${group.title} was removed. Its chapters moved above the parts.`)
   }
 
   async function reorder(
@@ -262,10 +260,9 @@ export function CourseEditor({ data }: { data: CourseForEdit }) {
     <div className="flex min-h-0 flex-1 flex-col" style={{ gap: pageGutter }}>
       {desktop ? (
         <ResizablePanelGroup
-          key={layout.layoutKey}
+          groupRef={layout.groupRef}
           orientation="horizontal"
           className="min-h-0 flex-1"
-          defaultLayout={layout.defaultLayout}
           onLayoutChanged={layout.onLayoutChanged}
         >
           <ResizablePanel

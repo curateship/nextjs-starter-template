@@ -65,9 +65,9 @@ export async function stopForBanPage(
       detail: [
         `${name} showed: "${banned}".`,
         `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
-        "Appeal it in the browser window first if you want to, then let it run again or press Clean up from its settings on the Accounts dashboard.",
+        "Appeal it in the browser window first if you want to, then let it run again or press Clean up from the ban in the Anti Detect dashboard's Bans.",
       ].join(" "),
-      href: "/admin/bans",
+      href: "/admin/anti-detect?section=bans",
     },
     db,
     now

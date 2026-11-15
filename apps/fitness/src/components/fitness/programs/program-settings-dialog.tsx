@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
 import { Button } from "@/components/ui/button"
@@ -65,7 +64,6 @@ function ProgramSettingsForm({ program, onClose }: { program: ProgramSummary | n
       if (active && !program.isActive && !archived) {
         await changeProgram({ action: "activate", programId: program.id })
       }
-      toast.success("Program saved.")
       await router.invalidate()
       onClose()
     } catch (error) {

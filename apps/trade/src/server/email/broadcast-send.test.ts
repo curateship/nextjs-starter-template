@@ -35,11 +35,10 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 const WORKSPACE_ID = "ws-drip"
 
 /**
- * Every account is pulled onto the contact list before each batch, so the
- * workspace owner is on it too. One extra person than the test inserted, in
- * every count below.
+ * A newsletter goes to subscribers only. The workspace owner is an account,
+ * never on the list (9 Nov 2026), so every count below is exactly the people
+ * the test inserted.
  */
-const OWNER = 1
 
 let client: PGlite
 let db: CustomShellDb
@@ -165,11 +164,11 @@ describe("with pacing off, nothing about sending has changed", () => {
 
     await tick(MORNING)
     await tick(MORNING)
-    expect(sentTo).toHaveLength(120 + OWNER)
+    expect(sentTo).toHaveLength(120)
 
     const finished = await readBroadcast()
     expect(finished.status).toBe("sent")
-    expect(finished.totalSent).toBe(120 + OWNER)
+    expect(finished.totalSent).toBe(120)
   })
 
   it("sends at three in the morning, because nobody said not to", async () => {
@@ -177,7 +176,7 @@ describe("with pacing off, nothing about sending has changed", () => {
     await insertBroadcast()
 
     await tick(new Date("2026-08-04T07:00:00Z"))
-    expect(sentTo).toHaveLength(10 + OWNER)
+    expect(sentTo).toHaveLength(10)
   })
 
   it("mails the audience in the order they joined, fifty by fifty", async () => {
@@ -195,7 +194,7 @@ describe("with pacing off, nothing about sending has changed", () => {
   })
 
   it("finishes in one pass when exactly a batch is waiting", async () => {
-    await insertContacts(50 - OWNER)
+    await insertContacts(50)
     await insertBroadcast()
 
     await tick(MORNING)
@@ -207,7 +206,7 @@ describe("with pacing off, nothing about sending has changed", () => {
   })
 
   it("comes back for the one left over when a batch and one are waiting", async () => {
-    await insertContacts(51 - OWNER)
+    await insertContacts(51)
     await insertBroadcast()
 
     await tick(MORNING)
@@ -232,8 +231,8 @@ describe("with pacing off, nothing about sending has changed", () => {
 
     const row = await readBroadcast()
     expect(row.status).toBe("sent")
-    expect(row.totalRecipients).toBe(60 + OWNER)
-    expect(row.totalSent).toBe(60 + OWNER)
+    expect(row.totalRecipients).toBe(60)
+    expect(row.totalSent).toBe(60)
   })
 
   it("never mails the same person twice across two passes", async () => {
@@ -243,7 +242,7 @@ describe("with pacing off, nothing about sending has changed", () => {
     await tick(MORNING)
     await tick(MORNING)
 
-    expect(new Set(sentTo).size).toBe(60 + OWNER)
+    expect(new Set(sentTo).size).toBe(60)
   })
 
   it("pauses before sending when an internal logo file is missing", async () => {

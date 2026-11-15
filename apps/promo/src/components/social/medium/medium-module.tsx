@@ -1,6 +1,10 @@
 import * as React from "react"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { HeaderActionsProvider } from "@/components/social/header-actions"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { ViewMenu } from "@/components/shared/view-menu"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { AlertTriangleIcon, PauseIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
@@ -30,16 +34,16 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 import { MEDIUM_COMMENT_VIEWS, MEDIUM_POST_VIEWS, MEDIUM_VIEW_WORDS, type MediumView } from "@/lib/social/medium/options"
 import type { Side } from "@/lib/social/sides"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 import { MediumAccountPicker } from "./medium-account-picker"
 import { MediumArticlePanel, MediumArticlesList } from "./medium-articles"
 import { MediumKeywords } from "./medium-keywords"
 import { MediumPublicationPanel, MediumPublicationsList } from "./medium-publications"
 import { MediumResponsePanel, MediumResponsesList } from "./medium-responses"
-import { MediumStories, MediumStorySearch } from "./medium-stories"
+import { MediumStories } from "./medium-stories"
 import { MediumStoryPanel } from "./medium-story-panel"
 import { MediumTodayList } from "./medium-today"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -286,31 +290,50 @@ export function MediumModule({
     />
   ) : null
 
+  // The tabs, drawn after the arrow back: in the one Commenting header on
+  // Commenting, and in a header of their own on Posts, as Reddit's are.
+  const [actionsSlot, setActionsSlot] = React.useState<HTMLSpanElement | null>(null)
+  const headerActions = React.useMemo(() => ({ element: actionsSlot }), [actionsSlot])
+  // The lists this side has, with their counts, for the tabs and the narrow dropdown alike.
+  const tabChoices = views.map((item) => {
+    const count =
+      item === "new" ? counts?.toLook : item === "replied" ? counts?.replied : item === "skipped" ? counts?.skipped : item === "responses" ? (counts?.failed ? counts.failed : counts?.toAnswer) : null
+    return { value: item, label: MEDIUM_VIEW_WORDS[item], count: count || undefined }
+  })
+  const pickTab = (next: string) => {
+    const item = next as typeof tab
+    onSearch({ tab: dropTab(item) ? undefined : item, open: undefined, list: undefined })
+  }
+  // The tabs from 768px wide, and below that one dropdown naming the list,
+  // as Reddit's (`finds-panel.tsx`).
+  const tabList = (
+    <>
+      <span className="hidden @3xl:contents">
+        <DashboardTabs value={tab} onValueChange={pickTab} tabs={tabChoices} />
+      </span>
+      <span className="shrink-0 @3xl:hidden">
+        <ViewMenu value={tab} onValueChange={pickTab} choices={tabChoices} label="Which list" />
+      </span>
+    </>
+  )
+  // Posts' one header, as Reddit's Posts has it: the arrow back and the tabs,
+  // then the list's own buttons (Post ideas, New post) at its right end,
+  // drawn there by the list through `HeaderActions`.
   const tabs = (
-    <div role="tablist" aria-label="Which list" className="flex shrink-0 flex-wrap items-end gap-x-4 border-b px-3">
-      {views.map((item) => {
-        const count =
-          item === "new" ? counts?.toLook : item === "replied" ? counts?.replied : item === "skipped" ? counts?.skipped : item === "responses" ? (counts?.failed ? counts.failed : counts?.toAnswer) : null
-        return (
-          <button
-            key={item}
-            type="button"
-            role="tab"
-            aria-selected={tab === item}
-            onClick={() => {
-              onSearch({ tab: dropTab(item) ? undefined : item, open: undefined, list: undefined })
-            }}
-            className={cn(
-              "-mb-px flex h-11 items-center gap-1.5 border-b-2 text-sm whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              tab === item ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {MEDIUM_VIEW_WORDS[item]}
-            {count ? <span className={cn("font-normal tabular-nums", item === "responses" && counts?.failed ? "text-destructive" : "text-muted-foreground")}>{count}</span> : null}
-          </button>
-        )
-      })}
-    </div>
+    <CrmListHeader
+      tabs={
+        <>
+          <PanelReopenButton side="left" label="Show the project" />
+          <ProjectBackButton />
+          {tabList}
+        </>
+      }
+      end={<PanelReopenButton side="right" label="Show the open post" />}
+      search={null}
+      massSelect={null}
+      menuLabel="More"
+      view={<span ref={setActionsSlot} className="contents" />}
+    />
   )
 
   const notices = view ? (
@@ -325,17 +348,6 @@ export function MediumModule({
         <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm text-destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           There is no reader browser, so nothing is searched or read. Pick one in Settings → Behaviour.
-        </p>
-      ) : null}
-      {!view.jobs.programRunning && view.jobs.queued > 0 ? (
-        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm text-destructive">
-          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span>
-            The browser program is not running, so {view.jobs.queued} {view.jobs.queued === 1 ? "job is" : "jobs are"} waiting and nothing is searched or sent.{" "}
-            <button type="button" className="font-medium underline underline-offset-2" onClick={() => onSearch({ window: "jobs" })}>
-              See the jobs
-            </button>
-          </span>
         </p>
       ) : null}
     </>
@@ -365,10 +377,9 @@ export function MediumModule({
         onSkip={skip}
         onHide={async (findId, kind) => {
           try {
-            const hidden = await changeMediumHidden({ change: "hide", findId, kind })
+            await changeMediumHidden({ change: "hide", findId, kind })
             if (findId === open) openRecord(null)
             await refreshAll()
-            if (hidden) toast.success(`${hidden.name} hidden. ${hidden.hiddenStories} ${hidden.hiddenStories === 1 ? "story" : "stories"} left every list.`)
           } catch (failure) {
             showErrorToast(getMediumErrorMessage(failure))
           }
@@ -469,7 +480,8 @@ export function MediumModule({
   const middle = guest ? (
     <p className="p-4 text-sm text-muted-foreground">Medium is worked by the project&apos;s owner. Open Reddit, Instagram or TikTok in the left column.</p>
   ) : side === "posts" ? (
-    <>
+    <HeaderActionsProvider value={headerActions}>
+      {tabs}
       {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
       {view?.paused ? (
         <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm">
@@ -477,9 +489,8 @@ export function MediumModule({
           Medium is paused on this project. Nothing is sent or warmed up until it is resumed in the left column.
         </p>
       ) : null}
-      {tabs}
       <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
-    </>
+    </HeaderActionsProvider>
   ) : (
     <>
       <MediumKeywords
@@ -487,7 +498,8 @@ export function MediumModule({
         failed={Boolean(viewError)}
         projectId={projectId}
         selectedId={keywordId}
-        search={isStoryTab(tab) ? <MediumStorySearch value={typed} onChange={setTyped} /> : null}
+        search={isStoryTab(tab) ? { value: typed, onChange: setTyped } : null}
+        tabs={tabList}
         onSelect={(next) => {
           onSearch({ keyword: next ?? undefined, open: undefined, ...(isStoryTab(tab) ? {} : { tab: undefined, list: undefined }) })
         }}
@@ -496,7 +508,6 @@ export function MediumModule({
       />
       {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
       {notices}
-      {tabs}
       <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
     </>
   )

@@ -214,6 +214,12 @@ export function fill(
     brackets?: { tpPx: number | null; slPx: number | null }
     /** The order behind this fill, when there was one. */
     orderId?: string | null
+    /**
+     * The price it was aimed at, for slippage. Left out, the fill's own price
+     * stands: a practice fill is at its aim unless a slippage cost moved it,
+     * and every place that adds one passes the price from before it.
+     */
+    aimedPx?: number
   }
 ): void {
   const held = book.positions.get(input.marketKey) ?? null
@@ -270,6 +276,7 @@ export function fill(
     reason: input.reason,
     fillTime: input.at,
     orderId: input.orderId ?? null,
+    aimedPx: input.aimedPx ?? input.px,
   })
   book.touchedMarkets.add(input.marketKey)
   if (input.reason === "liquidated") {
@@ -356,6 +363,8 @@ export function fillOrder(
     at: input.at,
     brackets: { tpPx: order.tpPx, slPx: order.slPx },
     orderId: order.id,
+    // The waiting order's own price, whatever the candle filled it at.
+    aimedPx: order.px,
   })
 
   // The exit goes on the book here, not after the candle finishes — see
@@ -471,6 +480,8 @@ export function closeAt(
     maxLeverage: position.maxLeverage,
     reason: input.reason,
     at: input.at,
+    // The level itself, before any slippage cost: what the stop aimed at.
+    aimedPx: input.px,
   })
 }
 

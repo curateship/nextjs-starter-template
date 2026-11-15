@@ -8,7 +8,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
@@ -40,7 +39,6 @@ import { removeCourses, saveNewCourse } from "@/lib/api/courses/admin"
 import { COURSE_ACCESS_LABELS } from "@/lib/courses/course-access"
 import { getCourseErrorMessage } from "@/lib/courses/course-errors"
 import type { AdminCourseRow } from "@/lib/courses/course-types"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -124,15 +122,6 @@ export function CoursesDashboard({ courses }: { courses: AdminCourseRow[] }) {
       if (done.length === 0) {
         throw new Error("No courses were deleted. They may already be gone. The list has been refreshed.")
       }
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: kept.length,
-          one: "course",
-          many: "courses",
-          verb: "deleted",
-        })
-      )
       setConfirm(null)
     })
   }

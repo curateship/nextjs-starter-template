@@ -265,8 +265,8 @@ export async function guestProjectView<View extends { freeAccounts: unknown[]; j
 }
 
 /** A guest may rewrite the project's description and nothing else about it. */
-export function guestOnlyDescription(input: { name?: string; imageUrl?: string }) {
-  if (input.name !== undefined || input.imageUrl !== undefined) {
+export function guestOnlyDescription(input: { name?: string; cover?: unknown }) {
+  if (input.name !== undefined || input.cover !== undefined) {
     throw new Error("A guest can change the description only.")
   }
 }

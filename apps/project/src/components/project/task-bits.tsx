@@ -15,7 +15,6 @@ import {
   RepeatIcon,
 } from "lucide-react"
 
-import { TypeIconGlyph } from "@/components/project/task-type-icon"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { initialsFor } from "@/lib/crm/inbox-time"
@@ -32,7 +31,6 @@ import {
   isOpenStatus,
 } from "@/lib/project/rules"
 import { dueDayOf, isOverdue, localTimeOf } from "@/lib/project/dates"
-import type { TaskTypeChip } from "@/lib/project/task-types"
 import { cn } from "@/lib/utils"
 
 /** The small pieces every Project screen draws a task or a person with. */
@@ -200,7 +198,7 @@ export function DueDate({
 }
 
 /**
- * The List's Assigned to, Due and Steps cells as chips, like its Status and
+ * The List's Assigned to and Due cells as chips, like its Status and
  * Priority (Tyler, 19 Oct 2026: "the assigned to, due date and steps should
  * also be chip ui").
  */
@@ -235,24 +233,6 @@ export function DueChip({ dueDate, dueAt, status }: { dueDate: string | null; du
   )
 }
 
-export function StepsChip({ steps }: { steps: { done: number; total: number } }) {
-  if (steps.total === 0) return null
-  return (
-    <Badge variant="outline" className="text-muted-foreground">
-      {steps.done} of {steps.total}
-    </Badge>
-  )
-}
-
-export function StepsCount({ steps }: { steps: { done: number; total: number } }) {
-  if (steps.total === 0) return null
-  return (
-    <span className="text-muted-foreground">
-      {steps.done} of {steps.total} steps done
-    </span>
-  )
-}
-
 /**
  * "Picked on 4 days": a task picked on three or more check-ins and still not
  * Done, so a task that drags shows up without anyone writing a report.
@@ -269,29 +249,6 @@ export function PickedDaysBadge({
     <Badge variant="outline">
       <RepeatIcon aria-hidden />
       Picked on {pickedDays} days
-    </Badge>
-  )
-}
-
-/** A label on a card or row: its colour as a dot, and always its name. */
-export function LabelChip({ label }: { label: { name: string; color: ProjectColor } }) {
-  return (
-    // Really faint, so tags never compete with the task's name (Tyler, 19 Oct 2026):
-    // no edge, pale words and a half-strength dot.
-    <Badge variant="outline" className="max-w-40 border-transparent px-1 font-normal text-muted-foreground/60">
-      <ProjectDot color={label.color} className="size-1.5 opacity-50" />
-      <span className="truncate">{label.name}</span>
-    </Badge>
-  )
-}
-
-/** A task's type on a card or row: its icon in its colour, and always its name. */
-export function TypeChip({ type }: { type: TaskTypeChip | null }) {
-  if (!type) return null
-  return (
-    <Badge variant="outline" className="max-w-40">
-      <TypeIconGlyph icon={type.icon} color={type.color} className="size-3" />
-      <span className="truncate">{type.name}</span>
     </Badge>
   )
 }
@@ -408,7 +365,7 @@ export function RepeatMark({ repeat }: { repeat: unknown }) {
   )
 }
 
-/** A type's or section's name, or a warning, as a small chip tinted in its colour. */
+/** A warning or a short label, as a small chip tinted in its colour. */
 const TINT: Record<ProjectColor, string> = {
   slate: "bg-muted text-foreground",
   red: "bg-red-500/10 text-red-700 dark:text-red-300",

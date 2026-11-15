@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -78,7 +77,6 @@ export function AsterMarginSettings({
             wallet.walletId === walletId ? saved : wallet
           ) ?? null
       )
-      toast.success(`Aster now uses ${mode} margin.`)
     } catch (error) {
       if (beforeMode) {
         setWallets(

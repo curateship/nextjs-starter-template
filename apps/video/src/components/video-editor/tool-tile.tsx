@@ -33,7 +33,7 @@ export function ToolTile({
       </span>
       <span className="min-w-0 flex-1 overflow-hidden">
         <span className="block truncate text-xs font-medium">{label}</span>
-        <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">
+        <span className="line-clamp-2 text-xs leading-4 text-muted-foreground">
           {description}
         </span>
       </span>

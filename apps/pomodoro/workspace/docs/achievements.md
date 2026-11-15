@@ -47,7 +47,7 @@ panel read "Earned Sep 25, 2026".
 
 ## An admin can take a badge away
 
-`/admin/pomodoro-achievements` lists who earned which badge and when, filtered
+Flowfly → Members → Badges lists who earned which badge and when, filtered
 by badge or by one member. Revoke, on a row or over ticked rows, takes the
 badge away (admin task 06):
 

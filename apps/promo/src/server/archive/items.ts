@@ -66,7 +66,12 @@ export async function listArchiveProjects(userId: string, db: CustomShellDb = de
 export type ArchiveSort = "newest" | "views"
 
 export type ArchiveQuery = {
-  projectId: string
+  /**
+   * One project's items, or null for every project's at once: the Projects
+   * dashboard's Archive with no project picked (Tyler, 12 Nov 2026). Null is
+   * for the owner alone; a guest's calls always name their project.
+   */
+  projectId: string | null
   kind?: ArchiveItemKind
   q?: string
   /** Only items never posted anywhere (part 23). */
@@ -80,6 +85,8 @@ export type ArchiveQuery = {
 
 export type ArchiveCard = {
   id: string
+  /** The project it is in, so a list of every project's items can say which. */
+  projectId: string
   kind: ArchiveItemKind
   status: PromoArchiveItemRow["status"]
   title: string
@@ -137,7 +144,7 @@ export async function listArchiveItems(
   const words = query.q?.trim()
   const conditions = [
     eq(promoArchiveItems.userId, userId),
-    eq(promoArchiveItems.projectId, query.projectId),
+    ...(query.projectId ? [eq(promoArchiveItems.projectId, query.projectId)] : []),
     query.bin ? isNotNull(promoArchiveItems.deletedAt) : isNull(promoArchiveItems.deletedAt),
     sql`(${promoArchiveItems.pending} is null or ${promoArchiveItems.pending}->>'replaceItemId' is null)`,
   ]
@@ -167,7 +174,13 @@ export async function listArchiveItems(
   const [bin] = await db
     .select({ n: count() })
     .from(promoArchiveItems)
-    .where(and(eq(promoArchiveItems.userId, userId), eq(promoArchiveItems.projectId, query.projectId), isNotNull(promoArchiveItems.deletedAt)))
+    .where(
+      and(
+        eq(promoArchiveItems.userId, userId),
+        ...(query.projectId ? [eq(promoArchiveItems.projectId, query.projectId)] : []),
+        isNotNull(promoArchiveItems.deletedAt)
+      )
+    )
 
   let cards: ArchiveCard[] = await Promise.all(
     rows.map(async (row) => {
@@ -176,6 +189,7 @@ export async function listArchiveItems(
       const coverPath = row.coverPath || slide?.first || (row.kind === "picture" ? row.storagePath : "")
       return {
         id: row.id,
+        projectId: row.projectId,
         kind: row.kind,
         status: row.status,
         title: row.title,
@@ -294,6 +308,7 @@ export async function readArchiveItem(userId: string, itemId: string, db: Custom
     .where(and(eq(promoArchiveDrafts.itemId, row.id), isNull(promoArchiveDrafts.usedAt)))
   const base: ArchiveCard = card ?? {
     id: row.id,
+    projectId: row.projectId,
     kind: row.kind,
     status: row.status,
     title: row.title,

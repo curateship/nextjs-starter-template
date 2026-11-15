@@ -1,50 +1,86 @@
 # Members in the admin
 
-Clicking a member's name on any Pomoder admin list opens one window with
-everything about them (admin task 06, 8 Oct 2026). Around it sit nine pages for
-member data that had no admin view before. This file covers the window and the
-two repair tools inside it. The pages are listed in
-[Admin sections](admin-sections.md).
+Pressing a member's name on any Flowfly list opens everything about them in
+the right panel (admin task 06, 8 Oct 2026, moved out of its window on
+13 Nov 2026 with Tyler's picks "Member on the right", "One record per person"
+and "Member owns-everything tabs"). The lists themselves are in
+[The Flowfly admin dashboard](admin-dashboard.md). This file covers the
+member's record and the two repair tools in it.
 
-## The member window
+## The member's record
 
-- **It opens from a name.** Every Pomoder admin list draws a member's name as a
-  button. Clicking it puts `?member=<userId>` in the address and opens the
-  window over the list. Back closes it, and the address can be handed to
-  another admin.
-- **It loads its own data**, so it reads the same whichever list it opened
-  from. The list behind it does not reload.
-- **One file mounts it for every list.** `admin-list.tsx` draws it under the
-  table, so a new list gets it by drawing names with `MemberName`. Each route
-  keeps `member` in its address checks through `readMemberSearch`.
+- **It opens from a name.** Every Flowfly list draws a member's name as a
+  button (`MemberName`). Pressing it puts `?member=<userId>` in the address
+  and shows them on the right in place of the open row; pressing a row brings
+  the row back. Back undoes it, and the address can be handed to another
+  admin.
+- **Rows that are people open it too:** Members → Profiles and Made-up, and
+  Safety → Blocks' Most blocked. A profile is
+  not a record of its own any more.
+- **It loads its own data**, so it reads the same wherever it opened. The list
+  beside it does not reload. It is `AdminMemberRecord` in
+  `src/components/pomodoro/admin-member-record.tsx`, drawn in the shell's
+  `RecordFrame` the way the shell's Users list draws a person.
 
-What it shows, top to bottom:
+The header: their initials, name, and "Made up" for a made-up member, their
+handle and email. Its ⋮ holds what changes them:
 
-- **Account:** photo, name, handle and email in the heading, then plan, joined
-  date, last day focused, whether the public profile is public, switched off
-  or hidden, whether they are on the leaderboard, and a running room
-  suspension. Buttons: Warn, Suspend (both from
-  [Admin safety tools](admin-safety-tools.md)), Hide profile, and Open in
-  Users, which opens the shell's own account window at `/admin/users`.
-- **Focus:** all-time sessions, focus time and tasks done from the daily
-  totals, the current and best streak, and any days an admin put back.
-- **Last 10 sessions**, newest first, with a link to Focus sessions for them.
-- **Open tasks**, up to ten, with the count and a link to Tasks for them.
-- **Rooms:** how many they hosted and how many other people's rooms they sat
-  in, the latest of each, and a link to the rooms they host.
-- **Reports:** how many are about them (and how many still wait), how many
-  they filed (and how many were dismissed), with a link to Room reports for
-  them.
-- **Uploads:** count, total size and the latest files, linking to Member
-  uploads.
-- **Warnings and suspensions**, newest first, linking to Bans.
-- **Follows:** how many people they follow, a link to Follows and cheers, and
-  "Remove all their follows".
-- **Admin notes.**
+- **Profile:** Handle, Display name and Bio, each a row that opens a small box
+  and saves when left. The owner is told which fields changed, never which
+  admin changed them, as the old profile window told them. A member with no
+  handle shows "No handle yet".
+- Warn, Fix a streak day, Hide profile or Show profile, Open in Users (the
+  shell's Admin → Users with them open), Remove all their follows, and
+  Suspend, red, last.
 
-Each count in the window comes from the same table its list reads, so the two
-agree. The window's focus totals are the `daily_focus_stats` rollup Focus data
-shows.
+The body is four folding cards, three of them with tabs under the heading
+(Tyler, 14 Nov 2026: "we need to organizie the right panel better because
+right now theres too many blocks", then picked "4 cards with tabs" and
+"Always the first tab"). The tabs are drawn as Project's Daily habits block
+draws Today and History, so they follow Settings → Styling → Dashboard tabs.
+Every card opens on its first tab for every member, because the record is
+drawn fresh for each person.
+
+- **Profile**, with three tabs:
+  - **Account:** plan, joined date, whether the public profile is public,
+    switched off or hidden, whether they are on the leaderboard, and how many
+    people they follow. Under that are links to their badges, groups,
+    projects, task tags, repeating tasks and who they follow.
+  - **Focus:** all-time sessions, focus time, tasks done, last day focused,
+    the current and best streak, and any days an admin put back.
+  - **Voice**, for a made-up member only. A real member's card has just
+    Account and Focus. A half-typed voice survives a look at another tab.
+- **Activity**, with four tabs:
+  - **Sessions:** the last 10, newest first.
+  - **Tasks:** up to ten open tasks, with the count on the tab.
+  - **Rooms:** how many they hosted and how many other people's rooms they
+    sat in, and the latest of each.
+  - **Uploads:** the count on the tab, the total size, and the latest files.
+- **Safety**, with two tabs:
+  - **Warnings:** warnings and suspensions together, newest first, with the
+    count on the tab.
+  - **Reports:** how many are about them (and how many still wait, the count
+    on the tab), and how many they filed (and how many were dismissed).
+- **Admin notes**, untabbed.
+
+Tabs that do not fit the card fold into a More tab at the end of the row,
+the same `FoldingTabs` Flowfly's section tabs use
+(`src/components/pomodoro/flowfly/flowfly-section-tabs.tsx`). The tab
+showing always stays in the row. All four Activity tabs need a card about
+300px wide. The right panel opens narrower than that on most screens: at
+1440px wide the cards are 194px, and Activity shows Sessions and More.
+
+Every tab that lists things ends in a link that opens that tab of Flowfly
+narrowed to them, where every row has its Delete: Sessions, Tasks, Rooms they
+host, Reports, Uploads, Badges, Groups, Projects, Tags, Repeating, Bans,
+Follows. The full lists live there rather than inside the record, so one
+member with thousands of sessions never slows the panel.
+
+The footer says when they last focused, or that they are suspended, with
+Warn beside it.
+
+Each count comes from the same table its list reads, so the two agree. The
+focus totals are the `daily_focus_stats` rollup Focus shows.
 
 ## Fixing a broken streak
 
@@ -89,8 +125,9 @@ streak is worked out from that year's focus days alone.
   edited it and when.
 - **Any admin can edit or delete any note.** Every add, edit and delete writes
   one row to `pomodoro_audit_logs` (`add_note`, `edit_note`, `delete_note`).
-- **Typed work is protected.** Closing the window with a half-written note asks
-  first, the way every form window does.
+- **A half-written note lives as long as the record.** Opening another row or
+  member on the right drops it, since the record no longer sits in a window
+  that could ask first.
 
 ## Hide profile and Remove all their follows
 
@@ -105,7 +142,7 @@ streak is worked out from that year's focus days alone.
 
 - `src/components/pomodoro/admin-member-name.tsx`: the clickable name and the
   address change that opens and closes the window.
-- `src/components/pomodoro/admin-member-window.tsx`: the window, the Fix a
+- `src/components/pomodoro/admin-member-record.tsx`: the record, the Fix a
   streak day window and the notes.
 - `src/server/pomodoro/admin-members.ts`: the one read behind the window, the
   streak fix, the notes, hide and remove follows. Tested against a real

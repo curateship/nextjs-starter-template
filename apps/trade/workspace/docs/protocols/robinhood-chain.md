@@ -10,7 +10,7 @@ makes it the same kind of chain as BNB Chain, and it has been public since
 and at least fifty more stocks, trading 24 hours a day against USDG, a dollar
 coin from Paxos.
 
-- **Where to open it:** `/protocols/robinhood` is the shared exchange page.
+- **Where to open it:** `/trade?view=robinhood` is the shared exchange page.
   Robinhood Chain appears in the protocol list. The sidebar link is a
   Settings row, not code.
 - **What works today:** the market list, with prices, the day's move and

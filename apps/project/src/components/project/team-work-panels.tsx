@@ -2,7 +2,9 @@ import * as React from "react"
 
 import { ClientFilterSelect } from "@/components/project/client-filter-select"
 import { PersonAvatar } from "@/components/project/task-bits"
+import { TileHeading } from "@/components/project/notes/project-block-card"
 import { TeamSideCard } from "@/components/project/team-side-card"
+import { SideRows } from "@/components/shared/notes/side-rows"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -14,15 +16,14 @@ import {
   type WorkloadRow,
 } from "@/lib/api/project/team-running"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { clockTotal } from "@/lib/project/clock"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
 type Loaded<T> = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; value: T }
 
 /**
- * Loads when the tab opens, with a retry on failure, and again whenever
- * `reload` changes, such as a task window closing. The old rows stay on
+ * Loads when its block shows, with a retry on failure, and again whenever
+ * `reload` changes, such as another task opening on the right. The old rows stay on
  * screen until the new ones arrive.
  */
 function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
@@ -42,9 +43,9 @@ function useLoaded<T>(load: () => Promise<T>, reload: unknown) {
 }
 
 /**
- * What needs attention, loaded with the right panel rather than when its tab
- * opens, so the tab can carry the count (Tyler, 14 Oct 2026). Only the owner
- * and admins load it; for anyone else it is an empty list.
+ * What needs attention, for the Attention block on the team's page, whose
+ * heading carries the count. Only the site admin loads it; for anyone else
+ * it is an empty list.
  */
 export function useAttention(enabled: boolean, reload: unknown) {
   const teamId = useTeamId()
@@ -56,56 +57,49 @@ const loadNothing = async (): Promise<AttentionRow[]> => []
 /**
  * Each kind's card, in the order and words Tyler drew on 16 Oct 2026
  * (`workspace/docs/assets/pasted-image-1792198368279821000.png`). Stuck reads
- * "Blocked", as on the calendar. `after` is the short "how long" at a row's
- * end; overdue's is red.
+ * "Blocked", as on the calendar. `after` is the short "how long" in a row's
+ * pill.
  */
 const ATTENTION_GROUPS: {
   kind: AttentionKind
   label: string
   dot: string
-  chip: string
   after: (days: number) => string
 }[] = [
   {
     kind: "overdue",
     label: "Overdue",
     dot: "bg-red-600",
-    chip: "bg-red-500/10 text-red-600 dark:text-red-400",
     after: (days) => plural(days, "day"),
   },
   {
     kind: "stuck",
     label: "Blocked",
     dot: "bg-amber-700 dark:bg-amber-500",
-    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
     after: (days) => (days ? `Stuck ${plural(days, "day")}` : "Stuck today"),
   },
   {
     kind: "not_accepted",
     label: "Handed over, not accepted",
     dot: "bg-blue-600",
-    chip: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     after: (days) => plural(days, "work day"),
   },
   {
     kind: "review_waiting",
     label: "Waiting for review",
     dot: "bg-sky-700 dark:bg-sky-500",
-    chip: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
     after: (days) => plural(days, "work day"),
   },
   {
     kind: "picked_many",
     label: "Picked on 3+ days",
     dot: "bg-violet-600",
-    chip: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
     after: (days) => plural(days, "day"),
   },
   {
     kind: "untouched",
     label: "Untouched",
     dot: "bg-slate-500",
-    chip: "bg-slate-500/10 text-slate-600 dark:text-slate-300",
     after: (days) => plural(days, "day"),
   },
 ]
@@ -142,74 +136,37 @@ export function AttentionPanel({
       </TeamSideCard>
     )
   }
+  // One white tile, a grey heading per kind, then its tasks as the shell's
+  // one-line rows (task "Shell look/three-panel-shell-look", 9 Nov 2026).
   return (
     <>
       {ATTENTION_GROUPS.map((group) => {
         const mine = rows.filter((row) => row.kind === group.kind)
         if (mine.length === 0) return null
         return (
-          <section
-            key={group.kind}
-            aria-label={`${group.label}, ${mine.length}`}
-            className="min-w-0 overflow-hidden rounded-lg border bg-muted/40"
-          >
-            <div className="flex items-center gap-3 border-b px-4 py-3">
-              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", group.dot)} />
-              <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold">{group.label}</h3>
-              <span className={cn("shrink-0 rounded-full px-2 text-xs font-medium tabular-nums", group.chip)}>
-                {mine.length}
+          <section key={group.kind} aria-label={`${group.label}, ${mine.length}`} className="grid min-w-0 border-t first:border-t-0">
+            <TileHeading count={mine.length}>
+              <span className="flex min-w-0 items-center gap-2">
+                <span aria-hidden className={cn("size-2 shrink-0 rounded-full", group.dot)} />
+                <span className="truncate">{group.label}</span>
               </span>
-            </div>
-            <ul className="divide-y">
-              {mine.map((row) => (
-                <AttentionLine
-                  key={`${row.kind}-${row.taskId}`}
-                  row={row}
-                  after={group.after(row.days)}
-                  late={group.kind === "overdue"}
-                  onOpen={() => onOpenTask(row.taskId)}
-                />
-              ))}
-            </ul>
+            </TileHeading>
+            <SideRows
+              empty=""
+              rows={mine.map((row) => ({
+                key: `${row.kind}-${row.taskId}`,
+                name: row.title,
+                line: row.reviewerName
+                  ? `${row.personName ?? "Nobody"} → ${row.reviewerName}`
+                  : (row.personName ?? "Nobody"),
+                value: group.after(row.days),
+                onPress: () => onOpenTask(row.taskId),
+              }))}
+            />
           </section>
         )
       })}
     </>
-  )
-}
-
-/** The task's title, then whose it is ("Ben → Sam" for a review) and how long; opens the task. */
-function AttentionLine({
-  row,
-  after,
-  late,
-  onOpen,
-}: {
-  row: AttentionRow
-  after: string
-  late: boolean
-  onOpen: () => void
-}) {
-  const who = row.reviewerName
-    ? `${row.personName ?? "Nobody"} → ${row.reviewerName}`
-    : (row.personName ?? "Nobody")
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`${row.title}, ${who}, ${row.howLong}`}
-        className="grid w-full gap-0.5 px-4 py-3 text-left hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
-      >
-        <span className="text-sm break-words">{row.title}</span>
-        <span className="flex min-w-0 items-baseline justify-between gap-3 text-xs">
-          <span className="min-w-0 truncate text-muted-foreground">{who}</span>
-          <span className={cn("shrink-0 tabular-nums", late ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
-            {after}
-          </span>
-        </span>
-      </button>
-    </li>
   )
 }
 
@@ -246,22 +203,30 @@ export function WorkloadPanel({
   const [open, setOpen] = React.useState<{ person: string; bucket: WorkloadBucket } | null>(null)
   if (loaded.state === "loading") return <LoadingRow label="Loading the workload…" />
   if (loaded.state === "error") return <ErrorRow message={loaded.message} onRetry={retry} />
+  // With nobody on the team there is no one to count, rather than an empty box.
+  if (loaded.value.length === 0 && !client) {
+    return (
+      <TeamSideCard>
+        <p className="text-sm text-muted-foreground">Nobody on the team yet, so there's no work to weigh.</p>
+      </TeamSideCard>
+    )
+  }
   // As Tyler drew it on 16 Oct 2026 (`workspace/docs/assets/pasted-image-1792198613454502000.png`).
   return (
-    <section aria-label="Workload" className="min-w-0 overflow-hidden rounded-lg border bg-muted/40">
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b px-4 py-3">
-        <h3 className="shrink-0 text-[15px] font-semibold">Workload</h3>
-        {clients.length || client ? (
+    // The Workload block's white tile, which the block carries (Tyler, 7 Nov 2026).
+    <section aria-label="Workload" className="min-w-0">
+      {clients.length || client ? (
+        <div className="flex min-w-0 items-center justify-end gap-3 border-b px-3 py-2">
           <ClientFilterSelect
             id="workload-client"
             aria-label="Client"
             value={client}
             clients={clients}
             onChange={onClient}
-            className="w-fit min-w-0 bg-background"
+            className="w-fit min-w-0"
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <ul className="divide-y">
         {loaded.value.map((row) => (
           <WorkloadLine
@@ -305,13 +270,6 @@ function WorkloadLine({
             <span className="truncate text-xs text-muted-foreground">{row.person.title}</span>
           ) : null}
         </div>
-        {/* Their time on the task clock since Monday (Task panel task 01, part 10). */}
-        <span className="shrink-0 text-xs text-muted-foreground">
-          <span className={cn("font-medium tabular-nums", row.weekSeconds && "text-foreground")}>
-            {clockTotal(row.weekSeconds)}
-          </span>{" "}
-          this week
-        </span>
       </div>
       {/* Five figures in one white strip; pressing one lists those tasks under it. */}
       <div className="grid grid-cols-5 overflow-hidden rounded-lg border bg-background">

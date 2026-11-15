@@ -95,8 +95,6 @@ export function SegmentRuleBuilder({
     "emailed",
     "engaged",
     "opened",
-    "account",
-    ...(options.plans.length ? (["plan"] as const) : []),
     ...(options.segments.some((other) => other.id !== excludeSegmentId)
       ? (["in", "notIn"] as const)
       : []),
@@ -269,11 +267,6 @@ const RULE_OPERATORS: Record<
     { value: "has", label: "opened one of the last" },
     { value: "hasnt", label: "opened none of the last" },
   ],
-  account: [
-    { value: "has", label: "yes, they have one" },
-    { value: "hasnt", label: "no, just an address" },
-  ],
-  plan: IS_OR_ISNT,
 }
 
 /**
@@ -408,20 +401,6 @@ function ConditionRow({
             unit="emails"
             max={MAX_RULE_EMAILS}
             onChange={(emails) => onChange({ ...condition, emails })}
-          />
-        ) : null}
-
-        {condition.type === "plan" ? (
-          <ChoiceSelect
-            aria-label={`Plan for rule ${index + 1}`}
-            value={condition.planSlug}
-            placeholder="Pick a plan"
-            invalid={incomplete}
-            choices={options.plans.map((plan) => ({
-              value: plan.slug,
-              label: plan.name,
-            }))}
-            onChange={(planSlug) => onChange({ ...condition, planSlug })}
           />
         ) : null}
 

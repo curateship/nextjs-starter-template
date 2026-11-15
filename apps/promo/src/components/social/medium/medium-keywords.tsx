@@ -1,10 +1,7 @@
 import * as React from "react"
 import { EllipsisVerticalIcon, EyeIcon, ListChecksIcon, Loader2Icon, PlusIcon, RotateCwIcon, SparklesIcon, TagIcon, XIcon } from "lucide-react"
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
-import { toast } from "sonner"
 
-import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,7 +40,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 import { KeywordPicker } from "../keyword-picker"
-import { NetworkIcon } from "../network-icon"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { PanelReopenButton } from "@/components/shared/three-panels"
+import { StalledJobs } from "../stalled-jobs"
 
 type Keyword = MediumModuleView["keywords"][number]
 
@@ -75,9 +75,9 @@ function dollars(cents: number): string {
 }
 
 /**
- * The middle column's header: Medium's name, then on the right the search
- * box, the shared keywords dropdown, Jobs and More (Tyler, 21 Oct 2026, the
- * same for Reddit). Picking a
+ * The middle column's one header, as Reddit's: the arrow back and the tabs,
+ * then on the right the search box, the shared keywords dropdown, the amber
+ * jobs warning and More, which holds Jobs. Picking a
  * keyword lists its stories alone, All keywords lists every one. Add keyword
  * turns the list into Medium's add box, with the kind first, since a Medium
  * keyword is a tag, search words, a publication or a writer (parts 6 and 9).
@@ -91,6 +91,7 @@ export function MediumKeywords({
   projectId,
   selectedId,
   search,
+  tabs,
   onSelect,
   onChanged,
   onOpenJobs,
@@ -100,8 +101,10 @@ export function MediumKeywords({
   failed: boolean
   projectId: string
   selectedId: string | null
-  /** The search box, drawn among the row's buttons on story tabs. */
-  search: React.ReactNode
+  /** The search box's words on story tabs; null hides it. */
+  search: { value: string; onChange: (value: string) => void } | null
+  /** The tabs, drawn after the arrow back. */
+  tabs: React.ReactNode
   onSelect: (keywordId: string | null) => void
   onChanged: () => Promise<void>
   onOpenJobs: () => void
@@ -113,11 +116,10 @@ export function MediumKeywords({
   // Nothing waiting starts without the browser program or a reader browser.
   const stalled = !view?.jobs.programRunning || !view.readerPicked
 
-  async function act(action: () => Promise<unknown>, done?: string) {
+  async function act(action: () => Promise<unknown>) {
     try {
       await action()
       await onChanged()
-      if (done) toast.success(done)
     } catch (error) {
       showErrorToast(getMediumErrorMessage(error))
     }
@@ -134,15 +136,31 @@ export function MediumKeywords({
     }
   }
 
+  // The one middle header Reddit's Commenting has (`CrmListHeader`; Tyler,
+  // 14 Nov 2026: "fix all the tabs. the only thing that looks right is the
+  // reddit tabs"): the arrow back and the tabs on the left, then the search
+  // box, the keywords dropdown, the amber jobs warning and the ⋮ with Jobs.
   return (
-    <DashboardCardHeader className="flex-wrap items-center gap-x-3 gap-y-2">
-      <DashboardCardHeaderIcon>
-        <NetworkIcon network="medium" />
-      </DashboardCardHeaderIcon>
-      <h2 className={cn(dashboardCardHeadingClassName, "min-w-0 truncate")}>Medium</h2>
-
-      <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
-        {search}
+    <>
+    <CrmListHeader
+      tabs={
+        <>
+          <PanelReopenButton side="left" label="Show the project" />
+          <ProjectBackButton />
+          {tabs}
+        </>
+      }
+      end={<PanelReopenButton side="right" label="Show the story and your response" />}
+      selected={null}
+      massSelect={null}
+      menuLabel="More"
+      search={
+        search
+          ? { name: "medium-story-search", label: "Search these stories by title or writer", placeholder: "Search posts", value: search.value, onChange: search.onChange }
+          : null
+      }
+      view={
+        <>
         <KeywordPicker
           items={keywords.map((keyword) => ({
             id: keyword.id,
@@ -199,7 +217,7 @@ export function MediumKeywords({
                       await changeMediumKeyword({ change: "delete", keywordId: item.id })
                       // Its stories are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
-                    }, `${item.label} removed. Responses already sent keep their record.`)
+                    })
                   }}
                 >
                   Remove {item.label} and the stories only it found
@@ -215,7 +233,6 @@ export function MediumKeywords({
                   close()
                   await onChanged()
                   if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)
-                  else toast.success("Saved. Its stories show here once the reader has read them.")
                 } catch (error) {
                   showErrorToast(getMediumErrorMessage(error))
                 }
@@ -224,18 +241,9 @@ export function MediumKeywords({
             />
           )}
         />
-        <DashboardToolbarButton
-          type="button"
-          variant="outline"
-          onClick={onOpenJobs}
-          aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-        >
-          <ListChecksIcon className="size-4" />
-          <span className="hidden sm:inline">Jobs</span>
-          {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-        </DashboardToolbarButton>
+        {view && !view.jobs.programRunning && view.jobs.queued > 0 ? <StalledJobs queued={view.jobs.queued} onOpen={onOpenJobs} /> : null}
         <DropdownMenu>
-          <Hint label="Search all, ideas, AI spend and hidden writers">
+          <Hint label="Jobs, search all, ideas, AI spend and hidden writers">
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="More">
                 {asking ? <Loader2Icon className="animate-spin" /> : <EllipsisVerticalIcon />}
@@ -243,12 +251,16 @@ export function MediumKeywords({
             </DropdownMenuTrigger>
           </Hint>
           <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuItem onSelect={onOpenJobs}>
+              <ListChecksIcon />
+              {jobsWaiting ? `Jobs · ${jobsWaiting}` : "Jobs"}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => void act(async () => {
                 if (!keywords.length) throw new Error("Add a keyword first, then it can be searched.")
                 const { queued } = await searchAllMedium(projectId)
                 if (!queued) throw new Error("Every switched-on keyword is already being searched.")
-              }, "Searching every switched-on keyword.")}
+              })}
             >
               <RotateCwIcon />
               Search every keyword now
@@ -279,7 +291,7 @@ export function MediumKeywords({
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Writers and publications you never see</DropdownMenuLabel>
             {view?.hidden.length ? (
               view.hidden.map((hidden) => (
-                <DropdownMenuItem key={hidden.id} onSelect={() => void act(() => changeMediumHidden({ change: "show", hiddenId: hidden.id }), `${hidden.name || hidden.value} shows again.`)}>
+                <DropdownMenuItem key={hidden.id} onSelect={() => void act(() => changeMediumHidden({ change: "show", hiddenId: hidden.id }))}>
                   <EyeIcon />
                   <span className="truncate">Show {hidden.kind === "writer" ? `@${hidden.value}` : hidden.name || hidden.value} again</span>
                 </DropdownMenuItem>
@@ -289,6 +301,9 @@ export function MediumKeywords({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        </>
+      }
+    />
         <Dialog open={ideas !== null} onOpenChange={(open) => (open ? null : setIdeas(null))}>
           <DialogContent variant="admin">
             <DialogHeader>
@@ -303,7 +318,6 @@ export function MediumKeywords({
                     if (idea.kind === "publication") {
                       const added = await changeMediumPublication({ change: "add", projectId, slug: idea.value })
                       if (added.checkRefused) showErrorToast(`Added to Publications, but not checked yet. ${added.checkRefused}`)
-                      else toast.success("Added to the Publications tab.")
                     } else {
                       const saved = await saveMediumKeyword({ projectId, kind: idea.kind, value: idea.value })
                       if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)
@@ -323,8 +337,7 @@ export function MediumKeywords({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
-    </DashboardCardHeader>
+    </>
   )
 }
 

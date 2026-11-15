@@ -508,3 +508,23 @@ Every shell change up to 5 Nov is in Directory: 85 files replaced and 25 added, 
 **Kept as Directory's own.** `src/app/` stays Directory's own, and so does `src/app/open-endpoints.ts`, which lists Directory's own open endpoints. `.prettierrc` and `src/components/pages/site-search-page.tsx` stay Directory's own, because the shell has not changed them since Directory's copy. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Directory keeps its own `scripts/setup-database.mjs`, which never loads them.
 
 **One Directory file changed to fit.** The shell's `DocumentEditor` now works out the document's type from its `value`. The rich text field in `src/components/directory/listing-custom-fields.tsx` names it as `DocumentEditor<WrittenPageNode>`, because its empty value would otherwise read as any kind of document.
+
+## Shell merge, 12 November 2026
+
+Every shell change since the 7 Nov shell at `e69b7243e` is in Directory, up to the shell at `9757749ff`: 266 files replaced, 179 added and 75 deleted. Each replaced or deleted file was an unedited older shell copy, so nothing Directory changed was lost.
+
+**What arrived.**
+
+- **The Admin dashboard is one three-panel screen.** Overview, Users, Plans, Feedback, Announcements, Analytics and the Media library are sections of its Dashboards block, and Pages, Styling and Navigations sit inside it too. Their old separate screens are gone.
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists, Leads as its own section, lead tags, and Newsletter, Contacts, System emails and Dev outbox inside it.
+- **Automations is one three-panel dashboard**, Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with Reset panels, Opacity for the first card in a side panel, and a border shade of its own for the left menu and top bar under Sidebar & Top navigation.
+- **The header's Settings cog can hold links**, and Navigations' link editors open as popovers.
+- **Nothing pops up when something works.** Success toasts and Undo bars are gone from the shell's screens. Failures still raise the red error toast.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0136 to 0152. 0144 drops the referral and changelog tables, and 0149 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy. **Directory is live**, so both run on the live database at its next deploy, and the dropped tables cannot come back.
+
+**Kept as Directory's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator, and the shell's `@tiptap/extension-list` package was added. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` stay out, as before.
+
+**Checked.** Typecheck is clean in both the app and node configs. Tests were not run. Not checked in a browser: no dev server on this app's port runs from workspace-4.

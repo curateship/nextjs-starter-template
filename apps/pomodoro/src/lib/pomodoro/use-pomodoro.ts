@@ -43,6 +43,7 @@ import {
 } from "@/lib/pomodoro/guest-storage"
 import {
   applyActiveTaskOrder,
+  normalizeDueDate,
   normalizeEstimatedPomodoros,
   normalizeTaskPriority,
   orderTasksForDisplay,
@@ -608,6 +609,7 @@ function hydrateGuest() {
             estimatedPomodoros: normalizeEstimatedPomodoros(
               task.estimatedPomodoros
             ),
+            dueDate: normalizeDueDate(task.dueDate),
             // Repeats and projects are account features: a guest has no
             // rollover to make tomorrow's copy and no project list to pick
             // from, so a guest task always carries neither.
@@ -1157,6 +1159,7 @@ export function addTask(title: string) {
         pomodoros: 0,
         priority: "normal",
         estimatedPomodoros: null,
+        dueDate: null,
         repeatWeekdays: null,
         projectId: null,
         projectName: null,
@@ -1293,6 +1296,7 @@ export function updateTaskDetails(
     title?: string
     priority?: TaskPriority
     estimatedPomodoros?: number | null
+    dueDate?: string | null
     projectId?: string | null
   }
 ) {
@@ -1700,6 +1704,8 @@ export function usePomodoro() {
   return {
     ...snapshot,
     selectedTask,
+    /** The day due dates are read against: the account's, or the browser's for a guest. */
+    localToday: snapshot.today ?? browserLocalDate(),
     canSelectTask: timerIdle,
     timerIdle,
     /** True while a tick or a removal on this task is still in flight. */

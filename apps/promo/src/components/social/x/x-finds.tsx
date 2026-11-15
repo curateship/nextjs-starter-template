@@ -1,7 +1,6 @@
 import * as React from "react"
 import { EyeIcon, EyeOffIcon, HeartIcon, Loader2Icon, MessageCircleIcon, RadarIcon, RefreshCwIcon, TagIcon } from "lucide-react"
 
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -290,21 +289,5 @@ function PostLine({
         </Hint>
       )}
     </div>
-  )
-}
-
-/** The box that searches the posts by their words or the poster (part 19). */
-export function XFindSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <DashboardToolbarSearch
-      name="x-post-search"
-      aria-label="Search these posts by their words or the poster"
-      placeholder="Search"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      // Keeps room to type on a phone, where the keywords dropdown shares its row.
-      className="min-w-28"
-      inputClassName="sm:w-40 lg:w-40"
-    />
   )
 }

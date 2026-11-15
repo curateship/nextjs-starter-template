@@ -14,15 +14,19 @@
  * task's current title, "a task you can't see" or "deleted task" for each
  * reader (`src/server/project/task-links.ts`), so a title never reaches
  * someone who can't see the task.
+ *
+ * A # link to a project's note is saved as `#[First line](note:<note id>)`
+ * (`NOTE_LINK` in `notes.ts`), so the same token holds both, and every id
+ * read out of a # link is a task's id or `note:` and a note's.
  */
 
-const TOKEN = /([@#])\[([^\]\n]{1,200})\]\(([\w-]{1,36})\)/g
+const TOKEN = /([@#])\[([^\]\n]{1,200})\]\(((?:note:)?[\w-]{1,36})\)/g
 const WORD_CHARACTER = /[\p{L}\p{N}_]/u
 
 export type MessagePart =
   | { kind: "text"; text: string }
   | { kind: "tag"; userId: string; name: string }
-  | { kind: "link"; taskId: string; name: string }
+  | { kind: "link"; linkId: string; name: string }
 
 export function messageParts(body: string): MessagePart[] {
   const parts: MessagePart[] = []
@@ -32,7 +36,7 @@ export function messageParts(body: string): MessagePart[] {
     parts.push(
       match[1] === "@"
         ? { kind: "tag", name: match[2], userId: match[3] }
-        : { kind: "link", name: match[2], taskId: match[3] }
+        : { kind: "link", name: match[2], linkId: match[3] }
     )
     last = match.index + match[0].length
   }
@@ -65,8 +69,8 @@ export function tagsWholeProject(body: string): boolean {
   return tokenIds(body, "@").includes(PROJECT_TAG.id)
 }
 
-/** Every task a message links, each once. */
-export function linkedTaskIds(body: string): string[] {
+/** Every task and note a message links, each once: a task's id, or `note:` and a note's. */
+export function linkedIds(body: string): string[] {
   return tokenIds(body, "#")
 }
 

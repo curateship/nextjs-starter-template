@@ -92,7 +92,7 @@ describe("a new report", () => {
     expect(notice).toMatchObject({
       message: "New report: a profile.",
       kind: "report_new",
-      href: "/admin/pomodoro-reports",
+      href: "/admin/flowfly?section=safety",
       actorUserId: null,
       foldCount: 1,
     })

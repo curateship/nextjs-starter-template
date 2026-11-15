@@ -4,13 +4,25 @@ import {
   ChartNoAxesCombinedIcon,
   ListChecksIcon,
   ListIcon,
-  type LucideIcon,
+  TrendingUpIcon,
 } from "lucide-react"
 
-export const TRADING_DASHBOARD_WIDGET_SLOTS = ["top", "left", "right"] as const
+import {
+  cleanWidgetLayout,
+  type WidgetChoice,
+  type WidgetLayout,
+  type WidgetOffer,
+} from "@/lib/admin-dashboard/overview-widgets"
 
-export type TradingDashboardWidgetSlot =
-  (typeof TRADING_DASHBOARD_WIDGET_SLOTS)[number]
+/**
+ * Overview's widgets on the Trade dashboard (Tyler, 8 Nov 2026: "The widgets
+ * gets moved to the middle like how shell does it (widgets are not in
+ * settings)"). They sit in the shell's rows: a top row of 1 to 4 columns and
+ * a bottom row of None or 1 to 4, each column a spot holding one widget or
+ * Empty (`src/lib/admin-dashboard/overview-widgets.ts`). Only Trade's six are
+ * offered ("Trade's six only"), and the layout is each person's own ("Per
+ * account"), saved in `trade_prefs.overview_widgets`.
+ */
 
 export type TradingDashboardWidgetId =
   | "equity"
@@ -20,138 +32,51 @@ export type TradingDashboardWidgetId =
   | "trades"
   | "moving-now"
 
-export type TradingDashboardWidgetLayout = Record<
-  TradingDashboardWidgetSlot,
-  TradingDashboardWidgetId[]
->
+export const TRADING_DASHBOARD_WIDGETS = [
+  { id: "equity", label: "PnL Graph", icon: ChartNoAxesCombinedIcon },
+  { id: "active-trades", label: "Active Trades", icon: ListChecksIcon },
+  { id: "running-bots", label: "Running bots", icon: BotIcon },
+  { id: "profit-calendar", label: "Profit calendar", icon: CalendarDaysIcon },
+  { id: "trades", label: "All trades", icon: ListIcon },
+  { id: "moving-now", label: "Moving now", icon: TrendingUpIcon },
+] as const satisfies readonly (WidgetChoice & { id: TradingDashboardWidgetId })[]
 
-export type TradingDashboardWidget = {
-  id: TradingDashboardWidgetId
-  label: string
-  description: string
-  icon: LucideIcon
+export const TRADING_DASHBOARD_WIDGET_IDS: readonly TradingDashboardWidgetId[] =
+  TRADING_DASHBOARD_WIDGETS.map((widget) => widget.id)
+
+/** What the grid, its Widgets tab and each widget's ⋮ offer. */
+export const TRADING_WIDGET_OFFER: WidgetOffer = {
+  choices: TRADING_DASHBOARD_WIDGETS,
 }
 
-const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
-  {
-    id: "moving-now",
-    label: "Moving now",
-    description: "The ten markets with the most estimated trading in the last minute.",
-    icon: ChartNoAxesCombinedIcon,
-  },
-  {
-    id: "equity",
-    label: "PnL Graph",
-    description: "The account result, every real wallet, and money over time.",
-    icon: ChartNoAxesCombinedIcon,
-  },
-  {
-    id: "active-trades",
-    label: "Active Trades",
-    description: "Every open trade across all protocols and wallets.",
-    icon: ListChecksIcon,
-  },
-  {
-    id: "running-bots",
-    label: "Running bots",
-    description:
-      "Every live or practice flow still working or needing attention.",
-    icon: BotIcon,
-  },
-  {
-    id: "profit-calendar",
-    label: "Profit calendar",
-    description:
-      "A month of days, each coloured by the real money it made or lost.",
-    icon: CalendarDaysIcon,
-  },
-  {
-    id: "trades",
-    label: "All trades",
-    description: "Every recorded real fill, newest first, with its exchange.",
-    icon: ListIcon,
-  },
-]
-
-const widgetsById = new Map(
-  TRADING_DASHBOARD_WIDGETS.map((widget) => [widget.id, widget])
-)
-
-export function findTradingDashboardWidget(
-  id: string
-): TradingDashboardWidget | undefined {
-  return widgetsById.get(id as TradingDashboardWidgetId)
+export function findTradingDashboardWidget(id: string) {
+  return TRADING_DASHBOARD_WIDGETS.find((widget) => widget.id === id)
 }
 
-export function createDefaultTradingDashboardWidgets(): TradingDashboardWidgetLayout {
-  return {
-    top: ["equity", "active-trades"],
-    left: ["running-bots"],
-    right: ["trades"],
-  }
+/**
+ * A fresh start ("Shell's rows, fresh start"): PnL Graph and Active Trades on
+ * top, Running bots and All trades under them. Profit calendar and Moving now
+ * wait in the Widgets tab until placed.
+ */
+export const DEFAULT_TRADING_WIDGET_LAYOUT: WidgetLayout = {
+  top: { columns: 2, spots: ["equity", "active-trades"] },
+  bottom: { columns: 2, spots: ["running-bots", "trades"] },
 }
 
-export function normalizeTradingDashboardWidgets(
-  value: unknown
-): TradingDashboardWidgetLayout {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return createDefaultTradingDashboardWidgets()
-  }
-
-  const saved = value as Partial<Record<TradingDashboardWidgetSlot, unknown>>
-  if (
-    !TRADING_DASHBOARD_WIDGET_SLOTS.some((slot) => Array.isArray(saved[slot]))
-  ) {
-    return createDefaultTradingDashboardWidgets()
-  }
-
-  const seen = new Set<TradingDashboardWidgetId>()
-  const layout = {} as TradingDashboardWidgetLayout
-  for (const slot of TRADING_DASHBOARD_WIDGET_SLOTS) {
-    const ids = Array.isArray(saved[slot]) ? (saved[slot] as unknown[]) : []
-    layout[slot] = ids.flatMap((raw) => {
-      if (typeof raw !== "string") return []
-      const id = raw as TradingDashboardWidgetId
-      if (!widgetsById.has(id) || seen.has(id)) return []
-      seen.add(id)
-      return [id]
-    })
-  }
-  return layout
+/** A stored or sent layout made safe; nothing stored reads as the fresh start. */
+export function readTradingWidgetLayout(value: unknown): WidgetLayout {
+  return cleanWidgetLayout(value ?? undefined, TRADING_DASHBOARD_WIDGET_IDS, DEFAULT_TRADING_WIDGET_LAYOUT)
 }
 
-export function findTradingWidgetSlot(
-  layout: TradingDashboardWidgetLayout,
-  id: TradingDashboardWidgetId
-): TradingDashboardWidgetSlot | null {
-  return (
-    TRADING_DASHBOARD_WIDGET_SLOTS.find((slot) => layout[slot].includes(id)) ??
-    null
-  )
+/** Every widget a layout shows: the filled spots in the rows that show. */
+function placedWidgets(layout: WidgetLayout): Set<string> {
+  const rows = layout.bottom.columns > 0 ? [layout.top, layout.bottom] : [layout.top]
+  return new Set(rows.flatMap((row) => row.spots.filter((id): id is string => id !== null)))
 }
 
-export function unplacedTradingDashboardWidgets(
-  layout: TradingDashboardWidgetLayout
-): TradingDashboardWidget[] {
-  const placed = new Set(
-    TRADING_DASHBOARD_WIDGET_SLOTS.flatMap((slot) => layout[slot])
-  )
-  return TRADING_DASHBOARD_WIDGETS.filter((widget) => !placed.has(widget.id))
-}
-
-export function isTradingDashboardEmpty(layout: TradingDashboardWidgetLayout) {
-  return TRADING_DASHBOARD_WIDGET_SLOTS.every(
-    (slot) => layout[slot].length === 0
-  )
-}
-
-/** The optional reads behind widgets that may not be on this dashboard. */
-export function tradingOverviewWidgetReads(
-  layout: TradingDashboardWidgetLayout
-) {
-  const placed = new Set(
-    TRADING_DASHBOARD_WIDGET_SLOTS.flatMap((slot) => layout[slot])
-  )
+/** The optional reads behind widgets that may not be on this Overview. */
+export function tradingOverviewWidgetReads(layout: WidgetLayout) {
+  const placed = placedWidgets(layout)
   return {
     includeActiveTrades: placed.has("active-trades"),
     includeBots: placed.has("running-bots"),

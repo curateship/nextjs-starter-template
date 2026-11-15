@@ -140,6 +140,8 @@ export type RenderJobSummary = {
   /** The part of the project exported, or null for the whole of it. */
   range: { start_ms: number; end_ms: number } | null
   created_at: string
+  /** When the worker began rendering it; null while it waits. */
+  started_at: string | null
   finished_at: string | null
 }
 
@@ -189,6 +191,7 @@ export function serializeRenderJob(
         ? { start_ms: row.rangeStartMs, end_ms: row.rangeEndMs }
         : null,
     created_at: row.createdAt.toISOString(),
+    started_at: row.startedAt ? row.startedAt.toISOString() : null,
     finished_at: row.finishedAt ? row.finishedAt.toISOString() : null,
   }
 }

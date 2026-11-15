@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import { InspectorCard } from "@/components/automations/inspector-card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,7 +10,7 @@ export default function PlaceholderFields({
 }: AutomationNodeFieldsProps) {
   const note = typeof node.settings.note === "string" ? node.settings.note : ""
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`placeholder-${node.id}-note`}

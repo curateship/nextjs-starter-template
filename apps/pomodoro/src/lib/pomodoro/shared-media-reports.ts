@@ -29,9 +29,6 @@ export function sharedFileReportReasonLabel(id: string) {
   )
 }
 
-export const SHARED_FILE_REPORT_THANKS =
-  "Thanks. Someone on our team will look at this file."
-
 /** The copyright form's limits, matched by the form and the server. */
 export const COPYRIGHT_NAME_MAX = 100
 export const COPYRIGHT_EMAIL_MAX = 254

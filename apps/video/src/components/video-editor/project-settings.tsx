@@ -13,6 +13,7 @@ import {
   type VideoItem,
   type VideoSpend,
 } from "@/lib/api/video/project-videos"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The open project's settings and the open video's AI spending, for the whole
@@ -49,7 +50,13 @@ export function ProjectSettingsProvider({
       .then((loaded) => {
         if (active) setSpend(loaded)
       })
-      .catch((error) => console.error("Reading the video's AI spend failed", error))
+      .catch(() => {
+        if (!active) return
+        showErrorToast("This video's AI spending could not be read.", {
+          label: "Try again",
+          onClick: () => setReads((count) => count + 1),
+        })
+      })
     return () => {
       active = false
     }

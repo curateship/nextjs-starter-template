@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import {
@@ -93,7 +92,6 @@ export function MarketScannerSettings({
     try {
       const saved = await saveMarketScannerSettings(parsed.data)
       onSave(saved)
-      toast.success("Market scanner settings saved")
     } catch {
       showErrorToast(
         "Could not save Market scanner settings. Your edits are still here. Try again."

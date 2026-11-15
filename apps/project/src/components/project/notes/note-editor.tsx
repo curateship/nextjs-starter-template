@@ -1,5 +1,6 @@
 import * as React from "react"
-import type { Extensions } from "@tiptap/core"
+import type { Editor, Extensions } from "@tiptap/core"
+import { TextSelection } from "@tiptap/pm/state"
 
 import { blocksFor } from "@/components/project/notes/note-block-nodes"
 import { NoteBlocksMenu } from "@/components/project/notes/note-blocks-menu"
@@ -7,12 +8,12 @@ import { NoteReader } from "@/components/project/notes/note-reader"
 import { NoteSetupProvider, type NoteSetup } from "@/components/project/notes/note-setup"
 import { useNoteBlocks } from "@/components/project/notes/use-note-blocks"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
-import { cleanNoteBody, type NoteNode } from "@/lib/project/note-blocks"
+import { cleanDashboardBody, cleanNoteBody, cleanProjectPageBody, cleanTeamBody, type NoteNode } from "@/lib/project/note-blocks"
 
 /**
  * The shell's editor with Project's "/" blocks (Project note blocks task):
  * used by a task's notes, New task's and quick new task's description, and a
- * template's starting notes. Typing "/" opens the list; what this box offers
+ * project's page. Typing "/" opens the list; what this box offers
  * depends on `setup.where` (`blocksFor`). What is saved is cleaned to what a
  * Project note may hold (`cleanNoteBody`).
  */
@@ -69,13 +70,42 @@ export function NoteEditor({
   const [all] = React.useState<Extensions>(() => [...(extensions ?? []), ...blocks.extensions])
   return (
     <NoteFrame setup={setup}>
-      <div data-note-box="">
+      <div
+        data-note-box=""
+        // A right-click in the note opens the "/" list there (Tyler, 6 Nov 2026). Words
+        // already selected keep the browser's own menu, for Copy.
+        onContextMenu={(event) => {
+          if (disabled) return
+          const selected = window.getSelection()
+          if (selected && !selected.isCollapsed) return
+          const area = event.currentTarget.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
+          const editor = area?.editor
+          if (!editor || editor.isDestroyed || !editor.isEditable) return
+          event.preventDefault()
+          // The cursor goes where the click was, or to the end when it was past the words.
+          const hit = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })
+          const doc = editor.state.doc
+          const pos = hit ? hit.pos : doc.content.size
+          editor.chain().focus().setTextSelection(TextSelection.near(doc.resolve(Math.min(pos, doc.content.size))).from).run()
+          blocks.openAt(editor, event.clientX, event.clientY)
+        }}
+      >
         <DocumentEditor<NoteNode>
           value={value}
           onChange={onChange}
           disabled={disabled}
           extensions={all}
-          clean={cleanNoteBody}
+          // The site admin's own page keeps its dashboard blocks, and a team's page its
+          // team blocks, and a project's page its Milestones; every other note drops them.
+          clean={
+            setup.where === "dashboard"
+              ? cleanDashboardBody
+              : setup.where === "team"
+                ? cleanTeamBody
+                : setup.where === "projectPage"
+                  ? cleanProjectPageBody
+                  : cleanNoteBody
+          }
           placeholder={placeholder}
         />
       </div>

@@ -27,13 +27,14 @@ export const Route = createFileRoute("/_authenticated/team/")({
 })
 
 function TeamRoute() {
-  const { data, checkins, meetings, figures } = Route.useLoaderData()
+  const { data, checkins, meetings, figures, tasks } = Route.useLoaderData()
   return (
     <TeamDashboardScreen
       data={data}
       checkins={checkins}
       meetings={meetings}
       figures={figures}
+      tasks={tasks}
       search={Route.useSearch()}
     />
   )

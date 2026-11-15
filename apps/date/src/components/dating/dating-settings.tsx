@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CalendarPlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
@@ -453,7 +452,6 @@ function GoogleCalendarCard() {
             .then(async () => {
               setConfirming(false)
               setGoogle(await loadGoogleCalendar())
-              toast.success("Google Calendar is disconnected.")
             })
             .catch((failure: unknown) => showErrorToast(datingErrorMessage(failure)))
             .finally(() => setBusy(false))

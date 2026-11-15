@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { CalendarRangeIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { PanelCard } from "@/components/project/panel-card"
@@ -52,6 +52,7 @@ export function MyWeekSection({ reload }: { reload: unknown }) {
   return (
     <PanelCard
       storageId="project-my-week"
+      icon={<CalendarRangeIcon className="size-4" />}
       title="My week"
       meta={week ? weekSpan(week.monday, week.lastDay) : undefined}
     >

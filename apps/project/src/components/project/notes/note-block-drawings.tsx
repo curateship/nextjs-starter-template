@@ -6,13 +6,15 @@ import {
   DownloadIcon,
   ExternalLinkIcon,
   FileIcon,
+  FileXIcon,
   GlobeIcon,
   InfoIcon,
   LinkIcon,
+  Loader2Icon,
   ListTodoIcon,
+  MessagesSquareIcon,
   SettingsIcon,
   XIcon,
-  Loader2Icon,
   PlayIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -22,10 +24,12 @@ import {
 
 import { useFolded, toggleFold } from "@/components/project/notes/note-folds"
 import { useLoaded, useNoteSetup } from "@/components/project/notes/note-setup"
+import { ProjectBlockCard, TILE_BODY } from "@/components/project/notes/project-block-card"
 import { PhotoCreditLine, UnsplashPicker } from "@/components/project/notes/unsplash-picker"
 import { DueDate, StatusBadge } from "@/components/project/task-bits"
 import { TaskLinkButton } from "@/components/project/task-link"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -37,7 +41,8 @@ import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { findLinkableTasks, type LinkChoice } from "@/lib/api/project/chat"
 import { loadRecordCard, previewNotePage } from "@/lib/api/project/note-blocks"
-import { addFileToTask } from "@/lib/api/project/task-files"
+import { addFileToTask, deleteFileFromTask } from "@/lib/api/project/task-files"
+import type { TaskFile } from "@/lib/api/project/tasks"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { getProjectErrorMessage, PROJECT_ERRORS } from "@/lib/project/errors"
 import { isShownPicture, taskFileHref } from "@/lib/project/files"
@@ -80,6 +85,16 @@ const BLOCK_TOOLS =
 
 /** The frame every block sits in. The note's own link style is for its writing, not a block's small print. */
 export const BLOCK_FRAME = "group/block relative my-2 [&_a]:text-inherit! [&_a]:no-underline! [&_a:hover]:text-foreground!"
+/**
+ * The frame of Project's own live blocks: Projects, Daily card, Rating
+ * calendar and trend, the team blocks and Milestones. With Settings →
+ * Styling → Blocks → "Advanced blocks reach the panel's edges" on, they reach
+ * past the side panel's 15px to its edges, as the shell's app blocks do
+ * (`BlockFrame` in `shared/notes/block-card.tsx`). Basic blocks keep
+ * `BLOCK_FRAME` and the space. Outside a panel that sets `--panel-gutter`
+ * nothing moves.
+ */
+export const ADVANCED_BLOCK_FRAME = `${BLOCK_FRAME} mx-[calc(var(--panel-gutter,0px)*var(--shell-block-bleed,0)*-1)]`
 
 /** Whether the note can be written in, and how to change or remove the block, from the editor. */
 export type BlockEditing = { editable: boolean; remove: () => void }
@@ -102,20 +117,23 @@ function ToolButton({ label, icon: Icon, onClick }: { label: string; icon: Lucid
  * The block's buttons, inside its top-right corner. `top` lines them up with the block's first
  * line where that isn't 8px down, as on a Fold heading.
  */
-function BlockTools({
+export function BlockTools({
   editing,
   label,
   top = "top-2",
+  className,
   children,
 }: {
   editing: BlockEditing
   label: string
   top?: string
+  /** Where else the buttons sit, such as clear of a heading's own arrow. */
+  className?: string
   children?: React.ReactNode
 }) {
   if (!editing.editable && !children) return null
   return (
-    <div className={cn(BLOCK_TOOLS, top)}>
+    <div className={cn(BLOCK_TOOLS, top, className)}>
       {children}
       {editing.editable ? <ToolButton label={label} icon={Trash2Icon} onClick={editing.remove} /> : null}
     </div>
@@ -123,7 +141,7 @@ function BlockTools({
 }
 
 /** A grey line in the block's place: something gone, or not set up. */
-function BlockLine({ children, editing, label }: { children: React.ReactNode; editing: BlockEditing; label: string }) {
+export function BlockLine({ children, editing, label }: { children: React.ReactNode; editing: BlockEditing; label: string }) {
   return (
     <>
       <p className={cn("rounded-md border bg-muted/40 p-3 pr-12 text-sm text-muted-foreground", SELECTED)}>{children}</p>
@@ -132,13 +150,9 @@ function BlockLine({ children, editing, label }: { children: React.ReactNode; ed
   )
 }
 
-function BlockLoading({ label }: { label: string }) {
-  return (
-    <p className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
-      <Loader2Icon className="size-4 animate-spin" aria-hidden />
-      {label}
-    </p>
-  )
+/** The words alone while a block reads, with no loading circle (Tyler, 7 Nov 2026: no circles in a panel's body). */
+export function BlockLoading({ label }: { label: string }) {
+  return <p className="rounded-md border p-3 text-sm text-muted-foreground">{label}</p>
 }
 
 /** A web address field with Add, for an Image, Video or Web page block not filled in yet. */
@@ -522,15 +536,15 @@ export function TaskCardDrawing({ taskId, editing, onPick }: { taskId: string | 
   const { cards, openTask } = useNoteSetup()
   const [card, retry] = useLoaded(taskId, () => cards.load(taskId!))
 
+  const icon = <ListTodoIcon className="size-4" />
   if (!taskId) {
     if (!editing.editable) return null
     return (
-      <>
-        <div className={cn("rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind="task-card" title="Task card" icon={icon}>
+        <div className={TILE_BODY}>
           <TaskSearch onPick={onPick} />
         </div>
-        <BlockTools editing={editing} label="Remove task card" />
-      </>
+      </ProjectBlockCard>
     )
   }
   if (card.state === "loading") return <BlockLoading label="Loading the task…" />
@@ -550,28 +564,20 @@ export function TaskCardDrawing({ taskId, editing, onPick }: { taskId: string | 
   const task = card.value
   if (task.state === "hidden") return <BlockLine editing={editing} label="Remove task card">A task you can't see.</BlockLine>
   if (task.state === "deleted") return <BlockLine editing={editing} label="Remove task card">Removed: this task was deleted.</BlockLine>
+  // The task's name is the block's heading; the tile opens the task.
   return (
-    <>
+    <ProjectBlockCard editing={editing} kind={`task-card-${task.taskId}`} title={task.title} icon={icon}>
       <button
         type="button"
-        className={cn(
-          "grid w-full min-w-0 gap-1.5 rounded-md border bg-card p-3 pr-12 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
-          SELECTED
-        )}
+        aria-label={`Open ${task.title}`}
+        className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[inherit] p-3 text-left text-xs hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
         onClick={() => openTask(task.taskId, task.projectId)}
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="truncate text-sm font-medium">{task.title}</span>
-        </span>
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          <StatusBadge status={task.status} />
-          <span className="text-muted-foreground">{task.assigneeName ?? "Nobody on it"}</span>
-          <DueDate dueDate={task.dueDate} status={task.status} />
-        </span>
+        <StatusBadge status={task.status} />
+        <span className="text-muted-foreground">{task.assigneeName ?? "Nobody on it"}</span>
+        <DueDate dueDate={task.dueDate} status={task.status} />
       </button>
-      <BlockTools editing={editing} label="Remove task card" />
-    </>
+    </ProjectBlockCard>
   )
 }
 
@@ -583,8 +589,8 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
   if (!fileId) {
     if (!editing.editable || !task) return null
     return (
-      <>
-        <div className={cn("grid gap-3 rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind="file" title="File" icon={<FileIcon className="size-4" />}>
+        <div className={TILE_BODY}>
           {files.length ? (
             <div className="grid gap-2">
               <p className="text-sm font-medium">Pick one of this task's files</p>
@@ -609,23 +615,32 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
           )}
           <UploadButton label="Upload a file" picture={false} onAdded={(file) => onPick(file.id)} />
         </div>
-        <BlockTools editing={editing} label="Remove file" />
-      </>
+      </ProjectBlockCard>
     )
   }
 
   const file = files.find((each) => each.id === fileId)
   if (!file) return <BlockLine editing={editing} label="Remove file">Removed: this file was deleted.</BlockLine>
+  return <FileCard file={file} editing={editing} />
+}
+
+/**
+ * A file the block shows: its name as the heading, its size and Download on
+ * the tile, and Delete file in the ⋮ for whoever may (Tyler, 6 Nov 2026, once
+ * the task panel's Files box went: the block is where a file is deleted).
+ */
+function FileCard({ file, editing }: { file: TaskFile; editing: BlockEditing }) {
+  const [asking, setAsking] = React.useState(false)
   return (
-    <>
-      <div className={cn("flex min-w-0 items-center gap-3 rounded-md border bg-card p-2 pr-12", SELECTED)}>
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
-          <FileIcon className="size-4 text-muted-foreground" aria-hidden />
-        </span>
-        <span className="grid min-w-0 flex-1">
-          <span className="truncate text-sm font-medium">{file.name}</span>
-          <span className="text-xs text-muted-foreground">{formatFileSize(file.sizeBytes)}</span>
-        </span>
+    <ProjectBlockCard
+      editing={editing}
+      kind={`file-${file.id}`}
+      title={file.name}
+      icon={<FileIcon className="size-4" />}
+      menu={file.canDelete ? [{ label: "Delete file", icon: <FileXIcon className="size-4" />, onSelect: () => setAsking(true) }] : undefined}
+    >
+      <div className="flex min-w-0 items-center gap-3 p-3">
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{formatFileSize(file.sizeBytes)}</span>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="outline" size="icon-sm">
@@ -637,10 +652,110 @@ export function FileDrawing({ fileId, editing, onPick }: { fileId: string | null
           <TooltipContent>Download</TooltipContent>
         </Tooltip>
       </div>
-      <BlockTools editing={editing} label="Remove file" />
+      {file.canDelete ? <DeleteFileDialog file={file} editing={editing} open={asking} onOpenChange={setAsking} /> : null}
+    </ProjectBlockCard>
+  )
+}
+
+/**
+ * Deletes the file itself from the task, after asking (Tyler, 6 Nov 2026,
+ * once the task panel's Files box went: the block is where a file is
+ * deleted). Only for whoever may delete it. The block goes with it where the
+ * notes can be written in; elsewhere it reads "Removed: this file was
+ * deleted.", as every other block showing the file does.
+ */
+function DeleteFileDialog({
+  file,
+  editing,
+  open: asking,
+  onOpenChange: setAsking,
+}: {
+  file: TaskFile
+  editing: BlockEditing
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { task } = useNoteSetup()
+  const [busy, setBusy] = React.useState(false)
+  async function remove() {
+    setBusy(true)
+    try {
+      await deleteFileFromTask(file.id)
+      setAsking(false)
+      if (editing.editable) editing.remove()
+      await task?.refresh()
+    } catch (error) {
+      showErrorToast(getProjectErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title={`Delete ${file.name}?`}
+        description="It goes from the task for everyone, and from every note that shows it."
+        confirmLabel="Delete file"
+        destructive
+        loading={busy}
+        onConfirm={() => void remove()}
+      />
     </>
   )
 }
+
+/**
+ * Comments: the task's comments, with the box to write in, wherever the block
+ * is placed in its notes (Tyler, 6 Nov 2026: "Make comments a block"). It
+ * holds nothing of its own; the comments are the task's stored chat, so they
+ * read the same everywhere. While it shows, the panel doesn't draw them again
+ * under the notes. The thread takes its own clicks and keys, so writing in it
+ * never writes in the notes.
+ */
+export function CommentsDrawing({ editing }: { editing: BlockEditing }) {
+  const { task } = useNoteSetup()
+  const comments = task?.comments ?? null
+  const taskId = task?.id ?? ""
+  const placed = comments?.placed
+  React.useEffect(() => placed?.(), [placed])
+  if (!comments) return <BlockLine editing={editing} label="Remove comments">This task's comments show in its panel.</BlockLine>
+  return (
+    <CommentsBox taskId={taskId} count={comments.count} editing={editing}>
+      {comments.thread}
+    </CommentsBox>
+  )
+}
+
+/**
+ * The Comments block's card: "Comments" with the count on its heading, then
+ * the thread on the tile. Also drawn under the notes when no block is placed,
+ * where it reads only as a card and has no Delete block. The thread takes
+ * its own clicks and keys, so writing in it never writes in the notes.
+ */
+export function CommentsBox({
+  taskId,
+  count,
+  editing = READ_ONLY,
+  children,
+}: {
+  /** Each task's comments fold on their own in this browser. */
+  taskId: string
+  count: number
+  editing?: BlockEditing
+  children: React.ReactNode
+}) {
+  return (
+    <ProjectBlockCard editing={editing} kind={`comments-${taskId}`} title="Comments" icon={<MessagesSquareIcon className="size-4" />} count={count || undefined}>
+      <section aria-label="Comments" contentEditable={false} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 p-3">
+        {children}
+      </section>
+    </ProjectBlockCard>
+  )
+}
+
+const READ_ONLY: BlockEditing = { editable: false, remove: () => undefined }
 
 /**
  * Video or Promo: the task's own record, with its name and picture for those
@@ -657,33 +772,28 @@ export function RecordDrawing({ editing }: { editing: BlockEditing }) {
   }
   const link = task.link
   const info = LINKED_APP_INFO[link.app]
+  const icon = <ClapperboardIcon className="size-4" />
   if (!link.canOpen || !link.connected) {
     return (
-      <>
-        <div className={cn("rounded-md border bg-muted/40 p-3 pr-12", SELECTED)}>
+      <ProjectBlockCard editing={editing} kind={`record-${task.id}`} title={info.name} icon={icon}>
+        <div className={TILE_BODY}>
           <TaskLinkButton taskId={task.id} link={link} />
         </div>
-        <BlockTools editing={editing} label="Remove Video or Promo card" />
-      </>
+      </ProjectBlockCard>
     )
   }
   const loaded = card.state === "ready" ? card.value : null
   return (
-    <>
-      <div className={cn("flex min-w-0 flex-wrap items-center gap-3 rounded-md border bg-card p-2 pr-12", SELECTED)}>
+    <ProjectBlockCard editing={editing} kind={`record-${task.id}`} title={loaded?.name ?? info.name} icon={icon}>
+      <div className="flex min-w-0 flex-wrap items-center gap-3 p-3">
         {loaded?.pictureUrl ? (
           <img src={loaded.pictureUrl} alt="" loading="lazy" className="size-12 shrink-0 rounded-md bg-muted object-cover" />
         ) : (
           <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted">
-            {card.state === "loading" ? (
-              <Loader2Icon className="size-4 animate-spin text-muted-foreground" aria-label="Loading" />
-            ) : (
-              <ClapperboardIcon className="size-5 text-muted-foreground" aria-hidden />
-            )}
+            <ClapperboardIcon className="size-5 text-muted-foreground" aria-hidden />
           </span>
         )}
         <span className="grid min-w-0 flex-1">
-          <span className="truncate text-sm font-medium">{loaded?.name ?? info.name}</span>
           <span className="truncate text-xs text-muted-foreground">
             {card.state === "failed" ? (
               <>
@@ -694,6 +804,8 @@ export function RecordDrawing({ editing }: { editing: BlockEditing }) {
               </>
             ) : card.state === "ready" && !loaded?.name ? (
               `${info.name} didn't answer, so its name isn't shown.`
+            ) : card.state === "loading" ? (
+              `${info.name} · reading its name…`
             ) : (
               `${info.name} · ${info.record}`
             )}
@@ -701,8 +813,7 @@ export function RecordDrawing({ editing }: { editing: BlockEditing }) {
         </span>
         <TaskLinkButton taskId={task.id} link={link} />
       </div>
-      <BlockTools editing={editing} label="Remove Video or Promo card" />
-    </>
+    </ProjectBlockCard>
   )
 }
 

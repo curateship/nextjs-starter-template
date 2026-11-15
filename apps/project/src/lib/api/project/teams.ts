@@ -7,6 +7,9 @@ import {
   createTeamSchema,
   inviteManySchema,
   inviteSchema,
+  teamPageSchema,
+  type AnnouncementKind,
+  teamCoverSchema,
   teamPhotoSchema,
   updateTeamSchema,
 } from "@/lib/project/rules"
@@ -28,11 +31,14 @@ import {
   listTeams,
   loadTeamDashboard,
   removeTeamMember,
-  setTeamAvatar,
+  setTeamPage,
+  setTeamPageLock,
+  setTeamCover,
   setTeamPhoto,
   updateTeam,
 } from "@/server/project/teams"
 import { loadTeamFigures } from "@/server/project/team-figures"
+import { loadTeamTasks } from "@/server/project/team-tasks"
 
 export type {
   BulkResult,
@@ -44,6 +50,7 @@ export type {
 export type { Announcement } from "@/server/project/announcements"
 export type { InviteOutcome, SentInvite } from "@/server/project/invites"
 export type { TeamFigures } from "@/server/project/team-figures"
+export type { TeamTaskProject, TeamTasks } from "@/server/project/team-tasks"
 
 const id = z.string().min(1).max(36)
 
@@ -51,6 +58,12 @@ const loadTeamDashboardFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object(teamScope))
   .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeamDashboard(context.user.id)))
+
+/** Every task in the team's shared projects that this person can see, for the Tasks tab. */
+const loadTeamTasksFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => loadTeamTasks(context.user.id)))
 
 /** The four figures under the team's name on the Team dashboard. */
 const loadTeamFiguresFn = createServerFn({ method: "GET" })
@@ -67,10 +80,22 @@ const setTeamPhotoFn = createServerFn({ method: "POST" })
   .inputValidator(teamPhotoSchema.extend(teamScope))
   .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamPhoto(context.user.id, data.photoUrl)))
 
-const setTeamAvatarFn = createServerFn({ method: "POST" })
+const setTeamCoverFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(teamPhotoSchema.extend(teamScope))
-  .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamAvatar(context.user.id, data.photoUrl)))
+  .inputValidator(teamCoverSchema.extend(teamScope))
+  .handler(async ({ data, context }) =>
+    inTeam(data.teamId, () => setTeamCover(context.user.id, { photoUrl: data.photoUrl, coverImages: data.coverImages }))
+  )
+
+const setTeamPageFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(teamPageSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamPage(context.user.id, data.notes)))
+
+const setTeamPageLockFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ locked: z.boolean(), ...teamScope }))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => setTeamPageLock(context.user.id, data.locked)))
 
 const createTeamFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -117,14 +142,26 @@ const deleteTeamFn = createServerFn({ method: "POST" })
 export function loadTeamDashboardPage(teamId?: string) {
   return loadTeamDashboardFn({ data: { teamId } })
 }
+export function loadTeamTaskList(teamId?: string) {
+  return loadTeamTasksFn({ data: { teamId } })
+}
 export function loadFigures(teamId?: string) {
   return loadTeamFiguresFn({ data: { teamId } })
 }
 export function saveTeamPhoto(photoUrl: string, teamId?: string) {
   return setTeamPhotoFn({ data: { photoUrl, teamId } })
 }
-export function saveTeamAvatar(avatarUrl: string, teamId?: string) {
-  return setTeamAvatarFn({ data: { photoUrl: avatarUrl, teamId } })
+/** The team page's cover and its pictures, from its Cover photo row. */
+export function saveTeamCover(cover: { photoUrl: string; coverImages: string[] }, teamId?: string) {
+  return setTeamCoverFn({ data: { ...cover, teamId } })
+}
+/** The team's page at the top of the Team dashboard's left panel, the site admin's alone. */
+export function saveTeamPage(notes: unknown, teamId?: string) {
+  return setTeamPageFn({ data: { notes, teamId } })
+}
+/** Locks the team's page so it reads only, or unlocks it. */
+export function saveTeamPageLock(locked: boolean, teamId?: string) {
+  return setTeamPageLockFn({ data: { locked, teamId } })
 }
 export function createProjectTeam(data: z.input<typeof createTeamSchema>) {
   return createTeamFn({ data })
@@ -168,7 +205,7 @@ const postAnnouncementFn = createServerFn({ method: "POST" })
       }
       throw error
     }
-    return inTeam(data.teamId, () => postAnnouncement(context.user, data.text))
+    return inTeam(data.teamId, () => postAnnouncement(context.user, data.text, data.kind))
   })
 
 const takeDownAnnouncementFn = createServerFn({ method: "POST" })
@@ -190,8 +227,8 @@ const markAnnouncementSeenFn = createServerFn({ method: "POST" })
     inTeam(data.teamId, () => markAnnouncementSeen(context.user.id, data.announcementId))
   )
 
-export function postTeamAnnouncement(text: string, teamId?: string) {
-  return postAnnouncementFn({ data: { text, teamId } })
+export function postTeamAnnouncement(text: string, kind: AnnouncementKind, teamId?: string) {
+  return postAnnouncementFn({ data: { text, kind, teamId } })
 }
 export function takeDownTeamAnnouncement(teamId?: string) {
   return takeDownAnnouncementFn({ data: { teamId } })

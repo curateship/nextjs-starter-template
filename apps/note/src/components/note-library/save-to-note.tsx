@@ -97,7 +97,6 @@ export function IphoneShortcutSteps() {
     if (!address) return
     try {
       await navigator.clipboard.writeText(address)
-      toast.success("Address copied.")
     } catch {
       showErrorToast("This browser would not copy. Select the address and copy it by hand.")
     }

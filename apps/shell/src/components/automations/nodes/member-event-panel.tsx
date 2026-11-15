@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import {
   InspectorCard,
   InspectorNote,
@@ -30,7 +31,7 @@ export default function MemberEventFields({
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`member-event-${node.id}-event`}

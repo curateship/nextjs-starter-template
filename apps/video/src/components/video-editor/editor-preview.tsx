@@ -9,7 +9,9 @@ import {
   type Interval,
 } from "@/lib/video/audio-ducking"
 import {
+  clipLoops,
   clipMsAt,
+  playbackSourceMsAt,
   clipSpeed,
   clipVolume,
   sourceMsAt,
@@ -93,6 +95,7 @@ import {
 import { BlurFacePicker } from "@/components/video-editor/blur-face-picker"
 import { BeforeAfterSlider } from "@/components/video-editor/before-after-slider"
 import { requireTextFont } from "@/lib/video/text-fonts"
+import { DEFAULT_TIMER_FONT, isTimerClip, timerBox, timerMarkup, timerSecondAt } from "@/lib/video/timer"
 import {
   TEXT_LINE_HEIGHT,
   TEXT_WRAP_WIDTH,
@@ -222,6 +225,24 @@ function seekPreviewMedia(
 
 // The two ends of a shape, each with a handle of its own while it is picked.
 const SHAPE_ENDS = ["from", "to"] as const
+
+/**
+ * A timer as the preview draws it: the same drawing as the export's, for
+ * the same whole second, placed at its box in the shape layer's frame
+ * (timer.ts). The markup only changes once a second, so the layer is only
+ * rewritten then.
+ */
+function timerPreviewMarkup(clip: EditorClip, frame: { width: number; height: number }, intoMs: number) {
+  const box = timerBox(clip, frame)
+  const family = requireTextFont(clip.fontId ?? DEFAULT_TIMER_FONT).family
+  return `<g transform="translate(${box.left.toFixed(2)} ${box.top.toFixed(2)})">${timerMarkup(
+    clip,
+    box,
+    timerSecondAt(clip, intoMs),
+    family,
+    Math.min(frame.width, frame.height)
+  )}</g>`
+}
 
 /** Where a shape's dashed box and its two end dots sit, in percent. */
 function shapeHandleCss(clip: EditorClip) {
@@ -762,6 +783,9 @@ export function EditorPreview() {
       let endedAudioTime: number | null = null
       for (const { clip, track } of frame.audios.values()) {
         if (track.muted || clip.muted) continue
+        // A looped sound wraps back to its start, so it would send the
+        // playhead backwards; the playhead keeps wall time over it.
+        if (clipLoops(clip)) continue
         hasAudioSource = true
         const element = audioRefs.current.get(clip.id)
         if (!element) continue
@@ -793,7 +817,9 @@ export function EditorPreview() {
       if (!element) return timeMs
       // A file that has run out, whether or not its clip has, leaves the
       // playhead on ordinary wall time, so a held last frame keeps time.
+      // A looped video wraps back to its start, so it keeps wall time too.
       if (
+        clipLoops(entry.clip) ||
         element.ended ||
         holdsLastFrame(element, sourceMsAt(entry.clip, timeMs - entry.clip.startMs) / 1000)
       ) {
@@ -957,7 +983,9 @@ export function EditorPreview() {
                 placing ? SOCIAL_PLACING_MS : intoMs,
                 clip.pictureUrl ?? null
               )
-            : shapePathsMarkup(clip, shapeFrame, placing ? 1 : shapeProgress(clip, intoMs))
+            : isTimerClip(clip)
+              ? timerPreviewMarkup(clip, shapeFrame, intoMs)
+              : shapePathsMarkup(clip, shapeFrame, placing ? 1 : shapeProgress(clip, intoMs))
           if (drawnShapes.get(element) !== markup) {
             drawnShapes.set(element, markup)
             element.innerHTML = markup
@@ -1137,10 +1165,13 @@ export function EditorPreview() {
         // once real playback starts at the seam.
         const wantedS = reaching
           ? clip.trimStartMs / 1000
-          : sourceMsAt(clip, timeMs - clip.startMs) / 1000
-        // Past the end of its file the clip is parked on its last frame and
-        // left paused: playing an ended file would start it from the top.
-        const holding = holdsLastFrame(element, wantedS)
+          : playbackSourceMsAt(clip, timeMs - clip.startMs) / 1000
+        // A looped clip plays its file round again (clip-loop.md); any other
+        // clip past the end of its file is parked on its last frame and left
+        // paused, because playing an ended file would start it from the top.
+        const loops = clipLoops(clip)
+        if (element.loop !== loops) element.loop = loops
+        const holding = !loops && holdsLastFrame(element, wantedS)
         const targetS = holding ? element.duration - HOLD_LAST_FRAME_S : wantedS
         if ((!playing || reaching || holding) && !element.paused) element.pause()
         // A different piece of the same file: jump to it exactly. Letting the
@@ -1175,7 +1206,9 @@ export function EditorPreview() {
         if (element.volume !== volume) element.volume = volume
         const rate = clipSpeed(clip)
         if (element.playbackRate !== rate) element.playbackRate = rate
-        const targetS = sourceMsAt(clip, timeMs - clip.startMs) / 1000
+        const loops = clipLoops(clip)
+        if (element.loop !== loops) element.loop = loops
+        const targetS = playbackSourceMsAt(clip, timeMs - clip.startMs) / 1000
         if (!playing && !element.paused) element.pause()
         seekPreviewMedia(
           element,
@@ -1788,7 +1821,9 @@ export function EditorPreview() {
                             ? "Resize the blur"
                             : isSocialClip(clip)
                               ? `Resize the ${clip.name.toLowerCase()}`
-                              : "Resize the circle"
+                              : isTimerClip(clip)
+                                ? "Resize the timer"
+                                : "Resize the circle"
                       }
                       onPointerDown={(event) => handleShapeDown(event, clip, part)}
                       onPointerMove={handleShapeMove}

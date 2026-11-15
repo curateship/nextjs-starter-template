@@ -44,7 +44,7 @@ describe("Archived", () => {
   it("saves, and leaves the person's own tasks", async () => {
     const made = await createTask(
       actor(anna),
-      { projectId, title: "Old banner", notes: "", assigneeUserId: ben.id, dueDate: "2000-01-03", steps: [] },
+      { projectId, title: "Old banner", notes: "", assigneeUserId: ben.id, dueDate: "2000-01-03" },
       database
     )
     expect((await loadMyWork(ben.id, database)).map((task) => task.id)).toContain(made.id)

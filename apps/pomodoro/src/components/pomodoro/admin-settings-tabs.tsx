@@ -61,6 +61,7 @@ import {
   type MediaSeason,
 } from "@/lib/pomodoro/app-settings"
 import type { MediaCatalog } from "@/lib/pomodoro/catalog"
+import { flowflyLink } from "@/lib/pomodoro/flowfly-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -166,6 +167,14 @@ export function NewAccountsSettingsTab() {
   return (
     <SettingsTab>
       {({ settings }) => <NewAccountTimerCard initial={settings["timer.newAccount"]} />}
+    </SettingsTab>
+  )
+}
+
+export function NotionTimerSettingsTab() {
+  return (
+    <SettingsTab>
+      {({ settings }) => <NotionTimerCard initial={settings["embed.notionTimer"]} />}
     </SettingsTab>
   )
 }
@@ -568,6 +577,35 @@ function MemberUploadsCard({
 }
 
 /**
+ * The switch for `/embed/timer`, the timer people put in a Notion page.
+ * Tyler, 7 Nov 2026: "Add enable and disable notion timer in settings".
+ */
+function NotionTimerCard({ initial }: { initial: boolean }) {
+  const [on, setOn] = React.useState(initial)
+  const save = useSettingSave()
+  const switchId = React.useId()
+  return (
+    <CollapsibleSettingsCard
+      storageId="pomodoro-notion-timer"
+      title="Notion timer"
+      description="The timer people paste into a Notion embed block, at /embed/timer on this site."
+      contentClassName="grid gap-4"
+    >
+      <SettingsSwitchRow
+        id={switchId}
+        checked={on}
+        onCheckedChange={(checked) => {
+          setOn(checked)
+          void save.now("embed.notionTimer", checked)
+        }}
+        label="Show the timer inside Notion"
+        hint="Off, every Notion page holding it shows one line saying the timer is switched off, with a link to the full site. It always runs as a guest, so its focuses never reach anybody's Stats."
+      />
+    </CollapsibleSettingsCard>
+  )
+}
+
+/**
  * The break theme and message. Tyler, 9 Oct 2026: "Add a feature for admin to
  * choose a theme that changes to it for break timer and an area for text so I
  * can put some encourgement text or tips."
@@ -946,15 +984,6 @@ function SafetyGroup({ initial }: { initial: AppSettingValue<"safety.pause"> }) 
       setPauses(before)
       return
     }
-    toast.success(
-      "newRooms" in change
-        ? change.newRooms
-          ? "New rooms are paused."
-          : "New rooms can be opened again."
-        : change.chat
-          ? "Chat is paused in every room."
-          : "Chat is back on in every room."
-    )
   }
   return (
     <>
@@ -1204,7 +1233,6 @@ function PixabayCard() {
     try {
       setStatus(await savePixabayKey(null))
       setRemoving(false)
-      toast.success("Pixabay key removed.")
     } catch (error) {
       showErrorToast(getPixabayKeyErrorMessage(error))
     } finally {
@@ -1326,9 +1354,6 @@ function MadeUpSharesCard() {
       const result = await giveMadeUpMembersSharedFiles(links)
       setRefused(result.refused)
       if (result.added) {
-        toast.success(
-          `${result.added} ${result.added === 1 ? "file is" : "files are"} on the way. Each joins a made-up member's shared files once Pixabay sends it.`
-        )
         setText("")
       } else showErrorToast("None of those links could be used.")
     } catch (cause) {
@@ -1509,9 +1534,7 @@ function MadeUpMembersCard({
       }
       const result = await makeSimulatedMembersNow()
       setStatus(result)
-      if (result.queued)
-        toast.success(`Making ${result.target - result.made} made-up members. It takes about a minute.`)
-      else toast.success(`All ${result.target} are made already. Raise How many to make more.`)
+      if (!result.queued) toast(`All ${result.target} are made already. Raise How many to make more.`)
     } catch (error) {
       showErrorToast(getSimulatedErrorMessage(error))
     } finally {
@@ -1522,15 +1545,9 @@ function MadeUpMembersCard({
   const removeAll = async () => {
     setRemoveBusy(true)
     try {
-      const { removed, leaving } = await removeAllSimulatedMembers()
+      await removeAllSimulatedMembers()
       forgetMadeUpIds()
       setRemoving(false)
-      toast.success(
-        `Removed ${removed} made-up member${removed === 1 ? "" : "s"}.` +
-          (leaving
-            ? ` ${leaving} host${leaving === 1 ? " stays" : "s stay"} until the real people in ${leaving === 1 ? "its room" : "their rooms"} leave.`
-            : "")
-      )
       setReloads((count) => count + 1)
     } catch (error) {
       showErrorToast(getSimulatedErrorMessage(error))
@@ -1672,7 +1689,7 @@ function MadeUpMembersCard({
           variant="outline"
           disabled={removeBusy}
           onClick={() => {
-            if (status && status.made === 0) toast.success("There are no made-up members to remove.")
+            if (status && status.made === 0) toast("There are no made-up members to remove.")
             else setRemoving(true)
           }}
         >
@@ -1681,8 +1698,8 @@ function MadeUpMembersCard({
       </div>
       <p className="text-sm text-muted-foreground">
         A new account can take up to five minutes to show on /users. What each one did today is on{" "}
-        <Link to="/admin/pomodoro-simulated" className="underline underline-offset-4">
-          the watch page
+        <Link to="/admin/flowfly" search={flowflyLink("madeup")} className="underline underline-offset-4">
+          Flowfly, Members, Made-up
         </Link>
         .
       </p>

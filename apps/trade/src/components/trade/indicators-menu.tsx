@@ -317,32 +317,25 @@ function IndicatorDialog({
 export function IndicatorsMenu({
   indicators,
   context,
-  trigger,
-  nested = false,
 }: {
   indicators: ChartIndicators
   context: IndicatorContext
-  trigger?: React.ReactElement
-  /** Places the dropdown beside a trigger inside another chart menu. */
-  nested?: boolean
 }) {
   const on = indicatorsOn(indicators.settings)
   const [editing, setEditing] = React.useState<string | null>(null)
   return (
     <>
       <Popover>
-        {trigger ? (
-          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        ) : (
           <Tooltip>
             <TooltipTrigger asChild>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
-                  variant="outline"
+                  // No background and no border, like every button in the chart header.
+                  variant="ghost"
                   size="icon"
                   aria-label={on ? `Indicators, ${on} on` : "Indicators"}
-                  className="relative bg-muted/60 dark:bg-muted/60"
+                  className="relative rounded-lg"
                 >
                   <ChartNoAxesCombinedIcon className="size-4" />
                   {on ? (
@@ -355,11 +348,10 @@ export function IndicatorsMenu({
             </TooltipTrigger>
             <TooltipContent>Indicators</TooltipContent>
           </Tooltip>
-        )}
         <PopoverContent
-          side={nested ? "right" : "bottom"}
-          align={nested ? "start" : "end"}
-          sideOffset={nested ? 8 : 4}
+          side="bottom"
+          align="end"
+          sideOffset={4}
           className="w-80 gap-0 p-2"
         >
           <div className="grid gap-1">

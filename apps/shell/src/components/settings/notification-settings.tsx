@@ -10,7 +10,6 @@ const notificationSettingLabels: Record<NotificationType, string> = {
   feedback_vote: "Thumbs up on feedback",
   feedback_comment: "Comments on feedback",
   feedback_merged: "Merged feedback",
-  changelog: "Product updates",
   announcement: "Announcements",
   ai_limit_warning: "AI allowance warnings",
   ai_limit_reached: "AI allowance reached",
@@ -20,6 +19,7 @@ const notificationSettingLabels: Record<NotificationType, string> = {
   system_email_failed: "Account emails that stopped retrying",
   app_activity: "Activity in the app, such as a trade or a price alert",
   crm_follow_up: "A lead you set a date to follow up on",
+  crm_mail_arrived: "Mail arriving in the CRM",
 }
 
 /**

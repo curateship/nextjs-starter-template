@@ -13,7 +13,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -41,7 +40,6 @@ import {
   type ExportListWithShares,
   type RenderJobSummary,
 } from "@/lib/api/video/exports"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
@@ -64,7 +62,9 @@ import { ExportShareDialog } from "@/components/video-editor/export-share-dialog
 import { isExportActive } from "@/components/video-editor/use-project-exports"
 import { PromoSendStatusLine } from "@/components/video-promo/promo-send-status"
 import { SendToPromoDialog, type PromoSendTarget } from "@/components/video-promo/send-to-promo-dialog"
+import { useNow } from "@/components/video-assets/use-time-so-far"
 import { getPromoErrorMessage, refreshPromoSends, retryPromoSend, type PromoSendView } from "@/lib/api/video/promo"
+import { exportProgressText, stopExportsLabel } from "@/lib/video/export-status"
 
 export type ExportSortColumn =
   | "title"
@@ -257,15 +257,6 @@ export function ExportsPage({
       selection.clear()
       setDeleteTargets([])
       await router.invalidate()
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: deleteTargets.length - deleted.length,
-          one: "export",
-          many: "exports",
-          verb: "deleted",
-        })
-      )
     })
   }
 
@@ -273,7 +264,7 @@ export function ExportsPage({
     await run(async () => {
       await retryExport(item.id)
       await router.invalidate()
-    }, `Trying ${item.title ?? "this export"} again.`)
+    })
   }
 
   async function handleStop(item: RenderJobSummary) {
@@ -283,11 +274,13 @@ export function ExportsPage({
       } finally {
         await router.invalidate()
       }
-    }, "Export stopped. No file was made.")
+    })
   }
 
   const selectedItems = items.filter((item) => selection.selected.has(item.id))
   const selectedCount = selection.selected.size
+  // Only a finished export can go, so the button counts only those.
+  const selectedReady = selectedItems.filter((item) => item.status === "ready").length
 
   /** Send to Promo for one row or every ticked one (parts 4 and 7). */
   function openSend(targets: RenderJobSummary[]) {
@@ -304,6 +297,7 @@ export function ExportsPage({
       sourceProjectId: ready.length === 1 ? first.project_id : null,
       hasLanguageCopies: ready.some((item) => exportGroupId(item, originals) !== null),
       earlier: ready.flatMap((item) => promoSends.get(item.id) ?? []),
+      leftOut: targets.length - ready.length,
     })
   }
 
@@ -329,7 +323,7 @@ export function ExportsPage({
             {selectedCount ? (
               <DashboardToolbarButton type="button" variant="outline" onClick={() => openSend(selectedItems)}>
                 <SendIcon className="size-4" />
-                Send to Promo ({selectedCount})
+                Send to Promo ({selectedReady})
               </DashboardToolbarButton>
             ) : null}
             {selectedCount ? (
@@ -550,13 +544,13 @@ export function ExportsPage({
                             <Link2Icon className="size-4" />
                           </Button>
                         </Hint>
-                        <Hint label="Edit">
+                        <Hint label="Settings">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
                             onClick={() => setEditing(item)}
-                            aria-label={`Edit ${item.title ?? "this export"}`}
+                            aria-label={`Settings for ${item.title ?? "this export"}`}
                           >
                             <SettingsIcon className="size-4" />
                           </Button>
@@ -585,7 +579,7 @@ export function ExportsPage({
                         onClick={() => void handleStop(item)}
                         aria-label={`Stop export ${item.title ?? "this export"}`}
                       >
-                        Stop export
+                        {stopExportsLabel(1)}
                       </Button>
                     ) : (
                       <Hint label="Delete">
@@ -741,12 +735,7 @@ export function ExportRowStatus({
     )
   }
   if (isExportActive(item)) {
-    return (
-      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Loader2Icon className="size-3.5 animate-spin" />
-        {item.status === "running" ? "Making it now…" : "Waiting to start…"}
-      </span>
-    )
+    return <ExportRowProgress item={item} />
   }
   if (shared) {
     return (
@@ -757,4 +746,15 @@ export function ExportRowStatus({
     )
   }
   return null
+}
+
+/** A waiting or running row's line, the same words the Export window uses. */
+function ExportRowProgress({ item }: { item: RenderJobSummary }) {
+  const now = useNow(item.status === "running")
+  return (
+    <span className="flex items-center gap-1.5 text-sm text-muted-foreground tabular-nums">
+      <Loader2Icon className="size-3.5 animate-spin" />
+      {exportProgressText(item, now)}
+    </span>
+  )
 }

@@ -76,9 +76,8 @@ describe("trade sound settings", () => {
       fillsAndStops: true,
       alerts: false,
     })
-    expect(toasts.success).toHaveBeenCalledWith(
-      "Fill and stop sounds are on. That was the fill sound."
-    )
+    // The sound itself is the answer; nothing pops up (Tyler, 10 Nov 2026).
+    expect(toasts.success).not.toHaveBeenCalled()
   })
 
   it("explains when the browser refuses the preview", async () => {

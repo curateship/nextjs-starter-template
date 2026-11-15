@@ -1,19 +1,19 @@
 import * as React from "react"
-import { toast } from "sonner"
-
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The shape every button that calls the server takes: clear the last failure,
- * mark itself busy, do the work, say so if it worked, show the failure as a
- * toast if it did not, and stop being busy either way.
+ * mark itself busy, do the work, show the failure as a toast if it did not
+ * work, and stop being busy either way. Nothing pops up when it works: the
+ * screen showing the change is the answer (Tyler, 10 Nov 2026: "Remove all
+ * success toast").
  *
  * `describeError` is the feature's own `getXErrorMessage`, so a failure is
  * still reported in that feature's words.
  *
  *     const [run, busy] = useAsyncAction(getPlanErrorMessage)
  *     …
- *     onClick={() => run(() => archivePlan(id), "Plan archived.")}
+ *     onClick={() => run(() => archivePlan(id))}
  *
  * `run` returns true when the work succeeded, for the callers that need to
  * close a dialog only on success.
@@ -22,12 +22,11 @@ export function useAsyncAction(describeError: (error: unknown) => string) {
   const [busy, setBusy] = React.useState(false)
 
   const run = React.useCallback(
-    async (work: () => Promise<unknown>, successText?: string) => {
+    async (work: () => Promise<unknown>) => {
       dismissErrorToast()
       setBusy(true)
       try {
         await work()
-        if (successText) toast.success(successText)
         return true
       } catch (error) {
         showErrorToast(describeError(error))

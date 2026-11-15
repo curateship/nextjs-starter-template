@@ -37,6 +37,7 @@ import {
 } from "@/server/pomodoro/productivity"
 import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
 import { listSharedMedia } from "@/server/pomodoro/shared-media"
+import { forgetShareCard } from "@/server/pomodoro/share-card"
 import { forgetTeamPages } from "@/server/pomodoro/teams"
 import { PROFILE_SHARED_COUNT } from "@/lib/pomodoro/shared-media"
 import {
@@ -159,6 +160,8 @@ function writeHeld<T>(
 export function forgetPublicProfile(handle: string | null) {
   if (!handle) return
   profileCache.delete(handle)
+  // The share picture is drawn from the same profile, so it goes with it.
+  forgetShareCard(handle)
   for (const key of recapCache.keys())
     if (key.startsWith(`${handle}:`)) recapCache.delete(key)
 }

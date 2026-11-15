@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -56,7 +55,6 @@ function ViralLinkSettings() {
       held = next
       setView(next)
       setAsking(false)
-      toast.success("New key made. Paste it into Viral's Settings → Video connection.")
     } catch (error) {
       showErrorToast(getViralKeyErrorMessage(error))
     } finally {
@@ -68,7 +66,6 @@ function ViralLinkSettings() {
     if (!view?.key) return
     try {
       await navigator.clipboard.writeText(view.key)
-      toast.success("Key copied.")
     } catch {
       showErrorToast("The browser wouldn't copy it. Select the key and copy it by hand.")
     }

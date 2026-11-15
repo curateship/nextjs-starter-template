@@ -140,7 +140,9 @@ should open a dropdown to edit template").
   again, the same pictures and the same music.
 - **Spending cap:** the most one video may cost, empty until set (Tyler's
   pick). It counts the scenes, the AI music and the language copies' voices.
-  Make it refuses above it and says by how much.
+  Make it refuses above it and says by how much. A cap that isn't a dollar
+  figure above $0 is not saved, and the reason sits under the box until it
+  is.
 - **No status setting.** A video made with Generate video stays Draft, like
   any new video (Tyler, 5 Nov 2026: "A new generate video is always draft").
   The "When it's made" card that set a status was removed the same day, and

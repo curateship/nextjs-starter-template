@@ -22,6 +22,11 @@ closes the picker and leaves the window underneath it open. It used to draw
 itself inside that window instead, which stretched a 96px picture field across
 the form and ran off the bottom of the screen.
 
+Exactly one tile in the picker has a ring: the file Select will insert. When
+the window opens, that is the file the field already uses. Clicking another
+file moves the ring to it, and the file in use keeps its "Current" badge, so
+the ring always means "this one" and the badge always means "in use now".
+
 ## Upload checks
 
 Uploads pass several checks:
@@ -72,9 +77,14 @@ row. The original the admin picked is not in that folder and is never swept.
 
 ## Admin and cleanup
 
-The Media dashboard can see files across the workspace, their owners, current
-storage use, and records that no longer have a valid owner. Admin cleanup can
-remove confirmed orphaned files from both the database and object storage.
+Every account's files are the Media library section of the Admin dashboard
+(`/admin/dashboard?tab=media`, picked from the left page's Dashboards block;
+`ui/admin.md` says what each panel holds). It lists files across the
+workspace, their owners, current storage use, and records that no longer have
+a valid owner. Pressing a file opens it in the right panel, where its ⋮ holds
+its alt text and Delete. Admin cleanup can remove confirmed orphaned files
+from both the database and object storage. `/admin/media` forwards to the
+section, keeping `?owner=`, `?media=` and `?orphan=`.
 
 Deleting a normal file checks ownership and removes its stored object. A screen
 that still refers to the deleted id must handle the missing media state rather

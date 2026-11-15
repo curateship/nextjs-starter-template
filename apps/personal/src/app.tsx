@@ -17,6 +17,7 @@ import {
   allLinks,
   appMenuWidth,
   darkShade,
+  DEFAULT_MENU_EDGE,
   DEFAULT_MENU_SHADE,
   DEFAULT_SIDEBAR_WIDTH,
   hasLinkTo,
@@ -25,6 +26,7 @@ import {
   screenName,
   setAppMenuWidth,
   setDarkShade,
+  setMenuEdge,
   setMenuShade,
   startLink,
   stayLoadedLink,
@@ -166,6 +168,7 @@ function Personal({
   const sidebarWidth = menu.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH
   const menuShade = menu.menuShade ?? DEFAULT_MENU_SHADE
   useMenuShade(menuShade, darkShade(menu.darkShade).lift)
+  const menuEdge = menu.menuEdge ?? DEFAULT_MENU_EDGE
   const activeId = activeLinkId(menu, screen?.url ?? null)
   useFavicon(menu.brand?.logo)
   const places = placesOf(menu)
@@ -212,6 +215,8 @@ function Personal({
     setKept: view.setKept,
     shade: menuShade,
     setShade: (shade) => update((m) => setMenuShade(m, shade)),
+    edge: menuEdge,
+    setEdge: (edge) => update((m) => setMenuEdge(m, edge)),
     darkShade: darkShade(menu.darkShade).id,
     setDarkShade: (shade) => update((m) => setDarkShade(m, shade)),
     colourMode: colour.mode,
@@ -247,16 +252,20 @@ function Personal({
             ) : null}
             <aside
               className={cn(
-                // The menu's edge is the theme's line at half strength: Tyler
-                // asked for it fainter on 16 Oct 2026. The theme file is Custom
-                // Shell's, so it stays as it is.
-                "shrink-0 border-r border-sidebar-border/50 bg-sidebar",
+                // The menu's edge is the theme's line at the cog's "Menu edge"
+                // strength, half by default: Tyler asked for it fainter on 16
+                // Oct 2026 and for a slider on 9 Nov 2026. The theme file is
+                // Custom Shell's, so it stays as it is.
+                "shrink-0 border-r bg-sidebar",
                 // Folded is Custom Shell's 3rem: a 32px icon and 8px either side.
                 folded ? "w-12" : "w-(--sidebar-width)",
                 // On a phone the menu opens over the page; from 768px it always
                 // sits in its own column, even if it was left open on a phone.
                 menuOpen ? "fixed inset-y-0 left-0 z-40 block md:static md:z-auto" : "hidden md:block"
               )}
+              style={{
+                borderRightColor: `color-mix(in oklab, var(--sidebar-border) ${menuEdge}%, transparent)`,
+              }}
             >
               <div className="relative h-full">
                 <Sidebar

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ListChecksIcon, Loader2Icon, RotateCcwIcon, XIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -23,7 +22,6 @@ import {
   type JobList,
   type JobRow,
 } from "@/lib/api/social/jobs"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
@@ -231,20 +229,7 @@ function JobsTable({
   async function act(ids: string[]) {
     setBusy(true)
     try {
-      const answer = tab === "failed" ? await retryFailedJobs(ids) : await cancelWaitingJobs(ids)
-      toast.success(
-        describeBulkResult({
-          done: answer.completed.length,
-          kept: answer.skipped.length,
-          one: "job",
-          many: "jobs",
-          verb: tab === "failed" ? "put back on the queue" : "cancelled",
-          keptReason:
-            tab === "failed"
-              ? "left alone because they write to Reddit. Try those again from the Comments screen"
-              : "already running",
-        })
-      )
+      await (tab === "failed" ? retryFailedJobs(ids) : cancelWaitingJobs(ids))
       selection.clear()
       await onRefresh()
     } catch (failure) {

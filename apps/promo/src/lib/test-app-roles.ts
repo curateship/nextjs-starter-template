@@ -9,7 +9,7 @@ import type { AppOptions } from "@/lib/app-options"
  *     }))
  *
  * `employee` gets nothing of the shell, which is where every app role starts.
- * `editor` gets Feedback and Changelog, so a test can tell "has none" from
+ * `editor` gets Feedback and AI usage, so a test can tell "has none" from
  * "has some". Nothing outside a test imports this file.
  */
 export const testAppRoleOptions: AppOptions = {
@@ -39,7 +39,7 @@ export const testAppRoleOptions: AppOptions = {
       id: "editor",
       label: "Editor",
       landing: "/editing",
-      features: ["feedback", "changelog"],
+      features: ["feedback", "aiUsage"],
       menu: [],
     },
   ],

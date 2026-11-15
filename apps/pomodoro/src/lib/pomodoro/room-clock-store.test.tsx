@@ -44,7 +44,7 @@ vi.mock("@/lib/pomodoro/use-pomodoro", () => ({
     calls.toggleTimer()
   },
 }))
-vi.mock("sonner", () => ({ toast: { success: calls.toast } }))
+vi.mock("sonner", () => ({ toast: calls.toast }))
 
 /** A stand-in for the browser's live connection, recording each one opened. */
 class FakeEventSource {
@@ -73,6 +73,7 @@ function snapshotOf(phase: string, slug = "room-one-slug") {
   return {
     room: { slug, name: "Rainy Berlin study", phase, sound: null, background: null, files: undefined },
     you: { role: "member" },
+    members: [],
   }
 }
 

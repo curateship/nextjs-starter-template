@@ -13,8 +13,8 @@ const { loadCandles, loadFlowRun, loadFlowRunCoin } = vi.hoisted(() => ({
   loadFlowRunCoin: vi.fn(),
 }))
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
+vi.mock("@/components/bots/bots-record", () => ({
+  OpenRunPanel: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 vi.mock("@/lib/api/trade/candles", () => ({
@@ -47,12 +47,10 @@ vi.mock("@/components/flow-run/flow-run-trades-panel", () => ({
 
 vi.mock("@/components/ui/resizable", () => ({
   BOTTOM_COLLAPSED_HEIGHT: "40px",
-  PanelReopenTab: () => null,
   ResizableHandle: () => null,
   ResizablePanel: ({ children }: { children: React.ReactNode }) => children,
   ResizablePanelGroup: ({ children }: { children: React.ReactNode }) =>
     children,
-  WorkspacePanel: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 vi.mock("@/components/trade/use-chart-view", () => ({
@@ -65,11 +63,10 @@ vi.mock("@/components/trade/use-chart-view", () => ({
 vi.mock("@/components/trade/use-panel-layouts", () => ({
   useTradePanelLayouts: () => ({
     layouts: {
-      legacyImported: true,
-      current: {},
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
+      hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
       activeNamedId: null,
       named: [],
     },
@@ -194,14 +191,22 @@ describe("a live run coin's chart", () => {
           openCoin={MARKET}
           chartView={null}
           initialPanelLayouts={{
-            legacyImported: true,
-            current: {},
             openMarketRows: {},
             headerProfitVisible: true,
             chartToolbarPosition: null,
-            activeNamedId: null,
-            named: [],
+            hiddenTradeColumns: {}, journalView: { hidePractice: false, makers: [] }, narrowChartView: null,
           }}
+          heading={null}
+          menu={null}
+          onCoin={vi.fn()}
+          onRunAgain={vi.fn()}
+          // The Bots dashboard draws both panels; here they sit side by side.
+          frame={(panels) => (
+            <>
+              {panels.middle}
+              {panels.right.content}
+            </>
+          )}
         />
       )
     })

@@ -1,7 +1,6 @@
 import * as React from "react"
-import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -34,7 +33,7 @@ import type { ExportKind } from "@/lib/video/export-kinds"
 
 type Counted =
   | { state: "loading" }
-  | { state: "failed" }
+  | { state: "failed"; message: string }
   | { state: "ready"; preview: ClearOutPreview }
 
 /**
@@ -70,8 +69,7 @@ export function ExportClearOutDialog({
       },
       (error) => {
         if (cancelled) return
-        showErrorToast(getExportErrorMessage(error))
-        setCounted({ state: "failed" })
+        setCounted({ state: "failed", message: getExportErrorMessage(error) })
       }
     )
     return () => {
@@ -110,11 +108,6 @@ export function ExportClearOutDialog({
         )
       } else if (!result.deleted) {
         showErrorToast("Nothing was deleted - those may already be gone.")
-      }
-      if (result.deleted) {
-        toast.success(
-          `Deleted ${result.deleted} ${plural(result.deleted, "export")} and freed ${formatFileSize(result.bytes_freed)}.`
-        )
       }
       await onCleared()
       onClose()
@@ -165,21 +158,14 @@ export function ExportClearOutDialog({
           {counted.state === "loading" ? (
             <LoadingRow label="Counting…" className="py-2" />
           ) : counted.state === "failed" ? (
-            <div className="grid justify-items-start gap-2">
-              <p className="text-sm text-muted-foreground">
-                The old exports could not be counted.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCounted({ state: "loading" })
-                  setAttempt((value) => value + 1)
-                }}
-              >
-                Try again
-              </Button>
-            </div>
+            <ErrorRow
+              message={counted.message}
+              onRetry={() => {
+                setCounted({ state: "loading" })
+                setAttempt((value) => value + 1)
+              }}
+              className="justify-items-start px-0 py-2 text-left"
+            />
           ) : sharedCount ? (
             <div className="flex items-center gap-3">
               <Checkbox

@@ -661,7 +661,7 @@ async function refuseSignedInReader(name: string, target: CommandTarget, network
   }
   if (handle) {
     throw new Refusal(
-      `The reader browser ${name} is signed in to ${network === "medium" ? "Medium" : "Reddit"} as ${handleWords(network, handle)}. A reader has to be signed in to nobody: sign it out on the Browser profiles dashboard.`
+      `The reader browser ${name} is signed in to ${network === "medium" ? "Medium" : "Reddit"} as ${handleWords(network, handle)}. A reader has to be signed in to nobody: sign it out in the Anti Detect dashboard's Profiles.`
     )
   }
 }
@@ -715,11 +715,11 @@ async function lookAtSearcher(userId: string, searcher: PickedSearcher, target: 
   if (!state?.checked) return ""
   if (state.handle) await saveSearcherHandle(searcher.id, state.handle, db)
   const reason = state.banScreen
-    ? `X locked it: "${state.banScreen}". Sort it out in its browser window on the Browser profiles dashboard.`
+    ? `X locked it: "${state.banScreen}". Sort it out in its browser window in the Anti Detect dashboard's Profiles.`
     : state.blocked
       ? `X is in the way: ${state.reason}.`
       : !state.handle
-        ? "It is signed out of X. Sign it in again in its browser window on the Browser profiles dashboard."
+        ? "It is signed out of X. Sign it in again in its browser window in the Anti Detect dashboard's Profiles."
         : (await handlePosts(userId, state.handle, db))
           ? `It is signed in as @${state.handle}, one of your accounts that posts. A search account only ever reads, so sign it in to a throwaway.`
           : ""
@@ -784,13 +784,13 @@ async function lookAtLinkedinSearcher(userId: string, searcher: PickedLinkedinSe
   if (!state?.checked) return ""
   if (state.slug) await saveLinkedinSearcherSlug(searcher.id, state.slug, db)
   const reason = state.banScreen
-    ? `LinkedIn stopped it: "${state.banScreen}". Sort it out in its browser window on the Browser profiles dashboard.`
+    ? `LinkedIn stopped it: "${state.banScreen}". Sort it out in its browser window in the Anti Detect dashboard's Profiles.`
     : state.codeAsked
-      ? "LinkedIn is asking it for the code it emailed. Type it in its browser window on the Browser profiles dashboard."
+      ? "LinkedIn is asking it for the code it emailed. Type it in its browser window in the Anti Detect dashboard's Profiles."
       : state.blocked
         ? `LinkedIn is in the way: ${state.reason}.`
         : !state.slug
-          ? "It is signed out of LinkedIn. Sign it in again in its browser window on the Browser profiles dashboard."
+          ? "It is signed out of LinkedIn. Sign it in again in its browser window in the Anti Detect dashboard's Profiles."
           : (await slugComments(userId, state.slug, db))
             ? `It is signed in as in/${state.slug}, one of your accounts that comments. A search account only ever reads, so sign it in to a spare account.`
             : ""

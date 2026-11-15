@@ -90,7 +90,7 @@ export async function refuseThrowawayOnImportantPhone(
     .limit(1)
   if (phone?.heldImportantAt) {
     throw new Error(
-      `${APART}: the phone ${phone.name} held an important account, so a throwaway like ${name(account)} may not run on it until it is wiped. Wipe it from its window on the Phones dashboard first.`
+      `${APART}: the phone ${phone.name} held an important account, so a throwaway like ${name(account)} may not run on it until it is wiped. Wipe it from the phone on its rack's page first.`
     )
   }
 }

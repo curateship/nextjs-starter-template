@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { safeRedirectPath } from "@/lib/nav/redirect-path"
-import { readReferralCode } from "@/lib/billing/referrals"
 import {
   browserRedirect,
   googleSignInEnabled,
@@ -28,14 +27,9 @@ export const Route = createFileRoute("/api/auth/google")({
         // still lands on the page they originally asked for.
         const parameters = new URL(request.url).searchParams
         const redirectTo = safeRedirectPath(parameters.get("redirect"))
-        const referralValue = parameters.get("ref")
-        const referralCode = readReferralCode(referralValue)
-        if (referralValue !== null && !referralCode) {
-          return browserRedirect("/login?error=REFERRAL_NOT_FOUND")
-        }
 
         const handshake = startGoogleSignIn()
-        rememberGoogleHandshake(handshake, redirectTo, referralCode)
+        rememberGoogleHandshake(handshake, redirectTo)
 
         return browserRedirect(handshake.authorizeUrl)
       },

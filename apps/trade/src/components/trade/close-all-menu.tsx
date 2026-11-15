@@ -1,5 +1,4 @@
 import * as React from "react"
-import { ChevronDownIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -55,22 +54,17 @@ function countedWords(ladders: number, grids: number): string {
  */
 export function CloseAllMenu({
   positions,
-  managed,
   watched,
   smart,
   restingOrders,
   markets,
   realWallets,
-  busy,
   onConfirm,
+  trigger,
 }: {
+  /** Its row in the middle panel's ⋮, which opens it. */
+  trigger: React.ReactElement
   positions: readonly TradePosition[]
-  /**
-   * How many of those positions a listed ladder or grid is running. Closed
-   * with the rest, but the Positions tab does not list them — the Smart
-   * orders panel does — so the count on the row would otherwise look wrong.
-   */
-  managed: number
   /** Watched prices wearing an order's clothes — see `watchOrders`. */
   watched: readonly TradeOrder[]
   /** Ladders and grids you placed — see `laddersAndGridsYouPlaced`. */
@@ -88,7 +82,6 @@ export function CloseAllMenu({
    * rungs resting on an exchange.
    */
   realWallets: ReadonlySet<string>
-  busy: boolean
   onConfirm: (picked: CloseAllPick) => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -104,26 +97,11 @@ export function CloseAllMenu({
   return (
     <Popover open={open} onOpenChange={openMenu}>
       <PopoverTrigger asChild>
-        {/* It wears the grey the chart's own toolbar buttons wear, and an X
-            rather than the bin the Journal's Remove uses — the two sit side by
-            side on the Journal tab, and one icon meaning "throw these records
-            away" and "sell everything I own" at once is how a fast press goes
-            to the wrong one. */}
-        <Button
-          type="button"
-          variant="outline"
-          className="bg-muted"
-          disabled={busy}
-        >
-          <XIcon className="size-4" />
-          Close all
-          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-        </Button>
+        {trigger}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-2">
         <CloseAllChoices
           positions={positions}
-          managed={managed}
           watched={watched}
           smart={smart}
           restingOrders={restingOrders}
@@ -147,7 +125,6 @@ export function CloseAllMenu({
  */
 export function CloseAllChoices({
   positions,
-  managed,
   watched,
   smart,
   restingOrders,
@@ -158,7 +135,6 @@ export function CloseAllChoices({
   onConfirm,
 }: {
   positions: readonly TradePosition[]
-  managed: number
   watched: readonly TradeOrder[]
   smart: readonly (SmartLadder | SmartGrid)[]
   restingOrders: number
@@ -241,15 +217,6 @@ export function CloseAllChoices({
         "A ladder's waiting rungs were its plan, and calling them off ends that ladder for good — another one means setting it up from scratch."
       )
     }
-  }
-  // Why the row can say 5 while the Positions tab says 4. The tab leaves out
-  // a coin a ladder or grid is running, and this closes it anyway.
-  if (doing.positions && managed > 0) {
-    said.push(
-      managed === 1
-        ? "1 of them is a coin a ladder or grid is running. It is listed in the Smart orders panel rather than the Positions tab, and it closes with the rest."
-        : `${managed} of them are coins a ladder or grid is running. They are listed in the Smart orders panel rather than the Positions tab, and they close with the rest.`
-    )
   }
   // The gap that makes a sold-out account hold coins again a minute later.
   // "Waiting", not "resting on the exchange": a practice wallet's orders wait

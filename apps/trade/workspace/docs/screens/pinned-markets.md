@@ -9,19 +9,20 @@ and defaults to an empty list.
 
 An admin can add a child under Home in Settings → Members → Sidebar, give the
 child a market name and a chart URL such as
-`/protocols/hyper-liquid?market=hyperliquid%3Amainnet%3ABTC`, and save the
+`/trade?market=hyperliquid%3Amainnet%3ABTC`, and save the
 sidebar. The sticky header draws those children when Home is the active sidebar
 section. The link is the same for every member, has no price, and is not a
 personal pin. The destination must be accessible to members, which the exchange
-screens now are — see `who-can-open-a-protocol-screen.md`. A chart URL still
-written the old way, under `/admin`, redirects to the same screen and works,
-but a member is refused any other `/admin` address.
+dashboard is — see `who-can-open-a-protocol-screen.md`. A chart URL still
+written an old way, under `/protocols/` or `/admin`, opens the not-found page
+since 8 Nov 2026 and needs rewriting.
 
 ## Saved pins
 
-The pin button beside the chart's Fav star adds or removes that market from the
-header. The button fills while the market is pinned. Fav folders and header
-pins are separate choices. Each account saves its ordered market keys in
+The Pin to top row in the chart header's ⋮ (`dashboard-blocks.md`) adds or
+removes the market on the chart from the header. It
+reads On while the market is pinned. Folders and header pins are separate
+choices. Each account saves its ordered market keys in
 `trade_prefs.pinned_markets`; workspaces do not have separate lists.
 
 There is no limit on how many markets an account pins. Tyler asked for the old
@@ -117,9 +118,9 @@ the separate active-trades action retains its label and icon on the right.
 
 ## Member access
 
-The header option allows member and admin roles. The exchange screens sit
-outside `/admin`, at `/protocols/…`, so a member reaches a chart and can pin
-from it. The pins are personal: each account saves its own list against its own
+The header option allows member and admin roles. The Trade dashboard sits
+outside `/admin`, at `/trade`, so a member reaches a chart and can pin from
+it. The pins are personal: each account saves its own list against its own
 row, so two members pin different markets and neither sees the other's.
 
 The screens a member is still refused, and why, are in
@@ -140,7 +141,7 @@ Check the actual saved workflow in the existing server on port 3014:
    the chip must not change width. Compare the new figure with a fresh exchange
    price.
 2. Pin six or more markets and check that every one is saved and the row
-   scrolls. Remove a header chip and confirm the chart's pin button also clears.
+   scrolls. Remove a header chip and confirm the market ⋮'s Pin to top row reads Off.
 3. Reload, then sign into a second browser as the same account. Check the saved
    order and confirm that a pin changed in either browser reaches the other
    within the next visible refresh. A different account should have its own list.

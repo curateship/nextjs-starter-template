@@ -42,7 +42,7 @@ function SeeBadges({ onDone }: { onDone: () => void }) {
 }
 
 function toastWithSeeIt(message: string) {
-  const id = toast.success(message, {
+  const id = toast(message, {
     action: <SeeBadges onDone={() => toast.dismiss(id)} />,
   })
 }

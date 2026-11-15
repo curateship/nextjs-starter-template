@@ -32,6 +32,8 @@ import { checkTypeId, listTypes } from "@/server/travel/types"
 import { TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import { listTripPhotos, type ActivityPhoto } from "@/server/travel/activity-photos"
 import { listBeenHere, type BeenHere } from "@/server/travel/been-here"
+import { NOTE_ORDER } from "@/server/travel/trip-notes"
+import { isTimeZone } from "@/server/travel/weather"
 
 export const MAX_ACTIVITIES = 500
 
@@ -51,6 +53,8 @@ export type TripListRow = {
   /** When the trip went into the bin, or null (Travel features part 8). */
   deletedAt: string | null
   activityCount: number
+  /** The average of the stars given to its cards, or null with none rated (the Trips table's Rating column). */
+  rating: number | null
   timeZone: string | null
   createdAt: string
 }
@@ -61,10 +65,10 @@ export type Activity = Omit<ActivityRow, "createdAt" | "updatedAt" | "deletedAt"
   updatedAt: string
 }
 
-/** One of a trip's notes, from the note icon beside its cog. */
-export type TripNote = { id: string; body: string; createdAt: string; updatedAt: string }
+/** One of a trip's notes, from the note icon beside its cog, pinned or not (Travel features 4, part 7). */
+export type TripNote = { id: string; body: string; pinned: boolean; createdAt: string; updatedAt: string }
 
-export type Trip = Omit<TripRow, "ownerUserId" | "createdAt" | "updatedAt" | "archivedAt" | "deletedAt" | "calendarToken"> & {
+export type Trip = Omit<TripRow, "ownerUserId" | "createdAt" | "updatedAt" | "archivedAt" | "deletedAt" | "calendarToken" | "timeZoneGuessed"> & {
   archived: boolean
   hasCalendarLink: boolean
 }
@@ -85,7 +89,7 @@ export type TripPage = {
 }
 
 function toTrip(row: TripRow): Trip {
-  const { ownerUserId: _owner, createdAt: _created, updatedAt: _updated, archivedAt, deletedAt: _deleted, calendarToken, ...rest } = row
+  const { ownerUserId: _owner, createdAt: _created, updatedAt: _updated, archivedAt, deletedAt: _deleted, calendarToken, timeZoneGuessed: _guessed, ...rest } = row
   return { ...rest, archived: archivedAt !== null, hasCalendarLink: calendarToken !== null }
 }
 
@@ -99,6 +103,9 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
     .select({
       trip: travelTrips,
       activityCount: sql<number>`count(${travelActivities.id}) filter (where ${travelActivities.deletedAt} is null)`.mapWith(Number),
+      rating: sql<number | null>`avg(${travelActivities.rating}) filter (where ${travelActivities.deletedAt} is null and ${travelActivities.rating} is not null)`.mapWith(
+        (value: string | null) => (value === null ? null : Math.round(Number(value) * 10) / 10)
+      ),
     })
     .from(travelTrips)
     .leftJoin(travelActivities, eq(travelActivities.tripId, travelTrips.id))
@@ -106,7 +113,7 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
     .groupBy(travelTrips.id)
     .orderBy(desc(travelTrips.createdAt))
   return {
-    trips: rows.map(({ trip, activityCount }) => ({
+    trips: rows.map(({ trip, activityCount, rating }) => ({
       id: trip.id,
       name: trip.name,
       destination: trip.destination,
@@ -120,6 +127,7 @@ export async function loadTripsPage(userId: string, database: CustomShellDb = db
       archived: trip.archivedAt !== null,
       deletedAt: trip.deletedAt?.toISOString() ?? null,
       activityCount,
+      rating,
       timeZone: trip.timeZone,
       createdAt: trip.createdAt.toISOString(),
     })),
@@ -144,6 +152,7 @@ export async function createTrip(userId: string, input: CreateTripInput, databas
     coverCredit: null,
     dayInfo: Array.from({ length: input.days }, () => ({ note: "" })),
     description: "",
+    descriptionLocked: false,
     travelMode: "walk",
     tags: [],
     calendarToken: null,
@@ -158,7 +167,7 @@ export async function createTrip(userId: string, input: CreateTripInput, databas
 
 export async function loadTripPage(userId: string, tripId: string, database: CustomShellDb = db): Promise<TripPage> {
   const trip = await requireTrip(userId, tripId, database)
-  const [activities, types, notes, bin, views, photos] = await Promise.all([
+  const [activities, types, notes, bin, notesInBin, views, photos] = await Promise.all([
     database
       .select()
       .from(travelActivities)
@@ -168,12 +177,17 @@ export async function loadTripPage(userId: string, tripId: string, database: Cus
     database
       .select()
       .from(travelTripNotes)
-      .where(eq(travelTripNotes.tripId, tripId))
-      .orderBy(desc(travelTripNotes.updatedAt)),
+      .where(and(eq(travelTripNotes.tripId, tripId), isNull(travelTripNotes.deletedAt)))
+      .orderBy(...NOTE_ORDER),
     database
       .select({ value: count() })
       .from(travelActivities)
       .where(and(eq(travelActivities.tripId, tripId), isNotNull(travelActivities.deletedAt))),
+    // Binned notes share the cards' bin (Travel features 4, part 6), so its count holds both.
+    database
+      .select({ value: count() })
+      .from(travelTripNotes)
+      .where(and(eq(travelTripNotes.tripId, tripId), isNotNull(travelTripNotes.deletedAt))),
     listSavedViews(userId, tripViewScreen(tripId), database),
     listTripPhotos(tripId, database),
   ])
@@ -185,10 +199,11 @@ export async function loadTripPage(userId: string, tripId: string, database: Cus
     notes: notes.map((note) => ({
       id: note.id,
       body: note.body,
+      pinned: note.pinnedAt !== null,
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
     })),
-    binCount: bin[0]?.value ?? 0,
+    binCount: (bin[0]?.value ?? 0) + (notesInBin[0]?.value ?? 0),
     views,
     photos,
     beenHere,
@@ -196,21 +211,22 @@ export async function loadTripPage(userId: string, tripId: string, database: Cus
 }
 
 function checkTimeZone(timeZone: string | null | undefined) {
-  if (!timeZone) return
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone })
-  } catch {
-    throw new Error(TRAVEL_ERRORS.unknownTimeZone)
-  }
+  if (timeZone && !isTimeZone(timeZone)) throw new Error(TRAVEL_ERRORS.unknownTimeZone)
 }
 
 export async function updateTrip(userId: string, input: UpdateTripInput, database: CustomShellDb = db) {
-  await requireTrip(userId, input.tripId, database)
+  const trip = await requireTrip(userId, input.tripId, database)
+  // A locked description takes no writing until it's unlocked; the lock itself may change in the same save.
+  if (input.description !== undefined && (input.descriptionLocked ?? trip.descriptionLocked)) {
+    throw new Error(TRAVEL_ERRORS.blocksLocked)
+  }
   checkTimeZone(input.timeZone)
   if (input.coverUrl !== undefined) await checkPicture(userId, input.coverUrl, input.coverCredit, database)
   const { tripId, ...patch } = input
   const values: Partial<TripRow> = { ...patch, updatedAt: now() }
   if (patch.coverUrl === null) values.coverCredit = null
+  // A time zone set in Trip settings is the person's own, so a new destination never changes it.
+  if (patch.timeZone !== undefined) values.timeZoneGuessed = false
   if (patch.tags) values.tags = [...new Set(patch.tags)]
   if (patch.description !== undefined) values.description = storedNotes(patch.description)
   await database.update(travelTrips).set(values).where(eq(travelTrips.id, tripId))

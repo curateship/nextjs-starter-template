@@ -58,6 +58,8 @@ import {
   pricesEverySale,
 } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
+import { stampFillOwners } from "@/server/trade/fill-owners"
+import { stampFillAims } from "@/server/trade/order-aims"
 import {
   bumpTradeHistory,
   tradeHistoryStamp,
@@ -368,7 +370,7 @@ export async function recordLiveFills(
         // one whose insert went in tells the person.
         .returning({ fillId: tradeLiveFills.fillId })
       const insertedIds = new Set(rows.map((row) => row.fillId))
-      let enriched = false
+      const enriched: WalletOrderFill[] = []
       // KuCoin can publish the execution before its closed-position history
       // has the final money. Find only the earlier rows that still say $0, so
       // a recovery batch does not issue one update for every old close it
@@ -404,8 +406,10 @@ export async function recordLiveFills(
       for (const fillId of zeroIds) {
         const fill = enrichable.get(fillId)
         if (!fill) continue
-        // The first row already sent the immediate notice. Recovery updates
-        // only the money, so an ordinary duplicate remains unchanged.
+        // The first row already sent the immediate notice, saying "filled"
+        // because it had no money yet. The money is written here, and the
+        // notice is rewritten from it once this commits. An ordinary
+        // duplicate finds no $0 row here and changes nothing.
         const changed = await tx
           .update(tradeLiveFills)
           .set({ closedPnl: fill.closedPnl })
@@ -418,16 +422,22 @@ export async function recordLiveFills(
             )
           )
           .returning({ fillId: tradeLiveFills.fillId })
-        if (changed.length > 0) enriched = true
+        if (changed.length > 0) enriched.push(fill)
       }
-      if (rows.length > 0 || enriched) {
+      if (rows.length > 0 || enriched.length > 0) {
         await bumpTradeHistory(tx, userId, [wallet.id])
       }
-      return rows
+      return { rows, enriched }
     })
-    const insertedIds = new Set(inserted.map((row) => row.fillId))
+    const insertedIds = new Set(inserted.rows.map((row) => row.fillId))
     const fresh = fills.filter((fill) => insertedIds.has(fill.fillId))
-    await announceFills(userId, wallet, fresh)
+    // A close whose money arrived after its notice is announced again. The
+    // notice key is the order's, so this rewrites the row already in the bell
+    // in place: same time, same read dot, no second sound, and "filled"
+    // becomes "lost $38.02". A stop or target behind it gets its own notice now,
+    // because that notice waits for the money too. KuCoin is the venue that
+    // does this: its sales carry no profit, only its closed positions do.
+    await announceFills(userId, wallet, [...fresh, ...inserted.enriched])
     // Copying hears the same fresh fills: a copier's fill gets its fee row,
     // and a trader's fill is copied and told to followers. Only the process
     // whose insert went in gets here, so a fill pushed to both the website
@@ -676,7 +686,7 @@ async function announceFills(
  * What each fresh grid sale made on its own rung, keyed by market and order,
  * and what the whole run made when the sale left no coins.
  *
- * The same arithmetic as the chart arrows, the overview and the P&L page
+ * The same arithmetic as the chart arrows, the overview and the month grid
  * (`gridRoundTrips`), so the bell never names a figure those screens would
  * contradict. The whole stored history of the market is read, because the buy
  * a rung sells is usually hours or days older than the sale. An order whose
@@ -1445,6 +1455,25 @@ export async function loadLiveHistoryIfChanged(
   return { history: await loadLiveHistory(userId, walletIds), stamp }
 }
 
+/** One stored real fill in the shape the trade builder reads. */
+export function liveFillFromRow(row: typeof tradeLiveFills.$inferSelect): LiveFill {
+  return {
+    fillId: row.fillId,
+    orderId: row.orderId,
+    walletId: row.walletId,
+    marketKey: row.marketKey,
+    side: row.side,
+    px: row.px,
+    sz: row.sz,
+    at: Number(row.at),
+    closedPnl: row.closedPnl,
+    fee: row.fee,
+    dir: row.dir,
+    liquidation: row.liquidation,
+    live: true,
+  }
+}
+
 export async function loadLiveHistory(
   userId: string,
   walletIds: readonly string[],
@@ -1490,21 +1519,7 @@ export async function loadLiveHistory(
             )
           )
 
-  const raw: LiveFill[] = fillRows.map((row) => ({
-    fillId: row.fillId,
-    orderId: row.orderId,
-    walletId: row.walletId,
-    marketKey: row.marketKey,
-    side: row.side,
-    px: row.px,
-    sz: row.sz,
-    at: Number(row.at),
-    closedPnl: row.closedPnl,
-    fee: row.fee,
-    dir: row.dir,
-    liquidation: row.liquidation,
-    live: true,
-  }))
+  const raw: LiveFill[] = fillRows.map(liveFillFromRow)
   for (const protocol of new Set(
     raw.map((fill) => parseMarketKey(fill.marketKey)?.protocol)
   )) {
@@ -1524,7 +1539,23 @@ export async function loadLiveHistory(
   // Which of these a grid level made, before anything reads them. The arrows
   // and the Journal both ask, and a fill that arrived unstamped is read as a
   // ladder's. See `stampGridFills`.
-  const fills = await stampGridFills(userId, walletIds, raw)
+  const fills = await stampFillOwners(
+    userId,
+    walletIds,
+    await stampGridFills(userId, walletIds, raw)
+  )
+  // The price each fill's order was aimed at, for the Slippage columns; a
+  // fired stop's or target's level stands in for an order this app never sent.
+  await stampFillAims(
+    userId,
+    walletIds,
+    fills,
+    new Map(
+      triggerRows
+        .filter((row) => (row.kind === "stop" || row.kind === "target") && row.px > 0)
+        .map((row) => [`${row.walletId}:${row.orderId}`, row.px])
+    )
+  )
 
   // "none" rows are answers, not triggers: they are there so the exchange is
   // never asked twice, and a trade they belong to simply says "Closed".

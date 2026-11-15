@@ -1,8 +1,8 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -42,7 +42,7 @@ import {
 
 type Loaded =
   | { state: "loading" }
-  | { state: "failed" }
+  | { state: "failed"; message: string }
   | { state: "ready"; share: ExportShareSummary | null }
 
 /**
@@ -76,8 +76,7 @@ export function ExportShareDialog({
       },
       (error) => {
         if (cancelled) return
-        showErrorToast(getExportShareErrorMessage(error))
-        setLoaded({ state: "failed" })
+        setLoaded({ state: "failed", message: getExportShareErrorMessage(error) })
       }
     )
     return () => {
@@ -85,15 +84,12 @@ export function ExportShareDialog({
     }
   }, [item.id, attempt])
 
-  // A carousel's page shows its slides, so a viewer looks rather than watches.
-  const watch = item.kind === "carousel" ? "see it" : "watch"
-
   async function handleCreate() {
     await run(async () => {
       const share = await createExportShare(item.id, expiry)
       setLoaded({ state: "ready", share })
       onChanged()
-    }, `Link made. Copy it and send it to whoever should ${watch}.`)
+    })
   }
 
   async function handleRevoke() {
@@ -102,7 +98,7 @@ export function ExportShareDialog({
       setLoaded({ state: "ready", share: null })
       setConfirmingOff(false)
       onChanged()
-    }, "Link turned off. It stops working straight away.")
+    })
   }
 
   const share = loaded.state === "ready" ? loaded.share : null
@@ -112,7 +108,6 @@ export function ExportShareDialog({
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(url)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("The link could not be copied. Select it and copy it yourself.")
     }
@@ -140,21 +135,14 @@ export function ExportShareDialog({
               {loaded.state === "loading" ? (
                 <LoadingRow label="Reading the link…" />
               ) : loaded.state === "failed" ? (
-                <div className="grid justify-items-start gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    The link could not be read.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setLoaded({ state: "loading" })
-                      setAttempt((count) => count + 1)
-                    }}
-                  >
-                    Try again
-                  </Button>
-                </div>
+                <ErrorRow
+                  message={loaded.message}
+                  onRetry={() => {
+                    setLoaded({ state: "loading" })
+                    setAttempt((count) => count + 1)
+                  }}
+                  className="justify-items-start px-0 py-2 text-left"
+                />
               ) : live ? (
                 <>
                   <div className="grid gap-2">

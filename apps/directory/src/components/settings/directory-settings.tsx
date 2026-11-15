@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CategoryPicker } from "@/components/directory/category-picker"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -484,7 +483,6 @@ export function DirectorySettings() {
                       if (!saved) return
                       setSavedMapKey(`••••${key.slice(-4)}`)
                       setMapKey("")
-                      toast.success("Map display key saved.")
                     })
                   }}
                 >
@@ -545,7 +543,6 @@ export function DirectorySettings() {
                       if (!saved) return
                       setSavedGeocodingKey(`••••${key.slice(-4)}`)
                       setGeocodingKey("")
-                      toast.success("Google Maps key saved.")
                     })
                   }}
                 >
@@ -717,7 +714,6 @@ export function DirectorySettings() {
           onClick={() => {
             void clearCache(async () => {
               await clearPublicPages()
-              toast.success("Cached public pages cleared.")
             })
           }}
         >

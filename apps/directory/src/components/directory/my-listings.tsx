@@ -89,12 +89,7 @@ export function MyListings({
     if (!sessionId || handled.current === sessionId) return
     handled.current = sessionId
     void confirmFeatured(sessionId)
-      .then(async ({ kind }) => {
-        toast.success(
-          kind === "event"
-            ? "Payment confirmed. The event is featured until it ends."
-            : "Payment confirmed. The listing is featured now."
-        )
+      .then(async () => {
         await router.invalidate()
         void navigate({ to: ".", search: {} as never, replace: true })
       })
@@ -314,9 +309,6 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
                   ...whatChanged(),
                 })
                 await router.invalidate()
-                toast.success(
-                  "Sent. An admin reads it before anything changes on the page."
-                )
               })
             }
           >
@@ -435,7 +427,6 @@ function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
             onClick={() => {
               void navigator.clipboard
                 .writeText(snippet)
-                .then(() => toast.success("Badge code copied."))
                 .catch(() => toast.error("The badge code could not be copied."))
             }}
           >

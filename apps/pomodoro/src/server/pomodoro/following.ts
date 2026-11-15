@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm"
+import { and, count, desc, eq, gte, inArray, isNull } from "drizzle-orm"
 
 import { findAchievement } from "@/lib/pomodoro/achievements"
 import { CHEERS_PER_DAY, findCheer } from "@/lib/pomodoro/cheers"
@@ -423,27 +423,4 @@ export async function setCheersEnabled(userId: string, enabled: boolean) {
     .set({ cheersEnabled: enabled, updatedAt: new Date() })
     .where(eq(pomodoroProfiles.userId, userId))
   return { cheersEnabled: enabled }
-}
-
-/**
- * The people the viewer follows, for the room-invite picker and the pact
- * partner picker. Name and handle only; no ids leave.
- */
-export async function listFollowing(viewerUserId: string) {
-  const followed = await followedUserIds(viewerUserId)
-  if (!followed.length) return []
-  return db
-    .select({
-      name: pomodoroProfiles.publicDisplayName,
-      handle: pomodoroProfiles.handle,
-    })
-    .from(pomodoroProfiles)
-    .where(
-      and(
-        inArray(pomodoroProfiles.userId, followed),
-        eq(pomodoroProfiles.profilePublic, true),
-        isNull(pomodoroProfiles.hiddenAt)
-      )
-    )
-    .orderBy(sql`lower(coalesce(${pomodoroProfiles.publicDisplayName}, ${pomodoroProfiles.handle}))`)
 }

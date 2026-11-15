@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, CopyIcon, Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { KeyPermissionNotice } from "@/components/trade/key-permission-notice"
 import { Button } from "@/components/ui/button"
@@ -406,7 +405,6 @@ export function AddWalletDialog({
               ...credentialFields(form, secret, passphrase),
             }
       )
-      toast.success(`Added "${wallet.label}".`)
       onAdded(wallet)
       setSecret("")
       setPassphrase("")
@@ -440,7 +438,6 @@ export function AddWalletDialog({
         network,
         makeWallet: true,
       })
-      toast.success(`Added "${wallet.label}".`)
       onAdded(wallet)
       if (wallet.address) {
         setMade(wallet)
@@ -824,7 +821,6 @@ function WalletSettingsWindow({
         updated = result.wallet
       }
       if (makeActive && status === "active") onUse(wallet.id)
-      toast.success("Wallet saved.")
       onChanged()
       setSecret("")
       setPassphrase("")
@@ -843,7 +839,6 @@ function WalletSettingsWindow({
     setDeleting(true)
     try {
       await deleteWallet(wallet.id)
-      toast.success(`Deleted "${wallet.label}".`)
       setConfirmingDelete(false)
       onChanged()
       onClose()

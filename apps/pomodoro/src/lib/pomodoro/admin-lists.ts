@@ -12,15 +12,6 @@
 /** The largest page any operator list will hand back. */
 export const ADMIN_PAGE_SIZE_MAX = 100
 
-export const FOCUS_SORT_COLUMNS = [
-  "name",
-  "sessions",
-  "focus",
-  "tasks",
-  "last",
-] as const
-export type FocusSortColumn = (typeof FOCUS_SORT_COLUMNS)[number]
-
 export const TASK_STATUS_FILTERS = [
   "all",
   "active",
@@ -129,33 +120,13 @@ export function readUserFilter(value: unknown) {
     : undefined
 }
 
-/** The Chat dashboard (admin task 05): its tabs, and the rooms tab's filters. */
-export const CHAT_TABS = ["rooms", "messages", "held"] as const
-export type ChatTab = (typeof CHAT_TABS)[number]
-export const CHAT_STATUS_FILTERS = ["all", "open", "closed"] as const
-export const CHAT_ROOM_SORT_COLUMNS = ["last", "messages", "name"] as const
-export type ChatRoomSortColumn = (typeof CHAT_ROOM_SORT_COLUMNS)[number]
-
 /** Bans and hidden profiles (admin task 05): one page, three tabs. */
 export const SAFETY_TABS = ["bans", "hidden", "suspensions"] as const
 export type SafetyTab = (typeof SAFETY_TABS)[number]
 
-// ---------------------------------------------------------------------------
-// Members in the admin (admin task 06)
-// ---------------------------------------------------------------------------
-
-/**
- * `?member=<account id>` opens the member window over any Pomoder admin page.
- * Every Pomoder admin route spreads this into its own `validateSearch`, so the
- * window survives the page's own checks and Back closes it.
- */
-export function readMemberSearch(search: Record<string, unknown>) {
-  return { member: readUserFilter(search.member) }
-}
-
 /** Public profiles: every profile with a handle. */
 export const PROFILE_VISIBILITY_FILTERS = ["all", "public", "private", "hidden"] as const
-export const PROFILE_SORT_COLUMNS = ["name", "handle", "followers", "updated"] as const
+export const PROFILE_SORT_COLUMNS = ["name", "handle", "followers", "focus", "updated"] as const
 export type ProfileSortColumn = (typeof PROFILE_SORT_COLUMNS)[number]
 
 /** Member uploads: every background and sound a member uploaded or generated. */
@@ -167,9 +138,6 @@ export type UploadSortColumn = (typeof UPLOAD_SORT_COLUMNS)[number]
 export const TAG_SORT_COLUMNS = ["name", "owner", "tasks", "created"] as const
 export type TagSortColumn = (typeof TAG_SORT_COLUMNS)[number]
 
-/** The leaderboard as members see it, plus who an admin took off it. */
-export const LEADERBOARD_TABS = ["board", "hidden"] as const
-export type LeaderboardTab = (typeof LEADERBOARD_TABS)[number]
 
 /** Follows and cheers: one page, two tabs. */
 export const FOLLOW_TABS = ["follows", "cheers"] as const

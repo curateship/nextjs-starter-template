@@ -40,7 +40,6 @@ gets only the parts its `features` list names (`src/lib/role-id.ts`):
 | `billing` | No Upgrade, no Billing in the person menu, no Billing tab, no plan badge or Manage billing on Profile. `/pricing` sends them to their landing page. |
 | `aiUsage` | No AI usage card on the Billing tab. |
 | `feedback` | No Feedback button in the header and no feedback window. |
-| `changelog` | The changelog's list is refused. It is not in their menu unless an admin adds it. |
 | `workspaces` | No workspace of their own and no switcher, even when the app gives members one. |
 | `security` | Security keeps only the password and the devices card. No passkeys, no Delete my account. |
 | `emailChange` | Profile has no email card, so they cannot change their sign-in email. |
@@ -49,8 +48,8 @@ The Security answer is Tyler's, 16 Oct 2026: an app role gets "change password
 and sign out other devices". The site admin removes app-role people; they do
 not delete themselves.
 
-**The server refuses the same things.** Every billing, AI usage, feedback,
-changelog and member-home endpoint uses `featureGet` or `featurePost`
+**The server refuses the same things.** Every billing, AI usage, feedback
+and member-home endpoint uses `featureGet` or `featurePost`
 (`src/server/guards.ts`) instead of the plain member guard. Adding a passkey,
 deleting your own account and changing your email check the same list. A
 refused call answers `FORBIDDEN`. `src/server/role-features.test.ts` reads
@@ -64,9 +63,9 @@ their old role listed until they are moved.
 ## The left menu and the header
 
 - **Each app role has its own left menu.** It never falls back to the members'
-  menu, which holds Changelog and the member home. Until an admin edits it, the
+  menu, which holds the member home. Until an admin edits it, the
   role gets the `menu` its app declared.
-- **Settings → Navigation edits it.** The Platform settings card lists each
+- **Admin → Navigations edits it.** The Platform settings card lists each
   app role under its own name, between Members and Public, with a Navigation
   row. It is the same editor as the members' sidebar, and saves itself the
   same way. Reset puts the app's starting menu back. The menus are saved
@@ -112,8 +111,6 @@ out, as before.
 Places that used to treat "not an admin" as "a member" now say which role they
 mean:
 
-- **Contacts.** An account's contact is tagged with its own role, `employee`
-  included, and the sync owns one tag per role the app has.
 - **Membership.** Members are counted by name, and people in app roles are
   left out of the free plan's head count.
 - **Traffic.** Only visitors and members are counted. Admins and app roles are

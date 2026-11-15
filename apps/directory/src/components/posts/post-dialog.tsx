@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CategoryCombobox } from "@/components/directory/category-combobox"
 import { RecordPreviewLink } from "@/components/shared/record-preview-link"
@@ -245,7 +244,6 @@ export function PostDialog({
         await savePost({ id, title, slug, ...rest })
       }
       onSaved()
-      toast.success(postId ? "Post saved." : "Post created.")
       onClose()
     } catch (error) {
       // Every refusal is about the title or the address, in the first card.

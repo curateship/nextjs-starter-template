@@ -71,9 +71,6 @@ describe("what a failed settings or notification request says", () => {
     expect(
       getNotificationErrorMessage(new Error("Missing Custom Shell session"))
     ).toBe("Please sign in again.")
-    expect(getNotificationErrorMessage(new Error("Not authorized"))).toBe(
-      "You do not have access to that."
-    )
     expect(getNotificationErrorMessage(new Error("FORBIDDEN"))).toBe(
       "You do not have access to that."
     )

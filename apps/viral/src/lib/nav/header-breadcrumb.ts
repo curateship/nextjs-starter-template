@@ -30,8 +30,8 @@ export function buildHeaderBreadcrumb({
   currentPath: string
   pageTitle?: string
 }): HeaderBreadcrumbStep[] {
-  // Most specific match wins, so /admin/automations/templates sits under a
-  // Templates child link when there is one, not only under Automations.
+  // Most specific match wins, so a page under a child link's address sits
+  // under that child link, not only under its parent.
   let best: { item: ShellItem; child?: ShellChildItem; href: string } | null =
     null
   for (const item of items) {

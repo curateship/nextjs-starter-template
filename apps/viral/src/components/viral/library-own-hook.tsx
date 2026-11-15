@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
@@ -98,7 +97,6 @@ export function NewHookDropdown({
       setDraftTags([])
       setBadLink(false)
       setOpen(false)
-      toast.success("Hook added to the Library.")
       onCreated(hook)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
@@ -205,7 +203,6 @@ export function OwnHookMenu({
     try {
       await deleteOwnHookFn(hook.id)
       setDeleting(false)
-      toast.success("The hook is deleted, with the hooks written from it.")
       onDeleted(hook)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))

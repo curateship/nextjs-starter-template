@@ -14,8 +14,7 @@ import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-
 
 import { useTrip } from "@/components/travel/trip-context"
 import { PhotoCreditLine, UnsplashPicker } from "@/components/travel/unsplash-picker"
-import { FoldingMenu } from "@/components/shared/folding-menu"
-import { ImageUpload } from "@/components/shared/image-upload"
+import { MediaPicker } from "@/components/media/media-picker"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -33,8 +32,11 @@ const MAX_PHOTOS = 30
  * The row of small photos at the top of an open card (Travel features 3,
  * part 5; Tyler, 5 Nov 2026: "Row of small photos"). A click shows a photo
  * large. Dragging one to the front makes it the card's picture on the board.
- * "+" adds more, uploaded or from Unsplash. The row shows once the card has a
- * picture, which is set from the card's ⋮ menu or by a pick.
+ * "+" opens the media library straight away to add one (Tyler, 6 Nov 2026:
+ * "this didnt need to open a dropdown. Just open it straight to the media
+ * picker"), and Unsplash, when it is set up, is its own button beside it. The
+ * row shows once the card has a picture, which is set from the card's ⋮ menu
+ * or by a pick.
  */
 export function ActivityPhotosRow({ activity }: { activity: Activity }) {
   const { page, refresh, readOnly } = useTrip()
@@ -50,18 +52,18 @@ export function ActivityPhotosRow({ activity }: { activity: Activity }) {
   if (!photos.length) return null
   const ids = photos.map((photo, index) => `${index}:${photo.url}`)
 
-  function save(next: CardPhoto[], done?: string) {
+  function save(next: CardPhoto[]) {
     return run(async () => {
       await saveActivityPhotos(activity.id, next)
       await refresh()
-    }, done)
+    })
   }
 
   function onDragEnd(event: DragEndEvent) {
     const from = ids.indexOf(String(event.active.id))
     const to = event.over ? ids.indexOf(String(event.over.id)) : -1
     if (from < 0 || to < 0 || from === to) return
-    void save(arrayMove(photos, from, to), to === 0 ? "That photo is the card's picture now." : undefined)
+    void save(arrayMove(photos, from, to))
   }
 
   function add(photo: CardPhoto) {
@@ -80,31 +82,32 @@ export function ActivityPhotosRow({ activity }: { activity: Activity }) {
         </SortableContext>
       </DndContext>
       {readOnly || photos.length >= MAX_PHOTOS ? null : (
-        <FoldingMenu
-          label="Add photos"
-          open={adding}
-          onOpenChange={setAdding}
-          trigger={
-            <Button type="button" variant="outline" size="icon" className="size-14" aria-label="Add photos" disabled={busy}>
-              <PlusIcon className="size-4" />
-            </Button>
-          }
-        >
-          <div className="grid gap-2 p-2">
-            <ImageUpload
-              label="Add a photo"
-              showLabel={false}
-              value=""
-              aspect="video"
-              fit="cover"
-              emptyLabel="Upload a photo"
-              onChange={(url) => (url ? add({ url, credit: null }) : undefined)}
-            />
-            <div>
-              <UnsplashPicker startQuery={activity.place?.name || activity.title} onPick={(photo) => add(photo)} />
-            </div>
-          </div>
-        </FoldingMenu>
+        <>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-14"
+                aria-label="Add a photo"
+                disabled={busy}
+                onClick={() => setAdding(true)}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add a photo</TooltipContent>
+          </Tooltip>
+          <UnsplashPicker startQuery={activity.place?.name || activity.title} onPick={(photo) => add(photo)} />
+          <MediaPicker
+            open={adding}
+            onOpenChange={setAdding}
+            onSelectMedia={(url) => (url ? add({ url, credit: null }) : undefined)}
+            showVideos={false}
+            defaultCropAspect="wide"
+          />
+        </>
       )}
       <PhotoViewer
         photos={photos}
@@ -117,8 +120,7 @@ export function ActivityPhotosRow({ activity }: { activity: Activity }) {
         onRemove={(index) => {
           setViewing(null)
           void save(
-            photos.filter((_, each) => each !== index),
-            "Photo removed from the card. It's still in your media library."
+            photos.filter((_, each) => each !== index)
           )
         }}
       />

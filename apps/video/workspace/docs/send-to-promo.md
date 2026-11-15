@@ -12,7 +12,7 @@ Send to Promo copies a finished video, carousel or thumbnail into a project's Ar
 
 ## Where the button is
 
-- **Exports page:** the paper plane in the actions column of a finished row, on Exports and on Carousel exports. Ticking rows shows "Send to Promo (3)" in the toolbar, which sends them all at once.
+- **Exports page:** the paper plane in the actions column of a finished row, on Exports and on Carousel exports. Ticking rows shows "Send to Promo (3)" in the toolbar, which sends them all at once. The number counts only the finished ones, since only a finished export can go. When some ticked rows were not finished, the window says how many were left out, for example "1 export isn't finished, so it was left out."
 - **The editor's Exports panel:** the same paper plane on each finished export.
 - **The Videos tab and the Carousels tab:** Send to Promo in a row's menu sends that video's or carousel's newest finished export. With none yet it says "Export it first".
 - **The Thumbnail board:** the paper plane on a version's tile sends that thumbnail as a picture. Any version can go, starred or not. Video draws it as a JPEG at 1280 × 720 or 1080 × 1920 when the send starts.

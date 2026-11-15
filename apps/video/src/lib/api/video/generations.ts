@@ -16,6 +16,8 @@ import {
   MOVING_STILL_NOT_FOUND_MESSAGE,
   MOVING_STILL_NOT_FULL_FRAME_MESSAGE,
   MOVING_STILL_TOO_LONG_MESSAGE,
+  MOVING_STILL_LOOP_COMPANY_MESSAGE,
+  MOVING_STILL_LOOP_LENGTH_MESSAGE,
   MOVING_STILL_UNREADABLE_MESSAGE,
 } from "@/lib/video/moving-still"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
@@ -66,6 +68,8 @@ export function getGenerationErrorMessage(error: unknown) {
       MOVING_STILL_NOT_FOUND_MESSAGE,
       MOVING_STILL_NOT_FULL_FRAME_MESSAGE,
       MOVING_STILL_TOO_LONG_MESSAGE,
+      MOVING_STILL_LOOP_COMPANY_MESSAGE,
+      MOVING_STILL_LOOP_LENGTH_MESSAGE,
       MOVING_STILL_UNREADABLE_MESSAGE,
       REMAKE_BUSY_MESSAGE,
       REMAKE_NOT_FOUND_MESSAGE,
@@ -148,6 +152,7 @@ const createStillFn = createServerFn({ method: "POST" })
     quality: z.enum(VIDEO_QUALITY_IDS),
     company: z.enum(VIDEO_COMPANIES).optional(),
     sound: z.boolean().optional(),
+    endOnStart: z.boolean().optional(),
   }))
   .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.createStillShot(context.user.id, data)))
 
@@ -162,7 +167,7 @@ const settleStillFn = createServerFn({ method: "POST" })
   .handler(({ data, context }) => import("@/server/video/asset-factories/moving-stills").then((m) => m.settleStillShot(context.user.id, data.generationId, data.outcome)))
 
 /** Asks for a moving shot of a picture, or of a moving clip made again, which takes that clip's place when it arrives. */
-export function createStillShot(data: { videoId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company?: VideoCompany; sound?: boolean }) { return createStillFn({ data }) }
+export function createStillShot(data: { videoId: string; clipId: string; prompts: string[]; lengthSeconds: ShotLengthSeconds; quality: VideoQuality; company?: VideoCompany; sound?: boolean; endOnStart?: boolean }) { return createStillFn({ data }) }
 /** This project's shots for timeline clips that have not landed yet. */
 export function listStillShots(videoId: string) { return listStillFn({ data: { videoId } }) }
 /** Records that this editor landed a finished shot. `settled` is false when the worker already had. */

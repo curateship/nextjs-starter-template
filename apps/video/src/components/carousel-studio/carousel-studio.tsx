@@ -188,6 +188,8 @@ import {
   SlideLayerContent,
   StaticSlidePreview,
 } from "@/components/carousel-studio/slide-layer"
+import { LengthCounter } from "@/components/video-assets/length-counter"
+import { SteadyLabel } from "@/components/video-assets/steady-label"
 import {
   RESIZE_HANDLES,
   boundingBox,
@@ -238,6 +240,7 @@ import {
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { plural } from "@/lib/format/plural"
 import "@/components/video-editor/studio.css"
 import "@/components/video-editor/text-fonts.css"
 
@@ -669,26 +672,11 @@ export function CarouselBuilderPage({
       if (kind === "video") {
         await makeVideoFromCarousel(document.id, video)
         setExportOpen(false)
-        toast.success(
-          `"${document.name} video" is queued. It shows in Exports when it is ready, and opens as a project.`,
-          {
-            action: {
-              label: "Open Exports",
-              onClick: () => void navigate({ to: "/admin/video-exports" }),
-            },
-          }
-        )
         return
       }
       const kept = await exportCarousel(document.id)
       downloadKeptExport(kept.id, kept.title ?? document.name, kind === "pdf")
       setExportOpen(false)
-      toast.success("Carousel exported. A copy is kept in Carousel exports.", {
-        action: {
-          label: "Open Carousel exports",
-          onClick: () => void navigate({ to: "/admin/video-carousel-exports" }),
-        },
-      })
     } catch (error) {
       setExportError(getCarouselErrorMessage(error))
     } finally {
@@ -716,7 +704,6 @@ export function CarouselBuilderPage({
     try {
       await flushSave()
       const copy = await duplicateCarousel(document.id, format)
-      toast.success(`"${copy.name}" created.`)
       await navigate({
         to: "/admin/video-carousels/$projectId",
         params: { projectId: copy.carousel_project_id },
@@ -761,7 +748,6 @@ export function CarouselBuilderPage({
     const done = `${changed.length} ${changed.length === 1 ? "slide" : "slides"} aligned to this one.`
     const overflow = findTextOverflow(changed, state.format)
     if (!overflow.size) {
-      toast.success(done)
       return
     }
     const names = pushed.flatMap((slide, index) =>
@@ -1143,10 +1129,9 @@ export function CarouselBuilderPage({
 
   const workspace = (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -1580,7 +1565,7 @@ function CarouselContextPanel({
       <DashboardCardTitleHeader
         icon={<PanelIcon className="size-4" />}
         title={currentPanel.label}
-        meta={panel === "slides" ? `${slides.length} slides` : undefined}
+        meta={panel === "slides" ? `${slides.length} ${plural(slides.length, "slide")}` : undefined}
         action={
           panel === "slides" ? (
             <SlidesViewToggle view={slidesView} onChange={setSlidesView} />
@@ -2591,8 +2576,7 @@ function ImagePanel({
         open={creatingCollection}
         onOpenChange={setCreatingCollection}
         collection={null}
-        onSaved={(created) => {
-          toast.success(`Created “${created.name}”.`)
+        onSaved={() => {
           reloadCollections()
         }}
       />
@@ -4283,6 +4267,7 @@ function TextInspector({
               })
             }}
           />
+          <LengthCounter length={item.text.length} max={2_000} />
         </div>
 
         <div className="grid gap-2">
@@ -4328,7 +4313,11 @@ function TextInspector({
               onClick={() => void suggest()}
             >
               {suggesting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-              {suggesting ? "Writing" : lines ? "Three more" : "Suggest three lines"}
+              <SteadyLabel
+                busy={suggesting}
+                idle={lines ? "Three more" : "Suggest three lines"}
+                working="Writing…"
+              />
             </Button>
             {lines ? (
               lines.length ? (

@@ -392,3 +392,12 @@ export function assetPrompt(value: string): string {
   if (!cleaned) throw new Error("Prompt is required")
   return cleaned.slice(0, 5000)
 }
+
+/**
+ * What an actor's stored status reads as on screen. The stored words stay
+ * `active` and `inactive`; only the label is written for people.
+ */
+export const ACTOR_STATUS_LABELS = {
+  active: "Active",
+  inactive: "Inactive",
+} as const satisfies Record<"active" | "inactive", string>

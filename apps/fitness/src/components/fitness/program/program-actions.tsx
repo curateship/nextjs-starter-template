@@ -15,7 +15,6 @@ import {
   Trash2Icon,
   UserPlusIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { calendarChanged } from "@/components/fitness/program/calendar-version"
 import { CopyToClientDialog } from "@/components/fitness/program/copy-to-client"
@@ -91,11 +90,10 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
   const [copying, setCopying] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
-  async function act(action: () => Promise<unknown>, success: string) {
+  async function act(action: () => Promise<unknown>) {
     setBusy(true)
     try {
       await action()
-      toast.success(success)
       calendarChanged()
       await router.invalidate()
     } catch (error) {
@@ -127,8 +125,7 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
             <DropdownMenuItem
               onSelect={() =>
                 void act(
-                  () => changeProgram({ action: "activate", programId: program.id }),
-                  program.mine ? "This is now your active program." : "This is now their active program."
+                  () => changeProgram({ action: "activate", programId: program.id })
                 )
               }
             >
@@ -138,7 +135,7 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
           ) : null}
           {pause ? (
             <DropdownMenuItem
-              onSelect={() => void act(() => changeProgram({ action: "resume", programId: program.id }), "Program resumed.")}
+              onSelect={() => void act(() => changeProgram({ action: "resume", programId: program.id }))}
             >
               <PlayIcon />
               Resume program
@@ -165,8 +162,7 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
           <DropdownMenuItem
             onSelect={() =>
               void act(
-                () => changeProgram({ action: "archive", programId: program.id, archived: !program.archived }),
-                program.archived ? "Program brought back." : "Program archived."
+                () => changeProgram({ action: "archive", programId: program.id, archived: !program.archived })
               )
             }
           >
@@ -194,7 +190,6 @@ export function ProgramActionsMenu({ data }: { data: ProgramPageData }) {
         onClose={() => setPausing(false)}
         onSave={async (input) => {
           await changeProgram({ action: "pause", programId: program.id, ...input })
-          toast.success("Program paused.")
           calendarChanged()
           await router.invalidate()
         }}
@@ -308,7 +303,6 @@ export function ProgramSettingsWindow({ data, onDeleted }: { data: ProgramPageDa
             setBusy(true)
             try {
               await changeProgram({ action: "delete", programId: program.id })
-              toast.success("Program deleted.")
               setDeleting(false)
               onDeleted()
             } catch (error) {
@@ -333,11 +327,10 @@ function ProgramPicturesCard({ data }: { data: ProgramPageData }) {
   const { program } = data
   const [busy, setBusy] = React.useState(false)
 
-  async function save(fields: { bannerUrl?: string | null; avatarUrl?: string | null }, done: string) {
+  async function save(fields: { bannerUrl?: string | null; avatarUrl?: string | null }) {
     setBusy(true)
     try {
       await changeProgram({ action: "pictures", programId: program.id, ...fields })
-      toast.success(done)
       await router.invalidate()
     } catch (error) {
       reportFitnessError(error)
@@ -360,7 +353,7 @@ function ProgramPicturesCard({ data }: { data: ProgramPageData }) {
         emptyLabel="Add a banner"
         className="max-w-48"
         disabled={program.archived || busy}
-        onChange={(url) => void save({ bannerUrl: url || null }, url ? "Banner saved." : "Banner removed.")}
+        onChange={(url) => void save({ bannerUrl: url || null })}
       />
       <ImageUpload
         label="Picture"
@@ -370,7 +363,7 @@ function ProgramPicturesCard({ data }: { data: ProgramPageData }) {
         emptyLabel="Add a picture"
         className="max-w-20"
         disabled={program.archived || busy}
-        onChange={(url) => void save({ avatarUrl: url || null }, url ? "Picture saved." : "Picture removed.")}
+        onChange={(url) => void save({ avatarUrl: url || null })}
       />
     </CollapsibleSettingsCard>
   )
@@ -385,11 +378,10 @@ export function ProgramStateLine({ data }: { data: ProgramPageData }) {
   const { program, pause } = data
   const [busy, setBusy] = React.useState(false)
 
-  async function act(action: () => Promise<unknown>, success: string) {
+  async function act(action: () => Promise<unknown>) {
     setBusy(true)
     try {
       await action()
-      toast.success(success)
       calendarChanged()
       await router.invalidate()
     } catch (error) {
@@ -420,7 +412,7 @@ export function ProgramStateLine({ data }: { data: ProgramPageData }) {
           size="sm"
           variant="outline"
           disabled={busy}
-          onClick={() => void act(() => changeProgram({ action: "resume", programId: program.id }), "Program resumed.")}
+          onClick={() => void act(() => changeProgram({ action: "resume", programId: program.id }))}
         >
           {busy ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
           Resume
@@ -622,7 +614,7 @@ function ShareDialog({
                     variant="outline"
                     onClick={() =>
                       void navigator.clipboard.writeText(address).then(
-                        () => toast.success("Link copied."),
+                        undefined,
                         () => showErrorToast("The link couldn't be copied. Select it and copy it by hand.")
                       )
                     }

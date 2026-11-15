@@ -93,6 +93,8 @@ import {
   stitchCandles,
 } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
+import { saveRememberedChartView } from "@/lib/api/trade/chart-view"
+import { saveNarrowChartView } from "@/lib/api/trade/panel-layouts"
 import { protocolDescription } from "@/lib/api/trade/protocols"
 import {
   parseMarketKey,
@@ -107,6 +109,7 @@ import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
   DEFAULT_MARGIN_BOTTOM,
   DEFAULT_MARGIN_TOP,
+  NARROW_START_VIEW,
   type ChartView,
 } from "@/lib/trade/chart-view"
 import {
@@ -368,22 +371,22 @@ export function IntervalPicker({
       onValueChange={(next) => onChange(next as ChartInterval)}
       className="gap-0"
     >
-      <div className="inline-flex h-8 w-fit items-center rounded-lg p-0.5 text-muted-foreground">
+      {/* The pill tabs' look: a grey track with the chosen timeframe on a
+          white pill, and the arrow inside the same track (Tyler, 8 Nov 2026:
+          "change the timeframe ui to this"). The one control in this header
+          row with a background; the rest stay bare (31 Oct 2026). */}
+      <div className="inline-flex h-8 w-fit items-center rounded-lg bg-muted/60 p-0.5 text-muted-foreground">
         <TabsList
           aria-label="Candle intervals"
-          // No tray behind the timeframes, like every other button in the
-          // header, so the chosen one sits on a grey pill instead of white.
-          className="h-7 rounded-none bg-transparent p-0 [&>[data-slot=tabs-pill]]:bg-muted [&>[data-slot=tabs-pill]]:shadow-none"
+          // The track is the box around it, so the arrow sits inside it too.
+          className="h-7 rounded-none bg-transparent p-0"
         >
           {headerIntervals.map((option) => (
             <TabsTrigger
               key={option}
               value={option}
               aria-label={`Show ${option} candles`}
-              className={cn(
-                "in-data-[pill=pending]:data-[state=active]:bg-muted in-data-[pill=pending]:data-[state=active]:shadow-none",
-                option === value ? "px-2" : "hidden md:inline-flex"
-              )}
+              className={cn(option === value ? undefined : "hidden md:inline-flex")}
             >
               {option}
             </TabsTrigger>
@@ -398,7 +401,7 @@ export function IntervalPicker({
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Candle interval"
-                  className="rounded-md"
+                  className="h-7 rounded-md hover:bg-background/70"
                 >
                   <ChevronDownIcon className="size-3.5" />
                 </Button>
@@ -466,10 +469,13 @@ function ordersAreSwaps(marketKey: string): boolean {
     : false
 }
 
+const NO_RULES_SLOTS: readonly HTMLElement[] = []
+
 export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  initialNarrowChartView,
   initialChart,
   chartToolbarPosition,
   onChartToolbarPositionChange,
@@ -501,7 +507,7 @@ export function ChartPanel({
   onAddOpened,
   onOlderBars,
   cornerControl,
-  rulesSlot = null,
+  rulesSlots = NO_RULES_SLOTS,
   rulesCard = false,
   onEditRule,
 }: {
@@ -517,6 +523,11 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /**
+   * The same under 1280px, kept apart so a phone never opens at the wide
+   * screen's zoom. Null opens it at `NARROW_START_VIEW`.
+   */
+  initialNarrowChartView: ChartView | null
   /** First-paint bars that arrived with the route's opening answer. */
   initialChart: InitialChart
   /** The drawing rail position restored with the current workspace layout. */
@@ -612,11 +623,12 @@ export function ChartPanel({
   /** A chart action pinned inside the plot, immediately left of the price axis. */
   cornerControl?: React.ReactNode
   /**
-   * The left panel's space for the Rules box. Null while that panel is shut,
-   * and the box is then not drawn at all (Tyler, 15 Oct 2026: "dont need to
-   * see this when collapsed"). The check before an entry still runs.
+   * Every Rules block on screen, on the exchange's page and on the market's,
+   * each drawn into. Empty while no Rules block shows, and the box is then not
+   * drawn at all (Tyler, 15 Oct 2026: "dont need to see this when
+   * collapsed"). The check before an entry still runs.
    */
-  rulesSlot?: HTMLElement | null
+  rulesSlots?: readonly HTMLElement[]
   /**
    * Sums the rules up in a card over the chart, for when the left panel and
    * its Rules box are shut on a wide screen.
@@ -764,8 +776,18 @@ export function ChartPanel({
   }, [options.drawings, setPaintTool, setSelectedDrawing])
 
   // The zoom and scroll, which belong to neither: one view, carried onto
-  // whatever market and timeframe you open next.
-  const chartView = useRememberedChartView(initialChartView)
+  // whatever market and timeframe you open next. A screen under 1280px keeps
+  // its own, so the candles fill a phone instead of sitting at the wide
+  // screen's zoom (Tyler, 13 Nov 2026).
+  const wideChartView = useRememberedChartView(
+    initialChartView,
+    saveRememberedChartView
+  )
+  const narrowChartView = useRememberedChartView(
+    initialNarrowChartView ?? NARROW_START_VIEW,
+    saveNarrowChartView
+  )
+  const chartView = wide ? wideChartView : narrowChartView
 
   // How the order window is set up, held here rather than inside the window —
   // the window is thrown away and rebuilt on every right-click, so it has
@@ -1871,7 +1893,16 @@ export function ChartPanel({
    * somebody set by hand, and this only borrows its up-and-down squash.
    */
   const readViewForChart = React.useCallback(() => {
-    const remembered = chartView.readView()
+    const kept = chartView.readView()
+    // Under 1280px the chart always gets the library's own room above and
+    // below the candles: a phone view saved with 90% of the height empty
+    // above them reapplied that squash on every open, and every pinch then
+    // saved it again (Tyler, 13 Nov 2026: "on mobile the chart looks
+    // squished"). The zoom and scroll across are still the phone's own.
+    const remembered =
+      kept && !wide
+        ? { ...kept, marginTop: DEFAULT_MARGIN_TOP, marginBottom: DEFAULT_MARGIN_BOTTOM }
+        : kept
     const candles = current?.candles ?? []
     if (!focusTrade || candles.length < 2) return remembered
 
@@ -1889,7 +1920,7 @@ export function ChartPanel({
       marginTop: remembered?.marginTop ?? DEFAULT_MARGIN_TOP,
       marginBottom: remembered?.marginBottom ?? DEFAULT_MARGIN_BOTTOM,
     }
-  }, [chartView, current?.candles, focusTrade])
+  }, [chartView, current?.candles, focusTrade, wide])
 
   /**
    * What the switched-on indicators want drawn.
@@ -2254,6 +2285,7 @@ export function ChartPanel({
           onReshapeLadder={onReshapeLadder}
         />
         <GridLayer
+          compact={!wide}
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
@@ -2554,9 +2586,12 @@ export function ChartPanel({
             // With a trade picked, its id joins the tag: the chart frames
             // itself once per tag, so picking a row in the Journal is what
             // moves the chart to it.
-            viewKey={
+            // Crossing 1280px joins the tag too, so the chart frames itself
+            // again at the view kept for that width.
+            viewKey={`${
               focusTrade ? `${current.key}#${focusTrade.id}` : current.key
-            }
+            }${wide ? "" : "@narrow"}`}
+            compact={!wide}
             readView={readViewForChart}
             onViewChange={chartView.onViewChange}
             liveBars={liveBars}
@@ -2568,18 +2603,25 @@ export function ChartPanel({
         </div>
       )}
 
-      {market && rulesSlot
-        ? createPortal(
-            <RulesWatchPanel
-              key={market.key}
+      {market
+        ? rulesSlots.map((slot, index) =>
+            createPortal(
+              <RulesWatchPanel
+              key={`${market.key}:${index}`}
               marketKey={market.key}
               rules={tradingRules}
               holdings={ruleHoldings}
               factsFor={ruleFacts}
               onEditRule={onEditRule}
               idleNote={rulesIdleNote}
+              // The slot is the dashboard's Rules block, whose heading names it.
+              bare
             />,
-            rulesSlot
+              slot,
+              // Each box is its own, so a second Rules block never takes over
+              // the first one's picked rule.
+              `${market.key}:${index}`
+            )
           )
         : null}
 

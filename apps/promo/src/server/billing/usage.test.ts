@@ -242,7 +242,7 @@ describe("recordUsage", () => {
 })
 
 describe("usage summaries", () => {
-  it("aggregates the current UTC month and keeps member totals private", async () => {
+  it("adds up the member's UTC month, and the admin's range, keeping member totals private", async () => {
     const first = await insertUser(database, { name: "First" })
     const second = await insertUser(database, { name: "Second" })
     const timestamp = new Date("2026-08-20T10:00:00Z")
@@ -290,9 +290,13 @@ describe("usage summaries", () => {
     ])
     expect(member.recent.map((event) => event.id)).toContain("old")
 
-    const admin = await loadAdminUsage(timestamp, database)
-    expect(admin.totalQuantity).toBe(21)
-    expect(admin.totalEvents).toBe(4)
+    // 30 days on 20 Aug is 22 Jul to today: the 31 Jul row counts, the
+    // 1 Sep row is later than today, and the July reports waiting count as
+    // reports to review whatever their date.
+    const admin = await loadAdminUsage(30, timestamp, database)
+    expect(admin.since).toBe("2026-07-22T00:00:00.000Z")
+    expect(admin.totalQuantity).toBe(121)
+    expect(admin.totalEvents).toBe(5)
     expect(admin.activeMeters).toBe(2)
     expect(admin.pendingStripeReports).toBe(1)
     expect(admin.failedStripeReports).toBe(1)
@@ -304,8 +308,15 @@ describe("usage summaries", () => {
       failed: 1,
     })
     expect(admin.byPerson).toEqual([
-      expect.objectContaining({ userId: first.id, quantity: 12, events: 3 }),
+      expect.objectContaining({ userId: first.id, quantity: 112, events: 4 }),
       expect.objectContaining({ userId: second.id, quantity: 9, events: 1 }),
+    ])
+
+    // 7 days is 14 Aug to today: only the 18 and 19 Aug rows.
+    const week = await loadAdminUsage(7, timestamp, database)
+    expect(week.totalQuantity).toBe(8)
+    expect(week.byPerson).toEqual([
+      expect.objectContaining({ userId: first.id, quantity: 8, events: 2 }),
     ])
   })
 })

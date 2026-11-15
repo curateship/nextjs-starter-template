@@ -1,5 +1,9 @@
 import type { ReactNode } from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  PanelTopIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
@@ -193,7 +197,7 @@ function DividerEditor({
                 : `${dividerSpace}px`
             }
             onChange={onDividerSpaceChange}
-            help="How tall this row is on a desktop, on top of the gap the page already puts between two rows. A phone draws 70% of it, the same share as Settings > Styling > Space between rows."
+            help="How tall this row is on a desktop, on top of the gap the page already puts between two rows. A phone draws 70% of it, the same share as Admin > Styling > Public > Space between rows."
           />
           <div className="grid max-w-sm gap-2">
             <p className="text-sm font-medium">Preview</p>
@@ -216,7 +220,7 @@ function DividerEditor({
             max={MAX_FRONT_PAGE_DIVIDER_SHADE}
             valueLabel={`${dividerShade}%`}
             onChange={onDividerShadeChange}
-            help="How dark this divider is. It is this row's own number, not Settings > Styling > Divider lines, so one break can be stronger than the lines inside a card. 10% matches them."
+            help="How dark this divider is. It is this row's own number, not Admin > Styling > Public > Divider lines, so one break can be stronger than the lines inside a card. 10% matches them."
           />
           <div className="grid max-w-sm gap-2">
             <p className="text-sm font-medium">Preview</p>
@@ -266,7 +270,7 @@ function EditorCard({
   children: ReactNode
 }) {
   return (
-    <InspectorCard
+    <InspectorCard icon={<PanelTopIcon />}
       storageId={storageId}
       title={title}
       description={description}
@@ -507,7 +511,7 @@ function HeroEditor({
         onChange={onHeroSpacingChange}
         help={`The hero's own air, inside its background colour. A phone draws ${Math.round(
           FRONT_PAGE_HERO_SPACING_PHONE_SHARE * 100
-        )}% of it, because the room that separates a hero from the menu on a desktop is most of a phone screen. Settings > Styling > Main spacing does not touch the front page, so this is the number.`}
+        )}% of it, because the room that separates a hero from the menu on a desktop is most of a phone screen. Admin > Styling > Public > Main spacing does not touch the front page, so this is the number.`}
       />
 
     </EditorCard>

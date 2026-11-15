@@ -1,6 +1,5 @@
 import * as React from "react"
 import { BookmarkPlusIcon, FlagIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -9,11 +8,7 @@ import {
 } from "@/lib/api/pomodoro/shared-media"
 import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import type { BackgroundReference } from "@/lib/pomodoro/background-catalog"
-import {
-  addBackgroundToPersonalRoom,
-  addSoundToPersonalRoom,
-  useRoomMedia,
-} from "@/lib/pomodoro/room-media-store"
+import { useRoomMedia } from "@/lib/pomodoro/room-media-store"
 import type { MediaCredit } from "@/lib/pomodoro/shared-media"
 import type { SoundReference } from "@/lib/pomodoro/sound-catalog"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -74,25 +69,11 @@ function RoomCreditActions({ item }: { item: Credited }) {
       ? (item.reference.label ?? "This sound")
       : "This background"
 
-  const playItNow = async () => {
-    dismissErrorToast()
-    try {
-      if (item.kind === "sound") await addSoundToPersonalRoom(item.reference)
-      else await addBackgroundToPersonalRoom(item.reference)
-      toast.success(`${name} is in your personal room. You get it when you leave this room.`)
-    } catch (cause) {
-      showErrorToast(getSharedMediaErrorMessage(cause))
-    }
-  }
-
   const addToMine = async () => {
     dismissErrorToast()
     setBusy(true)
     try {
       await setSharedMediaSaved(item.reference.mediaId, true)
-      toast.success(`${name} is in your Saved list.`, {
-        action: { label: "Use it now", onClick: () => void playItNow() },
-      })
     } catch (cause) {
       showErrorToast(getSharedMediaErrorMessage(cause))
     } finally {

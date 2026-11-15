@@ -3,24 +3,18 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { dayOffNote } from "@/lib/project/days-off"
-import { timeOnTasks } from "@/lib/project/clock"
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
 import { addHoliday } from "@/server/project/holidays"
-import { createLabel } from "@/server/project/labels"
 import { answerMoreTime, askForMoreTime } from "@/server/project/more-time"
 import { addProjectMember } from "@/server/project/projects"
 import {
   projectNoticeLinks,
-  projectTaskClockRuns,
   projectTaskEvents,
-  projectTaskLabels,
   projectTasks,
 } from "@/server/project/schema"
 import { changeManyTasks } from "@/server/project/task-changes"
-import { projectClockSeconds } from "@/server/project/task-clock-runs"
-import { createTaskType } from "@/server/project/task-types"
 import { loadDaysOff, loadNeedsAttention } from "@/server/project/team-running"
 import { listTeams } from "@/server/project/teams"
 import { addTimeOff } from "@/server/project/time-off"
@@ -80,7 +74,7 @@ afterEach(async () => {
 async function task(title: string, { by = anna, to = ben, due = null as string | null } = {}) {
   const made = await createTask(
     actor(by),
-    { projectId, title, notes: "", assigneeUserId: to?.id ?? null, dueDate: due, steps: [] },
+    { projectId, title, notes: "", assigneeUserId: to?.id ?? null, dueDate: due },
     database
   )
   return made.id
@@ -242,57 +236,15 @@ describe("part 3, every team's morning on the Teams dashboard", () => {
   })
 })
 
-describe("part 4, time on the project", () => {
-  it("adds every stretch, fix and running clock on its tasks, leaving out the bin", async () => {
-    const id = await task("Clocked")
-    await database.insert(projectTaskClockRuns).values([
-      { id: "r1", taskId: id, userId: ben.id, kind: "run", startedAt: at(`${MONDAY}T09:00:00Z`), stoppedAt: at(`${MONDAY}T10:00:00Z`), seconds: 3600 },
-      { id: "r2", taskId: id, userId: ben.id, kind: "fix", startedAt: at(`${MONDAY}T11:00:00Z`), stoppedAt: at(`${MONDAY}T11:00:00Z`), seconds: -600 },
-      { id: "r3", taskId: id, userId: ben.id, kind: "run", startedAt: at(`${MONDAY}T12:00:00Z`) },
-    ])
-    const totals = await projectClockSeconds([projectId], database, at(`${MONDAY}T12:30:00Z`))
-    expect(totals.get(projectId)).toBe(3600 - 600 + 1800)
-
-    await database.update(projectTasks).set({ deletedAt: new Date() }).where(eq(projectTasks.id, id))
-    expect((await projectClockSeconds([projectId], database)).get(projectId)).toBeUndefined()
-  })
-
-  it("adds every task's clock, a running one up to now", () => {
-    const seconds = timeOnTasks(
-      [
-        { clock: { seconds: 7200, runningSince: null } },
-        { clock: { seconds: 1800, runningSince: new Date(Date.parse("2099-03-02T12:00:00Z") - 600_000).toISOString() } },
-      ],
-      Date.parse("2099-03-02T12:00:00Z")
-    )
-    expect(seconds).toBe(7200 + 1800 + 600)
-  })
-})
-
 describe("part 5, more bulk changes", () => {
-  it("sets priority, adds and takes off a tag, and refuses a type for someone who didn't hand it out", async () => {
+  it("sets priority", async () => {
     const one = await task("One")
     const two = await task("Two")
-    const label = await createLabel(anna.id, { name: "Urgent", color: "red" }, database)
     const both = { taskIds: [one, two] }
 
     await changeManyTasks(actor(ben), { ...both, change: { kind: "priority", priority: "high" } }, database)
     expect((await row(one)).priority).toBe("high")
-
-    await changeManyTasks(actor(ben), { ...both, change: { kind: "tag", labelId: label.id, on: true } }, database)
-    await changeManyTasks(actor(ben), { ...both, change: { kind: "tag", labelId: label.id, on: true } }, database)
-    expect(await database.select().from(projectTaskLabels)).toHaveLength(2)
-    await changeManyTasks(actor(ben), { taskIds: [one], change: { kind: "tag", labelId: label.id, on: false } }, database)
-    expect(await database.select().from(projectTaskLabels)).toHaveLength(1)
-
-    const type = await inTeam(teamId, () =>
-      createTaskType(admin.id, { name: "Video", icon: "video", color: "red" }, database)
-    )
-    const outcome = await changeManyTasks(actor(ben), { ...both, change: { kind: "type", typeId: type.id } }, database)
-    expect(outcome.changed).toEqual([])
-    expect(outcome.refused.map((r) => r.reason)).toEqual([PROJECT_ERRORS.cantChangeType, PROJECT_ERRORS.cantChangeType])
-    const byAnna = await changeManyTasks(actor(anna), { ...both, change: { kind: "type", typeId: type.id } }, database)
-    expect(byAnna.changed).toHaveLength(2)
+    expect((await row(two)).priority).toBe("high")
   })
 })
 

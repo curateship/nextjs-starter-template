@@ -14,6 +14,8 @@ import {
 } from "lucide-react"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -269,13 +271,16 @@ export function AnswerPanel({
       ? `That is ${text.length} characters, and a comment stops at ${MAX_COMMENT_CHARS}.`
       : null)
   const postOff = posting || Boolean(postReason)
+  const cover = useRightCover()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative isolate flex min-h-0 flex-1 flex-col">
+      {/* The left panel's cover carried on behind the header, when the dashboard hands one down. */}
+      <RightPanelCover />
       {/* The subreddit is the header's title, quiet, with Skip and the way to
           Reddit beside it. Tyler's design, 13 Oct 2026. On a phone the
           header also carries the way back to the list. */}
-      <DashboardCardHeader className="gap-2">
+      <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
         {onBack ? (
           <Button type="button" size="icon" variant="ghost" aria-label="Back to the list" onClick={onBack}>
             <ArrowLeftIcon />
@@ -311,6 +316,7 @@ export function AnswerPanel({
             </Hint>
           </>
         ) : null}
+        <SidePanelCollapseButton side="right" label="Hide the post and your comment" />
       </DashboardCardHeader>
 
       <ScrollArea className="min-h-0 flex-1">

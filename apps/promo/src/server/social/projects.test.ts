@@ -22,11 +22,12 @@ const {
   accountForFind,
   addAccountToProject,
   addProjectNetwork,
+  arrangeProjectNetworks,
   createProject,
   deleteProject,
   deleteProjects,
   listProjectRows,
-  projectForOldScreen,
+  projectForOldComments,
   readProjectView,
   removeAccountFromProject,
   removeProjectNetwork,
@@ -102,7 +103,7 @@ describe("projects", () => {
   it("is made, named and described, and a second one sits beside the first", async () => {
     const first = await createProject(userId, "  First  ", db)
     const second = await createProject(userId, "Second", db)
-    await updateProject(userId, second, { name: "Renamed", description: doc("A tool for teams.") }, db)
+    await updateProject(userId, second, { name: "Renamed", page: JSON.stringify(doc("A tool for teams.")) }, db)
 
     const rows = await db.select().from(promoProjects).where(eq(promoProjects.userId, userId))
     expect(rows.map((row) => [row.id, row.name, projectDescriptionText(row.description)]).sort()).toEqual(
@@ -116,33 +117,105 @@ describe("projects", () => {
 
   it("tells the AI the description as plain lines, and keeps an emptied one as none", async () => {
     const id = await createProject(userId, "Written", db)
-    await updateProject(userId, id, { description: doc("We make invoices.", "For small teams.") }, db)
-    expect((await readProjectView(userId, id, db)).project.description).toEqual(doc("We make invoices.", "For small teams."))
+    await updateProject(userId, id, { page: JSON.stringify(doc("We make invoices.", "For small teams.")) }, db)
     const { projectDescription } = await import("./projects")
     expect(await projectDescription(userId, id, db)).toBe("We make invoices.\nFor small teams.")
 
-    await updateProject(userId, id, { description: { type: "doc", content: [{ type: "paragraph" }] } }, db)
+    await updateProject(userId, id, { page: JSON.stringify({ type: "doc", content: [{ type: "notePromoNetworks" }, { type: "notePromoArchive" }, { type: "paragraph" }] }) }, db)
     const [row] = await db.select().from(promoProjects).where(eq(promoProjects.id, id))
     expect(row?.description).toBe("")
   })
 
   it("refuses a description past 4,000 letters rather than cutting it, and any change while it is locked", async () => {
     const id = await createProject(userId, "Locked", db)
-    await updateProject(userId, id, { description: doc("Kept.") }, db)
-    await expect(updateProject(userId, id, { description: doc("x".repeat(4_001)) }, db)).rejects.toThrow("Keep it under 4,000")
+    await updateProject(userId, id, { page: JSON.stringify(doc("Kept.")) }, db)
+    await expect(updateProject(userId, id, { page: JSON.stringify(doc("x".repeat(4_001))) }, db)).rejects.toThrow("Keep it under 4,000")
     // Empty paragraphs hold no letters, so the saved size has a limit of its own.
     const padded: WrittenPageNode = { type: "doc", content: Array.from({ length: 5_000 }, () => ({ type: "paragraph" as const })) }
     padded.content?.push({ type: "paragraph", content: [{ type: "text", text: "Hi." }] })
-    await expect(updateProject(userId, id, { description: padded }, db)).rejects.toThrow("Keep it under 4,000")
+    await expect(updateProject(userId, id, { page: JSON.stringify(padded) }, db)).rejects.toThrow("Keep it under 4,000")
 
     await setProjectDescriptionLocked(userId, id, true, db)
     expect((await readProjectView(userId, id, db)).project.descriptionLocked).toBe(true)
-    await expect(updateProject(userId, id, { description: doc("Changed.") }, db)).rejects.toThrow("description is locked")
+    await expect(updateProject(userId, id, { page: JSON.stringify(doc("Changed.")) }, db)).rejects.toThrow("description is locked")
     // The name is not the description, so it still changes.
     await updateProject(userId, id, { name: "Still named" }, db)
     await setProjectDescriptionLocked(userId, id, false, db)
-    await updateProject(userId, id, { description: doc("Changed.") }, db)
+    await updateProject(userId, id, { page: JSON.stringify(doc("Changed.")) }, db)
     expect(projectDescriptionText((await db.select().from(promoProjects).where(eq(promoProjects.id, id)))[0].description)).toBe("Changed.")
+  })
+
+  it("keeps the page's blocks and its one Networks block, and tells the AI the words alone", async () => {
+    const id = await createProject(userId, "Paged", db)
+    // A description saved before 12 Nov 2026, words and formatting only, reads the same with the Networks block on top.
+    const old: WrittenPageNode = {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "What we make" }] },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Invoices", marks: [{ type: "bold" }] }] }] }] },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "Fast." }] }] },
+      ],
+    }
+    await db.update(promoProjects).set({ description: JSON.stringify(old) }).where(eq(promoProjects.id, id))
+    const view = await readProjectView(userId, id, db)
+    expect(JSON.parse(view.project.descriptionPage)).toEqual({ type: "doc", content: [{ type: "notePromoNetworks" }, { type: "notePromoArchive" }, ...(old.content ?? [])] })
+    const { projectDescription: told } = await import("./projects")
+    expect(await told(userId, id, db)).toBe("What we make\nInvoices\nFast.")
+
+    // Blocks are kept; a second Networks block goes, and the one moved under the words stays there.
+    const page = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "We make invoices." }] },
+        { type: "notePromoNetworks" },
+        { type: "notePromoNetworks" },
+        { type: "noteCallout", attrs: { kind: "note" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Secret plan." }] }] },
+        { type: "taskList", content: [{ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "Hidden task." }] }] }] },
+        { type: "noteUnknown", content: [{ type: "text", text: "Dropped." }] },
+      ],
+    }
+    await updateProject(userId, id, { page: JSON.stringify(page) }, db)
+    const saved = JSON.parse((await readProjectView(userId, id, db)).project.descriptionPage) as { content: { type: string }[] }
+    expect(saved.content.map((node) => node.type)).toEqual(["paragraph", "notePromoNetworks", "notePromoArchive", "noteCallout", "taskList"])
+    // The AI is told the words, never what sits in a block.
+    const { projectDescription } = await import("./projects")
+    expect(await projectDescription(userId, id, db)).toBe("We make invoices.")
+
+    // A page saved without it gets it back on top.
+    await updateProject(userId, id, { page: JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hi." }] }] }) }, db)
+    const back = JSON.parse((await readProjectView(userId, id, db)).project.descriptionPage) as { content: { type: string }[] }
+    expect(back.content.map((node) => node.type)).toEqual(["notePromoNetworks", "notePromoArchive", "paragraph"])
+  })
+
+  it("refuses a save from a copy that is no longer what is stored, keeping the words", async () => {
+    const id = await createProject(userId, "Two tabs", db)
+    const first = (await readProjectView(userId, id, db)).project.descriptionPage
+    const { page: afterFirst } = await updateProject(userId, id, { page: JSON.stringify(doc("Written in tab one.")), base: first }, db)
+    expect(afterFirst).not.toBeNull()
+    // Tab two still holds the page from before, and sends it emptied.
+    await expect(
+      updateProject(userId, id, { page: JSON.stringify({ type: "doc", content: [{ type: "notePromoNetworks" }] }), base: first }, db)
+    ).rejects.toThrow("changed somewhere else")
+    const { projectDescription } = await import("./projects")
+    expect(await projectDescription(userId, id, db)).toBe("Written in tab one.")
+    // Tab one goes on from what the server gave back.
+    await updateProject(userId, id, { page: JSON.stringify(doc("Still tab one.")), base: afterFirst! }, db)
+    expect(await projectDescription(userId, id, db)).toBe("Still tab one.")
+  })
+
+  it("saves the Networks block's order and hidden networks, refusing an order that is not the project's networks", async () => {
+    const id = await createProject(userId, "Arranged", db, ["reddit", "instagram", "medium"])
+    await arrangeProjectNetworks(userId, id, { order: ["medium", "reddit", "instagram"], hidden: ["instagram", "x"] }, db)
+    const view = await readProjectView(userId, id, db)
+    expect(view.project.networks).toEqual(["medium", "reddit", "instagram"])
+    // A network the project does not use is never stored as hidden.
+    expect(view.project.hiddenNetworks).toEqual(["instagram"])
+
+    await expect(arrangeProjectNetworks(userId, id, { order: ["medium", "reddit"], hidden: [] }, db)).rejects.toThrow("networks changed")
+    await expect(arrangeProjectNetworks(userId, id, { order: ["medium", "reddit", "x"], hidden: [] }, db)).rejects.toThrow("networks changed")
+    // Taken off, a hidden network leaves the hidden list too.
+    await removeProjectNetwork(userId, id, "instagram", db)
+    expect((await readProjectView(userId, id, db)).project.hiddenNetworks).toEqual([])
   })
 
   it("pins a project for the table, and another person's id pins nothing", async () => {
@@ -155,14 +228,21 @@ describe("projects", () => {
     expect((await listProjectRows(userId, db)).find((row) => row.id === id)?.pinned).toBe(false)
   })
 
-  it("refuses a picture that is not the person's own upload, and takes one off with an empty address", async () => {
+  it("takes the shell's cover choices, None, Sky or a picture, refusing a picture that is not the person's own upload", async () => {
     const id = await createProject(userId, "Pictured", db)
     await expect(
-      updateProject(userId, id, { imageUrl: "https://tracker.example/pixel.png" }, db)
+      updateProject(userId, id, { cover: { coverUrl: "https://tracker.example/pixel.png", coverImages: [] } }, db)
     ).rejects.toThrow("not one of your uploaded images")
-    await updateProject(userId, id, { imageUrl: "" }, db)
+    // A kept picture is checked too, not only the one in use.
+    await expect(
+      updateProject(userId, id, { cover: { coverUrl: "sky", coverImages: ["https://tracker.example/pixel.png"] } }, db)
+    ).rejects.toThrow("not one of your uploaded images")
+    await updateProject(userId, id, { cover: { coverUrl: "sky", coverImages: [] } }, db)
+    expect((await readProjectView(userId, id, db)).project.imageUrl).toBe("sky")
+    await updateProject(userId, id, { cover: { coverUrl: null, coverImages: [] } }, db)
     const [row] = await db.select().from(promoProjects).where(eq(promoProjects.id, id))
     expect(row?.imageUrl).toBe("")
+    expect(row?.coverImages).toEqual([])
   })
 
   it("refuses to delete a project holding accounts or keywords, saying how many, and deletes nothing", async () => {
@@ -323,8 +403,8 @@ describe("projects", () => {
   it("tells a draft its own project's description and not another's", async () => {
     const a = await createProject(userId, "A", db)
     const b = await createProject(userId, "B", db)
-    await updateProject(userId, a, { description: doc("Project A makes invoices.") }, db)
-    await updateProject(userId, b, { description: doc("Project B makes rockets.") }, db)
+    await updateProject(userId, a, { page: JSON.stringify(doc("Project A makes invoices.")) }, db)
+    await updateProject(userId, b, { page: JSON.stringify(doc("Project B makes rockets.")) }, db)
     const inA = await account({ projectId: a })
     const findId = await find(a)
 
@@ -352,7 +432,7 @@ describe("projects", () => {
 
   it("tells a draft from an account in no project nothing about a product", async () => {
     const a = await createProject(userId, "A", db)
-    await updateProject(userId, a, { description: doc("Project A makes invoices.") }, db)
+    await updateProject(userId, a, { page: JSON.stringify(doc("Project A makes invoices.")) }, db)
     const loose = await account()
     const findId = await find(a)
     let prompt = ""
@@ -396,19 +476,15 @@ describe("projects", () => {
     expect((await readProjectView(userId, projectId, db)).project.networks).toEqual(["reddit"])
   })
 
-  it("sends the old screens' addresses to the right project", async () => {
-    expect(await projectForOldScreen(userId, "today", null, db)).toBeNull()
-    expect(await projectForOldScreen(userId, "jobs", null, db)).toBeNull()
+  it("sends the old Comments address to the right project", async () => {
+    expect(await projectForOldComments(userId, null, db)).toBeNull()
 
     const first = await createProject(userId, "First", db, ["reddit"])
-    expect(await projectForOldScreen(userId, "today", null, db)).toBe(first)
+    expect(await projectForOldComments(userId, null, db)).toBe(first)
 
     const second = await createProject(userId, "Second", db, ["reddit"])
-    // With two to pick from, Today and Comments go to the Projects table;
-    // Jobs is the same list from any project, so the first.
-    expect(await projectForOldScreen(userId, "today", null, db)).toBeNull()
-    expect(await projectForOldScreen(userId, "comments", null, db)).toBeNull()
-    expect(await projectForOldScreen(userId, "jobs", null, db)).toBe(first)
+    // With two to pick from, it goes to the Projects table.
+    expect(await projectForOldComments(userId, null, db)).toBeNull()
 
     // A comment opens in the project its account is in now.
     const { id: accountId } = await account({ projectId: second })
@@ -423,9 +499,9 @@ describe("projects", () => {
       status: "posted",
       postedAt: NOW,
     })
-    expect(await projectForOldScreen(userId, "comments", commentId, db)).toBe(second)
+    expect(await projectForOldComments(userId, commentId, db)).toBe(second)
     // Another person's comment id says nothing about where it is.
     const stranger = (await insertUser(db, { role: "admin" })).id
-    expect(await projectForOldScreen(stranger, "comments", commentId, db)).toBeNull()
+    expect(await projectForOldComments(stranger, commentId, db)).toBeNull()
   })
 })

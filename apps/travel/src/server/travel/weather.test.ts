@@ -7,6 +7,7 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 import { createTrip } from "@/server/travel/trips"
 import { forgetWeather, loadTripWeather } from "@/server/travel/weather"
 import { rainLine } from "@/lib/travel/weather"
+import { cardRainLine } from "@/lib/travel/rainy-day"
 
 let client: PGlite
 let database: CustomShellDb
@@ -47,6 +48,11 @@ function stubOpenMeteo() {
           // 1 March 70, 2 March 29.6, 3 March nothing given, then 10.
           precipitation_probability_max: time.map((_, index) => (index < 3 ? [70, 29.6, null][index] : 10)),
         },
+        // 2 March only: 40 at 2 PM, nothing given at 3 PM, and 5 every other hour.
+        hourly: {
+          time: Array.from({ length: 24 }, (_, hour) => `2026-03-02T${String(hour).padStart(2, "0")}:00`),
+          precipitation_probability: Array.from({ length: 24 }, (_, hour) => (hour === 14 ? 40 : hour === 15 ? null : 5)),
+        },
       })
     })
   )
@@ -61,7 +67,13 @@ describe("weather on each day (part 33)", () => {
     // 2 March to 14 March is inside 14 days of 1 March; Day 14 (15 March) isn't.
     expect(days.map((day) => day.day)).toEqual(Array.from({ length: 13 }, (_, index) => index + 1))
     // Day 1 is 2 March: a 29.6 chance rounds to 30, the first chance that shows.
-    expect(days[0]).toEqual({ day: 1, high: 18, low: 9, kind: "clear", rain: 30 })
+    expect(days[0]).toMatchObject({ day: 1, high: 18, low: 9, kind: "clear", rain: 30 })
+    // Each hour's chance on its own day (Travel features 4, part 3); a day with no hours given has none.
+    expect(days[0].hourlyRain).toHaveLength(24)
+    expect(days[0].hourlyRain[14]).toBe(40)
+    expect(days[0].hourlyRain[15]).toBeNull()
+    expect(days[0].hourlyRain[9]).toBe(5)
+    expect(days[1].hourlyRain).toEqual([])
     expect(days[1].rain).toBeNull()
     expect(days[2].rain).toBe(10)
     expect(asked.some((call) => call.includes("Kyoto"))).toBe(false)
@@ -84,5 +96,24 @@ describe("chance of rain (Travel features part 3)", () => {
     expect(rainLine({ rain: 29 })).toBeNull()
     expect(rainLine({ rain: 0 })).toBeNull()
     expect(rainLine({ rain: null })).toBeNull()
+  })
+})
+
+describe("rain at the card's hour (Travel features 4, part 3)", () => {
+  const hours = Array.from({ length: 24 }, (_, hour) => (hour === 14 ? 40 : hour === 9 ? 29 : null))
+  const forecast = [{ day: 2, hourlyRain: hours }]
+  const park = { kinds: ["park"] }
+
+  it("reads the chance in the hour an outdoor card starts", () => {
+    expect(cardRainLine({ day: 2, startTime: "14:30", place: park }, forecast)).toBe("40% rain at 2:30 PM")
+  })
+
+  it("shows nothing under 30, with no chance given, indoors, untimed or on a day past the forecast", () => {
+    expect(cardRainLine({ day: 2, startTime: "09:00", place: park }, forecast)).toBeNull()
+    expect(cardRainLine({ day: 2, startTime: "16:00", place: park }, forecast)).toBeNull()
+    expect(cardRainLine({ day: 2, startTime: "14:00", place: { kinds: ["museum"] } }, forecast)).toBeNull()
+    expect(cardRainLine({ day: 2, startTime: null, place: park }, forecast)).toBeNull()
+    expect(cardRainLine({ day: 3, startTime: "14:00", place: park }, forecast)).toBeNull()
+    expect(cardRainLine({ day: null, startTime: "14:00", place: park }, forecast)).toBeNull()
   })
 })

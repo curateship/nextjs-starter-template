@@ -13,6 +13,7 @@ import {
 import { getPublicMediaUrl, uploadToR2 } from "@/server/media/storage"
 import { customShellMedia } from "@/server/schema"
 import { requireActivity } from "@/server/travel/access"
+import { spendGoogleLookup } from "@/server/travel/google-usage"
 import { PHOTO_NAME } from "@/server/travel/google"
 import { travelActivities } from "@/server/travel/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -107,12 +108,17 @@ export async function googlePhoto(photoName: string | null | undefined, key: str
 
 /**
  * A place's own Google photo, saved into the person's media library and
- * returned as its address. Null with no Google key, no photo, or a picture
- * that won't save; a picture is never worth failing anything over.
+ * returned as its address. Null with no Google key, no photo, a person past
+ * today's Google lookups (Travel features 4, part 4), or a picture that won't
+ * save; a picture is never worth failing anything over.
  */
 export async function savedGooglePhoto(userId: string, photoName: string | null, title: string, database: CustomShellDb) {
   const key = process.env.GOOGLE_MAPS_API_KEY?.trim()
   if (!key || !photoName) return null
+  const spent = await spendGoogleLookup(userId, database)
+    .then(() => true)
+    .catch(() => false)
+  if (!spent) return null
   const picture = await googlePhoto(photoName, key)
   return picture ? savePicture(userId, picture.data, picture.mimeType, title, database) : null
 }

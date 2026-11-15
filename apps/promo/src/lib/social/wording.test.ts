@@ -105,7 +105,7 @@ describe("why posting is off", () => {
   it("says to sign in, naming the profile", () => {
     const reason = postingBlockedReason({ ...ready, handle: null }, read)
     expect(reason?.text).toBe(
-      "The browser is not signed in to Reddit. Open the profile Main on the Browser profiles dashboard and sign in once."
+      "The browser is not signed in to Reddit. Open the profile Main in the Anti Detect dashboard's Profiles and sign in once."
     )
   })
 
@@ -115,7 +115,7 @@ describe("why posting is off", () => {
       read
     )
     expect(reason?.text).toBe(
-      "Reddit is asking the browser something: a captcha is on screen. Open the profile Main on the Browser profiles dashboard and clear it."
+      "Reddit is asking the browser something: a captcha is on screen. Open the profile Main in the Anti Detect dashboard's Profiles and clear it."
     )
   })
 
@@ -128,7 +128,7 @@ describe("why posting is off", () => {
     const phone = { id: "f1", name: "Pixel 8a", shelfSlot: "", status: "connected" as const, offlineReason: "", inUse: false, addressStop: "" }
     const reason = postingBlockedReason({ ...ready, profile: null, phone, handle: null }, read)
     expect(reason?.text).toBe(
-      "The phone is not signed in to Reddit. Open the screen of Pixel 8a on the Phones dashboard and sign in once."
+      "The phone is not signed in to Reddit. Open the screen of Pixel 8a on its rack's page and sign in once."
     )
     expect(postingBlockedReason({ ...ready, profile: null, phone }, read)).toBeNull()
   })

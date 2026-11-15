@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm"
 import { escapeHtml } from "@/lib/email/escape-html"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellContacts } from "@/server/schema"
+import { customShellContacts, customShellUsers } from "@/server/schema"
 import { now } from "@/server/auth/security"
 
 /**
@@ -58,6 +58,31 @@ export function buildUnsubscribeUrl(contactId: string) {
 }
 
 /**
+ * An account's link out of automated mail. Accounts are emailed at their own
+ * address, not as subscribers (Tyler, 9 Nov 2026: "users and subscribers are
+ * also seperate"), so their way out turns automated mail off on the account
+ * itself. Signed over its own word, so a subscriber's link can never be
+ * replayed as an account's or the other way round.
+ */
+function accountUnsubscribeToken(userId: string) {
+  return createHmac("sha256", signingKey())
+    .update(`account-mail-off:${userId}`, "utf8")
+    .digest("hex")
+    .slice(0, 32)
+}
+
+function verifyAccountUnsubscribeToken(userId: string, token: string) {
+  const expected = Buffer.from(accountUnsubscribeToken(userId), "utf8")
+  const provided = Buffer.from(token, "utf8")
+  return expected.length === provided.length && timingSafeEqual(expected, provided)
+}
+
+export function buildAccountUnsubscribeUrl(userId: string) {
+  const params = new URLSearchParams({ a: userId, t: accountUnsubscribeToken(userId) })
+  return appUrlFor(`/unsubscribe?${params.toString()}`)
+}
+
+/**
  * A plain, self-contained page rather than the app's own shell: this is opened
  * from inside a mail client, often by somebody who has never signed in, and it
  * has to render with no JavaScript and no session.
@@ -88,7 +113,40 @@ export async function handleUnsubscribeRequest(
 ) {
   const url = new URL(request.url)
   const contactId = url.searchParams.get("c") ?? ""
+  const userId = url.searchParams.get("a") ?? ""
   const token = url.searchParams.get("t") ?? ""
+
+  // An account's link: automated mail goes off for that account. System
+  // emails (verify, reset and the like) still go; they are not marketing.
+  if (userId) {
+    if (userId.length > 36 || !token || !verifyAccountUnsubscribeToken(userId, token)) {
+      return htmlResponse(
+        "That link did not work",
+        "This unsubscribe link is not one we recognise. If you got here from an email, try the link in the most recent one.",
+        400
+      )
+    }
+    const timestamp = now()
+    const [account] = await database
+      .select({ id: customShellUsers.id, off: customShellUsers.automatedMailOffAt })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+      .limit(1)
+    if (!account) {
+      return htmlResponse("Nothing to do", "This account no longer exists, so there is nothing to turn off.", 404)
+    }
+    if (!account.off) {
+      await database
+        .update(customShellUsers)
+        .set({ automatedMailOffAt: timestamp })
+        .where(eq(customShellUsers.id, userId))
+    }
+    return htmlResponse(
+      "Automated emails are off",
+      "You will not get any more emails like this one. Emails about your account, such as a password reset, still come when you ask for them.",
+      200
+    )
+  }
 
   if (
     !contactId ||

@@ -6,7 +6,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +35,7 @@ import { useEditorLock, useEditorRuntime, useEditorSelector } from "@/components
 import { useProjectGuest } from "@/components/video-editor/project-guest"
 import { useProjectSettings } from "@/components/video-editor/project-settings-context"
 import { ScriptCheckList } from "@/components/video-editor/script-check-results"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import {
   getBriefErrorMessage,
   listBriefs,
@@ -66,6 +66,7 @@ import { formatCents, isProjectSpendLimitMessage } from "@/lib/video/project-spe
 import { makingCents, templateCaptions } from "@/lib/video/templates"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { editorId } from "@/lib/video/timeline-utils"
+import { formatDate } from "@/lib/format/format-time"
 
 /**
  * Brief to video (`workspace/docs/brief-to-video.md`): the storyboard a
@@ -199,12 +200,6 @@ function OwnerBriefs({ children }: { children: React.ReactNode }) {
           )
           store.refreshMediaShelf()
           refreshSpend()
-          const numbers = brief.scenes.flatMap((scene, index) => (placed.has(scene.id) ? [index + 1] : []))
-          toast.success(
-            numbers.length === 1
-              ? `Scene ${numbers[0]} is on the timeline. Undo takes it off.`
-              : `Scenes ${numbers[0]} to ${numbers.at(-1)} are on the timeline. Undo takes them off.`
-          )
         })
         .catch(() => {
           // Asked again on the next answer.
@@ -352,9 +347,6 @@ export function BriefStoryboard({
       await saveNow()
       const started = await startBrief({ briefId: brief.id, scenes, playheadMs: clock.getTime() })
       context?.replace(started)
-      toast.success(
-        `Making ${started.scenes.length} ${plural(started.scenes.length, "scene", "scenes")}. Each one lands on the timeline when it is ready, and it carries on if you close the tab.`
-      )
       onClose()
     } catch (error) {
       reportError(error)
@@ -403,9 +395,6 @@ export function BriefStoryboard({
       store.refreshMediaShelf()
       refreshSpend()
       setRewords({})
-      toast.success(
-        `${answer.changed.length} ${plural(answer.changed.length, "scene was", "scenes were")} read again and swapped in. Undo puts the old ${plural(answer.changed.length, "one", "ones")} back.`
-      )
     } catch (error) {
       reportError(error)
     } finally {
@@ -427,8 +416,10 @@ export function BriefStoryboard({
   const redoCents = changedScenes.reduce((sum, scene) => sum + sceneVoiceCents(brief.voice, rewords[scene.id]), 0)
   const overCap = editable && fields?.spendCapCents ? totalCents > fields.spendCapCents : false
 
+  // The storyboard saves itself as it is typed, so only words changed on a
+  // finished scene, not yet made again, are lost by closing.
   return (
-    <FormDialog open dirty={false} busy={starting || redoing} onClose={onClose}>
+    <FormDialog open dirty={changedScenes.length > 0} busy={starting || redoing} onClose={onClose}>
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-2xl">
           <DialogHeader>
@@ -464,7 +455,7 @@ export function BriefStoryboard({
                       <SelectContent>
                         {briefs.map((item) => (
                           <SelectItem key={item.id} value={item.id}>
-                            {item.title}, {new Date(item.created_at).toLocaleDateString()}
+                            {item.title}, {formatDate(item.created_at)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -562,6 +553,7 @@ export function BriefStoryboard({
                                 setRewords((current) => ({ ...current, [scene.id]: value }))
                               }}
                             />
+                            <LengthCounter length={(rewords[scene.id] ?? scene.words).length} max={SCENE_WORDS_MAX} />
                           </div>
                         ) : (
                           <p className="text-sm [overflow-wrap:anywhere]">{scene.words}</p>
@@ -709,6 +701,7 @@ function EditableScene({
           aria-invalid={invalid === "words" || undefined}
           onChange={(event) => onChange({ words: event.target.value })}
         />
+        <LengthCounter length={scene.words.length} max={SCENE_WORDS_MAX} />
       </div>
       <div className="grid gap-2">
         <Label htmlFor={`${id}-picture`}>Picture</Label>
@@ -721,6 +714,7 @@ function EditableScene({
           aria-invalid={invalid === "picture" || undefined}
           onChange={(event) => onChange({ picture: event.target.value })}
         />
+        <LengthCounter length={scene.picture.length} max={SCENE_PICTURE_MAX} />
       </div>
       <NumberField
         id={`${id}-seconds`}

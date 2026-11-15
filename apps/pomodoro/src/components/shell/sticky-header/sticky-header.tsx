@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  CheckIcon,
   EyeIcon,
   Loader2Icon,
   PanelLeftIcon,
@@ -378,27 +377,14 @@ function ViewAsBadge({ viewingAs }: { viewingAs: ViewingAsSummary }) {
   )
 }
 
-// Auto-save status for the settings page, surfaced in the shared header so the
-// settings page itself needs no save button or header. Renders nothing unless a
-// save is in flight, just finished, or was refused. A refusal is visible from
-// every settings tab, which is the only warning you get when the edit that
-// broke the save happened on a different tab, and it names the field to fix
-// because the tab in front of you may not be the tab that holds it.
+// Auto-save status, surfaced in the shared header so a settings page needs no
+// save button. Only a refused save shows: "Saving…" and "Saved" were taken out
+// of the top bar (Tyler, 11 Nov 2026: "remove this saving indicator from the
+// top navigation"). A refusal is visible from every settings tab, which is the
+// only warning you get when the edit that broke the save happened on a
+// different tab, and it names the field to fix because the tab in front of you
+// may not be the tab that holds it.
 function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
-  if (status === "saving") {
-    return <span className="text-sm text-muted-foreground">Saving…</span>
-  }
-  if (status === "saved") {
-    return (
-      <span
-        role="status"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
-      >
-        <CheckIcon className="h-4 w-4" />
-        Saved
-      </span>
-    )
-  }
   if (status && typeof status === "object") {
     return (
       <span

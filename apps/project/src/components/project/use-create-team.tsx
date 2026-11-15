@@ -37,7 +37,7 @@ export function useCreateTeam(onDone?: () => void) {
       showErrorToast("Give the team a name.")
       return
     }
-    const ok = await run(() => createProjectTeam({ name, timeZone }), "Team created.")
+    const ok = await run(() => createProjectTeam({ name, timeZone }))
     if (!ok) return
     setName("")
     await router.invalidate()

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -83,12 +82,7 @@ export function MessageLiveRoomsDialog({
     }
     setSending(true)
     try {
-      const { reached } = await messagePomodoroLiveRooms(body.trim())
-      toast.success(
-        reached
-          ? `Pinned in ${reached} live ${plural(reached, "room", "rooms")}.`
-          : "No room is live right now, so nothing was sent."
-      )
+      await messagePomodoroLiveRooms(body.trim())
       onClose()
     } catch (error) {
       showErrorToast(getSafetyErrorMessage(error))

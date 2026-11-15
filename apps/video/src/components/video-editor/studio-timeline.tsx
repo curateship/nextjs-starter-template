@@ -13,7 +13,6 @@ import {
   Megaphone,
   Image as ImageIcon,
   Maximize2,
-  Minus,
   Music2,
   Plus,
   Redo2,
@@ -24,6 +23,8 @@ import {
   Undo2,
   Volume2,
   VolumeX,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react"
 
 import { clipSpeed, sourceSpanMs } from "@/lib/video/clip-playback"
@@ -82,6 +83,7 @@ import {
   type Waveform,
 } from "@/lib/video/waveforms"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { Slider } from "@/components/ui/slider"
 import { Hint } from "@/components/video-assets/hint"
 import {
   useEditorDurationMs,
@@ -1222,9 +1224,10 @@ const ClipChip = React.memo(function ClipChip({
     })
     const wanted = snapped.ms - active.origin.startMs
     // What is left of the file after the trim, in timeline room. A still has
-    // no end to run past, so only timed media is capped.
+    // no end to run past, and a looped clip starts its file again
+    // (clip-loop.md), so only timed media played once is capped.
     const longestMs =
-      clip.sourceDurationMs && clip.kind !== "image"
+      clip.sourceDurationMs && clip.kind !== "image" && !clip.loop
         ? (clip.sourceDurationMs - active.origin.trimStartMs) / speed
         : Number.POSITIVE_INFINITY
     const durationMs = Math.max(MIN_CLIP_MS, Math.min(wanted, longestMs))
@@ -1780,7 +1783,7 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
   const canUndo = useEditorSelector((state) => state.past.length > 0)
   const canRedo = useEditorSelector((state) => state.future.length > 0)
   const cutMode = useEditorSelector((state) => state.cutMode)
-  const selectedClipId = useEditorSelector((state) => state.selectedClipId)
+  const selectedClipIds = useEditorSelector((state) => state.selectedClipIds)
   const { dispatch } = useEditorRuntime()
   const { copy, paste } = useClipClipboard()
   const dropMarker = useDropMarker()
@@ -1821,11 +1824,10 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
             <Scissors size={16} />
           </ToolbarButton>
           <ToolbarButton
-            label="Delete the selected clip"
-            disabled={!selectedClipId}
+            label="Delete the selected clips"
+            disabled={selectedClipIds.length === 0}
             onClick={() =>
-              selectedClipId &&
-              dispatch({ type: "DELETE_CLIP", clipId: selectedClipId })
+              dispatch({ type: "DELETE_CLIPS", clipIds: selectedClipIds })
             }
           >
             <Trash2 size={16} />
@@ -1847,24 +1849,19 @@ function TimelineToolbar({ fit }: { fit: () => void }) {
           </ToolbarButton>
           <span className="mx-1 h-5 w-px bg-foreground/10" aria-hidden />
           <ToolbarButton label="Zoom out" onClick={() => setZoom(pps / ZOOM_STEP)}>
-            <Minus size={16} />
+            <ZoomOut size={16} />
           </ToolbarButton>
-          <input
-            type="range"
+          <Slider
+            className="mx-1 w-26"
             min={Math.log(ZOOM_MIN)}
             max={Math.log(ZOOM_MAX)}
             step={0.01}
-            value={Math.log(clampZoom(pps))}
-            onChange={(event) => setZoom(Math.exp(Number(event.target.value)))}
+            value={[Math.log(clampZoom(pps))]}
+            onValueChange={([value]) => setZoom(Math.exp(value))}
             aria-label="Zoom"
-            style={{
-              width: 104,
-              margin: "0 4px",
-              background: `linear-gradient(90deg,var(--acc) ${zoomPct(pps)}%,var(--line2) ${zoomPct(pps)}%)`,
-            }}
           />
           <ToolbarButton label="Zoom in" onClick={() => setZoom(pps * ZOOM_STEP)}>
-            <Plus size={16} />
+            <ZoomIn size={16} />
           </ToolbarButton>
           <ToolbarButton label="Fit the whole project" onClick={fit}>
             <Maximize2 size={16} />
@@ -1914,9 +1911,4 @@ function ToolbarButton({
       </button>
     </Hint>
   )
-}
-
-function zoomPct(pps: number) {
-  const span = Math.log(ZOOM_MAX) - Math.log(ZOOM_MIN)
-  return Math.round(((Math.log(clampZoom(pps)) - Math.log(ZOOM_MIN)) / span) * 100)
 }

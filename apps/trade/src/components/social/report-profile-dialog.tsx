@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -55,7 +54,6 @@ export function ReportProfileDialog({
     setSending(true)
     try {
       await sendProfileReport(handle, reason)
-      toast.success("Report sent. An admin will look at it.")
       close()
     } catch (error) {
       showErrorToast(getPublicProfileErrorMessage(error))

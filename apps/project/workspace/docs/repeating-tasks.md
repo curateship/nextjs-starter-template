@@ -31,18 +31,15 @@ forgotten.
 ## How copies appear
 
 - **At midnight in the team's time zone**, on each day the rule falls on, the
-  job makes a fresh copy: the title, notes and tags, the type and
-  its field values (files stay behind), the priority, the steps unticked, the same person
-  (already accepted, so no new Waiting or notice), and To do. A copy skips
-  the "Needed when made" check. A copy of a task with a due date is due on the day it was made
+  job makes a fresh copy: the title and notes (files stay behind), the
+  priority, the same person (already accepted, so no new Waiting or
+  notice), and To do. A copy of a task with a due date is due on the day it was made
   for.
-- **The copy keeps its whole setup** (Features 16 Oct). Every other date
+- **The copy keeps its whole setup** (Features 16 Oct). The start day
   moves by the same number of days as the due date: a task due 27 February
-  whose copy is due 2 March moves each step's date and its start day 3 days
-  later. A due time keeps its clock time in the team's time zone. Each step
-  keeps its person, unless they have left the project. With no due date to
-  move from, step dates are dropped and a start day becomes the day the copy
-  is made for.
+  whose copy is due 2 March moves its start day 3 days later. A due time
+  keeps its clock time in the team's time zone. With no due date to move
+  from, a start day becomes the day the copy is made for.
 - **The milestone stays**, unless its date has already passed, when the copy
   has none (Tyler, 16 Oct 2026).
 - **Only once the last copy is Done.** Tyler's rule, 10 Oct 2026: when the

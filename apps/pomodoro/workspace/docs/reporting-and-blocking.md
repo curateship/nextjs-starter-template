@@ -27,7 +27,7 @@ A Report button sits on every public profile, beside Follow.
 ### It lands in the queue an operator already works
 
 Profile reports go into `room_reports`, the same table and the same page at
-`/admin/pomodoro-reports` that room messages use. A second queue would be a
+Flowfly → Safety → Reports that room messages use. A second queue would be a
 second thing to remember to open.
 
 Two columns stopped being required for this: a profile belongs to no room, and
@@ -83,7 +83,7 @@ Who hears what when a report moves. Every one of these is in the bell
 none of them names the reporter, the admin or the person reported.
 
 - **Every active admin hears a report land:** "New report: a profile." or "New
-  report: a room message.", leading to `/admin/pomodoro-reports`. More reports
+  report: a room message.", leading to Flowfly → Safety → Reports. More reports
   while that notice is unread fold into "4 new reports." An admin who files a
   report is not told about their own. A repeat report of the same chat line
   adds no row, so it tells nobody again.

@@ -5,6 +5,7 @@ import { requestIp } from "@/server/auth/origin"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { pairRack, RackRefusal } from "@/server/phones/rack"
 import { refuse } from "@/server/phones/rack-http"
+import { readCappedText } from "@/server/social/capped-body"
 
 const pairShape = z.object({
   code: z.string().min(1).max(40),
@@ -14,8 +15,9 @@ const pairShape = z.object({
 })
 
 /**
- * The rack program swaps a one-time code from the Phones dashboard for its
- * own key, once. Not signed, because the rack has no key yet: the code is
+ * The rack program swaps a one-time code, made on a rack's page, for that
+ * rack's key, once. The name the program sends is not used: the rack keeps
+ * the name a person gave it with New rack in the Anti Detect dashboard's Racks block. Not signed, because the rack has no key yet: the code is
  * the proof, and it works once, for fifteen minutes, with ten tries per
  * address per fifteen minutes. The key goes back over HTTPS in this answer
  * and is never shown again.
@@ -31,15 +33,16 @@ export const Route = createFileRoute("/api/rack/pair")({
           throw error
         }
         // A pairing request is a few hundred characters.
-        if (Number(request.headers.get("content-length") ?? 0) > 4_096) return refuse(413, "This is not a pairing request.")
+        const body = await readCappedText(request, 4_096)
+        if (body === null) return refuse(413, "This is not a pairing request.")
         let input: z.infer<typeof pairShape>
         try {
-          input = pairShape.parse(await request.json())
+          input = pairShape.parse(JSON.parse(body))
         } catch {
           return refuse(400, "This is not a pairing request.")
         }
         try {
-          return Response.json(await pairRack(input), { headers: { "cache-control": "no-store" } })
+          return Response.json(await pairRack({ code: input.code, platform: input.platform, version: input.version }), { headers: { "cache-control": "no-store" } })
         } catch (error) {
           if (error instanceof RackRefusal) return refuse(error.status, error.message)
           if (error instanceof Error && error.message === "ENCRYPTION_NOT_CONFIGURED") {

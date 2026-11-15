@@ -187,7 +187,7 @@ export function createShellId(prefix: string) {
  * only an Array.isArray check, so a legacy or hand-edited row can arrive
  * without one — same reason `isShellEntryNamed` guards its label.
  */
-function getShellHrefProblem(href: string | undefined, isNamed: boolean) {
+export function getShellHrefProblem(href: string | undefined, isNamed: boolean) {
   if (!href) {
     return isNamed ? "Give this link an address, like /admin/media." : null
   }

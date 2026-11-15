@@ -2,24 +2,16 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import type { Editor } from "@tiptap/react"
 import {
-  BoldIcon,
-  Heading2Icon,
-  Heading3Icon,
   HistoryIcon,
-  ItalicIcon,
-  ListIcon,
-  ListOrderedIcon,
   ListTodoIcon,
   Loader2Icon,
+  NotebookPenIcon,
   PlusIcon,
   SettingsIcon,
-  StrikethroughIcon,
-  TextQuoteIcon,
-  XIcon,
 } from "lucide-react"
 
 import { NoteEditor, NoteView } from "@/components/project/notes/note-editor"
-import { useNotesBoxSetup } from "@/components/project/notes/note-setup"
+import { useNotesBoxSetup, type NoteComments } from "@/components/project/notes/note-setup"
 import { PanelCardFooter } from "@/components/project/panel-card"
 import {
   notesTaskLinks,
@@ -40,7 +32,8 @@ import {
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { findLinkableTasks, type LinkChoice } from "@/lib/api/project/chat"
+import type { LinkChoice } from "@/lib/api/project/chat"
+import { findLinkTargets } from "@/lib/api/project/project-notes"
 import type { TaskLink } from "@/lib/api/project/linked-records"
 import type { TaskFile } from "@/lib/api/project/tasks"
 import { bringBackNoteVersion, loadNoteVersions, type NoteVersion } from "@/lib/api/project/tasks"
@@ -49,7 +42,10 @@ import { emptyWrittenPageBody, type WrittenPageNode } from "@/lib/pages/written-
 import type { NoteNode } from "@/lib/project/note-blocks"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import {
-  linkedTaskOf,
+  NOTE_LINK,
+  isNoteLink,
+  linkIdOf,
+  noteHref,
   notesForDisplay,
   notesForEditor,
   readPlainNotes,
@@ -61,6 +57,14 @@ import { taskHref } from "@/lib/project/notices"
 import type { Change } from "@/components/project/task-body"
 import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
+
+/**
+ * The right panel's notes sit 4px inside the panel's 15px, so an advanced
+ * block set to reach the panel's edges reaches that much further
+ * (`--panel-gutter`, read by the block's frame; Tyler, 12 Nov 2026: "edge
+ * padding is not applied"). The 15px is `PANEL_GUTTER`'s.
+ */
+const NOTES_GUTTER = "[--panel-gutter:calc(0.9375rem+0.25rem)]"
 
 /**
  * A task's notes: read as formatted text with links that open in a new tab,
@@ -94,10 +98,10 @@ export function TaskNotesField({
   readOnly: boolean
   /** `session` is this editing session, which keeps one earlier version however often it saves. */
   onSave: (notes: NoteNode, session: string) => Promise<boolean>
-  /** A task type's notes outline uses the same field under its own name. */
+  /** A meeting's notes use the same field under their own name. */
   label?: string
   labelId?: string
-  /** A task's own notes, rather than a type's starting notes. */
+  /** A task's own notes, rather than a meeting's. */
   task?: NotesTask
   /** Tasks the notes link to that the reader can open, when they aren't a task's notes. */
   links?: Record<string, string>
@@ -118,7 +122,7 @@ export function TaskNotesField({
   const editorBox = React.useRef<HTMLDivElement>(null)
   const linking = useNotesLinking(Boolean(task))
   const openable = task?.links ?? links ?? {}
-  const setup = useNotesBoxSetup(task ? "task" : "template", task)
+  const setup = useNotesBoxSetup(task ? "task" : "meeting", task)
 
   // The editor draws itself a moment after it mounts, so the cursor goes in
   // once its writing area exists. Focus alone leaves everything in it
@@ -240,7 +244,7 @@ export function TaskNotesField({
               placeholder={
                 placeholder ??
                 (task
-                  ? "Anything the person doing it should know. Type / for a block, or # to link a task."
+                  ? "Anything the person doing it should know. Type / for a block, or # to link a task or note."
                   : "Anything the person doing it should know. Type / for a picture, a checklist and more.")
               }
             />
@@ -264,13 +268,7 @@ export function TaskNotesField({
                 // A block's own links (a web page, a download) do what they say.
                 if (!link || link.closest("[data-note-block]") || event.metaKey || event.ctrlKey || event.shiftKey) return
                 event.preventDefault()
-                const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
-                const projectId = taskId ? openable[taskId] : undefined
-                if (taskId && projectId) {
-                  void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
-                } else if (!taskId) {
-                  window.open(link.href, "_blank", "noopener,noreferrer")
-                }
+                followNotesLink(link, openable, navigate)
               }}
             >
               {reading ? (
@@ -282,14 +280,13 @@ export function TaskNotesField({
           )}
         </div>
       )}
-      {/* Under a Notes card the buttons are the card's footer, behind its cog
-          (Tyler, 14 Oct 2026): Edit notes at the left, Earlier versions at the
-          right, and Done while writing whatever the cog says. Below the notes,
-          so the formatting bar over the first line never sits on Done. */}
+      {/* Edit notes at the left, Earlier versions at the right, and Done
+          while writing (Tyler, 14 Oct 2026). Below the notes, so the
+          formatting bar over the first line never sits on Done. */}
       {hideLabel ? (
         // Each button stretches, so together they fill the footer with no gap
         // between them, wrapping onto a second row in a narrow panel (Tyler, 20 Oct 2026).
-        <PanelCardFooter always={editing} className={editing ? "justify-end" : "[&>button]:flex-1"}>
+        <PanelCardFooter className={editing ? "justify-end" : "[&>button]:flex-1"}>
           {doneOrEdit}
           {task && !editing ? versionsButton : null}
         </PanelCardFooter>
@@ -311,7 +308,7 @@ export function TaskNotesField({
 const LIVE_SAVE_DELAY_MS = 1000
 
 /** What the task panel's ⋮ asks of the notes under it. */
-export type NotesHandle = { showVersions: () => void; askDelete: () => void }
+export type NotesHandle = { askDelete: () => void }
 
 /**
  * A task's own notes, always open to write in, like a note in the Note app
@@ -322,9 +319,10 @@ export type NotesHandle = { showVersions: () => void; askDelete: () => void }
  *
  * In the task panel (`panel`) the notes are the panel's own body, straight
  * under the task's title as a note's words sit under its name, with no card or
- * label. The header's ⋮ shows the text toolbar (`toolbar`), and the
- * toolbar's × hides it through `onToolbar` (Tyler, 2 Nov 2026). The ⋮ also
- * reaches Earlier versions and Delete through `handle`. In the Team
+ * label. The header's ⋮ reaches Delete through `handle`, and its Versions
+ * tab lists the earlier versions (`NoteVersionsList`, Tyler, 6 Nov 2026). It
+ * had a text toolbar from the ⋮ until that day ("remove this").
+ * In the Team
  * dashboard's window they sit among the fields under a Notes label.
  *
  * Saved notes that change while nobody is writing here (another person's
@@ -339,8 +337,6 @@ export function LiveTaskNotes({
   onSave,
   task,
   panel = false,
-  toolbar = false,
-  onToolbar,
   handle,
 }: {
   notes: string
@@ -348,8 +344,6 @@ export function LiveTaskNotes({
   onSave: (notes: NoteNode, session: string) => Promise<boolean>
   task: NotesTask
   panel?: boolean
-  toolbar?: boolean
-  onToolbar?: (shown: boolean) => void
   handle?: React.Ref<NotesHandle>
 }) {
   const navigate = useNavigate()
@@ -387,7 +381,6 @@ export function LiveTaskNotes({
     save.current = onSave
   })
   React.useImperativeHandle(handle, () => ({
-    showVersions: () => setVersionsOpen(true),
     askDelete: () => setConfirmDelete(true),
   }))
 
@@ -478,7 +471,7 @@ export function LiveTaskNotes({
   if (readOnly) {
     if (!panel) return <TaskNotesField notes={notes} readOnly onSave={onSave} task={task} />
     return (
-      <div className="px-1">
+      <div className={cn("px-1", NOTES_GUTTER)}>
         <TaskNotesField notes={notes} readOnly onSave={onSave} task={task} hideLabel />
         {versions}
       </div>
@@ -502,23 +495,6 @@ export function LiveTaskNotes({
           </Button>
         </div>
       )}
-      {/* Opened from the ⋮; the toolbar's × closes it (Tyler, 2 Nov 2026,
-          `assets/pasted-image-1793656552866103000.png`). */}
-      {panel && toolbar ? (
-        <div className="flex items-start gap-1">
-          <NotesToolbar box={editorBox} />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Hide the text toolbar"
-            className="mt-0.5"
-            onClick={() => onToolbar?.(false)}
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </div>
-      ) : null}
       <div
         ref={editorBox}
         data-notes-editor=""
@@ -530,7 +506,13 @@ export function LiveTaskNotes({
           "[&_.page-rte_.tiptap]:!text-[0.9375rem] [&_.page-rte_.tiptap]:!leading-[1.65]",
           // Two lines tall when empty (Tyler, 28 Oct 2026: "make the default row for the note 2 row").
           panel
-            ? "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4"
+            ? cn(
+                "[&_.page-rte_.tiptap]:!min-h-[calc(3.3em+1.25rem)] [&_.page-rte_.tiptap]:!px-1 [&_.page-rte_.tiptap]:!pt-1 [&_.page-rte_.tiptap]:!pb-4",
+                // Notes that open with a block put it straight under the panel's header,
+                // as a left page does (Tyler, 12 Nov 2026: "right panel still has the gap").
+                "[&_.page-rte_.tiptap:has(>.react-renderer:first-child)]:!pt-0 [&_.page-rte_.tiptap>.react-renderer:first-child_[data-note-block]]:!mt-0",
+                NOTES_GUTTER
+              )
             : "[&_.page-rte_.tiptap]:!min-h-[3.3em] [&_.page-rte_.tiptap]:!px-0 [&_.page-rte_.tiptap]:!py-0"
         )}
         onFocus={() => {
@@ -551,13 +533,7 @@ export function LiveTaskNotes({
           const link = (event.target as Element).closest("a")
           if (!link || !(event.metaKey || event.ctrlKey)) return
           event.preventDefault()
-          const taskId = linkedTaskOf(link.getAttribute("href") ?? "")
-          const projectId = taskId ? task.links[taskId] : undefined
-          if (taskId && projectId) {
-            void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } })
-          } else if (!taskId) {
-            window.open(link.href, "_blank", "noopener,noreferrer")
-          }
+          followNotesLink(link, task.links, navigate)
         }}
       >
         <NoteEditor
@@ -566,7 +542,7 @@ export function LiveTaskNotes({
           value={notesForEditor(readTaskNotes(drawn.notes))}
           onChange={changed}
           extensions={linking.extensions}
-          placeholder="Write, type / for a block, or # to link a task"
+          placeholder="Write, type / for a block, or # to link a task or note"
         />
         {linking.list}
       </div>
@@ -598,6 +574,8 @@ export type NotesTask = {
   link?: TaskLink | null
   /** Reads the task again, after a block added a file to it. */
   refresh?: () => Promise<void>
+  /** Its comments, which a Comments block draws (`CommentsDrawing`). */
+  comments?: NoteComments
 }
 
 /**
@@ -609,112 +587,47 @@ function stillInNotes(box: Element, next: EventTarget | null) {
   return next instanceof Element && (box.contains(next) || Boolean(next.closest("[data-radix-popper-content-wrapper], [data-slot=popover-content]")))
 }
 
-type ToolbarAction = {
-  label: string
-  icon: React.ReactNode
-  active: (editor: Editor) => boolean
-  run: (editor: Editor) => void
-}
+/** How long typing after # pauses before the tasks and notes are looked up. */
+const FIND_DELAY_MS = 200
 
-const TOOLBAR_ACTIONS: ToolbarAction[] = [
-  { label: "Bold", icon: <BoldIcon />, active: (e) => e.isActive("bold"), run: (e) => e.chain().focus().toggleBold().run() },
-  { label: "Italic", icon: <ItalicIcon />, active: (e) => e.isActive("italic"), run: (e) => e.chain().focus().toggleItalic().run() },
-  {
-    label: "Strikethrough",
-    icon: <StrikethroughIcon />,
-    active: (e) => e.isActive("strike"),
-    run: (e) => e.chain().focus().toggleStrike().run(),
-  },
-  {
-    label: "Heading",
-    icon: <Heading2Icon />,
-    active: (e) => e.isActive("heading", { level: 2 }),
-    run: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
-  },
-  {
-    label: "Subheading",
-    icon: <Heading3Icon />,
-    active: (e) => e.isActive("heading", { level: 3 }),
-    run: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(),
-  },
-  {
-    label: "Bullet list",
-    icon: <ListIcon />,
-    active: (e) => e.isActive("bulletList"),
-    run: (e) => e.chain().focus().toggleBulletList().run(),
-  },
-  {
-    label: "Numbered list",
-    icon: <ListOrderedIcon />,
-    active: (e) => e.isActive("orderedList"),
-    run: (e) => e.chain().focus().toggleOrderedList().run(),
-  },
-  {
-    label: "Quote",
-    icon: <TextQuoteIcon />,
-    active: (e) => e.isActive("blockquote"),
-    run: (e) => e.chain().focus().toggleBlockquote().run(),
-  },
-]
+/** Where a pick from the # list points: the task, or the project page with the note open. */
+function choiceHref(choice: LinkChoice) {
+  return isNoteLink(choice.id)
+    ? noteHref(choice.projectId, choice.id.slice(NOTE_LINK.length))
+    : taskHref(choice.projectId, choice.id)
+}
 
 /**
- * The pencil's text toolbar, in the flow at the top of the notes so it never
- * covers a line (Tyler, 20 Oct 2026, for the Note app: "Just add an edit icon
- * here and if clicked the tool appears at the top"). Links are made by
- * selecting words, as before. A press keeps the cursor in the notes.
+ * A click on a link in the notes. A # link to a task or note this reader can
+ * open (`openable`, link id to project id) opens it here; one they can't
+ * does nothing. Any other link opens in a new tab.
  */
-function NotesToolbar({ box }: { box: React.RefObject<HTMLDivElement | null> }) {
-  const [editor, setEditor] = React.useState<Editor | null>(null)
-  const [, redraw] = React.useReducer((n: number) => n + 1, 0)
-
-  // The editor draws itself a moment after it mounts, so it is looked for until it is there.
-  React.useEffect(() => {
-    let found: Editor | null = null
-    const timer = window.setInterval(() => {
-      const area = box.current?.querySelector<HTMLElement & { editor?: Editor }>(".tiptap")
-      if (!area?.editor) return
-      window.clearInterval(timer)
-      found = area.editor
-      found.on("transaction", redraw)
-      setEditor(found)
-    }, 25)
-    return () => {
-      window.clearInterval(timer)
-      found?.off("transaction", redraw)
-    }
-  }, [box])
-
-  return (
-    <div role="toolbar" aria-label="Text" className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 rounded-md border px-1 py-0.5">
-      {TOOLBAR_ACTIONS.map((action) => (
-        <Button
-          key={action.label}
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={action.label}
-          aria-pressed={editor ? action.active(editor) : false}
-          disabled={!editor}
-          className="aria-pressed:bg-muted"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => editor && action.run(editor)}
-        >
-          {action.icon}
-        </Button>
-      ))}
-    </div>
-  )
+function followNotesLink(
+  link: HTMLAnchorElement,
+  openable: Record<string, string>,
+  navigate: ReturnType<typeof useNavigate>
+) {
+  const linkId = linkIdOf(link.getAttribute("href") ?? "")
+  if (!linkId) {
+    window.open(link.href, "_blank", "noopener,noreferrer")
+    return
+  }
+  const projectId = openable[linkId]
+  if (!projectId) return
+  if (isNoteLink(linkId)) {
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { note: linkId.slice(NOTE_LINK.length) } })
+  } else {
+    void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: linkId } })
+  }
 }
-
-/** How long typing after # pauses before the tasks are looked up. */
-const FIND_DELAY_MS = 200
 /** The list's width, w-72, so it never hangs past the editor's right edge. */
 const LIST_WIDTH = 288
 
 /**
  * The # list inside the notes editor: the editor reports what is typed after
- * a #, this looks the tasks up and draws them under it, and a pick puts the
- * task's title in the notes as a link to the task.
+ * a #, this looks the tasks and project notes up and draws them under it, and
+ * a pick puts the task's title or the note's first line in the notes as a
+ * link to it.
  */
 function useNotesLinking(on: boolean) {
   const teamId = useTeamId()
@@ -731,7 +644,7 @@ function useNotesLinking(on: boolean) {
       .chain()
       .focus()
       .insertContentAt({ from: typing.from, to: typing.to }, [
-        { type: "text", text: task.title, marks: [{ type: "link", attrs: { href: taskHref(task.projectId, task.id) } }] },
+        { type: "text", text: task.title, marks: [{ type: "link", attrs: { href: choiceHref(task) } }] },
         { type: "text", text: " " },
       ])
       .run()
@@ -785,7 +698,7 @@ function useNotesLinking(on: boolean) {
     if (query === null) return
     let live = true
     const timer = window.setTimeout(() => {
-      findLinkableTasks(query, teamId).then(
+      findLinkTargets(query, teamId).then(
         (tasks) => live && setFound({ typed: query, tasks }),
         () => live && setFound({ typed: query, tasks: [] })
       )
@@ -800,7 +713,7 @@ function useNotesLinking(on: boolean) {
     typing && shown.length ? (
       <ul
         role="listbox"
-        aria-label="Tasks to link"
+        aria-label="Tasks and notes to link"
         className="absolute z-10 mt-1 grid w-72 max-w-full gap-0.5 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
         style={place}
       >
@@ -819,7 +732,11 @@ function useNotesLinking(on: boolean) {
               pick(task)
             }}
           >
-            <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            {isNoteLink(task.id) ? (
+              <NotebookPenIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : (
+              <ListTodoIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
             <span className="grid min-w-0">
               <span className="truncate">{task.title}</span>
               <span className="truncate text-xs text-muted-foreground">{task.projectName}</span>
@@ -871,16 +788,23 @@ function NoteVersionsDialog({
   )
 }
 
-function NoteVersionsList({
+/**
+ * The earlier versions themselves: in their window, or with `bare` straight in
+ * the task panel's ⋮ under Versions (Tyler, 6 Nov 2026: "The earlier version
+ * of the note moves to the tabs").
+ */
+export function NoteVersionsList({
   taskId,
   readOnly,
   change,
   onClose,
+  bare = false,
 }: {
   taskId: string
   readOnly: boolean
   change: Change
   onClose: () => void
+  bare?: boolean
 }) {
   const [state, setState] = React.useState<
     { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; versions: NoteVersion[] }
@@ -902,13 +826,15 @@ function NoteVersionsList({
   async function bringBack(version: NoteVersion) {
     if (bringing) return
     setBringing(version.id)
-    const ok = await change(() => bringBackNoteVersion(version.id), "Those notes are back.")
+    const ok = await change(() => bringBackNoteVersion(version.id))
     setBringing(null)
     if (ok) onClose()
   }
 
+  const Frame = bare ? "div" : DialogBody
   return (
-    <DialogBody>
+    <Frame className={bare ? "grid gap-2" : undefined}>
+      {bare ? <p className="text-xs text-muted-foreground">The notes as they were before each edit, newest first. The last 20 are kept.</p> : null}
       {state.kind === "loading" ? (
         <LoadingRow label="Loading the earlier versions…" />
       ) : state.kind === "error" ? (
@@ -961,6 +887,6 @@ function NoteVersionsList({
           ))}
         </ol>
       )}
-    </DialogBody>
+    </Frame>
   )
 }

@@ -244,7 +244,7 @@ export async function requireOpenProject(
  * alone, Tyler's answer of 16 Oct 2026 ("Employees dont even see the settings
  * cog or page. Only admin see it"). That covers the name, colour,
  * description, due date, Doing limit, client, members, lead, "Everyone on the
- * team", status, sections, task types, Save as template and Archive. A
+ * team", status, sections and Archive. A
  * person's own "Just me" list keeps its sections in its person's hands.
  */
 export async function requireProjectSettings(

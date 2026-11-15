@@ -30,3 +30,4 @@ Posts became notes kept in libraries.
   runs, every live value, why the worker needs curl_cffi, how to deploy, and
   the release record.
 - [Shell integration](shell-integration.md) — each shell merge into Note: what arrived, what stayed Note's own.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

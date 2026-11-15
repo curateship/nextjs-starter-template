@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { useShownColumns } from "@/components/trade/block-columns"
 import { OrderPanelTotals } from "@/components/trade/order-panel-totals"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
@@ -45,11 +46,7 @@ import {
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { sumProfits, sumValues } from "@/lib/trade/order-panel-sums"
-import {
-  gridRoundTrips,
-  type LiveFill,
-  type LiveTrade,
-} from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 import { LOST_MONEY, moneyTone, WARNING } from "@/lib/trade/money-tone"
 import {
@@ -67,7 +64,9 @@ import {
   type SmartOrderPosition,
   writeSmartOrdersCache,
 } from "@/lib/trade/dashboard-cache"
+import { smartOrderSales, type SmartOrderSale } from "@/lib/trade/smart-order-sales"
 import { cn } from "@/lib/utils"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 /**
  * Every coin a smart order is working right now, under the wallets.
@@ -128,23 +127,23 @@ type SmartOrdersViewProps = {
   markets: ReadonlyMap<string, MarketRow>
   wallets: readonly TradeWallet[]
   walletName: (walletId: string) => string
-  /** The market on the chart. Its smart-order row keeps the selected shade. */
+  /** The market on the chart. Its smart-order row shows the small dark bar. */
   selectedMarketKey: string | null
   /** Both the practice and real-money reads have landed. */
   settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
+  /**
+   * Told whenever the panel has no row to show, or has one again, so the
+   * dashboard can hide an empty block when "Hide empty blocks" is on. Still
+   * reading is not empty, and a failed read with nothing listed is never
+   * empty: its Try again has to stay reachable. Reported before paint, so a
+   * block is never drawn for a frame and then taken away.
+   */
+  onEmptyChange?: (empty: boolean) => void
   onRetry: () => void
   onResumeSmartOrder: (order: SmartOrder) => Promise<boolean>
   onSelectMarket: (marketKey: string) => void
-  /**
-   * Told whenever the panel has no row to show, or has one again, so the
-   * dashboard can leave an empty panel out when Hide on empty is on. A failed
-   * read with nothing listed is never "empty": its Retry button has to stay
-   * reachable. Reported before paint, so a panel is never drawn for a frame
-   * and then taken away.
-   */
-  onEmptyChange?: (empty: boolean) => void
 }
 
 /** The two panels, one per kind of smart order placed by hand. */
@@ -165,8 +164,13 @@ const PANEL_WORDS: Record<SmartOrdersPanelKind, { one: string; many: string }> =
  */
 export function SmartOrdersPanel({
   kind,
+  bare = false,
   ...props
-}: SmartOrdersViewProps & { kind: SmartOrdersPanelKind }) {
+}: SmartOrdersViewProps & {
+  kind: SmartOrdersPanelKind
+  /** In a dashboard block, whose own heading names it, so the panel draws no title row. */
+  bare?: boolean
+}) {
   return (
     // The panel fills the box it was given and scrolls inside it, in its own
     // column and in the collapsed-column menu alike. Both boxes are a flex
@@ -175,7 +179,7 @@ export function SmartOrdersPanel({
       data-smart-orders-panel={kind}
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card"
     >
-      <DashboardCardTitleHeader
+      {bare ? null : <DashboardCardTitleHeader
         icon={
           kind === "grid" ? (
             <Grid2x2Icon className="size-4" />
@@ -184,7 +188,7 @@ export function SmartOrdersPanel({
           )
         }
         title={kind === "grid" ? "Grid" : "DCA"}
-      />
+      />}
       <SmartOrdersView {...props} kind={kind} />
     </section>
   )
@@ -344,6 +348,16 @@ function SmartOrdersView({
     sort,
     trades,
   ])
+  // Empty is the "none working" answer: not while it is still being read
+  // with nothing cached, and never after a failed read.
+  const empty = rows.length === 0 && !failed && (settled || cached !== null)
+  useEffectBeforePaint(() => {
+    onEmptyChange?.(empty)
+  }, [empty, onEmptyChange])
+
+  // The columns this table's block hides from its ⋮ (`block-columns.tsx`).
+  // A hidden column that the rows are sorted by keeps their order.
+  const shows = useShownColumns()
 
   // Every column reads from the left, headings and figures alike (Tyler,
   // 13 Sep 2026). PnL and Banked used to hug the right edge, which left a hole
@@ -358,11 +372,6 @@ function SmartOrdersView({
       {label}
     </TableSortButton>
   )
-
-  const empty = rows.length === 0 && !failed
-  useEffectBeforePaint(() => {
-    onEmptyChange?.(empty)
-  }, [empty, onEmptyChange])
 
   return (
     <>
@@ -384,7 +393,16 @@ function SmartOrdersView({
           own dashboard.
         </p>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        // A flex column whose viewport is flex-1, not the viewport's own
+        // height:100%. In a dashboard block that is not the page's last, the
+        // tile has only a height cap, so 100% never resolved: the list ran on
+        // past the tile's bottom and the pinned totals row was cut off with it
+        // (Tyler, 11 Nov 2026: "the grid trades block is missing the footer
+        // totals").
+        <ScrollArea
+          className="flex min-h-0 flex-1 flex-col"
+          viewportClassName="min-h-0 flex-1"
+        >
           <Table
             className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4"
             containerClassName={cn(
@@ -401,15 +419,21 @@ function SmartOrdersView({
                 <TableHead className="w-[34%] px-1">
                   {heading("ticker", "Ticker")}
                 </TableHead>
-                <TableHead className="w-[22%] px-1">
-                  {heading("type", "Type")}
-                </TableHead>
-                <TableHead className="w-[20%] px-1">
-                  {heading("held", "Value")}
-                </TableHead>
-                <TableHead className="w-[24%] px-1">
-                  {heading("pnl", "PnL")}
-                </TableHead>
+                {shows("type") ? (
+                  <TableHead className="w-[22%] px-1">
+                    {heading("type", "Type")}
+                  </TableHead>
+                ) : null}
+                {shows("value") ? (
+                  <TableHead className="w-[20%] px-1">
+                    {heading("held", "Value")}
+                  </TableHead>
+                ) : null}
+                {shows("pnl") ? (
+                  <TableHead className="w-[24%] px-1">
+                    {heading("pnl", "PnL")}
+                  </TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -429,47 +453,56 @@ function SmartOrdersView({
                       key={order.id}
                       className="group"
                       rowAction={() => onSelectMarket(order.marketKey)}
-                      data-state={selected ? "selected" : undefined}
+                      // Marked by the small dark bar before its ticker, as
+                      // every block's picked row is, not by shading (Tyler,
+                      // 12 Nov 2026).
+                      aria-current={selected ? "true" : undefined}
                     >
                       <TableCell className="py-2 pl-1 pr-2">
                         <div className="grid min-w-0 gap-1">
-                          <div className="flex min-w-0 items-center gap-1">
-                            <SmartOrderDetailsPopover
-                              order={order}
-                              symbol={symbol}
-                              position={position}
-                              openProfit={openProfit}
-                              banked={banked}
-                              keyExpired={keyExpired}
-                              walletName={walletName(order.walletId)}
-                            >
-                              <MarketIcon
+                          <div className="flex min-w-0 items-center">
+                            <SlideBar on={selected} />
+                            <div className="flex min-w-0 flex-1 items-center gap-1">
+                              <SmartOrderDetailsPopover
+                                order={order}
                                 symbol={symbol}
-                                iconUrl={
-                                  markets.get(order.marketKey)?.iconUrl ?? null
-                                }
-                              />
-                              <button
-                                type="button"
-                                onClick={() => onSelectMarket(order.marketKey)}
-                                className={cn(
-                                  "min-w-0 flex-1 rounded-sm text-left",
-                                  focusRing
-                                )}
+                                position={position}
+                                openProfit={openProfit}
+                                banked={banked}
+                                keyExpired={keyExpired}
+                                walletName={walletName(order.walletId)}
                               >
-                                {/* Block, because an inline span ignores
-                                    the clipping and a long name ran into
-                                    the Type column (Tyler, 24 Sep 2026). */}
-                                <span className="block min-w-0 truncate text-xs font-semibold sm:text-sm">
-                                  {symbol}
-                                </span>
-                              </button>
-                            </SmartOrderDetailsPopover>
+                                {shows("avatar") ? (
+                                  <MarketIcon
+                                    symbol={symbol}
+                                    iconUrl={
+                                      markets.get(order.marketKey)?.iconUrl ?? null
+                                    }
+                                  />
+                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectMarket(order.marketKey)}
+                                  className={cn(
+                                    "min-w-0 flex-1 rounded-sm text-left",
+                                    focusRing
+                                  )}
+                                >
+                                  {/* Block, because an inline span ignores
+                                      the clipping and a long name ran into
+                                      the Type column (Tyler, 24 Sep 2026). */}
+                                  <span className="block min-w-0 truncate text-xs font-semibold sm:text-sm">
+                                    {symbol}
+                                  </span>
+                                </button>
+                              </SmartOrderDetailsPopover>
+                            </div>
                           </div>
                           {order.plan.paused ? (
                             <span
                               className={cn(
-                                "flex items-center gap-1 pl-6 text-xs",
+                                "flex items-center gap-1 text-xs",
+                                shows("avatar") && "pl-6",
                                 WARNING
                               )}
                             >
@@ -482,7 +515,8 @@ function SmartOrdersView({
                           ) : keyExpired ? (
                             <span
                               className={cn(
-                                "block truncate pl-6 text-xs",
+                                "block truncate text-xs",
+                                shows("avatar") && "pl-6",
                                 LOST_MONEY
                               )}
                             >
@@ -491,22 +525,27 @@ function SmartOrdersView({
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="px-1 py-2">
-                        <TradeBadge
-                          tone={
-                            smartOrderType(order) === "long" ? "made" : "lost"
-                          }
-                        >
-                          {smartOrderType(order) === "long" ? "Long" : "Short"}
-                        </TradeBadge>
-                      </TableCell>
-                      <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
-                        <span className="text-muted-foreground">
-                          {heldMoney === null
-                            ? "—"
-                            : formatWholeUsd(heldMoney)}
-                        </span>
-                      </TableCell>
+                      {shows("type") ? (
+                        <TableCell className="px-1 py-2">
+                          <TradeBadge
+                            tone={
+                              smartOrderType(order) === "long" ? "made" : "lost"
+                            }
+                          >
+                            {smartOrderType(order) === "long" ? "Long" : "Short"}
+                          </TradeBadge>
+                        </TableCell>
+                      ) : null}
+                      {shows("value") ? (
+                        <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
+                          <span className="text-muted-foreground">
+                            {heldMoney === null
+                              ? "—"
+                              : formatWholeUsd(heldMoney)}
+                          </span>
+                        </TableCell>
+                      ) : null}
+                      {shows("pnl") ? (
                       <TableCell className="px-1 py-2 font-mono text-xs tabular-nums">
                         {openProfit === null ? (
                           <span className="text-muted-foreground">—</span>
@@ -518,6 +557,7 @@ function SmartOrdersView({
                           </PnlAmount>
                         )}
                       </TableCell>
+                      ) : null}
                     </TableRow>
                   )
                 }
@@ -827,103 +867,27 @@ function gridHeldToSell(order: Extract<SmartOrder, { kind: "grid" }>): number {
 /** How many sales are listed before the list gets in the way of reading it. */
 const SHOW_AT_MOST = 12
 
-type Sale = {
-  fillId: string
-  at: number
-  /** Gross dollars bought or sold by the closing fill. */
-  amountUsd: number
-  /** Null when the venue sold but never said what the sale banked. */
-  money: number | null
-}
-
 /**
- * What one smart order has actually banked, and each sale that banked it.
- *
- * **Read off the fills, not off the plan.** A grid's levels say what they were
- * set to do; the fills say what happened, in the exchange's own figures, fee
- * included. Every closing fill on this coin since the order was placed counts
- * — there is one smart order per coin per wallet, so on this coin, over this
- * stretch of time, they are its sales.
- *
- * Finished round trips are counted too, for the kinds that do go flat. A grid
- * rarely does, which is exactly why its sells sit in the open fills instead.
- *
- * **A sell is a sale even when the venue states no profit for it.** This used
- * to count only fills carrying a closed profit, and on KuCoin that is never a
- * grid's fills: KuCoin reports money per POSITION closed, not per fill, and a
- * grid selling a fifth of what it holds never closes a position. So a KuCoin
- * grid recycled all week and the panel still said "Nothing sold yet". A grid
- * and a ladder are both long only, so a sell on their coin is a sale, whoever
- * is keeping the books.
- *
- * What the venue would not state is left NULL rather than counted as zero.
- * Zero is a real answer, meaning the sale broke even, and printing it for a
- * sale that made money is the kind of wrong that gets believed.
- *
- * **A grid's sale is worth what its own level made.** The venue books every
- * partial sell against the position average, and while a grid is working that
- * average is held up by the expensive levels still holding, so a level that
- * did its job reads as a loss. The panel said "$1.15 banked" on a CHIP level
- * that put $4.28 in the account. `gridRoundTrips` has the arithmetic. It also
- * answers where KuCoin says nothing at all, because it is worked out from the
- * fills rather than asked for.
+ * The newest sales one smart order has banked, for the popover, with the
+ * total over all of them. The rules for what a sale is and what it is worth
+ * are `smartOrderSales`'s; the details panel lists every one.
  */
 export function bankedBy(
   order: SmartOrder,
   fills: readonly LiveFill[],
   trades: readonly LiveTrade[]
 ): {
-  sells: Sale[]
+  sells: SmartOrderSale[]
   total: number
   capped: boolean
   /** Sales the venue never put a figure on, so the total is short of them. */
   unpriced: number
 } {
-  const mine = (walletId: string, marketKey: string, at: number) =>
-    walletId === order.walletId &&
-    marketKey === order.marketKey &&
-    at >= order.createdAt
-
-  // Over every fill, not only this order's: a level's round trip is paid out
-  // of the trade that level opened with, and that trade has to still be in the
-  // list for the closing one to be worth anything.
-  const levels = gridRoundTrips(
-    fills,
-    order.kind === "grid" ? order.plan.direction : "long"
-  )
-
-  const sales: Sale[] = []
-  for (const fill of fills) {
-    if (!mine(fill.walletId, fill.marketKey, fill.at)) continue
-    const level = levels.get(fill.fillId)
-    // A stated profit, or a sell out of a long-only order. The first also
-    // catches a short being bought back, which the second cannot see.
-    const stated = fill.closedPnl !== 0
-    if (!level && !stated && fill.side !== "sell") continue
-    sales.push({
-      fillId: fill.fillId,
-      at: fill.at,
-      amountUsd: Math.abs(fill.px * fill.sz),
-      money: level ? level.money : stated ? fill.closedPnl - fill.fee : null,
-    })
-  }
-  for (const trade of trades) {
-    if (!mine(trade.walletId, trade.marketKey, trade.closedAt)) continue
-    sales.push({
-      fillId: trade.id,
-      at: trade.closedAt,
-      amountUsd: Math.abs(trade.exitPx * trade.sz),
-      money: trade.pnl,
-    })
-  }
-
-  sales.sort((left, right) => right.at - left.at)
-  const total = sales.reduce((sum, sale) => sum + (sale.money ?? 0), 0)
+  const sales = smartOrderSales(order, fills, trades)
   return {
-    sells: sales.slice(0, SHOW_AT_MOST),
-    total,
-    capped: sales.length > SHOW_AT_MOST,
-    /** Sales the venue never put a figure on, so the total is short of them. */
-    unpriced: sales.filter((sale) => sale.money === null).length,
+    sells: sales.sells.slice(0, SHOW_AT_MOST),
+    total: sales.total,
+    capped: sales.sells.length > SHOW_AT_MOST,
+    unpriced: sales.unpriced,
   }
 }

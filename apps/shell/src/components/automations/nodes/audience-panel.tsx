@@ -1,6 +1,6 @@
 import * as React from "react"
+import { SlidersHorizontalIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
-import { Loader2Icon } from "lucide-react"
 
 import {
   InspectorCard,
@@ -92,7 +92,7 @@ export default function AudienceFields({
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`audience-${node.id}-kind`}
@@ -168,12 +168,12 @@ export default function AudienceFields({
           </Select>
           {noPlans ? (
             <InspectorNote className="mt-1">
-              There are no paid plans yet. Add one in{" "}
+              There are no paid plans yet. Add one in the{" "}
               <Link
-                to="/admin/plans"
+                to="/admin/dashboard"
                 className="underline underline-offset-2 hover:text-foreground"
               >
-                Plans
+                Admin dashboard's Plans
               </Link>{" "}
               before this flow runs.
             </InspectorNote>
@@ -343,10 +343,7 @@ function AudiencePreviewNote({
   return (
     <InspectorNote>
       {loading ? (
-        <span className="flex items-center gap-2" role="status">
-          <Loader2Icon className="size-3.5 animate-spin" />
-          Counting who this matches…
-        </span>
+        <span className="sr-only" role="status">Counting who this matches</span>
       ) : null}
 
       {error ? (
@@ -402,12 +399,19 @@ function AudiencePreviewNote({
           <p>
             Counted just now. A run works it out again every time it goes, so
             this is what it would match if it went this moment.{" "}
-            <Link
-              to={audience === "tag" ? "/admin/users" : "/admin/contacts"}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Look people up in {audience === "tag" ? "Accounts" : "Contacts"}
-            </Link>
+            {audience === "tag" ? (
+              <Link to="/admin/dashboard" search={{ tab: "users" }} className="underline underline-offset-2 hover:text-foreground">
+                Look people up in Accounts
+              </Link>
+            ) : (
+              <Link
+                to="/admin/crm"
+                search={{ tab: "subscribers" }}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Look people up in CRM, People
+              </Link>
+            )}
             .
           </p>
         </div>

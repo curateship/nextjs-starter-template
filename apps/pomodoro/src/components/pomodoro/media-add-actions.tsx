@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, Loader2Icon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -110,13 +109,6 @@ function useMediaAdd(item: Item) {
         else await addBackgroundPoolToPersonalRoom(item.pool)
       } else if (item.kind === "sound") await addSoundToPersonalRoom(item.reference)
       else await addBackgroundToPersonalRoom(item.reference)
-      toast.success(
-        authenticated
-          ? room
-            ? `${item.label} is in your personal room. You get it when you leave ${room.name}.`
-            : `${item.label} is in your personal room.`
-          : `${item.label} is on for this visit.`
-      )
     } catch (cause) {
       showErrorToast(refusal(cause))
     } finally {
@@ -153,7 +145,6 @@ function useMediaAdd(item: Item) {
         background: snapshot.room.background,
         files: snapshot.room.files,
       })
-      toast.success(`${item.label} is on in ${room.name} for everyone in it.`)
     } catch (cause) {
       showErrorToast(refusal(cause))
     } finally {

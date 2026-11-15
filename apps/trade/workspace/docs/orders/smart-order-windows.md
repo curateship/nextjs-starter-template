@@ -181,8 +181,8 @@ the save is pending. Moving keeps the same price ratios across entries and
 exits. A refused save returns the complete shape to its saved prices.
 Pressing the summary's × calls off an empty ladder at once, without another
 question or a success toast. Once a rung has bought, the × moves into the
-position's entry bar and asks before it calls off the remaining buys. The
-success toast appears in that case because the bought position stays open. The
+position's entry bar and asks before it calls off the remaining buys. Nothing
+pops up afterwards either (`../screens/no-success-toasts.md`). The
 server accepts a move only while every rung is still waiting and no rung has
 been called off. Once a rung buys, sells or is cancelled, its prices are frozen
 because moving them would rewrite the prices behind a position already in

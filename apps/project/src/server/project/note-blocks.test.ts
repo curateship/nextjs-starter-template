@@ -41,7 +41,7 @@ const doc = (...content: unknown[]) => ({ type: "doc", content })
 const newTask = (projectId: string, title: string, assigneeUserId: string | null) =>
   createTask(
     { id: admin.id, name: admin.name },
-    { projectId, title, notes: "", assigneeUserId, dueDate: null, steps: [] },
+    { projectId, title, notes: "", assigneeUserId, dueDate: null },
     database
   )
 
@@ -111,7 +111,7 @@ describe("File blocks on save", () => {
     const mine = await addTaskFile(sam, { taskId, name: "brief.pdf", mimeType: "application/pdf", data: new Uint8Array([1]) }, database, NOWHERE)
     const notes = storedTaskNotes(doc({ type: "paragraph", content: [{ type: "text", text: "See the brief" }] }, { type: "noteFile", attrs: { fileId: mine.id } }))
     const [project] = await database.select({ projectId: projectTasks.projectId }).from(projectTasks).where(eq(projectTasks.id, taskId))
-    const made = await createTask({ id: sam.id, name: sam.name }, { projectId: project.projectId, title: "Follow up", notes, assigneeUserId: null, dueDate: null, steps: [] }, database)
+    const made = await createTask({ id: sam.id, name: sam.name }, { projectId: project.projectId, title: "Follow up", notes, assigneeUserId: null, dueDate: null }, database)
     const [row] = await database.select({ notes: projectTasks.notes }).from(projectTasks).where(eq(projectTasks.id, made.id))
     expect(JSON.parse(row.notes)).toEqual(doc({ type: "paragraph", content: [{ type: "text", text: "See the brief" }] }))
   })

@@ -10,10 +10,10 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEditorRuntime } from "@/components/video-editor/editor-store"
@@ -56,7 +56,7 @@ export function ExportsPanel() {
   // makes no share links and deletes nothing (`workspace/docs/project-guests.md`).
   const guest = useProjectGuest() !== null
   const [list, setList] = React.useState<ExportListWithShares | null>(null)
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reads, setReads] = React.useState(0)
   const [editing, setEditing] = React.useState<RenderJobSummary | null>(null)
   const [sharing, setSharing] = React.useState<RenderJobSummary | null>(null)
@@ -71,12 +71,11 @@ export function ExportsPanel() {
       .then((loaded) => {
         if (!active) return
         setList(loaded)
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(getExportErrorMessage(error))
+        setLoadError(getExportErrorMessage(error))
       })
     return () => {
       active = false
@@ -123,7 +122,6 @@ export function ExportsPanel() {
     setBusyId(item.id)
     try {
       await stopExport(item.id)
-      toast.success("Export stopped. No file was made.")
     } catch (error) {
       showErrorToast(getExportErrorMessage(error))
     } finally {
@@ -137,8 +135,7 @@ export function ExportsPanel() {
     setBusyId(deleting.id)
     try {
       const { deleted_ids: deleted } = await deleteExports([deleting.id])
-      if (deleted.length) toast.success("Export deleted.")
-      else {
+      if (!deleted.length) {
         showErrorToast(
           "The export was kept because its file could not be removed from storage. Try again in a minute."
         )
@@ -162,14 +159,12 @@ export function ExportsPanel() {
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          {list === null && !loadFailed ? null : loadFailed ? (
-            <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              The exports could not be loaded.
-              <Button type="button" variant="outline" onClick={reload}>
-                Try again
-              </Button>
-            </div>
-          ) : !list?.exports.length ? (
+          {loadError ? (
+            <ErrorRow
+              message={loadError}
+              onRetry={reload}
+            />
+          ) : list === null ? null : !list?.exports.length ? (
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
               Nothing exported from this video yet. Press Export at the top
               to make the video file.
@@ -196,7 +191,7 @@ export function ExportsPanel() {
                         <span className="line-clamp-2 text-xs font-medium [overflow-wrap:anywhere]">
                           {name}
                         </span>
-                        <span className="truncate text-[0.625rem] text-muted-foreground tabular-nums">
+                        <span className="truncate text-xs text-muted-foreground tabular-nums">
                           {[
                             item.aspect,
                             item.file_size ? formatFileSize(item.file_size) : null,

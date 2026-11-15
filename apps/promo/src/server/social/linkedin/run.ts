@@ -176,7 +176,7 @@ async function enterLinkedinCode(job: QueuedJob, account: typeof promoAccounts.$
     state.codeAsked
       ? "The code was typed, but LinkedIn is still asking for one. It may be wrong or old: ask LinkedIn for a new one and paste that."
       : state.blocked
-        ? `The code was typed, but LinkedIn is still in the way: ${state.reason}. Take control of the browser on the Browser profiles dashboard.`
+        ? `The code was typed, but LinkedIn is still in the way: ${state.reason}. Take control of the browser in the Anti Detect dashboard's Profiles.`
         : "The code was typed, but the browser is not signed in to LinkedIn. Sign in again in the browser window."
   )
 }
@@ -250,10 +250,10 @@ export async function saveLinkedinSignIn(
         `LinkedIn showed: "${banned}".`,
         `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
         account.profileId
-          ? "Sort it out in the browser window on the Browser profiles dashboard, then let it run again from the Accounts dashboard."
-          : "Sort it out through the phone's screen window on the Phones dashboard, then let it run again from the Accounts dashboard.",
+          ? "Sort it out in the browser window in the Anti Detect dashboard's Profiles, then let it run again from the Accounts dashboard."
+          : "Sort it out through the phone's screen on its rack's page, then let it run again from the Accounts dashboard.",
       ].join(" "),
-      href: "/admin/accounts?platform=linkedin",
+      href: "/admin/projects?section=accounts&platform=linkedin",
     },
     db,
     now
@@ -294,9 +294,9 @@ async function ringForCode(account: { id: string; userId: string; handle: string
       targetId: target,
       message: `${NOTICE_HEADINGS.linkedin_code} ${handleWords("linkedin", account.handle) || "a LinkedIn account"}`,
       detail: account.onPhone
-        ? "LinkedIn emailed a code to the account's address. Type it into the LinkedIn app through the phone's screen window on the Phones dashboard."
+        ? "LinkedIn emailed a code to the account's address. Type it into the LinkedIn app through the phone's screen on its rack's page."
         : "LinkedIn emailed a code to the account's address. Paste it into the box in the account's settings on the Accounts dashboard within 15 minutes.",
-      href: "/admin/accounts?platform=linkedin",
+      href: "/admin/projects?section=accounts&platform=linkedin",
     },
     db,
     now

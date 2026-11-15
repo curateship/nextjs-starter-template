@@ -1,6 +1,9 @@
 import { and, desc, eq, isNull, lte, sql } from "drizzle-orm"
 
-import { crmFollowUpNotificationText } from "@/lib/notification-types"
+import {
+  crmFollowUpNotificationText,
+  crmUnansweredNotificationText,
+} from "@/lib/notification-types"
 import { now, uuid } from "@/server/auth/security"
 import { fillMessageBody, pendingBodyMessages } from "@/server/crm/inbound"
 import { db, type CustomShellDb } from "@/server/db"
@@ -8,6 +11,7 @@ import { publishNotificationCreated } from "@/server/notifications/events"
 import {
   customShellCrmLeads,
   customShellCrmThreads,
+  customShellEmailSettings,
   customShellNotifications,
   customShellWorkspaces,
 } from "@/server/schema"
@@ -110,6 +114,96 @@ export async function notifyDueFollowUps(
     await publishNotificationCreated(userId, database)
   }
 
+  return written
+}
+
+/**
+ * Puts a notice in the bell for every conversation where they wrote last and
+ * nobody has answered for the site's number of days (CRM task 11, built in
+ * task 36 on 7 Nov 2026). Three days unless the site changed it; 0 is off.
+ *
+ * Once per conversation: the stamp is written in the same statement that
+ * finds the row, as the chase-date job does, and a new message from them
+ * clears it. Snoozed and closed conversations are skipped, since snoozed
+ * already means "not now", and so are leads already Won or Lost.
+ *
+ * Returns how many notices were written.
+ */
+export async function notifyUnansweredThreads(
+  database: CustomShellDb = db
+): Promise<number> {
+  const timestamp = now()
+  const days = sql`coalesce((select ${customShellEmailSettings.crmUnansweredDays} from ${customShellEmailSettings} where ${customShellEmailSettings.workspaceId} = ${customShellCrmThreads.workspaceId}), 3)`
+
+  // The batch limit repeats every condition, for the reason the chase-date
+  // job gives: rows it picks and then filters out would fill every batch.
+  const claimed = await database
+    .update(customShellCrmThreads)
+    .set({ unansweredNotifiedAt: timestamp })
+    .where(
+      sql`${customShellCrmThreads.id} in (
+        select ${customShellCrmThreads.id} from ${customShellCrmThreads}
+        join ${customShellCrmLeads} on ${customShellCrmLeads.id} = ${customShellCrmThreads.leadId}
+        where ${customShellCrmThreads.unansweredNotifiedAt} is null
+          and ${customShellCrmThreads.status} = 'open'
+          and ${customShellCrmThreads.lastDirection} = 'in'
+          and ${customShellCrmLeads.stage} not in ('won', 'lost')
+          and ${days} > 0
+          and ${customShellCrmThreads.lastMessageAt} <= ${timestamp}::timestamptz - (${days} * interval '1 day')
+        order by ${customShellCrmThreads.lastMessageAt}
+        limit ${FOLLOW_UP_BATCH}
+      )`
+    )
+    .returning({
+      id: customShellCrmThreads.id,
+      workspaceId: customShellCrmThreads.workspaceId,
+      leadId: customShellCrmThreads.leadId,
+      subject: customShellCrmThreads.subject,
+      lastMessageAt: customShellCrmThreads.lastMessageAt,
+    })
+
+  if (claimed.length === 0) return 0
+
+  const recipients = new Set<string>()
+  let written = 0
+  for (const thread of claimed) {
+    const [row] = await database
+      .select({
+        userId: customShellWorkspaces.userId,
+        email: customShellCrmLeads.email,
+        name: customShellCrmLeads.name,
+      })
+      .from(customShellWorkspaces)
+      .innerJoin(customShellCrmLeads, eq(customShellCrmLeads.id, thread.leadId))
+      .where(eq(customShellWorkspaces.id, thread.workspaceId))
+      .limit(1)
+    if (!row?.userId) continue
+
+    const waited = Math.max(
+      1,
+      Math.floor((timestamp.getTime() - thread.lastMessageAt.getTime()) / 86_400_000)
+    )
+    const words = crmUnansweredNotificationText(
+      row.name?.trim() || row.email,
+      waited,
+      thread.subject
+    )
+    await database.insert(customShellNotifications).values({
+      id: uuid(),
+      recipientUserId: row.userId,
+      type: "crm_follow_up",
+      message: words.message,
+      detail: words.detail,
+      crmThreadId: thread.id,
+      createdAt: timestamp,
+    })
+    recipients.add(row.userId)
+    written += 1
+  }
+
+  for (const userId of recipients) {
+    await publishNotificationCreated(userId, database)
+  }
   return written
 }
 

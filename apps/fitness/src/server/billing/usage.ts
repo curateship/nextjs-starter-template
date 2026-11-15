@@ -3,6 +3,7 @@ import { and, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm"
 import { subscriptionIsActive } from "@/server/billing/entitlements"
 import { isUsageMeter } from "@/lib/billing/usage-meter"
 import { requireBilling, stripe } from "@/server/billing/stripe"
+import { analyticsRangeEnd, analyticsRangeStart, type AnalyticsRange } from "@/lib/analytics/range"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -281,14 +282,24 @@ export async function loadMemberUsage(
   }
 }
 
-export type AdminUsageSummary = {
-  monthStart: string
+/**
+ * Metered usage since the range's first day (the Admin dashboard's one
+ * range, `lib/analytics/range.ts`). The Stripe reports to review are every
+ * report still pending or failed, whatever its date: a report waiting since
+ * last month still needs looking at.
+ */
+type UsageMeterSummary = {
+  /** Midnight UTC on the range's first day. */
+  since: string
   totalQuantity: number
   totalEvents: number
   activeMeters: number
   pendingStripeReports: number
   failedStripeReports: number
   byMeter: UsageMeterTotal[]
+}
+
+export type AdminUsageSummary = UsageMeterSummary & {
   byPerson: {
     userId: string | null
     name: string
@@ -299,13 +310,18 @@ export type AdminUsageSummary = {
   }[]
 }
 
-export async function loadAdminUsage(
+/** The meters alone, without who used them: Overview's By meter list and block. */
+async function loadUsageMeterSummary(
+  days: AnalyticsRange,
   timestamp = now(),
   database: CustomShellDb = db
-): Promise<AdminUsageSummary> {
-  const monthStart = usageMonthStart(timestamp)
-  const monthEnd = usageMonthEnd(timestamp)
-  const [meterRows, personRows, reportRows] = await Promise.all([
+): Promise<UsageMeterSummary> {
+  const since = analyticsRangeStart(days, timestamp)
+  const inRange = and(
+    gte(customShellUsageEvents.occurredAt, since),
+    lt(customShellUsageEvents.occurredAt, analyticsRangeEnd(timestamp))
+  )
+  const [meterRows, reportRows] = await Promise.all([
     database
       .select({
         meter: customShellUsageEvents.meter,
@@ -313,39 +329,8 @@ export async function loadAdminUsage(
         events: count(),
       })
       .from(customShellUsageEvents)
-      .where(
-        and(
-          gte(customShellUsageEvents.occurredAt, monthStart),
-          lt(customShellUsageEvents.occurredAt, monthEnd)
-        )
-      )
+      .where(inRange)
       .groupBy(customShellUsageEvents.meter)
-      .orderBy(desc(sql`sum(${customShellUsageEvents.quantity})`)),
-    database
-      .select({
-        userId: customShellUsageEvents.userId,
-        name: customShellUsers.name,
-        email: customShellUsers.email,
-        quantity: sql<string>`coalesce(sum(${customShellUsageEvents.quantity}), 0)`,
-        events: count(),
-        lastUsedAt: sql<Date>`max(${customShellUsageEvents.occurredAt})`,
-      })
-      .from(customShellUsageEvents)
-      .leftJoin(
-        customShellUsers,
-        eq(customShellUsers.id, customShellUsageEvents.userId)
-      )
-      .where(
-        and(
-          gte(customShellUsageEvents.occurredAt, monthStart),
-          lt(customShellUsageEvents.occurredAt, monthEnd)
-        )
-      )
-      .groupBy(
-        customShellUsageEvents.userId,
-        customShellUsers.name,
-        customShellUsers.email
-      )
       .orderBy(desc(sql`sum(${customShellUsageEvents.quantity})`)),
     database
       .select({
@@ -384,7 +369,7 @@ export async function loadAdminUsage(
   }
 
   return {
-    monthStart: monthStart.toISOString(),
+    since: since.toISOString(),
     totalQuantity: byMeter.reduce((total, row) => total + row.quantity, 0),
     totalEvents: byMeter.reduce((total, row) => total + row.events, 0),
     activeMeters: meterRows.length,
@@ -397,6 +382,45 @@ export async function loadAdminUsage(
       0
     ),
     byMeter,
+  }
+}
+
+export async function loadAdminUsage(
+  days: AnalyticsRange,
+  timestamp = now(),
+  database: CustomShellDb = db
+): Promise<AdminUsageSummary> {
+  const inRange = and(
+    gte(customShellUsageEvents.occurredAt, analyticsRangeStart(days, timestamp)),
+    lt(customShellUsageEvents.occurredAt, analyticsRangeEnd(timestamp))
+  )
+  const [meters, personRows] = await Promise.all([
+    loadUsageMeterSummary(days, timestamp, database),
+    database
+      .select({
+        userId: customShellUsageEvents.userId,
+        name: customShellUsers.name,
+        email: customShellUsers.email,
+        quantity: sql<string>`coalesce(sum(${customShellUsageEvents.quantity}), 0)`,
+        events: count(),
+        lastUsedAt: sql<Date>`max(${customShellUsageEvents.occurredAt})`,
+      })
+      .from(customShellUsageEvents)
+      .leftJoin(
+        customShellUsers,
+        eq(customShellUsers.id, customShellUsageEvents.userId)
+      )
+      .where(inRange)
+      .groupBy(
+        customShellUsageEvents.userId,
+        customShellUsers.name,
+        customShellUsers.email
+      )
+      .orderBy(desc(sql`sum(${customShellUsageEvents.quantity})`)),
+  ])
+
+  return {
+    ...meters,
     byPerson: personRows.map((row) => ({
       userId: row.userId,
       name: row.name ?? "Deleted account",

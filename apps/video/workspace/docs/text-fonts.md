@@ -1,6 +1,6 @@
 # Text fonts
 
-Video text clips, captions and carousel text can be drawn in five faces.
+Video text clips, captions and carousel text can be drawn in six faces.
 Inter is the default and is what every clip made before fonts were a choice
 keeps — a clip saved with no font written down always draws as Inter.
 
@@ -13,6 +13,7 @@ keeps — a clip saved with no font written down always draws as Inter.
 | Space Grotesk | A squarish face with a technical feel | SIL Open Font License 1.1 |
 | Caveat | Handwriting | SIL Open Font License 1.1 |
 | Anton | Tall, narrow and heavy, for captions in capitals | SIL Open Font License 1.1 |
+| Fredoka | Soft and round, for study timers and thumbnails | SIL Open Font License 1.1 |
 
 Each licence text sits beside its font file as
 `src/server/assets/<Face>-LICENSE.txt`. The SIL licence allows bundling,
@@ -30,6 +31,15 @@ from the same repository's `OFL.txt`, is
 `src/server/assets/Anton-LICENSE.txt`. It has one weight only, its own heavy
 Regular (400), so it is the one face not drawn at 600.
 
+Fredoka joined on 14 Nov 2026 for study videos: the timer's digits and a
+thumbnail's "25/05" (Tyler picked "Fredoka" as the rounded face). Its files
+are Google Fonts' own build, unmodified: the static SemiBold ttf and the latin
+and latin-ext woff2 files Google Fonts serves for weight 600. Its licence is
+the google/fonts repository's `OFL.txt`, as
+`src/server/assets/Fredoka-LICENSE.txt`. Its letter widths were measured by
+drawing a sample line with the server's own rasterizer (resvg), which read
+every other face within 0.02 of its shipped number.
+
 ## Where to pick one
 
 - A text clip in the video editor: the Font dropdown in the clip's "The words"
@@ -46,7 +56,7 @@ Every face ships twice, and the two copies must stay in step or an export
 wraps its lines differently from the preview:
 
 - The browser loads woff2 files from `public/fonts/`. Four are declared in
-  `src/theme.css`. Anton is declared in the app's own
+  `src/theme.css`. Anton and Fredoka are declared in the app's own
   `src/components/video-editor/text-fonts.css`, because `theme.css` belongs to
   the shell and must not be edited again; the editor, the carousel studio and
   the caption look's fields import it. A face is only downloaded once
@@ -95,6 +105,7 @@ used, the browser downloads its woff2 files once:
 - Caveat: 50 KB + 19 KB, 69 KB together
 
 - Anton: 12 KB (latin) + 21 KB (accented latin), 33 KB together
+- Fredoka: 16 KB (latin) + 3 KB (accented latin), 19 KB together
 
 All four together are 163 KB, about the size of one small photo. The server
 ttf files (69–252 KB each) never reach the browser.

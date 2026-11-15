@@ -8,6 +8,7 @@ import { loadAppSettings } from "@/server/pomodoro/app-settings"
 import { notifyRoom, postRoomMessage, toggleRoomReaction } from "@/server/pomodoro/rooms"
 import { chatUnderCap, readRealPresence } from "@/server/pomodoro/simulated-controls"
 import {
+  pomodoroRoomCheckIns,
   pomodoroBlocks,
   pomodoroProfiles,
   pomodoroSettings,
@@ -295,6 +296,7 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
 
   const mayAddress = await readBlocks(people)
   await reactToReal(room, lines, madeUp, handled, now, mayAddress)
+  if (onBreak) await checkInMadeUp(room, madeUp, now)
 
   // Somebody real @named a made-up member: that member answers, even mid-focus.
   for (const line of lines) {
@@ -379,6 +381,39 @@ async function tendChat(room: Room, openedAt: Date, now: Date, voice: Voice, blo
   if (opener && mayFollow(opener) && !realRecently && !handled.has(exchangeTrigger) && happens(exchangeTrigger, chance.exchange) && due(started + delayMs(exchangeTrigger, 60, 150)) && left > 60_000) {
     await say(opener, "exchange", exchangeTrigger)
   }
+}
+
+/**
+ * The made-up members who sat through the focus answer "Did you finish?",
+ * each a little way into the break and most of them Finished, so a room full
+ * of them does not look as if nobody did anything. Not a line of chat, so it
+ * never takes chat's turn. Written straight in, on conflict nothing: a real
+ * press goes through the guarded server function instead.
+ */
+async function checkInMadeUp(room: Room, madeUp: Person[], now: Date) {
+  if (!room.phaseStartedAt) return
+  const started = room.phaseStartedAt.getTime()
+  const answering = madeUp.filter((person) => {
+    const trigger = `check-in:${room.id}:${room.sequence}:${person.userId}`
+    return (
+      person.joinedAt.getTime() <= started &&
+      now.getTime() >= started + delayMs(trigger, 10, 90)
+    )
+  })
+  if (!answering.length) return
+  const written = await db
+    .insert(pomodoroRoomCheckIns)
+    .values(
+      answering.map((person) => ({
+        roomId: room.id,
+        userId: person.userId,
+        breakSequence: room.sequence,
+        finished: happens(`check-in:${room.id}:${room.sequence}:${person.userId}`, 0.7),
+      }))
+    )
+    .onConflictDoNothing()
+    .returning({ id: pomodoroRoomCheckIns.id })
+  if (written.length) await notifyRoom(room.id, "check-in")
 }
 
 type GreetingContext = {

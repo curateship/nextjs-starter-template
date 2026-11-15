@@ -7,7 +7,6 @@ import {
   Trash2Icon,
   UserMinusIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CopyDialog } from "@/components/social/copy-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -137,7 +136,7 @@ export function FollowingPage({ rows }: { rows: FollowingRow[] }) {
         showErrorToast(
           `${message} Stop copying a trader before you unfollow them.`
         )
-      } else toast.success(message)
+      }
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {
@@ -150,7 +149,6 @@ export function FollowingPage({ rows }: { rows: FollowingRow[] }) {
     try {
       await setFollowing(row.handle, false)
       await refresh()
-      toast.success(`You stopped following @${row.handle}.`)
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {
@@ -164,7 +162,6 @@ export function FollowingPage({ rows }: { rows: FollowingRow[] }) {
     try {
       await resumeCopying(row.copy.id)
       await refresh()
-      toast.success(`Copying @${row.handle} again.`)
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))
     } finally {
@@ -398,15 +395,8 @@ function StopCopyDialog({
     if (!row?.copy) return
     setBusy(closePositions ? "close" : "leave")
     try {
-      const { closing } = await stopCopying(row.copy.id, closePositions)
+      await stopCopying(row.copy.id, closePositions)
       await onStopped()
-      toast.success(
-        closePositions
-          ? closing > 0
-            ? `Stopped copying @${row.handle}. Closing ${closing} ${closing === 1 ? "position" : "positions"} with limit orders that follow the price.`
-            : `Stopped copying @${row.handle}. It had no open positions.`
-          : `Stopped copying @${row.handle}. Your copied positions stay open.`
-      )
       onClose()
     } catch (error) {
       showErrorToast(getCopyErrorMessage(error))

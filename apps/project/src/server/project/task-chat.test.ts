@@ -76,7 +76,6 @@ async function setUp() {
       notes: "",
       assigneeUserId: ben.id,
       dueDate: null,
-      steps: [],
     },
     database
   )

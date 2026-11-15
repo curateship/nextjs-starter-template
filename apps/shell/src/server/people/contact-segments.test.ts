@@ -16,6 +16,7 @@ import {
   countSegmentContacts,
   createWorkspaceSegment,
   deleteWorkspaceSegments,
+  listSegmentMembers,
   listSegmentNames,
   listSegmentContacts,
   listWorkspaceContactSources,
@@ -27,10 +28,9 @@ import {
 } from "@/server/people/contact-segments"
 import { type CustomShellDb } from "@/server/db"
 import {
+  customShellContactSegments,
   customShellContacts,
   customShellDeliveries,
-  customShellPlans,
-  customShellSubscriptions,
   customShellWorkspaces,
 } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -220,18 +220,6 @@ describe("one segment, one condition at a time", () => {
     ).toEqual(["ancient@example.test"])
   })
 
-  it("splits people by whether they have an account", async () => {
-    const member = await insertUser(db, { email: "member@example.test" })
-    await insertContact("ada", { userId: member.id })
-    await insertContact("bob")
-
-    expect(await matching([{ type: "account", operator: "has" }])).toEqual([
-      "ada@example.test",
-    ])
-    expect(await matching([{ type: "account", operator: "hasnt" }])).toEqual([
-      "bob@example.test",
-    ])
-  })
 })
 
 /**
@@ -539,102 +527,6 @@ describe("unsubscribing takes somebody out on the next read", () => {
     expect(
       await countSegmentContacts(WORKSPACE_ID, readSegment(segment), db, TODAY)
     ).toBe(1)
-  })
-})
-
-describe("the plan rule reaches the accounts side", () => {
-  /** The Pro plan the migrations already seed, so the test uses the real one. */
-  let proPlanId: string
-
-  async function payingMember(email: string, planId: string) {
-    const user = await insertUser(db, { email })
-    await db.insert(customShellSubscriptions).values({
-      id: `sub-${email}`,
-      userId: user.id,
-      planId,
-      status: "active",
-      interval: "monthly",
-      source: "stripe",
-      currentPeriodEnd: new Date("2027-01-01T00:00:00Z"),
-      createdAt: daysAgo(10),
-      updatedAt: daysAgo(10),
-    })
-    return user
-  }
-
-  beforeEach(async () => {
-    const [plan] = await db
-      .select({ id: customShellPlans.id })
-      .from(customShellPlans)
-      .where(eq(customShellPlans.slug, "pro"))
-    proPlanId = plan.id
-  })
-
-  it("finds the people whose subscription is live", async () => {
-    const paying = await payingMember("paying@example.test", proPlanId)
-    await insertContact("ada", { userId: paying.id })
-    await insertContact("bob")
-
-    expect(
-      await matching([{ type: "plan", operator: "is", planSlug: "pro" }])
-    ).toEqual(["ada@example.test"])
-  })
-
-  it("counts somebody with no account as not on the plan", async () => {
-    const paying = await payingMember("paying@example.test", proPlanId)
-    await insertContact("ada", { userId: paying.id })
-    await insertContact("bob")
-
-    expect(
-      await matching([{ type: "plan", operator: "isnt", planSlug: "pro" }])
-    ).toEqual(["bob@example.test"])
-  })
-
-  it("leaves out a subscription whose paid period has lapsed", async () => {
-    const lapsed = await insertUser(db, { email: "lapsed@example.test" })
-    await db.insert(customShellSubscriptions).values({
-      id: "sub-lapsed",
-      userId: lapsed.id,
-      planId: proPlanId,
-      status: "active",
-      interval: "monthly",
-      currentPeriodEnd: daysAgo(3),
-      createdAt: daysAgo(100),
-      updatedAt: daysAgo(100),
-    })
-    await insertContact("ada", { userId: lapsed.id })
-
-    expect(
-      await matching([{ type: "plan", operator: "is", planSlug: "pro" }])
-    ).toEqual([])
-  })
-
-  it("matches nobody at all once the plan itself is deleted", async () => {
-    const paying = await payingMember("paying@example.test", proPlanId)
-    await insertContact("ada", { userId: paying.id })
-    await insertContact("bob")
-    await db.delete(customShellPlans).where(eq(customShellPlans.id, proPlanId))
-
-    // Both ways round. "Nobody is on it, so everybody isn't" is the honest
-    // reading and also the one that would mail the whole list.
-    expect(
-      await matching([{ type: "plan", operator: "is", planSlug: "pro" }])
-    ).toEqual([])
-    expect(
-      await matching([{ type: "plan", operator: "isnt", planSlug: "pro" }])
-    ).toEqual([])
-  })
-
-  it("refuses to save a rule naming a plan that does not exist", async () => {
-    await expect(
-      createWorkspaceSegment(
-        WORKSPACE_ID,
-        rulesInput("Ghosts", [
-          { type: "plan", operator: "is", planSlug: "nope" },
-        ]),
-        db
-      )
-    ).rejects.toThrow("SEGMENT_PLAN_MISSING")
   })
 })
 
@@ -962,8 +854,7 @@ describe("hand-picked segments", () => {
 
 describe("the list page counts every segment in one query", () => {
   it("gets the same answers as counting them one at a time", async () => {
-    const member = await insertUser(db, { email: "member@example.test" })
-    await insertContact("ada", { tags: ["beta"], userId: member.id })
+    await insertContact("ada", { tags: ["beta"] })
     await insertContact("bob", { tags: ["beta"], status: "unsubscribed" })
     await insertContact("cat", { tags: [], createdAt: daysAgo(300) })
 
@@ -982,7 +873,7 @@ describe("the list page counts every segment in one query", () => {
     await createWorkspaceSegment(
       WORKSPACE_ID,
       rulesInput("Beta minus", [
-        { type: "account", operator: "hasnt" },
+        { type: "status", operator: "is", status: "subscribed" },
         { type: "notIn", segmentIds: [staff.id] },
       ]),
       db
@@ -1807,5 +1698,110 @@ describe("taking people out of a hand-picked segment", () => {
       )
     ).toEqual({ removed: 0, notThere: 0 })
     expect(await membersOf(segment.id)).toEqual(["ada@example.test"])
+  })
+})
+
+describe("saving a hand-picked segment that already has people", () => {
+  function picked(name: string, contactIds: string[]): SegmentInput {
+    return { name, description: "", kind: "static", rules: { conditions: [] }, contactIds }
+  }
+
+  async function memberIds(segmentId: string) {
+    const members = await listSegmentMembers(WORKSPACE_ID, segmentId, db)
+    return members.map((member) => member.id).sort()
+  }
+
+  it("renames a 1,500-person segment and keeps all 1,500", async () => {
+    const ids = Array.from({ length: 1500 }, (_, at) => `c${String(at).padStart(4, "0")}`)
+    await db.insert(customShellContacts).values(
+      ids.map((id) => ({
+        id,
+        workspaceId: WORKSPACE_ID,
+        email: `${id}@example.test`,
+        status: "subscribed" as const,
+        tags: [],
+        createdAt: daysAgo(1),
+        updatedAt: daysAgo(1),
+      }))
+    )
+    const segment = await createWorkspaceSegment(WORKSPACE_ID, picked("Big", ids), db)
+
+    const { contactIds: _unused, ...unchanged } = picked("Big, renamed", [])
+    const renamed = await updateWorkspaceSegment(WORKSPACE_ID, segment.id, unchanged, db)
+
+    expect(renamed.name).toBe("Big, renamed")
+    expect(await memberIds(segment.id)).toEqual(ids)
+  })
+
+  it("changes exactly the people who were added and removed", async () => {
+    for (const id of ["ada", "bob", "cat", "dan", "eve", "fay", "gus"]) await insertContact(id)
+    const segment = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      picked("Mixed", ["ada", "bob", "cat", "dan"]),
+      db
+    )
+
+    await updateWorkspaceSegment(
+      WORKSPACE_ID,
+      segment.id,
+      {
+        name: "Mixed",
+        description: "",
+        kind: "static",
+        rules: { conditions: [] },
+        addIds: ["eve", "fay", "gus"],
+        removeIds: ["ada", "bob"],
+      },
+      db
+    )
+
+    expect(await memberIds(segment.id)).toEqual(["cat", "dan", "eve", "fay", "gus"])
+  })
+
+  it("changes nothing at all when one of the people added is not in this workspace", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await db.insert(customShellContacts).values({
+      id: "stranger",
+      workspaceId: OTHER_WORKSPACE_ID,
+      email: "stranger@example.test",
+      status: "subscribed",
+      tags: [],
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    })
+    const segment = await createWorkspaceSegment(WORKSPACE_ID, picked("Kept", ["ada"]), db)
+
+    await expect(
+      updateWorkspaceSegment(
+        WORKSPACE_ID,
+        segment.id,
+        {
+          name: "Kept, renamed",
+          description: "",
+          kind: "static",
+          rules: { conditions: [] },
+          addIds: ["bob", "stranger"],
+          removeIds: ["ada"],
+        },
+        db
+      )
+    ).rejects.toThrow("SEGMENT_CONTACT_MISSING")
+
+    expect(await memberIds(segment.id)).toEqual(["ada"])
+    const [stored] = await db
+      .select({ name: customShellContactSegments.name })
+      .from(customShellContactSegments)
+      .where(eq(customShellContactSegments.id, segment.id))
+    expect(stored?.name).toBe("Kept")
+  })
+
+  it("drops everybody when a hand-picked segment becomes a rules one", async () => {
+    await insertContact("ada")
+    const segment = await createWorkspaceSegment(WORKSPACE_ID, picked("Turned", ["ada"]), db)
+
+    await updateWorkspaceSegment(WORKSPACE_ID, segment.id, rulesInput("Turned", []), db)
+
+    expect(await memberIds(segment.id)).toEqual([])
   })
 })

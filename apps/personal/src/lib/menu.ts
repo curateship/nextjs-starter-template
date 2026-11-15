@@ -36,6 +36,15 @@ export const MAX_MENU_SHADE = 100
 export const DEFAULT_MENU_SHADE = 50
 
 /**
+ * How strong the line down the left menu's right edge is, as a share of the
+ * theme's line: 0% is no line, 100% is the theme's full line, and 50% is the
+ * half-strength line the menu has had since 16 Oct 2026.
+ */
+export const MIN_MENU_EDGE = 0
+export const MAX_MENU_EDGE = 100
+export const DEFAULT_MENU_EDGE = 50
+
+/**
  * How dark the dark mode is: the four choices of an app's Settings -> Styling
  * -> Dark mode, copied from Custom Shell's `DARK_SHADES` with their lifts, so
  * Personal can be set to the shade of the app it shows. Every dark grey in
@@ -146,6 +155,8 @@ export const menuSchema = z.object({
    * meant something else, so a file saved before then loads at the default.
    */
   menuShade: z.number().int().min(MIN_MENU_SHADE).max(MAX_MENU_SHADE).optional(),
+  /** The strength of the menu's right-edge line in percent. Missing is 50%. */
+  menuEdge: z.number().int().min(MIN_MENU_EDGE).max(MAX_MENU_EDGE).optional(),
   /** How dark the dark mode is. Missing is Near black, the theme's own. */
   darkShade: z.enum(DARK_SHADE_IDS).optional(),
   /** The link Personal opens on a visit to its bare address. Missing means the empty start page. */
@@ -360,6 +371,20 @@ export function setMenuShade(menu: Menu, shade: number): Menu {
   if ((menu.menuShade ?? DEFAULT_MENU_SHADE) === clamped) return menu
   const { menuShade: _old, ...rest } = menu
   return clamped === DEFAULT_MENU_SHADE ? rest : { ...rest, menuShade: clamped }
+}
+
+/** Saves the strength of the menu's right-edge line. 50% leaves the file without it. */
+export function setMenuEdge(menu: Menu, edge: number): Menu {
+  const clamped = Math.round(Math.min(Math.max(edge, MIN_MENU_EDGE), MAX_MENU_EDGE))
+  if ((menu.menuEdge ?? DEFAULT_MENU_EDGE) === clamped) return menu
+  const { menuEdge: _old, ...rest } = menu
+  return clamped === DEFAULT_MENU_EDGE ? rest : { ...rest, menuEdge: clamped }
+}
+
+/** What the cog calls the edge line's strength. */
+export function menuEdgeLabel(edge: number) {
+  if (edge === DEFAULT_MENU_EDGE) return "Default"
+  return edge === MIN_MENU_EDGE ? "None" : `${edge}%`
 }
 
 /** Saves the dark mode's shade. Near black leaves the file without it. */

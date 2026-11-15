@@ -1,11 +1,13 @@
 import * as React from "react"
 
+import { WidgetHeadingActions } from "@/components/shared/widgets/widget-card"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { CardTitle } from "@/components/ui/card"
 import { TableSurface } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { BARE_TABLE } from "@/components/trade/trade-table"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   loadMarketExplorer,
@@ -24,7 +26,17 @@ import {
   useExplorerVenues,
 } from "./use-explorer"
 
-export function MovingNowWidget({ className }: { className?: string }) {
+export function MovingNowWidget({
+  className,
+  bare = false,
+}: {
+  className?: string
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title,
+   * the count and the ⋮: no frame of its own, and no title row.
+   */
+  bare?: boolean
+}) {
   const [opening, setOpening] = React.useState<ExplorerOpening | null>(null)
   const [failed, setFailed] = React.useState(false)
   const [attempt, setAttempt] = React.useState(0)
@@ -42,13 +54,21 @@ export function MovingNowWidget({ className }: { className?: string }) {
     }
   }, [attempt])
   return (
-    <TableSurface className={cn("flex min-h-0 flex-col", className)}>
-      <DashboardCardHeader>
-        <CardTitle>Moving now</CardTitle>
-        <a className="ml-auto text-sm underline" href="/admin/markets">
-          All markets
-        </a>
-      </DashboardCardHeader>
+    <TableSurface className={cn("flex min-h-0 flex-col", className, bare && BARE_TABLE)}>
+      {bare ? (
+        <WidgetHeadingActions>
+          <a className="text-sm underline" href="/admin/markets">
+            All markets
+          </a>
+        </WidgetHeadingActions>
+      ) : (
+        <DashboardCardHeader>
+          <CardTitle>Moving now</CardTitle>
+          <a className="ml-auto text-sm underline" href="/admin/markets">
+            All markets
+          </a>
+        </DashboardCardHeader>
+      )}
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-3">
           {opening ? (

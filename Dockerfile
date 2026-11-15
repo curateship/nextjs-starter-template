@@ -40,13 +40,23 @@ WORKDIR /app
 # This must be passed as --config.node-linker on each install: pnpm 11 moved
 # settings into pnpm-workspace.yaml and ignores NPM_CONFIG_NODE_LINKER, which
 # fails silently by producing a symlinked tree with no top-level tslib.
+#
+# **Downloaded packages are kept between builds** in a BuildKit cache mount
+# (`/pnpm/store`), so a deploy fetches only what changed since the last one
+# instead of everything. The one lock file every app shares changes with nearly
+# every commit, which throws away the install layer each time; the store under
+# it survives that. Before this, each install took about 340 seconds on the
+# German Coolify server (Trade, 4 Nov 2026; Tyler, 7 Nov 2026: "why does it
+# take so long?"). The cache never reaches an image: a cache mount is not part
+# of any layer.
 
 # --- Dependencies, including the build tooling ---
 FROM base AS deps
 ARG APP
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/${APP}/package.json ./apps/${APP}/
-RUN pnpm install --frozen-lockfile --config.node-linker=hoisted --filter ${APP}...
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --config.node-linker=hoisted --store-dir=/pnpm/store --filter ${APP}...
 
 # --- Dependencies the finished images actually run on ---
 # Both the Nitro server bundle and the worker bundle leave their dependencies
@@ -55,20 +65,21 @@ FROM base AS prod-deps
 ARG APP
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/${APP}/package.json ./apps/${APP}/
-RUN pnpm install --frozen-lockfile --prod --config.node-linker=hoisted --filter ${APP}...
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --config.node-linker=hoisted --store-dir=/pnpm/store --filter ${APP}...
 
 # --- Build: the website ---
-FROM base AS web-build
+# Built on top of the install itself rather than copying its node_modules into
+# a fresh stage: that copy alone took about 250 seconds on the German server.
+FROM deps AS web-build
 ARG APP
-COPY --from=deps /app/node_modules ./node_modules
 COPY package.json pnpm-workspace.yaml local-apps.json ./
 COPY apps/${APP}/ ./apps/${APP}/
 RUN pnpm --filter ${APP} build
 
 # --- Build: the background worker ---
-FROM base AS worker-build
+FROM deps AS worker-build
 ARG APP
-COPY --from=deps /app/node_modules ./node_modules
 COPY package.json pnpm-workspace.yaml local-apps.json ./
 COPY apps/${APP}/ ./apps/${APP}/
 RUN pnpm --filter ${APP} build:worker

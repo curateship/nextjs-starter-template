@@ -1,34 +1,30 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { SettingsIcon } from "lucide-react"
 
-import { AdminCards } from "@/components/project/admin-cards"
-import { DailyCard, DailyEditButton, DailyLookBackButton, DailySkyBanner, useDailyNow } from "@/components/project/daily-card"
-import { DailyLookBack } from "@/components/project/daily-look-back"
-import { DailyCityField } from "@/components/project/daily-city-field"
-import { ProjectsCard } from "@/components/project/admin-project-cards"
-import { InboxCard, type InboxPage } from "@/components/project/inbox-card"
-import { InboxMorphIcon } from "@/components/project/inbox-morph-icon"
+import { useDailyNow } from "@/components/project/daily-card"
+import { CityRow } from "@/components/project/daily-city-field"
+import { DailyHabitsSetting, DailySectionsSetting } from "@/components/project/daily-settings"
+import type { InboxPage } from "@/components/project/inbox-card"
 import { MyNoticeSwitches } from "@/components/project/my-notice-switches"
+import { RoutineReminderTimes } from "@/components/project/routine-reminder-times"
+import { MySettingsMenu } from "@/components/project/my-settings-menu"
+import { PickChoicesRow, PickGroup } from "@/components/project/pick-rows"
 import { MyTasksPanel } from "@/components/project/my-tasks-panel"
-import { OptionCard } from "@/components/project/option-card"
 import { PersonPages } from "@/components/project/person-pages"
-import { SaveLine } from "@/components/project/save-line"
+import { DashboardBlocksProvider } from "@/components/project/notes/dashboard-blocks"
+import { AdminPageNotes } from "@/components/project/project-page-notes"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { TaskSidePanel } from "@/components/project/task-side-panel"
 import { ThreePanels } from "@/components/project/three-panels"
-import { TimeZoneSelect } from "@/components/project/time-zone-select"
+import { ZoneChoices } from "@/components/project/time-zone-select"
 import type { FilterProject } from "@/components/project/task-filter-popover"
-import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { CoverRow, LockRow } from "@/components/shared/notes/page-rows"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { saveAdminStatusOrder, saveAdminTimeZone, type AdminDashboard } from "@/lib/api/project/admin-dashboard"
+import { saveAdminPageCover, saveAdminPageLock, saveAdminStatusOrder, saveAdminTimeZone, type AdminDashboard } from "@/lib/api/project/admin-dashboard"
 import type { DailyCard as DailyCardData } from "@/lib/api/project/daily-card"
 import { useTaskAddress } from "@/lib/hooks/use-task-address"
-import { useWideScreen } from "@/lib/layout/wide-screen"
 import { adminProjectColumn } from "@/lib/project/admin-projects"
 import { browserTimeZone } from "@/lib/project/days"
 import { ADMIN_DASHBOARD_PANEL_LAYOUT_KEY, ADMIN_OPEN_TASK_KEY } from "@/lib/project/panel-keys"
@@ -36,10 +32,14 @@ import type { TaskFilters } from "@/lib/project/task-filters"
 import { TeamScope } from "@/lib/project/team-scope"
 import { useMyLive } from "@/lib/project/use-my-live"
 import { useRememberedTask } from "@/lib/project/use-remembered-task"
-import { useSaveLine } from "@/lib/project/use-save-line"
-import { PANEL_GUTTER } from "@/lib/project/panel-gutter"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { useZoneRows } from "@/lib/project/zone-rows"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { readActiveView } from "@/lib/saved-views"
 import { cn } from "@/lib/utils"
+import { PageCover, RightCoverProvider } from "@/components/shared/notes/page-cover"
+
 
 /** The route whose data loads again on a live change. */
 const DASHBOARD_ROUTE_ID = "/_authenticated/dashboard"
@@ -50,9 +50,10 @@ export type AdminDashboardSearch = Omit<TaskFilters, "person"> & { task?: string
 /**
  * The site admin's My dashboard (Admin task 03, Tyler, 23 Oct 2026): no
  * check-in or check-out, every task handed to them in any team mixed with
- * their own "Just me" list in the middle, ten cards counting across every
- * team on the left, and the open task on the right, never empty and with no
- * cross. An employee's is `my-dashboard.tsx`.
+ * their own "Just me" list in the middle, with a Need your attention tab of
+ * every task across every team that needs them; their own page with its "/"
+ * blocks and the Daily card on the left; and the open task on the right,
+ * never empty and with no cross. An employee's is `my-dashboard.tsx`.
  */
 export function AdminDashboardScreen({
   dashboard,
@@ -71,27 +72,18 @@ export function AdminDashboardScreen({
   const [rows, setRows] = React.useState<string[] | null>(null)
   const quietTask = useRememberedTask({ storageKey: ADMIN_OPEN_TASK_KEY, taskId: search.task, ids: rows })
   useFirstZone(dashboard.savedZone)
-  const wide = useWideScreen()
-  // Any change in any team loads the page again, so the cards and the Projects
-  // card never go stale (task "My dashboard/01 Project cards", Tyler's pick).
+  // Any change in any team loads the page again, so the Projects blocks and the
+  // Need your attention tab never go stale (task "My dashboard/01 Project cards", Tyler's pick).
   useMyLive(
     () => true,
     () => void router.invalidate({ filter: (match) => match.routeId === DASHBOARD_ROUTE_ID })
   )
 
-  // The open task asks its own team's questions (its tags, its people), as on its
+  // The open task asks its own team's questions (its people), as on its
   // project page. Only the right panel is scoped: New task in the middle offers
   // every team's projects, so it must not borrow the open task's team.
   const taskProjects = React.useMemo(() => {
-    const all = [
-      ...dashboard.tasks,
-      ...dashboard.cards.dueThisWeek,
-      ...dashboard.cards.unassigned.map((task) => ({ id: task.taskId, projectId: task.projectId })),
-      ...dashboard.cards.waiting.map((ask) => ({ id: ask.taskId, projectId: ask.projectId })),
-      ...dashboard.cards.doneToday.flatMap((person) =>
-        person.tasks.map((task) => ({ id: task.taskId, projectId: task.projectId }))
-      ),
-    ]
+    const all = [...dashboard.tasks, ...dashboard.attention.tasks]
     return new Map(all.map((task) => [task.id, task.projectId]))
   }, [dashboard])
   const openProject = search.task ? taskProjects.get(search.task) : undefined
@@ -110,64 +102,40 @@ export function AdminDashboardScreen({
         return next
       },
     })
-  const projectsCard = dashboard.cards.projects.length ? (
-    <ProjectsCard
-      projects={dashboard.cards.projects}
-      extras={dashboard.cards.projectCards}
-      today={dashboard.today}
-      picked={search.project}
-      // Pressing the picked project again goes back to the view picked under it,
-      // its own project included (Tyler, 2 Nov 2026: "clicking on project again
-      // does not go back to my saved view").
-      onPick={(project) =>
-        setFilters({
-          project: project ?? viewProject(readActiveView(dashboard.viewScreen, dashboard.views)?.filters.project),
-        })
-      }
-    />
-  ) : null
+  // Pressing the picked project again goes back to the view picked under it,
+  // its own project included (Tyler, 2 Nov 2026: "clicking on project again
+  // does not go back to my saved view").
+  const pickProject = (project: string | undefined) =>
+    setFilters({
+      project: project ?? viewProject(readActiveView(dashboard.viewScreen, dashboard.views)?.filters.project),
+    })
   const taskLoaded = (taskId: string) => {
     if (dashboard.tasks.some((task) => task.id === taskId && task.unread > 0)) void router.invalidate()
   }
 
   return (
     <ThreePanels
+      reopenInHeader
       layoutKey={ADMIN_DASHBOARD_PANEL_LAYOUT_KEY}
       // On a phone the Daily card is the first thing seen (Tyler, 29 Oct 2026).
       narrowStart="left"
       // A task opened on arrival leaves a narrow screen on the list.
       showRightFor={search.task === quietTask ? undefined : search.task}
-      // Picking a project on a phone's Pinned tab shows its tasks at once.
+      // Picking a pinned project on a phone shows its tasks at once.
       showMiddleFor={search.project}
       left={{
         label: "Me",
-        showLabel: "Show my cards",
+        showLabel: "Show my page",
         content: (
           <AdminPanel
             dashboard={dashboard}
             daily={daily}
             inbox={inbox}
-            projectsCard={wide ? projectsCard : null}
-            onOpenTask={taskAddress.open}
+            pickedProject={search.project}
+            onPickProject={pickProject}
           />
         ),
       }}
-      narrowTab={
-        !wide && projectsCard
-          ? {
-              // Short, as the phone's pill row holds four (Misc 5: "Pinned projects").
-              label: "Pinned",
-              content: (
-                <>
-                  <DashboardCardTitleHeader title="Pinned projects" />
-                  <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-                    <div className={cn("grid", PANEL_GUTTER)}>{projectsCard}</div>
-                  </ScrollArea>
-                </>
-              ),
-            }
-          : undefined
-      }
       middle={{
         label: "My tasks",
         content: (
@@ -179,8 +147,6 @@ export function AdminDashboardScreen({
               myOrder: dashboard.myOrder,
               today: dashboard.today,
               people: dashboard.people,
-              labels: dashboard.labels,
-              taskTypes: dashboard.taskTypes,
               views: dashboard.views,
               viewScreen: dashboard.viewScreen,
               statusOrder: dashboard.statusOrder,
@@ -190,14 +156,13 @@ export function AdminDashboardScreen({
               canDelete: () => true,
               table: { project: projectColumn },
               projects: filterProjects,
+              attention: dashboard.attention,
             }}
             openTaskId={search.task}
             filters={{
               q: search.q,
               status: search.status,
               priority: search.priority,
-              label: search.label,
-              type: search.type,
               due: search.due,
               client: search.client,
               project: search.project,
@@ -214,7 +179,10 @@ export function AdminDashboardScreen({
         content: (
           <TeamScope teamId={openTeam}>
             <PersonPages>
-              <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+              {/* My page's cover carried on behind the task's header. */}
+              <RightCoverProvider value={dashboard.cover.url}>
+                <TaskSidePanel taskId={search.task} onClose={taskAddress.back} onLoaded={taskLoaded} />
+              </RightCoverProvider>
             </PersonPages>
           </TeamScope>
         ),
@@ -235,7 +203,7 @@ function viewProject(value: unknown) {
  */
 function filterProjectsOf(dashboard: AdminDashboard): FilterProject[] {
   const ids = new Set([
-    ...dashboard.cards.projects.map((project) => project.id),
+    ...dashboard.projects.map((project) => project.id),
     ...dashboard.tasks.map((task) => task.projectId),
   ])
   return [...ids]
@@ -266,178 +234,200 @@ function useFirstZone(savedZone: string | null) {
 }
 
 /**
- * The left panel: me with my inbox and My settings in the header, then the
- * cards. The inbox icon swaps the cards for the inbox, and again for the
- * cards (Tyler, 25 Oct 2026: "add an inbox icon here with red bubble
- * notification. the inbox open in that tab instead of card"). Both stay
- * mounted, so what was read here keeps the bubble right on the way back.
+ * The left panel: me with my inbox and My settings in the header, then my
+ * page, then the footer of cards. The inbox icon swaps the page for the
+ * inbox, and again for it (Tyler, 25 Oct 2026: "add an inbox
+ * icon here with red bubble notification. the inbox open in that tab instead
+ * of card"). Both stay mounted, so what was read here keeps the bubble right
+ * on the way back.
+ *
+ * There is no footer: the whole Daily card, greeting, Start day and all, is a
+ * block on the page, and Pinned projects and Need your attention became
+ * Projects blocks and a tab in My tasks (task "My
+ * dashboard/left-panel-blocks", Tyler, 6 Nov 2026). The page's Projects,
+ * Daily card and rating blocks draw from the dashboard
+ * (`DashboardBlocksProvider`).
  */
 function AdminPanel({
   dashboard,
   daily,
   inbox,
-  projectsCard,
-  onOpenTask,
+  pickedProject,
+  onPickProject,
 }: {
   dashboard: AdminDashboard
   daily: DailyCardData
   inbox: InboxPage
-  /** The Pinned projects card, in the cards on a wide screen; on a phone it has a tab of its own. */
-  projectsCard: React.ReactNode
-  onOpenTask: (taskId: string) => void
+  /** The project My tasks is filtered to, which a Projects block sets. */
+  pickedProject: string | undefined
+  onPickProject: (projectId: string | undefined) => void
 }) {
   const { me } = dashboard
-  // The cards, or in their place the inbox or Look back, from the icons in the header.
-  const [view, setView] = React.useState<"cards" | "inbox" | "lookBack">("cards")
-  const inboxOpen = view === "inbox"
-  const showView = (next: "inbox" | "lookBack") => setView((shown) => (shown === next ? "cards" : next))
-  const [unread, setUnread] = React.useState(() => inbox.notifications.filter((item) => !item.read_at).length)
   const now = useDailyNow(daily)
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {/* The sky stays with the inbox and Look back open too (Tyler, 30 Oct 2026:
-          "the panel background image should not disapeared when i click on the
-          graph or the inbox tab"). */}
-      <DailySkyBanner daily={daily} now={now} />
-      {/* The line goes see-through over the sky rather than away, so the header keeps its height. */}
-      <DashboardCardHeader className="relative border-b-transparent">
+      {/* The page's cover behind the header and the top of the page, from the
+          shell's Cover photo row in My settings (Tyler, 11 Nov 2026: "Shell row
+          exactly"): the drawn sky, a picture or none. */}
+      <PageCover url={dashboard.cover.url} />
+      {/* The line goes see-through over the cover rather than away, so the header keeps its height. */}
+      {/* Wrapped in its own div, so the shell's table line under a header never matches it. */}
+      <div className="relative shrink-0">
+      <DashboardCardHeader className={cn("relative gap-2", dashboard.cover.url && "border-b-transparent")}>
+        <SidePanelCollapseButton side="left" label="Hide my page" />
         <PersonAvatar name={me.name} avatarUrl={me.avatarUrl} size="default" />
         <div className="grid min-w-0 flex-1">
           <span className="truncate text-sm font-medium">{me.name}</span>
           <span className="truncate text-xs text-muted-foreground">Site admin</span>
         </div>
-        <DailyLookBackButton open={view === "lookBack"} onToggle={() => showView("lookBack")} />
-        <DailyEditButton daily={daily} />
-        <InboxButton unread={unread} open={inboxOpen} onToggle={() => showView("inbox")} />
-        <AdminSettingsMenu dashboard={dashboard} city={daily.settings.city} />
+        <AdminSettingsMenu dashboard={dashboard} daily={daily} />
       </DashboardCardHeader>
-      {/* Look back and the inbox bring their own tab rows and scrolling. The inbox
-          and the cards stay mounted while hidden, so what was read keeps the bubble right. */}
-      {view === "lookBack" ? <DailyLookBack /> : null}
-      <div className={cn("relative flex min-h-0 flex-1 flex-col", !inboxOpen && "hidden")}>
-        <InboxCard inbox={inbox} bare onUnread={setUnread} />
       </div>
-      <ScrollArea className={cn("relative min-h-0 flex-1", view !== "cards" && "hidden")} viewportClassName="h-full">
-        {/* One column that can shrink to the panel: left to grow, it took the
-            Daily card's widest row and pushed a counted habit's "+" past the
-            panel's edge (Tyler, 31 Oct 2026: "Add the + icon back"). */}
-        <div className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
-          <DailyCard daily={daily} now={now} checkin={null} />
-          <AdminCards
-            cards={dashboard.cards}
-            zone={dashboard.zone}
-            projectsCard={projectsCard}
-            onOpenTask={onOpenTask}
-          />
-        </div>
+      {/* The page takes the whole panel under the header. Inbox and Look back are
+          blocks on it (Tyler, 11 Nov 2026: "turn look back and inbox tabs into
+          blocks"); until then the header's tray and graph swapped the page for them. */}
+      <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+          {/* One column that can shrink to the panel: left to grow, it took the
+              Daily card's widest row and pushed a counted habit's "+" past the
+              panel's edge (Tyler, 31 Oct 2026: "Add the + icon back"). */}
+          <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
+            <DashboardBlocksProvider
+              value={{
+                projects: dashboard.projects,
+                projectCards: dashboard.projectCards,
+                today: dashboard.today,
+                picked: pickedProject,
+                onPick: onPickProject,
+                daily,
+                now,
+                inbox,
+              }}
+            >
+              <AdminPageNotes page={dashboard.page} locked={dashboard.pageLocked} />
+            </DashboardBlocksProvider>
+          </div>
       </ScrollArea>
     </div>
   )
 }
 
-/** The inbox icon, with a red bubble counting unread notices; a cross while the inbox shows. */
-function InboxButton({ unread, open, onToggle }: { unread: number; open: boolean; onToggle: () => void }) {
-  const label = open ? "Back to my cards" : unread ? `Inbox, ${unread} unread` : "Inbox"
+/**
+ * My settings for the site admin, behind the ⋮: General (their time zone,
+ * weather city and the card's sky), Notifications (the bell notices, with the
+ * Daily card's reminder times) and Daily card (Card layout and Routine
+ * habits, which the pencil window held until 6 Nov 2026).
+ */
+function AdminSettingsMenu({ dashboard, daily }: { dashboard: AdminDashboard; daily: DailyCardData }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={label}
-          aria-pressed={open}
-          className={cn("relative", open && "bg-muted")}
-          onClick={onToggle}
-        >
-          <InboxMorphIcon open={open} />
-          {unread && !open ? (
-            <span
-              aria-hidden
-              // 12px, under the 16px tray, so the count marks the icon without covering it
-              // (Tyler, 29 Oct 2026: "the notification bubble is a bit too big").
-              className="absolute top-0.5 right-0.5 flex h-3 min-w-3 items-center justify-center rounded-full bg-destructive px-[3px] text-[8px] leading-none font-semibold text-white tabular-nums"
-            >
-              {unread > 9 ? "9+" : unread}
-            </span>
-          ) : null}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{open ? "Back to my cards" : "Inbox"}</TooltipContent>
-    </Tooltip>
+    <MySettingsMenu
+      tabs={[
+        {
+          value: "general",
+          label: "General",
+          // Grouped rows, as the task's ⋮ General is (Tyler, 6 Nov 2026: "general should
+          // have the same grouping ui design too"). The page's cover is the shell's
+          // Cover photo row, as on a team's and a project's page (Tyler, 11 Nov 2026:
+          // "this is not using standard", then "Shell row exactly").
+          content: (
+            <div className="grid gap-5 px-4 py-3">
+              <PickGroup title="Page">
+                <AdminCoverRow cover={dashboard.cover} />
+              </PickGroup>
+              <PickGroup title="Location">
+                <AdminZoneRow zone={dashboard.zone} />
+                <CityRow city={daily.settings.city} />
+              </PickGroup>
+            </div>
+          ),
+          // The tab's footer, as the shell's left page ⋮ has Lock blocks.
+          footer: <PageLockButton locked={dashboard.pageLocked} />,
+        },
+        {
+          value: "notifications",
+          label: "Notifications",
+          content: (
+            <div className="px-4 py-3">
+              <MyNoticeSwitches
+                off={dashboard.noticesOff}
+                siteAdmin
+                routineTimes={<RoutineReminderTimes reminders={daily.settings.reminders} />}
+              />
+            </div>
+          ),
+        },
+        {
+          value: "daily",
+          label: "Daily card",
+          content: (
+            <>
+              <DailySectionsSetting daily={daily} />
+              <DailyHabitsSetting daily={daily} />
+            </>
+          ),
+        },
+      ]}
+    />
   )
 }
 
-/** My settings for the site admin: their time zone and bell notices, as flat rows that fold open. */
-function AdminSettingsMenu({ dashboard, city }: { dashboard: AdminDashboard; city: string | null }) {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="My settings" className={cn(open && "bg-muted")}>
-              <SettingsIcon className="size-4" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>My settings</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        align="start"
-        collisionPadding={16}
-        aria-label="My settings"
-        className="w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
-      >
-        <ScrollArea className="min-h-0" viewportClassName="max-h-[min(75vh,44rem)]">
-          <div className="grid">
-            <p className="border-b px-4 py-3 text-sm text-muted-foreground">{dashboard.me.email}</p>
-            <OptionCard
-              id="admin-settings-zone"
-              title="Time zone"
-              description="Today, Due this week, Meetings today and Done today follow it."
-              summary={dashboard.zone.replaceAll("_", " ")}
-            >
-              <AdminTimeZone zone={dashboard.zone} />
-            </OptionCard>
-            <OptionCard
-              id="admin-settings-city"
-              title="City for the weather"
-              description="The Daily card's sky shows the weather there."
-              summary={city ?? "None"}
-            >
-              <DailyCityField city={city} />
-            </OptionCard>
-            <OptionCard
-              id="admin-settings-notices"
-              title="Bell notices"
-              summary={dashboard.noticesOff.length ? `${dashboard.noticesOff.length} off` : "All on"}
-            >
-              <MyNoticeSwitches off={dashboard.noticesOff} siteAdmin />
-            </OptionCard>
-          </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/** The site admin's own zone, saved the moment it is picked. */
-function AdminTimeZone({ zone }: { zone: string }) {
+/**
+ * Locks their own page so it reads only, blocks and all, until it's unlocked
+ * (Tyler, 6 Nov 2026: "lock the notes option is missing"). Drawn as the
+ * shell's Lock blocks, the General tab's footer (`LockRow`). The words change at once and
+ * the page follows once the save is back; a refused save says why.
+ */
+function PageLockButton({ locked }: { locked: boolean }) {
   const router = useRouter()
-  const [saveState, track] = useSaveLine()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  async function toggle() {
+    const ok = await run(
+      () => saveAdminPageLock(!locked)
+    )
+    if (ok) await router.invalidate()
+  }
+  return <LockRow locked={locked} busy={busy} onLock={() => void toggle()} />
+}
+
+/** Their page's cover, the shell's Cover photo row: None, the drawn sky, or a picture. */
+function AdminCoverRow({ cover }: { cover: AdminDashboard["cover"] }) {
+  const router = useRouter()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
   return (
-    <section className="grid gap-2" aria-label="My time zone">
-      <SaveLine state={saveState} className="justify-self-end empty:hidden" />
-      <Label htmlFor="admin-time-zone">My time zone</Label>
-      <TimeZoneSelect
-        id="admin-time-zone"
-        value={zone}
-        disabled={saveState === "saving"}
-        onChange={(timeZone) =>
-          void track(() => saveAdminTimeZone({ timeZone })).then((ok) => (ok ? router.invalidate() : undefined))
-        }
-      />
-    </section>
+    <CoverRow
+      cover={{
+        url: cover.url,
+        images: cover.images,
+        busy,
+        set: ({ url, images }) =>
+          void run(() => saveAdminPageCover({ coverUrl: url ?? "", coverImages: images })).then((ok) =>
+            ok ? router.invalidate() : undefined
+          ),
+      }}
+    />
+  )
+}
+
+/**
+ * The site admin's own zone, a row that opens straight onto the zones with a
+ * search box over them; a pick saves at once. Today, Due this week, Meetings
+ * today and Done today follow it.
+ */
+function AdminZoneRow({ zone }: { zone: string }) {
+  const router = useRouter()
+  const [run] = useAsyncAction(getProjectErrorMessage)
+  const rows = useZoneRows(zone)
+  return (
+    <PickChoicesRow label="Time zone" value={zone.replaceAll("_", " ")} contentClassName="w-72">
+      {(close) => (
+        <ZoneChoices
+          rows={rows}
+          value={zone}
+          onPick={(next) => {
+            close()
+            if (next !== zone) void run(() => saveAdminTimeZone({ timeZone: next })).then((ok) => (ok ? router.invalidate() : undefined))
+          }}
+        />
+      )}
+    </PickChoicesRow>
   )
 }

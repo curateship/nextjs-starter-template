@@ -343,7 +343,4 @@ export const promoMediumListItems = pgTable(
   (table) => [uniqueIndex("ux_promo_medium_list_items").on(table.accountId, table.storyId)]
 )
 
-export type MediumKeywordRow = typeof promoMediumKeywords.$inferSelect
-export type MediumFindRow = typeof promoMediumFinds.$inferSelect
-export type MediumResponseRow = typeof promoMediumResponses.$inferSelect
 export type MediumArticleRow = typeof promoMediumArticles.$inferSelect

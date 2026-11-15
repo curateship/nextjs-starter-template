@@ -9,7 +9,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
@@ -267,15 +266,10 @@ export function FolderMenu({
     setDeleteBusy(true)
     dismissErrorToast()
     try {
-      const { loose_count: loose } = await api.remove(deleting.id)
+      await api.remove(deleting.id)
       // The reload finds the picked folder gone and the route falls back to
       // every project, so nothing here has to change the address.
       await onFoldersChanged()
-      toast.success(
-        loose
-          ? `Deleted “${deleting.name}”. Its ${projectsWord(loose)} ${plural(loose, "is", "are")} still here, in no folder.`
-          : `Deleted “${deleting.name}”.`
-      )
       setDeleting(null)
     } catch (error) {
       showErrorToast(api.errorMessage(error))
@@ -366,13 +360,8 @@ export function FolderMenu({
           if (!open) setNaming(null)
         }}
         folder={naming?.folder ?? null}
-        onSaved={async (saved) => {
+        onSaved={async () => {
           await onFoldersChanged()
-          toast.success(
-            naming?.folder
-              ? `Renamed to “${saved.name}”.`
-              : `Created “${saved.name}”. Tick projects and use Move to folder to fill it.`
-          )
         }}
       />
 
@@ -432,45 +421,6 @@ function FolderRowButton({
 
 // ------------------------------------------------------------- Moving -----
 
-/** One line saying what a move did, counting the ones it did not need to do. */
-function describeMove(
-  result: {
-    moved_ids: string[]
-    unchanged_ids: string[]
-    skipped_ids: string[]
-  },
-  folder: { name: string } | null
-) {
-  const moved = result.moved_ids.length
-  const unchanged = result.unchanged_ids.length
-  const skipped = result.skipped_ids.length
-  const parts: string[] = []
-  if (moved) {
-    parts.push(
-      folder
-        ? `Moved ${projectsWord(moved)} to “${folder.name}”.`
-        : `Took ${projectsWord(moved)} out of ${plural(moved, "its folder", "their folders")}.`
-    )
-  }
-  if (unchanged) {
-    const were = moved
-      ? `${unchanged} ${plural(unchanged, "was", "were")}`
-      : unchanged === 1
-        ? "That project was"
-        : `All ${unchanged} were`
-    parts.push(
-      folder
-        ? `${were} already in “${folder.name}”.`
-        : `${were} already in no folder.`
-    )
-  }
-  if (skipped) {
-    parts.push(
-      `${skipped} could not be moved, because ${plural(skipped, "it is", "they are")} no longer on your list.`
-    )
-  }
-  return parts.join(" ")
-}
 
 /**
  * The toolbar menu shown while projects are ticked: one pick moves them all in
@@ -496,9 +446,8 @@ export function MoveToFolderMenu({
   const [creating, setCreating] = React.useState(false)
 
   async function move(folder: { id: string; name: string } | null) {
-    const result = await api.move(projectIds, folder?.id ?? null)
+    await api.move(projectIds, folder?.id ?? null)
     await onMoved()
-    toast.success(describeMove(result, folder))
   }
 
   async function run(folder: { id: string; name: string } | null) {

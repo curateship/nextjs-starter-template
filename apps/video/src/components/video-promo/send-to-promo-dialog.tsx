@@ -47,6 +47,8 @@ export type PromoSendTarget = {
   hasLanguageCopies?: boolean
   /** Earlier sends of these, for the question about sending again (part 17). */
   earlier?: PromoSendView[]
+  /** Ticked exports left out because they are not finished, to say so. */
+  leftOut?: number
 }
 
 /** The sound picker's value for a silent slideshow. A select item can't be "". */
@@ -198,7 +200,12 @@ export function SendToPromoDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Send to Promo</DialogTitle>
-          <DialogDescription>{target.name} goes into the Archive of each Promo project you tick, as Promo's own copy.</DialogDescription>
+          <DialogDescription>
+            {target.name} goes into the Archive of each Promo project you tick, as Promo's own copy.
+            {target.leftOut
+              ? ` ${target.leftOut} ${plural(target.leftOut, "export isn't", "exports aren't")} finished, so ${plural(target.leftOut, "it was", "they were")} left out.`
+              : ""}
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           {sends ? (

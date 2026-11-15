@@ -1,25 +1,16 @@
 import * as React from "react"
-import { getRouteApi } from "@tanstack/react-router"
-import { HeartHandshakeIcon, PartyPopperIcon, UserPlusIcon } from "lucide-react"
+import { PartyPopperIcon, Trash2Icon, UserPlusIcon } from "lucide-react"
 
-import { TableCell, TableHead, TableRow } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DashboardCardHeaderIcon } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import { Button } from "@/components/ui/button"
+import { TableCell } from "@/components/ui/table"
+import { SelectedMenuRow } from "@/components/shared/mass-select"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import {
-  AdminListTable,
-  AdminSelectCell,
-  useAdminList,
-} from "@/components/pomodoro/admin-list"
-import { AdminPersonFilter } from "@/components/pomodoro/admin-person-filter"
-import {
-  AdminBulkDeleteButton,
-  AdminDeleteConfirm,
-  AdminRowDeleteButton,
-  useAdminDelete,
-} from "@/components/pomodoro/admin-delete"
+import { MainCell } from "@/components/crm/crm-table"
+import { AdminListTable, AdminRow, useAdminList } from "@/components/pomodoro/admin-list"
+import { AdminDeleteConfirm, useAdminDelete } from "@/components/pomodoro/admin-delete"
 import { MemberName } from "@/components/pomodoro/admin-member-name"
+import { DetailRecord, NoRecord } from "@/components/pomodoro/flowfly/detail-record"
+import { useFlowflySearch } from "@/components/pomodoro/flowfly/flowfly-context"
 import {
   deletePomodoroFollows,
   listPomodoroFollows,
@@ -29,101 +20,55 @@ import {
 import { formatDateTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useSelection } from "@/lib/hooks/use-selection"
-import {
-  useListSearchNavigate,
-  useListSort,
-  useSearchBoxText,
-} from "@/lib/nav/list-search"
+import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
 import type { FollowSortColumn, FollowTab } from "@/lib/pomodoro/admin-lists"
 import { findCheer } from "@/lib/pomodoro/cheers"
-
-const route = getRouteApi("/_authenticated/admin/pomodoro-follows")
 
 type FollowsList =
   | { tab: "follows"; rows: AdminFollowRow[]; total: number }
   | { tab: "cheers"; rows: AdminCheerRow[]; total: number }
 type FollowsRow = AdminFollowRow | AdminCheerRow
 
-const TABS: Record<FollowTab, { label: string; icon: React.ReactNode; noun: [string, string] }> = {
-  follows: { label: "Follows", icon: <UserPlusIcon />, noun: ["follow", "follows"] },
-  cheers: { label: "Cheers", icon: <PartyPopperIcon />, noun: ["cheer", "cheers"] },
+type FollowsSearch = { q?: string; user?: string; sort?: FollowSortColumn; direction?: "asc" | "desc"; page?: number }
+
+const NOUNS: Record<FollowTab, [string, string]> = {
+  follows: ["follow", "follows"],
+  cheers: ["cheer", "cheers"],
 }
 
 const FOLLOW_COLUMNS: TableHeaderColumn<FollowSortColumn>[] = [
   { key: "follower", label: "Follower", column: "main", sortable: false },
-  { key: "followed", label: "Who they follow", column: "meta", sortable: false },
-  { key: "most", label: "They follow in all", column: "meta" },
-  { key: "created", label: "When", column: "meta", className: "hidden lg:table-cell" },
+  { key: "followed", label: "Who they follow", column: "meta", sortable: false, className: "hidden md:hidden @2xl:table-cell" },
+  { key: "most", label: "They follow in all", column: "meta", className: "hidden md:hidden @4xl:table-cell" },
+  { key: "created", label: "When", column: "meta", className: "hidden md:hidden @5xl:table-cell" },
 ]
 
 const CHEER_COLUMNS: TableHeaderColumn<FollowSortColumn>[] = [
   { key: "from", label: "From", column: "main", sortable: false },
-  { key: "to", label: "To", column: "meta", sortable: false },
-  { key: "cheer", label: "Cheer", column: "meta", sortable: false },
-  { key: "created", label: "When", column: "meta", className: "hidden lg:table-cell" },
+  { key: "to", label: "To", column: "meta", sortable: false, className: "hidden md:hidden @2xl:table-cell" },
+  { key: "cheer", label: "Cheer", column: "meta", sortable: false, className: "hidden md:hidden @4xl:table-cell" },
+  { key: "created", label: "When", column: "meta", className: "hidden md:hidden @5xl:table-cell" },
 ]
 
 /**
- * Who follows whom and who cheered whom (admin task 06, part 8), with delete
- * on a row and over ticked rows. Nobody is told, the same as an unfollow. See
+ * Social → Follows and Social → Cheers on the Flowfly dashboard (admin task
+ * 06, part 8): who follows whom and who cheered whom, with delete on a row
+ * and over ticked rows. The two were one page's two tabs; now each is a tab
+ * of Social (Tyler, 13 Nov 2026). Nobody is told, the same as an unfollow.
+ * A row opens on the right with both people. See
  * `workspace/docs/admin-members.md`.
  */
 export function AdminFollowsDashboard({
   initial,
   initialPageSize,
+  which,
 }: {
   initial: FollowsList
   initialPageSize: number
+  which: FollowTab
 }) {
-  const search = route.useSearch()
-  const tab: FollowTab = search.tab ?? "follows"
-  const setListSearch = useListSearchNavigate()
-  return (
-    <FollowsTable
-      key={initial.tab}
-      tab={initial.tab}
-      initial={initial}
-      initialPageSize={initialPageSize}
-      tabs={
-        <Tabs
-          value={tab}
-          onValueChange={(value) =>
-            setListSearch({
-              tab: value === "follows" ? undefined : value,
-              sort: undefined,
-              direction: undefined,
-              page: undefined,
-            })
-          }
-        >
-          <TabsList>
-            {(Object.keys(TABS) as FollowTab[]).map((value) => (
-              <TabsTrigger key={value} value={value} className="group/follows-tab">
-                <DashboardCardHeaderIcon className="group-data-[state=active]/follows-tab:text-foreground">
-                  {TABS[value].icon}
-                </DashboardCardHeaderIcon>
-                {TABS[value].label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      }
-    />
-  )
-}
-
-function FollowsTable({
-  tab,
-  initial,
-  initialPageSize,
-  tabs,
-}: {
-  tab: FollowTab
-  initial: { rows: FollowsRow[]; total: number }
-  initialPageSize: number
-  tabs: React.ReactNode
-}) {
-  const search = route.useSearch()
+  const tab = which
+  const search = useFlowflySearch<FollowsSearch>()
   const setListSearch = useListSearchNavigate()
   const query = search.q ?? ""
   const userId = search.user
@@ -134,9 +79,6 @@ function FollowsTable({
   const setPage = React.useCallback(
     (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
     [setListSearch]
-  )
-  const [searchText, setSearchText] = useSearchBoxText(query, (text) =>
-    setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
   const load = React.useCallback(
     async (pageSize: number) => {
@@ -149,8 +91,7 @@ function FollowsTable({
   const toggleSort = useListSort<FollowSortColumn>({ sort, direction }, () => "desc")
   const selection = useSelection()
   const rowIds = React.useMemo(() => list.rows.map((row) => row.id), [list.rows])
-  const selectedIds = rowIds.filter((id) => selection.selected.has(id))
-  const [one, many] = TABS[tab].noun
+  const [one, many] = NOUNS[tab]
   const del = useAdminDelete({
     one,
     many,
@@ -160,111 +101,145 @@ function FollowsTable({
     onDone: list.refresh,
   })
   const filteredName = userId ? personName(list.rows, userId) : null
+  const Icon = tab === "cheers" ? PartyPopperIcon : UserPlusIcon
 
   return (
-    <>
-      <AdminListTable
-        title="Follows"
-        icon={<HeartHandshakeIcon />}
-        tabs={tabs}
-        noun={many}
-        columns={tab === "cheers" ? CHEER_COLUMNS : FOLLOW_COLUMNS}
-        sort={sort}
-        direction={direction}
-        onSort={toggleSort}
-        trailing={<TableHead column="meta">Actions</TableHead>}
-        selection={{ noun: many, rowIds, state: selection }}
-        filters={
-          userId ? (
-            <AdminPersonFilter
-              name={filteredName}
-              onClear={() => setListSearch({ user: undefined, page: undefined })}
-            />
-          ) : undefined
-        }
-        list={list}
-        page={page}
-        onPageChange={setPage}
-        controls={
-          <>
-            <AdminBulkDeleteButton del={del} ids={selectedIds} />
-            <DashboardToolbarSearch
-              name="follows-search"
-              aria-label={`Search ${many}`}
-              placeholder="Search either person's name or email…"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-            />
-          </>
-        }
-      >
-        {list.rows.map((row) =>
-          "followerId" in row ? (
-            <TableRow key={row.id}>
-              <AdminSelectCell
-                selection={selection}
-                id={row.id}
-                label={`Select ${row.followerName} following ${row.followedName}`}
+    <AdminListTable
+      noun={many}
+      columns={tab === "cheers" ? CHEER_COLUMNS : FOLLOW_COLUMNS}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      selection={{ noun: many, rowIds, state: selection }}
+      list={list}
+      page={page}
+      onPageChange={setPage}
+      search={{
+        name: "follows-search",
+        label: `Search ${many}`,
+        placeholder: "Search either person",
+        value: query,
+        onChange: (text) => setListSearch({ q: text.trim() ? text : undefined, page: undefined }),
+      }}
+      person={userId ? { name: filteredName, onClear: () => setListSearch({ user: undefined, page: undefined }) } : undefined}
+      bulk={(ids, menu) => (
+        <SelectedMenuRow
+          className="text-destructive"
+          onClick={() => {
+            menu.close()
+            del.ask(ids)
+          }}
+        >
+          <Trash2Icon className="size-4" />
+          Delete
+        </SelectedMenuRow>
+      )}
+      bulkBusy={del.deleting}
+      rowIds={rowIds}
+      record={{
+        label: tab === "cheers" ? "Cheer" : "Follow",
+        content: (openId) => {
+          const row = list.rows.find((each) => each.id === openId)
+          if (!row)
+            return (
+              <NoRecord
+                title={tab === "cheers" ? "Cheer" : "Follow"}
+                icon={<Icon aria-hidden />}
+                line={tab === "cheers" ? "Nobody has cheered anyone yet." : "Nobody follows anyone yet."}
               />
-              <TableCell column="main">
-                <MemberName id={row.followerId} name={row.followerName} />
-                <span className="block max-w-96 truncate text-xs text-muted-foreground">{row.followerEmail}</span>
-              </TableCell>
-              <TableCell column="meta" className="max-w-56">
-                <MemberName id={row.followedId} name={row.followedName} className="max-w-56" />
-              </TableCell>
-              <TableCell column="meta">{row.followerFollows.toLocaleString()}</TableCell>
-              <TableCell column="mutedMeta" className="hidden lg:table-cell">
-                {formatDateTime(row.createdAt)}
-              </TableCell>
-              <TableCell column="actions">
-                <AdminRowDeleteButton
-                  del={del}
-                  id={row.id}
-                  label={`Delete ${row.followerName} following ${row.followedName}`}
-                />
-              </TableCell>
-            </TableRow>
-          ) : (
-            <TableRow key={row.id}>
-              <AdminSelectCell
-                selection={selection}
-                id={row.id}
-                label={`Select the cheer from ${row.fromName} to ${row.toName}`}
-              />
-              <TableCell column="main">
-                <MemberName id={row.fromId} name={row.fromName} />
-                <span className="block max-w-96 truncate text-xs text-muted-foreground">{row.fromEmail}</span>
-              </TableCell>
-              <TableCell column="meta" className="max-w-56">
-                <MemberName id={row.toId} name={row.toName} className="max-w-56" />
-              </TableCell>
-              <TableCell column="meta">{findCheer(row.cheerId)?.label ?? row.cheerId}</TableCell>
-              <TableCell column="mutedMeta" className="hidden lg:table-cell">
-                {formatDateTime(row.createdAt)}
-              </TableCell>
-              <TableCell column="actions">
-                <AdminRowDeleteButton
-                  del={del}
-                  id={row.id}
-                  label={`Delete the cheer from ${row.fromName} to ${row.toName}`}
-                />
-              </TableCell>
-            </TableRow>
+            )
+          const deleteButton = (
+            <Button type="button" variant="outline" className="text-destructive" onClick={() => del.ask([row.id])}>
+              <Trash2Icon />
+              Delete
+            </Button>
           )
-        )}
-      </AdminListTable>
-      <AdminDeleteConfirm
-        del={del}
-        title={`Delete ${del.ids.length} ${plural(del.ids.length, one, many)}?`}
-        description={
-          tab === "cheers"
-            ? "The cheers come off the record. The bell notice each one already sent stays, and nobody is told. This cannot be undone."
-            : "They stop following, the same as an unfollow, and nobody is told. They can follow again. This cannot be undone."
-        }
-        confirmLabel={plural(del.ids.length, `Delete ${one}`, `Delete ${many}`)}
-      />
-    </>
+          return "followerId" in row ? (
+            <DetailRecord
+              key={row.id}
+              icon={<UserPlusIcon aria-hidden />}
+              title={`${row.followerName} follows ${row.followedName}`}
+              line={formatDateTime(row.createdAt)}
+              hideLabel="Hide the follow"
+              facts={[
+                ["Follower", <MemberName key="from" id={row.followerId} name={row.followerName} title={row.followerEmail} />],
+                ["Follows", <MemberName key="to" id={row.followedId} name={row.followedName} />],
+                ["They follow in all", row.followerFollows.toLocaleString()],
+                ["When", formatDateTime(row.createdAt)],
+              ]}
+              footer={deleteButton}
+            />
+          ) : (
+            <DetailRecord
+              key={row.id}
+              icon={<PartyPopperIcon aria-hidden />}
+              title={`${row.fromName} cheered ${row.toName}`}
+              line={formatDateTime(row.createdAt)}
+              hideLabel="Hide the cheer"
+              facts={[
+                ["From", <MemberName key="from" id={row.fromId} name={row.fromName} title={row.fromEmail} />],
+                ["To", <MemberName key="to" id={row.toId} name={row.toName} />],
+                ["Cheer", findCheer(row.cheerId)?.label ?? row.cheerId],
+                ["When", formatDateTime(row.createdAt)],
+              ]}
+              footer={deleteButton}
+            />
+          )
+        },
+      }}
+      windows={
+        <AdminDeleteConfirm
+          del={del}
+          title={`Delete ${del.ids.length} ${plural(del.ids.length, one, many)}?`}
+          description={
+            tab === "cheers"
+              ? "The cheers come off the record. The bell notice each one already sent stays, and nobody is told. This cannot be undone."
+              : "They stop following, the same as an unfollow, and nobody is told. They can follow again. This cannot be undone."
+          }
+          confirmLabel={plural(del.ids.length, `Delete ${one}`, `Delete ${many}`)}
+        />
+      }
+    >
+      {list.rows.map((row) =>
+        "followerId" in row ? (
+          <AdminRow
+            key={row.id}
+            id={row.id}
+            label={`${row.followerName} following ${row.followedName}`}
+            onDelete={() => del.ask([row.id])}
+          >
+            <MainCell name={row.followerName} avatar={{ name: row.followerName, email: row.followerEmail }} />
+            <TableCell column="meta" className="hidden max-w-56 md:hidden @2xl:table-cell">
+              <MemberName id={row.followedId} name={row.followedName} className="max-w-56" />
+            </TableCell>
+            <TableCell column="meta" className="hidden md:hidden @4xl:table-cell">
+              {row.followerFollows.toLocaleString()}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden md:hidden @5xl:table-cell">
+              {formatDateTime(row.createdAt)}
+            </TableCell>
+          </AdminRow>
+        ) : (
+          <AdminRow
+            key={row.id}
+            id={row.id}
+            label={`the cheer from ${row.fromName} to ${row.toName}`}
+            onDelete={() => del.ask([row.id])}
+          >
+            <MainCell name={row.fromName} avatar={{ name: row.fromName, email: row.fromEmail }} />
+            <TableCell column="meta" className="hidden max-w-56 md:hidden @2xl:table-cell">
+              <MemberName id={row.toId} name={row.toName} className="max-w-56" />
+            </TableCell>
+            <TableCell column="meta" className="hidden md:hidden @4xl:table-cell">
+              {findCheer(row.cheerId)?.label ?? row.cheerId}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden md:hidden @5xl:table-cell">
+              {formatDateTime(row.createdAt)}
+            </TableCell>
+          </AdminRow>
+        )
+      )}
+    </AdminListTable>
   )
 }
 

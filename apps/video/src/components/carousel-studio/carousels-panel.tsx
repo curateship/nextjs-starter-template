@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { ImagesIcon, LayoutTemplateIcon, PlusIcon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { NewCarouselDialog } from "@/components/carousel-studio/new-carousel-dialog"
 import { Button } from "@/components/ui/button"
@@ -136,11 +135,6 @@ export function CarouselsPanel({
         onSelect={() =>
           void markCarouselTemplate(carousel.id, !carousel.is_template)
             .then(() => {
-              toast.success(
-                carousel.is_template
-                  ? `"${carousel.name}" is no longer offered as a template.`
-                  : `"${carousel.name}" is now offered under "A template" in New carousel.`
-              )
               reload()
             })
             .catch((error) => showErrorToast(getCarouselErrorMessage(error)))

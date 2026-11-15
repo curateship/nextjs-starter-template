@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils"
 
 /**
  * A 1px rainbow that runs round whatever it holds, so the eye finds it
- * (Tyler, 19 Oct 2026): the "N selected" button and the running clock's
- * Doing chip. It holds still for anyone whose device asks for less motion.
+ * (Tyler, 19 Oct 2026): the "N selected" button and the Daily card's own
+ * buttons. It holds still for anyone whose device asks for less motion.
  * The child sits on top with its own background, so only the edge shows.
  */
 export function RainbowEdge({ className, children }: { className?: string; children: React.ReactNode }) {

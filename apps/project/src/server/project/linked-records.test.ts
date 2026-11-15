@@ -48,7 +48,7 @@ beforeEach(async () => {
   await addProjectMember(admin.id, project.id, ben.id, database)
   const task = await createTask(
     { id: admin.id, name: admin.name },
-    { projectId: project.id, title: "Cut the launch video", notes: "", assigneeUserId: sam.id, dueDate: null, steps: [] },
+    { projectId: project.id, title: "Cut the launch video", notes: "", assigneeUserId: sam.id, dueDate: null },
     database
   )
   taskId = task.id

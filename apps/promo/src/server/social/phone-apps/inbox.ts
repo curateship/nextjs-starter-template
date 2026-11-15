@@ -293,7 +293,7 @@ export async function storeInboxReading(
         // Who wrote and what is left out: a conversation is kept only while it
         // is open in Promo, and a notice outlives it.
         detail: `A new message to ${name}. It is on the Messages dashboard with a suggested answer; nothing is sent until you press Send.`,
-        href: "/admin/messages",
+        href: "/admin/projects?section=messages",
       },
       db,
       now
@@ -741,13 +741,4 @@ export async function skipInbox(
     .returning({ id: promoInbox.id })
   const completed = [...gone, ...marked].map((row) => row.id)
   return { completed, skipped: ids.filter((id) => !completed.includes(id)) }
-}
-
-/** Asks an account's phone to read its messages now, from the Messages dashboard's Check now. */
-export async function checkInboxNow(
-  userId: string,
-  accountId: string,
-  db: CustomShellDb = defaultDb
-): Promise<boolean> {
-  return queueInboxRead(userId, accountId, "message", "inbox", db)
 }

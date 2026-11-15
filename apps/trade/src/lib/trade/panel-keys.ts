@@ -1,65 +1,26 @@
 /**
- * Every panel layout the Trade workspace remembers, in one place.
- *
- * The shell keeps its own list in `panelLayoutKey`, and this app may not edit
- * that file — an edited shell file conflicts on every future shell merge. So
- * the app keeps its own list, for the same reason the shell keeps one: keys
- * written out at each call site collide and drift.
- *
- * Both are read by the same `useRememberedPanelLayout`, and both are prefixed
- * so a key from one can never land on the other.
+ * The Bots dashboard's keys (9 Nov 2026), kept in this browser rather than on
+ * the account, the way the shell's `ThreePanels` keeps every dashboard's
+ * widths. Three panels, each side opening at its narrowest; the two panels of
+ * Overview and the Recipes table under a key of their own, so a width dragged
+ * on one carries to the other; and `place`, where the dashboard was, for
+ * `useDashboardPlace`.
  */
-export const tradePanelLayoutKey = {
-  /** Markets | chart | smart orders, across the workspace. */
-  workspaceHorizontal: "trade-workspace-horizontal",
-  /** The chart row above, the positions row below. */
-  workspaceVertical: "trade-workspace-vertical",
-  /** A backtest run: settings | chart | summary, across the workspace. */
-  backtestHorizontal: "trade-backtest-horizontal-2",
-  /** The backtest workspace above, its coins and trades below. */
-  backtestVertical: "trade-backtest-vertical",
-  /** A live run: figures | chart | coins, across the workspace. */
-  flowRunHorizontal: "trade-flow-run-horizontal-2",
-  /** The live-run workspace above, its trades below. */
-  flowRunVertical: "trade-flow-run-vertical",
-  /** P&L: the Journal on the left, the grid and cards on the right. */
-  pnlHorizontal: "trade-pnl-horizontal",
-  /** P&L's right column: the month grid above, the three cards below. */
-  pnlVertical: "trade-pnl-vertical",
-  /**
-   * One creator's dashboard: figures | posts | markets, across the workspace.
-   *
-   * One key, because there is one group. Nothing on that screen earns a
-   * bottom row, so there is no vertical group to remember.
-   */
-  socialHorizontal: "trade-social-horizontal",
-  /**
-   * The social feed: creators in folders | the feed | its coins, across the
-   * workspace. Like the creator's own dashboard, there is no bottom row.
-   */
-  socialFeedHorizontal: "trade-social-feed-horizontal-2",
+export const botsPanelKey = {
+  dashboard: "trade-bots-horizontal-1",
+  twoPanels: "trade-bots-two-panels-horizontal-1",
+  place: "trade-bots-place",
 } as const
 
-export type TradePanelLayoutKey =
-  (typeof tradePanelLayoutKey)[keyof typeof tradePanelLayoutKey]
-
-/** The account-owned panel groups, also used to validate imported keys. */
-export const TRADE_PANEL_LAYOUT_KEYS = Object.values(tradePanelLayoutKey)
-
-/** The exact panel names each saved group must contain. */
-export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
-  [tradePanelLayoutKey.workspaceHorizontal]: [
-    "markets",
-    "chart",
-    "smart-orders",
-  ],
-  [tradePanelLayoutKey.workspaceVertical]: ["workspace", "activity"],
-  [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
-  [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
-  [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],
-  [tradePanelLayoutKey.flowRunVertical]: ["workspace", "trades"],
-  [tradePanelLayoutKey.pnlHorizontal]: ["journal", "figures"],
-  [tradePanelLayoutKey.pnlVertical]: ["months", "cards"],
-  [tradePanelLayoutKey.socialHorizontal]: ["figures", "posts", "markets"],
-  [tradePanelLayoutKey.socialFeedHorizontal]: ["creators", "feed", "coins"],
-}
+/**
+ * The Trade dashboard's left page | the middle | the trade details, kept in
+ * this browser under `sidePanelWidthsKey`, with the left and right widths
+ * from Settings → Styling → Side panels on the end (Overview has no right
+ * panel, so its right width is 0). A changed setting starts from the new
+ * width, and Settings' Reset panels forgets a dragged one, as on every shell
+ * dashboard. Bumped from 5 to 6 on 10 Nov 2026, when the right panel came in
+ * ("I want to add a right panel in the positions and journal tab"), so
+ * widths saved for two panels open at the new defaults. It was kept on the
+ * account under `trade-workspace-horizontal-4`.
+ */
+export const tradeWorkspacePanelKey = "trade-workspace-horizontal-6"

@@ -17,7 +17,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { WidgetMenuOptions } from "@/components/shared/widgets/widget-card"
 
+import { FilterHeading } from "@/components/trade/counted-filter-popover"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -38,6 +40,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
@@ -55,6 +58,7 @@ import {
   type TradingOverviewProfitChartPoint,
 } from "@/lib/trade/dashboard/profit-series"
 import { PnlAmount } from "@/components/trade/pnl-amount"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { useRememberedChoice } from "@/lib/remembered-choice"
@@ -267,10 +271,17 @@ function axisUsd(value: number) {
 export function PnlGraphWidget({
   overview,
   className,
+  bare = false,
 }: {
   overview: TradingOverview
   className: string
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title
+   * and the ⋮: no frame of its own, and no title.
+   */
+  bare?: boolean
 }) {
+  const Frame = bare ? "div" : Card
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null)
   const [range, setRange] = useState<ProfitRange>({
     preset: "all",
@@ -298,7 +309,7 @@ export function PnlGraphWidget({
   ).length
 
   return (
-    <Card className={cn("min-h-0 gap-0 py-0", className)}>
+    <Frame className={cn("flex min-h-0 flex-col gap-0 py-0", className)}>
       <DashboardCardHeader className="flex-wrap items-start gap-x-4 gap-y-3 px-5 py-4">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
@@ -353,12 +364,25 @@ export function PnlGraphWidget({
             )}
           </div>
         </div>
-        <ProfitRangeControls
-          data={data}
-          range={range}
-          dates={rangeDates}
-          onRange={setRange}
-        />
+        {bare ? (
+          // In the widget card, the period and dates are in its ⋮ (Tyler,
+          // 10 Nov 2026: "also move this into the dotted dropdown").
+          <WidgetMenuOptions>
+            <ProfitRangeMenu
+              data={data}
+              range={range}
+              dates={rangeDates}
+              onRange={setRange}
+            />
+          </WidgetMenuOptions>
+        ) : (
+          <ProfitRangeControls
+            data={data}
+            range={range}
+            dates={rangeDates}
+            onRange={setRange}
+          />
+        )}
       </DashboardCardHeader>
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(18rem,32%)_1fr] lg:divide-x">
@@ -376,22 +400,19 @@ export function PnlGraphWidget({
           figures={figures}
         />
       </div>
-    </Card>
+    </Frame>
   )
 }
 
-function ProfitRangeControls({
-  data,
-  range,
-  dates,
-  onRange,
-}: {
+type ProfitRangeProps = {
   data: TradingOverviewProfitChartPoint[]
   range: ProfitRange
   dates: ReturnType<typeof profitRangeDates>
   onRange: (range: ProfitRange) => void
-}) {
-  const [open, setOpen] = useState(false)
+}
+
+/** The period's picks: a preset, or a From or To date that keeps them in order. */
+function profitRangeChoices({ dates, onRange }: Pick<ProfitRangeProps, "dates" | "onRange">) {
   const choosePreset = (preset: RangePreset) =>
     onRange({ preset, from: null, to: null })
   const chooseFrom = (date: Date | undefined) => {
@@ -412,6 +433,68 @@ function ProfitRangeControls({
       to: nextTo,
     })
   }
+  return { choosePreset, chooseFrom, chooseTo }
+}
+
+/**
+ * The period and dates inside the widget's ⋮: the presets, then From and To,
+ * each applying at once. With no history yet there are no dates to pick, and
+ * it says so.
+ */
+function ProfitRangeMenu({ data, range, dates, onRange }: ProfitRangeProps) {
+  const { choosePreset, chooseFrom, chooseTo } = profitRangeChoices({ dates, onRange })
+  return (
+    <div className="grid gap-3 p-3">
+      <FilterHeading className="px-1">Dates</FilterHeading>
+      {/* A dropdown rather than six tabs (Tyler, 10 Nov 2026: "Make this a
+          dropdown"). Picked dates read Custom until a preset is picked. */}
+      <Select value={range.preset} onValueChange={(value) => choosePreset(value as RangePreset)}>
+        <SelectTrigger aria-label="Profit date range" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {RANGE_PRESETS.map((preset) => (
+            <SelectItem key={preset} value={preset}>
+              {RANGE_LABELS[preset]}
+            </SelectItem>
+          ))}
+          {range.preset === "custom" ? <SelectItem value="custom">Custom</SelectItem> : null}
+        </SelectContent>
+      </Select>
+      {data.length === 0 ? (
+        <p className="px-1 text-sm text-muted-foreground">No profit history to pick dates from yet.</p>
+      ) : (
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="pnl-menu-from-date">From</Label>
+            <DatePicker
+              short
+              id="pnl-menu-from-date"
+              value={dates.from === undefined ? undefined : new Date(dates.from)}
+              onChange={chooseFrom}
+              placeholder="From"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="pnl-menu-to-date">To</Label>
+            <DatePicker
+              short
+              id="pnl-menu-to-date"
+              value={dates.to === undefined ? undefined : new Date(dates.to)}
+              onChange={chooseTo}
+              placeholder="To"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The period and dates as buttons, for the graph on a page of its own. */
+function ProfitRangeControls({ data, range, dates, onRange }: ProfitRangeProps) {
+  const [open, setOpen] = useState(false)
+  const { choosePreset, chooseFrom, chooseTo } = profitRangeChoices({ dates, onRange })
 
   return (
     <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
@@ -635,12 +718,16 @@ function WalletResultRow({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-lg px-3 py-2.5 text-left transition-colors",
-        focusRing,
-        selected ? "bg-muted" : "hover:bg-muted/50"
+        "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted/50",
+        focusRing
       )}
     >
-      <span className="truncate text-sm font-medium">{label}</span>
+      {/* The picked account is marked as every block's picked row is: the
+          small dark bar before its name, no shading (Tyler, 12 Nov 2026). */}
+      <span className="flex min-w-0 items-center text-sm font-medium">
+        <SlideBar on={selected} />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
       <PnlAmount
         className={cn(
           "text-right font-mono text-sm font-semibold tabular-nums",

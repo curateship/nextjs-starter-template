@@ -96,7 +96,7 @@ async function taskFor(
 ) {
   return createTask(
     actor(by),
-    { projectId, title, notes: "", assigneeUserId: person.id, dueDate, steps: [] },
+    { projectId, title, notes: "", assigneeUserId: person.id, dueDate },
     database
   )
 }
@@ -160,14 +160,14 @@ describe("due tomorrow and overdue", () => {
     await setTaskStatus(actor(ben), { taskId: done.id, status: "done", stuckReason: null }, database)
     await createTask(
       actor(anna),
-      { projectId, title: "Nobody's", notes: "", assigneeUserId: null, dueDate: TUESDAY, steps: [] },
+      { projectId, title: "Nobody's", notes: "", assigneeUserId: null, dueDate: TUESDAY },
       database
     )
     const other = await projectFor(admin, anna.id, { name: "Old", color: "red" }, database)
     await addProjectMember(admin.id, other.id, ben.id, database)
     await createTask(
       actor(anna),
-      { projectId: other.id, title: "Archived", notes: "", assigneeUserId: ben.id, dueDate: TUESDAY, steps: [] },
+      { projectId: other.id, title: "Archived", notes: "", assigneeUserId: ben.id, dueDate: TUESDAY },
       database
     )
     await setProjectArchived(admin.id, other.id, true, database)
@@ -228,7 +228,7 @@ describe("finished and unblocked", () => {
   it("tells whoever made it when nobody handed it out, and not when they did it themselves", async () => {
     const own = await createTask(
       actor(anna),
-      { projectId, title: "Anna's own", notes: "", assigneeUserId: null, dueDate: null, steps: [] },
+      { projectId, title: "Anna's own", notes: "", assigneeUserId: null, dueDate: null },
       database
     )
     await setTaskStatus(actor(anna), { taskId: own.id, status: "done", stuckReason: null }, database)

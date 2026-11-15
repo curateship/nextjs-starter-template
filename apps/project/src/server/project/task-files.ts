@@ -1,9 +1,8 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, sql, sum, type SQL } from "drizzle-orm"
+import { and, asc, count, desc, eq, inArray, isNull, or, sql, sum, type SQL } from "drizzle-orm"
 
 import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { isShownPicture } from "@/lib/project/files"
 import { LIMITS, runsTheTeam, type TeamRole } from "@/lib/project/rules"
-import { canChangeField, onlyWhoCanChange } from "@/lib/project/task-fields"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { cleanOriginalName } from "@/server/media/library"
@@ -20,7 +19,7 @@ import {
   type ProjectDb,
   type TaskRow,
 } from "@/server/project/access"
-import { projectTaskComments, projectTaskFiles, projectTasks, projectTaskTypeFields } from "@/server/project/schema"
+import { projectTaskComments, projectTaskFiles, projectTasks } from "@/server/project/schema"
 import type { Actor } from "@/server/project/tasks"
 import { customShellUsers } from "@/server/schema"
 
@@ -32,10 +31,6 @@ import { customShellUsers } from "@/server/schema"
  * leaves the server. People download them through Project's own address
  * (`src/routes/api/project/task-files.$fileId.ts`), which first checks they
  * can see the task, so someone who isn't on the project gets nothing.
- *
- * A file can also sit in a task type's File field (`fieldId`). It shares the
- * same storage, limits, download address and bin, and the Files card leaves
- * it out. Adding or deleting one also needs the right to change that field.
  *
  * A file sent in a chat message carries the message (`commentId`). In a
  * task's chat it is one of the task's files too, so it shows on the Files
@@ -53,8 +48,6 @@ export type TaskFile = {
   /** Drawn small in the Files card rather than listed by name. */
   picture: boolean
   canDelete: boolean
-  /** The File field it sits in; null for the task's Files card. */
-  fieldId: string | null
   /** The chat message it was sent in, if it was. */
   commentId: string | null
 }
@@ -84,24 +77,14 @@ export function newStoragePath(teamId: string) {
   return `project-task-files/${teamId}/${uuid()}`
 }
 
-/** The task's Files card: every file that isn't in a File field. */
+/** The task's Files card: every file on the task. */
 export function listTaskFiles(
   viewer: { userId: string; role: TeamRole },
   taskId: string,
   archived: boolean,
   database: ProjectDb
 ): Promise<TaskFile[]> {
-  return listFiles(viewer, and(eq(projectTaskFiles.taskId, taskId), isNull(projectTaskFiles.fieldId)), archived, database)
-}
-
-/** The files in the task's File fields, each with its field's id. */
-export function listFieldFiles(
-  viewer: { userId: string; role: TeamRole },
-  taskId: string,
-  archived: boolean,
-  database: ProjectDb
-): Promise<TaskFile[]> {
-  return listFiles(viewer, and(eq(projectTaskFiles.taskId, taskId), isNotNull(projectTaskFiles.fieldId)), archived, database)
+  return listFiles(viewer, eq(projectTaskFiles.taskId, taskId), archived, database)
 }
 
 /** Files matching `where`, oldest first, as this viewer may use them. */
@@ -129,7 +112,6 @@ export async function listFiles(
     picture: isShownPicture(file.mimeType),
     canDelete:
       !archived && (file.uploadedByUserId === viewer.userId || runsTheTeam(viewer.role)),
-    fieldId: file.fieldId,
     commentId: file.commentId,
   }))
 }
@@ -144,8 +126,8 @@ export type ProjectFile = TaskFile & {
 const PROJECT_FILES_SHOWN = 500
 
 /**
- * The project's Files tab: every file on its tasks, in their File fields and
- * in their chats, and every one sent in the project's own chat, newest first.
+ * The project's Files tab: every file on its tasks, their chats' files
+ * included, and every one sent in the project's own chat, newest first.
  * Files on tasks in the bin and on deleted project-chat messages are left out.
  * Each downloads under its own rules, the same address as everywhere else.
  */
@@ -186,28 +168,6 @@ export async function listProjectFiles(userId: string, projectId: string, databa
   })
 }
 
-/**
- * A File field on the task's own type that this person may change. Its files
- * count toward the task's 10 and the team's 5 GB like any other.
- */
-async function requireFileField(
-  membership: Membership,
-  task: TaskRow,
-  fieldId: string,
-  database: ProjectDb
-) {
-  const [field] = await database
-    .select()
-    .from(projectTaskTypeFields)
-    .where(eq(projectTaskTypeFields.id, fieldId))
-    .limit(1)
-  if (!field || field.typeId !== task.typeId) throw new Error(PROJECT_ERRORS.fieldNotOnType)
-  if (field.kind !== "file") throw new Error(PROJECT_ERRORS.notAFileField)
-  if (!canChangeField(field, task, { userId: membership.userId, role: membership.role })) {
-    throw new Error(onlyWhoCanChange(field) ?? PROJECT_ERRORS.fieldNotOnType)
-  }
-}
-
 export async function addTaskFile(
   actor: Actor,
   input: {
@@ -215,14 +175,11 @@ export async function addTaskFile(
     name: string
     mimeType: string
     data: Uint8Array
-    /** Into this File field rather than the Files card. */
-    fieldId?: string | null
   },
   database = db,
   storage: FileStorage = bucket
 ): Promise<{ id: string }> {
-  const { membership, project, task } = await requireTaskAccess(actor.id, input.taskId, database)
-  if (input.fieldId) await requireFileField(membership, task, input.fieldId, database)
+  const { project, task } = await requireTaskAccess(actor.id, input.taskId, database)
   const size = input.data.byteLength
   if (size === 0) throw new Error(PROJECT_ERRORS.fileEmpty)
   if (size > LIMITS.fileBytes) throw new Error(PROJECT_ERRORS.fileTooBig)
@@ -254,7 +211,6 @@ export async function addTaskFile(
         sizeBytes: size,
         storagePath,
         createdAt: now(),
-        fieldId: input.fieldId ?? null,
       })
     })
   } catch (error) {
@@ -308,11 +264,10 @@ export async function deleteTaskFile(
   storage: FileStorage = bucket
 ) {
   const file = await requireFile(fileId, database)
-  const { membership, task } = await requireFileAccess(actor.id, file, database)
+  const { membership } = await requireFileAccess(actor.id, file, database)
   if (file.uploadedByUserId !== actor.id && !runsTheTeam(membership.role)) {
     throw new Error(PROJECT_ERRORS.cantDeleteFile)
   }
-  if (file.fieldId && task) await requireFileField(membership, task, file.fieldId, database)
   await removeStored([file.storagePath], storage)
   await database.delete(projectTaskFiles).where(eq(projectTaskFiles.id, file.id))
 }
@@ -327,22 +282,6 @@ export async function removeTaskFilesFromStorage(
     .select({ storagePath: projectTaskFiles.storagePath })
     .from(projectTaskFiles)
     .where(eq(projectTaskFiles.taskId, taskId))
-  await removeStored(
-    files.map((file) => file.storagePath),
-    storage
-  )
-}
-
-/** Before a File field is deleted: its files leave the bucket, or the field stays. */
-export async function removeFieldFilesFromStorage(
-  fieldId: string,
-  database: ProjectDb,
-  storage: FileStorage = bucket
-) {
-  const files = await database
-    .select({ storagePath: projectTaskFiles.storagePath })
-    .from(projectTaskFiles)
-    .where(eq(projectTaskFiles.fieldId, fieldId))
   await removeStored(
     files.map((file) => file.storagePath),
     storage

@@ -22,7 +22,7 @@ export now, not only to the project.
   project has ever been exported in, with its progress and its own download
   button. That list comes from `getLatestRenderJobs` in
   `src/server/video/render-queue.ts`.
-- **Stopping.** "Stop it" becomes "Stop all 3" when several are on their way,
+- **Stopping.** "Stop export" becomes "Stop all 3 exports" when several are on their way,
   and stops every shape of the project at once. See
   [stopping-an-export.md](stopping-an-export.md).
 

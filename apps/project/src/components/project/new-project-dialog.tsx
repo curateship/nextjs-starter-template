@@ -84,7 +84,7 @@ export function NewProjectDialog({
           teamId || undefined
         )
       ).id
-    }, "Project created.")
+    })
     if (!ok) return
     close()
     await navigate({ to: "/projects/$projectId", params: { projectId } })
@@ -121,8 +121,7 @@ export function NewProjectDialog({
                         onValueChange={(next) => {
                           setTeamId(next)
                           setTeamInvalid(false)
-                          // Templates are a team's own, so a pick from another team goes.
-                                              }}
+                        }}
                       >
                         <SelectTrigger
                           id="new-project-team"

@@ -7,7 +7,6 @@ import {
   LockIcon,
   PlusIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelCard } from "@/components/pomodoro/panel-card"
 import { SettingsWindow } from "@/components/pomodoro/settings-window"
@@ -232,25 +231,12 @@ function ProjectTile({
     (entry) => entry.projectId === project.id
   )
   const [archiving, setArchiving] = React.useState(false)
-  // The card leaves the live list once archived, so the toast carries the
-  // way back.
+  // The card leaves the live list once archived; Archived brings it back.
   const archive = async () => {
     setArchiving(true)
     const problem = await pomodoro.setProjectArchived(project.id, true)
     setArchiving(false)
-    if (problem) {
-      showErrorToast(problem)
-      return
-    }
-    toast.success(`Archived ${project.name}`, {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          void pomodoro
-            .setProjectArchived(project.id, false)
-            .then((undoProblem) => (undoProblem ? showErrorToast(undoProblem) : undefined)),
-      },
-    })
+    if (problem) showErrorToast(problem)
   }
   return (
     <article

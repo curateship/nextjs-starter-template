@@ -378,14 +378,14 @@ function DayMenu({
     await run(async () => {
       await addTripDay(trip.id, day)
       await refresh()
-    }, `Added Day ${day + 1}.`)
+    })
   }
 
   async function remove(activities: "bin" | "ideas") {
     const ok = await run(async () => {
       await removeTripDay(trip.id, day, activities)
       await refresh()
-    }, `Removed Day ${day}.`)
+    })
     if (ok) setRemoving(false)
   }
 

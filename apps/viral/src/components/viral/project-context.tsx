@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { saveViralProjectSettingsFn } from "@/lib/api/viral/viral-projects"
@@ -49,7 +48,7 @@ export function useSaveProject() {
   const { screen, refresh } = useProject()
   const project = screen.project
   return React.useCallback(
-    async (patch: SettingsPatch, success?: string): Promise<boolean> => {
+    async (patch: SettingsPatch): Promise<boolean> => {
       try {
         await saveViralProjectSettingsFn({
           projectId: project.id,
@@ -63,7 +62,6 @@ export function useSaveProject() {
           ...patch,
         })
         await refresh()
-        if (success) toast.success(success)
         return true
       } catch (error) {
         showErrorToast(getViralErrorMessage(error))

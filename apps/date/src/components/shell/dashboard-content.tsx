@@ -7,6 +7,7 @@ import {
 } from "@/lib/layout/styling-values"
 import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { pageGutter } from "@/lib/layout/shell-gutter"
+import { useWideScreen } from "@/lib/layout/wide-screen"
 
 export function DashboardContent({
   className,
@@ -42,10 +43,38 @@ export function DashboardContent({
     )
   }
 
+  return (
+    <StyledDashboardContent
+      className={className}
+      styling={styling}
+      pageTitle={pageTitle}
+      {...props}
+    >
+      {children}
+    </StyledDashboardContent>
+  )
+}
+
+function StyledDashboardContent({
+  className,
+  styling,
+  pageTitle,
+  children,
+  ...props
+}: React.ComponentProps<"main"> & {
+  styling: ShellStyling
+  pageTitle?: string
+}) {
+  // Under 1280px, where a dashboard shows one panel at a time, the gutter is
+  // Settings → Styling → Content spacing on phones, when it is set. Known
+  // before the first paint from the same cookie the panels read, so a phone
+  // never draws the wide gutter first. At 0 it is the flat mode below.
+  const wide = useWideScreen()
+  const gutter = wide ? styling.gutter : (styling.phoneGutter ?? styling.gutter)
   const borderColor = resolveBackground(styling.cardBorderColor, {
     base: "--muted-foreground",
   })
-  const isFlat = styling.gutter === 0
+  const isFlat = gutter === 0
 
   return (
     <main
@@ -67,7 +96,7 @@ export function DashboardContent({
         // its cards and tables straight into here, with no wrapper of its own.
         // --shell-gutter also cascades to the containers that stack cards
         // inside a page (CardGroup, the settings columns) so those match too.
-        "--shell-gutter": `${styling.gutter}px`,
+        "--shell-gutter": `${gutter}px`,
         "--dashboard-card-header-height": `${DASHBOARD_CARD_HEADER_HEIGHT_PX}px`,
         padding: "var(--shell-gutter)",
         gap: "var(--shell-gutter)",

@@ -7,6 +7,7 @@ import type { Place } from "@/lib/travel/rules"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { requireActivity } from "@/server/travel/access"
+import { spendGoogleLookup } from "@/server/travel/google-usage"
 import { placeExtras, toOpeningHours, type GoogleExtras, type GooglePeriod } from "@/server/travel/google"
 import { downloadPicture, googlePhoto, PHOTO_TYPES, savePicture, type Picture } from "@/server/travel/place-photo"
 import { travelActivities } from "@/server/travel/schema"
@@ -276,6 +277,8 @@ export async function fillFromMapsLink(
   const key = process.env.GOOGLE_MAPS_API_KEY?.trim()
   // With no key, the link alone still gives the place's name, its pin and a picture.
   if (!key) return fillFromClues(userId, activity, full, clues, database)
+  // One fill counts as one Google lookup, its search, details and photo together (Travel features 4, part 4).
+  await spendGoogleLookup(userId, database)
   const placeId = await findPlaceId(clues, key)
   if (!/^[\w-]{1,300}$/.test(placeId)) throw new Error(TRAVEL_ERRORS.mapsLinkNoPlace)
   const response = await google(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {

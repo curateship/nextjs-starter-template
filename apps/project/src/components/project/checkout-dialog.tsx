@@ -18,7 +18,6 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { checkOutForTheDay, type CheckinPage } from "@/lib/api/project/checkins"
-import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { clockIn, longDayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -69,10 +68,7 @@ export function CheckoutDialog({
   async function save() {
     const tomorrowTaskIds = [...plan].filter((id) => !done.has(id))
     const ok = await run(
-      () => checkOutForTheDay({ doneTaskIds: [...done], noteLeft: note, tomorrowTaskIds }),
-      tomorrowTaskIds.length
-        ? `Checked out. Your next check-in starts with ${tomorrowTaskIds.length} ${plural(tomorrowTaskIds.length, "task")} picked.`
-        : "Checked out. What's left starts tomorrow's check-in."
+      () => checkOutForTheDay({ doneTaskIds: [...done], noteLeft: note, tomorrowTaskIds })
     )
     if (!ok) return
     await router.invalidate()

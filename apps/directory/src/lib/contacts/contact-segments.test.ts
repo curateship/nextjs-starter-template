@@ -110,7 +110,7 @@ describe("reading saved rules", () => {
       conditions: [
         { type: "tag" as const, operator: "includes" as const, tags: ["beta"] },
         { type: "joined" as const, operator: "before" as const, days: 30 },
-        { type: "account" as const, operator: "hasnt" as const },
+        { type: "status" as const, operator: "is" as const, status: "subscribed" as const },
       ],
     }
 
@@ -219,10 +219,9 @@ describe("a rule that no longer reads never widens the segment", () => {
 })
 
 describe("a half-finished rule is spotted before it is saved", () => {
-  it("calls an empty tag, source, plan or segment reference unfinished", () => {
+  it("calls an empty tag, source or segment reference unfinished", () => {
     expect(segmentConditionIsComplete(newSegmentCondition("tag"))).toBe(false)
     expect(segmentConditionIsComplete(newSegmentCondition("source"))).toBe(false)
-    expect(segmentConditionIsComplete(newSegmentCondition("plan"))).toBe(false)
     expect(segmentConditionIsComplete(newSegmentCondition("in"))).toBe(false)
     expect(segmentConditionIsComplete(newSegmentCondition("notIn"))).toBe(false)
   })
@@ -230,7 +229,6 @@ describe("a half-finished rule is spotted before it is saved", () => {
   it("calls the ones with nothing left to fill in finished", () => {
     expect(segmentConditionIsComplete(newSegmentCondition("status"))).toBe(true)
     expect(segmentConditionIsComplete(newSegmentCondition("joined"))).toBe(true)
-    expect(segmentConditionIsComplete(newSegmentCondition("account"))).toBe(true)
     expect(segmentConditionIsComplete(newSegmentCondition("emailed"))).toBe(true)
   })
 })
@@ -255,22 +253,22 @@ describe("what a segment says in words", () => {
   it("joins every rule with 'and', because all of them have to be true", () => {
     const conditions: SegmentCondition[] = [
       { type: "tag", operator: "includes", tags: ["beta"] },
-      { type: "account", operator: "has" },
+      { type: "status", operator: "is", status: "subscribed" },
     ]
 
     expect(describeSegmentRules({ conditions })).toBe(
-      "tagged beta, and has an account"
+      "tagged beta, and on the list"
     )
   })
 
   it("says plainly when any one rule is enough", () => {
     const conditions: SegmentCondition[] = [
       { type: "tag", operator: "includes", tags: ["beta"] },
-      { type: "account", operator: "has" },
+      { type: "status", operator: "is", status: "subscribed" },
     ]
 
     expect(describeSegmentRules({ match: "any", conditions })).toBe(
-      "Any of: tagged beta, or has an account"
+      "Any of: tagged beta, or on the list"
     )
   })
 
@@ -326,7 +324,7 @@ describe("finding what a segment points at", () => {
           { type: "in", segmentIds: ["a", "b"] },
           { type: "notIn", segmentIds: ["a", "b"] },
           { type: "notIn", segmentIds: ["b", "c"] },
-          { type: "account", operator: "has" },
+          { type: "tag", operator: "includes", tags: ["beta"] },
         ],
       })
     ).toEqual(["a", "b", "c"])

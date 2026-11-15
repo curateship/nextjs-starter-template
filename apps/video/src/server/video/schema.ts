@@ -40,6 +40,15 @@ import type {
 } from "@/lib/video/retention"
 import type { ScriptCheck } from "@/lib/video/script-check"
 import type { VideoStatus } from "@/lib/video/project-videos"
+import type { AutomationGraph } from "@/lib/automations/graph"
+import type { ProjectTimeline } from "@/lib/video/timeline-schema"
+import type {
+  FlowRunStatus,
+  FlowStepInputs,
+  FlowStepOutput,
+  FlowStepState,
+  FlowStepStatus,
+} from "@/lib/video/flow/run-shape"
 import {
   customShellMedia,
   customShellUsers,
@@ -1469,15 +1478,24 @@ export const videoAiGenerations = pgTable(
     userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    // Null on a loop a Flow run makes before it is saved into a project
+    // (drizzle/0177, flow.md); `flowStepId` then says whose it is.
+    projectId: varchar("project_id", { length: 36 }).references(() => videoProjects.id, {
+      onDelete: "cascade",
+    }),
     // The video that was open when the shot was asked for, which pays for it
     // (drizzle/0145). The shot itself belongs to the whole project. Deleting
     // the video blanks it, and the shot then counts toward no video.
     videoId: varchar("video_id", { length: 36 }).references(
       () => videoProjectVideos.id,
       { onDelete: "set null" }
+    ),
+    // The Flow step that asked for it, so its meter rows count toward that
+    // step's cost (drizzle/0177). Deleting the run deletes the shot's row:
+    // the file it made stays in Media, and its cost stays on the meter.
+    flowStepId: varchar("flow_step_id", { length: 36 }).references(
+      () => videoFlowRunSteps.id,
+      { onDelete: "cascade" }
     ),
     // Null on a shot made from a picture already on the timeline, which
     // names that clip below instead (drizzle/0126).
@@ -1571,7 +1589,7 @@ export const videoAiGenerations = pgTable(
     ),
     check(
       "video_ai_generations_source_check",
-      sql`${table.firstFrameId} is not null or ${table.clipId} is not null`
+      sql`${table.firstFrameId} is not null or ${table.clipId} is not null or ${table.flowStepId} is not null`
     ),
     check(
       "video_ai_generations_clip_outcome_check",
@@ -2260,3 +2278,141 @@ export const videoViralArrivals = pgTable(
 )
 
 export type VideoViralArrivalRow = typeof videoViralArrivals.$inferSelect
+
+// ============================================================ Flow ==
+
+/**
+ * A flow: a person's template of nodes and lines on a canvas
+ * (drizzle/0173, workspace/docs/flow.md). `version` goes up with every save,
+ * so a save from an older copy of the canvas is refused.
+ */
+export const videoFlows = pgTable(
+  "video_flows",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description").notNull().default(""),
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    version: integer("version").notNull().default(1),
+    starter: varchar("starter", { length: 40 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_video_flows_user").on(table.userId, table.updatedAt)]
+)
+
+export type VideoFlowRow = typeof videoFlows.$inferSelect
+
+/** When a person's starter flow was made, so deleting it never brings it back. */
+// Each starter flow put in a person's table, once each (drizzle/0179), so a
+// deleted one never comes back.
+export const videoFlowStarts = pgTable(
+  "video_flow_starts",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    starter: varchar("starter", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.starter] })]
+)
+
+/** One run of a flow into a project, with its own copy of the graph. */
+export const videoFlowRuns = pgTable(
+  "video_flow_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    flowId: varchar("flow_id", { length: 36 }).references(() => videoFlows.id, { onDelete: "set null" }),
+    flowName: varchar("flow_name", { length: 120 }).notNull(),
+    // Empty until the run's last step saves it into a project (drizzle/0176).
+    projectId: varchar("project_id", { length: 36 }).references(() => videoProjects.id, { onDelete: "cascade" }),
+    videoId: varchar("video_id", { length: 36 }).references(() => videoProjectVideos.id, { onDelete: "set null" }),
+    graph: jsonb("graph").$type<AutomationGraph>().notNull(),
+    // The cut AI video made, kept until the run is saved into a project.
+    timeline: jsonb("timeline").$type<ProjectTimeline>(),
+    status: varchar("status", { length: 12 }).$type<FlowRunStatus>().notNull(),
+    error: text("error"),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("ix_video_flow_runs_user").on(table.userId, table.createdAt),
+    index("ix_video_flow_runs_flow").on(table.flowId),
+    index("ix_video_flow_runs_status").on(table.status),
+    check(
+      "video_flow_runs_status_check",
+      sql`${table.status} in ('running', 'waiting', 'done', 'failed', 'stopped')`
+    ),
+  ]
+)
+
+export type VideoFlowRunRow = typeof videoFlowRuns.$inferSelect
+
+/** One row per node of a run. */
+export const videoFlowRunSteps = pgTable(
+  "video_flow_run_steps",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => videoFlowRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    kind: varchar("kind", { length: 64 }).notNull(),
+    position: integer("position").notNull(),
+    status: varchar("status", { length: 12 }).$type<FlowStepStatus>().notNull(),
+    // What the step's boxes held, by box (`FlowStepInputs`).
+    input: jsonb("input").$type<FlowStepInputs>(),
+    output: jsonb("output").$type<FlowStepOutput>(),
+    // What a step making several paid things remembers between the worker's
+    // passes: its plan, whether it was OK'd, and each file made (drizzle/0178).
+    state: jsonb("state").$type<FlowStepState>(),
+    promptSent: text("prompt_sent"),
+    estimateCents: integer("estimate_cents"),
+    costCents: integer("cost_cents"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    // A queued step the worker leaves until then, and why (drizzle/0173).
+    wakeAt: timestamp("wake_at", { withTimezone: true }),
+    note: text("note"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_flow_run_steps_node").on(table.runId, table.nodeId),
+    check(
+      "video_flow_run_steps_status_check",
+      sql`${table.status} in ('waiting', 'needs_input', 'queued', 'working', 'needs_ok', 'done', 'failed')`
+    ),
+  ]
+)
+
+export type VideoFlowRunStepRow = typeof videoFlowRunSteps.$inferSelect
+
+/**
+ * The Flow dashboard's left page, one per person (drizzle/0175): what is
+ * written on it, its cover, its lock, and the Dashboards block's hidden rows
+ * and their order.
+ */
+export const videoFlowPages = pgTable("video_flow_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  locked: boolean("locked").notNull().default(false),
+  hiddenSections: jsonb("hidden_sections").$type<string[]>().notNull().default([]),
+  sectionOrder: jsonb("section_order").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

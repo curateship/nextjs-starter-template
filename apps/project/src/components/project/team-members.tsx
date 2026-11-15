@@ -8,7 +8,6 @@ import {
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { HandOverDialog } from "@/components/project/hand-over-dialog"
 import { InviteDialog, SentInviteCard } from "@/components/project/invite-dialog"
@@ -87,7 +86,6 @@ function useBulkReport(one: string, many: string, verb: string) {
         verb,
       })
       if (result.kept.length) showErrorToast(line)
-      else toast.success(line)
     },
     [many, one, verb]
   )

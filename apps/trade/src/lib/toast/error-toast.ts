@@ -8,8 +8,8 @@ import { toast } from "sonner"
 let currentErrorToastId: string | number | null = null
 
 /**
- * The one way to report a failure: a red toast in the same fixed spot as the
- * success toasts. One shared slot — a repeat failure replaces the previous
+ * The one way to report a failure: a red toast in the same fixed spot as
+ * every other toast. One shared slot — a repeat failure replaces the previous
  * message instead of stacking, and it stays until dismissed or until the next
  * attempt starts.
  *

@@ -590,6 +590,8 @@ describe("flipping after the opposite side confirms", () => {
       tpPx: null,
       slPx: null,
       marketOnly: true,
+      // A market exit is measured from the price it goes out at.
+      aimedPx: "sent",
     })
     expect(liveRollback.mock.invocationCallOrder[0]).toBeLessThan(
       liveMarketOrder.mock.invocationCallOrder[0]

@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { NameDialog } from "@/components/shared/dashboard/name-dialog"
 import {
@@ -46,7 +45,6 @@ export function SaveTemplateDialog({
       await createBroadcastTemplate(trimmedName, blocks)
       onSaved()
       onOpenChange(false)
-      toast.success(`Saved “${trimmedName}”`)
     } catch (saveError) {
       showErrorToast(getBroadcastErrorMessage(saveError))
     } finally {

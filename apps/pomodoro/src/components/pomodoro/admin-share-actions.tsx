@@ -11,7 +11,6 @@ import {
   StarOffIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -39,7 +38,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import {
   approvePomodoroShares,
   copyPomodoroUploadToCatalogue,
@@ -54,6 +52,7 @@ import {
   UNSHARE_REASONS,
   type UnshareReasonId,
 } from "@/lib/pomodoro/shared-media-reports"
+import { flowflyLink } from "@/lib/pomodoro/flowfly-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -104,8 +103,7 @@ export function useShareActions({ onDone }: { onDone: () => Promise<void> }) {
         verb: "approved",
         keptReason: "not waiting for a check",
       })
-      if (done.length) toast.success(line)
-      else showErrorToast(line)
+      if (!done.length) showErrorToast(line)
       await onDone()
     } catch (cause) {
       showErrorToast(getMemberFilesErrorMessage(cause))
@@ -118,42 +116,6 @@ export function useShareActions({ onDone }: { onDone: () => Promise<void> }) {
 }
 
 export type ShareActions = ReturnType<typeof useShareActions>
-
-/** The toolbar's Approve and Unshare for the ticked rows. */
-export function ShareBulkButtons({
-  actions,
-  ids,
-  busy = false,
-}: {
-  actions: ShareActions
-  ids: string[]
-  /** Another action on the same list is running, so these wait for it. */
-  busy?: boolean
-}) {
-  if (!ids.length) return null
-  return (
-    <>
-      <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        disabled={actions.busy || busy}
-        onClick={() => void actions.approve(ids)}
-      >
-        <CheckIcon className="size-4" />
-        Approve ({ids.length})
-      </DashboardToolbarButton>
-      <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        disabled={actions.busy || busy}
-        onClick={() => actions.setUnsharing(ids)}
-      >
-        <EyeOffIcon className="size-4" />
-        Unshare ({ids.length})
-      </DashboardToolbarButton>
-    </>
-  )
-}
 
 /** One row's sharing menu, before its Delete. */
 export function ShareRowMenu({
@@ -177,11 +139,6 @@ export function ShareRowMenu({
     setWorking(true)
     try {
       await featurePomodoroUpload(on ? row.mediaId : null)
-      toast.success(
-        on
-          ? `${row.name} is on the front page.`
-          : "Nothing is featured on the front page now."
-      )
       await actions.onDone()
     } catch (cause) {
       showErrorToast(getMemberFilesErrorMessage(cause))
@@ -194,10 +151,9 @@ export function ShareRowMenu({
     setWorking(true)
     try {
       const { id, kind } = await copyPomodoroUploadToCatalogue(row.mediaId)
-      toast.success(`${row.name} is a Draft in the catalogue.`)
       await navigate({
-        to: kind === "sound" ? "/admin/pomodoro-sounds" : "/admin/pomodoro-themes",
-        search: { open: id },
+        to: "/admin/flowfly",
+        search: flowflyLink(kind === "sound" ? "sounds" : "backgrounds", { open: id }),
       })
     } catch (cause) {
       showErrorToast(getMemberFilesErrorMessage(cause))
@@ -304,8 +260,7 @@ export function UnshareDialog({ actions }: { actions: ShareActions }) {
         verb: "taken off sharing",
         keptReason: "not shared",
       })
-      if (done.length) toast.success(line)
-      else showErrorToast(line)
+      if (!done.length) showErrorToast(line)
       close()
       await actions.onDone()
     } catch (cause) {

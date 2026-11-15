@@ -194,7 +194,7 @@ describe("meeting notes", () => {
     await addProjectMember(admin.id, projectId, ben.id, database)
     const { id: taskId } = await createTask(
       anna,
-      { projectId, title: "Send the new price list", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId, title: "Send the new price list", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
 
@@ -220,7 +220,7 @@ describe("meeting notes", () => {
     const { id: projectId } = await projectFor(admin, anna.id, { name: "Sales", color: "green" }, database)
     const { id: taskId } = await createTask(
       anna,
-      { projectId, title: "Send prices", notes: "", assigneeUserId: null, dueDate: null, steps: [] },
+      { projectId, title: "Send prices", notes: "", assigneeUserId: null, dueDate: null },
       database
     )
     await saveMeetingNotes(anna, { meetingId: id, day: MONDAY, notes: doc("Send the old price list") }, database)
@@ -255,7 +255,7 @@ describe("choosing my bell notices", () => {
     for (const person of [ben, carla]) {
       await createTask(
         anna,
-        { projectId, title: `For ${person.name}`, notes: "", assigneeUserId: person.id, dueDate: null, steps: [] },
+        { projectId, title: `For ${person.name}`, notes: "", assigneeUserId: person.id, dueDate: null },
         database
       )
     }
@@ -266,7 +266,7 @@ describe("choosing my bell notices", () => {
     await setNoticeSwitch(ben.id, { id: "task_assigned", on: true }, database)
     await createTask(
       anna,
-      { projectId, title: "Another", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId, title: "Another", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     expect(await noticesFor(ben.id)).toEqual(["task_assigned"])
@@ -277,7 +277,7 @@ describe("choosing my bell notices", () => {
     const projectId = await project()
     const { id: taskId } = await createTask(
       anna,
-      { projectId, title: "Set up redirects", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId, title: "Set up redirects", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     await database.delete(customShellNotifications)
@@ -301,7 +301,7 @@ describe("choosing my bell notices", () => {
     const done = async (title: string) => {
       const { id: taskId } = await createTask(
         anna,
-        { projectId, title, notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+        { projectId, title, notes: "", assigneeUserId: ben.id, dueDate: null },
         database
       )
       await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)

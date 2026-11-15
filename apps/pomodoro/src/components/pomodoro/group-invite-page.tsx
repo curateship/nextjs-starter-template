@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
 import { FlagIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -108,7 +107,6 @@ export function GroupInvitePage() {
       }
       // The same words the Join window says, and Groups opens on the group
       // just joined rather than the first one.
-      toast.success("You are in the group.")
       void navigate({ to: "/groups", search: { group: result.id } })
     } catch (cause) {
       setFailure(groupErrorMessage(cause))

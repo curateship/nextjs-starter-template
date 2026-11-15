@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { SegmentRuleBuilder } from "@/components/broadcasts/segment-rule-builder"
 import { Button } from "@/components/ui/button"
@@ -71,6 +70,16 @@ const LIVE_COUNT_DELAY_MS = 1200
  * Mounted fresh per segment by its key on the Contacts dashboard, so the draft starts
  * from the right one without an effect resetting it after the first render.
  */
+/** Who joined and who left between two lists of people. */
+function changesSince(before: string[], after: string[]) {
+  const had = new Set(before)
+  const has = new Set(after)
+  return {
+    addIds: after.filter((id) => !had.has(id)),
+    removeIds: before.filter((id) => !has.has(id)),
+  }
+}
+
 export function SegmentDialog({
   open,
   segment,
@@ -115,9 +124,8 @@ export function SegmentDialog({
   const [knownEmails, setKnownEmails] = React.useState<Record<string, string>>(
     {}
   )
-  // Whether the segment's existing people have arrived. A save sends the whole
-  // list and the server replaces the segment with it, so saving before they
-  // land would write an empty segment over a full one. It starts at "loading"
+  // Whether the segment's existing people have arrived. A save sends who joined
+  // and who left, worked out against them, so Save waits until they land. It starts at "loading"
   // rather than being set to it by the effect below, so there is no first
   // render where the list is empty and Save is open.
   const [members, setMembers] = React.useState<MembersState>(
@@ -216,9 +224,14 @@ export function SegmentDialog({
           ...(kind === "rules" && match === "any" ? { match } : {}),
           conditions: kind === "rules" ? conditions : [],
         },
-        contactIds: kind === "static" ? chosen : [],
+        // A saved segment sends only who joined and who left, so one of any
+        // size can be renamed. A new one sends everybody picked.
+        ...(kind !== "static"
+          ? {}
+          : segment
+            ? changesSince(openedWith, chosen)
+            : { contactIds: chosen }),
       })
-      toast.success(segment ? "Segment saved." : "Segment created.")
       await onSaved(saved.id)
     } catch (error) {
       showErrorToast(getSegmentErrorMessage(error))
@@ -378,8 +391,8 @@ export function SegmentDialog({
               <DisabledReason
                 reason={
                   members.status === "failed"
-                    ? "Who is already in this segment could not be loaded, and saving now would empty it. Try again first."
-                    : "Waiting for the people already in this segment, so saving cannot empty it."
+                    ? "Who is already in this segment could not be loaded. Try again first, so you can see who you are saving."
+                    : "Waiting for the people already in this segment."
                 }
                 disabled={waitingForMembers}
               >
@@ -408,7 +421,7 @@ type LiveCountState =
   | { status: "error"; message: string }
 
 /** The draft's current reach, recalculated only after its rules settle. */
-function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
+export function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
   const [attempt, setAttempt] = React.useState(0)
   const [state, setState] = React.useState<LiveCountState>({
     status: "counting",
@@ -455,10 +468,7 @@ function SegmentLiveCount({ rules: draft }: { rules: SegmentRules }) {
         <CardTitle>Live count</CardTitle>
         <CardDescription>
           {state.status === "counting" ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Counting…
-            </span>
+            <span className="sr-only">Counting</span>
           ) : state.status === "error" ? (
             "We could not count these conditions right now."
           ) : state.matching === 0 ? (
@@ -502,10 +512,7 @@ function ChosenPeopleCount({
         <CardTitle>Live count</CardTitle>
         <CardDescription>
           {members.status === "loading" ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="size-4 animate-spin" />
-              Counting…
-            </span>
+            <span className="sr-only">Counting</span>
           ) : members.status === "failed" ? (
             "We could not count who is in this segment right now."
           ) : count ? (
@@ -634,10 +641,7 @@ function ContactPicker({
           ))}
 
           {loading ? (
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2Icon className="size-4 animate-spin" />
-              Looking…
-            </span>
+            <span className="sr-only">Looking</span>
           ) : results.length === 0 ? (
             <span className="text-sm text-muted-foreground">
               Nobody matches that.

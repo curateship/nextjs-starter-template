@@ -9,7 +9,6 @@ import {
   PickedDaysBadge,
   ProjectDot,
   StatusBadge,
-  StepsCount,
   WaitingBadge,
 } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
@@ -187,8 +186,7 @@ export function CheckinDialog({
           }),
           picks: [...ticked],
           notes: notesToSave(notes, page.people),
-        }),
-      "Checked in."
+        })
     )
     if (!ok) return
     await router.invalidate()
@@ -639,7 +637,6 @@ function TaskMeta({ task, showProject = false }: { task: TaskCard; showProject?:
       {task.waiting ? <WaitingBadge /> : null}
       <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
       <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} />
-      <StepsCount steps={task.steps} />
     </span>
   )
 }
@@ -682,8 +679,7 @@ function PickRow({
       return
     }
     const ok = await run(
-      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason.trim() }),
-      task.assignedBy ? `Marked Stuck. ${task.assignedBy.name} has been told.` : "Marked Stuck."
+      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: reason.trim() })
     )
     if (!ok) return
     setStuckOpen(false)
@@ -811,7 +807,7 @@ function AddTaskRow({
         assigneeUserId: myUserId,
       })
       created.id = task.id
-    }, "Task added and picked.")
+    })
     if (!ok) return
     setTitle("")
     await onAdded(created.id)

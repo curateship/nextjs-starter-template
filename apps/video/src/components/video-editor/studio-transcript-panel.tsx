@@ -6,7 +6,6 @@ import {
   TypeIcon,
   WandSparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,8 +47,8 @@ import {
 } from "@/lib/video/ai-estimates"
 import { sourceSpanMs } from "@/lib/video/clip-playback"
 import { hasSavedWords } from "@/lib/video/transcripts"
-import { clockText } from "@/lib/video/export-stretch"
 import { findSaidPlaces, SAID_PLACES_MAX } from "@/lib/video/transcript-search"
+import { formatClock } from "@/lib/video/timeline-utils"
 
 /**
  * What the clip says, word by word.
@@ -178,9 +177,6 @@ export function TranscriptPanel() {
       setTranscript(answer)
       setAnchor(null)
       setHead(null)
-      if (!answer.words.length) {
-        toast.success("Nothing was said in that clip.")
-      }
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
     } finally {
@@ -253,9 +249,6 @@ export function TranscriptPanel() {
     // but the run just cut is gone from the film.
     setAnchor(null)
     setHead(null)
-    toast.success(
-      `${picked} ${plural(picked, "word", "words")} cut. Undo puts them back.`
-    )
   }
 
   return (
@@ -360,7 +353,7 @@ export function TranscriptPanel() {
                             className="flex w-full gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-muted"
                           >
                             <span className="shrink-0 text-muted-foreground tabular-nums">
-                              {clockText(place.startMs)}
+                              {formatClock(place.startMs)}
                             </span>
                             <span className="min-w-0 truncate">
                               {place.before ? `${place.before} ` : ""}

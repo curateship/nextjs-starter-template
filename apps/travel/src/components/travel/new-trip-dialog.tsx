@@ -71,7 +71,7 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
     let tripId = ""
     const ok = await run(async () => {
       tripId = (await makeTrip({ name, days, currency, startDate, destination: destination || null })).id
-    }, "Trip created.")
+    })
     if (!ok) return
     // The trip opens on its drafted plan, still to be checked before anything is saved (Travel features part 7).
     if (draft) draftWhenOpened(tripId)

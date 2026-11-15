@@ -188,10 +188,48 @@ describe("blocks that point at a task's files", () => {
       { type: "noteTask", attrs: { taskId: "new-1" } },
       { type: "noteRecord" },
     ])
-    // A template has no task, so no Video or Promo card either.
-    expect(noteForCopy(note, { forTemplate: true }).content?.map((node) => node.type)).toEqual(["noteCallout", "noteTask"])
+    // A page with no task gets no Video or Promo card either.
+    expect(noteForCopy(note, { noTask: true }).content?.map((node) => node.type)).toEqual(["noteCallout", "noteTask"])
     expect(storedNotesForCopy(JSON.stringify(doc({ type: "noteFile", attrs: { fileId: "mine" } })))).toBe("")
     expect(storedNotesForCopy("Plain words")).toBe("Plain words")
+  })
+})
+
+describe("a team's page", () => {
+  const teamBlocks = ["noteTeamCheckins", "noteTeamWorkload", "noteTeamAttention", "noteTeamWeek", "noteTeamMembers"]
+
+  it("keeps the team blocks, holding nothing, only on a team's page", () => {
+    const body = doc(paragraph("Standup 9:30"), ...teamBlocks.map((type) => ({ type, attrs: { teamId: "x" } })))
+    expect(cleanNoteBody(body, { team: true }).content?.map((node) => node)).toEqual([
+      paragraph("Standup 9:30"),
+      ...teamBlocks.map((type) => ({ type })),
+    ])
+    // Every other note drops them, the site admin's own page too.
+    expect(cleanNoteBody(body).content).toEqual([paragraph("Standup 9:30")])
+    expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Standup 9:30")])
+  })
+
+  it("drops the dashboard blocks from a team's page", () => {
+    const body = doc({ type: "noteHabit" }, { type: "noteTeamCheckins" })
+    expect(cleanNoteBody(body, { team: true }).content).toEqual([{ type: "noteTeamCheckins" }])
+  })
+
+  it("keeps the team blocks on a copy made for a team's page", () => {
+    const stored = JSON.stringify(doc({ type: "noteTeamWeek" }, { type: "noteComments" }))
+    expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, team: true }))).toEqual(doc({ type: "noteTeamWeek" }))
+  })
+})
+
+describe("a project's page", () => {
+  it("keeps Milestones only on a project's own page, and on a copy made for one", () => {
+    const body = doc(paragraph("Brief"), { type: "noteMilestones", attrs: { projectId: "x" } })
+    expect(cleanNoteBody(body, { projectPage: true }).content).toEqual([paragraph("Brief"), { type: "noteMilestones" }])
+    // The project's notes, a task's and every other page drop it.
+    expect(cleanNoteBody(body).content).toEqual([paragraph("Brief")])
+    expect(cleanNoteBody(body, { team: true }).content).toEqual([paragraph("Brief")])
+    expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Brief")])
+    const stored = JSON.stringify(doc({ type: "noteMilestones" }, { type: "noteComments" }))
+    expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, projectPage: true }))).toEqual(doc({ type: "noteMilestones" }))
   })
 })
 

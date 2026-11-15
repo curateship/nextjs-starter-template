@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,7 +53,6 @@ export function InviteClientDialog({
     setBusy(true)
     try {
       await changeClients({ action: "invite", email: email.trim() })
-      toast.success("Asked. They'll see the request on their Programs dashboard.")
       await router.invalidate()
       close()
     } catch (error) {

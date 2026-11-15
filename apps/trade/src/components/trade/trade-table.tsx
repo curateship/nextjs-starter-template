@@ -242,6 +242,12 @@ export function TradeTable<Row, Key extends string>({
 }
 
 /** The shared card, title, scroller and table frame used by dashboard widgets. */
+/**
+ * A table panel drawn inside the Trade dashboard's widget card, whose white
+ * tile is its frame: the table's own corners, card and ring go.
+ */
+export const BARE_TABLE = "rounded-none bg-transparent ring-0"
+
 export function TradeTablePanel<Row, Key extends string>({
   className,
   header,

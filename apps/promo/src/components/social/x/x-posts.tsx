@@ -1,6 +1,6 @@
 import * as React from "react"
+import { HeaderActions } from "@/components/social/header-actions"
 import { ExternalLinkIcon, FileTextIcon, Loader2Icon, PlusIcon, QuoteIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
@@ -96,7 +96,7 @@ export function XPostsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+      <HeaderActions>
         {posted.length ? (
           <Hint label="Read the numbers of the 50 newest posted ones again now">
             <Button
@@ -107,8 +107,7 @@ export function XPostsList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkXNow({ postIds: posted.slice(0, 50) })
-                  toast.success(queued ? "Reading the numbers again." : "Every post is being read already.")
+                  await checkXNow({ postIds: posted.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getXErrorMessage(failure))
@@ -122,7 +121,6 @@ export function XPostsList({
             </Button>
           </Hint>
         ) : null}
-        <span className="flex-1" />
         <NewPostButton
           projectId={projectId}
           accounts={accounts}
@@ -132,7 +130,7 @@ export function XPostsList({
             onSelect(id)
           }}
         />
-      </div>
+      </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
           <XListError what="posts" error={error} onRetry={onRetry} />
@@ -433,8 +431,7 @@ function PostedPost({
               disabled={busy !== null}
               onClick={() =>
                 void run("check", async () => {
-                  const { queued } = await checkXNow({ postIds: [post.id] })
-                  toast.success(queued ? "Checking it now." : "It is being checked already.")
+                  await checkXNow({ postIds: [post.id] })
                 })
               }
             >
@@ -550,7 +547,6 @@ function PostedPost({
           void run("delete", async () => {
             await changeOnX({ postRowId: post.id, action: "delete" })
             setConfirmDelete(false)
-            toast.success("On its way to being deleted on X.")
           })
         }
       />

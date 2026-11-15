@@ -11,17 +11,14 @@ import { savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
 import type { SavedViewScreen } from "@/server/app-options"
 import { db } from "@/server/db"
 import { requireMembership, requireProjectAccess, requireSiteAdmin, type ProjectDb } from "@/server/project/access"
-import {
-  projectLabels,
-  projectTaskTypes,
-  projectTeamMembers,
-} from "@/server/project/schema"
+import { projectTeamMembers } from "@/server/project/schema"
 import { listSavedViews as listShellSavedViews } from "@/server/saved-views"
 import { customShellUsers } from "@/server/schema"
 
 /**
  * Saved views on Project's task screens: one project's Board and List
- * (`project:<id>`), My tasks (`my-tasks:<team id>`), and the site admin's
+ * (`project:<id>`), My tasks (`my-tasks:<team id>`), a team's Tasks tab on
+ * the Team dashboard (`team-tasks:<team id>`), and the site admin's
  * My dashboard (`admin-tasks:<their id>`), which spans every team. They live in the
  * shell's `saved_views` table since 20 Oct 2026, when views moved into the
  * shell for every app; `project_saved_views` holds the rows from before and
@@ -39,6 +36,11 @@ export type SavedView = {
 /** The shell's key for a project's views, or My tasks' for `projectId` null. */
 export function projectViewScreen(teamId: string, projectId: string | null) {
   return projectId === null ? savedViewScreen("my-tasks", teamId) : savedViewScreen("project", projectId)
+}
+
+/** Everyone's own views on a team's Tasks tab on the Team dashboard, kept under the team's id. */
+export function teamTasksViewScreen(teamId: string) {
+  return savedViewScreen("team-tasks", teamId)
 }
 
 /** The site admin's own views on their My dashboard, kept under their id. */
@@ -93,6 +95,16 @@ export const projectSavedViewScreens: Record<string, SavedViewScreen> = {
     keep: ({ filters }) => keptFilters(filters, true),
     namesOf: async ({ recordId, filters, database }) => namesOf(recordId, filters as SavedViewFilters, database),
   },
+  "team-tasks": {
+    // Checked as My tasks is: the key's team must be the person's own, or the site admin's to see.
+    authorize: async ({ userId, recordId, database }) => {
+      const membership = await requireMembership(userId, database, recordId)
+      if (membership.teamId !== recordId) throw new Error("FORBIDDEN")
+    },
+    // Every team task, so a view keeps a Person filter and a Group row, as a project's does.
+    keep: ({ filters }) => keptFilters(filters, false),
+    namesOf: async ({ recordId, filters, database }) => namesOf(recordId, filters as SavedViewFilters, database),
+  },
   "admin-tasks": {
     // The key is the site admin's own id, so nobody keeps views under another's.
     authorize: async ({ userId, recordId, database }) => {
@@ -105,7 +117,7 @@ export const projectSavedViewScreens: Record<string, SavedViewScreen> = {
 }
 
 /**
- * The person's, label's and type's names as they are now, from this team
+ * The person's name as it is now, from this team
  * only, so a view can later say "Leo isn't on this project any more". The
  * site admin's My dashboard spans every team, so it passes no team.
  */
@@ -122,20 +134,6 @@ async function namesOf(
       .innerJoin(customShellUsers, eq(customShellUsers.id, projectTeamMembers.userId))
       .where(and(teamId ? eq(projectTeamMembers.teamId, teamId) : undefined, eq(projectTeamMembers.userId, filters.person)))
     if (person) names.person = person.name
-  }
-  if (filters.label) {
-    const [label] = await database
-      .select({ name: projectLabels.name })
-      .from(projectLabels)
-      .where(and(teamId ? eq(projectLabels.teamId, teamId) : undefined, eq(projectLabels.id, filters.label)))
-    if (label) names.label = label.name
-  }
-  if (filters.type) {
-    const [type] = await database
-      .select({ name: projectTaskTypes.name })
-      .from(projectTaskTypes)
-      .where(and(teamId ? eq(projectTaskTypes.teamId, teamId) : undefined, eq(projectTaskTypes.id, filters.type)))
-    if (type) names.type = type.name
   }
   return names
 }

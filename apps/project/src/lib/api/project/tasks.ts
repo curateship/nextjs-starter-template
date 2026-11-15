@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
-  LIMITS,
   acceptManySchema,
   assignTaskSchema,
   needsReviewSchema,
@@ -10,16 +9,15 @@ import {
   answerTimeSchema,
   askForTimeSchema,
   bulkChangeSchema,
+  createTaskSchema,
   createTasksFromLinesSchema,
   setRepeatSchema,
-  updateStepSchema,
   reasonSchema,
   setTaskStatusSchema,
   updateTaskSchema,
 } from "@/lib/project/rules"
 import { teamScope } from "@/lib/api/project/scope"
 import { MY_HEADINGS, type MyHeading } from "@/lib/project/my-task-order"
-import { newTaskSchema } from "@/lib/project/task-types"
 import { userGet, userPost } from "@/server/guards"
 import { findMembership, isSiteAdmin } from "@/server/project/access"
 import { projectNoticeDetailsFor } from "@/server/project/notices"
@@ -31,7 +29,6 @@ import {
   justMeChoice,
   listNewTaskProjects,
   moveTask,
-  promoteStep,
 } from "@/server/project/task-changes"
 import {
   emptyProjectBin,
@@ -46,19 +43,15 @@ import { listNoteVersions, restoreNoteVersion } from "@/server/project/task-note
 import { answerMoreTime, askForMoreTime } from "@/server/project/more-time"
 import { reviewTask, setNeedsReview } from "@/server/project/task-review"
 import { thankForTask } from "@/server/project/task-thanks"
-import { listTeamTypes } from "@/server/project/task-types"
 import {
   acceptManyTasks,
   acceptTask,
-  addStep,
   assignTask,
   createTask,
-  deleteStep,
   deleteTask,
   handBackTask,
   loadTaskDetail,
   setTaskStatus,
-  updateStep,
   updateTask,
 } from "@/server/project/tasks"
 
@@ -71,10 +64,9 @@ export type {
   NewTaskProject,
 } from "@/server/project/task-changes"
 export type { TaskFile } from "@/server/project/task-files"
-export type { AcceptOutcome, TaskCard, TaskDetail, TaskStep } from "@/server/project/tasks"
+export type { AcceptOutcome, TaskCard, TaskDetail } from "@/server/project/tasks"
 
 const id = z.string().min(1).max(36)
-const stepText = z.string().trim().min(1, "A step can't be empty.").max(LIMITS.stepText)
 
 const loadTaskFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -83,7 +75,7 @@ const loadTaskFn = createServerFn({ method: "GET" })
 
 const createTaskFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(newTaskSchema)
+  .inputValidator(createTaskSchema)
   .handler(async ({ data, context }) => createTask(context.user, data))
 
 const updateTaskFn = createServerFn({ method: "POST" })
@@ -116,16 +108,6 @@ const deleteTaskFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ taskId: id }))
   .handler(async ({ data, context }) => deleteTask(context.user, data.taskId))
 
-const addStepFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ taskId: id, text: stepText }))
-  .handler(async ({ data, context }) => addStep(context.user, data))
-
-const updateStepFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(updateStepSchema)
-  .handler(async ({ data, context }) => updateStep(context.user, data))
-
 const createManyFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(createTasksFromLinesSchema)
@@ -140,11 +122,6 @@ const moveFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(z.object({ taskId: id, projectId: id }))
   .handler(async ({ data, context }) => moveTask(context.user, data))
-
-const promoteStepFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ stepId: id }))
-  .handler(async ({ data, context }) => promoteStep(context.user, data.stepId))
 
 const changeManyFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -176,7 +153,7 @@ const emptyBinFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ projectId: id }))
   .handler(async ({ data, context }) => emptyProjectBin(context.user.id, data.projectId))
 
-/** The projects New task can make a task in, and the team's types, for the header's button. */
+/** The projects New task can make a task in, for the header's button. */
 const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(z.object(teamScope))
@@ -196,21 +173,13 @@ const loadNewTaskProjectsFn = createServerFn({ method: "GET" })
     const parts = await Promise.all(
       memberships
         .filter((membership) => membership !== null)
-        .map(async (membership) => ({
-          projects: await listNewTaskProjects(membership, me),
-          types: await listTeamTypes(membership.teamId),
-        }))
+        .map((membership) => listNewTaskProjects(membership, me))
     )
-    const projects = parts.flatMap((part) => part.projects).sort((a, b) => a.name.localeCompare(b.name))
+    const projects = parts.flat().sort((a, b) => a.name.localeCompare(b.name))
     // Off a team's page, the site admin's own list comes first (Tyler, 23 Oct 2026).
-    const own = siteAdmin && !data.teamId ? [justMeChoice(me, [])] : []
-    return { projects: [...own, ...projects], types: parts.flatMap((part) => part.types) }
+    const own = siteAdmin && !data.teamId ? [justMeChoice(me)] : []
+    return { projects: [...own, ...projects] }
   })
-
-const deleteStepFn = createServerFn({ method: "POST" })
-  .middleware([userPost])
-  .inputValidator(z.object({ stepId: id }))
-  .handler(async ({ data, context }) => deleteStep(context.user, data.stepId))
 
 const listNoteVersionsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -245,7 +214,7 @@ const loadNoticeDetailsFn = createServerFn({ method: "GET" })
 export function loadTask(taskId: string) {
   return loadTaskFn({ data: { taskId } })
 }
-export function createProjectTask(data: z.input<typeof newTaskSchema>) {
+export function createProjectTask(data: z.input<typeof createTaskSchema>) {
   return createTaskFn({ data })
 }
 export function saveTask(data: z.input<typeof updateTaskSchema>) {
@@ -266,12 +235,6 @@ export function handBackProjectTask(taskId: string, reason: string) {
 export function deleteProjectTask(taskId: string) {
   return deleteTaskFn({ data: { taskId } })
 }
-export function addTaskStep(taskId: string, text: string) {
-  return addStepFn({ data: { taskId, text } })
-}
-export function updateTaskStep(data: z.input<typeof updateStepSchema>) {
-  return updateStepFn({ data })
-}
 export function createTasksFromLines(data: z.input<typeof createTasksFromLinesSchema>) {
   return createManyFn({ data })
 }
@@ -280,9 +243,6 @@ export function duplicateProjectTask(taskId: string) {
 }
 export function moveProjectTask(taskId: string, projectId: string) {
   return moveFn({ data: { taskId, projectId } })
-}
-export function turnStepIntoTask(stepId: string) {
-  return promoteStepFn({ data: { stepId } })
 }
 export function changeTasks(data: z.input<typeof bulkChangeSchema>) {
   return changeManyFn({ data })
@@ -304,9 +264,6 @@ export function emptyBin(projectId: string) {
 }
 export function loadNewTaskProjects(teamId?: string) {
   return loadNewTaskProjectsFn({ data: { teamId } })
-}
-export function deleteTaskStep(stepId: string) {
-  return deleteStepFn({ data: { stepId } })
 }
 export function loadNoteVersions(taskId: string) {
   return listNoteVersionsFn({ data: { taskId } })

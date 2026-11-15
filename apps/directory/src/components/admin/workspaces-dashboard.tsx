@@ -1,7 +1,6 @@
 import { capitalise, workspaceWord } from "@/lib/app-options"
 import * as React from "react"
 import { getRouteApi, useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 import {
   ArrowRightIcon,
   Loader2Icon,
@@ -34,7 +33,6 @@ import {
   type WorkspaceItem,
   type WorkspaceCopyChoice,
 } from "@/lib/api/people/workspaces"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { workspaceListedAddress } from "@/lib/workspaces/addresses"
@@ -220,15 +218,6 @@ export function WorkspacesDashboard({
         return
       }
 
-      toast.success(
-        describeBulkResult({
-          done: deleted.length,
-          kept: kept.length,
-          one: word.one,
-          many: word.many,
-          verb: "deleted",
-        })
-      )
       setMassDeleteOpen(false)
     })
   }
@@ -239,7 +228,6 @@ export function WorkspacesDashboard({
     await run(async () => {
       await deleteWorkspace(pendingDelete.id)
       await router.invalidate()
-      toast.success(`${capitalise(word.one)} deleted.`)
       setPendingDelete(null)
     })
   }

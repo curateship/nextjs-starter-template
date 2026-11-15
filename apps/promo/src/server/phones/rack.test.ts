@@ -29,6 +29,7 @@ import {
   createPairingCode,
   disconnectRack,
   finishAction,
+  createRack,
   nextAction,
   pairRack,
   phoneActions,
@@ -74,8 +75,8 @@ describe("the rack", () => {
   })
 
   async function paired(): Promise<VerifiedRack & { key: string }> {
-    const { code } = await createPairingCode(userId, db, T0)
-    const { rackId, key } = await pairRack({ code, name: "Mac", platform: "macOS 15", version: RACK_VERSION }, db, T0)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
+    const { rackId, key } = await pairRack({ code, platform: "macOS 15", version: RACK_VERSION }, db, T0)
     return { id: rackId, userId, key }
   }
 
@@ -91,25 +92,25 @@ describe("the rack", () => {
 
   describe("pairing", () => {
     it("swaps a code for a key once, and refuses the code after that", async () => {
-      const { code } = await createPairingCode(userId, db, T0)
+      const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
       expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/)
-      const first = await pairRack({ code: code.toLowerCase(), name: "Mac", platform: "", version: "" }, db, T0)
+      const first = await pairRack({ code: code.toLowerCase(), platform: "", version: "" }, db, T0)
       expect(first.key.length).toBeGreaterThan(40)
-      await expect(pairRack({ code, name: "Mac", platform: "", version: "" }, db, T0)).rejects.toThrow("not valid")
+      await expect(pairRack({ code, platform: "", version: "" }, db, T0)).rejects.toThrow("not valid")
     })
 
     it("leaves the code usable when the server has no encryption key", async () => {
-      const { code } = await createPairingCode(userId, db, T0)
+      const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
       vi.stubEnv("CUSTOM_SHELL_SECRET_ENCRYPTION_KEY", "")
-      await expect(pairRack({ code, name: "", platform: "", version: "" }, db, T0)).rejects.toThrow("ENCRYPTION_NOT_CONFIGURED")
+      await expect(pairRack({ code, platform: "", version: "" }, db, T0)).rejects.toThrow("ENCRYPTION_NOT_CONFIGURED")
       vi.stubEnv("CUSTOM_SHELL_SECRET_ENCRYPTION_KEY", "a key for these tests only")
-      await expect(pairRack({ code, name: "", platform: "", version: "" }, db, T0)).resolves.toHaveProperty("rackId")
+      await expect(pairRack({ code, platform: "", version: "" }, db, T0)).resolves.toHaveProperty("rackId")
     })
 
     it("refuses a made-up code and one more than fifteen minutes old", async () => {
-      await expect(pairRack({ code: "AAAA-BBBB", name: "", platform: "", version: "" }, db, T0)).rejects.toThrow("not valid")
-      const { code } = await createPairingCode(userId, db, T0)
-      await expect(pairRack({ code, name: "", platform: "", version: "" }, db, later(16 * 60))).rejects.toThrow("not valid")
+      await expect(pairRack({ code: "AAAA-BBBB", platform: "", version: "" }, db, T0)).rejects.toThrow("not valid")
+      const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db, T0)
+      await expect(pairRack({ code, platform: "", version: "" }, db, later(16 * 60))).rejects.toThrow("not valid")
     })
   })
 
@@ -222,7 +223,7 @@ describe("the rack", () => {
       const [notice] = await db.select().from(customShellNotifications)
       expect(notice.message).toBe("Phone offline: Phone C3")
       expect(notice.detail).toBe(
-        "Allow USB debugging on its screen. It was on USB port usb:2-1. Type its shelf slot on the Phones dashboard so the notice can say where it is."
+        "Allow USB debugging on its screen. It was on USB port usb:2-1. Type its shelf slot on its rack's page so the notice can say where it is."
       )
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [{ ...device("C3", "usb:2-1", "unauthorized"), model: "", android: "" }], rolledBack: null }, db, later(15))
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [device("C3", "usb:2-1")], rolledBack: null }, db, later(30))
@@ -236,7 +237,7 @@ describe("the rack", () => {
       const id = await createPhone(userId, {
         name: "Tyler's Galaxy", kind: "android", model: "Galaxy A15", androidVersion: "", serial: "A1", simCarrier: "", simNumber: "",
         connection: "sim", proxyId: null, notes: "", folderId: null, labelId: null, tags: [], shelfSlot: "",
-      }, db)
+      }, rack.id, db)
       await checkIn(rack, { version: RACK_VERSION, platform: "", phones: [device("A1")], rolledBack: null }, db, T0)
       const phones = await listPhones(userId, db, later(1))
       expect(phones).toHaveLength(1)

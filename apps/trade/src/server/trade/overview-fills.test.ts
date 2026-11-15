@@ -12,7 +12,7 @@ import {
 import { loadOverviewFills } from "@/server/trade/trading-overview"
 
 /**
- * What the overview, the P&L page and the daily goal say one sale made.
+ * What the overview, the month grid and the daily goal say one sale made.
  *
  * The case below is the one every grid runs into. Two rungs are holding, the
  * cheaper one sells for more than it paid, and the exchange still calls it

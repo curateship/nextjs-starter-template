@@ -8,7 +8,8 @@ import { projectTasks } from "@/server/project/schema"
 
 /**
  * The project's own order of tasks. Sections lived here too until Tyler
- * replaced them with tags on 19 Oct 2026; their table stays as history.
+ * replaced them with tags on 19 Oct 2026, and tags went on 6 Nov 2026; the
+ * sections' table stays as history.
  */
 
 /**

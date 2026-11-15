@@ -70,6 +70,13 @@ the number that runs out. The limit itself comes from the plan
 (`storageLimitBytes` in the Pro perks), so a plan can change it without a code
 change.
 
+The limit is checked twice. Once before the file is read, so a member out of
+space is not made to send 100 MB to be told no. And once more just before the
+file's row is written, under a lock held per member (`storageLimitBytes` in
+`storePomodoroUpload`). The second check is what stops twenty uploads started
+at once from all passing the first one together and going over. A file
+refused there is taken back out of the bucket.
+
 ### 10 GB more for a year
 
 A Pro member can buy 10 GB more for $5, once, lasting 12 months (task 07,
@@ -477,7 +484,7 @@ up — rather than a row pointing at a file that is gone.
 
 ## Admins can delete a member's file
 
-`/admin/pomodoro-uploads` lists every background and sound members uploaded
+Flowfly → Library → Member uploads lists every background and sound members uploaded
 or had made by AI (admin task 06, 8 Oct 2026). It is "Member uploads" under
 Backgrounds in the admin's left menu, beside "AI generations". The menu is saved
 on the workspace (Settings → Navigation), not in code, so the two links were

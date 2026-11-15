@@ -14,7 +14,10 @@ code is in `src/server/viral-link/`, and the tables come from
 - **Pasting it.** The key goes into Viral's Settings → Promo connection with
   this Promo's address. Pressing Test there tells Promo where Viral is.
 - **Calling back.** Promo only ever calls the Viral address that pressed Test,
-  with the same key as `Authorization: Bearer <key>`.
+  with the same key as `Authorization: Bearer <key>`. On the live server that
+  address must be on the public internet: Test refuses one inside the
+  server's own network, and every call checks again. The rule is the
+  Archive's ([The Archive](archive.md#how-a-send-from-video-arrives)).
 - **Limits.** 600 reads and posts an hour, and 6,000 "how is it going"
   questions, per key.
 

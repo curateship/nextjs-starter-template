@@ -7,6 +7,7 @@ import { saveMyCity } from "@/lib/api/project/daily-card"
 import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { DAILY_LIMITS } from "@/lib/project/daily-card"
 import { useSaveLine } from "@/lib/project/use-save-line"
+import { PickRow } from "@/components/project/pick-rows"
 
 /**
  * The city the Daily card's weather comes from, in My settings (Tyler,
@@ -41,5 +42,19 @@ export function DailyCityField({ city }: { city: string | null }) {
       />
       <SaveLine state={saveState} className="empty:hidden" />
     </div>
+  )
+}
+
+/**
+ * The weather city as a row in My settings → General: the city, or "None",
+ * opening a box with the field, its cursor ready (Tyler, 6 Nov 2026: "general
+ * should have the same grouping ui design too").
+ */
+export function CityRow({ city }: { city: string | null }) {
+  return (
+    <PickRow label="City for the weather" empty={!city} value={city ?? "None"}>
+      <p className="text-xs text-muted-foreground">The Daily card's sky shows the weather there.</p>
+      <DailyCityField city={city} />
+    </PickRow>
   )
 }

@@ -12,9 +12,8 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { Button } from "@/components/ui/button"
@@ -112,7 +111,6 @@ export function VaultItemPanel({
         return
       }
       setDeleting(false)
-      toast.success("The idea is out of the vault, with its kept copy.")
       await onDeleted(item)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
@@ -135,7 +133,6 @@ export function VaultItemPanel({
     if (!sourceUrl) return
     try {
       await navigator.clipboard.writeText(sourceUrl)
-      toast.success("Link copied.")
     } catch {
       showErrorToast("The link could not be copied.")
     }
@@ -248,8 +245,8 @@ export function VaultItemPanel({
           )}
 
           {/* Everything under the player is a card, as on the project page (Tyler, 4 Nov 2026: "all these should be in cards"). */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-vault-idea" title="Idea">
+          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-vault-idea" title="Idea">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
             <div className="grid gap-2">
               <Label htmlFor={`vault-status-${item.id}`}>Status</Label>
@@ -294,10 +291,10 @@ export function VaultItemPanel({
               </div>
             )}
           </div>
-          </InspectorCard>
+          </PanelCard>
 
           {item.post ? (
-            <InspectorCard storageId="viral-vault-post" title="The post">
+            <PanelCard storageId="viral-vault-post" title="The post">
               <div className="grid gap-2 text-sm break-words">
                 {item.post.community ? <p className="text-xs text-muted-foreground">r/{item.post.community}</p> : null}
                 {item.post.title ? <p className="font-medium">{item.post.title}</p> : null}
@@ -308,10 +305,10 @@ export function VaultItemPanel({
                   </a>
                 ) : null}
               </div>
-            </InspectorCard>
+            </PanelCard>
           ) : null}
 
-          <InspectorCard storageId="viral-vault-numbers" title="Numbers">
+          <PanelCard storageId="viral-vault-numbers" title="Numbers">
             {item.kind === "own" ? (
               <p className="text-sm text-muted-foreground">Your posts of this idea show here once Promo reports them.</p>
             ) : null}
@@ -337,7 +334,7 @@ export function VaultItemPanel({
               {/* Your own posts of it, as Promo reported them (features task part 21). */}
               <YourPostRows itemId={item.id} refreshKey={item.status} />
             </dl>
-          </InspectorCard>
+          </PanelCard>
 
           {item.analysis ? (
             <AnalysisCards
@@ -405,7 +402,6 @@ function WriteScriptCard({ item, onChanged }: { item: VaultItem; onChanged: (ite
     setBusy(true)
     try {
       onChanged(await writeOwnIdeaScriptFn(item.id))
-      toast.success("The script is written. Press the pencil on it to change any part.")
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -414,7 +410,7 @@ function WriteScriptCard({ item, onChanged }: { item: VaultItem; onChanged: (ite
   }
 
   return (
-    <InspectorCard storageId="viral-vault-own-script" title="Script">
+    <PanelCard storageId="viral-vault-own-script" title="Script">
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm">
         <p className="text-muted-foreground">
           No script yet. The AI writes one for the project's topic from the title and your notes
@@ -427,7 +423,7 @@ function WriteScriptCard({ item, onChanged }: { item: VaultItem; onChanged: (ite
           </Button>
         </div>
       </div>
-    </InspectorCard>
+    </PanelCard>
   )
 }
 

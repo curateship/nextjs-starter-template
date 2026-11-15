@@ -107,7 +107,7 @@ attempt is a row too, with the words that were tried and the reason.
 Because an answer is a comment the account sent, it counts in the Projects
 table's comments sent, toward the account's pace, and toward the account
 showing as Working on the
-[Accounts dashboard](accounts-dashboard.md).
+[the Projects dashboard's Accounts](accounts-dashboard.md).
 
 Answers are not rows of their own on the Sent tab. They show under the
 reply they answer, in the Replies window. For the same reason they are never

@@ -19,6 +19,10 @@ const authenticatedRoute = getRouteApi("/_authenticated")
  *   arrival. A remembered record that is no longer in the list gives way to the
  *   first row too, rather than opening on an error. It happens on arrival only:
  *   closing the record afterwards leaves the panel empty, as asked.
+ * - **A new section is an arrival.** On a dashboard of sections that keeps
+ *   one frame while the section changes (the Admin dashboard, the CRM), each
+ *   `section` picked opens its own first row too, as it did while each
+ *   section had a frame of its own.
  *
  * The open record is `?open=<id>` on every dashboard (`readOpenSearch`). The
  * place is kept in this browser, once per person and per site, so one site's
@@ -33,6 +37,7 @@ export function useDashboardPlace({
   search,
   ids,
   ready = true,
+  section,
   onQuietOpen,
 }: {
   /** One of `panelLayoutKey`'s `…Place` keys. */
@@ -47,6 +52,8 @@ export function useDashboardPlace({
    * a remembered folder never opens a row from the folder it replaced.
    */
   ready?: boolean
+  /** The section showing, on a dashboard of sections; a new one is an arrival. */
+  section?: string
   onQuietOpen: (id: string) => void
 }) {
   const navigate = useNavigate()
@@ -65,6 +72,7 @@ export function useDashboardPlace({
   // already taken rather than taking it twice.
   const stepRef = React.useRef<"start" | "restoring" | "opening" | "done">("start")
   const restoredRef = React.useRef(false)
+  const sectionRef = React.useRef(section)
   // Counts the remembered addresses that have finished loading, so the
   // effect runs again with the list they brought.
   const [restores, setRestores] = React.useState(0)
@@ -77,6 +85,16 @@ export function useDashboardPlace({
 
   React.useEffect(() => {
     const place = JSON.parse(placeJson) as Record<string, unknown>
+    if (section !== sectionRef.current) {
+      sectionRef.current = section
+      // Only a section picked after arrival is a new arrival. One that
+      // changes while a remembered address loads is that address, whose open
+      // record still has to be checked against the list.
+      if (stepRef.current === "done") {
+        restoredRef.current = false
+        stepRef.current = "opening"
+      }
+    }
     if (stepRef.current === "start") {
       const saved = Object.keys(place).length === 0 ? readPlace(storageKey) : null
       stepRef.current = "opening"
@@ -117,7 +135,7 @@ export function useDashboardPlace({
       }
     }
     writePlace(storageKey, placeJson)
-  }, [placeJson, storageKey, idsJson, ready, navigate, restores])
+  }, [placeJson, storageKey, idsJson, ready, navigate, restores, section])
 }
 
 /**

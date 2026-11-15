@@ -1,14 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { FrontPageEditor } from "@/components/pages/front-page-editor"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { useShellRuntime } from "@/components/shell/shell-layout"
-import { loadPageBlocks } from "@/lib/api/content/page-blocks"
-import {
-  getPagesErrorMessage,
-  loadPagesOverview,
-  loadWrittenPageForEdit,
-} from "@/lib/api/content/pages"
 import {
   FRONT_PAGE_PATH,
   MAX_PAGE_PATH_LENGTH,
@@ -34,64 +25,19 @@ function readEditSearch(search: Record<string, unknown>) {
   }
 }
 
+/**
+ * The page builder opens inside the Admin dashboard's Pages section since
+ * 9 Nov 2026 (Tyler: "Clicking on editing a page should not forward me to an
+ * isolated page editor. Look at how automation does it"). This address stays
+ * so older links and bookmarks land on the same page there.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pages_/edit")({
   validateSearch: readEditSearch,
-  // The page's address is what this screen loads, so it keys the cached data.
-  // Without it, Home and About shared one cache entry, and opening About drew
-  // Home's blocks (and Home in the breadcrumb) for a moment before swapping.
-  loaderDeps: ({ search }) => ({ path: search.path }),
-  loader: async ({ deps: { path } }) => {
-    const overview = await loadPagesOverview()
-    const page = overview.rows.find((row) => row.path === path)
-    // A page that is not built from blocks has nothing to edit here, and the
-    // list is the honest place to land. The page's own card decides, so an app
-    // that gives a second page blocks gets this screen with no change here.
-    if (!page?.blocks) {
-      throw redirect({
-        to: "/admin/pages",
-        search: { q: undefined, group: undefined },
-      })
-    }
-    // The page's own row, when an admin added it. A page the code declares has
-    // none, and its name and address are in its file rather than in a table.
-    const [blocks, writtenPage] = await Promise.all([
-      loadPageBlocks(path),
-      page.writtenPageId ? loadWrittenPageForEdit(path) : null,
-    ])
-    // What a Pages list block may pick from: every page added to this site,
-    // in the Pages screen's own order. Read off the overview this loader
-    // already has, so it costs no request of its own. The page being built is
-    // left out, because a card linking to the page it sits on goes nowhere.
-    const pageChoices = overview.rows.flatMap((row) =>
-      row.writtenPageId && row.path !== path
-        ? [
-            {
-              id: row.writtenPageId,
-              title: row.name,
-              path: row.path,
-              visibility: row.visibility,
-            },
-          ]
-        : []
-    )
-    return { page, recordTitle: page.name, blocks, writtenPage, pageChoices }
+  beforeLoad: ({ search }) => {
+    throw redirect({
+      to: "/admin/dashboard",
+      search: { tab: "pages", open: search.path, edit: search.path },
+      replace: true,
+    })
   },
-  component: AdminFrontPageEditorRoute,
-  errorComponent: routeErrorComponent(getPagesErrorMessage),
 })
-
-function AdminFrontPageEditorRoute() {
-  const { page, blocks, writtenPage, pageChoices } = Route.useLoaderData()
-  const runtime = useShellRuntime()
-
-  return (
-    <FrontPageEditor
-      page={page}
-      writtenPage={writtenPage}
-      initialBlocks={blocks}
-      pageChoices={pageChoices}
-      config={runtime.config}
-      onConfigChange={runtime.onConfigChange}
-    />
-  )
-}

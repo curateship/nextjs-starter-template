@@ -1,27 +1,16 @@
 import * as React from "react"
-import {
-  ChevronRightIcon,
-  FolderIcon,
-  PlusIcon,
-  SettingsIcon,
-} from "lucide-react"
+import { ChevronRightIcon, FolderCogIcon, PlusIcon } from "lucide-react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ErrorRow } from "@/components/ui/error-row"
+import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
 import { MarketRowLine } from "@/components/trade/market-list-panel"
+import { useBlockFills } from "@/components/trade/notes/trade-block-views"
 import { Button } from "@/components/ui/button"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  createFolder,
-  getMarketFolderErrorMessage,
-} from "@/lib/api/trade/market-folders"
+import { createFolderAtOnce } from "@/components/trade/create-folder-at-once"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
@@ -29,7 +18,15 @@ import { compareMarketChange24h } from "@/lib/trade/market-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-/** A compact second view of the saved market folders beside the market name. */
+/**
+ * The dashboard's Folders block (the Admin 3 panel design, 7 Nov 2026): the
+ * saved folders and the markets inside them, drawn in place on the page. A
+ * new folder and Manage folders are rows of the block's ⋮
+ * (`FoldersBlockMenuRows`; Tyler, 8 Nov 2026: "replace these 2 icons wil the
+ * 3 dot dropdown. inside have add folder name, manage folder and delete
+ * block"), and Manage folders opens a popover beside the block ("replace the
+ * manage folder modal with a popover instead").
+ */
 export function MarketFoldersMenu({
   folders,
   protocol,
@@ -37,17 +34,20 @@ export function MarketFoldersMenu({
   catalogs,
   selectedMarketKey,
   onFoldersChange,
-  onManage,
+  onPanelRowsChange,
+  managing,
+  onManagingChange,
   onSelectMarket,
   panelRows,
   marketsError,
   marketsPending,
   onRetryMarkets,
-  trigger,
 }: {
-  /** A line in the phone's market menu, in place of the icon button. */
-  trigger?: React.ReactElement
   panelRows: MarketPanelRows
+  onPanelRowsChange: (rows: MarketPanelRows) => void
+  /** Manage folders is open, from the block's ⋮. */
+  managing: boolean
+  onManagingChange: (open: boolean) => void
   marketsError: string | null
   marketsPending: boolean
   onRetryMarkets: () => void
@@ -57,14 +57,11 @@ export function MarketFoldersMenu({
   catalogs: readonly FilteredMarketCatalog[]
   selectedMarketKey: string | null
   onFoldersChange: (folders: MarketFolder[]) => void
-  onManage: () => void
   onSelectMarket: (marketKey: string) => void
 }) {
-  const [open, setOpen] = React.useState(false)
   const [expandedId, setExpandedId] = React.useState<string | null>(null)
-  const [creating, setCreating] = React.useState(false)
-  const [newName, setNewName] = React.useState("")
-  const [busy, setBusy] = React.useState(false)
+  // The block reaches the panel's bottom, so the list takes all of it.
+  const fills = useBlockFills()
   const markets = React.useMemo(
     () =>
       new Map(
@@ -87,102 +84,13 @@ export function MarketFoldersMenu({
   }, [markets, panelRows.hiddenMarketKeys])
 
 
-  function submitNewFolder(event: React.FormEvent) {
-    event.preventDefault()
-    if (busy || !newName.trim()) return
-    setBusy(true)
-    void createFolder({ protocol, network, name: newName })
-      .then((next) => {
-        onFoldersChange(next)
-        setNewName("")
-        setCreating(false)
-      })
-      .catch((caught) => showErrorToast(getMarketFolderErrorMessage(caught)))
-      .finally(() => setBusy(false))
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {trigger ?? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Open folders"
-          >
-            <FolderIcon className="size-4" />
-          </Button>
-        )}
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        collisionPadding={12}
-        sideOffset={8}
-        className="flex w-[calc(100vw-2rem)] max-w-[16.8rem] flex-col gap-0 overflow-hidden p-0"
-        style={{
-          maxHeight: "var(--radix-popover-content-available-height)",
-        }}
-      >
-        <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3 text-sm font-semibold">
-          <FolderIcon className="size-4" />
-          <span className="min-w-0 flex-1">Folders</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 bg-muted/60 dark:bg-muted/60"
-            aria-label="Add folder"
-            onClick={() => setCreating((shown) => !shown)}
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 bg-muted/60 dark:bg-muted/60"
-            aria-label="Manage folders"
-            onClick={() => {
-              setOpen(false)
-              onManage()
-            }}
-          >
-            <SettingsIcon className="size-4" />
-          </Button>
-        </div>
+  const list = (
         <ScrollArea
-          className="min-h-0"
-          viewportClassName="max-h-[calc(var(--radix-popover-content-available-height)-2.75rem)]"
+          className="min-h-0 flex-1"
+          // Filling the panel's height, the list scrolls inside it; otherwise
+          // it keeps to 320px and the page scrolls.
+          viewportClassName={fills ? "h-full" : "max-h-80"}
         >
-          {creating ? (
-            <form
-              className="grid shrink-0 gap-2 border-b p-2"
-              onSubmit={submitNewFolder}
-            >
-              <Label htmlFor="new-market-folder-menu-name">Folder name</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="new-market-folder-menu-name"
-                  autoFocus
-                  placeholder="Majors"
-                  value={newName}
-                  maxLength={80}
-                  disabled={busy}
-                  onChange={(event) => setNewName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setCreating(false)
-                      setNewName("")
-                    }
-                  }}
-                />
-                <Button type="submit" disabled={busy || !newName.trim()}>
-                  Add
-                </Button>
-              </div>
-            </form>
-          ) : null}
           <div className="grid">
             {shownFolders.map((folder) => {
               const expanded = expandedId === folder.id
@@ -288,8 +196,87 @@ export function MarketFoldersMenu({
             ) : null}
           </div>
         </ScrollArea>
-      </PopoverContent>
-    </Popover>
+  )
+  return (
+    <>
+      {list}
+      <MarketFoldersManager
+        folders={folders}
+        protocol={protocol}
+        network={network}
+        catalogs={catalogs}
+        marketsError={marketsError}
+        marketsPending={marketsPending}
+        panelRows={panelRows}
+        onFoldersChange={onFoldersChange}
+        onPanelRowsChange={onPanelRowsChange}
+        manageOpen={managing}
+        onManageOpenChange={onManagingChange}
+      />
+    </>
+  )
+}
+
+/**
+ * The Folders block's own rows in its ⋮, above Delete block: a box to name a
+ * new folder, with + to make it, then Manage folders. The box keeps the
+ * menu's typing keys to itself, and the menu stays open while it is used.
+ */
+export function FoldersBlockMenuRows({
+  protocol,
+  network,
+  folders,
+  onFoldersChange,
+  onManage,
+}: {
+  protocol: ProtocolId
+  network: NetworkId
+  folders: readonly MarketFolder[]
+  onFoldersChange: (folders: MarketFolder[]) => void
+  onManage: () => void
+}) {
+  const [name, setName] = React.useState("")
+  function create(event: React.FormEvent) {
+    event.preventDefault()
+    const trimmed = name.trim()
+    // Never a greyed-out +: an empty press says what is missing.
+    if (!trimmed) {
+      showErrorToast("Type the folder's name first.")
+      return
+    }
+    // The folder shows at once and the box is ready for the next name; the
+    // save carries on (`createFolderAtOnce`).
+    setName("")
+    void createFolderAtOnce({ protocol, network, name: trimmed, folders, onFoldersChange })
+  }
+  return (
+    <>
+      <form className="flex gap-1.5 p-1" data-own-escape="" onSubmit={create}>
+        <Input
+          aria-label="New folder name"
+          placeholder="New folder"
+          value={name}
+          maxLength={80}
+          // The menu's own keys (letters jump to a row) stay out of the box.
+          onKeyDown={(event) => event.stopPropagation()}
+          onChange={(event) => setName(event.target.value)}
+          className="h-8"
+        />
+        <Button
+          type="submit"
+          size="icon-sm"
+          variant="outline"
+          aria-label="Add folder"
+          className="size-8"
+        >
+          <PlusIcon className="size-4" />
+        </Button>
+      </form>
+      <DropdownMenuItem onSelect={onManage}>
+        <FolderCogIcon className="size-4" />
+        Manage folders
+      </DropdownMenuItem>
+    </>
   )
 }
 

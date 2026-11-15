@@ -69,9 +69,10 @@ export function useSlidingPill<T extends HTMLElement>({
 
     // jsdom has no ResizeObserver, and a component test that renders one of
     // these controls should not fail over the pill following a resize.
+    const place = () => setPill(readPill(track, selected))
     const sizes =
       typeof ResizeObserver === "function"
-        ? new ResizeObserver(() => setPill(readPill(track, selected)))
+        ? new ResizeObserver(place)
         : null
     const watchButtons = () => {
       if (!sizes) return
@@ -82,7 +83,7 @@ export function useSlidingPill<T extends HTMLElement>({
 
     const choice = new MutationObserver(() => {
       watchButtons()
-      setPill(readPill(track, selected))
+      place()
     })
     choice.observe(track, {
       subtree: true,
@@ -93,7 +94,7 @@ export function useSlidingPill<T extends HTMLElement>({
     })
 
     watchButtons()
-    setPill(readPill(track, selected))
+    place()
     const settle = requestAnimationFrame(() => setSlides(true))
 
     return () => {

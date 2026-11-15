@@ -72,12 +72,12 @@ export async function refusePhoneNotReady(
   }
   if (phone.needsWipeAt) {
     throw new Error(
-      `The phone ${phone.name} needs wiping: an account left it on ${dateWords(phone.needsWipeAt)}, and a new account never inherits an old one's phone. Wipe it from its window on the Phones dashboard before it takes an account.`
+      `The phone ${phone.name} needs wiping: an account left it on ${dateWords(phone.needsWipeAt)}, and a new account never inherits an old one's phone. Wipe it from the phone on its rack's page before it takes an account.`
     )
   }
   if (phone.wipedAt && !(phone.setupCheck?.passed && phone.setupCheckedAt && phone.setupCheckedAt > phone.wipedAt)) {
     throw new Error(
-      `The phone ${phone.name} was wiped on ${dateWords(phone.wipedAt)} and has to be set up again: run its setup check from its window on the Phones dashboard, and fix every line until it passes, before it takes an account.`
+      `The phone ${phone.name} was wiped on ${dateWords(phone.wipedAt)} and has to be set up again: run its setup check from the phone on its rack's page, and fix every line until it passes, before it takes an account.`
     )
   }
 }

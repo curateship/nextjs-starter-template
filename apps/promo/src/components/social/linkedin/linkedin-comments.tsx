@@ -121,8 +121,7 @@ export function LinkedinCommentsList({
               onClick={async () => {
                 setChecking(true)
                 try {
-                  const { queued } = await checkLinkedinNow({ commentRowIds: checkable.slice(0, 50) })
-                  toast.success(queued ? `Checking ${queued} ${queued === 1 ? "comment" : "comments"}.` : "Every one is being checked already.")
+                  await checkLinkedinNow({ commentRowIds: checkable.slice(0, 50) })
                   await onChanged()
                 } catch (failure) {
                   showErrorToast(getLinkedinErrorMessage(failure))
@@ -256,8 +255,7 @@ export function LinkedinCommentPanel({
               disabled={busy !== null}
               onClick={() =>
                 void run("check", async () => {
-                  const { queued } = await checkLinkedinNow({ commentRowIds: [row.id] })
-                  toast.success(queued ? "Checking it now." : "It is being checked already.")
+                  await checkLinkedinNow({ commentRowIds: [row.id] })
                 })
               }
             >
@@ -333,7 +331,6 @@ export function LinkedinCommentPanel({
                         if (!words.trim()) throw new Error("Write the new words first, or delete it instead.")
                         const changed = await changeOnLinkedin({ commentRowId: row.id, action: "edit", text: words.trim() })
                         setEditing(false)
-                        toast.success("The new words are on their way to LinkedIn.")
                         if (changed.similarTo) toast.warning(`It still goes. ${changed.similarTo}`)
                       })
                     }
@@ -434,11 +431,6 @@ export function LinkedinCommentPanel({
                       onClick={() =>
                         void run("retry", async () => {
                           const queued = await dealWithFailedLinkedinComment(row.id, "retry")
-                          toast.success(
-                            queued?.runAfter && !queued.undoUntil
-                              ? linkedinWaitingText(new Date(queued.runAfter), row.account ? linkedinAccountName(row.account.handle) : null)
-                              : "Sent again. It goes through every check a first press does."
-                          )
                           if (queued?.similarTo) toast.warning(`It still goes. ${queued.similarTo}`)
                           onClose()
                         })
@@ -491,7 +483,6 @@ export function LinkedinCommentPanel({
             ? void run("delete", async () => {
                 await changeOnLinkedin({ commentRowId: row.id, action: "delete" })
                 setConfirmDelete(false)
-                toast.success("On its way to being deleted on LinkedIn.")
               })
             : undefined
         }
@@ -603,10 +594,7 @@ export function LinkedinConnectDialog({
               }
               setSending(true)
               try {
-                const queued = await sendLinkedinConnect({ accountId, note: note.trim(), from })
-                toast.success(
-                  queued.runAfter ? linkedinWaitingText(new Date(queued.runAfter), accountName) : `The request to ${personName || "them"} is on its way.`
-                )
+                await sendLinkedinConnect({ accountId, note: note.trim(), from })
                 await onSent()
                 onClose()
               } catch (failure) {
@@ -716,13 +704,12 @@ export function LinkedinIncomingAnswer({
   }, [sent])
 
   /** Takes a waiting answer back before it goes, and puts its words back in the box. */
-  async function takeBack(waiting: { commentRowId: string; text: string }, said: string) {
+  async function takeBack(waiting: { commentRowId: string; text: string }) {
     setBusy("undo")
     try {
       await takeBackLinkedinComment(waiting.commentRowId)
       setText(waiting.text)
       setSent(null)
-      toast.success(said)
       await onChanged()
     } catch (failure) {
       showErrorToast(getLinkedinErrorMessage(failure))
@@ -749,7 +736,7 @@ export function LinkedinIncomingAnswer({
             <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             Sending in {undoSeconds} {undoSeconds === 1 ? "second" : "seconds"}.
           </span>
-          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent, "Taken back. Nothing was sent.")}>
+          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent)}>
             {busy === "undo" ? <Loader2Icon className="animate-spin" /> : <Undo2Icon />}
             Take it back
           </Button>
@@ -760,7 +747,7 @@ export function LinkedinIncomingAnswer({
             <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {linkedinWaitingText(sent.runAfter, handle ? linkedinAccountName(handle) : null)}
           </span>
-          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent, "Cancelled. Nothing was sent.")}>
+          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void takeBack(sent)}>
             {busy === "undo" ? <Loader2Icon className="animate-spin" /> : null}
             Cancel it
           </Button>

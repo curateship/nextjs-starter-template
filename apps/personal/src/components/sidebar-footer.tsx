@@ -13,6 +13,7 @@ import {
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
+  PanelLeftIcon,
   PencilIcon,
   PinIcon,
   RotateCwIcon,
@@ -40,10 +41,14 @@ import { KEPT_FRAME_CHOICES } from "@/lib/frames"
 import {
   DARK_SHADES,
   darkShade,
+  DEFAULT_MENU_EDGE,
   DEFAULT_MENU_SHADE,
   type DarkShadeId,
+  MAX_MENU_EDGE,
   MAX_MENU_SHADE,
+  menuEdgeLabel,
   menuShadeLabel,
+  MIN_MENU_EDGE,
   MIN_MENU_SHADE,
   parseAppUrl,
   personalPath,
@@ -80,6 +85,9 @@ export type PanelControls = {
   /** The left menu's shade, saved to the menu file. */
   shade: number
   setShade: (shade: number) => void
+  /** How strong the line down the menu's right edge is, saved to the menu file. */
+  edge: number
+  setEdge: (edge: number) => void
   /** How dark the dark mode is, saved to the menu file. */
   darkShade: DarkShadeId
   setDarkShade: (shade: DarkShadeId) => void
@@ -192,7 +200,7 @@ function SaveState({ status, onRetry }: { status: SaveStatus; onRetry: () => voi
   )
 }
 
-type CogView = "main" | "recent" | "pin" | "zoom" | "kept" | "shade" | "dark"
+type CogView = "main" | "recent" | "pin" | "zoom" | "kept" | "shade" | "edge" | "dark"
 
 /**
  * The cog's main list is drawn to Tyler's picture of 28 Oct 2026, measured
@@ -384,6 +392,46 @@ function ShadeControl({ panel }: { panel: PanelControls }) {
 }
 
 /**
+ * The slider for the line down the menu's right edge, from none to the
+ * theme's full line, changing it as it moves. Tyler asked for it on 9 Nov 2026.
+ */
+function EdgeControl({ panel }: { panel: PanelControls }) {
+  return (
+    <>
+      <div className="flex flex-col gap-2 px-2 py-2">
+        <Slider
+          aria-label="Menu edge"
+          aria-valuetext={menuEdgeLabel(panel.edge)}
+          min={MIN_MENU_EDGE}
+          max={MAX_MENU_EDGE}
+          step={1}
+          value={[panel.edge]}
+          onValueChange={([edge]) => panel.setEdge(edge)}
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Fainter</span>
+          <span>{menuEdgeLabel(panel.edge)}</span>
+          <span>Stronger</span>
+        </div>
+      </div>
+      {panel.edge !== DEFAULT_MENU_EDGE ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              panel.setEdge(DEFAULT_MENU_EDGE)
+            }}
+          >
+            Back to the default edge
+          </DropdownMenuItem>
+        </>
+      ) : null}
+    </>
+  )
+}
+
+/**
  * The cog: opening the screen in its own tab, recent screens, pinning, zoom,
  * phone view, how many screens stay loaded, colour mode, the menu's shade,
  * "Edit the menu"
@@ -462,6 +510,11 @@ function CogMenu({
           <>
             <StepOutItem label="Menu shade" onStep={() => setView("main")} />
             <ShadeControl panel={panel} />
+          </>
+        ) : view === "edge" ? (
+          <>
+            <StepOutItem label="Menu edge" onStep={() => setView("main")} />
+            <EdgeControl panel={panel} />
           </>
         ) : view === "dark" ? (
           <>
@@ -542,6 +595,12 @@ function CogMenu({
               label="Menu shade"
               value={menuShadeLabel(panel.shade)}
               onStep={() => setView("shade")}
+            />
+            <StepInItem
+              icon={<PanelLeftIcon className={COG_ICON} />}
+              label="Menu edge"
+              value={menuEdgeLabel(panel.edge)}
+              onStep={() => setView("edge")}
             />
             <StepInItem
               icon={<MoonIcon className={COG_ICON} />}

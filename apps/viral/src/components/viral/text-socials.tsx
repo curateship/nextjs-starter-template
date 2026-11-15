@@ -13,11 +13,9 @@ import {
   SparklesIcon,
   XIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { InspectorCard } from "@/components/shared/inspector-card"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -108,8 +106,6 @@ export function SocialWatchesCard({
       onChanged()
       const label = watchLabel(answer.watch.kind, answer.watch.value)
       if (answer.readError) showErrorToast(`${label} is on ${name} here, but Promo couldn't read it: ${answer.readError}`)
-      else if (answer.watch.status === "never") toast.success(`${label} is on ${name} here. It is read once Promo is connected.`)
-      else toast.success(`${label} is on ${name} here. Promo is reading it; its posts arrive in the middle.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -122,7 +118,6 @@ export function SocialWatchesCard({
     try {
       await readSocialWatchFn(watch.id)
       onChanged()
-      toast.success(`Promo is reading ${watchLabel(watch.kind, watch.value)} again.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
       onChanged()
@@ -136,7 +131,6 @@ export function SocialWatchesCard({
     try {
       await removeSocialWatchFn(watch.id)
       onChanged()
-      toast.success(`${watchLabel(watch.kind, watch.value)} is off ${name} here.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -495,10 +489,9 @@ export function PostThreadPanel({
   const current = shown
   const name = SOCIAL_NAMES[current.network]
 
-  async function copy(text: string, said: string) {
+  async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success(said)
     } catch {
       showErrorToast("It could not be copied. Select it and copy it instead.")
     }
@@ -536,7 +529,7 @@ export function PostThreadPanel({
               icon={<CopyIcon className="size-4" />}
               onClick={() => {
                 setMenuOpen(false)
-                void copy(current.url, "Link copied.")
+                void copy(current.url)
               }}
             >
               Copy link
@@ -545,7 +538,7 @@ export function PostThreadPanel({
               icon={<CopyIcon className="size-4" />}
               onClick={() => {
                 setMenuOpen(false)
-                void copy([current.title, current.text].filter(Boolean).join("\n\n"), "Post text copied.")
+                void copy([current.title, current.text].filter(Boolean).join("\n\n"))
               }}
             >
               Copy the text
@@ -554,8 +547,8 @@ export function PostThreadPanel({
         }
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
-          <InspectorCard storageId="viral-post-words" title="The post">
+        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <PanelCard storageId="viral-post-words" title="The post">
             <div className="grid gap-2 text-sm break-words">
               {current.title ? <p className="font-medium">{current.title}</p> : null}
               <p className="whitespace-pre-wrap">{current.text || "This post has no words, only a picture or video."}</p>
@@ -565,8 +558,8 @@ export function PostThreadPanel({
                 </a>
               ) : null}
             </div>
-          </InspectorCard>
-          <InspectorCard storageId="viral-post-numbers" title="Numbers">
+          </PanelCard>
+          <PanelCard storageId="viral-post-numbers" title="Numbers">
             <dl className="grid gap-2 text-sm">
               {figures.map((figure) => (
                 <Figure key={figure.label} label={figure.label} value={figure.value === null ? "-" : figure.value.toLocaleString("en-US")} />
@@ -576,8 +569,8 @@ export function PostThreadPanel({
                 value={current.authorFollowers === null ? "-" : current.authorFollowers.toLocaleString("en-US")}
               />
             </dl>
-          </InspectorCard>
-          <InspectorCard storageId="viral-post-replies" title={current.network === "x" ? "Top replies" : "Top comments"}>
+          </PanelCard>
+          <PanelCard storageId="viral-post-replies" title={current.network === "x" ? "Top replies" : "Top comments"}>
             {current.topReplies.length ? (
               <ol className="grid gap-3 text-sm">
                 {current.topReplies.map((reply, index) => (
@@ -602,7 +595,7 @@ export function PostThreadPanel({
             ) : (
               <p className="text-sm text-muted-foreground">No replies yet.</p>
             )}
-          </InspectorCard>
+          </PanelCard>
         </div>
       </ScrollArea>
       {/* The sticky footer, as a video's right panel has one (more-features task part 2). */}
@@ -659,7 +652,6 @@ function SavePostToVault({
     try {
       await savePostToVaultFn(post.id)
       setSaved(true)
-      toast.success(saved ? "The idea in the vault is written again." : "Saved to the vault, with why it works, a script, more ideas and a title.")
       await onSaved()
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))

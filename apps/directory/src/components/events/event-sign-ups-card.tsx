@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -142,7 +141,6 @@ export function EventSignUpsCard({
       onListsChange(
         await removeEventSignUp({ eventId, signUpId: removing.person.id })
       )
-      toast.success(`${removing.person.name} was taken off the list.`)
       setAsking(false)
     } catch (error) {
       showErrorToast(getSignUpErrorMessage(error))

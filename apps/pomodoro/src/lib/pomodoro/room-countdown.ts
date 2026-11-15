@@ -50,3 +50,24 @@ export function isStartingSoon(
     (room.countdownSeconds ?? 0) >= STARTING_SOON_MIN_SECONDS
   )
 }
+
+/**
+ * The last seconds of "Starting in" that tick (Tyler, 7 Nov 2026: "Add a
+ * ticker sound when room starts coutdown to start", the last 10 seconds). The
+ * default 5-second countdown ticks all the way through.
+ */
+export const START_TICK_SECONDS = 10
+
+/**
+ * Whether the countdown just reached a new whole second that ticks. One tick
+ * per second shown, so a tab that was asleep and wakes with 3 seconds left
+ * ticks once, never a burst for the seconds it missed.
+ */
+export function startTickDue(lastTicked: number | null, secondsLeft: number | null) {
+  return (
+    secondsLeft !== null &&
+    secondsLeft >= 1 &&
+    secondsLeft <= START_TICK_SECONDS &&
+    secondsLeft !== lastTicked
+  )
+}

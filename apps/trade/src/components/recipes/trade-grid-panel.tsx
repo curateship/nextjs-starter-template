@@ -1,4 +1,12 @@
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  Grid3x3Icon,
+  ListOrderedIcon,
+  PlusIcon,
+  ShieldIcon,
+  Trash2Icon,
+  TrendingUpIcon,
+  ZapIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -72,7 +80,7 @@ export default function TradeGridFields({
 
   return (
     <>
-      <InspectorCard title="What calls the grid">
+      <InspectorCard title="What calls the grid" icon={<ZapIcon />}>
         <TradeNumberField
           id={`grid-${node.id}-hours`}
           label="Clean hours"
@@ -104,7 +112,7 @@ export default function TradeGridFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="Grid">
+      <InspectorCard title="Grid" icon={<Grid3x3Icon />}>
         {settings.grid.manualSizing ? (
           <InspectorNote>
             The Rungs card sets the level count. This grid has {rungPcts.length}{" "}
@@ -190,7 +198,7 @@ export default function TradeGridFields({
         </div>
       </InspectorCard>
 
-      <InspectorCard title="Rungs">
+      <InspectorCard title="Rungs" icon={<ListOrderedIcon />}>
         <InspectorNote>
           Range and the number of rungs set how far apart the rung prices are.
           Use Add rung or the trash button when custom rungs are on. Custom rung
@@ -289,7 +297,7 @@ export default function TradeGridFields({
         )}
       </InspectorCard>
 
-      <InspectorCard title="Following price">
+      <InspectorCard title="Following price" icon={<TrendingUpIcon />}>
         <div className="flex items-center gap-2">
           <Checkbox
             id={`grid-${node.id}-follow-up`}
@@ -342,7 +350,7 @@ export default function TradeGridFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="Safety stop">
+      <InspectorCard title="Safety stop" icon={<ShieldIcon />}>
         <TradeNumberField
           id={`grid-${node.id}-stop`}
           label="Emergency stop past the losing edge"

@@ -240,7 +240,7 @@ export async function ensureSession(
 
   // Never behind a proxy whose last test failed. Otherwise the open waits five
   // minutes and then blames the browser, which sends a person to Docker when
-  // the fix is on the Proxies dashboard.
+  // the fix is in the Anti Detect dashboard's Proxies.
   const refusal = proxy ? deadProxyMessage(proxy) : null
   if (refusal) {
     await recordProfileEvent(userId, profileId, "proxy_refused", refusal, db)
@@ -665,7 +665,7 @@ function containerEnv(
     // fonts and graphics cards are drawn to match. The rest of the identity is
     // the profile's own, kept in its volume (see docker/browser/launch.py).
     "FP_OS=windows",
-    // Asked for by "Make a new identity" on the Browser profiles dashboard.
+    // Asked for by "Make a new identity" in the Anti Detect dashboard's Profiles.
     ...(profile.fingerprint?.renew ? ["FP_NEW_IDENTITY=1"] : []),
     "START_URL=https://www.reddit.com/",
   ]

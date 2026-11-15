@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { SavedView } from "@/lib/api/project/finding"
-import type { Label as TaskLabel } from "@/lib/api/project/sorting"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { TASK_PRIORITY_LABEL, TASK_STATUS_LABEL } from "@/lib/project/rules"
 import {
@@ -21,7 +20,6 @@ import {
 } from "@/lib/project/saved-views"
 import { NOBODY_FILTER, type TaskFilters } from "@/lib/project/task-filters"
 import { TASK_GROUPING_LABEL, type TaskGrouping } from "@/lib/project/task-groups"
-import type { TaskType } from "@/lib/project/task-types"
 import { SAVED_VIEW_ERRORS, type SavedViewValues } from "@/lib/saved-views"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -30,8 +28,6 @@ type Here = {
   screen: string
   /** The project's members, for the Person filter. My tasks has none. */
   people?: { id: string; name: string }[]
-  labels: TaskLabel[]
-  types: TaskType[]
   /** The clients of the tasks shown, for Edit view's Client row. Only My tasks has one. */
   clients?: readonly string[]
   /** The projects for Edit view's Project row. Only the site admin's My tasks has one. */
@@ -46,8 +42,8 @@ type Here = {
  * named filters on one project or on My tasks; opening it sets the same
  * filters, and so the same address, as picking them by hand. A view with a
  * group sets the Group row too; one without leaves it as it is, the way Clear
- * does. A view naming someone no longer on the project, or a deleted label,
- * says so and opens with the rest. Each row's cog opens Edit view, to rename
+ * does. A view naming someone no longer on the project says so and opens
+ * with the rest. Each row's cog opens Edit view, to rename
  * it or change what it shows (Tyler, 20 Oct 2026).
  */
 /** Every filter a view can set, emptied, so opening one or "No view" starts clean. */
@@ -56,8 +52,6 @@ const NO_FILTERS: Partial<TaskFilters> = {
   status: undefined,
   priority: undefined,
   person: undefined,
-  label: undefined,
-  type: undefined,
   due: undefined,
   client: undefined,
   project: undefined,
@@ -147,7 +141,7 @@ function describeViewError(error: unknown) {
   return (Object.values(SAVED_VIEW_ERRORS) as string[]).includes(message) ? message : getProjectErrorMessage(error)
 }
 
-/** "Stuck · Leo · Bug", so a view says what it shows before it is opened. */
+/** "Stuck · Leo · High priority", so a view says what it shows before it is opened. */
 function describeView(view: { filters: SavedViewFilters; names: SavedViewNames }, here: Here) {
   const { filters, names } = view
   const parts: string[] = []
@@ -160,12 +154,6 @@ function describeView(view: { filters: SavedViewFilters; names: SavedViewNames }
         ? "Nobody assigned"
         : (here.people?.find((person) => person.id === filters.person)?.name ?? names.person ?? "Someone who left")
     )
-  }
-  if (filters.label) {
-    parts.push(here.labels.find((label) => label.id === filters.label)?.name ?? names.label ?? "A deleted label")
-  }
-  if (filters.type) {
-    parts.push(here.types.find((type) => type.id === filters.type)?.name ?? names.type ?? "A deleted template")
   }
   if (filters.project) {
     parts.push(here.projects?.find((project) => project.id === filters.project)?.name ?? "A closed project")
@@ -197,8 +185,6 @@ function editFields(here: Here): EditFields {
           idPrefix="edit-view"
           filters={filters}
           onChange={(patch) => change(patch as Record<string, string | undefined>)}
-          labels={here.labels}
-          types={here.types}
           clients={here.clients}
           projects={here.projects}
         >

@@ -290,45 +290,30 @@ describe("the Smart orders panel", () => {
   // Hide on empty (Tyler, 8 Oct 2026): the dashboard leaves out a panel that
   // says it is empty, so "empty" has to mean "nothing to show" and never
   // "could not read".
-  it("tells the dashboard when it has nothing to show, and when it has a row again", async () => {
+  // "Hide empty blocks" (Tyler, 8 Nov 2026) hides a block only on the "none
+  // working" answer: never while it is still reading, never after a failed
+  // read, whose Try again has to stay reachable.
+  it("says it is empty only when it has answered that nothing is working", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
+    window.localStorage.clear()
     const host = document.createElement("div")
     const root = createRoot(host)
-    const onEmptyChange = vi.fn()
-    const render = (state: {
-      smartOrders: readonly SmartOrder[]
-      settled: boolean
-      failed: boolean
-    }) =>
+    const told = vi.fn()
+    const show = (state: { smartOrders: readonly SmartOrder[]; settled: boolean; failed: boolean }) =>
       act(async () => {
-        root.render(
-          <SmartOrdersPanel
-            {...shared}
-            cacheScope="test:empty-report"
-            {...state}
-            onEmptyChange={onEmptyChange}
-          />
-        )
+        root.render(<SmartOrdersPanel {...shared} {...state} onEmptyChange={told} />)
       })
 
-    await render({ smartOrders: [], settled: true, failed: false })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(true)
-
-    await render({
-      smartOrders: [grid as SmartOrder],
-      settled: true,
-      failed: false,
-    })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(false)
-
-    await render({ smartOrders: [], settled: true, failed: false })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(true)
-
-    // A refused read with nothing listed keeps its Retry button on screen.
-    await render({ smartOrders: [], settled: true, failed: true })
-    expect(onEmptyChange).toHaveBeenLastCalledWith(false)
+    await show({ smartOrders: [], settled: false, failed: false })
+    expect(told).toHaveBeenLastCalledWith(false)
+    await show({ smartOrders: [], settled: true, failed: true })
+    expect(told).toHaveBeenLastCalledWith(false)
+    await show({ smartOrders: [], settled: true, failed: false })
+    expect(told).toHaveBeenLastCalledWith(true)
+    await show({ smartOrders: [xmrGrid], settled: true, failed: false })
+    expect(told).toHaveBeenLastCalledWith(false)
     await act(async () => root.unmount())
   })
 
@@ -703,7 +688,12 @@ describe("the Smart orders panel", () => {
       ?.closest("button")
     await act(async () => ticker?.click())
 
-    expect(ticker?.closest("tr")?.dataset.state).toBe("selected")
+    const row = ticker?.closest("tr")
+    expect(row?.dataset.state).toBeUndefined()
+    expect(row?.getAttribute("aria-current")).toBe("true")
+    expect(row?.querySelector("[data-dashboards-bar]")?.className).toContain(
+      "w-3"
+    )
     await act(async () => root.unmount())
     host.remove()
   })

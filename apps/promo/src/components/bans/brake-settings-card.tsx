@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -45,7 +44,6 @@ export function BrakeSettingsCard() {
               setBusy(brake.app)
               try {
                 await releaseAppBrake(brake.app)
-                toast.success(`${appName(brake.app)} runs again.`)
                 read()
               } catch (failure) {
                 showErrorToast(getBansErrorMessage(failure))

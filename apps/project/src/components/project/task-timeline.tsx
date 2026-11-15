@@ -68,7 +68,7 @@ export function TaskTimeline({
   tasks: TaskCard[]
   /** The groups from Filter's Group row, or My dashboard's projects; left out, one plain list. */
   groups?: TimelineGroup[]
-  /** Which groups a task is under; a task with several tags is under each. */
+  /** Which groups a task is under. */
   groupsOf: (task: TaskCard) => string[]
   readOnly: boolean
   onOpenTask: (taskId: string) => void

@@ -40,13 +40,10 @@ export const Route = createFileRoute("/register")({
     if (user) {
       throw redirect({ to: "/home", replace: true })
     }
-    if (deps.invalidReferral) {
-      throw new Error("REFERRAL_NOT_FOUND")
-    }
     if (deps.plan && !pricing?.plans.some((plan) => plan.slug === deps.plan)) {
       throw redirect({
         to: "/register",
-        search: { interval: deps.interval, ref: deps.ref },
+        search: { interval: deps.interval },
         replace: true,
       })
     }
@@ -58,7 +55,7 @@ export const Route = createFileRoute("/register")({
 
 function RegisterRoute() {
   const { siteKey, google, linkExpiry } = Route.useLoaderData()
-  const { ref: referralCode, email: carriedEmail } = Route.useSearch()
+  const { email: carriedEmail } = Route.useSearch()
   const [name, setName] = React.useState("")
   // Seeded once. A visitor who types over it must not have it put back on the
   // next render, and the address is already in the page's own address bar.
@@ -91,7 +88,6 @@ function RegisterRoute() {
           email,
           password,
           humanCheckToken: humanCheckToken ?? undefined,
-          referralCode,
         })
         setRegistered(true)
       } catch (registerError) {
@@ -103,7 +99,7 @@ function RegisterRoute() {
         setLoading(false)
       }
     },
-    [email, name, password, referralCode, siteKey]
+    [email, name, password, siteKey]
   )
 
   if (registered) {
@@ -190,10 +186,7 @@ function RegisterRoute() {
         )}
       </Button>
       {google ? (
-        <GoogleSignIn
-          label="Continue with Google"
-          referralCode={referralCode}
-        />
+<GoogleSignIn label="Continue with Google" />
       ) : null}
     </AuthShell>
   )

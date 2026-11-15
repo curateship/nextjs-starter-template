@@ -23,7 +23,7 @@ and never hand off to each other. CMS is left out for now.
   address against the app addresses in Project's server settings (below).
   Anything else is refused in words, including another page of the same app.
 - **One record per task.**
-- **The task shows a button, never the address.** It sits under the tags in
+- **The task shows a button, never the address.** It sits under the title in
   the task's right panel, and above the Task card in the task's window. The
   person assigned and the site admin see the button. Anyone else on the task
   reads "This task points at a video project. Only the person assigned and

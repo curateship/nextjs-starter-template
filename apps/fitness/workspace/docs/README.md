@@ -25,3 +25,4 @@ What is true of this app. What is true of every app is in the repo's `docs/`.
 - [Sharing a program](sharing-a-program.md): the public page at `/r/<code>` and copying it.
 - [Going live](launch.md): the live address, the German server, the Coolify resources, email, storage, every live value, and the release record.
 - [Shell integration](shell-integration.md) — each shell merge into Fitness: what arrived, what stayed Fitness's own.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

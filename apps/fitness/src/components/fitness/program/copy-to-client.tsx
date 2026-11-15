@@ -1,7 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -42,7 +40,6 @@ export function CopyToClientDialog({
   programName: string
   onClose: () => void
 }) {
-  const navigate = useNavigate()
   const [clients, setClients] = React.useState<Client[] | null>(null)
   const [failed, setFailed] = React.useState<string | null>(null)
   const [clientId, setClientId] = React.useState("")
@@ -81,11 +78,7 @@ export function CopyToClientDialog({
     }
     setBusy(true)
     try {
-      const { id, leftOut } = await copyToClient(programId, client.userId)
-      const left = leftOut.length ? ` Left out ${leftOut.join(", ")}, which ${leftOut.length === 1 ? "is" : "are"} yours.` : ""
-      toast.success(`Copied to ${client.name}'s programs.${left}`, {
-        action: { label: "Open it", onClick: () => void navigate({ to: "/programs/$programId", params: { programId: id } }) },
-      })
+      await copyToClient(programId, client.userId)
       close()
     } catch (error) {
       reportFitnessError(error)

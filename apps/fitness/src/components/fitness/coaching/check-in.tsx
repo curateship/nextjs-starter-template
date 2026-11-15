@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { ClipboardListIcon, Loader2Icon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { WeightInput } from "@/components/fitness/weight-input"
 import { EffortPicker } from "@/components/fitness/workout/finish-dialogs"
@@ -93,7 +92,6 @@ function CheckInDialog({
     setBusy(true)
     try {
       await sendCheckIn({ weightKg, ...scores, note })
-      toast.success("Check-in sent to your coach.")
       close()
       await router.invalidate()
     } catch (error) {

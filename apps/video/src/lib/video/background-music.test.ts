@@ -7,6 +7,7 @@ import {
   MUSIC_TOO_SHORT_TO_LOOP_MESSAGE,
   MUSIC_UNREADABLE_MESSAGE,
   musicRefusal,
+  layAudioRepeats,
   planMusicClips,
 } from "./background-music"
 import { MAX_TIMELINE_TRACKS, timelineSchema } from "./timeline-schema"
@@ -119,5 +120,37 @@ describe("when music cannot be laid down", () => {
 
   it("lets an ordinary track through", () => {
     expect(musicRefusal([], clips)).toBeNull()
+  })
+})
+
+describe("blended repeats", () => {
+  const source = { mediaId: "lofi", name: "Lofi", url: "https://x/lofi.mp3", sourceDurationMs: 300_000 }
+
+  it("alternates the copies between two lanes, each fading into the next", () => {
+    const [first, second] = layAudioRepeats(source, { fromMs: 0, toMs: 1_500_000, crossfadeMs: 3_000, volume: 0.6 })
+    const all = [...first, ...second].sort((a, b) => a.startMs - b.startMs)
+    expect(all.map((clip) => clip.startMs)).toEqual([0, 297_000, 594_000, 891_000, 1_188_000, 1_485_000].slice(0, all.length))
+    // Every copy after the first fades in while the one before fades out.
+    for (const [index, clip] of all.entries()) {
+      if (index > 0) expect(clip.fadeInMs).toBe(3_000)
+      expect(clip.volume).toBe(0.6)
+    }
+    // Neighbours on the same lane never overlap.
+    for (const lane of [first, second]) {
+      for (let at = 1; at < lane.length; at += 1) {
+        expect(lane[at].startMs).toBeGreaterThanOrEqual(lane[at - 1].startMs + lane[at - 1].durationMs)
+      }
+    }
+    // It covers the stretch and fades out at its end.
+    const end = all.at(-1)!
+    expect(end.startMs + end.durationMs).toBe(1_500_000)
+    expect(end.fadeOutMs).toBe(MUSIC_FADE_OUT_MS)
+  })
+
+  it("lays one copy when the track covers the stretch", () => {
+    const [first, second] = layAudioRepeats(source, { fromMs: 60_000, toMs: 120_000 })
+    expect(first).toHaveLength(1)
+    expect(second).toEqual([])
+    expect(first[0]).toMatchObject({ startMs: 60_000, durationMs: 60_000 })
   })
 })

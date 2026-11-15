@@ -11,6 +11,7 @@ import {
 } from "@/lib/recipes/trade-markets"
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
+import { botsRecordSearch, botsViewSearch } from "@/lib/bots/bots-search"
 import { FlaskConicalIcon, Loader2Icon, XIcon } from "lucide-react"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
@@ -69,12 +70,9 @@ export default function BacktestCanvasPanel({
   onClose,
   beforeRun,
   compiledConfig,
-  onLatestRunIdChange,
 }: AutomationCanvasPanelProps & {
   beforeRun?: () => Promise<boolean>
   compiledConfig?: RecipeCompiledConfig | null
-  /** Keeps the canvas header linked to this recipe's newest finished result. */
-  onLatestRunIdChange?: (runId: string | null) => void
 }) {
   const sizes = compiledConfig
     ? backtestIntervalsFromFlow(compiledConfig)
@@ -200,7 +198,6 @@ export default function BacktestCanvasPanel({
                 .map((row) => row.spec.interval)
             : []
         )
-        onLatestRunIdChange?.(newest?.id ?? null)
         setNoneYet(list.runs.length === 0)
         // The click has landed, so stop believing it on faith. Either of two
         // things proves it:
@@ -252,7 +249,7 @@ export default function BacktestCanvasPanel({
     // "Reading the run…" forever the moment a flow was switched on, because
     // the two now sit on the panel together. A saved round trip is not worth a
     // card that never loads.
-  }, [automationId, onLatestRunIdChange, runId, readNow])
+  }, [automationId, runId, readNow])
 
   /**
    * What the flow is set up to do, kept up to date while the panel is open.
@@ -373,25 +370,22 @@ export default function BacktestCanvasPanel({
       className={cn("relative gap-0 py-0", !running && "cursor-pointer")}
       onClick={() => {
         if (!run || running) return
-        void navigate({
-          to: "/backtests/$groupId",
-          params: { groupId: run.id },
-        })
+        void navigate({ to: "/bots", search: botsRecordSearch("backtests", run.id) })
       }}
     >
       <div className="flex items-center gap-2 px-3 py-2">
         <FlaskConicalIcon className="size-4 shrink-0" />
         {run && !running ? (
           <Link
-            to="/backtests/$groupId"
-            params={{ groupId: run.id }}
+            to="/bots"
+            search={botsRecordSearch("backtests", run.id)}
             className={cn(
               "min-w-0 flex-1 truncate text-sm font-medium",
               focusRing
             )}
           >
             {run.name ?? "Backtest"}
-            <span className="sr-only"> — open the chart and every trade</span>
+            <span className="sr-only">. Open the chart and every trade</span>
           </Link>
         ) : run ? (
           // Plain text while it runs, for the same reason the card is not
@@ -563,7 +557,7 @@ export default function BacktestCanvasPanel({
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
-              That run ended without testing a coin — it was stopped, or every
+              That run ended without testing a coin. It was stopped, or every
               coin was skipped. Press Backtest to run it again.
             </p>
           )}
@@ -621,7 +615,8 @@ export default function BacktestCanvasPanel({
                 size. Candle counts are estimates; cached history is reused.
               </p>
               <Link
-                to="/backtests"
+                to="/bots"
+                search={botsViewSearch("backtests")}
                 className={cn("text-xs underline", focusRing)}
               >
                 View all backtests
@@ -715,7 +710,7 @@ export default function BacktestCanvasPanel({
                   ) : (
                     <FlaskConicalIcon className="size-4" />
                   )}
-                  Backtest
+                  Run backtest
                 </Button>
               </DisabledReason>
             )}

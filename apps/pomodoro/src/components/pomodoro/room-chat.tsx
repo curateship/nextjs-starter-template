@@ -44,6 +44,7 @@ import {
   roomReactionLabel,
 } from "@/lib/pomodoro/room-reactions"
 import type { RoomSnapshotClient } from "@/lib/pomodoro/room-clock-store"
+import { RoomCheckInMark } from "@/components/pomodoro/room-check-in"
 
 type RoomMember = RoomSnapshotClient["members"][number]
 type RoomMessage = RoomSnapshotClient["messages"][number]
@@ -129,6 +130,8 @@ export function RoomMemberList({
                     {member.task}
                   </span>
                 ) : null}
+                {/* Their answer to "Did you finish?", for the break. */}
+                {member.checkIn ? <RoomCheckInMark answer={member.checkIn} /> : null}
               </span>
               {member.role === "host" ? (
                 <b className="shrink-0 font-mono text-[11px] font-semibold tracking-[0.1em] text-[var(--p-accent)]">

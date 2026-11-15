@@ -26,12 +26,11 @@ import {
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
-  contactMatchesAutomationAudience,
+  personMatchesAutomationAudience,
   countAutomationAudience,
   readAutomationAudience,
   requireAudienceSegment,
 } from "@/server/automations/audience"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import type { CustomShellDb } from "@/server/db"
 import type { CustomShellAutomationRun } from "@/server/schema"
 import { workspaceForRun } from "@/server/automations/runs"
@@ -285,9 +284,6 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     // that column falls back to its owner's — looking it up every time is how a
     // flow's audience used to change when its owner switched workspace.
     const workspaceId = await workspaceForRun(run, database)
-    // A test must not "helpfully" create or update the chosen contact.
-    // It reads exactly what exists and says when that means they do not match.
-    if (!testRun) await syncContactsFromUsers(workspaceId, database)
 
     // Looked up here as well as inside the count so the run history can say
     // the segment's name — and looked up by id, so a renamed segment still
@@ -298,22 +294,23 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       database
     )
     const timestamp = now()
-    if (testRun && !run.subjectContactId) {
+    if (testRun && !run.subjectContactId && !run.subjectUserId) {
       throw new Error(
-        "This test has no chosen contact, so it cannot check the audience. Start a new test."
+        "This test has no chosen person, so it cannot check the audience. Start a new test."
       )
     }
-    const subjectMatched =
-      testRun && run.subjectContactId
-        ? await contactMatchesAutomationAudience(
-            audience,
-            workspaceId,
-            run.subjectContactId,
-            database,
-            timestamp,
-            segment
-          )
-        : null
+    // A test's one person: a subscriber for a subscriber audience, an account
+    // for an account one.
+    const subjectMatched = testRun
+      ? await personMatchesAutomationAudience(
+          audience,
+          workspaceId,
+          { contactId: run.subjectContactId, userId: run.subjectUserId },
+          database,
+          timestamp,
+          segment
+        )
+      : null
     const matched =
       subjectMatched === null
         ? await countAutomationAudience(

@@ -7,7 +7,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { EventDialog } from "@/components/events/event-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -56,7 +55,6 @@ import {
 } from "@/lib/events/event-sort"
 import { describeRepeat } from "@/lib/events/event-repeat"
 import { formatEventStart } from "@/lib/events/event-time"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useBulkChange } from "@/lib/hooks/use-bulk-change"
@@ -176,9 +174,7 @@ export function EventsDashboard({
 
   const bulk = useBulkChange({
     one: "event",
-    many: "events",
     rows: data.events,
-    categories,
     send: changeEvents,
     describeError: getEventErrorMessage,
     onChanged: () => router.invalidate(),
@@ -191,7 +187,6 @@ export function EventsDashboard({
     void copy(async () => {
       const made = await copyEvent(event.id)
       await router.invalidate()
-      toast.success(`${made.title} was created as a draft.`)
       setOpen(made.id)
     })
   }
@@ -207,15 +202,6 @@ export function EventsDashboard({
           "No events were deleted. They may already be gone. The list has been refreshed."
         )
       }
-      toast.success(
-        describeBulkResult({
-          done: done.length,
-          kept: kept.length,
-          one: "event",
-          many: "events",
-          verb: "deleted",
-        })
-      )
       setConfirm(null)
     })
   }

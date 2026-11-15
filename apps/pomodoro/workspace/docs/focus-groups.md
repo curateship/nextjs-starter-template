@@ -289,14 +289,14 @@ Host a room, and a weekly one is booked only by the owner. The rules are in
 The invite page and the team page both have Report. The reasons are a fixed
 list about what a stranger can see: the name or line, pretending to be
 somebody, spam, something else. Nothing is picked to start with. The report
-joins the queue at `/admin/pomodoro-reports` as "Group: <name>", with the
+joins the queue at Flowfly → Safety → Reports as "Group: <name>", with the
 line quoted and Open in Groups, which is where an admin deletes a group.
 Every report answers the same way and is limited to 6 an hour per address.
 The owner's own report changes nothing.
 
 ## When an admin deletes a group
 
-An admin can delete any group from `/admin/pomodoro-groups` (admin task 06,
+An admin can delete any group from Flowfly → Social → Groups (admin task 06,
 8 Oct 2026). Everybody who was in it, the owner included, gets "The Pomoder
 team deleted the group Study Buddies." in the bell, and the notice leads to
 Groups. It never names the admin. The group, its members and its invite

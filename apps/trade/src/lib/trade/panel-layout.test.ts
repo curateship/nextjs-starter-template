@@ -3,10 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   marketPanelScopeKey,
   matchingPanelLayout,
-  readLegacyTradePanelLayouts,
   readTradePanelLayouts,
 } from "@/lib/trade/panel-layout"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 
 const panels = ["markets", "chart", "smart-orders"] as const
 
@@ -56,76 +54,35 @@ describe("remembered trade panel layouts", () => {
     ).toBeNull()
   })
 
-  it("drops one stale group without losing the other saved groups", () => {
+  it("reads a row that still holds the old chart-over-trades split without it", () => {
+    // The backtest's and bot's bottom trades panel went on 10 Nov 2026, and
+    // its saved split with it; a row still holding one reads as before.
     const saved = readTradePanelLayouts({
       legacyImported: true,
-      current: {
-        [tradePanelLayoutKey.workspaceHorizontal]: {
-          markets: 20,
-          chart: 58,
-          account: 22,
-        },
-        [tradePanelLayoutKey.workspaceVertical]: {
-          workspace: 72,
-          activity: 28,
-        },
-        "trade-workspace-market-column": {
-          folders: 68,
-          alerts: 32,
-        },
-      },
-      named: [],
+      current: { "trade-backtest-vertical": { workspace: 72, trades: 28 } },
+      openMarketRows: {},
     })
 
-    expect(
-      saved.current[tradePanelLayoutKey.workspaceHorizontal]
-    ).toBeUndefined()
-    expect(saved.current[tradePanelLayoutKey.workspaceVertical]).toEqual({
-      workspace: 72,
-      activity: 28,
-    })
-    expect(saved.current).not.toHaveProperty("trade-workspace-market-column")
+    expect(saved).not.toHaveProperty("current")
+    expect(saved).not.toHaveProperty("legacyImported")
   })
 
-  it("reads the active layout and its open folder without dropping old layouts", () => {
+  it("reads the open folder and drops the saved layouts that were removed", () => {
+    // Saved layouts left the dashboard on 7 Nov 2026 (Tyler: "also remove the
+    // saved layout feature"); a row still holding them reads without them.
     const saved = readTradePanelLayouts({
-      legacyImported: true,
-      current: {},
       openMarketRows: { [scope]: null, unknown: "watched" },
       headerProfitVisible: false,
       chartToolbarPosition: { x: 0.25, y: 0.75 },
       activeNamedId: "layout-1",
-      named: [
-        {
-          id: "layout-1",
-          name: "Reading",
-          horizontal: { markets: 20, chart: 58, "smart-orders": 22 },
-          marketColumn: { folders: 68, alerts: 32 },
-          vertical: { workspace: 72, activity: 28 },
-          openMarketRows: { [scope]: "watched", unknown: "all" },
-          headerProfitVisible: false,
-          chartToolbarPosition: null,
-        },
-        {
-          id: "layout-2",
-          name: "Older saved layout",
-          horizontal: { markets: 20, chart: 58, "smart-orders": 22 },
-          vertical: { workspace: 72, activity: 28 },
-        },
-      ],
+      named: [{ id: "layout-1", name: "Reading" }],
     })
 
     expect(saved.openMarketRows).toEqual({ [scope]: null })
     expect(saved.headerProfitVisible).toBe(false)
     expect(saved.chartToolbarPosition).toEqual({ x: 0.25, y: 0.75 })
-    expect(saved.activeNamedId).toBe("layout-1")
-    expect(saved.named[0]?.openMarketRows).toEqual({})
-    expect(saved.named[0]).not.toHaveProperty("marketColumn")
-    expect(saved.named[0]?.headerProfitVisible).toBe(false)
-    expect(saved.named[0]?.chartToolbarPosition).toBeNull()
-    expect(saved.named[1]?.openMarketRows).toEqual({})
-    expect(saved.named[1]?.headerProfitVisible).toBeUndefined()
-    expect(saved.named[1]?.chartToolbarPosition).toBeUndefined()
+    expect(saved).not.toHaveProperty("named")
+    expect(saved).not.toHaveProperty("activeNamedId")
   })
 
   it("ignores unreadable drawing toolbar coordinates", () => {
@@ -134,39 +91,16 @@ describe("remembered trade panel layouts", () => {
         .chartToolbarPosition
     ).toBeNull()
   })
+})
 
-  it("clears an active id that no longer names a readable layout", () => {
-    expect(
-      readTradePanelLayouts({
-        activeNamedId: "missing",
-        named: [],
-      }).activeNamedId
-    ).toBeNull()
-  })
-
-  it("reads every valid old browser key and ignores malformed neighbours", () => {
-    const values = new Map<string, string>([
-      [
-        tradePanelLayoutKey.workspaceHorizontal,
-        JSON.stringify({ markets: 20, chart: 58, "smart-orders": 22 }),
-      ],
-      [tradePanelLayoutKey.workspaceVertical, "not json"],
-      [
-        tradePanelLayoutKey.flowRunVertical,
-        JSON.stringify({ workspace: 65, trades: 35 }),
-      ],
-    ])
-    const imported = readLegacyTradePanelLayouts({
-      getItem: (key) => values.get(key) ?? null,
+describe("the Journal's saved view", () => {
+  it("keeps the known makers and the practice switch, and drops anything else", async () => {
+    const { readJournalView } = await import("@/lib/trade/panel-layout")
+    expect(readJournalView({ hidePractice: true, makers: ["grid", "nonsense", "bot"] })).toEqual({
+      hidePractice: true,
+      makers: ["grid", "bot"],
     })
-
-    expect(imported).toEqual({
-      [tradePanelLayoutKey.workspaceHorizontal]: {
-        markets: 20,
-        chart: 58,
-        "smart-orders": 22,
-      },
-      [tradePanelLayoutKey.flowRunVertical]: { workspace: 65, trades: 35 },
-    })
+    expect(readJournalView(null)).toEqual({ hidePractice: false, makers: [] })
+    expect(readTradePanelLayouts({}).journalView).toEqual({ hidePractice: false, makers: [] })
   })
 })

@@ -1,9 +1,68 @@
 # The dashboard on a phone
 
-Below 768px the exchange dashboard is the chart and two rows of buttons.
-Everything else is one press away behind a three-dot button. Above 768px
-nothing on this page changes, and the layout the other docs describe is the one
-that is drawn.
+Below 1280px the Trade dashboard is the chart, with a bar of four buttons
+along the bottom of the screen that slides the other panels up over it (Tyler,
+13 Nov 2026: "The main thing is a way to access the left and right panel. I'm
+thinking 4 sticky buttons in the bottom. Left panel, positions, browse market,
+right panel."). The bar replaced the Page / market / Trade pills that sat at
+the top until then. Below 768px the top row folds too, as described here.
+
+## The bottom bar
+
+Left to right: **Left panel**, **Positions**, **Browse** and **Right panel**
+(Tyler: "rename browse market to just Browse"). The bar is drawn by
+`src/components/trade/narrow-panel-bar.tsx` and wired in `trade-workspace.tsx`.
+
+- **Left panel** is the dashboard's page: Protocols, Grid trades and the other
+  blocks (`dashboard-blocks.md`).
+- **Positions** is the header's Active trades panel (Tyler, 13 Nov 2026: "the
+  positions tab is supposed to use the active trades table in navigation (with
+  filter and hide/show col)"): every exchange's open trades and watched orders
+  as Active trades and Watching tabs, with the Filter and the ⋮ that hides
+  columns (`active-trades-button.md`). It is the same table, read once for
+  both: the button and the panel share one read every 15 seconds and one saved
+  choice of columns (`use-active-trades.ts`). Its button carries the number of
+  active trades, and no number before the first read lands. A ticker pressed
+  opens that coin's chart and shuts the panel. On a phone the cells sit 8px
+  apart and a long ticker is cut at 104px, so the three columns fit a 360px
+  screen; the figures are never the part cut short.
+- **Browse** is the market list the header's search box opens on a wide
+  screen, drawn straight into the panel. It cannot be pinned or dragged there,
+  and its search starts empty each time.
+- **Right panel** is the open trade (`trade-details-panel.md`).
+
+How a panel behaves:
+
+- **It slides up over the chart** and stops a tenth of the way down, so the
+  top of the chart still shows, dimmed. The panel runs the screen's full
+  width. With Settings → Styling → Content spacing on phones at 0 the page has
+  no gutter and its cards are drawn flat, so the chart and every panel meet
+  the screen's edges with no strip of page beside them (Tyler, 13 Nov 2026:
+  "the spacing here is really ugly", "why not just remove the gutter?"; the
+  setting is the shell's, in the repo's `docs/shell/user-interface.md`). The
+  bar then keeps 8px round its buttons itself. The panel rounds its own top
+  corners, the dim runs the full width above it down to just under them, and
+  it slides up from behind the bar, which stays on top. The top bar is never
+  dimmed. The knob that shuts it sits on the card's own
+  header (Tyler, 13 Nov 2026: "remove these paddings ... put the knob right on
+  top of the panel header"). Positions and Browse leave room under the knob
+  ("add some padding under here"), since their first row is tabs or a search
+  box rather than a header.
+- **Four ways shut it:** its own button again, a tap on the dimmed chart, a
+  drag down on the knob, or Escape. Pressing another button swaps straight to
+  that panel.
+- **Nothing reloads.** Left panel, Positions and Right panel stay on the page
+  while shut, the same as the three panels side by side on a wide screen.
+- **Picking a coin** in Left panel or Browse shuts the panel and shows that
+  coin's chart.
+- **A widget's Manage widgets** opens Left panel.
+- **Overview** has no Right panel, so its bar is Left panel, Positions and
+  Browse. Browse is left out when no market can be picked.
+- **The full-screen chart** hides the bar, and leaving it brings the bar back.
+- **On an iPhone** the bar sits above the home line.
+
+Open orders and the Journal are on a wide screen only: under 1280px the middle
+panel is the chart alone, and the Journal's history is not read there.
 
 768px is the width the shell already calls a phone, in
 `src/hooks/use-mobile.ts`. It is not the 1280px line the side panels fold away
@@ -54,69 +113,26 @@ that opens the results with a field on top, the way it does on a tablet.
   the clock that refreshes them stays mounted in the header at every width.
 - **Everything in the dropdown is packed to the left.**
 
-## The market row
+## The middle header
 
-In order: the markets list, the market itself, the timeframe, the smart orders
-robot, the three dots.
+The chart's name as a heading with a chart icon, then the picked timeframe,
+Indicators, View options and the ⋮ with Wallet and Close all. The table tabs
+and Browse are in the bottom bar instead, so the name is not a tab and has no
+underline (Tyler, 13 Nov 2026: "we dont need this underline if theres no tab").
+The "i" after it still opens the market's facts.
 
-- **The market button carries its own star.** The star sits where the coin's
-  picture sits on a wider screen, and the leverage follows the name. The arrow
-  goes: nothing else in the row opens a list, so the arrow was saying what the
-  row only has one of.
+The Left panel's header has a chart icon before "Trade" in the place the wide
+screen's collapse button takes, since there is nothing to collapse (Tyler:
+"need icon for the left panel header in mobile", "that should be a chart
+icon").
+
 - **The timeframe is one button.** Pressing `4h` opens every timeframe.
   Favourite timeframes are a wide-screen convenience and are not drawn here.
-- **The two panel buttons stay.** Markets on the left, smart orders on the
-  right, each sliding its panel in from that side, exactly as they do between
-  768px and 1280px.
 - **The note about where the older bars came from is not drawn here.** It is a
-  sentence, the row is five controls wide, and the fact it carries is about the
-  chart's history rather than anything to press.
-
-## What the three dots hold
-
-A sheet up from the bottom of the screen, in this order:
-
-| Line | What it opens |
-| --- | --- |
-| Indicators | The indicator list, with the number switched on beside the word |
-| View options | The chart's view options |
-| Wallet | The wallet menu |
-| Alerts | The price and drawing alerts, with the fired count beside the word |
-| Pin to top | Pins this market to the header, or unpins it |
-| Watchlists | The saved market folders |
-| Contract info | The exchange's facts about this market |
-| Positions | The positions table |
-| Open orders | The open orders table |
-| Journal | The journal |
-
-The sheet is deliberately not a modal window. Every line opens a panel of its
-own, and those panels are drawn at the end of the page rather than inside the
-sheet. A modal window switches the rest of the page off for the pointer, which
-would leave each of those panels on screen and dead to the touch.
-
-## The three tables
-
-There is no table under the chart on a phone. Each table is a screen's worth of
-columns, and sharing 844 points of height with one left the chart too short to
-read a candle on.
-
-- The three lines at the end of the sheet slide the table up over the chart at
-  85% of the screen's height.
-- The panel keeps its own tabs inside, so the other two tables are one press
-  away without going back to the menu.
-- Pressing a market in the table, or a trade in the Journal, closes the sheet,
-  because both of those put something on the chart behind it.
-- The tab row slides sideways rather than painting over Close all beside it,
-  and the tab you open is slid fully into view so its count is never the part
-  hanging off the end. The word stays on the tab that is open; the other two
-  keep their picture and their count. A screen reader still reads the full name
-  of all three.
-- **Open P&L is not drawn on a phone.** It is a link to another page rather
-  than something done to this table, the sidebar already carries PnL, and it
-  was the second button that squeezed the Journal's own tab down to four
-  letters.
-- **Remove keeps its count and loses its word** on a phone, so the bin and the
-  number of ticked rows sit beside Close all without crowding it.
+  sentence, and the fact it carries is about the chart's history rather than
+  anything to press.
+- **Folders and Pin to top are in the chart header's ⋮**, beside Wallet and
+  Close all, as on a wide screen.
 
 ## What it does on the way in
 
@@ -130,19 +146,24 @@ because that one is remembered in a cookie the server can read.
 ## Checking it
 
 The dev server for this app is on the port in the repo's `local-apps.json`.
-Open `/protocols/hyper-liquid` at 390×844 and check:
+Open `/trade?view=hyperliquid` at 390×844 and check:
 
-1. The market row is one line, and the market's name is not cut short.
-2. The three dots in the market row open ten lines, and Wallet, Alerts,
-   Indicators and Contract info each open a panel without the sheet closing.
-3. Open orders opens the table over the chart, with Close all beside the tabs
-   and no words sitting on top of each other.
-4. The top row is the sidebar toggle, the exchange's name, the search
+1. The bar along the bottom reads Left panel, Positions (with its count),
+   Browse and Right panel, nothing is wider than the screen, and the chart
+   runs down to the bar.
+2. Each button slides its panel up over the chart, and the same button shuts
+   it. So do a tap on the dimmed chart and a drag down on the knob.
+3. Picking a coin in Left panel or Browse shows its chart with the panel shut.
+4. Positions shows Active trades and Watching with Filter and the ⋮; hiding a
+   column there hides it in the header's panel too, and a ticker pressed opens
+   its chart with the panel shut.
+5. `/trade?view=overview` shows Left panel, Positions and Browse.
+6. The full-screen button in the chart's corner hides the bar.
+7. The top row is the sidebar toggle, the exchange's name, the search
    magnifier if it is switched on, the bell and three dots, with no cog
    (plus Goal and Active trades if either is set to "Menu bar"). The
    three dots hold, in order, the pinned markets under their heading, the goal
    and active-trades buttons on one line, the three settings rows and colour
    mode. Nothing in there wraps onto a second line.
-5. Open the Journal: its tab reads in full with its count, and Close all sits
-   clear of it.
-6. Nothing is drawn under the chart.
+
+The chart itself on a narrow screen is in `charts/chart-on-a-narrow-screen.md`.

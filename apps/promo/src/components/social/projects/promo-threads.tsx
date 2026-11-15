@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, Loader2Icon, MegaphoneIcon, RefreshCwIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -104,12 +103,7 @@ export function PromoThreads({
             onClick={async () => {
               setAsking(true)
               try {
-                const { queued } = await lookForPromoThreads(projectId)
-                toast.success(
-                  queued
-                    ? `Looking in ${queued} ${queued === 1 ? "subreddit" : "subreddits"}. They show here as each one is read.`
-                    : "Every subreddit is already being looked in."
-                )
+                await lookForPromoThreads(projectId)
                 await refresh()
               } catch (failure) {
                 showErrorToast(getProjectErrorMessage(failure))

@@ -16,7 +16,7 @@ posts too; both are beside your posts on the project's dashboard now
 Each comment is counted against the account that sent it: the account picked
 on the network's Commenting row when Post was pressed,
 stored on the comment as `promo_comments.account_id`. That is what makes an
-account Working on the [Accounts dashboard](accounts-dashboard.md). A
+account Working on the [Projects dashboard's Accounts](accounts-dashboard.md). A
 retired account's comments stay on this tab.
 
 ## Where it is
@@ -25,7 +25,7 @@ A tab of Reddit on the network's Commenting row, beside To look at, Replied,
 Skipped and Today, since 5 Nov 2026, when it was renamed Sent from Comments,
 the same word on every network. From 14 Oct 2026 it was a tab in each
 project's Reddit module ([Networks as modules](../network-modules.md)). A comment is listed in
-the project its account is in now, the rule the Projects table counts by, so a
+the project its account is in now, the rule the Projects dashboard counts by, so a
 comment from an account taken out of every project shows in no tab until the
 account is put back in one.
 

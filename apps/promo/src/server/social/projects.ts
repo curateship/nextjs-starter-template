@@ -8,15 +8,16 @@ import type { AccountImportance } from "@/lib/social/importance"
 import { postPhone, type PostPhone } from "@/server/phones/phones"
 import { promoProfiles } from "@/server/browser/schema"
 import { isOwnedImageUrl } from "@/server/media/library"
+import { readCoverImages, SKY_COVER } from "@/lib/notes/page-cover"
 import { commentReadiness, type AccountStatusView } from "@/lib/social/account-status"
 import { isNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
-import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import {
   PROJECT_DESCRIPTION_MAX,
+  PROJECT_DESCRIPTION_MOVED,
   PROJECT_DESCRIPTION_STORED_MAX,
+  projectDescriptionPage,
   projectDescriptionText,
-  readProjectDescription,
-  storedProjectDescription,
+  storedProjectPage,
 } from "@/lib/social/project-description"
 
 import { accountStatuses } from "./account-list"
@@ -160,6 +161,30 @@ export async function addProjectNetwork(
 }
 
 /**
+ * The Networks block's order and which networks it leaves out, from its ⋮.
+ * The order must name the project's networks, each once; a network the
+ * project does not use cannot be hidden.
+ */
+export async function arrangeProjectNetworks(
+  userId: string,
+  projectId: string,
+  input: { order: Network[]; hidden: Network[] },
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const project = await ownedProject(userId, projectId, db)
+  const networks = usedNetworks(project)
+  const order = [...new Set(input.order)]
+  if (order.length !== networks.length || order.some((network) => !networks.includes(network))) {
+    throw new Error("The project's networks changed. Reload the page and try again.")
+  }
+  const hidden = [...new Set(input.hidden)].filter((network) => networks.includes(network))
+  await db
+    .update(promoProjects)
+    .set({ networks: order, hiddenNetworks: hidden, updatedAt: new Date() })
+    .where(and(eq(promoProjects.id, projectId), eq(promoProjects.userId, userId)))
+}
+
+/**
  * Takes a network off a project. Refused, with how many of each, while the
  * project still holds that network's accounts or keywords, worded like
  * deleting a project. Reddit, Medium, X and LinkedIn have keywords; the phone
@@ -218,26 +243,39 @@ export async function removeProjectNetwork(
  * photo it has to be an image this person uploaded, never any address the
  * browser sent. "" takes it off.
  *
- * The description is the editor's document, already cleaned to what it may
- * hold. It is refused, never cut short, when its words run past 4,000
- * letters, and refused for everyone while Lock description is on.
+ * The description is the project's page as the editor sent it: words, "/"
+ * blocks and the fixed Networks block, cleaned here to what a page may hold
+ * (`storedProjectPage`). Its words alone are what the AI is told, and they
+ * are refused, never cut short, past 4,000 letters. It is refused for
+ * everyone while Lock description is on.
  */
 export async function updateProject(
   userId: string,
   projectId: string,
-  input: { name?: string; description?: WrittenPageNode; imageUrl?: string },
+  input: { name?: string; page?: string; base?: string; cover?: { coverUrl: string | null; coverImages: string[] } },
   db: CustomShellDb = defaultDb
-): Promise<void> {
-  if (input.imageUrl && !(await isOwnedImageUrl(userId, input.imageUrl, db))) {
-    throw new Error("That picture is not one of your uploaded images.")
+): Promise<{ page: string | null }> {
+  // The cover is None, the sky, or a picture; each picture, the one in use and
+  // those kept to pick again, has to be one this person uploaded.
+  if (input.cover) {
+    const pictures = [...input.cover.coverImages, ...(input.cover.coverUrl && input.cover.coverUrl !== SKY_COVER ? [input.cover.coverUrl] : [])]
+    for (const picture of new Set(pictures)) {
+      if (!(await isOwnedImageUrl(userId, picture, db))) throw new Error("That picture is not one of your uploaded images.")
+    }
   }
   let description: string | undefined
-  if (input.description !== undefined) {
+  if (input.page !== undefined) {
     const project = await ownedProject(userId, projectId, db)
     if (project.descriptionLocked) {
       throw new Error("The description is locked. Unlock it from the project's ⋮ menu first.")
     }
-    description = storedProjectDescription(input.description)
+    // A page saved from a copy that is no longer what is stored, such as a tab
+    // left open while it changed elsewhere, is refused rather than written over
+    // what is there (12 Nov 2026, after a stale tab twice saved an empty page).
+    if (input.base !== undefined && input.base !== projectDescriptionPage(project.description)) {
+      throw new Error(PROJECT_DESCRIPTION_MOVED)
+    }
+    description = storedProjectPage(input.page)
     const letters = projectDescriptionText(description).length
     if (letters > PROJECT_DESCRIPTION_MAX) {
       throw new Error(
@@ -245,7 +283,7 @@ export async function updateProject(
       )
     }
     if (description.length > PROJECT_DESCRIPTION_STORED_MAX) {
-      throw new Error("The description is too long. Keep it under 4,000 letters, with fewer empty lines.")
+      throw new Error("The description is too long. Keep it under 4,000 letters, with fewer empty lines and blocks.")
     }
   }
   const updated = await db
@@ -253,7 +291,7 @@ export async function updateProject(
     .set({
       ...(input.name === undefined ? {} : { name: cleanName(input.name) }),
       ...(description === undefined ? {} : { description }),
-      ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
+      ...(input.cover === undefined ? {} : { imageUrl: input.cover.coverUrl ?? "", coverImages: input.cover.coverImages }),
       updatedAt: new Date(),
     })
     .where(
@@ -270,6 +308,8 @@ export async function updateProject(
       description === undefined ? "That project does not exist." : "The description is locked. Unlock it from the project's ⋮ menu first."
     )
   }
+  // What the page now is, which the next save starts from.
+  return { page: description === undefined ? null : projectDescriptionPage(description) }
 }
 
 /** Pins a project, which puts it first in the Projects table, or with `pinned` false unpins it. */
@@ -435,19 +475,28 @@ export type ProjectView = {
   project: {
     id: string
     name: string
-    /** The editor's document, written in place at the top of the left column. */
-    description: WrittenPageNode
+    /**
+     * The description as the left panel's page: its words, any "/" blocks,
+     * and the fixed Networks block, as JSON for the editor. Its words alone
+     * are what the AI is told.
+     */
+    descriptionPage: string
     /** Lock description is on: nobody can change it until it is unlocked. */
     descriptionLocked: boolean
     /** Pinned from the header, which puts it first in the Projects table. */
     pinned: boolean
+    /** The cover: "" for none, "sky", or a picture's address. */
     imageUrl: string
+    /** The pictures the cover has had, to pick again. */
+    coverImages: string[]
     pausedAt: Date | null
-    /** The networks it uses, each a row in its left column, in the order they were added. */
+    /** The networks it uses, each a line in its Networks block, in the order dragged there (added last by default). */
     networks: Network[]
+    /** The networks left out of the Networks block; they stay on the project. */
+    hiddenNetworks: Network[]
     /** The networks paused on their own while the rest of the project runs. */
     pausedNetworks: Network[]
-    /** The networks whose commenting is paused, from a network's Commenting row; their own posts still go out. */
+    /** The networks whose commenting is paused, from the network's keywords dropdown; their own posts still go out. */
     pausedCommenting: Network[]
     /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
     bannedRecently: number
@@ -535,12 +584,14 @@ export async function readProjectView(
     project: {
       id: project.id,
       name: project.name,
-      description: readProjectDescription(project.description),
+      descriptionPage: projectDescriptionPage(project.description),
       descriptionLocked: project.descriptionLocked,
       pinned: project.pinnedAt !== null,
       imageUrl: project.imageUrl,
+      coverImages: readCoverImages(project.coverImages),
       pausedAt: project.pausedAt,
       networks: usedNetworks(project),
+      hiddenNetworks: project.hiddenNetworks.filter((network) => usedNetworks(project).includes(network)),
       pausedNetworks: project.pausedNetworks.filter(isNetwork),
       pausedCommenting: project.pausedCommenting.filter(isNetwork),
       bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,
@@ -697,29 +748,21 @@ export async function projectDescription(
   return row ? projectDescriptionText(row.description) : ""
 }
 
-/** The screens that were in the left menu before Reddit moved inside the project. */
-export type OldScreen = "today" | "comments" | "jobs"
-
 /**
- * Which project an old address now opens: `/admin/today`, `/admin/comments`
- * and `/admin/jobs` were screens of their own until Tyler moved them inside
- * the project's Reddit module on 14 Oct 2026. Bell
- * notices already sent, and bookmarks, still carry those addresses.
+ * Which project `/admin/comments` now opens. Comments was a screen of its own
+ * until Tyler moved it inside the project's Reddit module on 14 Oct 2026, and
+ * Reddit's reply and removal notices still open that address.
  *
  * A comment opens in the project its account is in now, the rule its
- * Comments tab lists it by. A failure with no comment named opens the project
- * of the newest one. Jobs is the same list from any project, so it opens in
- * the first. Anything else opens the only
- * project when there is one. Null means the Projects table, which is where a
- * person picks one.
+ * Comments tab lists it by. Anything else opens the only project when there
+ * is one. Null means the Projects table, which is where a person picks one.
  */
-export async function projectForOldScreen(
+export async function projectForOldComments(
   userId: string,
-  screen: OldScreen,
   commentId: string | null,
   db: CustomShellDb = defaultDb
 ): Promise<string | null> {
-  if (screen === "comments" && commentId) {
+  if (commentId) {
     const [row] = await db
       .select({ projectId: promoAccounts.projectId })
       .from(promoComments)
@@ -733,6 +776,5 @@ export async function projectForOldScreen(
     .from(promoProjects)
     .where(eq(promoProjects.userId, userId))
     .orderBy(asc(promoProjects.createdAt), asc(promoProjects.id))
-  if (screen === "jobs") return projects[0]?.id ?? null
   return projects.length === 1 ? projects[0].id : null
 }

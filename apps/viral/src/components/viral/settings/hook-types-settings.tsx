@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PlusIcon, TagsIcon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -114,10 +113,6 @@ function HookTypesSettingsPanel() {
         const why = getViralErrorMessage(result.error)
         showErrorToast(
           result.labelled ? `${result.labelled} ${plural(result.labelled, "hook")} labelled, then a call failed: ${why}` : why
-        )
-      } else {
-        toast.success(
-          `${result.labelled} ${plural(result.labelled, "hook")} labelled.${result.left ? ` ${result.left} still have no type.` : ""}`
         )
       }
     } catch (error) {

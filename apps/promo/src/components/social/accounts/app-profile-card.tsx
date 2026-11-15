@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
@@ -79,7 +78,6 @@ export function AppProfileCard({ accountId, network }: { accountId: string; netw
     setBusy(true)
     try {
       await applyProfileEdit({ accountId, ...fields })
-      toast.success(`Sent to the phone. It changes the profile in the ${NETWORK_NAMES[network]} app.`)
       await read()
     } catch (failure) {
       showErrorToast(getPhoneAppErrorMessage(failure))

@@ -43,7 +43,7 @@ beside them, and people the project sells to come first.
 A free account sees only the last few viewers; LinkedIn hides the rest behind
 Premium, and the tab says so in one line. A viewer LinkedIn names only as
 "someone at a company" is left out, since there is nobody to connect with.
-Marking the account Premium on the Accounts dashboard is how Promo knows it
+Marking the account Premium on the Projects dashboard's Accounts is how Promo knows it
 sees them all.
 
 ## The code

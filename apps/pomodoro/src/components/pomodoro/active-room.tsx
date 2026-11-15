@@ -31,6 +31,7 @@ import {
   RoomMemberList,
 } from "@/components/pomodoro/room-chat"
 import { BreakCard } from "@/components/pomodoro/break-card"
+import { RoomCheckIn } from "@/components/pomodoro/room-check-in"
 import { TasksSection } from "@/components/pomodoro/today-task-list"
 import { SoundPlayerRow } from "@/components/pomodoro/sound-player-row"
 import { usePomodoro } from "@/lib/pomodoro/use-pomodoro"
@@ -184,16 +185,12 @@ export function ActiveRoomPanel({
   const moderate = async (
     key: string,
     action: () => Promise<RoomSnapshotClient>,
-    successNotice: string,
     failureNotice: string
   ) => {
     dismissErrorToast()
     setPending(key)
     try {
       onSnapshot(await action())
-      // A toast that clears itself, never a line left under the header for
-      // the rest of the session.
-      toast.success(successNotice)
     } catch (cause) {
       const text = cause instanceof Error ? cause.message : ""
       showErrorToast(
@@ -244,7 +241,6 @@ export function ActiveRoomPanel({
         void moderate(
           `delete-message:${message.id}`,
           () => deleteMessage(room.slug, message.id),
-          "The message was deleted.",
           "The message could not be deleted."
         ),
     })
@@ -258,7 +254,6 @@ export function ActiveRoomPanel({
         void moderate(
           `remove-member:${member.id}`,
           () => removeMember(room.slug, member.id),
-          `${member.name} was removed from the room.`,
           "The member could not be removed."
         ),
     })
@@ -273,7 +268,6 @@ export function ActiveRoomPanel({
         void moderate(
           `ban-member:${member.id}`,
           () => banMember(room.slug, member.id),
-          `${member.name} was banned from the room.`,
           "The member could not be banned."
         ),
     })
@@ -297,6 +291,8 @@ export function ActiveRoomPanel({
         pending={pending}
         onAction={(action) => void runAction(action)}
       />
+
+      <RoomCheckIn snapshot={snapshot} />
 
       {/* The same break card as the timer, while the room is on a break. */}
       {room.phase === "short" || room.phase === "long" ? (

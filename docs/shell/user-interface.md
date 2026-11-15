@@ -35,7 +35,7 @@
 
 ## Borders
 
-- **Every border comes from the border settings in Settings → Styling.** No
+- **Every border comes from the border settings in Admin → Styling.** No
   component names its own border shade. Divider and frame lines are a plain
   `border` / `border-b` / `border-t` with no color class, so they take
   `--border`, the variable the Divider lines setting writes. Card and surface
@@ -103,6 +103,45 @@
   `src/theme.css` redraws the popover and dropdown hairline from the card
   border settings the same way it does for modals. A component never copies a
   computed border across by hand.
+
+## The selected link in the left menu and the top bar
+
+The link for the page showing, and a link pointed at, sit on the theme's light
+grey at half strength, about `#fafafa`, in the left menu
+(`sidebarMenuButtonVariants` in `src/components/ui/sidebar.tsx`, and a folding
+group's row in `sidebar-group-collapsible.tsx`) and in the top bar's links
+(`sticky-header-left-nav.tsx`). Tyler, 8 Nov 2026: "make sidebar and topnav
+selected to light gray", picking the lighter grey over today's full one.
+
+## The page's height
+
+The signed-in page is exactly as tall as what the browser shows right now:
+`h-dvh` on the sidebar frame and `min-h-dvh` on the canvas behind it, in
+`src/components/shell/shell-layout.tsx`. Never `h-screen` or `100vh`, which
+on an iPhone is the height with Safari's bars hidden: the page then ran under
+Safari's own bottom bar and hid whatever sat at its foot, such as Trade's
+bottom bar (Tyler, 13 Nov 2026: "It hides the bottom menu"). Chrome's phone
+mode has no such bars, so a layout that fits there can still be cut off on a
+real phone.
+
+## Content spacing on phones
+
+Settings → Styling → Spacing & borders has two sliders: **Content spacing**,
+the gutter round and between a dashboard's cards, and **Content spacing on
+phones**, the same thing under 1280px, where a dashboard shows one panel at a
+time. It applies to every dashboard; no page opts in or out (Tyler, 13 Nov
+2026: "why isnt this a setting in styling setting that effects all
+dashboard?", "its gonna be the same problem for all dashboards").
+
+- **Unset** follows Content spacing, so a site that never touches it looks as
+  it did. The slider then reads "Same as above".
+- **At 0** every dashboard on a phone is the flat mode: no gutter, and cards
+  and panels with no border or rounded corners, running to the screen's
+  edges. A computer keeps the Content spacing above.
+- **Where it is read:** `DashboardContent` picks the gutter with
+  `useWideScreen`, which knows the width before the first paint from a cookie,
+  so a phone never draws the computer's gutter first. It is stored as
+  `phoneGutter` on the shell's styling, 0 to 48.
 
 ## Workspace panels
 
@@ -228,8 +267,9 @@ window sits open, and the animation's own frames run at about 16ms throughout.
 - Use shadcn form controls for inputs and interactions.
 - Avoid native `<select>` and similar browser-default controls when a shadcn control should be used instead.
 - **Dates use `DatePicker`** (`src/components/ui/date-picker.tsx`), a button that opens a calendar. A wrong date is marked with `aria-invalid` on the picker, which reaches its button, so a screen reader hears it and the border turns red with no class of its own. `defaultOpen` opens the calendar as soon as the picker appears, and `onOpenChange` reports every open and close, so a caller can tell a close without a pick from a pick.
+- **Nothing pops up when something works.** Tyler, 10 Nov 2026: "Remove all success toast", then "All of trade and shell too". There is no `toast.success` anywhere: a save, a create, a rename or a delete is answered by the screen showing the change. Work only partly done (some files kept, an email that could not be sent) says the part that was not done through `showErrorToast`. `useAsyncAction` takes no success sentence for the same reason.
 - **Errors have one home each, and it is never a hand-rolled paragraph or box:**
-  - **Anything that fails when the user clicks** (submit, save, delete, vote, upload, validation on submit) reports through `showErrorToast` (`src/lib/error-toast.ts`) — a red toast in the same fixed spot as the success toasts. It stays until dismissed, a repeat failure replaces it instead of stacking, and `dismissErrorToast()` runs when a new attempt starts so a stale failure never outlives its retry. Never `toast.error` directly; the shared helper owns the one-slot behavior.
+  - **Anything that fails when the user clicks** (submit, save, delete, vote, upload, validation on submit) reports through `showErrorToast` (`src/lib/error-toast.ts`) — a red toast in the same fixed spot as every other toast. It stays until dismissed, a repeat failure replaces it instead of stacking, and `dismissErrorToast()` runs when a new attempt starts so a stale failure never outlives its retry. Never `toast.error` directly; the shared helper owns the one-slot behavior.
   - **Data-surface load failures** (a list or page section that could not fetch) use `ErrorBanner`, with `onRetry` wherever a reload exists.
   - **Live while-you-type validation and page-state text** (a password-mismatch hint, a dead verification link) use `InlineError` next to the field or in the page body — these are not click-failures, so they stay in place.
 

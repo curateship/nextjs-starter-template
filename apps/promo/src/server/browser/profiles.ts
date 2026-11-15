@@ -27,7 +27,7 @@ import {
  * Browser profiles: one isolated browser each, with its own cookies, identity
  * and proxy. A network account points at one and owns none of it.
  *
- * Everything the Browser profiles dashboard does with them is here. Every
+ * Everything the Anti Detect dashboard's Profiles does with them is here. Every
  * query is scoped by the person's id, and that filter is the ownership check:
  * a foreign id finds nothing, changes nothing and is reported as skipped.
  *

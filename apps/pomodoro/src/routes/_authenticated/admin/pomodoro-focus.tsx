@@ -1,59 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminFocusDashboard } from "@/components/pomodoro/admin-focus-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getPomodoroAdminErrorMessage,
-  loadPomodoroFocusPage,
-} from "@/lib/api/pomodoro/admin"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
-import { FOCUS_SORT_COLUMNS, readMemberSearch } from "@/lib/pomodoro/admin-lists"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
-type FocusSearch = {
-  /** The member window open over the list (admin task 06). */
-  member?: string
-  q?: string
-  sort?: (typeof FOCUS_SORT_COLUMNS)[number]
-  direction?: "asc" | "desc"
-  page?: number
-}
-
-/** The list's own state, so Back returns the exact list you left. */
-function readFocusSearch(search: Record<string, unknown>): FocusSearch {
-  return {
-    ...readMemberSearch(search),
-    q: readSearchText(search.q),
-    sort: readOneOf(search.sort, FOCUS_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    page: readPage(search.page),
-  }
-}
-
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-focus")({
-  validateSearch: readFocusSearch,
-  // No `loaderDeps`: the address seeds the first render and the table refetches
-  // in place from there, so watching it would fetch twice per keystroke. The
-  // router types a loader's `location.search` as empty whatever the schema
-  // says, so it is read back through the same checks.
-  loader: ({ location }) => {
-    const search = readFocusSearch(location.search as Record<string, unknown>)
-    return loadPomodoroFocusPage({
-      search: search.q ?? "",
-      sort: search.sort ?? "focus",
-      direction: search.direction ?? "desc",
-      page: search.page ?? 1,
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-focus", location.search as Record<string, unknown>),
+      replace: true,
     })
   },
-  component: AdminPomodoroFocusRoute,
-  errorComponent: routeErrorComponent(getPomodoroAdminErrorMessage),
 })
-
-function AdminPomodoroFocusRoute() {
-  const { list, pageSize } = Route.useLoaderData()
-  return <AdminFocusDashboard initial={list} initialPageSize={pageSize} />
-}

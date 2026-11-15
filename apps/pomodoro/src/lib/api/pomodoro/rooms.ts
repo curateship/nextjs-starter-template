@@ -44,6 +44,7 @@ import {
   roomSnapshot,
   saveRoomMedia,
   toggleRoomReaction,
+  answerRoomCheckIn,
   type RoomHostAction,
 } from "@/server/pomodoro/rooms"
 import { REAL_START_DELAY_MS, startDueRoom } from "@/server/pomodoro/simulated-rooms"
@@ -56,6 +57,7 @@ import {
   roomPairProblemMessage,
 } from "@/lib/pomodoro/media-pair"
 import {
+  assertInviteAllowance,
   cancelRoomRepeat,
   cancelScheduledRoom,
   countScheduledRoomsHostedBy,
@@ -151,6 +153,7 @@ const messageIdSchema = slugSchema.extend({ messageId: z.string().uuid() })
 const reactionSchema = messageIdSchema.extend({
   emoji: z.enum(ROOM_REACTION_EMOJIS),
 })
+const checkInSchema = slugSchema.extend({ finished: z.boolean() })
 const reportSchema = messageIdSchema.extend({
   reason: z.string().trim().min(3).max(300),
 })
@@ -341,6 +344,7 @@ const scheduleRoomFn = createServerFn({ method: "POST" })
         `SCHEDULE_REJECTED: You already have ${MAX_SCHEDULED_ROOMS_PER_HOST} rooms booked. Cancel one to book another.`
       )
     }
+    await assertInviteAllowance(context.user.id, invites.length)
 
     const slug = randomBytes(18).toString("base64url")
     const room = await scheduleRoomWithInvites(context.user.id, slug, {
@@ -389,6 +393,7 @@ const repeatRoomFn = createServerFn({ method: "POST" })
     if (!validTimezone(settings.timezone)) {
       throw new Error("SCHEDULE_REJECTED: This device's timezone is not one we recognise. Set a timezone in Settings and try again.")
     }
+    await assertInviteAllowance(context.user.id, invites.length)
 
     try {
       const { rule, next } = await createRoomRepeat(context.user.id, {
@@ -585,6 +590,17 @@ const toggleReactionFn = createServerFn({ method: "POST" })
     return { added }
   })
 
+// "Did you finish?" after a room's focus. The tick reaches everyone through
+// the room's own snapshot, the same way a reaction does.
+const answerCheckInFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(checkInSchema)
+  .handler(async ({ data, context }) => {
+    const room = await answerRoomCheckIn(data.slug, context.user.id, data.finished)
+    await notifyRoom(room.id, "check-in")
+    return { finished: data.finished }
+  })
+
 // Reports never notify the room: they are private to the reporter and the
 // operators, so nothing changes in anyone else's snapshot.
 const reportMessageFn = createServerFn({ method: "POST" })
@@ -683,6 +699,8 @@ export const toggleReaction = (
       emoji: emoji as (typeof ROOM_REACTION_EMOJIS)[number],
     },
   })
+export const answerCheckIn = (slug: string, finished: boolean) =>
+  answerCheckInFn({ data: { slug, finished } })
 export const reportMessage = (
   slug: string,
   messageId: string,

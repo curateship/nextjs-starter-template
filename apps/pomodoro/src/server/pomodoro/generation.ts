@@ -83,21 +83,6 @@ export function monthlyLimitFor(
 }
 
 /**
- * Take one credit, or refuse.
- *
- * The row is locked for the length of the transaction, so two requests sent at
- * the same moment cannot both read "one left" and both take it.
- */
-export async function reserveGenerationCredit(
-  userId: string,
-  kind: GenerationKind,
-  limit: number,
-  month = generationMonth()
-) {
-  return db.transaction((tx) => takeCredit(tx, userId, kind, limit, month))
-}
-
-/**
  * One credit, inside the caller's transaction, so a whole look (task 06,
  * part 7) takes both of its credits or neither.
  */

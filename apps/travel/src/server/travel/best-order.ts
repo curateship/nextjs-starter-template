@@ -7,6 +7,7 @@ import type { TravelMode } from "@/lib/travel/rules"
 import { db, type CustomShellDb } from "@/server/db"
 import { requireTrip, type ActivityRow } from "@/server/travel/access"
 import { routeKey, routeMinutes, type LatLng } from "@/server/travel/google"
+import { spendGoogleLookup } from "@/server/travel/google-usage"
 import { travelActivities } from "@/server/travel/schema"
 import { writePositions } from "@/server/travel/trips"
 
@@ -53,7 +54,10 @@ const positionOf = (activity: Pick<ActivityRow, "place">): LatLng | null =>
 export async function bestOrderForDay(
   userId: string,
   input: { tripId: string; day: number },
-  { database = db, minutes = routeMinutes }: { database?: CustomShellDb; minutes?: RouteMinutes } = {}
+  {
+    database = db,
+    minutes = (from, to, mode) => routeMinutes(from, to, mode, () => spendGoogleLookup(userId, database)),
+  }: { database?: CustomShellDb; minutes?: RouteMinutes } = {}
 ): Promise<BestOrderResult> {
   const trip = await requireTrip(userId, input.tripId, database)
   if (input.day < 1 || input.day > trip.days) throw new Error(TRAVEL_ERRORS.dayOutOfRange)

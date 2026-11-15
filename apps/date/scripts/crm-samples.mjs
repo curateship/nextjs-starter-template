@@ -18,7 +18,7 @@
  * An empty inbox cannot be judged: the panels, the stages, the unread weight,
  * the follow-up dates and the bubbles all need rows before anybody can say
  * whether they look right. Between them these eight cover every state the
- * screen can be in — each stage, unread, snoozed, closed, an overdue chase, an
+ * screen can be in — each stage, unread, read, an overdue chase, an
  * attachment, a long thread that crosses days, and one message whose body
  * never arrived.
  *
@@ -155,8 +155,9 @@ export const CRM_SAMPLE_LEADS = [
     followUpMinutes: null,
     followUpNote: null,
     subject: "Refit quote",
-    // Closed, so it is out of the inbox until the filter is changed.
-    status: "closed",
+    // There is no closed or snoozed any more (9 Nov 2026): every sample is
+    // in the inbox.
+    status: "open",
     read: true,
     messages: [
       {
@@ -230,10 +231,7 @@ export const CRM_SAMPLE_LEADS = [
     followUpMinutes: -10080,
     followUpNote: "She is back from holiday on the 12th.",
     subject: "Back bar and glasswasher",
-    // Snoozed until next week, so it is out of the inbox and comes back on its
-    // own when the background pass notices the date.
-    status: "snoozed",
-    snoozeMinutes: -10080,
+    status: "open",
     read: true,
     messages: [
       {

@@ -14,10 +14,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
-import { toast } from "sonner"
 
-import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,7 +56,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 import { KeywordPicker } from "../keyword-picker"
-import { NetworkIcon } from "../network-icon"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { PanelReopenButton } from "@/components/shared/three-panels"
+import { StalledJobs } from "../stalled-jobs"
 
 type Keyword = XModuleView["keywords"][number]
 
@@ -98,8 +98,9 @@ function dollars(cents: number): string {
 const dayFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" })
 
 /**
- * The middle column's header: X's name, then on the right the search box,
- * the shared keywords dropdown, Jobs and More, the same row as Medium's. An X
+ * The middle column's one header, as Reddit's: the arrow back and the tabs,
+ * then the search box, the shared keywords dropdown, the amber jobs warning
+ * and More, which holds Jobs. An X
  * keyword is search words, a hashtag or a watched account (parts 9 and 11).
  * Search words can be marked as the product's own name or a rival's (part
  * 13), and a watched account rings the bell for its new posts unless its
@@ -113,6 +114,7 @@ export function XKeywords({
   projectId,
   selectedId,
   search,
+  tabs,
   onSelect,
   onChanged,
   onOpenJobs,
@@ -122,8 +124,10 @@ export function XKeywords({
   failed: boolean
   projectId: string
   selectedId: string | null
-  /** The search box, drawn among the row's buttons on the post tabs. */
-  search: React.ReactNode
+  /** The search box's words on the post tabs; null hides it. */
+  search: { value: string; onChange: (value: string) => void } | null
+  /** The tabs, drawn after the arrow back. */
+  tabs: React.ReactNode
   onSelect: (keywordId: string | null) => void
   onChanged: () => Promise<void>
   onOpenJobs: () => void
@@ -135,11 +139,10 @@ export function XKeywords({
   // Nothing waiting starts without the browser program or a search account.
   const stalled = !view?.jobs.programRunning || !view.searchers.length
 
-  async function act(action: () => Promise<unknown>, done?: string) {
+  async function act(action: () => Promise<unknown>) {
     try {
       await action()
       await onChanged()
-      if (done) toast.success(done)
     } catch (error) {
       showErrorToast(getXErrorMessage(error))
     }
@@ -156,15 +159,31 @@ export function XKeywords({
     }
   }
 
+  // The one middle header Reddit's Commenting has (`CrmListHeader`; Tyler,
+  // 14 Nov 2026: "fix all the tabs. the only thing that looks right is the
+  // reddit tabs"): the arrow back and the tabs on the left, then the search
+  // box, the keywords dropdown, the amber jobs warning and the ⋮ with Jobs.
   return (
-    <DashboardCardHeader className="flex-wrap items-center gap-x-3 gap-y-2">
-      <DashboardCardHeaderIcon>
-        <NetworkIcon network="x" />
-      </DashboardCardHeaderIcon>
-      <h2 className={cn(dashboardCardHeadingClassName, "min-w-0 truncate")}>X</h2>
-
-      <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
-        {search}
+    <>
+    <CrmListHeader
+      tabs={
+        <>
+          <PanelReopenButton side="left" label="Show the project" />
+          <ProjectBackButton />
+          {tabs}
+        </>
+      }
+      end={<PanelReopenButton side="right" label="Show the post and your reply" />}
+      selected={null}
+      massSelect={null}
+      menuLabel="More"
+      search={
+        search
+          ? { name: "x-post-search", label: "Search these posts by words or account", placeholder: "Search posts", value: search.value, onChange: search.onChange }
+          : null
+      }
+      view={
+        <>
         <KeywordPicker
           items={keywords.map((keyword) => ({
             id: keyword.id,
@@ -223,8 +242,7 @@ export function XKeywords({
                       onClick={() => {
                         close()
                         void act(
-                          () => changeXKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify }),
-                          keyword.notify ? `The bell stays quiet for ${item.label}'s new posts.` : `The bell rings for each new post from ${item.label}.`
+                          () => changeXKeyword({ change: "notify", keywordId: item.id, notify: !keyword.notify })
                         )
                       }}
                     >
@@ -242,7 +260,7 @@ export function XKeywords({
                       await changeXKeyword({ change: "delete", keywordId: item.id })
                       // Its posts are gone, so listing them alone would show nothing.
                       if (item.id === selectedId) onSelect(null)
-                    }, `${item.label} removed. Replies already sent keep their record.`)
+                    })
                   }}
                 >
                   Remove {item.label} and the posts only it found
@@ -258,7 +276,6 @@ export function XKeywords({
                   close()
                   await onChanged()
                   if (saved.searchRefused) showErrorToast(`Saved, but not searched yet. ${saved.searchRefused}`)
-                  else toast.success("Saved. Its posts show here once a search account has read them.")
                 } catch (error) {
                   showErrorToast(getXErrorMessage(error))
                 }
@@ -267,18 +284,9 @@ export function XKeywords({
             />
           )}
         />
-        <DashboardToolbarButton
-          type="button"
-          variant="outline"
-          onClick={onOpenJobs}
-          aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-        >
-          <ListChecksIcon className="size-4" />
-          <span className="hidden sm:inline">Jobs</span>
-          {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-        </DashboardToolbarButton>
+        {view && !view.jobs.programRunning && view.jobs.queued > 0 ? <StalledJobs queued={view.jobs.queued} onOpen={onOpenJobs} /> : null}
         <DropdownMenu>
-          <Hint label="Search all, ideas, AI spend and hidden accounts">
+          <Hint label="Jobs, search all, ideas, AI spend and hidden accounts">
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="More">
                 {asking ? <Loader2Icon className="animate-spin" /> : <EllipsisVerticalIcon />}
@@ -286,13 +294,17 @@ export function XKeywords({
             </DropdownMenuTrigger>
           </Hint>
           <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuItem onSelect={onOpenJobs}>
+              <ListChecksIcon />
+              {jobsWaiting ? `Jobs · ${jobsWaiting}` : "Jobs"}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() =>
                 void act(async () => {
                   if (!keywords.length) throw new Error("Add a keyword first, then it can be searched.")
                   const { queued } = await searchAllX(projectId)
                   if (!queued) throw new Error("Every switched-on keyword is already being searched.")
-                }, "Searching every switched-on keyword.")
+                })
               }
             >
               <RotateCwIcon />
@@ -336,7 +348,7 @@ export function XKeywords({
               view.hidden.map((hidden) => (
                 <DropdownMenuItem
                   key={hidden.id}
-                  onSelect={() => void act(() => changeXHidden({ change: "show", hiddenId: hidden.id }), `@${hidden.handle} shows again.`)}
+                  onSelect={() => void act(() => changeXHidden({ change: "show", hiddenId: hidden.id }))}
                 >
                   <EyeIcon />
                   <span className="truncate">Show @{hidden.handle} again</span>
@@ -347,6 +359,9 @@ export function XKeywords({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        </>
+      }
+    />
         <Dialog open={ideas !== null} onOpenChange={(open) => (open ? null : setIdeas(null))}>
           <DialogContent variant="admin">
             <DialogHeader>
@@ -380,8 +395,7 @@ export function XKeywords({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
-    </DashboardCardHeader>
+    </>
   )
 }
 

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, ChevronDownIcon, ListFilterIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -8,12 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
-import { useProductAuth } from "@/lib/pomodoro/auth-state"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 import {
   catalogTags,
-  describeTags,
   ownOnlyTags,
   ownTagCount,
   tagsFit,
@@ -126,11 +123,6 @@ export function MediaTagFilter({
     setBusy(true)
     try {
       await savePool(kind, poolFor(nextTicked))
-      toast.success(
-        nextTicked
-          ? `Shuffle plays only ${describeTags(nextTicked)} ${NOUN[kind].many}.`
-          : `Shuffle plays every ${NOUN[kind].one}.`
-      )
     } catch {
       showErrorToast("That did not save. Try again.")
     } finally {
@@ -253,7 +245,6 @@ export function MediaShuffleSwitch({
   ticked: string[] | null
 }) {
   const media = useRoomMedia()
-  const { authenticated } = useProductAuth()
   const [busy, setBusy] = React.useState(false)
   const id = React.useId()
   const pool = usePersonalPool(kind)
@@ -268,13 +259,6 @@ export function MediaShuffleSwitch({
     try {
       if (next) {
         await savePool(kind, poolFor(ticked))
-        toast.success(
-          ticked
-            ? `Shuffle plays only ${describeTags(ticked)} ${NOUN[kind].many}.`
-            : authenticated
-              ? `Your personal room shuffles every ${NOUN[kind].one}.`
-              : `Shuffling ${NOUN[kind].many} for this visit.`
-        )
       } else if (kind === "sound") {
         await addSoundToPersonalRoom(media.personalSound)
       } else {

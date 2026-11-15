@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { FieldLabel } from "@/components/broadcasts/inspector-fields"
 import { Button } from "@/components/ui/button"
@@ -53,7 +52,9 @@ export function ColourLookField({ clip }: { clip: EditorClip }) {
     let live = true
     loadColourLooks()
       .then((looks) => live && setSaved(looks))
-      .catch(() => undefined)
+      .catch(() => {
+        if (live) showErrorToast("Your saved looks could not be loaded. The film looks still work.")
+      })
     return () => {
       live = false
     }
@@ -134,7 +135,6 @@ function SaveLook({
           a.name.localeCompare(b.name)
         )
       )
-      toast.success(`Saved "${kept.name}".`)
       setName("")
       setOpen(false)
     } catch (error) {

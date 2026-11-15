@@ -8,7 +8,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CustomSectionDialog } from "@/components/directory/custom-section-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -89,9 +88,8 @@ export function CustomSectionsDashboard({
   const confirmDelete = React.useCallback(async () => {
     if (!confirm) return
     const done = await run(async () => {
-      const { name } = await removeCustomSection(confirm.section.id)
+      await removeCustomSection(confirm.section.id)
       await router.invalidate()
-      toast.success(`${name} was deleted.`)
     })
     if (done) setConfirm(null)
   }, [confirm, router, run])
@@ -226,12 +224,9 @@ export function CustomSectionsDashboard({
         open={editing !== null}
         section={editing?.section ?? null}
         onClose={() => setEditing(null)}
-        onSaved={(saved, wasNew) => {
+        onSaved={() => {
           setEditing(null)
           void router.invalidate()
-          toast.success(
-            wasNew ? `${saved.name} was created.` : "Section saved."
-          )
         }}
       />
 

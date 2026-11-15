@@ -1,5 +1,6 @@
-import { BedDoubleIcon, ClockIcon, FlagIcon, HistoryIcon, MoonIcon, StarIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
+import { BedDoubleIcon, ClockIcon, CloudRainIcon, FlagIcon, HistoryIcon, MoonIcon, SunIcon, SunriseIcon, SunsetIcon, type LucideIcon } from "lucide-react"
 
+import { StarRow } from "@/components/travel/stars"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
 import type { Activity } from "@/lib/api/travel/trips"
 import type { ActivityType } from "@/lib/travel/activity-types"
@@ -43,6 +44,7 @@ export function ActivityCardContent({
   compact = false,
   roomForMenu = false,
   warning,
+  rain = null,
   beenHere = null,
 }: {
   activity: Activity
@@ -52,6 +54,8 @@ export function ActivityCardContent({
   roomForMenu?: boolean
   /** Such as "Closed at this time", from the opening hours (task part 21). */
   warning?: string | null
+  /** "40% rain at 2:30 PM", for an outdoor card in a rainy hour (Travel features 4, part 3). */
+  rain?: string | null
   /** "Been here: Kyoto, March 2026", when the place was done on another trip (Travel features 3, part 10). */
   beenHere?: string | null
 }) {
@@ -95,7 +99,7 @@ export function ActivityCardContent({
         {activity.mustDo ? <MustDoMark /> : null}
         {beenHere ? <BeenHereMark label={beenHere} /> : null}
       </span>
-      {time || part || warning || nights ? (
+      {time || part || warning || rain || nights ? (
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {time ? (
             <span className="flex items-center gap-1 tabular-nums">
@@ -115,6 +119,12 @@ export function ActivityCardContent({
               {nights} nights
             </span>
           ) : null}
+          {rain ? (
+            <span className="flex items-center gap-1">
+              <CloudRainIcon className="size-3" aria-hidden />
+              {rain}
+            </span>
+          ) : null}
           {warning ? <span className="text-destructive">{warning}</span> : null}
         </span>
       ) : null}
@@ -124,11 +134,7 @@ export function ActivityCardContent({
             <span className="text-muted-foreground tabular-nums">{formatMoney(activity.costCents, currency)}</span>
           ) : null}
           {activity.rating ? (
-            <span className="flex items-center gap-0.5 text-muted-foreground" aria-label={`Rated ${activity.rating} out of 5`}>
-              {Array.from({ length: activity.rating }, (_, index) => (
-                <StarIcon key={index} className="size-3 fill-current" aria-hidden />
-              ))}
-            </span>
+            <StarRow rating={activity.rating} />
           ) : null}
           {/* Google's own stars, in words, so they never read as the person's rating beside them. */}
           {google ? <span className="text-muted-foreground tabular-nums">{google}</span> : null}

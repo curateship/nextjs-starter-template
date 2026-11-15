@@ -47,8 +47,10 @@ An app's own docs live in that app's `workspace/docs/`, and its tasks in
 
 `.agents/skills/` holds them. `unslop` is always on. Reach for `check-yourself`
 the moment Tyler says an answer is wrong or asks whether you are sure,
-`validate-app` before calling any browser-facing work done, and `deploy-app`
-when Tyler asks to deploy or launch an app.
+`validate-app` before calling any browser-facing work done, `deploy-app`
+when Tyler asks to deploy or launch an app, and
+`Design/admin-3-panel-design` ("Admin - 3 panel design") when he asks to turn
+a dashboard into the three-panel design.
 
 ## Four rules that never wait for a file to be opened
 

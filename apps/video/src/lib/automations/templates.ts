@@ -12,7 +12,6 @@ export type AutomationTemplate = {
 
 export const AUTOMATION_TEMPLATE_KEYS = [
   "welcome-members",
-  "changelog-approval",
   "payment-recovery",
 ] as const
 
@@ -98,65 +97,6 @@ export const AUTOMATION_TEMPLATES: readonly AutomationTemplate[] = [
         },
       ],
       edges: [edge("welcome-to-email", "welcome-audience", "welcome-email")],
-      viewport: { x: 0, y: 0, zoom: 0.9 },
-    },
-  },
-  {
-    key: "changelog-approval",
-    name: "Changelog email with approval",
-    description:
-      "Prepare a changelog for the whole contact list and wait for approval before sending.",
-    steps: ["Everyone", "Approval", "Changelog email"],
-    graph: {
-      nodes: [
-        {
-          id: "changelog-audience",
-          kind: "audience",
-          x: 40,
-          y: 120,
-          settings: {
-            audience: "everyone",
-            planSlug: "",
-            segmentId: "",
-            segmentName: "",
-            tag: "",
-          },
-        },
-        {
-          id: "changelog-approval",
-          kind: "waitForApproval",
-          x: 340,
-          y: 120,
-          settings: {
-            summary:
-              "Send this changelog email to everyone on the contact list.",
-            timeoutDays: 3,
-          },
-        },
-        {
-          id: "changelog-email",
-          kind: "sendEmail",
-          x: 640,
-          y: 120,
-          settings: {
-            subject: "What’s new this week",
-            preheader: "The latest improvements, all in one place.",
-            fromName: "",
-            blocks: emailBlocks(
-              "changelog",
-              "<h2>What’s new</h2><p>Here’s a quick look at what improved this week.</p><ul><li>Add your first update here.</li><li>Add another useful change here.</li></ul>"
-            ),
-          },
-        },
-      ],
-      edges: [
-        edge(
-          "changelog-to-approval",
-          "changelog-audience",
-          "changelog-approval"
-        ),
-        edge("approval-to-email", "changelog-approval", "changelog-email"),
-      ],
       viewport: { x: 0, y: 0, zoom: 0.9 },
     },
   },

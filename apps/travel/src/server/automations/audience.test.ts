@@ -16,13 +16,13 @@ import {
 } from "@/server/automations/audience"
 import { automationExecutors } from "@/server/automations/executors"
 import { createWorkspaceSegment } from "@/server/people/contact-segments"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
   customShellMemberTags,
   customShellPlans,
   customShellSubscriptions,
+  customShellUsers,
   customShellWorkspaces,
   type CustomShellAutomationRun,
   type CustomShellUser,
@@ -31,9 +31,10 @@ import { now, uuid } from "@/server/auth/security"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
- * The audience is a set of **contacts** in the flow owner's workspace, so every
- * test here stands up a workspace, and the owner of it is an account like any
- * other — they are inside every count below.
+ * An audience reads one of two lists that never mix (9 Nov 2026): the
+ * subscribers (`contacts`) or the accounts (`users`). Every test stands up a
+ * workspace, and its owner is an account like any other, so they are inside
+ * every account count below and outside every subscriber count.
  */
 const WORKSPACE_ID = "ws-audience"
 
@@ -69,12 +70,8 @@ const audienceOf = (
   segmentId = ""
 ): AutomationAudience => ({ kind, planSlug, segmentId, tag: "" })
 
-/**
- * Counts the way the running step does: contacts brought up to date with the
- * accounts first, then the count over contacts.
- */
+/** Counts the way the running step does. */
 async function countSynced(audience: AutomationAudience) {
-  await syncContactsFromUsers(WORKSPACE_ID, db)
   return countAutomationAudience(audience, WORKSPACE_ID, db)
 }
 
@@ -225,7 +222,6 @@ describe("member tag audiences", () => {
   it("matches exactly the accounts carrying the chosen tag", async () => {
     const beta = await insertUser(db, { email: "beta@example.test" })
     await insertUser(db, { email: "other@example.test" })
-    await syncContactsFromUsers(WORKSPACE_ID, db)
     await db.insert(customShellMemberTags).values({
       userId: beta.id,
       tag: "beta",
@@ -303,43 +299,44 @@ describe("the compiler", () => {
 })
 
 describe("counting who matches", () => {
-  // The owner of the workspace counts too — they have an account like anyone.
+  // The owner of the workspace counts too: they have an account like anyone.
   it("counts every account, and never a suspended or closing one", async () => {
     await insertUser(db)
     await insertUser(db)
     await insertUser(db, { status: "suspended" })
     await insertUser(db, { status: "pending_deletion", deletedAt: now() })
 
-    expect(await countSynced(audienceOf("everyone"))).toBe(3)
+    expect(await countSynced(audienceOf("accounts"))).toBe(3)
   })
 
-  it("counts an address with no account behind it — everyone means everyone", async () => {
+  it("keeps the two lists apart: every subscriber is never an account", async () => {
     await insertUser(db)
     await insertContact("waitlist")
 
-    expect(await countSynced(audienceOf("everyone"))).toBe(3)
+    expect(await countSynced(audienceOf("everyone"))).toBe(1)
+    expect(await countSynced(audienceOf("accounts"))).toBe(2)
   })
 
-  it("never counts somebody who unsubscribed, whatever the choice", async () => {
-    const member = await insertUser(db)
+  it("never counts a subscriber who unsubscribed", async () => {
+    await insertContact("kept")
     await insertContact("gone", { status: "unsubscribed" })
-    await syncContactsFromUsers(WORKSPACE_ID, db)
 
-    // A member who unsubscribed stays a member — and still must not be here.
+    expect(await countSynced(audienceOf("everyone"))).toBe(1)
+  })
+
+  it("never counts an account that turned automated mail off", async () => {
+    const member = await insertUser(db)
     await db
-      .update(customShellContacts)
-      .set({ status: "unsubscribed" })
-      .where(eq(customShellContacts.userId, member.id))
+      .update(customShellUsers)
+      .set({ automatedMailOffAt: now() })
+      .where(eq(customShellUsers.id, member.id))
 
-    expect(
-      await countAutomationAudience(audienceOf("everyone"), WORKSPACE_ID, db)
-    ).toBe(1)
-    expect(
-      await countAutomationAudience(audienceOf("registered"), WORKSPACE_ID, db)
-    ).toBe(1)
+    expect(await countSynced(audienceOf("accounts"))).toBe(1)
+    expect(await countSynced(audienceOf("registered"))).toBe(1)
   })
 
   it("never counts a bounced or complained address", async () => {
+    await insertContact("fine")
     await insertContact("bounced", { status: "bounced" })
     await insertContact("complained", { status: "complained" })
 
@@ -351,7 +348,7 @@ describe("counting who matches", () => {
 
     // Quiet is not an opt-out. They are still written to, which is the only way
     // they can open something and come back onto the list.
-    expect(await countSynced(audienceOf("everyone"))).toBe(2)
+    expect(await countSynced(audienceOf("everyone"))).toBe(1)
   })
 
   it("keeps other workspaces' contacts out entirely", async () => {
@@ -366,6 +363,7 @@ describe("counting who matches", () => {
       updatedAt: timestamp,
     })
     await insertContact("theirs", { workspaceId: "ws-elsewhere" })
+    await insertContact("ours")
 
     expect(await countSynced(audienceOf("everyone"))).toBe(1)
   })
@@ -374,11 +372,11 @@ describe("counting who matches", () => {
     await insertUser(db)
     await insertUser(db, { emailVerifiedAt: null })
     await insertUser(db, { emailVerifiedAt: null })
-    // An address alone cannot have confirmed an email.
+    // A subscriber is not an account, so never in an account audience.
     await insertContact("waitlist")
 
     expect(await countSynced(audienceOf("registered"))).toBe(2)
-    expect(await countSynced(audienceOf("everyone"))).toBe(5)
+    expect(await countSynced(audienceOf("accounts"))).toBe(4)
   })
 
   it("counts paying members and no one else", async () => {
@@ -494,9 +492,8 @@ describe("counting who matches", () => {
 })
 
 describe("the preview the settings panel shows", () => {
-  /** Previews the way the panel does: contacts synced first, then the read. */
+  /** Previews the way the panel does. */
   async function previewSynced(audience: AutomationAudience) {
-    await syncContactsFromUsers(WORKSPACE_ID, db)
     return previewAutomationAudience(audience, WORKSPACE_ID, db)
   }
 
@@ -506,12 +503,11 @@ describe("the preview the settings panel shows", () => {
 
     const preview = await previewSynced(audienceOf("everyone"))
 
-    // The owner is a contact like anybody else, so three.
-    expect(preview.total).toBe(3)
+    // The owner is an account, not a subscriber, so two.
+    expect(preview.total).toBe(2)
     expect(preview.sample.map((contact) => contact.email)).toEqual([
       "anna@example.test",
       "bob@example.test",
-      owner.email,
     ])
     expect(preview.sample[1]?.name).toBe("Bob Stone")
     // Nobody named is somebody with no name, not a gap to guess at.
@@ -524,7 +520,7 @@ describe("the preview the settings panel shows", () => {
     }
 
     const preview = await previewSynced(audienceOf("everyone"))
-    expect(preview.total).toBe(10)
+    expect(preview.total).toBe(9)
     expect(preview.sample).toHaveLength(AUDIENCE_SAMPLE_SIZE)
   })
 
@@ -543,9 +539,10 @@ describe("the preview the settings panel shows", () => {
     await insertContact("waitlist")
 
     const preview = await previewSynced(audienceOf("registered"))
-    // The owner is the only confirmed account; the list is three people.
+    // The owner is the only confirmed account; there are two accounts. The
+    // subscriber is on the other list and in neither number.
     expect(preview.total).toBe(1)
-    expect(preview.everyone).toBe(3)
+    expect(preview.everyone).toBe(2)
   })
 
   it("does not go asking twice for the widest choice", async () => {
@@ -577,12 +574,13 @@ describe("the step the engine runs", () => {
 
   it("records how many it matched and carries on", async () => {
     await insertUser(db)
-    // An address with no account, which the step must count too.
     await insertContact("waitlist")
+    await insertContact("newsletter")
 
+    // Every subscriber: the two on the list, never the accounts.
     const result = await runStep({ audience: "everyone", planSlug: "" })
     expect(result.type).toBe("next")
-    expect(result.summary).toContain("Matched 3 people")
+    expect(result.summary).toContain("Matched 2 people")
   })
 
   it("names the segment in the run history", async () => {
@@ -595,7 +593,7 @@ describe("the step the engine runs", () => {
     })
     expect(result.summary).toContain("Matched 1 person")
     expect(result.summary).toContain(
-      'the people in the "Lapsed trials" segment'
+      'the subscribers in the "Lapsed trials" segment'
     )
   })
 

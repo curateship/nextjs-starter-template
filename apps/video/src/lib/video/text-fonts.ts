@@ -2,8 +2,8 @@
  * The faces text clips and carousel text can be drawn in. Each one ships
  * twice: as woff2 files in `public/fonts` for the browser, and as a ttf in
  * `src/server/assets` for the server's rasterizer, so the export matches the
- * preview. Four are SemiBold; Anton comes in one weight only, its own heavy
- * Regular. All five are free under the SIL Open Font License 1.1 — each
+ * preview. Five are SemiBold; Anton comes in one weight only, its own heavy
+ * Regular. All six are free under the SIL Open Font License 1.1 — each
  * licence sits beside its ttf as `<Face>-LICENSE.txt`.
  *
  * `family` is what the browser draws with, `svgFamily` is the exact family
@@ -83,6 +83,21 @@ export const TEXT_FONTS = [
     capitalsWidthRatio: 0.46,
     ascent: 1.176,
     descent: 0.329,
+  },
+  // Soft and round, for study timers and thumbnails like "25/05" (Tyler,
+  // 14 Nov 2026, picked "Fredoka"). Widths measured on 14 Nov 2026 by
+  // drawing the same sample with resvg, which read every face above within
+  // 0.02 of its number; ascent and descent from its `hhea` table.
+  {
+    id: "fredoka",
+    label: "Fredoka",
+    family: '"Fredoka", ui-rounded, sans-serif',
+    svgFamily: "Fredoka",
+    weight: 600,
+    widthRatio: 0.51,
+    capitalsWidthRatio: 0.63,
+    ascent: 0.974,
+    descent: 0.236,
   },
 ] as const
 

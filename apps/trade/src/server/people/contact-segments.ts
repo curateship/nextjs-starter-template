@@ -29,15 +29,12 @@ import {
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
 import { db, type CustomShellDb } from "@/server/db"
-import { activeSubscriptionCondition } from "@/server/billing/entitlements"
 import {
   customShellAutomations,
   customShellContactSegmentMembers,
   customShellContactSegments,
   customShellContacts,
   customShellDeliveries,
-  customShellPlans,
-  customShellSubscriptions,
   type CustomShellContactSegment,
 } from "@/server/schema"
 import { automationGraphSchema } from "@/lib/automations/graph"
@@ -92,32 +89,22 @@ const MATCHES_NOBODY = sql`false`
  */
 type SegmentContext = {
   segments: Map<string, SegmentDefinition>
-  /** Plan id by slug. A slug that is missing is a plan that has been deleted. */
-  planIds: Map<string, string>
 }
 
 async function loadSegmentContext(
   workspaceId: string,
   database: CustomShellDb = db
 ): Promise<SegmentContext> {
-  const [rows, plans] = await Promise.all([
-    database
-      .select({
-        id: customShellContactSegments.id,
-        kind: customShellContactSegments.kind,
-        rules: customShellContactSegments.rules,
-      })
-      .from(customShellContactSegments)
-      .where(eq(customShellContactSegments.workspaceId, workspaceId)),
-    database
-      .select({ id: customShellPlans.id, slug: customShellPlans.slug })
-      .from(customShellPlans),
-  ])
+  const rows = await database
+    .select({
+      id: customShellContactSegments.id,
+      kind: customShellContactSegments.kind,
+      rules: customShellContactSegments.rules,
+    })
+    .from(customShellContactSegments)
+    .where(eq(customShellContactSegments.workspaceId, workspaceId))
 
-  return {
-    segments: new Map(rows.map((row) => [row.id, readSegment(row)])),
-    planIds: new Map(plans.map((plan) => [plan.slug, plan.id])),
-  }
+  return { segments: new Map(rows.map((row) => [row.id, readSegment(row)])) }
 }
 
 /**
@@ -356,43 +343,6 @@ function conditionSql(
       return condition.operator === "has"
         ? sql`${customShellContacts.id} in ${opened}`
         : sql`${customShellContacts.id} not in ${opened}`
-    }
-
-    case "account":
-      return condition.operator === "has"
-        ? isNotNull(customShellContacts.userId)
-        : isNull(customShellContacts.userId)
-
-    case "plan": {
-      const planId = context.planIds.get(condition.planSlug)
-
-      // The plan named here has been deleted, so this rule cannot be worked
-      // out. It matches nobody either way round — including for "isn't", where
-      // the honest-looking answer ("well, nobody is on it, so everybody") would
-      // hand a newsletter the whole contact list.
-      if (!planId) return MATCHES_NOBODY
-
-      const onThePlan = database
-        .select({ userId: customShellSubscriptions.userId })
-        .from(customShellSubscriptions)
-        .where(
-          and(
-            eq(customShellSubscriptions.planId, planId),
-            activeSubscriptionCondition(timestamp)
-          )
-        )
-
-      return condition.operator === "is"
-        ? (and(
-            isNotNull(customShellContacts.userId),
-            inArray(customShellContacts.userId, onThePlan)
-          ) as SQL)
-        : // Somebody with no account is certainly not on the plan, and `not in`
-          // alone would leave them out — comparing null to anything is null.
-          (or(
-            isNull(customShellContacts.userId),
-            notInArray(customShellContacts.userId, onThePlan)
-          ) as SQL)
     }
 
     case "in":
@@ -872,14 +822,6 @@ async function validateSegment(
   for (const condition of input.rules.conditions) {
     if (!segmentConditionIsComplete(condition)) {
       throw new Error("SEGMENT_RULE_INCOMPLETE")
-    }
-    if (condition.type === "plan") {
-      const [plan] = await database
-        .select({ id: customShellPlans.id })
-        .from(customShellPlans)
-        .where(eq(customShellPlans.slug, condition.planSlug))
-        .limit(1)
-      if (!plan) throw new Error("SEGMENT_PLAN_MISSING")
     }
   }
 

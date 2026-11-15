@@ -7,8 +7,7 @@ import { pauseFlow } from "@/lib/api/trade/flow-trading"
 import { getRecipe, runRecipe } from "@/lib/api/trade/recipes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
-const navigate = vi.hoisted(() => vi.fn())
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }))
+const onRunAgain = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/api/trade/flow-trading", () => ({
   pauseFlow: vi.fn(),
   stopFlow: vi.fn(),
@@ -69,7 +68,7 @@ it("optimistically pauses and restores state on a refusal", async () => {
   )
   await act(async () =>
     root.render(
-      <FlowRunControls head={head} onPaused={onPaused} onRefresh={vi.fn()} />
+      <FlowRunControls head={head} onPaused={onPaused} onRefresh={vi.fn()} onRunAgain={onRunAgain} />
     )
   )
   await click("Pause")
@@ -90,6 +89,7 @@ it("offers Resume for a paused run and refreshes after success", async () => {
         head={{ ...head, paused: true }}
         onPaused={vi.fn()}
         onRefresh={refresh}
+        onRunAgain={onRunAgain}
       />
     )
   )
@@ -119,6 +119,7 @@ it("confirms today's recipe, surfaces a busy wallet, then opens the new run", as
         head={{ ...head, status: "stopped" }}
         onPaused={vi.fn()}
         onRefresh={vi.fn()}
+        onRunAgain={onRunAgain}
       />
     )
   )
@@ -131,7 +132,7 @@ it("confirms today's recipe, surfaces a busy wallet, then opens the new run", as
   expect(showErrorToast).toHaveBeenCalledWith(
     "Practice is already running another recipe."
   )
-  expect(navigate).not.toHaveBeenCalled()
+  expect(onRunAgain).not.toHaveBeenCalled()
   await click("Run again")
   expect(runRecipe).toHaveBeenCalledWith(
     "recipe",
@@ -139,8 +140,6 @@ it("confirms today's recipe, surfaces a busy wallet, then opens the new run", as
     undefined,
     "old-run"
   )
-  expect(navigate).toHaveBeenCalledWith({
-    to: "/flow-runs/$runId",
-    params: { runId: "new-run" },
-  })
+  // The Bots dashboard opens the new run in its middle.
+  expect(onRunAgain).toHaveBeenCalledWith("new-run")
 })

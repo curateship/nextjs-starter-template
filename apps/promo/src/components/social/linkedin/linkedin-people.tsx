@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CheckIcon, Loader2Icon, RefreshCwIcon, UserPlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { acceptLinkedinRequests, getLinkedinErrorMessage, readLinkedinPeopleNow, type LinkedinPeople } from "@/lib/api/social/linkedin"
-import { describeBulkResult } from "@/lib/format/bulk-result"
 import { linkedinPersonUrl, type LinkedinConnectStatus, type LinkedinInviteStatus } from "@/lib/social/linkedin/options"
 import { postedDateText } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -118,7 +116,6 @@ export function LinkedinPeopleTab({
     setBusy("accept")
     try {
       const result = await acceptLinkedinRequests(tickedIds)
-      toast.success(describeBulkResult({ done: result.completed.length, kept: result.skipped.length, one: "request", many: "requests", verb: "accepted soon", keptReason: "refused, each with its reason" }))
       for (const skipped of result.skipped) {
         const invite = waiting.find((item) => item.id === skipped.id)
         showErrorToast(`${invite?.name || "One request"}: ${skipped.reason}`)
@@ -182,14 +179,7 @@ export function LinkedinPeopleTab({
                       onClick={async () => {
                         setBusy(account.id)
                         try {
-                          const { queued } = await readLinkedinPeopleNow(account.id)
-                          toast.success(
-                            !queued
-                              ? "A read is on its way already."
-                              : account.onPhone
-                                ? "Reading its waiting requests on its phone, inside its workday. Viewers are read in a browser only."
-                                : "Reading them in its own browser, inside its workday."
-                          )
+                          await readLinkedinPeopleNow(account.id)
                           await onChanged()
                         } catch (failure) {
                           showErrorToast(getLinkedinErrorMessage(failure))

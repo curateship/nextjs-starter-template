@@ -37,7 +37,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/components/shell/public-page-frame", () => ({
   PublicPageFrame: ({ children }: { children: React.ReactNode }) => (
-    <main>{children}</main>
+    <div data-public-frame="">{children}</div>
   ),
 }))
 
@@ -142,6 +142,22 @@ describe("PublicNotFound", () => {
     expect(host.textContent).toContain("That page does not exist")
     expect(host.textContent).toContain("Go to the front page")
     expect(host.textContent).toContain("Sign in")
+
+    await act(async () => root.unmount())
+  })
+
+  it("draws the card alone in the middle, with no public menu or footer", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => root.render(<PublicNotFound />))
+
+    expect(host.querySelector("[data-public-frame]")).toBeNull()
+    const page = host.querySelector("main")
+    expect(page?.className).toContain("items-center")
+    expect(page?.className).toContain("justify-center")
+    expect(page?.textContent).toContain("That page does not exist")
 
     await act(async () => root.unmount())
   })

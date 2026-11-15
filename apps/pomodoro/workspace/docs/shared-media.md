@@ -185,7 +185,7 @@ the card shows only without the extension.
 
 ## What an admin can do
 
-All from Member uploads (`/admin/pomodoro-uploads`), whose rows now carry a
+All from Member uploads (Flowfly → Library → Member uploads), whose rows now carry a
 Sharing column and a filter (Shared, Waiting to be shared, Taken off sharing),
 and a sharing menu on each shared row. The report queue's file rows carry the
 same menu plus "Delete the file". Each press writes one row to

@@ -403,7 +403,15 @@ describe("the old-star migration", () => {
         )
       }
       const legacyDb = drizzle(legacyClient) as unknown as CustomShellDb
-      const legacyUser = await insertUser(legacyDb)
+      // Written in plain SQL with only the columns users had before 0141, not
+      // through today's schema: a column a later migration adds to users is
+      // not in this old database, and the insert would ask for it.
+      const legacyUser = { id: crypto.randomUUID() }
+      await legacyClient.query(
+        `INSERT INTO users (id, email, name, role, status, password_hash, created_at, updated_at)
+         VALUES ($1, $2, 'Test Person', 'member', 'active', 'not-a-real-hash', now(), now())`,
+        [legacyUser.id, `${legacyUser.id}@example.test`]
+      )
       await legacyDb.insert(tradeMarketFavorites).values({
         userId: legacyUser.id,
         marketKeys: [

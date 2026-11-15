@@ -39,7 +39,11 @@ const DEFAULTS = {
 const ORDER = ["engine", "worker", "web"]
 
 const POLL_EVERY_MS = 5_000
-const GIVE_UP_AFTER_MS = 20 * 60_000
+// A full Trade website build takes 22 to 25 minutes on the German Coolify
+// server (25 on 4 Nov 2026, 23 on 7 Nov), so 20 gave up on deploys that went
+// on to succeed (7 Nov 2026: the script said failed while Coolify finished at
+// 19:41 and the new container served). 45 leaves room for a slow day.
+const GIVE_UP_AFTER_MS = 45 * 60_000
 // A busy box answers a status check with a 504 now and then while a build is
 // still running. Only this many failed checks in a row end the wait. A 4xx,
 // such as a wrong token, ends it at once.

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CopyIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -52,7 +51,6 @@ export function ExportAiPartsCard({
     if (!parts) return
     try {
       await navigator.clipboard.writeText(aiPartsParagraph(parts, handEdited))
-      toast.success("Copied. Paste it where the upload asks about AI.")
     } catch {
       showErrorToast(
         "The paragraph could not be copied. Select the lines and copy them yourself."

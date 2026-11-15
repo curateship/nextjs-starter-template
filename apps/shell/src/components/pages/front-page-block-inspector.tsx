@@ -1,5 +1,11 @@
 import * as React from "react"
-import { SlidersHorizontalIcon, XIcon } from "lucide-react"
+import {
+  EyeIcon,
+  MoveVerticalIcon,
+  SlidersHorizontalIcon,
+  TypeIcon,
+  XIcon,
+} from "lucide-react"
 
 import { AppFrontPageRowEditor } from "@/components/pages/app-front-page-row-editor"
 import { FrontPageRowContentEditor } from "@/components/pages/front-page-row-content-editor"
@@ -24,6 +30,7 @@ import {
 } from "@/components/ui/tooltip"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import { FieldLabel } from "@/components/ui/field-label"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -52,6 +59,8 @@ import {
   MAX_FRONT_PAGE_ROW_HEADING_LENGTH,
   MAX_FRONT_PAGE_ROW_INTRO_LENGTH,
   MAX_FRONT_PAGE_ROW_SPACE,
+  FRONT_PAGE_ROW_HEADING_MESSAGE,
+  frontPageBlockProblem,
   frontPageHeroBandColors,
   frontPageHeroGrey,
   normalizeFrontPageHeroBackground,
@@ -154,6 +163,11 @@ export function FrontPageBlockInspector({
    */
   const [openedWith] = React.useState(() => JSON.stringify(draft))
   const touched = JSON.stringify(draft) !== openedWith
+  // Why the block has stopped saving, in the words the editor's own check
+  // uses. The header keeps its last "Saved" while a block is held back, so
+  // without this line a cleared heading looks saved when it is not.
+  const problem = touched && heldBack ? frontPageBlockProblem(draft) : null
+  const headingIsTheProblem = problem === FRONT_PAGE_ROW_HEADING_MESSAGE
 
   const appKind =
     draft.kind === APP_FRONT_PAGE_ROW_KIND
@@ -216,7 +230,7 @@ export function FrontPageBlockInspector({
       <ScrollArea className="min-h-0 flex-1">
         <InspectorCollapseAllProvider signal={collapseAll.signal}>
           <div className="grid gap-4 p-4 sm:p-5">
-            <InspectorCard
+            <InspectorCard icon={<TypeIcon />}
               storageId="front-page-row-content"
               title="Block content"
               description="Every block uses a fixed shape, so the front page stays consistent on phones and larger screens."
@@ -239,7 +253,10 @@ export function FrontPageBlockInspector({
                   placeholder={
                     kind === "divider" ? "Divider" : "Welcome to our site"
                   }
-                  aria-invalid={headingInvalid || undefined}
+                  aria-invalid={headingInvalid || headingIsTheProblem || undefined}
+                  aria-describedby={
+                    headingIsTheProblem ? "front-page-block-problem" : undefined
+                  }
                   onBlur={() => setHeadingTouched(true)}
                   onChange={(event) =>
                     onChange(patchCommon(draft, { heading: event.target.value }))
@@ -589,7 +606,13 @@ export function FrontPageBlockInspector({
               }
             />
 
-            <InspectorCard
+            {problem ? (
+              <InlineError id="front-page-block-problem">
+                Not saved. {problem}
+              </InlineError>
+            ) : null}
+
+            <InspectorCard icon={<MoveVerticalIcon />}
               storageId="front-page-row-spacing"
               title="Spacing"
               description="How much air this block keeps above and below itself, instead of the page's own."
@@ -649,7 +672,7 @@ export function FrontPageBlockInspector({
               ) : null}
             </InspectorCard>
 
-            <InspectorCard
+            <InspectorCard icon={<EyeIcon />}
               storageId="front-page-row-visibility"
               title="Visibility"
               description="Switch off a part of the block to leave it out of the public page. The part keeps whatever you typed into it, so switching it back on brings the same words back."

@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import {
   InspectorCard,
   InspectorNote,
@@ -44,7 +45,7 @@ export default function WaitForApprovalFields({
     onChange({ ...node, settings: { ...node.settings, ...settings } })
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <div className="grid gap-1.5">
         <FieldLabel
           htmlFor={`approval-${node.id}-summary`}
@@ -58,7 +59,7 @@ export default function WaitForApprovalFields({
           value={summary}
           rows={1}
           maxLength={APPROVAL_SUMMARY_MAX}
-          placeholder="e.g. Sends the changelog email to every paying member."
+          placeholder="e.g. Sends the weekly email to every paying member."
           className="text-xs"
           onChange={(event) => setSettings({ summary: event.target.value })}
         />

@@ -23,7 +23,6 @@ import {
   getSegmentDefinition,
   segmentConditions,
 } from "@/server/people/contact-segments"
-import { syncContactsFromUsers } from "@/server/people/contacts"
 import { markQuietContacts } from "@/server/people/quiet-contacts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getEmailProvider } from "@/server/email/provider"
@@ -510,9 +509,6 @@ async function processBroadcastBatch(
     return
   }
 
-  // Anybody who signed up since the last batch is in this one. Deliveries are
-  // keyed on the contact, so somebody who was already mailed is still skipped.
-  await syncContactsFromUsers(broadcast.workspaceId, database)
 
   // The audience is worked out fresh for every batch, not frozen when Send was
   // pressed. That is what makes a segment worth pointing at: somebody who opts

@@ -147,7 +147,7 @@ describe("coins saved from an exchange the wallet cannot reach", () => {
     expect(html).toContain("trades on Aster")
     expect(html).toContain("picked on Hyperliquid")
     expect(html).toContain("will not run as it stands")
-    expect(html).toContain("pick the coins again")
+    expect(html).toContain("Pick the coins again")
   })
 })
 

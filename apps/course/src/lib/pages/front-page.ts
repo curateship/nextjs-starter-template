@@ -37,17 +37,22 @@ export const FRONT_PAGE_ROW_KIND_LABELS: Record<FrontPageRowKind, string> = {
   divider: "Divider",
 }
 
+/**
+ * The line under each kind in Add a block, about four words (Tyler, 9 Nov
+ * 2026: "the blocks subhedaer is way too much text ... limit it to about 4
+ * words"). What each kind holds in full is in its fields once added.
+ */
 export const FRONT_PAGE_ROW_KIND_HINTS: Record<FrontPageRowKind, string> = {
-  text: "A heading and one short introduction line.",
-  words: "A heading and as much writing as the page needs, with its own headings, lists and links.",
-  hero: "A large heading, a line beneath it, a button, and an optional picture beside them.",
-  plans: "The app's current public plans beneath the row heading.",
-  testimonials: "Customer quotes with a name, role, and optional picture.",
-  faq: "Questions and answers shown together.",
-  logos: "Customer or partner logos with accessible names.",
-  screenshots: "Product images with short captions.",
-  pages: "A grid of cards for the pages you pick, each with its picture, name and description.",
-  divider: "A break between the rows around it: a line, a row of dots, or a gap.",
+  text: "Heading and one line",
+  words: "Heading and writing",
+  hero: "Big heading and button",
+  plans: "Your public plans",
+  testimonials: "Customer quotes",
+  faq: "Questions and answers",
+  logos: "Partner logos",
+  screenshots: "Images with captions",
+  pages: "Cards for picked pages",
+  divider: "Line, dots or gap",
 }
 
 /**

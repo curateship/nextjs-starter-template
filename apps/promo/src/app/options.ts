@@ -27,7 +27,7 @@ export const appOptions: AppOptions = {
   notifications: {
     /**
      * A proxy that stopped working rings the bell once, and clicking the
-     * notice opens that proxy on the Proxies dashboard.
+     * notice opens that proxy in the Anti Detect dashboard's Proxies.
      */
     describe: describePromoNotice,
     /**

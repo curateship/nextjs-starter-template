@@ -6,7 +6,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { Button } from "@/components/ui/button"
@@ -101,7 +100,6 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                   onClick={() => {
                     void navigator.clipboard
                       .writeText(siteCollections[0]!.profileUrl)
-                      .then(() => toast.success("Profile link copied."))
                       .catch(() =>
                         showErrorToast("The profile link could not be copied.")
                       )
@@ -140,11 +138,6 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                               ? { ...row, isPublic }
                               : row
                           )
-                        )
-                        toast.success(
-                          isPublic
-                            ? "Saved list is public."
-                            : "Saved list is private."
                         )
                       })
                     }
@@ -224,7 +217,6 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                                     : row
                                 )
                               )
-                              toast.success("Removed from saved listings.")
                             })
                           }
                         >
@@ -261,7 +253,7 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                 row.id === renaming.id ? { ...row, name: result.name } : row
               )
             )
-          }, "Saved list renamed.")
+          })
           if (saved) setRenaming(null)
         }}
       />
@@ -285,7 +277,7 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
               current.filter((row) => row.id !== deleting.id)
             )
             setDeleting(null)
-          }, "Saved list deleted.")
+          })
         }
       />
     </div>

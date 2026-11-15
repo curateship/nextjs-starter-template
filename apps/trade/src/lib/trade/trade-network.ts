@@ -5,67 +5,11 @@ import {
 } from "@/lib/protocols/contracts"
 
 /**
- * `?market=<key>` is which market the middle panel shows — a full market key
- * (`hyperliquid:mainnet:BTC`), so the address stays honest about the exchange
- * and a link keeps meaning the same market on every dashboard. Checked before
- * use and dropped when it is not usable.
- *
- * `?network=testnet` is the practice-network door when nothing is charted.
- * A market key already names its network, so with a market on screen the key
- * is the truth and this param only matters on a bare page — the one rule in
- * `resolveTradeNetwork`. There is no switch on screen any more (paper
- * wallets are the everyday practice path); the address, and any testnet
- * market's link, are how the door is opened when it is wanted.
- *
- * Shared here because every exchange's dashboard route reads the same two
- * params the same way.
+ * `?market=<key>` names a market, and `?network=testnet` is the practice
+ * network's door when nothing is charted; `@/lib/trade/dashboard-view` reads
+ * both off the Trade dashboard's address. The rules here are the two that
+ * address leans on.
  */
-export type TradeSearch = { market?: string; network?: "testnet" | "mainnet" }
-
-/**
- * The search params of a single-network dashboard: the market alone. There
- * is no `?network` to read because there is no network to choose — and no
- * silent clamp either: a network typed into the address is not a key this
- * page has, so the validator drops it from the address instead of holding a
- * value the page would quietly override.
- */
-export function readMarketSearch(search: Record<string, unknown>): {
-  market?: string
-  /**
-   * Never a value — declared so the type itself says "this page has no
-   * network", and so the route's strip-from-the-address middleware may name
-   * the key it removes.
-   */
-  network?: undefined
-} {
-  return {
-    market:
-      typeof search.market === "string" && search.market.length <= 120
-        ? search.market
-        : undefined,
-  }
-}
-
-export function readTradeSearch(search: Record<string, unknown>): TradeSearch {
-  return {
-    market:
-      typeof search.market === "string" && search.market.length <= 120
-        ? search.market
-        : undefined,
-    // "mainnet" is kept, not dropped as the default.
-    //
-    // **Because it is the only way home.** With neither a market nor a network
-    // in the address, the page falls back to the remembered last market — and
-    // if that is a testnet coin it lands on testnet again. Saying mainnet out
-    // loud is what lets somebody leave the practice network deliberately.
-    network:
-      search.network === "testnet"
-        ? "testnet"
-        : search.network === "mainnet"
-          ? "mainnet"
-          : undefined,
-  }
-}
 
 /**
  * Which network the Trade page is on. One rule, applied in the route's loader

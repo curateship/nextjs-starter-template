@@ -510,6 +510,8 @@ async function moveOrder(
   // to be the "before" that a fill can be measured against.
   plan.heldWhenPlaced = book.positions.get(marketKey)?.szi ?? 0
   plan.missingSince = 0
+  // The first send's price is the aim every later chase is measured against.
+  plan.aimedPx ??= wanted
   plan.orderId = await deps.insertOrder({
     marketKey,
     side: plan.side,
@@ -518,6 +520,7 @@ async function moveOrder(
     leverage: plan.leverage,
     maxLeverage: plan.maxLeverage,
     reduceOnly: plan.reduceOnly,
+    aimedPx: plan.aimedPx,
     now,
   })
   plan.clientOrderId = clientOrderId(plan.orderId)

@@ -3,9 +3,19 @@ import {
   AlignCenterIcon,
   AlignLeftIcon,
   AlignRightIcon,
+  FileTextIcon,
+  HeadingIcon,
+  ImageIcon,
   MailIcon,
+  MailXIcon,
+  MinusIcon,
+  MousePointerClickIcon,
+  MoveVerticalIcon,
+  PaletteIcon,
   SettingsIcon,
   Trash2Icon,
+  TypeIcon,
+  UserIcon,
 } from "lucide-react"
 
 import {
@@ -118,7 +128,7 @@ function HeaderFields({
   const { content } = block
   return (
     <>
-      <InspectorCard
+      <InspectorCard icon={<ImageIcon />}
         title="Logo"
         description="The picture at the top. After an email uses it, the file stays in the media library so old inbox copies keep working. With no picture, the app name is shown instead."
       >
@@ -176,7 +186,7 @@ function HeaderFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Spacing">
+      <InspectorCard icon={<MoveVerticalIcon />} title="Spacing">
         <SliderField
           id="header-padding-top"
           label="Space above"
@@ -197,7 +207,7 @@ function HeaderFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Appearance">
+      <InspectorCard icon={<PaletteIcon />} title="Appearance">
         <ColorField
           label="Background"
           value={content.backgroundColor}
@@ -221,7 +231,7 @@ function RichTextFields({
   const { content } = block
   return (
     <>
-      <InspectorCard
+      <InspectorCard icon={<TypeIcon />}
         title="Copy"
         description="Write the words here. Drop in one of the tags underneath to make it read like it was written to that person."
       >
@@ -237,7 +247,7 @@ function RichTextFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Spacing">
+      <InspectorCard icon={<MoveVerticalIcon />} title="Spacing">
         <SliderField
           id="richtext-padding"
           label="Space around it"
@@ -249,7 +259,7 @@ function RichTextFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Appearance">
+      <InspectorCard icon={<PaletteIcon />} title="Appearance">
         <ColorField
           label="Background"
           value={content.backgroundColor}
@@ -281,7 +291,7 @@ function ButtonFields({
   const { content } = block
   return (
     <>
-      <InspectorCard
+      <InspectorCard icon={<MousePointerClickIcon />}
         title="The button"
         description="One clear thing to press. Keep the words to what happens when they press it."
       >
@@ -316,7 +326,7 @@ function ButtonFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Spacing">
+      <InspectorCard icon={<MoveVerticalIcon />} title="Spacing">
         <SliderField
           id="button-padding"
           label="Space around it"
@@ -337,7 +347,7 @@ function ButtonFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Appearance">
+      <InspectorCard icon={<PaletteIcon />} title="Appearance">
         <ColorField
           label="Button colour"
           value={content.backgroundColor}
@@ -367,7 +377,7 @@ function DividerFields({
   const { content } = block
   return (
     <>
-      <InspectorCard
+      <InspectorCard icon={<MinusIcon />}
         title="The line"
         description="A rule across the email, for putting a gap between two things that are not about each other."
       >
@@ -392,7 +402,7 @@ function DividerFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Spacing">
+      <InspectorCard icon={<MoveVerticalIcon />} title="Spacing">
         <SliderField
           id="divider-spacing"
           label="Space above and below"
@@ -404,7 +414,7 @@ function DividerFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Appearance">
+      <InspectorCard icon={<PaletteIcon />} title="Appearance">
         <ColorField
           label="Line colour"
           value={content.color}
@@ -428,7 +438,7 @@ function FooterFields({
   const { content } = block
   return (
     <>
-      <InspectorCard
+      <InspectorCard icon={<FileTextIcon />}
         title="Small print"
         description="The bit at the bottom saying who sent this and how to stop getting it."
       >
@@ -455,7 +465,7 @@ function FooterFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Unsubscribe">
+      <InspectorCard icon={<MailXIcon />} title="Unsubscribe">
         <SwitchField
           id="footer-show-unsubscribe"
           label="Show the unsubscribe link"
@@ -486,7 +496,13 @@ export function BlockInspector({
   onContentChange,
   onFieldChange,
   onDelete,
+  inMenu = false,
 }: {
+  /**
+   * Opened from a block's cog in the CRM, where pressing another block does
+   * not open its options, so the line saying it does is left out.
+   */
+  inMenu?: boolean
   block: BroadcastBlock | null
   /**
    * True when the block on show came from the left panel and is in no email —
@@ -605,7 +621,7 @@ export function BlockInspector({
               disabled={disabled}
             />
           )}
-          {block ? (
+          {block && !inMenu ? (
             <p className="px-1 pb-1 text-sm text-muted-foreground">
               Click any block in the email to edit that block instead.
             </p>
@@ -636,7 +652,7 @@ function EmailSettingsFields({
 }) {
   return (
     <>
-      <InspectorCard
+      <InspectorCard icon={<HeadingIcon />}
         title="Subject"
         description="What people see in their inbox before they open anything."
       >
@@ -658,7 +674,7 @@ function EmailSettingsFields({
         />
       </InspectorCard>
 
-      <InspectorCard title="Sender">
+      <InspectorCard icon={<UserIcon />} title="Sender">
         <TextField
           id="broadcast-from-name"
           label="From name"

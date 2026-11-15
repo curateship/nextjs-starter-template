@@ -232,7 +232,6 @@ const stateShape = z.object({
   url: z.string().default(""),
 })
 
-export type BrowserState = z.infer<typeof stateShape>
 
 const quickStateShape = z.object({
   /**
@@ -268,7 +267,6 @@ const accountHealthShape = z.object({
   profile: z.object({ signedIn: profileReadShape }).nullable(),
 })
 
-export type AccountHealthReading = z.infer<typeof accountHealthShape>
 
 /** The visit around a comment or a warm-up, as the browser reports it. */
 const visitShape = z.object({
@@ -301,7 +299,6 @@ const warmUpShape = z.object({
   problems: z.array(z.string()),
 })
 
-export type BrowserWarmUp = z.infer<typeof warmUpShape>
 
 /**
  * A subreddit's posted rules. `answered` false means Reddit would not say,
@@ -315,7 +312,6 @@ const rulesShape = z.object({
   rules: z.array(z.object({ title: z.string(), description: z.string() })),
 })
 
-export type BrowserRules = z.infer<typeof rulesShape>
 
 /**
  * One sent comment, read again. `seenAs` says whose view decided it: a
@@ -349,7 +345,6 @@ const commentCheckShape = z.object({
     .optional(),
 })
 
-export type BrowserCommentCheck = z.infer<typeof commentCheckShape>
 
 const healthShape = z.object({ ok: z.boolean() })
 
@@ -386,7 +381,6 @@ const siteCheckShape = z.object({
   identity: identityReadingShape,
 })
 
-export type BrowserSiteCheck = z.infer<typeof siteCheckShape>
 
 /**
  * Is the container's command server up? Says nothing about any network.

@@ -20,9 +20,16 @@ export type NoticeSwitch = {
   runsTheTeam?: true
 }
 
+/**
+ * The headings the switches sit under in My settings → Notifications, in
+ * Tyler's order (6 Nov 2026, from his drawing of the tab). Only the screen
+ * reads them; nothing saved names a group.
+ */
 export const NOTICE_SWITCH_GROUPS = [
   { id: "tasks", label: "Tasks" },
+  { id: "time", label: "Time requests" },
   { id: "dates", label: "Dates" },
+  { id: "daily", label: "Daily card" },
   { id: "team", label: "The team" },
 ] as const
 export type NoticeSwitchGroup = (typeof NOTICE_SWITCH_GROUPS)[number]["id"]
@@ -34,12 +41,10 @@ export const NOTICE_SWITCH_IDS = [
   "task_unblocked",
   "task_done",
   "task_comment",
-  "task_step",
   "task_ready",
   "task_review",
   "task_sent_back",
   "task_thanks",
-  "task_field_person",
   "task_time_asked",
   "task_time_answered",
   "due_soon",
@@ -65,14 +70,12 @@ export const NOTICE_SWITCHES: NoticeSwitch[] = [
   { id: "task_unblocked", label: "Unblocked a task", group: "tasks" },
   { id: "task_done", label: "Marked a task Done", group: "tasks" },
   { id: "task_comment", label: "Commented on a task", group: "tasks" },
-  { id: "task_step", label: "Gave you a step", group: "tasks" },
   { id: "task_ready", label: "Your task is ready to start", group: "tasks" },
   { id: "task_review", label: "Finished a task for your review", group: "tasks" },
   { id: "task_sent_back", label: "Sent a task back to you", group: "tasks" },
   { id: "task_thanks", label: "Thanked you for a task", group: "tasks" },
-  { id: "task_field_person", label: "Named you in a task's field", group: "tasks" },
-  { id: "task_time_asked", label: "Asked you for more time", group: "tasks" },
-  { id: "task_time_answered", label: "Answered your ask for more time", group: "tasks" },
+  { id: "task_time_asked", label: "Asked you for more time", group: "time" },
+  { id: "task_time_answered", label: "Answered your ask for more time", group: "time" },
   { id: "due_soon", label: "Due tomorrow", group: "dates" },
   { id: "overdue", label: "Overdue", group: "dates" },
   { id: "milestone_due", label: "Milestone due tomorrow", group: "dates" },
@@ -83,7 +86,8 @@ export const NOTICE_SWITCHES: NoticeSwitch[] = [
   { id: "team_morning", label: "Who checked in this morning", group: "team", runsTheTeam: true },
   { id: "team_joined", label: "Joined the team through the link", group: "team", runsTheTeam: true },
   // The Daily card's habits are the site admin's alone (Tyler, 29 Oct 2026).
-  { id: "routine_reminder", label: "A routine on your Daily card isn't done", group: "dates", runsTheTeam: true },
+  // Short (Tyler, 6 Nov 2026: "dont need these lenghty text. Just put "Daily routine"").
+  { id: "routine_reminder", label: "Daily routine", group: "daily", runsTheTeam: true },
 ]
 
 /** "Gave you 3 tasks" is the same notice as "Gave you a task", so one switch covers both. */

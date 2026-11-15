@@ -256,42 +256,65 @@ export function marketSymbol(key: string): string {
 }
 
 /**
- * Where each protocol's dashboard lives, and the ONE answer to "where does
- * this coin live". Around twenty callers ask, eight of them on the server
- * while writing a notice's link into the database — so there is exactly one
- * address per protocol and it can never depend on who is looking.
+ * The exchanges on the Trade dashboard, in the order the Protocols block
+ * lists them, and the ONE answer to "where does this coin live". Around
+ * twenty callers ask, eight of them on the server while writing a notice's
+ * link into the database, so there is exactly one address and it can never
+ * depend on who is looking.
+ *
+ * **One dashboard, `/trade`** (Tyler, 8 Nov 2026: "consolidate everything
+ * into one 3 panel dashboard. The protocols now goes into the left panel as a
+ * block"). Picking a row in the Protocols block shows that exchange; the
+ * address says which with `?view=<id>`, or with a market key, which names its
+ * exchange itself. The old `/protocols/<x>` and `/admin/<x>` addresses are
+ * gone, not forwarded ("we dont need to forward old adress as the site is not
+ * open to public yet").
  *
  * **Protocol, not exchange.** Hyperliquid, Phemex, KuCoin, Aster and Lighter
  * are exchanges; Solana and BNB Chain are chains. Protocol is the word that
- * is true of all of them, which is why the ids, the tables and this table
+ * is true of all of them, which is why the ids, the tables and this list
  * have always used it.
  *
- * These sit outside `/admin` on purpose. A member is refused every `/admin`
- * address twice over, by the sidebar filter and by the admin layout, so a
- * protocol screen under `/admin` could never be opened by one. The old
- * `/admin/…` addresses are kept as redirects for saved links and for notices
- * already written with them.
+ * `practice` marks an exchange that still runs a practice network, where
+ * `?network=testnet` is honoured. Every other one is mainnet only.
  */
-const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
-  hyperliquid: "/protocols/hyper-liquid",
-  phemex: "/protocols/phemex",
-  kucoin: "/protocols/kucoin",
-  aster: "/protocols/aster",
-  lighter: "/protocols/lighter",
-  apex: "/protocols/apex",
-  edgex: "/protocols/edgex",
-  binance: "/protocols/binance",
-  solana: "/protocols/solana",
-  bnb: "/protocols/bnb",
-  robinhood: "/protocols/robinhood",
+const DASHBOARD_PROTOCOL_LIST: readonly { id: ProtocolId; practice: boolean }[] = [
+  { id: "hyperliquid", practice: true },
+  { id: "phemex", practice: false },
+  { id: "kucoin", practice: false },
+  { id: "aster", practice: true },
+  { id: "lighter", practice: false },
+  { id: "apex", practice: false },
+  { id: "edgex", practice: false },
+  { id: "binance", practice: false },
+  { id: "solana", practice: false },
+  { id: "bnb", practice: false },
+  { id: "robinhood", practice: false },
+]
+
+/** Every exchange with a place on the Trade dashboard, in the Protocols block's order. */
+export const DASHBOARD_PROTOCOLS: readonly ProtocolId[] = DASHBOARD_PROTOCOL_LIST.map(
+  (one) => one.id
+)
+
+/** Whether the Trade dashboard can show this protocol. */
+export function hasDashboard(id: string): id is ProtocolId {
+  return DASHBOARD_PROTOCOLS.includes(id as ProtocolId)
 }
 
-/** The chart address for a market whose protocol has a trading dashboard. */
+/** Whether this exchange's dashboard honours `?network=testnet`. */
+export function dashboardHasPractice(id: ProtocolId): boolean {
+  return DASHBOARD_PROTOCOL_LIST.some((one) => one.id === id && one.practice)
+}
+
+/** The Trade dashboard's own address. */
+const TRADE_DASHBOARD_PATH = "/trade"
+
+/** The chart address for a market whose protocol has a place on the dashboard. */
 export function marketChartHref(key: MarketKey): string | null {
   const ref = parseMarketKey(key)
-  if (!ref) return null
-  const path = PROTOCOL_DASHBOARD_PATHS[ref.protocol]
-  return path ? `${path}?market=${encodeURIComponent(key)}` : null
+  if (!ref || !hasDashboard(ref.protocol)) return null
+  return `${TRADE_DASHBOARD_PATH}?market=${encodeURIComponent(key)}`
 }
 
 /**

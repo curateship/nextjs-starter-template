@@ -39,6 +39,16 @@ function unfolded(calendar: string) {
 }
 
 describe("the calendar file", () => {
+  it("gives each event the link that opens the trip on its card", () => {
+    const lines = unfolded(
+      buildTripCalendar(TRIP, [activity(), activity({ id: "a2", startTime: null })], AT, (id) => `https://travel.test/trips/t1?open=${id}`)
+    )
+    expect(lines).toContain("URL:https://travel.test/trips/t1?open=a1")
+    expect(lines).toContain("DESCRIPTION:https://travel.test/trips/t1?open=a1")
+    // A card with no start time is still left out.
+    expect(lines.join("\n")).not.toContain("open=a2")
+  })
+
   it("escapes the characters the format reserves", () => {
     expect(escapeText("a\\b;c,d\ne")).toBe("a\\\\b\\;c\\,d\\ne")
   })

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { InfoIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { BlockedSendersCard } from "@/components/settings/blocked-senders-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -274,9 +273,7 @@ export function EmailSettings() {
     dismissErrorToast()
     try {
       const verdict = await testEmailKey(drafts.key)
-      const message = testMessage(verdict)
-      if (verdict.result === "ok") toast.success(message)
-      else showErrorToast(message)
+      if (verdict.result !== "ok") showErrorToast(testMessage(verdict))
     } catch (error) {
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -292,9 +289,6 @@ export function EmailSettings() {
         await (what === "key" ? removeEmailApiKey() : removeResendWebhookSecret())
       )
       setRemoving(null)
-      toast.success(
-        what === "key" ? "Resend key removed." : "Webhook secret removed."
-      )
     } catch (error) {
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {

@@ -182,3 +182,22 @@ describe("bankedBy on a grid", () => {
     expect(banked.total).toBeCloseTo(-1.15391, 4)
   })
 })
+
+describe("smartOrderSales, the details panel's whole list", () => {
+  it("lists every sale with its price and size, where the popover stops at twelve", async () => {
+    const { smartOrderSales } = await import("@/lib/trade/smart-order-sales")
+    const fills = Array.from({ length: 15 }, (_, index) =>
+      fill({ fillId: `f${index}`, at: PLACED_AT + 1_000 + index, closedPnl: 1, fee: 0 })
+    )
+    const all = smartOrderSales(order, fills, [])
+    expect(all.sells).toHaveLength(15)
+    expect(all.total).toBe(15)
+    expect(all.sells[0]).toMatchObject({ px: 89.35, sz: 0.2, money: 1 })
+    // Newest first.
+    expect(all.sells[0].at).toBeGreaterThan(all.sells[14].at)
+    const popover = bankedBy(order, fills, [])
+    expect(popover.sells).toHaveLength(12)
+    expect(popover.capped).toBe(true)
+    expect(popover.total).toBe(15)
+  })
+})

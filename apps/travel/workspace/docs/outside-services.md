@@ -15,8 +15,9 @@ that, which the page can see.
 
 - `GOOGLE_MAPS_API_KEY` is a Google Cloud key. Google charges for it. In Google
   Cloud, switch on two APIs for the key: Places API (New) and Routes API.
-- `GOOGLE_MAPS_BROWSER_KEY` draws the maps: the trip's Map tab and the map of
-  places visited above the Trips table. The browser sees it, so in Google
+- `GOOGLE_MAPS_BROWSER_KEY` draws the maps: the trip's Map tab, the Trips
+  dashboard's Map widget, and the small map of a place picked in Places. The
+  browser sees it, so in Google
   Cloud limit it to the Maps JavaScript API and to the site's own address.
   Without it, each map says the key is missing.
 - `UNSPLASH_ACCESS_KEY` is the Access Key of a free Unsplash app.
@@ -66,6 +67,33 @@ is about a metre, so the same place always finds its saved time.
   at a time, through the same saved times (see
   [The day board](the-day-board.md)).
 
+## 100 Google lookups a day
+
+Tyler, 6 Nov 2026: "100 a day", then "Travel's App settings tab" for the
+count. Google bills every lookup and anyone can sign up, so each person gets
+100 a day, counted from midnight UTC.
+
+- **What counts as one:** picking a place from the search (Google bills the
+  typing and the pick as one), filling a card from a Maps link (its search,
+  details and photo together), each place a drafted plan, Fill this day, Fill
+  every gap or Suggest Ideas looks up, a place's Google photo, and each travel
+  time Google is asked for.
+- **What doesn't count:** the typing itself, travel times already saved, and
+  everything on a server with no `GOOGLE_MAPS_API_KEY`.
+- **At the limit** the person sees "You've used today's 100 Google lookups.
+  Try again tomorrow." A paste of Maps links stops there. Places in a drafted
+  plan past the limit are made with their name alone, like a place Google
+  can't find, and a place's photo is left off.
+- **The count and the check are one statement**, so two lookups at once can't
+  both take the hundredth. One row per person per day is kept in
+  `travel_google_lookups` (`drizzle/0106_travel_google_lookups.sql`).
+- **Settings → App settings → Google use** (admins only) shows the lookups
+  today, this month, and the five people who used the most this month. On a
+  server with no key it says nothing is looked up yet.
+- The code is `spendGoogleLookup` and `loadGoogleUse` in
+  `src/server/travel/google-usage.ts`; the tab is
+  `src/components/travel/google-use-settings.tsx`.
+
 ## Unsplash
 
 An "Unsplash" button sits next to Upload for a trip's cover and an activity's
@@ -106,6 +134,11 @@ With no Unsplash key, the Unsplash button doesn't show and Upload still works.
   or with no chance given, the line is as before (Tyler, 3 Nov 2026: "70%
   rain", picked to show only at 30% or more). The chance is Open-Meteo's
   `precipitation_probability_max`, the highest chance in any hour of the day.
+- **Rain at a card's hour** (Travel features 4, part 3). The same forecast
+  request also asks for `precipitation_probability` for every hour, in the
+  destination's own time, so an outdoor card with a start time can read
+  "40% rain at 2:30 PM" (see [The day board](the-day-board.md)). It adds no
+  request of its own.
 - **What far-off days are usually like** (Tyler, 4 Nov 2026: "Usual high,
   low, rain"). A day past the 14-day forecast shows "Usually 24° / 15° · rain
   on 8 of 30 days" in the same Weather row, from Open-Meteo's historical archive
@@ -115,9 +148,11 @@ With no Unsplash key, the Unsplash button doesn't show and Upload still works.
   and low average the 15 days around each date across those years; the rain
   counts the days of 1mm or more in the 31 days around it, scaled to 30. A
   date with under half its history shows nothing.
-- **Where a destination is.** The map of places visited finds each trip's
+- **Where a destination is.** The Trips dashboard's Map widget finds each trip's
   destination with Open-Meteo's place search. The same search gives the
-  destination's country, for its holidays.
+  destination's country, for its holidays, and its time zone, which New trip
+  and a change of destination use (see
+  [Trips and the trip page](trips-and-the-trip-page.md)).
 - **Kept answers.** A place is remembered for a day, a forecast for an hour
   and an archive answer for a day, in the server's memory. A failed answer
   shows nothing rather than an error, because weather is an extra.

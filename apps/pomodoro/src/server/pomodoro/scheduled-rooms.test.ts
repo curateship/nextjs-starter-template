@@ -16,6 +16,7 @@ import {
   type RoomSettings,
 } from "@/server/pomodoro/rooms"
 import {
+  assertInviteAllowance,
   cancelScheduledRoom,
   listUpcomingRooms,
   openDueRooms,
@@ -280,5 +281,30 @@ describe("cancelling", () => {
     await expect(cancelScheduledRoom(room.slug, hostId, db)).rejects.toThrow(
       "ROOM_ALREADY_OPEN"
     )
+  })
+})
+
+describe("the day's 50 invitations", () => {
+  const emails = (from: number, count: number) =>
+    Array.from({ length: count }, (_, index) => `friend${from + index}@example.test`)
+
+  it("refuses a booking past 50 in a day, counts cancelled rooms, and lets it through a day later", async () => {
+    await book(inTwoMinutes(), emails(0, 20))
+    const cancelled = await book(inTwoMinutes(), emails(20, 20))
+    await cancelScheduledRoom(cancelled.slug, hostId, db)
+
+    // 40 queued so far, the cancelled room's 20 included: 10 more fit, 11 do not.
+    await expect(assertInviteAllowance(hostId, 10, db)).resolves.toBeUndefined()
+    await expect(assertInviteAllowance(hostId, 11, db)).rejects.toThrow(
+      "SCHEDULE_REJECTED: You've sent today's invites, try again tomorrow."
+    )
+    const tomorrow = new Date(Date.now() + 25 * 60 * 60_000)
+    await expect(assertInviteAllowance(hostId, 20, db, tomorrow)).resolves.toBeUndefined()
+  })
+
+  it("never counts another host's invitations", async () => {
+    await book(inTwoMinutes(), emails(0, 20))
+    const other = await insertUser(db, { name: "Other Host" })
+    await expect(assertInviteAllowance(other.id, 50, db)).resolves.toBeUndefined()
   })
 })

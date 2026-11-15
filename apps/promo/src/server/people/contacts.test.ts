@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm"
 import type { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -7,20 +6,16 @@ import type { SegmentCondition } from "@/lib/contacts/contact-segments"
 import { createWorkspaceSegment } from "@/server/people/contact-segments"
 import {
   countContactEmails,
-  countRecentContactChanges,
   deleteWorkspaceContactsMatching,
   importWorkspaceContacts,
   listWorkspaceContacts,
   setContactStatusMatching,
-  setWorkspaceContactNotes,
   setWorkspaceContactTags,
-  syncContactsFromUsers,
 } from "@/server/people/contacts"
 import { type CustomShellDb } from "@/server/db"
 import {
   customShellContacts,
   customShellDeliveries,
-  customShellUsers,
   customShellWorkspaces,
 } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -807,20 +802,6 @@ describe("importing a CSV file", () => {
     })
   })
 
-  it("leaves an account's name to the account", async () => {
-    const user = await insertUser(db, { email: "member@example.test" })
-    await insertContact("member", { userId: user.id, firstName: "Real", tags: ["member"] })
-    await importWorkspaceContacts(
-      WORKSPACE_ID,
-      [{ email: "member@example.test", firstName: "Wrong", tags: ["csv"] }],
-      db
-    )
-    expect(await contact("member@example.test")).toMatchObject({
-      firstName: "Real",
-      tags: ["member", "csv"],
-    })
-  })
-
   it("counts a row that changes nothing, and one address twice as one person", async () => {
     await insertContact("same", { tags: ["a"] })
     const result = await importWorkspaceContacts(
@@ -884,98 +865,5 @@ describe("the dashboard's counts", () => {
     await insertContact("new")
     const { contacts } = await listWorkspaceContacts(WORKSPACE_ID, {}, db)
     expect(contacts[0]).toMatchObject({ emailsSent: 0, emailsOpened: 0 })
-  })
-
-  it("counts the last 30 days' joins, opt-outs and bounced people", async () => {
-    await insertContact("joined", { createdAt: daysAgo(5) })
-    await insertContact("old", { createdAt: daysAgo(60) })
-    await insertContact("left", {
-      createdAt: daysAgo(60),
-      status: "unsubscribed",
-      unsubscribedAt: daysAgo(2),
-    })
-    await insertContact("left-long-ago", {
-      createdAt: daysAgo(90),
-      status: "unsubscribed",
-      unsubscribedAt: daysAgo(40),
-    })
-    await send("old", { bouncedAt: daysAgo(1) })
-    await send("old", { bouncedAt: daysAgo(2) })
-
-    expect(await countRecentContactChanges(WORKSPACE_ID, 30, db, TODAY)).toEqual({
-      joined: 1,
-      optedOut: 1,
-      bounced: 1,
-    })
-  })
-})
-
-describe("a contact's notes", () => {
-  it("saves the note and refuses another workspace's contact", async () => {
-    await insertContact("ada")
-    await insertContact("theirs", { workspaceId: OTHER_WORKSPACE_ID })
-    await setWorkspaceContactNotes(WORKSPACE_ID, "ada", "Guest on episode 12.", db)
-    const [row] = await db.select().from(customShellContacts).where(eq(customShellContacts.id, "ada"))
-    expect(row?.notes).toBe("Guest on episode 12.")
-    await expect(
-      setWorkspaceContactNotes(WORKSPACE_ID, "theirs", "x", db)
-    ).rejects.toThrow("CONTACT_NOT_FOUND")
-  })
-})
-
-describe("bringing the list in line with the site's accounts", () => {
-  it("adds new accounts, fixes a changed name, and leaves notes, hand tags and opt-outs alone", async () => {
-    // Pointed at this site, so it does not hang on which of two equally old
-    // sites counts as the deployment's first.
-    await db
-      .update(customShellUsers)
-      .set({ currentWorkspaceId: WORKSPACE_ID })
-      .where(eq(customShellUsers.email, "owner@example.test"))
-    const renamed = await insertUser(db, {
-      email: "grace@example.test",
-      name: "Grace Hopper",
-      currentWorkspaceId: WORKSPACE_ID,
-    })
-    await insertUser(db, {
-      email: "new@example.test",
-      name: "New Person",
-      currentWorkspaceId: WORKSPACE_ID,
-    })
-    await insertContact("grace", {
-      userId: renamed.id,
-      email: "grace@example.test",
-      firstName: "Grace",
-      lastName: "Brewster",
-      tags: ["member", "beta"],
-      status: "unsubscribed",
-      notes: "Met at the conference.",
-    })
-
-    const result = await syncContactsFromUsers(WORKSPACE_ID, db)
-
-    expect(result).toEqual({ added: 2, updated: 1 })
-    const rows = await db
-      .select()
-      .from(customShellContacts)
-      .where(eq(customShellContacts.workspaceId, WORKSPACE_ID))
-    const grace = rows.find((row) => row.id === "grace")
-    expect(grace).toMatchObject({
-      firstName: "Grace",
-      lastName: "Hopper",
-      tags: ["member", "beta"],
-      status: "unsubscribed",
-      notes: "Met at the conference.",
-    })
-    expect(rows.map((row) => row.email).sort()).toEqual([
-      "grace@example.test",
-      "new@example.test",
-      "owner@example.test",
-    ])
-
-    // A second pass finds nothing to do.
-    expect(await syncContactsFromUsers(WORKSPACE_ID, db)).toEqual({
-      added: 0,
-      updated: 0,
-    })
   })
 })

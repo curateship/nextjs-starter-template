@@ -1,7 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
@@ -161,14 +160,13 @@ export function LinkedinBehaviourCard({
     timer.current = setTimeout(() => void save(next.settings), SAVE_DELAY_MS)
   }
 
-  async function searcherChange(change: Parameters<typeof changeLinkedinSearcher>[0], done: string) {
+  async function searcherChange(change: Parameters<typeof changeLinkedinSearcher>[0]) {
     setBusy(true)
     setSaveStatus("saving")
     try {
       await changeLinkedinSearcher(change)
       await read()
       setSaveStatus("saved")
-      toast.success(done)
       return true
     } catch (failure) {
       setSaveStatus("idle")
@@ -232,8 +230,7 @@ export function LinkedinBehaviourCard({
               value=""
               disabled={busy}
               onValueChange={(profileId) => {
-                const profile = free.find((item) => item.id === profileId)
-                void searcherChange({ change: "add", profileId }, `${profile?.name ?? "The profile"} searches LinkedIn now. Sign it in to a spare LinkedIn account that never comments.`)
+                void searcherChange({ change: "add", profileId })
               }}
             >
               <SelectTrigger id="promo-linkedin-add-searcher" className="w-full sm:w-fit sm:min-w-64">
@@ -256,8 +253,8 @@ export function LinkedinBehaviourCard({
             LinkedIn shows almost nothing to a visitor who is not signed in, so LinkedIn is read by a browser profile signed in to a spare LinkedIn
             account that only ever reads. It is never offered as an account that comments or posts. Profiles that hold an account, and the reader, are not
             offered, and one that searches X is refused. Make a new one, with a proxy of its own, on the{" "}
-            <Link to="/admin/profiles" search={{ open: undefined }} className="font-medium text-foreground underline underline-offset-2">
-              Browser profiles dashboard
+            <Link to="/admin/anti-detect" search={{ section: "profiles" }} className="font-medium text-foreground underline underline-offset-2">
+              Anti Detect dashboard&apos;s Profiles
             </Link>
             , and sign it in to LinkedIn there. With two or more, each read goes to the one with the most views left. A search account LinkedIn has stopped for the day is skipped until tomorrow.
           </p>
@@ -297,7 +294,7 @@ export function LinkedinBehaviourCard({
         loading={busy}
         onConfirm={() =>
           removing
-            ? void searcherChange({ change: "remove", searcherId: removing.id }, `${removing.profileName} no longer searches LinkedIn.`).then((done) => {
+            ? void searcherChange({ change: "remove", searcherId: removing.id }).then((done) => {
                 if (done) setRemoving(null)
               })
             : undefined

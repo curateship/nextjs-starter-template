@@ -1,82 +1,55 @@
 # The Trade workspace
 
-Four areas on each protocol screen, at `/protocols/hyper-liquid`,
-`/protocols/phemex`, `/protocols/kucoin`, `/protocols/aster`,
-`/protocols/lighter`, `/protocols/solana` and `/protocols/bnb`. A member opens
-these as well as an admin, and sees only their own wallets and orders there —
-`who-can-open-a-protocol-screen.md` says who gets what.
+One dashboard at `/trade` since 8 Nov 2026: the left page of blocks, the
+middle, which is Overview's widgets or the exchange picked in the Protocols
+block, and, with an exchange picked, the trade details on the right
+(`trade-details-panel.md`, 10 Nov 2026). Overview has no right panel. A
+member opens it as well as an admin, and
+sees only their own wallets, orders and widgets there —
+`who-can-open-a-protocol-screen.md` says who gets what, and
+`dashboard-blocks.md` explains the page, the Protocols block and Overview.
 
 ```
-┌────────────┬─────────────────────┬────────────┐
-│ Rules      │ MARKET HEADER       │ Grid/DCA   │
-│            │ ─────────────────── ├────────────┤
-│            │ Chart               │ Manual     │
-│            │                     │            │
-├────────────┴─────────────────────┴────────────┤
-│ Positions | Open orders | Fills                │
-└───────────────────────────────────────────────┘
+┌────────────┬──────────────────────────────────────┬──────────┐
+│ The page   │ [BTC chart ⓘ][Positions][Open orders] │ The open │
+│ of blocks: │ [Journal]                             │ trade    │
+│ Protocols, │ Chart                                 │ (not on  │
+│ Rules, …   │ (or Overview's widgets)               │ Overview)│
+└────────────┴──────────────────────────────────────┴──────────┘
 ```
 
-- **Left, the Rules box.** The trading rules that check the next real-money
-  entry, the notes to tick, and warnings about trades already held.
-  Double-clicking the panel's blank space shuts it, the same as every other
-  panel (Tyler, 15 Oct 2026). A double-click on words or a control does not.
-  `../orders/rules-before-an-entry.md` explains it. Until 15 Oct 2026 the left
-  panel held the market scanner.
-- **Market scanner, a radar button in the chart header** after the Folders
-  button and the Alerts siren. A red number on it counts matches found since
-  the scanner was last opened. `market-scanner.md` explains matching,
-  coverage and testing.
-- **Middle — the market you picked.** One header row, nothing more: the
-  star for that market, the market's own logo (carried as data on the row,
-  with a first-letter circle when an exchange has no art), its name, a Folders
-  button, an Alerts bell, and on the right the timeframe control (1m to 1d, remembered per browser, 4h the
-  default) and a vertical three-dot chart menu before the wallet. The chart
-  menu replaces the divider and holds labeled rows for Indicators, View options
-  and Saved layouts. A star beside each
-  timeframe keeps that choice in the header as a shortcut. The browser
-  remembers the stars. The timeframe menu arrow has its own fixed spot at the
-  far right inside the timeframe tabs, so choosing another timeframe never
-  carries the arrow to that tab. A narrow header shows only the selected
-  timeframe and that fixed arrow. The Indicators row's round count says how
-  many indicators are on. **The market name, the info button and the folder
-  button each open on a click, never a hover** (Tyler, 15 Oct 2026: "make it
-  click dropdown instead"). The info button's facts are a small menu now,
-  not a hover tooltip. Clicking the folder button opens a compact second
-  view of the saved folders and the markets inside them. It grows with its
-  contents until it reaches the available screen height, then scrolls. Picking
-  a coin there changes the chart and leaves the menu open, so a folder can be
-  read one coin at a time; the menu closes on a click outside it, or on
-  Escape. The market list likewise stays open until a click outside it,
-  Escape, or a pick. Its plus
-  creates a folder there and its cog opens the full manager. The siren opens the account's Alert and Fired lists on a click, never on hover;
-  a red badge counts fired price and drawing alerts, and each tab can clear all
-  of its own rows from the dropdown footer after confirmation. The Folders and
-  Alerts buttons have no hover messages. **No button in this header row has a
+- **Left, the dashboard's page.** A page of "/" blocks, one per person: the
+  Protocols block, then Rules, Manual trades, Grid trades, DCA trades,
+  Scanner and Folders, plus anything written there. The trading blocks show
+  the exchange picked. Double-clicking the panel's blank space shuts it, the
+  same as every other panel (Tyler, 15 Oct 2026). A double-click on words or a
+  control does not.
+- **Middle — the market you picked.** One header: the market's chart,
+  Positions, Open orders and the Journal as tabs, then on the right the
+  Browse market search box (moved there 8 Nov 2026, a search box since
+  10 Nov 2026), the timeframe control (1m to 1d, remembered per browser, 4h the default),
+  Indicators and View options, and a ⋮ holding Wallet, the market's Folders
+  and Pin to top, and Close all (`dashboard-blocks.md`).
+  Indicators and View options are buttons of their own (Tyler, 7 Nov 2026:
+  "move the view options and indicatior buttons outside of the dropdown").
+  Indicators carries a round count of the indicators that are on. A star
+  beside each timeframe keeps that choice in the header as a shortcut. The
+  browser remembers the stars. The timeframe menu arrow has its own fixed
+  spot at the far right inside the timeframe tabs, so choosing another
+  timeframe never carries the arrow to that tab. A narrow header shows only
+  the selected timeframe and that fixed arrow. **Browse market opens on a
+  click, never a hover**, and the market list stays open until a click
+  outside it, Escape, or a pick. **No button in this header row has a
   background or a border** (Tyler, 31 Oct 2026: "remove all the buttons bg",
-  then "remove the border too"), the timeframes and the wallet included. The
-  one exception is the market name with its info button: they share a light
-  gray background, still with no border ("put the bg back for the market
-  ticker and info icon"). A button turns gray only under the pointer or while
-  its menu is open, and the chosen timeframe sits on a light gray pill.
-  The star is amber and filled when the market is in any folder and a hollow
-  outline when it is not, so the two do not differ by colour alone. An empty
-  star names the Fav action. A
-  filled star names the folder menu. The star
-  leads the row so that the name is what gives way as the panel narrows. On a
-  phone the timeframe row leaves the name no width at all, and anything behind
-  the name would never be on screen. The star has its own outlined button. The
-  market logo, name, top leverage, arrow and info button sit in one outlined
-  group. The leverage is secondary 12px text beside the larger market name.
-  Every control in that row is 32px high. Saved layouts keeps up to five named
-  arrangements of the surrounding panels and the Folders row left
-  open on each exchange. Its plus makes a new name. A checked name updates
-  itself whenever its panels, folder row or header profit eye changes. The
-  layout menu has no save button. The full-screen button sits inside the plot's
+  then "remove the border too"), except the timeframes and Browse market. A
+  button turns gray only under the pointer or while its menu is open. The
+  timeframes sit in the pill tabs' grey track, the chosen one on a white pill
+  and the arrow inside the same track (Tyler, 8 Nov 2026: "change the
+  timeframe ui to this"). Every control in that row is 32px high. The full-screen button sits inside the plot's
   bottom-right corner, immediately left of the price numbers. Pressing it, or F
   from outside a field, leaves the chart and its own header on screen and hides
   the rest of the workspace and page chrome. Escape returns to the exact panel
-  arrangement from before. Pressing the market name
+  arrangement from before. Pressing Browse market
   opens the full market picker: search; segmented tabs; sortable figures; and
   a star on every row. Favorites, All and Trending are always there. Phemex and
   KuCoin stop there because every market is crypto. Hyperliquid also has Crypto,
@@ -128,16 +101,13 @@ these as well as an admin, and sees only their own wallets and orders there —
   small surface the chart offers — the chart never learns what a line means,
   and has never heard the word "indicator".
   Decided in `workspace/tasks/Platform/plain-price-chart.md`.
-- **Middle header, Wallets.** The wallet control sits after the chart controls.
-  It names the wallet in use and nothing else (Tyler, 15 Oct 2026: "Show the
-  wallet name only"). The total and the made-or-lost figure are in the menu
-  it opens. On a phone it becomes a wallet icon with a
-  Manage wallets tooltip, so the header does not scroll sideways.
-  With no market on the chart, a fresh visit or an exchange with no market
-  list yet, the header row is still drawn: the exchange's name sits where the
-  market would be and the wallet control keeps its place on the right. That
-  is how a Solana wallet is made and funded before Solana has a market list.
-  Pressing the control opens Active, All and Inactive above the chart. Active
+- **Middle header, Wallets.** Wallet is a row in the middle header's ⋮
+  (Tyler, 7 Nov 2026: "Move the wallet into the 3 dotted dropdown"). The row
+  names the wallet in use and nothing else (Tyler, 15 Oct 2026: "Show the
+  wallet name only"). The total and the made-or-lost figure are in the menu it
+  opens. The ⋮ is there with no market on the chart too, which is how a Solana
+  wallet is made and funded before Solana has a market list.
+  Pressing the row opens Active, All and Inactive. Active
   lists every wallet that is switched on. Pressing a wallet row makes it the
   wallet used for the next trade. The checked control names the selected wallet
   and the row keeps the panel background. Each wallet fits on one line:
@@ -163,27 +133,13 @@ these as well as an admin, and sees only their own wallets and orders there —
   The rows use 12px inside gutters and 14px primary labels.
   Money is monospaced and tabular. Wallet and smart-order profit use the same
   12px type and end on the same right edge.
-- **Right, three separate order panels.** Grid is on top, DCA under it, and
-  Manual orders below both (Tyler, 6 Oct 2026). How the three share the
-  column's height is in `panels-and-loading.md`. Manual orders lists the coins you
-  are holding by hand first, each with what it is up or down, then the
-  hand-placed prices still waiting. A draggable divider changes their heights and the account
-  remembers the split. When the column is collapsed, a bot icon opens all
-  three panels in one dropdown. Dragging the right divider open returns them.
-  The dropdown is as wide as the side panel and as tall as the screen allows.
-  Inside it, Grid, DCA and Manual orders are each as tall as their own rows
-  and total line. Only when they do not all fit does each give up height, in
-  proportion to what it holds, never below its heading and a row, and then
-  scrolls on its own. Until 15 Oct 2026 Grid and DCA were capped at half the
-  dropdown less 9rem, about five rows, and the rest of a long Grid list and
-  its total sat below a scroll bar that only shows on hover (Tyler: "the grid
-  panel smart trades does not show all the trades"). With 19 grids on a
-  1000px-tall window, 15 now show before scrolling. Before that, a fixed half
-  each showed four rows under a dropdown with empty space below it (Tyler,
-  3 Oct 2026), and a panel sized to its rows ran past the bottom of the
-  dropdown (Tyler, 29 Sep 2026). Hovering the bot icon opens the dropdown. The dropdown
-  icon has no hover message.
-- **Bottom, what you are holding.** Positions, open orders and fills, as tabs.
+- **Grid, DCA and Manual orders are blocks** on the exchange's page, Grid
+  above DCA above Manual trades on a new page (Tyler, 6 Oct 2026 for the
+  order). Each is as tall as its rows, up to a cap, then scrolls inside its
+  block. Manual trades lists the coins you are holding by hand first, each
+  with what it is up or down, then the hand-placed prices still waiting.
+- **Positions, Open orders and the Journal are tabs in the middle**, beside
+  the chart. The chart stays mounted under them.
 
 **Every workspace panel header uses `DashboardCardHeader`.** The header is 57px
 tall with 12px on its top, left and right around the shared 32px controls. Title
@@ -195,20 +151,20 @@ shadow instead of a black underline. The component and its tabs live in
 `src/components/shared/dashboard-card-header.tsx`, changed in Custom Shell first
 and carried here unchanged.
 
-**Grid and DCA are two panels, Grid above DCA** (Tyler, 6 Oct 2026). Earlier
-the same day they were two tabs of one panel. Grid lists the grids you placed
+**Grid and DCA are two blocks** on the exchange's page. Grid lists the grids you placed
 by hand. DCA lists the DCA ladders you placed by hand. Both panels have the
-same four columns, the same sorting and the same details card. Each header
-holds only its title, with no working, holding or running summary beside it.
-The code is `src/components/trade/smart-orders-panel.tsx`, drawn once per kind
-from `src/components/trade/trade-workspace.tsx`.
+same four columns, the same sorting and the same details card. Each block's
+heading holds only its title, with no working, holding or running summary
+beside it. The code is `src/components/trade/smart-orders-panel.tsx`, drawn
+once per kind from `src/components/trade/trade-workspace.tsx` and handed to
+the blocks in `src/components/trade/notes/trade-block-views.tsx`.
 
 - **A flow's grids and ladders are not here.** They stay on that run's own
   dashboard, as before. A paused one does show here, in its kind's panel, because
   this panel owns the Resume button.
 - **A paused signal trade shows under DCA.** It is the one other kind the panel
-  lets through, and the Positions tab leaves its coin out, so with no panel its
-  holding would vanish from the screen. The ladder engine runs signal trades,
+  lets through, so its strategy has somewhere on this dashboard with a Resume
+  button. The ladder engine runs signal trades,
   so DCA is its nearest home. Its details card says "Signals".
 - **Each tab's empty answer names its own kind.** "No grid of your own is
   working" on Grid, "No DCA ladder of your own is working" on DCA. Still reading
@@ -242,43 +198,83 @@ when the shell returned even though the saved percentages were unchanged.
 
 ### What the Positions tab lists
 
-The Positions tab lists everything you are holding **except the coins the Smart
-orders panel is already showing on the right** (decided 24 Aug 2026). A ladder's
-coin appears there under the strategy that owns it, with what that strategy is
-doing, so listing its position here too put the same holding on screen twice and
-neither copy said which was which.
+The Positions tab lists every position you hold (Tyler, 10 Nov 2026: "fix the
+positions tab to show all positions and not just manual trades"). A coin that
+a grid or DCA ladder you placed is running carries a small Grid or DCA badge
+on its row, so the same holding in the Grid or DCA block and here reads as one.
+A flow's position is listed too.
 
-There is no filter to switch. The panel on the right is the other half of this
-list, not a hidden state, and the old All positions / Manual only dropdown is
-gone.
+From 24 Aug to 10 Nov 2026 the tab left out every coin your own grids and
+ladders were running, and said they were in the Smart orders panel instead.
 
-A flow's position stays in this tab. Nothing else on this screen shows it — the
-flow's own orders live on that run's dashboard — so leaving it out would be
-money with nowhere on the page to see it.
-
-The tab's own count is the number of rows drawn, so the count and the table
-never disagree. **Close all is the exception, and it says so**: it closes the
-coins a ladder or grid is running as well, so its Positions row can read 5 while
-the tab reads 4, and the list names how many of the five are in the panel on the
-right rather than in this tab.
+The tab's own count is the number of rows drawn, so the count, the table and
+Close all's Positions row always agree. Clicking a row opens it in the right
+panel (`trade-details-panel.md`).
 
 Hovering over the Positions tab opens a small popover with the ticker, Type
-(the same Long/Short and leverage badge as the table), current value and current profit or loss for every position in
-this list. The figures
-use the same live prices as the table. Each row is a button that changes the
-chart to that market and closes the popover. No popover opens when this list has
-no positions. Ticker, Type, Value and Current P&L are sort buttons. Ticker and
-Type start alphabetically, while the two money columns start with the largest
-figure;
-pressing the same heading again reverses its order.
-The popover grows with its position rows. It only scrolls when the rows exceed
-the space available on screen, leaving room for the column headings.
+(the same Long/Short and leverage badge as the table), current value and
+current profit or loss. Each row is a button that opens that market's chart
+and closes the popover. The popover sits flush under the panel header's line, with
+no gap to cross, and waits 450ms after the pointer leaves the tab before it
+shuts, so a slow or slanting move from the narrow tab still reaches it (Tyler,
+13 Nov 2026: "it sometimes dispeared before I get to it"). Ticker, Type, Value and Current P&L are sort buttons.
+Ticker and Type start alphabetically, while the two money columns start with
+the largest figure; pressing the same heading again reverses its order. The
+popover grows with its rows and only scrolls when they run past the space on
+screen. A Total row sits under the list, outside the scrolling part, with
+the sum of Value and of Current P&L for the rows on the tab showing (Tyler, 13
+Nov 2026: "add total to the footer"). With no rows there is no Total row.
+
+The popover has two tabs, `[Hyperliquid] [All protocols]`, drawn as Settings →
+Styling → Dashboard tabs says (Tyler, 13 Nov 2026: "One for trades within the
+currant protocol only and the other for all protocols").
+
+- **The first tab is the page's exchange**, named after it, and lists the
+  same positions as the Positions tab, at the same live prices. It is the tab
+  that shows first.
+- **All protocols adds every other exchange's positions**, practice and real,
+  each with its exchange's name after the ticker, priced at the last price
+  the server has. They are read from the server when the tab opens, and a
+  read younger than fifteen seconds is reused, so hovering again does not ask
+  every exchange again. While the first read is on its way the tab says
+  "Reading the other exchanges".
+- **A protocol dropdown sits at the right of the tabs, on both tabs**
+  (Tyler, 13 Nov 2026: "add a filter dropdown here to filter by protocols",
+  then "make it a dropdown to select all or individual protocols"). It offers
+  All protocols, then the page's exchange, then each other exchange that holds
+  a position, with "Testnet" after the name for the practice network. It
+  always names what the list holds: the page's exchange on the first tab, All
+  protocols or the exchange picked on the second. Picking the page's exchange
+  moves to the first tab. Picking any other moves to All protocols and lists
+  only that exchange's rows, and the Total sums only those. Opening the
+  dropdown reads the other exchanges, as the All protocols tab does, and the
+  list says "Reading…" until they arrive. The pick lasts until the page
+  reloads, and a picked exchange whose last position closes falls back to All
+  protocols.
+- **The dropdown's list opens below its button, and the button keeps one
+  width.** Laid over the button, the list landed away from it under browser
+  zoom and jumped when the other exchanges arrived, and the button's edge
+  moved with each name (Tyler, 13 Nov 2026: "everything is flying
+  everywhere").
+- **The popover stays open while the dropdown's list is open.** While the
+  list is open the browser reports the pointer as gone from the popover, and
+  the close timer used to shut it, taking the list with it.
+- **The page's own exchange is never listed twice.** Its rows on All
+  protocols are the first tab's live rows; the same exchange on the other
+  network (testnet beside mainnet) comes from the server like any other.
+- **A row on another exchange opens that exchange's chart**; a row on this
+  exchange changes the chart here, as before.
+- **A failed read says so**, "The other exchanges could not be read.", with
+  Try again. A wallet that did not answer adds a line saying the list may be
+  short.
+- **The popover opens even when this exchange holds nothing**, saying "No
+  open positions on Hyperliquid.", so All protocols is still one tab away.
+  Until 13 Nov 2026 nothing opened when this list was empty.
 
 ### Close all, and the list it opens
 
-**Close all** is the bottom panel's emergency button. It sits in the tab row,
-uses the same light gray as the market dropdown, and is only there while
-there is something for it to take off. Pressing it opens a
+**Close all** is the middle panel's emergency button. It is a row in the
+header's ⋮, and is only there while there is something for it to take off. Pressing it opens a
 list rather than doing anything, and the list has three ticks, all ticked
 already (decided 24 Aug 2026):
 
@@ -327,9 +323,6 @@ in a hurry:
   The line says "waiting" rather than "resting on the exchange", because a
   practice wallet's orders wait inside this app and no exchange has heard of
   them.
-- **A coin a ladder or grid is running closes with the rest**, and the line says
-  how many, because those coins are listed in the Smart orders panel rather than
-  the Positions tab and the row's count would otherwise look wrong.
 
 With nothing ticked the list says so, and Confirm close all is still pressable:
 pressing it answers with a toast rather than sitting greyed out with no way to
@@ -350,8 +343,10 @@ The sidebar and the signed-in home page are Settings, held in the app's
 database — not in code. Trade is a copy of Custom Shell, and an app never edits
 a shell file, so these are changed on the Settings screens:
 
-- Settings → Sidebar — the **Trading overview** link to
-  `/admin/trading-overview`. A child link's eye switches that one shortcut off
-  in both the sidebar and the sticky header without deleting it.
-- Settings → General settings — the admin and member home pages, both
-  `/admin/trading-overview`.
+- Settings → Sidebar — the **Trade** link to `/trade`, with no exchange links
+  under it since 8 Nov 2026 (migration `0234_trade_menu_one_link.sql`). A
+  child link's eye switches that one shortcut off in both the sidebar and the
+  sticky header without deleting it.
+- Settings → General settings — the admin and member home pages. One that
+  still names `/admin/trading-overview` opens the not-found page, so it
+  should name `/trade`.

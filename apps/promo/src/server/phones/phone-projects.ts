@@ -5,7 +5,7 @@ import { promoAccounts, promoProjects } from "@/server/social/schema"
 
 /**
  * The projects that have an account on a phone, with which phones, for the
- * Phones dashboard's Project filter (part 59 of the phone farm). Read with
+ * Project filter on a rack's page (part 59 of the phone farm). Read with
  * the page, so the filter lists only projects that would show a phone.
  */
 export type PhoneProject = { id: string; name: string; phoneIds: string[] }

@@ -41,10 +41,10 @@ picked on 22 Oct 2026.
 
 - **Two rows of LinkedIn's card since 5 Nov 2026**
   ([Commenting inside a project](../commenting.md)). The
-  Posts row has Posts. The Commenting row has the keywords under it in the left
-  column, then in the middle the keyword row's header, the notices and six
-  tabs: To look at, Replied (`commented`), Skipped, Today, Sent (`comments`)
-  and People. The tab is in the address as `?tab=` (none is To look at on
+  Posts row has Posts. The Commenting row has in the middle one header, as
+  Reddit's, holding six tabs (To look at, Replied (`commented`), Skipped,
+  Today, Sent (`comments`) and People), the search box, the keywords
+  dropdown, the amber jobs warning and More with Jobs, then the notices. The tab is in the address as `?tab=` (none is To look at on
   Commenting, Posts on Posts), Sent's Failed list as `?list=failed`,
   and whatever is open in the right column as `?open=<id>`.
 - **The right column** shows what is open: a post and the comment being

@@ -32,7 +32,7 @@ const POLL_MS = 3_000
 export function CopyPanel() {
   const { videoId } = useEditorRuntime()
   const [detail, setDetail] = React.useState<ProjectSourceDetail | null>(null)
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reads, setReads] = React.useState(0)
   const [busy, setBusy] = React.useState(false)
   const [atMs, setAtMs] = React.useState<number | undefined>(undefined)
@@ -46,12 +46,11 @@ export function CopyPanel() {
       .then((loaded) => {
         if (!active) return
         setDetail(loaded)
-        setLoadFailed(false)
+        setLoadError(null)
       })
       .catch((error) => {
         if (!active) return
-        setLoadFailed(true)
-        showErrorToast(getSavedVideoErrorMessage(error))
+        setLoadError(getSavedVideoErrorMessage(error))
       })
     return () => {
       active = false
@@ -92,18 +91,12 @@ export function CopyPanel() {
         title="Copy"
       />
       <ScrollArea className="min-h-0 flex-1">
-        {detail === null && !loadFailed ? null : loadFailed ? (
-          <div className="grid justify-items-center gap-2 p-8 text-center text-sm text-muted-foreground">
-            The viral video this video copies could not be loaded.
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setReads((count) => count + 1)}
-            >
-              Try again
-            </Button>
-          </div>
-        ) : !video ? (
+        {loadError ? (
+          <ErrorRow
+            message={loadError}
+            onRetry={() => setReads((count) => count + 1)}
+          />
+        ) : detail === null ? null : !video ? (
           <div className="grid justify-items-center gap-3 p-3 text-center text-sm text-muted-foreground">
             {detail?.deletedVideoTitle ? (
               // The saved video was deleted after this video copied it.

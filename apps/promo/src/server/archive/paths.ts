@@ -5,5 +5,5 @@ export function archivePath(userId: string, itemId: string, name: string): strin
 
 /** The Archive dashboard opened on one item. */
 export function archiveItemHref(projectId: string, itemId: string): string {
-  return `/admin/archive?project=${encodeURIComponent(projectId)}&open=${encodeURIComponent(itemId)}`
+  return `/admin/projects?section=archive&project=${encodeURIComponent(projectId)}&open=${encodeURIComponent(itemId)}`
 }

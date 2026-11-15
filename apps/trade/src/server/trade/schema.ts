@@ -30,20 +30,14 @@ import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { TradingRules } from "@/lib/trade/trading-rules"
 import type { Goal } from "@/lib/trade/goal"
 import type { ChartView } from "@/lib/trade/chart-view"
-import type {
-  CoinMatchHow,
-  MarketMatchKind,
-} from "@/lib/trade/social/coin-matcher"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
-import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import type { DrawingAlert, DrawingShape } from "@/lib/trade/drawings"
 import type { EngineErrorKind } from "@/lib/trade/engine-errors"
 import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
 import type { MarketPanelRows } from "@/lib/trade/market-folders"
-import type { SocialPlatform } from "@/lib/trade/social/creator"
-import type { SocialLink } from "@/lib/trade/social/x-profile"
 import type { OrderStyle } from "@/lib/trade/order-style"
 import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 import type { PriceAlertDirection } from "@/lib/trade/price-alerts"
@@ -166,12 +160,6 @@ export const tradeMarketFolderItems = pgTable(
 export const tradePrefs = pgTable("trade_prefs", {
   marketScanner: jsonb("market_scanner").$type<import("@/lib/trade/market-scanner").ScannerSettings>(),
   marketExplorer: jsonb("market_explorer").$type<import("@/lib/trade/market-explorer").ExplorerPrefs>(),
-  /**
-   * The P&L page's AI scores, one per period, each remembering which closed
-   * trades it was built from so it is reused until a trade closes. See
-   * `@/server/trade/pnl-score`.
-   */
-  pnlScores: jsonb("pnl_scores").$type<import("@/server/trade/pnl-score").StoredPnlScores>(),
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),
@@ -218,12 +206,64 @@ export const tradePrefs = pgTable("trade_prefs", {
     .notNull()
     .default({}),
   /**
-   * The cards on this app's trading overview. Kept here per account and never
-   * in the shell's dashboard setting, so moving one cannot move the platform
-   * Overview for the same person.
+   * The Trade dashboard's Overview widgets, in the shell's rows, one layout
+   * per person. Kept here and never in the shell's Admin layout, so moving
+   * one cannot move the Admin Overview. Read through
+   * `readTradingWidgetLayout`; null is the starting layout. The older
+   * `dashboard_widgets` column (top, left and right lists) is no longer read.
    */
-  dashboardWidgets:
-    jsonb("dashboard_widgets").$type<TradingDashboardWidgetLayout>(),
+  overviewWidgets: jsonb("overview_widgets").$type<WidgetLayout>(),
+  /**
+   * The Bots dashboard's Overview widgets, one layout per person, apart from
+   * the Trade Overview's. Read through `readBotsWidgetLayout`; null is the
+   * starting layout.
+   */
+  botsWidgets: jsonb("bots_widgets").$type<WidgetLayout>(),
+  /**
+   * The Bots dashboard's Dashboards block, from its ⋮: the sections it leaves
+   * out, and their order. Read through `readBotsSections`.
+   */
+  hiddenBotsSections: jsonb("hidden_bots_sections")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  botsSectionOrder: jsonb("bots_section_order")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /**
+   * The Protocols block's row picked last ("overview" or an exchange's id),
+   * so a bare `/trade` opens on it, and the exchange picked last, whose
+   * blocks the left page keeps showing while Overview is open.
+   */
+  dashboardView: varchar("dashboard_view", { length: 20 }),
+  dashboardProtocol: varchar("dashboard_protocol", { length: 20 }),
+  /** The exchanges hidden from the Protocols block, from the left page's ⋮. */
+  hiddenProtocols: jsonb("hidden_protocols")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /**
+   * The order of the exchanges in the Protocols block, dragged in its ⋮.
+   * Empty keeps the block's own order. Read through `readProtocolOrder`.
+   */
+  protocolOrder: jsonb("protocol_order")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /**
+   * "Hide empty blocks" in the left page's ⋮: the three trade blocks leave
+   * the page while they have nothing to show.
+   */
+  hideEmptyBlocks: boolean("hide_empty_blocks").notNull().default(false),
+  /**
+   * The columns each trade block hides, from its ⋮ (`block-columns.ts`),
+   * such as `{ "grid-trades": ["avatar", "type"] }`.
+   */
+  hiddenBlockColumns: jsonb("hidden_block_columns")
+    .$type<import("@/lib/trade/block-columns").HiddenBlockColumns>()
+    .notNull()
+    .default({}),
   pinnedMarkets: jsonb("pinned_markets").$type<string[]>().notNull().default([]),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
@@ -250,9 +290,12 @@ export const tradePrefs = pgTable("trade_prefs", {
   // is about the position in front of you and must not follow you around.
   quickOrder: jsonb("quick_order").$type<QuickOrderPrefs>(),
   /**
-   * Divider positions for the trade, backtest and live-run screens, plus up to
-   * five named trade-workspace arrangements. The import flag makes the old
-   * browser-only keys a one-time handoff rather than a permanent second store.
+   * The account's panel choices: the folder row open on each exchange, the
+   * header's profit, and where the chart's drawing rail sits. The column's
+   * database default still carries `legacyImported` and `current` from when
+   * it also kept the backtest's and bot's chart-over-trades split (gone 10 Nov
+   * 2026); `readTradePanelLayouts` ignores both, and the default is written
+   * here as the database has it so the two do not disagree.
    */
   panelLayouts: jsonb("panel_layouts")
     .$type<TradePanelLayouts>()
@@ -263,9 +306,9 @@ export const tradePrefs = pgTable("trade_prefs", {
       openMarketRows: {},
       headerProfitVisible: true,
       chartToolbarPosition: null,
-      activeNamedId: null,
-      named: [],
-    }),
+      // Read through `readTradePanelLayouts`, which fills in what this
+      // default lacks (hiddenTradeColumns) and drops what it no longer uses.
+    } as unknown as TradePanelLayouts),
   /**
    * What a plain order does while it waits: rest on the exchange, or be
    * watched here and sent when the price is reached. See `order-style.ts`;
@@ -308,13 +351,6 @@ export const tradePrefs = pgTable("trade_prefs", {
    * what keeps that cross silent once the switch goes back on.
    */
   lineAlertsPaused: boolean("line_alerts_paused").notNull().default(false),
-  /**
-   * Whether the Social matcher reads stocks, metals and currencies out of a
-   * post's words as well as coins. Off until chosen, because a stock ticker
-   * collides with an ordinary English word far more often than a coin ticker
-   * does and a coin-only member's rows should not fill with false matches.
-   */
-  socialMatchStocks: boolean("social_match_stocks").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -661,6 +697,36 @@ export const tradeGridOrderRungs = pgTable(
 )
 
 /**
+ * The price each real order was first placed at, by its exchange order id,
+ * for slippage (Tyler, 10 Nov 2026: "aimed vs filled"; migration 0247). A
+ * fill reports its order id, and this is what it is compared with. A chase's
+ * every re-place, and an order moved to a new id, carry the first price, not
+ * their own. Written after the exchange has answered and never in the way of
+ * the order (`recordOrderAim` in `order-aims.ts`).
+ */
+export const tradeOrderAims = pgTable(
+  "trade_order_aims",
+  {
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    orderId: varchar("order_id", { length: 128 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
+    aimedPx: doublePrecision("aimed_px").notNull(),
+    placedAt: timestamp("placed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.orderId] }),
+    check("trade_order_aims_side_check", sql`${table.side} IN ('buy', 'sell')`),
+    check("trade_order_aims_px_check", sql`${table.aimedPx} > 0`),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
  * The stop and take-profit orders that have been seen sitting on a position,
  * written down once each so that later — when the position is long gone — a
  * fill can be matched to the order that caused it.
@@ -919,6 +985,12 @@ export const tradePaperJournal = pgTable(
      * order id does.
      */
     orderId: varchar("order_id", { length: 128 }),
+    /**
+     * The price this fill was aimed at, for slippage (10 Nov 2026, migration
+     * 0247): the order's first price, or the stop's level for a stop. Null on
+     * practice fills from before then.
+     */
+    aimedPx: doublePrecision("aimed_px"),
     /** Binned from the list. The row still counts towards the wallet's cash. */
     hidden: boolean("hidden").notNull().default(false),
     reason: varchar("reason", { length: 16 })
@@ -1982,7 +2054,7 @@ export const tradeRecordFills = pgTable(
      * its grids still existed to price a grid's sale. Never changes again.
      */
     frozen: boolean("frozen").notNull().default(false),
-    /** Frozen rows only: what the P&L page said the fill made. Null is unpriced. */
+    /** Frozen rows only: what the month grid said the fill made. Null is unpriced. */
     money: doublePrecision("money"),
   },
   (table) => [
@@ -2253,246 +2325,43 @@ export const tradeCopyFeeApprovals = pgTable(
 )
 
 /**
- * One X account this member is tracking.
- *
- * Owned by a member, not shared: two members tracking @cryptosam get a row
- * each, and each keeps its own copy of his posts. Sharing one copy would mean
- * one member's import deciding what another member sees, and one member's
- * account deletion taking the other's posts with it.
+ * The Trade dashboard's left page (8 Nov 2026), one per person: the
+ * Protocols block, the trading blocks and anything written there. It is the
+ * editor's document as JSON text. No row means the page was never written,
+ * so the starting page shows. The older `trade_pages` table, a page per
+ * exchange, is no longer read.
  */
-export const tradeSocialCreators = pgTable(
-  "trade_social_creators",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    /** Only "x" today. Tyler chose X only, permanently. */
-    platform: varchar("platform", { length: 10 })
-      .$type<SocialPlatform>()
-      .notNull()
-      .default("x"),
-    handle: varchar("handle", { length: 40 }).notNull(),
-    displayName: varchar("display_name", { length: 80 }),
-    picture: text("picture"),
-    /**
-     * Followers at the source. Null until a reader supplies it, which is
-     * different from zero: a dash says nobody has told us, a zero would say
-     * nobody follows them.
-     */
-    followers: integer("followers"),
-    followersAt: timestamp("followers_at", { withTimezone: true }),
-    /** The website and bio links from their profile, in the order X lists them. */
-    links: jsonb("links").$type<SocialLink[]>().notNull().default([]),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    // Case-folded, because @CryptoSam and @cryptosam are one account on X.
-    uniqueIndex("trade_social_creators_handle_idx").on(
-      table.userId,
-      table.platform,
-      sql`lower(${table.handle})`
-    ),
-  ]
-)
+export const tradeDashboardPages = pgTable("trade_dashboard_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  // Lock the notes: the page reads only, and the server refuses a save.
+  locked: boolean("locked").notNull().default(false),
+  // The cover behind the panel's header: null is none, "sky" the drawn sky,
+  // otherwise a picture (`src/lib/notes/page-cover.ts`).
+  coverUrl: text("cover_url"),
+  // The page's own cover pictures, each a tile to pick again, up to 8.
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
 
 /**
- * One post held for one creator.
- *
- * `source_id` is the post's own id at X, which is what makes a second import
- * of the same block an update rather than a duplicate. The pasted-text reader
- * has no such id, so it works one out from the creator, the date and the
- * words, which is stable for the same block pasted twice.
+ * The Bots dashboard's left page (9 Nov 2026), one per person, the shell
+ * editor's document as JSON text. No row means the page was never written,
+ * so the starting page shows.
  */
-export const tradeSocialPosts = pgTable(
-  "trade_social_posts",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    creatorId: varchar("creator_id", { length: 36 })
-      .notNull()
-      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
-    sourceId: varchar("source_id", { length: 64 }).notNull(),
-    postedAt: timestamp("posted_at", { withTimezone: true }).notNull(),
-    text: text("text").notNull(),
-    url: text("url"),
-    /** How many people saw it. Null when the source did not say. */
-    seen: integer("seen"),
-    likes: integer("likes"),
-    replies: integer("replies"),
-    reposts: integer("reposts"),
-    /** The post this one replies to, at the source. Null for a top-level post. */
-    replyToId: varchar("reply_to_id", { length: 64 }),
-    /**
-     * When Trade last read the words of this post for coins, or null when it
-     * never has.
-     *
-     * The mark is what makes "a post naming no coin" an answer rather than a
-     * post the backfill pass picks up forever. Cleared for a whole creator when
-     * somebody presses Re-read coins.
-     */
-    coinsReadAt: timestamp("coins_read_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    uniqueIndex("trade_social_posts_source_idx").on(
-      table.creatorId,
-      table.sourceId
-    ),
-    index("trade_social_posts_recent_idx").on(table.creatorId, table.postedAt),
-    // The backfill pass asks for one creator's unread posts.
-    index("trade_social_posts_coins_unread_idx")
-      .on(table.creatorId, table.postedAt)
-      .where(sql`${table.coinsReadAt} is null`),
-    // The feed reads one member's posts across every creator, newest first.
-    index("trade_social_posts_feed_idx").on(table.userId, table.postedAt),
-  ]
-)
-
-/** One import: which creator, which reader answered, and how many arrived. */
-export const tradeSocialReads = pgTable(
-  "trade_social_reads",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    creatorId: varchar("creator_id", { length: 36 })
-      .notNull()
-      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
-    reader: varchar("reader", { length: 20 }).notNull(),
-    readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
-    posts: integer("posts").notNull().default(0),
-  },
-  (table) => [
-    index("trade_social_reads_creator_idx").on(table.creatorId, table.readAt),
-  ]
-)
-
-/**
- * One coin one post names, as Trade read it out of the words.
- *
- * One row per coin per post: a post saying "$SOL" three times has one SOL row,
- * and running the pass again over the same post leaves it at one. The coin is
- * the venue-free ticker Trade lists it under — "SOL", never
- * "hyperliquid:mainnet:SOL" — because a post is about the coin and not about
- * one exchange's market in it.
- *
- * `matched_as` and `matched_text` are the record of why the row is here. A
- * false match is the one thing this can get wrong quietly, and reading back
- * "matched `sol` as a name" is how somebody sees a bad match for what it is
- * instead of arguing with the count.
- */
-export const tradeSocialPostCoins = pgTable(
-  "trade_social_post_coins",
-  {
-    postId: varchar("post_id", { length: 36 })
-      .notNull()
-      .references(() => tradeSocialPosts.id, { onDelete: "cascade" }),
-    /** Carried so the markets panel counts one creator without a join. */
-    creatorId: varchar("creator_id", { length: 36 })
-      .notNull()
-      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    coin: varchar("coin", { length: 20 }).notNull(),
-    /**
-     * What kind of market the ticker is: a coin, a stock, a metal or oil, or
-     * a currency. Stored per row rather than looked up, so a creator's stock
-     * posts and coin posts can be separated on screen without re-reading an
-     * exchange's list, and so a row stays readable after a venue delists.
-     */
-    kind: varchar("kind", { length: 10 })
-      .$type<MarketMatchKind>()
-      .notNull()
-      .default("coin"),
-    /**
-     * The market a chip for this row opens, "hyperliquid:mainnet:SOL". The
-     * ticker above is the thing the post was about; this is the one market
-     * Trade lists it on, and only the match list knows which that is.
-     */
-    marketKey: varchar("market_key", { length: 64 }).notNull(),
-    matchedAs: varchar("matched_as", { length: 14 })
-      .$type<CoinMatchHow>()
-      .notNull(),
-    matchedText: varchar("matched_text", { length: 60 }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.postId, table.coin] }),
-    index("trade_social_post_coins_creator_idx").on(table.creatorId, table.coin),
-  ]
-)
-
-/**
- * One member-owned folder of creators, for the social feed's left panel.
- *
- * The same shape as `tradeMarketFolders` with a different subject: a name
- * unique per member whatever the case, a position for ordering, and a hidden
- * flag that keeps the folder and its creators while taking it off the screen.
- * There is no Fav here and no exchange scope, because creators have neither.
- */
-export const tradeSocialFolders = pgTable(
-  "trade_social_folders",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    userId: varchar("user_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    name: varchar("name", { length: 80 }).notNull(),
-    position: integer("position").notNull().default(0),
-    // Switched off with the eye in the manage window. The folder keeps its
-    // creators and stops taking a row in the panel.
-    hidden: boolean("hidden").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    // Case-folded: "Trusted" and "trusted" are one folder to a person.
-    uniqueIndex("trade_social_folders_name_idx").on(
-      table.userId,
-      sql`lower(${table.name})`
-    ),
-    index("trade_social_folders_position_idx").on(table.userId, table.position),
-  ]
-)
-
-/**
- * One creator in one folder. A creator may sit in several folders, because
- * "trusted" and "posts about stocks" are not exclusive. Folder deletion
- * removes its rows and leaves the creators.
- */
-export const tradeSocialFolderCreators = pgTable(
-  "trade_social_folder_creators",
-  {
-    folderId: varchar("folder_id", { length: 36 })
-      .notNull()
-      .references(() => tradeSocialFolders.id, { onDelete: "cascade" }),
-    creatorId: varchar("creator_id", { length: 36 })
-      .notNull()
-      .references(() => tradeSocialCreators.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.folderId, table.creatorId] }),
-    index("trade_social_folder_creators_creator_idx").on(table.creatorId),
-  ]
-)
+export const tradeBotsPages = pgTable("trade_bots_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  locked: boolean("locked").notNull().default(false),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})

@@ -249,6 +249,7 @@ const shellStylingSchema = z.object({
   modal: shellModalStylingSchema,
   dashboardTabs: z.enum(DASHBOARD_TAB_STYLES).optional(),
   sidebarShade: z.number().int().min(0).max(100).optional(),
+  pageShade: z.number().int().min(0).max(100).optional(),
 })
 
 const publicNavigationLinkSchema = z.object({

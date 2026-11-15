@@ -25,7 +25,7 @@ Beside the box:
 - **Write with AI** writes two replies in the picked account's voice, up to 280
   characters (more on a paid account, part 27).
 - **Help only** (part 24) tells the AI nothing about the product. An account
-  can start every Nth reply as Help only, set on the Accounts dashboard: with
+  can start every Nth reply as Help only, set on the Projects dashboard's Accounts: with
   every 3rd, replies 3, 6 and 9 start with it on. It can always be switched.
 - **Shorter, Warmer, Less salesy** rewrite the words in the box.
 - **Check** checks the words against X's spam rules, and a

@@ -47,6 +47,8 @@ export const travelTrips = pgTable("travel_trips", {
   startDate: date("start_date", { mode: "string" }),
   currency: varchar("currency", { length: 3 }).notNull(),
   timeZone: text("time_zone"),
+  /** The time zone came from the destination, not from Trip settings, so a new destination may change it (`drizzle/0105_travel_time_zone_guessed.sql`). */
+  timeZoneGuessed: boolean("time_zone_guessed").notNull().default(false),
   budgetCents: cents("budget_cents"),
   status: varchar("status", { length: 16 }).$type<TripStatus>().notNull(),
   coverUrl: text("cover_url"),
@@ -54,6 +56,8 @@ export const travelTrips = pgTable("travel_trips", {
   dayInfo: jsonb("day_info").$type<DayInfo[]>().notNull(),
   /** The editor's own document as JSON text, or "" (`drizzle/0100_travel_misc.sql`). */
   description: text("description").notNull(),
+  /** Lock blocks: the description reads only until it's unlocked (`drizzle/0108_travel_trip_blocks_lock.sql`). */
+  descriptionLocked: boolean("description_locked").notNull().default(false),
   travelMode: varchar("travel_mode", { length: 16 }).$type<TravelMode>().notNull(),
   tags: text("tags").array().notNull(),
   calendarToken: varchar("calendar_token", { length: 64 }),
@@ -137,6 +141,10 @@ export const travelTripNotes = pgTable("travel_trip_notes", {
     .references(() => travelTrips.id, { onDelete: "cascade" }),
   /** The editor's own document as JSON text, or "". */
   body: text("body").notNull(),
+  /** When the note went into the trip's bin, or null (Travel features 4, part 6; `drizzle/0107_travel_trip_note_bin_and_pin.sql`). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  /** When the note was pinned to the top of the list, or null (Travel features 4, part 7). */
+  pinnedAt: timestamp("pinned_at", { withTimezone: true }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 })
@@ -157,7 +165,30 @@ export const travelSavedPlaces = pgTable("travel_saved_places", {
   notes: text("notes").notNull(),
   photoUrl: text("photo_url"),
   photoCredit: jsonb("photo_credit").$type<PhotoCredit>(),
+  /** When the place went into Places' bin, or null (`drizzle/0126_travel_trips_dashboard.sql`). */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: createdAt(),
+})
+
+/**
+ * Each person's left page on the Trips dashboard and their Overview's widget
+ * layout (`drizzle/0126_travel_trips_dashboard.sql`). No row: the starting
+ * blocks and widgets.
+ */
+export const travelTripsPages = pgTable("travel_trips_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(userRef, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's sections left out and their dragged order (`TripsSections`). */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: updatedAt(),
 })
 
 export const travelRouteTimes = pgTable(
@@ -183,3 +214,16 @@ export const travelNavigationAdded = pgTable("travel_navigation_added", {
   scope: varchar("scope", { length: 80 }).primaryKey(),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull(),
 })
+
+/** How many Google lookups each person used each day, in UTC (Travel features 4, part 4; `drizzle/0106_travel_google_lookups.sql`). */
+export const travelGoogleLookups = pgTable(
+  "travel_google_lookups",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(userRef, { onDelete: "cascade" }),
+    day: date("day", { mode: "string" }).notNull(),
+    lookups: integer("lookups").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })]
+)

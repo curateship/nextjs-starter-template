@@ -4,6 +4,7 @@ import { z } from "zod"
 import type { PhoneStatus } from "@/lib/phones/options"
 import { adminGet, adminPost } from "@/server/guards"
 import { listPhones } from "@/server/phones/phones"
+import { readRack } from "@/server/phones/rack"
 import {
   closeScreen,
   ownedPhones,
@@ -127,9 +128,11 @@ export type WallView = {
 
 const wallFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<WallView> => {
-    wantWall(context.user.id)
-    const phones = await listPhones(context.user.id)
+  .inputValidator(z.object({ rackId: z.string().min(1).max(36) }))
+  .handler(async ({ context, data }): Promise<WallView> => {
+    if (!(await readRack(context.user.id, data.rackId))) throw new Error("That rack does not exist.")
+    wantWall(context.user.id, data.rackId)
+    const phones = (await listPhones(context.user.id)).filter((phone) => phone.rackId === data.rackId)
     return {
       phones: phones.map((phone) => {
         const frame = phone.status === "connected" || phone.status === "busy" ? wallFrame(phone.id) : null
@@ -145,10 +148,11 @@ const wallFn = createServerFn({ method: "GET" })
   })
 
 /**
- * The wall of every phone (part 57): one small picture of each connected
- * phone, asked for every 5 seconds while the wall is open. Asking is what
- * keeps the rack sending; ten seconds without an ask and it stops.
+ * One rack's wall (part 57, on the rack's Wall tab since part 104): one small
+ * picture of each of its connected phones, asked for every 5 seconds while
+ * the tab shows. Asking is what keeps the rack sending; ten seconds without
+ * an ask and it stops.
  */
-export function loadWall() {
-  return wallFn()
+export function loadWall(rackId: string) {
+  return wallFn({ data: { rackId } })
 }

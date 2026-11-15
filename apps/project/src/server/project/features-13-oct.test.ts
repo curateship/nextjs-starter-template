@@ -61,7 +61,7 @@ async function benWithTasks(titles: string[]) {
   for (const title of titles) {
     const task = await createTask(
       actor(ben),
-      { projectId: project.id, title, notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId: project.id, title, notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     ids.push(task.id)
@@ -103,7 +103,7 @@ describe("Yesterday fills itself", () => {
     const { projectId, ids } = await benWithTasks(["Reopened", "Binned", "Kept"])
     const annas = await createTask(
       actor(anna),
-      { projectId, title: "Anna's", notes: "", assigneeUserId: anna.id, dueDate: null, steps: [] },
+      { projectId, title: "Anna's", notes: "", assigneeUserId: anna.id, dueDate: null },
       database
     )
     await submitCheckin(ben.id, { answers: [], picks: [] }, database, at(`${MONDAY}T09:00:00Z`))
@@ -170,7 +170,7 @@ describe("Suggested picks at check-in", () => {
     for (const id of ids.slice(1)) await due(id, MONDAY)
     await createTask(
       actor(anna),
-      { projectId, title: "Handed", notes: "", assigneeUserId: ben.id, dueDate: "2099-02-20", steps: [] },
+      { projectId, title: "Handed", notes: "", assigneeUserId: ben.id, dueDate: "2099-02-20" },
       database
     )
 

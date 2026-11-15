@@ -26,6 +26,3 @@ export function groupReportReasonLabel(id: string) {
 
 /** Reports one address may file an hour, the profile report's number. */
 export const GROUP_REPORTS_PER_HOUR = 6
-
-export const GROUP_REPORT_THANKS =
-  "Thanks. Someone on our team will look at this group."

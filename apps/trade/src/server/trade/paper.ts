@@ -34,6 +34,7 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/trade/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
+import { stampFillOwners } from "@/server/trade/fill-owners"
 import {
   bumpTradeHistory,
   tradeHistoryStamp,
@@ -403,6 +404,7 @@ export async function saveBook(
         reason: entry.reason,
         fillTime: new Date(entry.fillTime),
         orderId: entry.orderId,
+        aimedPx: entry.aimedPx ?? null,
       }))
     )
     // A fill a copy's order made gets its fee row in the same write, so the
@@ -783,7 +785,7 @@ const PAPER_ENDINGS: Partial<Record<PaperFillReason, LiveTradeEnding>> = {
 }
 
 /** One practice fill in the shape the trade builder reads. */
-function toTradeFill(row: JournalRow): LiveFill {
+export function toTradeFill(row: JournalRow): LiveFill {
   return {
     fillId: row.id,
     // The order that placed it, where one did. It falls back to the fill's own
@@ -806,6 +808,7 @@ function toTradeFill(row: JournalRow): LiveFill {
     liquidation: row.reason === "liquidated",
     ending: PAPER_ENDINGS[row.reason] ?? "closed",
     live: false,
+    aimedPx: row.aimedPx,
   }
 }
 
@@ -853,7 +856,11 @@ export async function loadPaperHistory(
 
   // Stamped before anything reads them, so a practice grid's sells say what
   // their own level made, exactly as a real one's do. See `stampGridFills`.
-  const fills = await stampGridFills(userId, walletIds, rows.map(toTradeFill))
+  const fills = await stampFillOwners(
+    userId,
+    walletIds,
+    await stampGridFills(userId, walletIds, rows.map(toTradeFill))
+  )
   const trades = buildLiveTrades(fills, NO_TRIGGERS)
   await stampCopiedTrades(userId, walletIds, trades)
   return {
@@ -975,10 +982,11 @@ export async function loadPaperPortfolio(
     .orderBy(desc(tradePaperJournal.fillTime))
     .limit(JOURNAL_PAGE)
 
-  const tradeFills = await stampGridFills(
+  const paperIds = paper.map((wallet) => wallet.id)
+  const tradeFills = await stampFillOwners(
     userId,
-    paper.map((wallet) => wallet.id),
-    fills.map(toTradeFill)
+    paperIds,
+    await stampGridFills(userId, paperIds, fills.map(toTradeFill))
   )
   const trades = buildLiveTrades(tradeFills, NO_TRIGGERS)
   return {

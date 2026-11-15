@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -58,11 +57,6 @@ function StorageSettings() {
       const done = await cleanUpStorageFn()
       setSummary(done.summary)
       setAsking(false)
-      toast.success(
-        done.copies
-          ? `${done.copies} ${plural(done.copies, "copy", "copies")} deleted, ${formatFileSize(done.bytes)} freed.`
-          : "Nothing was deleted. Every copy was opened in the last 30 days or is kept by the vault."
-      )
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {

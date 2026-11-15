@@ -5,7 +5,6 @@ import { ListChecksIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-reac
 
 import { CardDropdown, CardDropdownTitle } from "@/components/project/card-dropdown"
 import { DueDayPicker } from "@/components/project/due-day-picker"
-import { PanelCard } from "@/components/project/panel-card"
 import { StatusDot } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -21,7 +20,6 @@ import {
 } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { clockTotal, timeOnTasks } from "@/lib/project/clock"
 import { todayKey } from "@/lib/project/dates"
 import { getProjectErrorMessage } from "@/lib/project/errors"
 import { milestoneLine, milestoneOverdue } from "@/lib/project/milestones"
@@ -31,14 +29,14 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
- * The project's milestones, a folding card on its details panel, soonest
- * first. Each says how many of its tasks are done and turns red with
- * "Overdue" once its date passes with tasks open. The "+" in the heading and
- * the two icons on each row (its tasks, and the cog) open dropdowns, shown on
- * hover (Tyler, 15 Oct 2026).
- * Tasks join one from their Plan card.
+ * The project's milestones, soonest first, on the Milestones block's white
+ * tile (Tyler, 9 Nov 2026: "make milestone a block"; a footer card on the
+ * project's left panel until then). Each says how many of its tasks are done
+ * and turns red with "Overdue" once its date passes with tasks open. The two
+ * icons on each row, its tasks and the cog, open dropdowns, shown on hover
+ * (Tyler, 15 Oct 2026). Tasks join one from their Plan card.
  */
-export function ProjectMilestones({
+export function MilestoneList({
   projectId,
   milestones,
   tasks,
@@ -50,46 +48,37 @@ export function ProjectMilestones({
   tasks: TaskCard[]
   readOnly: boolean
 }) {
-  const [adding, setAdding] = React.useState(false)
   const today = todayKey()
+  if (milestones.length === 0) {
+    return (
+      <p className="p-3 text-sm text-muted-foreground">
+        No milestones. Add one for each date a set of tasks must be finished by.
+      </p>
+    )
+  }
   return (
-    <PanelCard
-      storageId="project-details-milestones"
-      title="Milestones"
-      after={milestones.length ? <span className="font-normal text-muted-foreground">{milestones.length}</span> : null}
-      actionOpen={adding}
-      action={
-        readOnly ? null : (
-          <CardDropdown
-            label="Add a milestone"
-            icon={<PlusIcon className="size-4" />}
-            open={adding}
-            onOpenChange={setAdding}
-          >
-            <MilestoneForm projectId={projectId} milestone={null} onDone={() => setAdding(false)} />
-          </CardDropdown>
-        )
-      }
-    >
-      {milestones.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No milestones. Add one for each date a set of tasks must be finished by.
-        </p>
-      ) : (
-        <ul className="grid gap-2">
-          {milestones.map((milestone) => (
-            <MilestoneRow
-              key={milestone.id}
-              projectId={projectId}
-              milestone={milestone}
-              tasks={tasks.filter((task) => task.milestoneId === milestone.id).sort(byPosition)}
-              overdue={milestoneOverdue(milestone, today)}
-              readOnly={readOnly}
-            />
-          ))}
-        </ul>
-      )}
-    </PanelCard>
+    <ul className="grid grid-cols-[minmax(0,1fr)]">
+      {milestones.map((milestone) => (
+        <MilestoneRow
+          key={milestone.id}
+          projectId={projectId}
+          milestone={milestone}
+          tasks={tasks.filter((task) => task.milestoneId === milestone.id).sort(byPosition)}
+          overdue={milestoneOverdue(milestone, today)}
+          readOnly={readOnly}
+        />
+      ))}
+    </ul>
+  )
+}
+
+/** The "+" in the Milestones block's heading, which adds one in a dropdown. */
+export function AddMilestoneButton({ projectId }: { projectId: string }) {
+  const [adding, setAdding] = React.useState(false)
+  return (
+    <CardDropdown label="Add a milestone" icon={<PlusIcon className="size-4" />} open={adding} onOpenChange={setAdding}>
+      <MilestoneForm projectId={projectId} milestone={null} onDone={() => setAdding(false)} />
+    </CardDropdown>
   )
 }
 
@@ -115,11 +104,9 @@ function MilestoneRow({
   const [editing, setEditing] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  // Its tasks' time on the clock, counted as the row draws (Seven features, part 4).
-  const [nowMs] = React.useState(() => Date.now())
-  const clocked = timeOnTasks(tasks, nowMs)
   return (
-    <li className="group/row flex items-center gap-1 rounded-lg border bg-background py-2 pr-1 pl-3">
+    // One row of the tile, a line between rows.
+    <li className="group/row flex items-center gap-1 border-t py-2.5 pr-1.5 pl-3 first:border-t-0">
       <span className="grid min-w-0 flex-1 gap-1">
         <span className="truncate text-sm font-medium">{milestone.name}</span>
         <Meter
@@ -133,7 +120,6 @@ function MilestoneRow({
         <span className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
           {overdue ? "Overdue · " : ""}
           {milestoneLine(milestone)}
-          {clocked >= 60 ? `, ${clockTotal(clocked)} clocked` : ""}
         </span>
       </span>
       <CardDropdown
@@ -178,7 +164,7 @@ function MilestoneRow({
         destructive
         loading={busy}
         onConfirm={async () => {
-          const ok = await run(() => removeMilestone(milestone.id), "Milestone deleted.")
+          const ok = await run(() => removeMilestone(milestone.id))
           if (!ok) return
           setDeleting(false)
           await router.invalidate()
@@ -271,8 +257,7 @@ function MilestoneForm({
       () =>
         milestone
           ? saveMilestone({ milestoneId: milestone.id, name: name.trim(), dueDate })
-          : addMilestone({ projectId, name: name.trim(), dueDate }),
-      milestone ? "Milestone saved." : "Milestone added."
+          : addMilestone({ projectId, name: name.trim(), dueDate })
     )
     if (!ok) return
     await router.invalidate()

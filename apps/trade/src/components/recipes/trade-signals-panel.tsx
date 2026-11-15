@@ -1,4 +1,10 @@
 import {
+  ActivityIcon,
+  CandlestickChartIcon,
+  CoinsIcon,
+  ShoppingCartIcon,
+} from "lucide-react"
+import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
@@ -88,7 +94,7 @@ export default function TradeSignalsFields({
 
   return (
     <>
-      <InspectorCard title="What it trades on">
+      <InspectorCard title="What it trades on" icon={<ActivityIcon />}>
         {SIGNAL_INDICATORS.map((module) => (
           <IndicatorRow
             key={module.kind}
@@ -142,7 +148,7 @@ export default function TradeSignalsFields({
           </InspectorNote>
         ) : (
           <InspectorNote>
-            Switching a side off switches that half of the trading off — no
+            Switching a side off switches that half of the trading off. No
             ceilings means it never sells on a signal. These are this
             flow&rsquo;s own settings: changing them on the chart moves what you
             see, not what this trades.
@@ -150,7 +156,7 @@ export default function TradeSignalsFields({
         )}
       </InspectorCard>
 
-      <InspectorCard title="Candles">
+      <InspectorCard title="Candles" icon={<CandlestickChartIcon />}>
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`signals-${node.id}-interval`}
@@ -191,7 +197,7 @@ export default function TradeSignalsFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="How much per coin">
+      <InspectorCard title="How much per coin" icon={<CoinsIcon />}>
         <TradeNumberField
           id={`signals-${node.id}-stake`}
           label="Share of the pot per coin"
@@ -224,11 +230,11 @@ export default function TradeSignalsFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="How it buys">
+      <InspectorCard title="How it buys" icon={<ShoppingCartIcon />}>
         <TradeNumberField
           id={`signals-${node.id}-chase`}
           label="How far it follows a price that runs"
-          hint="A buy asks for a price rather than taking one. If price moves away before it fills, the order is placed again at the new price — up to this far above where the arrow printed, and then it gives up."
+          hint="A buy asks for a price rather than taking one. If price moves away before it fills, the order is placed again at the new price, up to this far above where the arrow printed, and then it gives up."
           value={settings.chaseGiveUpPct}
           min={0}
           max={MAX_SIGNAL_CHASE_PCT}
@@ -249,7 +255,7 @@ export default function TradeSignalsFields({
               <span className="font-medium text-foreground tabular-nums">
                 {formatUsdRounded(100 * (1 + settings.chaseGiveUpPct / 100))}
               </span>{" "}
-              and no further. Selling never gives up — being half out of a
+              and no further. Selling never gives up. Being half out of a
               position is worse than any price it would have got.
             </>
           )}

@@ -1,10 +1,8 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, CopyIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
-import { FieldColumnsMenu } from "@/components/project/field-columns-menu"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
 import { ProjectPaceMark } from "@/components/project/project-pace"
 import { ProjectProgress } from "@/components/project/project-progress"
@@ -51,16 +49,13 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { clientChoices, matchesClient } from "@/lib/project/clients"
 import { getProjectErrorMessage } from "@/lib/project/errors"
-import { clockTotal } from "@/lib/project/clock"
-import { PROJECTS_TIME_COLUMN_KEY } from "@/lib/project/panel-keys"
 import { countLate, projectPace } from "@/lib/project/project-pace"
-import { useTimeColumn } from "@/lib/project/use-field-columns"
 import { runsTheTeam } from "@/lib/project/rules"
 import { TeamScope } from "@/lib/project/team-scope"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-type Column = "name" | "team" | "progress" | "status" | "lead" | "open" | "time"
+type Column = "name" | "team" | "progress" | "status" | "lead" | "open"
 type Group = "active" | "archived"
 
 const NAME_COLUMN: SortableColumn<Column> = {
@@ -77,8 +72,6 @@ const OTHER_COLUMNS: SortableColumn<Column>[] = [
   { key: "lead", label: "Lead", column: "preview" },
   { key: "open", label: "Open tasks", column: "preview" },
 ]
-/** Each project's time on the clock, off until picked from Columns (Seven features, part 4). */
-const TIME_COLUMN: SortableColumn<Column> = { key: "time", label: "Time", column: "preview" }
 
 const openTasks = (row: ProjectListRow) => row.counts.todo + row.counts.doing + row.counts.stuck
 
@@ -168,13 +161,7 @@ function ProjectsTable({
   onTeamFilter: (teamId: string | null) => void
   onSettings: (projectId: string) => Promise<void>
 }) {
-  const [timeColumn, setTimeColumn] = useTimeColumn(PROJECTS_TIME_COLUMN_KEY)
-  const columns = [
-    NAME_COLUMN,
-    ...(teams.length ? [TEAM_COLUMN] : []),
-    ...OTHER_COLUMNS,
-    ...(timeColumn ? [TIME_COLUMN] : []),
-  ]
+  const columns = [NAME_COLUMN, ...(teams.length ? [TEAM_COLUMN] : []), ...OTHER_COLUMNS]
   const navigate = useNavigate()
   const router = useRouter()
   const { config } = useShellRuntime()
@@ -218,9 +205,7 @@ function ProjectsTable({
         ? row.counts.done / Math.max(1, openTasks(row) + row.counts.done)
         : sort === "status"
           ? paceRank(row)
-          : sort === "time"
-            ? row.clockSeconds
-            : openTasks(row)
+          : openTasks(row)
     return projects
       .filter((row) => row.archived === (group === "archived"))
       .filter((row) => !needle || row.name.toLowerCase().includes(needle))
@@ -275,7 +260,6 @@ function ProjectsTable({
       verb: archived ? "archived" : "brought back",
     })
     if (result.kept.length) showErrorToast(line)
-    else toast.success(line)
     selection.clear()
     await router.invalidate()
   }
@@ -399,7 +383,6 @@ function ProjectsTable({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
-            <FieldColumnsMenu fields={[]} chosen={[]} onChange={() => {}} time={{ on: timeColumn, onChange: setTimeColumn }} />
             {siteAdmin ? (
               <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
                 <PlusIcon className="size-4" />
@@ -496,11 +479,6 @@ function ProjectsTable({
                 ) : null}
               </TableCell>
               <TableCell column="preview">{openTasks(row)}</TableCell>
-              {timeColumn ? (
-                <TableCell column="preview" className="tabular-nums">
-                  {row.clockSeconds >= 60 ? clockTotal(row.clockSeconds) : ""}
-                </TableCell>
-              ) : null}
               <TableCell column="actions">
                 <PinButton project={row} />
                 {siteAdmin && !row.personal ? (

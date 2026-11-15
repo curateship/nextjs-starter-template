@@ -19,9 +19,8 @@ import {
   useEditorRuntime,
   useEditorSelector,
 } from "@/components/video-editor/editor-store"
-import { clockText } from "@/lib/video/export-stretch"
 import { MARKER_NAME_MAX, type TimelineMarker } from "@/lib/video/timeline-markers"
-import { msToPx, pxToMs } from "@/lib/video/timeline-utils"
+import { msToPx, pxToMs, formatClock } from "@/lib/video/timeline-utils"
 
 /**
  * The pins along the bottom of the ruler (timeline-markers.md). A press on a
@@ -71,7 +70,7 @@ function MarkerPin({
   const drag = React.useRef<{ pointerId: number; startX: number } | null>(null)
   const [dragMs, setDragMs] = React.useState<number | null>(null)
   const atMs = dragMs ?? marker.atMs
-  const label = marker.name || clockText(marker.atMs)
+  const label = marker.name || formatClock(marker.atMs)
 
   function onPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return
@@ -104,7 +103,7 @@ function MarkerPin({
             <button
               type="button"
               data-timeline-marker={marker.id}
-              aria-label={`Marker ${label} at ${clockText(marker.atMs)}`}
+              aria-label={`Marker ${label} at ${formatClock(marker.atMs)}`}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
@@ -192,7 +191,7 @@ function MarkerNameForm({
         onDone()
       }}
     >
-      <Label htmlFor={id}>Marker name at {clockText(marker.atMs)}</Label>
+      <Label htmlFor={id}>Marker name at {formatClock(marker.atMs)}</Label>
       <Input
         id={id}
         autoFocus

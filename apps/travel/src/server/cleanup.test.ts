@@ -129,7 +129,7 @@ async function addNotice(
   await database.insert(customShellNotifications).values({
     id,
     recipientUserId: userId,
-    type: "changelog",
+    type: "app_activity",
     createdAt: ago(200 * DAY),
     ...overrides,
   })

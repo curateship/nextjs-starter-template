@@ -7,7 +7,6 @@ import {
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { CategoryDialog } from "@/components/directory/category-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -98,9 +97,8 @@ export function CategoriesDashboard({
   const confirmDelete = React.useCallback(async () => {
     if (!confirm) return
     const done = await run(async () => {
-      const { name } = await removeCategory(confirm.category.id)
+      await removeCategory(confirm.category.id)
       await router.invalidate()
-      toast.success(`${name} was deleted.`)
     })
     if (done) setConfirm(null)
   }, [confirm, router, run])
@@ -241,10 +239,9 @@ export function CategoriesDashboard({
         categories={categories}
         parentId={editing?.parentId ?? null}
         onClose={() => setEditing(null)}
-        onSaved={(saved, wasNew) => {
+        onSaved={() => {
           setEditing(null)
           void router.invalidate()
-          toast.success(wasNew ? `${saved.name} was created.` : "Category saved.")
         }}
       />
 

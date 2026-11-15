@@ -284,7 +284,7 @@ From the row's cog, the note's menu or the "N selected" menu. An import goes
 into the other library's folder for its source, made if it needs to be; a
 written note goes loose. Tags and author go with it. A "[[" link to a note left
 behind becomes its plain title, and links from the old library to it go. A link
-the other library already has is skipped, and the toast says how many.
+the other library already has is skipped.
 
 ## Trash
 

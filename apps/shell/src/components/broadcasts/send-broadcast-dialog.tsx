@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CalendarClockIcon, Loader2Icon, SendIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { Button } from "@/components/ui/button"
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
+import { InlineError } from "@/components/ui/inline-error"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -146,10 +146,12 @@ export function SendBroadcastDialog({
   )
   const [tagText, setTagText] = React.useState(initialTagText(broadcast))
   const [segmentId, setSegmentId] = React.useState(initialSegmentId(broadcast))
-  const [audienceCount, setAudienceCount] = React.useState<{
-    key: string
-    total: number
-  } | null>(null)
+  // A count is kept against the audience it was made for. A count that failed
+  // is kept the same way, so "it failed" never reads as "still counting".
+  const [audienceCount, setAudienceCount] = React.useState<
+    { key: string; total: number } | { key: string; failed: true } | null
+  >(null)
+  const [countTries, setCountTries] = React.useState(0)
   const [drip, setDrip] = React.useState<DripConfig>(broadcast.dripConfig)
   const [mode, setMode] = React.useState<"now" | "schedule">("now")
   const [scheduleValue, setScheduleValue] = React.useState(
@@ -222,17 +224,26 @@ export function SendBroadcastDialog({
         if (active) setAudienceCount({ key: filterKey, total: data.total })
       })
       .catch(() => {
-        if (active) setAudienceCount(null)
+        if (active) setAudienceCount({ key: filterKey, failed: true })
       })
     return () => {
       active = false
     }
-  }, [open, filterKey])
+  }, [open, filterKey, countTries])
 
+  const countForThisAudience =
+    filterKey !== null && audienceCount?.key === filterKey ? audienceCount : null
   const countedTotal =
-    filterKey !== null && audienceCount?.key === filterKey
-      ? audienceCount.total
+    countForThisAudience && "total" in countForThisAudience
+      ? countForThisAudience.total
       : null
+  const countFailed =
+    countForThisAudience !== null && "failed" in countForThisAudience
+
+  const countAgain = () => {
+    setAudienceCount(null)
+    setCountTries((tries) => tries + 1)
+  }
 
   /** Why there is no number yet, when the audience is not finished. */
   const audienceGap =
@@ -247,13 +258,12 @@ export function SendBroadcastDialog({
     : "The workspace default"
 
   const handleSendTest = async () => {
-    if (!testEmail.trim()) return
+    if (sendingTest || !testEmail.trim()) return
     setSendingTest(true)
     setError(null)
     try {
       const result = await sendTestEmail(broadcast.id, testEmail.trim())
-      if (result.ok) toast.success(`Test copy sent to ${testEmail.trim()}`)
-      else setError(result.error ?? "We could not send the test copy.")
+      if (!result.ok) setError(result.error ?? "We could not send the test copy.")
     } catch (testError) {
       setError(getBroadcastErrorMessage(testError))
     } finally {
@@ -272,6 +282,13 @@ export function SendBroadcastDialog({
     const dripProblem = validateDripConfig(drip)
     if (dripProblem) {
       setError(dripProblem)
+      return
+    }
+
+    // Nothing leaves until this window has said how many people get it. A
+    // count still running or one that failed both mean that number is unknown.
+    if (countedTotal === null) {
+      setError("Wait for the count, or press Try again.")
       return
     }
 
@@ -294,13 +311,6 @@ export function SendBroadcastDialog({
             )
       onUpdated(updated)
       onOpenChange(false)
-      toast.success(
-        mode === "now"
-          ? drip.enabled
-            ? "The first batch is going out now. Watch the bar along the bottom."
-            : "It is going out now. Watch the bar along the bottom."
-          : "Scheduled. It goes out on its own at that time."
-      )
     } catch (confirmError) {
       setError(getBroadcastErrorMessage(confirmError))
     } finally {
@@ -315,7 +325,6 @@ export function SendBroadcastDialog({
       const updated = await cancelBroadcastScheduleSend(broadcast.id)
       onUpdated(updated)
       onOpenChange(false)
-      toast.success("Back to a draft. Nothing will go out.")
     } catch (cancelError) {
       setError(getBroadcastErrorMessage(cancelError))
     } finally {
@@ -349,6 +358,15 @@ export function SendBroadcastDialog({
           onSubmit={(event) => {
             event.preventDefault()
             void handleConfirm()
+          }}
+          // A browser treats Enter in any box as pressing the form's one
+          // submit button, which here mails the whole audience. So Enter in a
+          // box never submits: the newsletter only goes from the footer button.
+          // The test box's own Enter is handled on the box, before this.
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && event.target instanceof HTMLInputElement) {
+              event.preventDefault()
+            }
           }}
         >
         <DialogBody>
@@ -459,6 +477,21 @@ export function SendBroadcastDialog({
                     </p>
                   ) : (
                     <>
+                      {countFailed ? (
+                        // The button sits beside the red line, not in it, so
+                        // it keeps the ordinary outline colour.
+                        <div className="flex flex-wrap items-center gap-2">
+                          <InlineError>We could not count who gets this.</InlineError>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={countAgain}
+                          >
+                            Try again
+                          </Button>
+                        </div>
+                      ) : (
                       <p className="text-sm">
                         {countedTotal === null
                           ? "Counting…"
@@ -466,11 +499,14 @@ export function SendBroadcastDialog({
                             ? "Nobody matches that yet."
                             : `${countedTotal.toLocaleString()} ${plural(countedTotal, "person", "people")} will get this.`}
                       </p>
+                      )}
+                      {countFailed ? null : (
                       <p className="text-sm text-muted-foreground">
                         That is who matches right now. It is worked out again for
                         every batch, so anyone who opts out partway through stops
                         getting it.
                       </p>
+                      )}
                     </>
                   )}
                 </div>
@@ -492,6 +528,13 @@ export function SendBroadcastDialog({
                     value={testEmail}
                     placeholder="you@example.com"
                     onChange={(event) => setTestEmail(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return
+                      // Enter here sends the test copy, as the button beside
+                      // it does, and never the newsletter itself.
+                      event.preventDefault()
+                      void handleSendTest()
+                    }}
                   />
                   <Button
                     type="button"

@@ -65,7 +65,7 @@ afterEach(async () => {
 })
 
 function task(projectId: string, title: string, assigneeUserId: string | null) {
-  return { projectId, title, notes: "", assigneeUserId, dueDate: null, steps: [] }
+  return { projectId, title, notes: "", assigneeUserId, dueDate: null }
 }
 
 async function roleOf(userId: string) {

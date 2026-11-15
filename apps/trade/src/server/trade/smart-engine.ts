@@ -31,6 +31,12 @@ export type LadderOrderInput = {
   reduceOnly: boolean
   /** This watched action closes the whole position rather than one slice. */
   closePosition?: boolean
+  /**
+   * The price this order was first placed at, when it is a re-place that
+   * must keep it (a chase). Absent, the order's own price on its first send
+   * is its aim. For slippage; see `order-aims.ts`.
+   */
+  aimedPx?: number
   now: number
   /** The Grid rung this action belongs to, counted from zero when known. */
   rung?: number

@@ -1,12 +1,5 @@
 import * as React from "react"
-import {
-  ChevronDownIcon,
-  DownloadIcon,
-  FileDownIcon,
-  Loader2Icon,
-  UploadIcon,
-} from "lucide-react"
-import { toast } from "sonner"
+import { Loader2Icon, UploadIcon } from "lucide-react"
 
 import { ContactTagsBox } from "@/components/broadcasts/contact-tags-box"
 import { Button } from "@/components/ui/button"
@@ -19,12 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Label } from "@/components/ui/label"
 import {
@@ -42,7 +29,6 @@ import {
   IMPORT_FIELD_LABELS,
   parseCsv,
   readImportRows,
-  SAMPLE_CONTACTS_CSV,
   type ImportField,
 } from "@/lib/contacts/contact-csv"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -58,65 +44,6 @@ type ReadFile = {
   fields: ImportField[]
 }
 
-/**
- * Import, the borderless button left of New contact (Tyler's mock, 20 Oct
- * 2026): a menu of "Upload a CSV file", which opens the import window, and
- * "Download a sample file".
- */
-export function ContactImportMenu({
-  knownTags,
-  onImported,
-}: {
-  knownTags: string[]
-  /** Re-reads the list once the people are in. */
-  onImported: () => Promise<void>
-}) {
-  const [windowOpen, setWindowOpen] = React.useState(false)
-
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          {/* Words where there is room; an icon with its name in a narrow panel. */}
-          {/* Ghost, no border (Tyler, 20 Oct 2026), like Filter beside it. */}
-          <Button type="button" variant="ghost" className="@max-3xl:size-8 @max-3xl:px-0" aria-label="Import">
-            <DownloadIcon className="size-4" />
-            <span className="@max-3xl:hidden">Import</span>
-            <ChevronDownIcon className="size-4 text-muted-foreground @max-3xl:hidden" />
-          </Button>
-        </DropdownMenuTrigger>
-        {/* Wide enough that neither item wraps. */}
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onSelect={() => setWindowOpen(true)}>
-            <UploadIcon />
-            Upload a CSV file
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={downloadSample}>
-            <FileDownIcon />
-            Download a sample file
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {windowOpen ? (
-        <ContactImportDialog
-          knownTags={knownTags}
-          onClose={() => setWindowOpen(false)}
-          onImported={onImported}
-        />
-      ) : null}
-    </>
-  )
-}
-
-function downloadSample() {
-  const url = URL.createObjectURL(new Blob([SAMPLE_CONTACTS_CSV], { type: "text/csv" }))
-  const link = document.createElement("a")
-  link.href = url
-  link.download = "contacts-sample.csv"
-  link.click()
-  // A tick later: some browsers start the download after the click returns.
-  setTimeout(() => URL.revokeObjectURL(url))
-}
 
 /**
  * The import window: pick a CSV file, check what each column is read as, add
@@ -127,7 +54,7 @@ function downloadSample() {
  * the import and says how far it got, and the people already sent stay in.
  * Nobody already on the list changes status: see `importWorkspaceContacts`.
  */
-function ContactImportDialog({
+export function ContactImportDialog({
   knownTags,
   onClose,
   onImported,
@@ -198,15 +125,11 @@ function ContactImportDialog({
       showErrorToast("None of the rows has a real email address, so there is nobody to import.")
       return
     }
-    const totals = { added: 0, updated: 0, unchanged: 0 }
     setSent(0)
     for (let at = 0; at < read.rows.length; at += CONTACT_IMPORT_BATCH) {
       const batch = read.rows.slice(at, at + CONTACT_IMPORT_BATCH)
       try {
-        const result = await importContacts(batch)
-        totals.added += result.added
-        totals.updated += result.updated
-        totals.unchanged += result.unchanged
+        await importContacts(batch)
         setSent(at + batch.length)
       } catch (error) {
         setSent(null)
@@ -219,7 +142,6 @@ function ContactImportDialog({
         return
       }
     }
-    toast.success(describeImport(totals, read.invalid))
     onClose()
     await onImported()
   }
@@ -370,21 +292,4 @@ function describeReady(ready: number, invalid: number): string {
   const people = `${ready.toLocaleString()} ${ready === 1 ? "person" : "people"} ready to import.`
   if (!invalid) return people
   return `${people} ${invalid.toLocaleString()} ${invalid === 1 ? "row has" : "rows have"} no real email address and will be left out.`
-}
-
-/** The toast once every batch is in. */
-function describeImport(
-  totals: { added: number; updated: number; unchanged: number },
-  invalid: number
-): string {
-  // A count of nothing is left unsaid: "Added 0" reads as a failure when the
-  // file simply held people already on the list.
-  const parts = [
-    totals.added ? `added ${totals.added.toLocaleString()}` : "",
-    totals.updated ? `updated ${totals.updated.toLocaleString()}` : "",
-    totals.unchanged ? `${totals.unchanged.toLocaleString()} already up to date` : "",
-    invalid ? `${invalid.toLocaleString()} left out with no real address` : "",
-  ].filter(Boolean)
-  const sentence = parts.join(", ") || "nobody new"
-  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`
 }

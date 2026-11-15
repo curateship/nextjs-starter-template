@@ -1,5 +1,5 @@
 import * as React from "react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, UploadIcon, UserPlusIcon } from "lucide-react"
 
 import { ContactTagsBox } from "@/components/broadcasts/contact-tags-box"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
@@ -25,23 +25,11 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 const EMPTY_FORM = { email: "", firstName: "", lastName: "" }
 
 /**
- * New contact, as a dropdown under the middle header's button: the address
- * first, then first and last name, then status and tags. Enter in a field
- * makes it, except in Tags, where Enter places the tag.
- * Everyone with an account is already on the list, so this is for somebody
- * who has none; an address already on the list is updated rather than added
- * twice. Clicking away keeps what was typed for the next opening.
+ * The add-subscriber form: the address first, then first and last name, then
+ * status and tags, with what Create does. Used by Subscribers' New contact and
+ * by the CRM page's + → Add subscriber, so both ask the same things.
  */
-export function NewContactDropdown({
-  knownTags,
-  onCreated,
-}: {
-  /** Every tag in use in the workspace, offered as Tags is typed in. */
-  knownTags: string[]
-  /** The new person, opened in the right panel once the list has them. */
-  onCreated: (contactId: string) => Promise<void>
-}) {
-  const [open, setOpen] = React.useState(false)
+export function useSubscriberForm(knownTags: string[], onCreated: (contactId: string) => Promise<void>) {
   const [form, setForm] = React.useState(EMPTY_FORM)
   const [status, setStatus] = React.useState<ContactSegmentStatus>("subscribed")
   const [tags, setTags] = React.useState<string[]>([])
@@ -53,13 +41,15 @@ export function NewContactDropdown({
     (event: React.ChangeEvent<HTMLInputElement>) =>
       setForm((current) => ({ ...current, [key]: event.target.value }))
 
-  const create = async () => {
+  /** Adds them; true once they are on the list. */
+  const submit = async (): Promise<boolean> => {
     const email = form.email.trim()
     if (!email) {
       setInvalid(true)
       showErrorToast("Email address is required.")
-      return
+      return false
     }
+    let created = false
     await run(async () => {
       const { id } = await saveContact({
         email,
@@ -72,27 +62,14 @@ export function NewContactDropdown({
       setTags([])
       setStatus("subscribed")
       setInvalid(false)
-      setOpen(false)
+      created = true
       await onCreated(id)
-    }, `Added ${email}.`)
+    })
+    return created
   }
 
-  return (
-    <NewRecordDropdown
-      label="New contact"
-      open={open}
-      onOpenChange={setOpen}
-      submitLabel="Create contact"
-      busy={saving}
-      onSubmit={() => void create()}
-      trigger={
-        // Words where there is room; an icon with its name in a narrow panel.
-        <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="New contact">
-          <PlusIcon className="size-4" />
-          <span className="@max-3xl:hidden">New contact</span>
-        </Button>
-      }
-    >
+  const fields = (
+    <>
       <div className="grid gap-2">
         <Label htmlFor="new-contact-email">Email</Label>
         <Input
@@ -147,6 +124,91 @@ export function NewContactDropdown({
           onRemove={(tag) => setTags((current) => current.filter((entry) => entry !== tag))}
         />
       </div>
+    </>
+  )
+
+  return { fields, submit, saving }
+}
+
+/**
+ * New contact, as a dropdown under the middle header's button: the address
+ * first, then first and last name, then status and tags. Enter in a field
+ * makes it, except in Tags, where Enter places the tag.
+ * An address already on the list is updated rather than added twice. Clicking away keeps what was typed for the next opening.
+ *
+ * The button first offers the two ways to add people (Tyler, 9 Nov 2026:
+ * "clicking on add new contact should open a dropdown to give me 2 options to
+ * add new contact"): Add a contact turns the same dropdown into the form, and
+ * Upload a CSV file opens the import window.
+ */
+export function NewContactDropdown({
+  knownTags,
+  onCreated,
+  onImport,
+}: {
+  /** Every tag in use in the workspace, offered as Tags is typed in. */
+  knownTags: string[]
+  /** The new person, opened in the right panel once the list has them. */
+  onCreated: (contactId: string) => Promise<void>
+  /** Opens the CSV import window. */
+  onImport: () => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [choosing, setChoosing] = React.useState(true)
+  const subscriber = useSubscriberForm(knownTags, onCreated)
+
+  return (
+    <NewRecordDropdown
+      label="New contact"
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setChoosing(true)
+        setOpen(next)
+      }}
+      choices={
+        choosing ? (
+          <div className="grid" role="menu" aria-label="Add people">
+            <Button
+              type="button"
+              role="menuitem"
+              variant="ghost"
+              className="w-full justify-start gap-2 px-2 font-normal"
+              onClick={() => setChoosing(false)}
+            >
+              <UserPlusIcon className="size-4 text-muted-foreground" />
+              Add a contact
+            </Button>
+            <Button
+              type="button"
+              role="menuitem"
+              variant="ghost"
+              className="w-full justify-start gap-2 px-2 font-normal"
+              onClick={() => {
+                setOpen(false)
+                onImport()
+              }}
+            >
+              <UploadIcon className="size-4 text-muted-foreground" />
+              Upload a CSV file
+            </Button>
+          </div>
+        ) : undefined
+      }
+      submitLabel="Create contact"
+      busy={subscriber.saving}
+      onSubmit={() =>
+        void subscriber.submit().then((created) => {
+          if (created) setOpen(false)
+        })
+      }
+      trigger={
+        <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="New contact">
+          <PlusIcon className="size-4" />
+          <span className="@max-3xl:hidden">New contact</span>
+        </Button>
+      }
+    >
+      {subscriber.fields}
     </NewRecordDropdown>
   )
 }

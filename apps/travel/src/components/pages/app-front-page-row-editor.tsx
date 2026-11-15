@@ -1,4 +1,5 @@
 import * as React from "react"
+import { LayoutGridIcon } from "lucide-react"
 import type { ComponentType } from "react"
 
 import { InspectorCard } from "@/components/shared/inspector-card"
@@ -52,7 +53,7 @@ export function AppFrontPageRowEditor({
   const Panel = lazyPanelFor(kind)
 
   return (
-    <InspectorCard
+    <InspectorCard icon={<LayoutGridIcon />}
       storageId={`front-page-row-app-${kind.key}`}
       title={kind.label}
       description={kind.hint}

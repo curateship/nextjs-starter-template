@@ -6,7 +6,6 @@ import { PROJECT_ERRORS } from "@/lib/project/errors"
 import { onTeamHref } from "@/lib/project/notices"
 import type { CustomShellDb } from "@/server/db"
 import { inTeam } from "@/server/project/access"
-import { deleteLabel } from "@/server/project/labels"
 import { createProject, setProjectArchived } from "@/server/project/projects"
 import * as schema from "@/server/project/schema"
 import { createTeam, deleteTeam, listTeams } from "@/server/project/teams"
@@ -41,13 +40,10 @@ afterEach(async () => {
 const TEAM_TABLES = [
   schema.projectAnnouncementViews,
   schema.projectCheckins,
-  schema.projectLabels,
   schema.projectMeetings,
   schema.projectProjects,
   schema.projectSavedViews,
-  schema.projectStepLists,
   schema.projectTaskFiles,
-  schema.projectTaskTypes,
   schema.projectTeamHolidays,
   schema.projectTeamJoins,
   schema.projectTeamMembers,
@@ -112,14 +108,6 @@ describe("deleting a team", () => {
     await expect(deleteTeam(ben.id, beta.id, database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
     await deleteTeam(tyler.id, beta.id, database)
     await expect(deleteTeam(tyler.id, beta.id, database)).rejects.toThrow(PROJECT_ERRORS.teamNotFound)
-  })
-})
-
-describe("a team's own records", () => {
-  it("tell an employee only that the site admin changes them, whether or not one exists", async () => {
-    await startTeam(database, [ben], { admin: tyler })
-    await expect(deleteLabel(ben.id, "no-such-label", database)).rejects.toThrow(PROJECT_ERRORS.notRunningTeam)
-    await expect(deleteLabel(tyler.id, "no-such-label", database)).rejects.toThrow(PROJECT_ERRORS.labelNotFound)
   })
 })
 

@@ -22,7 +22,7 @@ import { LIMITS } from "@/lib/project/rules"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-type Change = (work: () => Promise<unknown>, successText?: string) => Promise<boolean>
+type Change = (work: () => Promise<unknown>) => Promise<boolean>
 
 /**
  * A poll's choices under its question. Each person picks one; picking another

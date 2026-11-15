@@ -1,17 +1,6 @@
 import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
-import {
-  BookOpenIcon,
-  ChartNoAxesCombinedIcon,
-  CreditCardIcon,
-  EyeIcon,
-  FolderIcon,
-  LayersIcon,
-  ScrollTextIcon,
-  RadarIcon,
-  SirenIcon,
-} from "lucide-react"
 
 import type { DashboardBootstrap } from "@/lib/api/trade/dashboard"
 import {
@@ -33,7 +22,6 @@ import {
   SmartOrdersPanel,
   type SmartOrdersPanelKind,
 } from "@/components/trade/smart-orders-panel"
-import { SmartOrdersMenu } from "@/components/trade/smart-orders-menu"
 import { ManualOrdersPanel } from "@/components/trade/manual-orders-panel"
 import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
@@ -43,7 +31,6 @@ import {
 } from "@/components/trade/wallet-dialogs"
 import { ChartFullscreenButton } from "@/components/trade/chart-fullscreen-button"
 import { ChartInvertButton } from "@/components/trade/chart-invert-button"
-import { ChartToolsMenu } from "@/components/trade/chart-tools-menu"
 import {
   ChartPanel,
   IntervalPicker,
@@ -52,31 +39,33 @@ import {
 import { useChartOptions } from "@/components/trade/use-chart-options"
 import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import {
-  MarketHeader,
-  MarketInfoRow,
+  MarketInfoFacts,
   type MarketSelection,
 } from "@/components/trade/market-header"
-import {
-  MarketPhoneMenu,
-  PhoneMenuRow,
-} from "@/components/trade/market-phone-menu"
-import { PinnedMarketRow } from "@/components/trade/pinned-market-button"
+import { TestnetStrip } from "@/components/trade/market-list-panel"
+import { MarketPicker } from "@/components/trade/market-picker"
 import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
 import { IndicatorsMenu } from "@/components/trade/indicators-menu"
-import { indicatorsOn } from "@/lib/trade/indicators/registry"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketScannerMenu } from "@/components/trade/market-scanner-panel"
-import { MarketFoldersManager } from "@/components/trade/market-folders-manager"
-import { MarketFoldersMenu } from "@/components/trade/market-folders-menu"
+import {
+  FoldersBlockMenuRows,
+  MarketFoldersMenu,
+} from "@/components/trade/market-folders-menu"
 import { PriceAlertsMenu } from "@/components/trade/price-alerts-menu"
 import { TradingRuleEditor } from "@/components/trade/trading-rules-settings"
+import { ActiveTradesPanelBody } from "@/components/trade/active-trades-panel"
+import {
+  NarrowPanelBar,
+  NarrowPanelLayer,
+  type NarrowPanel,
+} from "@/components/trade/narrow-panel-bar"
 import { useLineAlerts } from "@/components/trade/use-line-alerts"
 import { usePriceAlerts } from "@/components/trade/use-price-alerts"
+import { useFiredPriceAlerts } from "@/components/trade/price-alerts-panel"
 import {
-  BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
   ResizableHandle,
   ResizablePanel,
@@ -85,11 +74,10 @@ import {
 } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   createFolder,
   getMarketFolderErrorMessage,
@@ -100,7 +88,6 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   marketSymbol,
   parseMarketKey,
-  protocolLabel,
   type MarketRow,
   type NetworkId,
   type ProtocolId,
@@ -123,19 +110,14 @@ import { chartSourceInterval } from "@/lib/trade/chart-interval"
 import { startLiveMarketData } from "@/lib/trade/live-market"
 import {
   useBlankSpaceDoubleClick,
+  usePanelCollapsed,
+  usePanelFold,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { STILL_PANEL, usePanelFit } from "@/lib/trade/panel-fit"
-import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
-import {
-  marketPanelScopeKey,
-  type TradePanelLayouts,
-  useRememberedPanelLayoutInPlace,
-} from "@/lib/trade/panel-layout"
-import { hidePnlNow } from "@/lib/trade/hide-pnl"
+import { tradeWorkspacePanelKey } from "@/lib/trade/panel-keys"
+import { sidePanelWidthsKey } from "@/lib/layout/panel-layout"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import {
-  ALL_ROW,
   favFolder,
   type MarketFolder,
   type MarketFolderActions,
@@ -149,6 +131,46 @@ import {
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { cn } from "@/lib/utils"
+import {
+  FoldersMenuRow,
+  PinMenuRow,
+} from "@/components/trade/notes/page-menus"
+import {
+  TradeBlocksProvider,
+  type TradeBlocks,
+} from "@/components/trade/notes/trade-block-views"
+import {
+  TradePageBody,
+  type TradePage,
+} from "@/components/trade/notes/trade-page-panel"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { PageCover, RightCoverProvider } from "@/components/shared/notes/page-cover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  InfoIcon,
+  PanelLeftCloseIcon,
+  PanelLeftDashedIcon,
+  ChartCandlestickIcon,
+} from "lucide-react"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
+import { ShowLeftPanelProvider, SideTogglesProvider } from "@/components/shared/three-panels"
+import {
+  DEFAULT_LEFT_PANEL_WIDTH,
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  clampSidePanelWidth,
+} from "@/lib/layout/styling-values"
+import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
+import { STILL_PANEL } from "@/lib/trade/panel-fit"
+import {
+  type TradePanelLayouts,
+  useBrowserPanelLayout,
+  useRememberedPanelLayoutInPlace,
+} from "@/lib/trade/panel-layout"
 
 /**
  * No focus ring on a panel divider.
@@ -158,27 +180,28 @@ import { cn } from "@/lib/utils"
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
+
 /**
- * Each panel inside the collapsed-column menu: as tall as its own rows and
- * total line, giving up height only when the menu runs out of window, with a
- * line above each one that has a panel on screen above it.
- *
- * Grid and DCA used to be capped at half the menu less 9rem, about five rows.
- * The rest and the total line sat below the fold of a list whose scroll bar
- * only shows on hover, so the menu looked as if it left trades out (Tyler,
- * 15 Oct 2026: "the grid panel smart trades does not show all the trades").
+ * The Trade dashboard's panels, in `tradeWorkspacePanelKey`'s layouts: the
+ * left page and the middle on Overview, and the trade details on the right
+ * once an exchange is picked (Tyler, 10 Nov 2026: "Any chart should have a
+ * right panel to show its previous trade history").
  */
-const POPOVER_SMART_PANEL_CLASS =
-  "flex h-auto min-h-32 flex-[0_1_auto] flex-col [:not([hidden])~&]:border-t"
+const OVERVIEW_PANEL_IDS: readonly string[] = ["blocks", "chart"]
+const WORKSPACE_PANEL_IDS: readonly string[] = ["blocks", "chart", "details"]
+const NO_SLOTS: readonly HTMLElement[] = []
+const NO_HIDDEN_BLOCKS: ReadonlySet<string> = new Set()
+
+/** The middle panel's tabs, in the order they sit. */
+const MIDDLE_TABS: readonly ActivityTab[] = [
+  "chart",
+  "positions",
+  "orders",
+  "journal",
+]
 
 /** Who is signed in, read the way the shell's own pages read it. */
 const authenticatedRoute = getRouteApi("/_authenticated")
-
-/** Which narrow-screen side panel the shared sheet belongs to. */
-type SideSheet = {
-  side: "markets" | "smart-orders"
-  open: boolean
-}
 
 type WorkspaceMarketSelection =
   MarketSelection | { kind: "none" } | { kind: "missing"; marketId: string }
@@ -217,8 +240,10 @@ function resolveSelection(
 }
 
 /**
- * The Trade workspace: markets on the left, the market you picked in the
- * middle, the account on the right, and what you are holding along the bottom.
+ * The Trade dashboard at `/trade` (8 Nov 2026): the left page of blocks, with
+ * the Protocols block that picks what the middle shows, and the middle, which
+ * is Overview's widgets or the picked exchange's chart and tables. There is
+ * no right panel (Tyler: "I dont want a right panel").
  *
  * Built on the same panel parts as the Automation Canvas rather than a second
  * panel system of its own, so resizing, collapsing, the reopen tabs and the
@@ -248,6 +273,12 @@ export function TradeWorkspace({
   initialQuickOrder,
   initialPanelLayouts,
   initialWallets,
+  page,
+  pageMenu,
+  protocolsBlock,
+  protocolsMenu,
+  hideEmptyBlocks,
+  overview,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -265,8 +296,7 @@ export function TradeWorkspace({
   /**
    * The market list is still streaming in with the opening answer. The list
    * shows a loading row, and nothing treats the empty catalogue as the
-   * exchange's answer — a picked market is not "missing" yet, and the
-   * narrow-screen market sheet does not open itself over the page.
+   * exchange's answer: a picked market is not "missing" yet.
    */
   marketsPending: boolean
   /** Which network the whole page is showing — resolved by the route. */
@@ -291,8 +321,30 @@ export function TradeWorkspace({
   initialCardFolds: CardFoldsValue
   /** How the right-click order window was last set up. */
   initialQuickOrder: QuickOrderPrefs
-  /** Divider positions and named arrangements owned by this account. */
+  /** Divider positions owned by this account. */
   initialPanelLayouts: TradePanelLayouts
+  /**
+   * The left page, one per person, held above this workspace so it carries
+   * on unchanged when the exchange changes.
+   */
+  page: TradePage
+  /**
+   * The ⋮ over the left page: General, Widgets and Alerts. Handed the alerts
+   * list, which this workspace reads.
+   */
+  pageMenu: (parts: { alerts: React.ReactNode }) => React.ReactNode
+  /** What the Protocols block draws: Overview and the exchanges. */
+  protocolsBlock: React.ReactNode
+  /** The Protocols block's ⋮ rows: each exchange's eye. */
+  protocolsMenu: React.ReactNode
+  /** "Hide empty blocks" from the page's ⋮: empty trade blocks leave the page. */
+  hideEmptyBlocks: boolean
+  /**
+   * Overview's widgets while Overview is picked, drawn in the middle's place
+   * with no panel of their own; null while an exchange is picked. The chart
+   * stays mounted under it, so going back to the exchange never reloads it.
+   */
+  overview: React.ReactNode | null
   /** The account panel's first answer from the same opening call. */
   initialWallets: DashboardBootstrap["wallets"]
   /** The picked market's key, carried in the address bar. */
@@ -307,46 +359,18 @@ export function TradeWorkspace({
   // rebuilding itself a beat later.
   const { user } = authenticatedRoute.useLoaderData()
   const desktop = useWideScreen()
-  // A phone, which is narrower again than the point the side panels fold away
-  // at. The market header goes down to one row there and the bottom panel
-  // leaves the screen, both of them reachable from the header's three dots.
-  const phone = useIsMobile()
-  // Which table the three dots opened over the chart, or null for none.
-  const [phoneActivity, setPhoneActivity] = React.useState(false)
+  // Under 1280px the chart fills the screen and the bar along the bottom
+  // slides a panel up over it: Left panel, Positions, Browse and Right
+  // panel (Tyler, 13 Nov 2026). Null is the chart with every panel shut.
+  const [narrowPanel, setNarrowPanel] = React.useState<NarrowPanel | null>(null)
+  const showingOverview = overview !== null
   // Memoised: the workspace re-renders on every poll and every price tick,
   // and a fresh answer each time made every panel below re-do its own work.
   const selection = React.useMemo(
     () => resolveSelection(catalogs, selectedKey),
     [catalogs, selectedKey]
   )
-  const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
-  const [smartOrdersCollapsed, setSmartOrdersCollapsed] = React.useState(false)
-  const [sideSheet, setSideSheet] = React.useState<SideSheet>({
-    side: "markets",
-    // With no substitute middle header, a narrow screen has no Markets
-    // button. Open the sheet so a new account or stale link can choose one.
-    // Not while the list is still streaming in, though: the picked market is
-    // not missing yet, only unresolved.
-    open: !desktop && !marketsPending && selection.kind !== "market",
-  })
-  const [sheetSeen, setSheetSeen] = React.useState({
-    kind: selection.kind,
-    marketsPending,
-  })
-  if (
-    sheetSeen.kind !== selection.kind ||
-    sheetSeen.marketsPending !== marketsPending
-  ) {
-    setSheetSeen({ kind: selection.kind, marketsPending })
-    if (
-      !desktop &&
-      !marketsPending &&
-      selection.kind !== "market" &&
-      !sideSheet.open
-    ) {
-      setSideSheet({ side: "markets", open: true })
-    }
-  }
+  const [blocksCollapsed, setBlocksCollapsed] = React.useState(false)
 
   // ----- Market folders: one exchange, optimistic item changes -------------
   const [folders, setFolders] = React.useState(initialFolders)
@@ -466,11 +490,19 @@ export function TradeWorkspace({
    * panel draws it, and the poll uses it to decide whether the Journal's
    * trade history is worth asking the exchange for at all.
    */
-  const [activityTab, setActivityTab] = React.useState<ActivityTab>("positions")
+  // The middle panel's tab: the chart, Positions, Open orders or the Journal.
+  // Remembered in this browser, opening on the chart the first time.
+  const [activityTab, setActivityTab] = useRememberedChoice<ActivityTab>(
+    "trade-dashboard-middle-tab",
+    "chart",
+    MIDDLE_TABS
+  )
   const trading = useTrading(
     account.activeWallet,
     protocol,
-    activityTab === "journal"
+    // The Journal is only on a wide screen; under 1280px the middle is the
+    // chart alone, so the trade history is not read for a tab nobody can see.
+    desktop && activityTab === "journal"
   )
   const fallbackMarks = React.useMemo(
     () =>
@@ -537,49 +569,10 @@ export function TradeWorkspace({
   // the zoom — an indicator is how you read a chart, not a fact about a coin.
   const indicators = useChartIndicators(initialIndicators)
   const chartOptions = useChartOptions(initialChartOptions)
-  // Hide on empty, from View options (Tyler, 8 Oct 2026): an order panel with
-  // no row to show leaves the column, so a long Grid list is not squeezed by
-  // two empty cards. Each panel says whether it is empty, because only the
-  // panel knows what it is listing: the smart-order panels read a cache before
-  // the server answers, and Manual orders counts a coin held by hand as a row.
-  // A hidden panel stays mounted, only unseen, so it can say when it has a row
-  // again.
-  const hideEmptyOrderPanels = chartOptions.options.hideEmptyOrderPanels
-  const [emptyPanels, setEmptyPanels] = React.useState({
-    grid: false,
-    dca: false,
-    manual: false,
-  })
-  const reportEmpty = React.useMemo(() => {
-    const report =
-      (panel: keyof typeof emptyPanels) => (empty: boolean) =>
-        setEmptyPanels((current) =>
-          current[panel] === empty ? current : { ...current, [panel]: empty }
-        )
-    return { grid: report("grid"), dca: report("dca"), manual: report("manual") }
-  }, [])
-  const panelHidden = (panel: keyof typeof emptyPanels) =>
-    hideEmptyOrderPanels && emptyPanels[panel]
-  const allOrderPanelsHidden =
-    panelHidden("grid") && panelHidden("dca") && panelHidden("manual")
-  // The column's spare height goes to the lowest panel still on screen.
-  // Manual orders took it before Hide on empty existed; with Manual orders
-  // hidden, a Grid panel on its own stopped at its rows and left the rest of
-  // the column blank (Tyler, 8 Oct 2026).
-  const lowestOrderPanel = !panelHidden("manual")
-    ? "manual"
-    : !panelHidden("dca")
-      ? "dca"
-      : "grid"
-  const orderPanelGrowth = (panel: keyof typeof emptyPanels) =>
-    lowestOrderPanel === panel ? "flex-[1_1_auto]" : "flex-[0_1_auto]"
-  const noOrderPanelsNote = (
-    <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-      Nothing is working or waiting. Grid, DCA and Manual orders come back
-      when an order is placed.
-    </p>
-  )
   const priceAlerts = usePriceAlerts(initialPriceAlerts)
+  // Read here, not in the Alerts tab, so the tab shows them at once each time
+  // it opens; the list refreshes itself every two seconds while visible.
+  const firedAlerts = useFiredPriceAlerts()
   const lineAlerts = useLineAlerts()
   // The line a panel row asked for, until the chart has picked it out.
   const [drawingToSelect, setDrawingToSelect] = React.useState<{
@@ -624,63 +617,64 @@ export function TradeWorkspace({
     [catalogs, onRetryMarkets]
   )
 
-  const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const smartOrdersPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const blocksPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  // The left panel's opening width and its narrowest, from Settings →
+  // Styling → Side panels, as every shell dashboard's (Tyler, 9 Nov 2026:
+  // "the panel width is also not wired").
+  const blocksWidth = clampSidePanelWidth(
+    useOptionalShellRuntime()?.config.styling?.leftPanelWidth,
+    DEFAULT_LEFT_PANEL_WIDTH
+  )
+  // The right panel's opening width and its narrowest, the Side panels
+  // setting's right width, as the shell's `ThreePanels` uses.
+  const detailsWidth = clampSidePanelWidth(
+    useOptionalShellRuntime()?.config.styling?.rightPanelWidth,
+    DEFAULT_RIGHT_PANEL_WIDTH
+  )
   const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
-  const verticalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
-  const marketPanelScope = React.useMemo(
-    () => ({ protocol, network }),
-    [network, protocol]
+  const panelIds = showingOverview ? OVERVIEW_PANEL_IDS : WORKSPACE_PANEL_IDS
+  // The widths live in this browser, keyed by the Side panels widths, so
+  // Reset panels and a changed setting both reach them. Overview has no
+  // right panel and keeps a key of its own.
+  const horizontalStored = useBrowserPanelLayout(
+    sidePanelWidthsKey(
+      tradeWorkspacePanelKey,
+      blocksWidth,
+      showingOverview ? 0 : detailsWidth
+    ),
+    panelIds
   )
-  const marketPanelScopeId = marketPanelScopeKey(marketPanelScope)
-  const hasSavedOpenMarketRow = Object.prototype.hasOwnProperty.call(
-    panelLayouts.layouts.openMarketRows,
-    marketPanelScopeId
-  )
-  const expandedMarketRowId = hasSavedOpenMarketRow
-    ? (panelLayouts.layouts.openMarketRows[marketPanelScopeId] ?? null)
-    : ALL_ROW
-  const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
-  const verticalKey = tradePanelLayoutKey.workspaceVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[horizontalKey],
-    panelLayouts.layouts.current[horizontalKey],
-    (layout) => panelLayouts.remember(horizontalKey, layout)
+    panelIds,
+    horizontalStored.layout,
+    horizontalStored.save
   )
-  const verticalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelIds[verticalKey],
-    panelLayouts.layouts.current[verticalKey],
-    (layout) => panelLayouts.remember(verticalKey, layout)
-  )
+  const detailsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const detailsState = usePanelCollapsed(detailsPanelRef)
+  const toggleDetailsPanel = usePanelToggle(detailsPanelRef)
+  // Where the middle panel draws the open trade, through a portal.
+  const [detailsSlot, setDetailsSlot] = React.useState<HTMLElement | null>(null)
   const [chartFullscreen, setChartFullscreen] = React.useState(false)
-  const fullscreenLayouts = React.useRef<{
-    horizontal: ReturnType<typeof horizontalLayout.getLayout>
-    vertical: ReturnType<typeof verticalLayout.getLayout>
-  }>({ horizontal: null, vertical: null })
-  const fullscreenSheet = React.useRef<SideSheet | null>(null)
+  const fullscreenLayout = React.useRef<ReturnType<
+    typeof horizontalLayout.getLayout
+  > | null>(null)
   const restoreFullscreenLayouts = React.useRef(false)
 
   const enterChartFullscreen = React.useCallback(() => {
-    if (selection.kind !== "market") return
+    // Overview has no chart on screen to make full screen.
+    if (selection.kind !== "market" || showingOverview) return
     restoreFullscreenLayouts.current = false
-    fullscreenLayouts.current = {
-      horizontal: horizontalLayout.getLayout(),
-      vertical: verticalLayout.getLayout(),
-    }
-    fullscreenSheet.current = sideSheet
-    setSideSheet((current) => ({ ...current, open: false }))
-    horizontalLayout.setLayout({ markets: 0, chart: 100, "smart-orders": 0 })
-    verticalLayout.setLayout({ workspace: 100, activity: 0 })
+    fullscreenLayout.current = horizontalLayout.getLayout()
+    // Full screen is the chart: the middle panel's chart tab, the page away.
+    setActivityTab("chart")
+    horizontalLayout.setLayout({ blocks: 0, chart: 100, details: 0 })
     setChartFullscreen(true)
-  }, [horizontalLayout, selection.kind, sideSheet, verticalLayout])
+  }, [horizontalLayout, selection.kind, setActivityTab, showingOverview])
 
   const exitChartFullscreen = React.useCallback(() => {
     restoreFullscreenLayouts.current = true
-    if (fullscreenSheet.current) setSideSheet(fullscreenSheet.current)
-    fullscreenSheet.current = null
     setChartFullscreen(false)
   }, [])
 
@@ -695,20 +689,17 @@ export function TradeWorkspace({
     const restore = () => {
       if (!restoreFullscreenLayouts.current) return
       restoreFullscreenLayouts.current = false
-      const before = fullscreenLayouts.current
-      fullscreenLayouts.current = { horizontal: null, vertical: null }
-      if (before.horizontal) horizontalLayout.setLayout(before.horizontal)
-      if (before.vertical) verticalLayout.setLayout(before.vertical)
+      const before = fullscreenLayout.current
+      fullscreenLayout.current = null
+      if (before) horizontalLayout.setLayout(before)
     }
     const horizontal = horizontalGroupElementRef.current
-    const vertical = verticalGroupElementRef.current
-    if (typeof ResizeObserver !== "undefined" && (horizontal || vertical)) {
+    if (typeof ResizeObserver !== "undefined" && horizontal) {
       const observer = new ResizeObserver(() => {
         observer.disconnect()
         restore()
       })
-      if (horizontal) observer.observe(horizontal)
-      if (vertical) observer.observe(vertical)
+      observer.observe(horizontal)
       return () => observer.disconnect()
     }
     let secondFrame: number | null = null
@@ -719,7 +710,7 @@ export function TradeWorkspace({
       window.cancelAnimationFrame(firstFrame)
       if (secondFrame !== null) window.cancelAnimationFrame(secondFrame)
     }
-  }, [chartFullscreen, horizontalLayout.setLayout, verticalLayout.setLayout])
+  }, [chartFullscreen, horizontalLayout.setLayout])
 
   const toggleChartFullscreen = React.useCallback(() => {
     if (chartFullscreen) exitChartFullscreen()
@@ -751,104 +742,57 @@ export function TradeWorkspace({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [chartFullscreen, exitChartFullscreen, toggleChartFullscreen])
 
-  const createNamedLayout = React.useCallback(
-    async (name: string) => {
-      const horizontal = horizontalLayout.getLayout()
-      const vertical = verticalLayout.getLayout()
-      if (!horizontal || !vertical) {
-        throw new Error("PANEL_LAYOUT_INVALID")
-      }
-      await panelLayouts.createNamed(
-        name,
-        horizontal,
-        vertical,
-        marketPanelScope,
-        expandedMarketRowId,
-        // A saved layout records whether profit was on show when it was made,
-        // and applying it puts that back.
-        !hidePnlNow(),
-        panelLayouts.layouts.chartToolbarPosition
-      )
-    },
-    [
-      expandedMarketRowId,
-      horizontalLayout,
-      marketPanelScope,
-      panelLayouts,
-      verticalLayout,
-    ]
+  // Folding or opening a side panel slides there, as on every shell
+  // dashboard (`usePanelFold`, Tyler, 11 Nov 2026: "make it smooth").
+  const { fold: foldPanel, className: foldingClassName } = usePanelFold()
+  const fold = React.useCallback(
+    (toggle: () => void) =>
+      foldPanel(() => {
+        toggle()
+        horizontalLayout.rememberLayout()
+      }),
+    [foldPanel, horizontalLayout]
   )
-  const applyNamedLayout = React.useCallback(
-    (id: string) => panelLayouts.applyNamed(id, marketPanelScope),
-    [marketPanelScope, panelLayouts]
+  const toggleBlocksPanel = usePanelToggle(blocksPanelRef)
+  const toggleBlocks = React.useCallback(
+    () => fold(toggleBlocksPanel),
+    [fold, toggleBlocksPanel]
   )
-  // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
-  // the same resizable panel the divider drags. It also takes over saving the
-  // vertical layout, because a grown height is never the remembered one.
-  const activityFit = usePanelFit(
-    activityPanelRef,
-    verticalLayout.onLayoutChanged
+  // Brings the left page into view for a widget's Manage widgets, which then
+  // opens its ⋮ at Widgets: opened when shut, or switched to when narrow.
+  const showBlocks = React.useCallback(() => {
+    if (!desktop) {
+      setNarrowPanel("left")
+      return
+    }
+    if (blocksPanelRef.current?.isCollapsed()) toggleBlocks()
+  }, [desktop, toggleBlocks])
+
+  // Double-clicking the empty part of the left panel shuts it, and
+  // double-clicking what is left of it opens it again.
+  const blocksDoubleClick = useBlankSpaceDoubleClick(toggleBlocks)
+  const toggleDetails = React.useCallback(
+    () => fold(toggleDetailsPanel),
+    [fold, toggleDetailsPanel]
   )
-
-  const toggleMarketsPanel = usePanelToggle(marketsPanelRef)
-  const toggleMarkets = React.useCallback(() => {
-    toggleMarketsPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleMarketsPanel])
-  const toggleSmartOrdersPanel = usePanelToggle(smartOrdersPanelRef)
-  const toggleSmartOrders = React.useCallback(() => {
-    toggleSmartOrdersPanel()
-    horizontalLayout.rememberLayout()
-  }, [horizontalLayout, toggleSmartOrdersPanel])
-  // Double-clicking the bottom panel's blank space shuts it, and this is the
-  // one panel where that has to be spelled out rather than handed to
-  // `usePanelToggle`.
-  //
-  // **Whether it was open is read BEFORE the growing is undone**, and the
-  // panel is told plainly to shut or to open rather than to toggle. A toggle
-  // asked afterwards judges a panel that undoing the growing has already
-  // moved, and one gesture then did two things and came back to where it
-  // started: a double-click shut the panel and opened it again in the same
-  // motion, on alternate tries, with nothing on screen explaining why.
-  const shrinkActivity = activityFit.shrink
-  const toggleActivity = React.useCallback(() => {
-    const panel = activityPanelRef.current
-    if (!panel) return
-    const wasOpen = !panel.isCollapsed()
-    shrinkActivity()
-    if (wasOpen) panel.collapse()
-    else panel.expand()
-    verticalLayout.rememberLayout()
-  }, [shrinkActivity, verticalLayout])
-
-  // Double-clicking the empty part of a panel shuts it, and double-clicking
-  // what is left of it opens it again.
-  const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
-  const smartOrdersDoubleClick = useBlankSpaceDoubleClick(toggleSmartOrders)
-  const activityDoubleClick = useBlankSpaceDoubleClick(toggleActivity)
-
-  // A slid-open panel belongs to the narrow layout, so crossing the width
-  // boundary shuts it. Widening otherwise leaves the sheet sitting over the
-  // whole workspace with the button that opened it gone from the header — and
-  // the panel it stands in for visible behind it. Narrowing again must not
-  // bring it back by itself either, which is why either direction closes it.
-  //
-  // Adjusted during render rather than in an effect: React re-runs the render
-  // immediately without painting in between, so the sheet is already gone in
-  // the frame the new layout appears in.
-  const [lastDesktop, setLastDesktop] = React.useState(desktop)
-  if (desktop !== lastDesktop) {
-    setLastDesktop(desktop)
-    setSideSheet((current) => ({ ...current, open: false }))
-  }
-  // The same rule for the phone's sliding table, on the phone line rather than
-  // the wide one. Leaving it set would pop the table open, unasked, the next
-  // time the window narrowed.
-  const [lastPhone, setLastPhone] = React.useState(phone)
-  if (phone !== lastPhone) {
-    setLastPhone(phone)
-    setPhoneActivity(false)
-  }
+  const detailsDoubleClick = useBlankSpaceDoubleClick(toggleDetails)
+  // The panel headers' collapse and reopen buttons, as on the shell's
+  // dashboards: the right panel's own edge button, and the middle header's
+  // button that brings it back.
+  const sideToggles = React.useMemo(
+    () => ({
+      left: toggleBlocks,
+      right: toggleDetails,
+      leftCollapsed: blocksCollapsed,
+      rightCollapsed: detailsState.collapsed,
+    }),
+    [toggleBlocks, toggleDetails, blocksCollapsed, detailsState.collapsed]
+  )
+  // A row opened under 1280px brings its record up in the Right panel, as
+  // opening a record does on every three-panel dashboard.
+  const showDetails = React.useCallback(() => {
+    if (!desktop) setNarrowPanel("right")
+  }, [desktop])
 
   // The finished trade drawn on the chart, picked in the Journal. It lives up
   // here because two panels share it: the table below decides which one, and
@@ -989,60 +933,19 @@ export function TradeWorkspace({
     [trading.walletNames, account.wallets]
   )
 
-  // The left column holds the Rules box. Hand-placed orders live with the
-  // other order controls in the right column.
-  const [rulesSlot, setRulesSlot] = React.useState<HTMLElement | null>(null)
+  // The Rules box is drawn by the chart into every Rules block on screen, on
+  // the exchange's page and on the market's (the Admin 3 panel design, 7 Nov
+  // 2026). With none on screen, the card over the chart sums the rules up
+  // instead, unless Settings, Trading rules switched it off.
+  const [rulesSlots, setRulesSlots] = React.useState<readonly HTMLElement[]>([])
+  const addRulesSlot = React.useCallback((element: HTMLElement) => {
+    setRulesSlots((slots) => [...slots, element])
+    return () => setRulesSlots((slots) => slots.filter((one) => one !== element))
+  }, [])
   // The rules as edited from the Rules box's cog, so the box and the entry
   // check follow an edit at once rather than after a reload.
   const [tradingRules, setTradingRules] = React.useState(initialTradingRules)
   const [editingRuleId, setEditingRuleId] = React.useState<string | null>(null)
-  const marketScanner = (
-    <MarketScannerMenu
-      accountId={user.id}
-      key={user.id}
-      catalogs={catalogs}
-      selectedMarketKey={selectedKey}
-      onSelectMarket={onSelectMarket}
-    />
-  )
-  // The Rules box is drawn by the chart into this panel, so React sends its
-  // clicks up through the chart, never reaching the panel's own double-click.
-  // A plain listener on the space itself goes by where the click landed on
-  // screen, so a double-click on the box's blank space shuts the panel too.
-  React.useEffect(() => {
-    if (!rulesSlot) return
-    const onDoubleClick = (event: MouseEvent) =>
-      marketsDoubleClick(event as unknown as React.MouseEvent)
-    rulesSlot.addEventListener("dblclick", onDoubleClick)
-    return () => rulesSlot.removeEventListener("dblclick", onDoubleClick)
-  }, [rulesSlot, marketsDoubleClick])
-  const marketColumn = (
-    <WorkspacePanel
-      collapsed={marketsCollapsed}
-      onDoubleClick={marketsDoubleClick}
-      className="flex min-h-0 w-full min-w-0 flex-1 flex-col"
-    >
-      {/* The Rules box, drawn by the chart into this space (Tyler, 15 Oct
-          2026). The market scanner that used to fill it is now the radar
-          button after the siren in the chart header. */}
-      <div ref={setRulesSlot} className="flex min-h-0 flex-1 flex-col" />
-      {folderManagerOpen ? (
-        <MarketFoldersManager
-          folders={folders}
-          protocol={protocol}
-          network={network}
-          catalogs={catalogs}
-          marketsError={marketsError}
-          marketsPending={marketsPending}
-          panelRows={panelRows}
-          onFoldersChange={setFolders}
-          onPanelRowsChange={setPanelRows}
-          manageOpen={folderManagerOpen}
-          onManageOpenChange={setFolderManagerOpen}
-        />
-      ) : null}
-    </WorkspacePanel>
-  )
 
   // Memoised for the same reason: a new array here re-sorted the whole
   // market picker on every render, with the picker closed.
@@ -1068,23 +971,44 @@ export function TradeWorkspace({
     [marketsByKey]
   )
 
-  const walletManagement = (
-    <WalletManagement
-      walletButtonRef={walletButtonRef}
-      account={account}
-      cacheScope={dashboardCacheScope}
-      detailsOpen={walletDetails !== null}
-      onAddWallet={() => setAddingWallet(true)}
-      onOpenWalletDetails={(wallet) => setWalletDetailsId(wallet.id)}
-    />
+  // Picking a market from a block or Browse shuts the panel it was
+  // picked in, so the chart it opens is what shows under 1280px.
+  const pickMarket = React.useCallback(
+    (key: string) => {
+      onSelectMarket(key)
+      setNarrowPanel(null)
+      setActivityTab("chart")
+    },
+    [onSelectMarket, setActivityTab]
   )
 
-  // Grids and DCA ladders are two panels, Grid above DCA (Tyler, 6 Oct 2026),
-  // fed the same read.
+  // Which trade blocks have nothing to show, each told by its own panel,
+  // which alone knows what it lists. Kept by block name.
+  const [emptyBlocks, setEmptyBlocks] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const emptyReporters = React.useMemo(() => {
+    const report = (block: string) => (empty: boolean) =>
+      setEmptyBlocks((was) => {
+        if (was.has(block) === empty) return was
+        const next = new Set(was)
+        if (empty) next.add(block)
+        else next.delete(block)
+        return next
+      })
+    return {
+      grid: report("grid-trades"),
+      dca: report("dca-trades"),
+      manual: report("manual-trades"),
+    }
+  }, [])
+
+  // Grids and DCA ladders are two blocks, fed the same read.
   const smartOrderPanel = (kind: SmartOrdersPanelKind) => (
     <SmartOrdersPanel
       kind={kind}
       key={`${protocol}:${kind}`}
+      bare
       cacheScope={dashboardCacheScope}
       smartOrders={trading.smartOrders}
       positions={trading.positions}
@@ -1100,146 +1024,64 @@ export function TradeWorkspace({
       failed={trading.failed}
       onRetry={trading.retry}
       onResumeSmartOrder={trading.resumeSmartOrder}
-      onSelectMarket={onSelectMarket}
-      onEmptyChange={reportEmpty[kind]}
-    />
-  )
-  const gridPanel = smartOrderPanel("grid")
-  const dcaPanel = smartOrderPanel("dca")
-
-  const manualOrdersPanel = (
-    <ManualOrdersPanel
-      orders={trading.watchOrders}
-      positions={trading.positions}
-      smartOrders={trading.smartOrders}
-      markets={everyMarketRow}
-      cacheScope={`${user.id}:${protocol}`}
-      refusals={trading.refusals}
-      walletName={walletNameOf}
-      settled={trading.settled}
-      failed={trading.failed}
-      onRetry={trading.retry}
-      onSelectMarket={onSelectMarket}
-      selectedKey={selectedKey}
-      onEmptyChange={reportEmpty.manual}
+      onSelectMarket={pickMarket}
+      onEmptyChange={emptyReporters[kind]}
     />
   )
 
-  // Each panel starts at the height its own rows need. When the column has
-  // room to spare, Manual orders takes it, so no card ends in empty space
-  // above another that scrolls. When it is short, all three give up height in
-  // proportion to what they hold, so an empty Manual orders hands its room to
-  // a long Grid list instead of holding a blank box (Tyler, 6 Oct 2026). The
-  // floors keep each one's header and a row or its empty message on screen.
-  const orderPanels = (
-    <div
-      data-order-panels
-      className="flex h-full min-h-0 flex-col gap-(--shell-gutter)"
-    >
-      <WorkspacePanel
-        hidden={panelHidden("grid")}
-        className={cn(
-          "flex h-auto min-h-32 flex-col",
-          orderPanelGrowth("grid")
-        )}
-      >
-        {gridPanel}
-      </WorkspacePanel>
-      <WorkspacePanel
-        hidden={panelHidden("dca")}
-        className={cn("flex h-auto min-h-32 flex-col", orderPanelGrowth("dca"))}
-      >
-        {dcaPanel}
-      </WorkspacePanel>
-      <WorkspacePanel
-        hidden={panelHidden("manual")}
-        className={cn(
-          "flex h-auto min-h-44 flex-col",
-          orderPanelGrowth("manual")
-        )}
-      >
-        {manualOrdersPanel}
-      </WorkspacePanel>
-      {/* With every panel hidden the column would be a blank strip, which
-          reads as a page that broke rather than a choice that worked. */}
-      {allOrderPanelsHidden ? (
-        <WorkspacePanel className="flex flex-1 flex-col">
-          {noOrderPanelsNote}
-        </WorkspacePanel>
-      ) : null}
-    </div>
+  // The alerts, fired and waiting: a tab of the page's ⋮ since 8 Nov 2026,
+  // not a block (Tyler: "Put the alerts archive here and remove the alert
+  // block. We already have these alert in the notification tray").
+  const alertsArchive = (
+    <PriceAlertsMenu
+      fired={firedAlerts}
+      alerts={priceAlerts.alerts}
+      error={priceAlerts.error}
+      onRetry={() => void priceAlerts.refresh()}
+      onSelectMarket={pickMarket}
+      onDelete={priceAlerts.remove}
+      lines={linesForPanel}
+      onCleared={onAlertsCleared}
+    />
   )
 
-  // Everything the phone's market row has no space for, in the order the row
-  // used to hold it: the chart's own two menus first, then the market's.
-  //
-  // The controls in here are the real ones, handed a line to be opened by
-  // instead of their icon button, so nothing about what they do is written
-  // twice. The three tables at the end are the bottom panel, which is not on a
-  // phone screen at all — pressing one slides it up over the chart.
-  const phoneMenu = !phone ? null : (
-    <MarketPhoneMenu>
-      <IndicatorsMenu
-        indicators={indicators}
-        context={{ zone: chartOptions.options.zone, interval }}
-        trigger={
-          <PhoneMenuRow
-            icon={<ChartNoAxesCombinedIcon />}
-            label="Indicators"
-            detail={
-              indicatorsOn(indicators.settings)
-                ? String(indicatorsOn(indicators.settings))
-                : undefined
-            }
-          />
-        }
+  // What each block on the two pages draws. Every one is the panel that used
+  // to sit in its own column or behind a header button, with the same reads.
+  const tradeBlocks: TradeBlocks = {
+    addRulesSlot,
+    grid: smartOrderPanel("grid"),
+    dca: smartOrderPanel("dca"),
+    manual: (
+      <ManualOrdersPanel
+        bare
+        orders={trading.watchOrders}
+        positions={trading.positions}
+        smartOrders={trading.smartOrders}
+        markets={everyMarketRow}
+        cacheScope={`${user.id}:${protocol}`}
+        refusals={trading.refusals}
+        walletName={walletNameOf}
+        settled={trading.settled}
+        failed={trading.failed}
+        onRetry={trading.retry}
+        onSelectMarket={pickMarket}
+        selectedKey={selectedKey}
+        onEmptyChange={emptyReporters.manual}
       />
-      <ChartOptionsMenu
-        control={chartOptions}
-        trigger={<PhoneMenuRow icon={<EyeIcon />} label="View options" />}
-      />
-      <WalletManagement
-        walletButtonRef={walletButtonRef}
-        account={account}
-        cacheScope={dashboardCacheScope}
-        detailsOpen={walletDetails !== null}
-        onAddWallet={() => setAddingWallet(true)}
-        onOpenWalletDetails={(wallet) => setWalletDetailsId(wallet.id)}
-        trigger={<PhoneMenuRow icon={<CreditCardIcon />} label="Wallet" />}
-      />
-      <PriceAlertsMenu
-        alerts={priceAlerts.alerts}
-        error={priceAlerts.error}
-        onRetry={() => void priceAlerts.refresh()}
-        onSelectMarket={onSelectMarket}
-        onDelete={priceAlerts.remove}
-        lines={linesForPanel}
-        onCleared={onAlertsCleared}
-        renderTrigger={(firedCount) => (
-          <PhoneMenuRow
-            icon={<SirenIcon />}
-            label="Alerts"
-            count={firedCount}
-          />
-        )}
-      />
+    ),
+    scanner: (
       <MarketScannerMenu
         accountId={user.id}
         key={user.id}
         catalogs={catalogs}
         selectedMarketKey={selectedKey}
-        onSelectMarket={onSelectMarket}
-        renderTrigger={(newCount) => (
-          <PhoneMenuRow
-            icon={<RadarIcon />}
-            label="Market scanner"
-            count={newCount}
-          />
-        )}
+        onSelectMarket={pickMarket}
       />
-      {selection.kind === "market" ? (
-        <PinnedMarketRow marketKey={selection.row.key} />
-      ) : null}
+    ),
+    protocols: protocolsBlock,
+    protocolsMenu,
+    hidden: hideEmptyBlocks ? emptyBlocks : NO_HIDDEN_BLOCKS,
+    folders: (
       <MarketFoldersMenu
         panelRows={panelRows}
         marketsError={marketsError}
@@ -1251,199 +1093,150 @@ export function TradeWorkspace({
         catalogs={catalogs}
         selectedMarketKey={selectedKey}
         onFoldersChange={setFolders}
-        onManage={() => {
-          setSideSheet({ side: "markets", open: true })
-          setFolderManagerOpen(true)
-        }}
-        onSelectMarket={onSelectMarket}
-        trigger={<PhoneMenuRow icon={<FolderIcon />} label="Watchlists" />}
+        onPanelRowsChange={setPanelRows}
+        managing={folderManagerOpen}
+        onManagingChange={setFolderManagerOpen}
+        onSelectMarket={pickMarket}
       />
-      {selection.kind === "market" ? (
-        <MarketInfoRow selection={selection} />
-      ) : null}
-      <div aria-hidden className="my-1 border-t" />
-      <PhoneMenuRow
-        icon={<LayersIcon />}
-        label="Positions"
-        onClick={() => {
-          setActivityTab("positions")
-          setPhoneActivity(true)
-        }}
+    ),
+    foldersMenu: (
+      <FoldersBlockMenuRows
+        protocol={protocol}
+        network={network}
+        folders={folders}
+        onFoldersChange={setFolders}
+        onManage={() => setFolderManagerOpen(true)}
       />
-      <PhoneMenuRow
-        icon={<ScrollTextIcon />}
-        label="Open orders"
-        onClick={() => {
-          setActivityTab("orders")
-          setPhoneActivity(true)
-        }}
-      />
-      <PhoneMenuRow
-        icon={<BookOpenIcon />}
-        label="Journal"
-        onClick={() => {
-          setActivityTab("journal")
-          setPhoneActivity(true)
-        }}
-      />
-    </MarketPhoneMenu>
+    ),
+  }
+
+  // The left panel: the dashboard's page of blocks, under its name and its
+  // ⋮. Manage folders opens as a popover beside the Folders block.
+  const blocksColumn = (
+    <WorkspacePanel
+      onDoubleClick={blocksDoubleClick}
+      className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
+    >
+      {/* Wrapped so the shell's header-over-a-table rule never matches: the
+          tables inside the blocks below set it off, and the header then drew
+          a table's line instead of its own Divider lines line (Tyler, 7 Nov
+          2026: "this left panel header divider is not wired to the styling
+          setting"). */}
+      <PageCover url={page.cover.url} />
+      <div className="relative shrink-0">
+        <DashboardCardHeader
+          // Over a cover the line goes see-through, as on Project's pages.
+          className={cn(page.cover.url && "border-b-transparent")}
+        >
+          {/* Shuts the left panel, as a double-click on its blank space does
+              (Tyler, 7 Nov 2026: "add a collasible icon here to collapse the
+              left panel"). The slim tab at the chart's edge brings it back. */}
+          {desktop ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Hide the blocks"
+                  className="-ml-1 shrink-0 rounded-lg"
+                  onClick={toggleBlocks}
+                >
+                  <PanelLeftCloseIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Hide the blocks</TooltipContent>
+            </Tooltip>
+          ) : (
+            // Under 1280px there is nothing to collapse, so the header shows a
+            // chart icon in the button's place (Tyler, 13 Nov 2026: "need icon
+            // for the left panel header in mobile", then "that should be a
+            // chart icon").
+            <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
+              <ChartCandlestickIcon />
+            </span>
+          )}
+          <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
+            Trade
+          </span>
+          {pageMenu({ alerts: alertsArchive })}
+        </DashboardCardHeader>
+      </div>
+      <ScrollArea className="relative min-h-0 flex-1">
+        {/* A side panel's body, so the first block follows Settings ->
+            Styling -> Panel cards -> Opacity, as on the shell's dashboards. */}
+        <div data-side-panel-body="" className={cn(PANEL_GUTTER, "pt-0")}>
+          <TradePageBody page={page} />
+        </div>
+      </ScrollArea>
+    </WorkspacePanel>
   )
 
-  const middle = (
-    // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
-    // a width to fill it shrinks to its content.
-    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-      {selection.kind === "market" ? (
-        <MarketHeader
-          selection={selection}
-          markets={marketRows}
+  // The chart's controls sit in the middle panel's one header, beside its
+  // tabs (Tyler, 7 Nov 2026: "There should only be one middle header"): the
+  // Browse market, the timeframe, Indicators and View options. The wallet is a row
+  // in that header's ⋮. Narrow, the timeframe shows only the one picked.
+  const chartControls = (narrowHeader: boolean) => (
+    <>
+      {/* The primary Browse market button, on the header's right just before
+          the timeframes (Tyler, 8 Nov 2026: "move the brwose market button
+          here"; it led the header from 7 Nov). Under 1280px it is the bar's
+          Browse instead. */}
+      {selection.kind === "market" && desktop ? (
+        <MarketPicker
+          key={protocol}
+          rows={marketRows}
+          selected={selection.row}
+          capabilities={selection.picker}
           folders={folders}
           folderActions={folderActions}
-          onSelectMarket={onSelectMarket}
-          marketAction={
-            <div className="flex shrink-0 items-center gap-2">
-              <MarketFoldersMenu
-                panelRows={panelRows}
-                marketsError={marketsError}
-                marketsPending={marketsPending}
-                onRetryMarkets={onRetryMarkets}
-                folders={folders}
-                protocol={protocol}
-                network={network}
-                catalogs={catalogs}
-                selectedMarketKey={selectedKey}
-                onFoldersChange={setFolders}
-                onManage={() => {
-                  if (!desktop) {
-                    setSideSheet({ side: "markets", open: true })
-                  }
-                  setFolderManagerOpen(true)
-                }}
-                onSelectMarket={onSelectMarket}
-              />
-              <PriceAlertsMenu
-                alerts={priceAlerts.alerts}
-                error={priceAlerts.error}
-                onRetry={() => void priceAlerts.refresh()}
-                onSelectMarket={onSelectMarket}
-                onDelete={priceAlerts.remove}
-                lines={linesForPanel}
-                onCleared={onAlertsCleared}
-              />
-              {marketScanner}
-            </div>
-          }
-          // The chart's own controls live in the header row. The timeframe
-          // stays one press away; less frequent choices share the three-dot
-          // menu before the wallet. Full screen lives on the chart itself.
-          note={
-            borrowedNote || olderBarsNote ? (
-              <span className="flex items-center gap-2">
-                {borrowedNote}
-                {olderBarsNote}
-              </span>
-            ) : null
-          }
+          onSelect={pickMarket}
+          venueLabel={selection.protocolLabel}
           onSearchBeyond={onSearchMarkets}
-          toolbar={
-            <>
-              <IntervalPicker value={interval} onChange={setInterval} />
-              <ChartToolsMenu
-                indicators={indicators}
-                indicatorContext={{
-                  zone: chartOptions.options.zone,
-                  interval,
-                }}
-                chartOptions={chartOptions}
-                layouts={
-                  desktop && !chartFullscreen
-                    ? {
-                        rows: panelLayouts.layouts.named,
-                        activeId: panelLayouts.layouts.activeNamedId,
-                        onCreate: createNamedLayout,
-                        onApply: applyNamedLayout,
-                        onDelete: panelLayouts.deleteNamed,
-                      }
-                    : undefined
-                }
-              />
-              {walletManagement}
-              {desktop && smartOrdersCollapsed && !chartFullscreen ? (
-                <SmartOrdersMenu>
-                  {/* Every panel is as tall as its own rows, and the menu is
-                      as tall as the window allows. Only when they do not all
-                      fit does each give up height, in proportion to what it
-                      holds, never below its heading and a row. A flex column
-                      rather than a three-row grid, so a panel hidden by Hide
-                      on empty leaves no row behind it. */}
-                  <div className="flex max-h-(--radix-popover-content-available-height) flex-col overflow-hidden">
-                    {/* The `hidden` attribute rather than the class: the
-                        reset gives the attribute display none with priority,
-                        so it beats each wrapper's own flex. The line above a
-                        panel is drawn only when a panel is on screen above
-                        it, so a hidden one leaves no stray line behind. */}
-                    <div
-                      hidden={panelHidden("grid")}
-                      className={POPOVER_SMART_PANEL_CLASS}
-                    >
-                      {gridPanel}
-                    </div>
-                    <div
-                      hidden={panelHidden("dca")}
-                      className={POPOVER_SMART_PANEL_CLASS}
-                    >
-                      {dcaPanel}
-                    </div>
-                    <div
-                      hidden={panelHidden("manual")}
-                      className={POPOVER_SMART_PANEL_CLASS}
-                    >
-                      {manualOrdersPanel}
-                    </div>
-                    {allOrderPanelsHidden ? noOrderPanelsNote : null}
-                  </div>
-                </SmartOrdersMenu>
-              ) : null}
-            </>
-          }
-          // On a wide screen both panels are already on screen, so the buttons
-          // would only be a second way to do what the dividers already do.
-          onOpenMarkets={
-            desktop
-              ? undefined
-              : () => setSideSheet({ side: "markets", open: true })
-          }
-          onOpenSmartOrders={
-            desktop
-              ? undefined
-              : () => setSideSheet({ side: "smart-orders", open: true })
-          }
-          phoneToolbar={
-            phone ? (
-              <IntervalPicker phone value={interval} onChange={setInterval} />
-            ) : null
-          }
-          phoneMenu={phoneMenu}
         />
-      ) : (
-        // No market on the chart yet — a fresh visit, or an exchange with no
-        // market list. The wallets still have to be reachable: on Solana a
-        // wallet is made and funded before the market list exists at all, and
-        // the wallet control lives in this row, so the row is drawn with the
-        // exchange's name where the market would be.
-        <DashboardCardHeader>
-          <span className={dashboardCardHeadingClassName}>
-            {protocolLabel(protocol)}
-          </span>
-          <div className="ml-auto shrink-0">{walletManagement}</div>
-        </DashboardCardHeader>
-      )}
+      ) : null}
+      <IntervalPicker
+        phone={narrowHeader}
+        value={interval}
+        onChange={setInterval}
+      />
+      <IndicatorsMenu
+        indicators={indicators}
+        context={{ zone: chartOptions.options.zone, interval }}
+      />
+      <ChartOptionsMenu control={chartOptions} />
+    </>
+  )
+
+  // Where the chart's older bars came from, said quietly over the chart's top
+  // left now that there is no market row to say it in.
+  const chartNote =
+    borrowedNote || olderBarsNote ? (
+      <div className="pointer-events-none absolute top-2 left-3 z-10 flex items-center gap-2 [&_button]:pointer-events-auto">
+        {borrowedNote}
+        {olderBarsNote}
+      </div>
+    ) : null
+
+  // A Rules block counts while its page is on screen: not in full screen,
+  // and not while the left panel is shut on a wide screen.
+  const shownRulesSlots =
+    chartFullscreen || (desktop && blocksCollapsed) ? NO_SLOTS : rulesSlots
+
+  const chart = (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {selection.kind === "market" &&
+      parseMarketKey(selection.row.key)?.network === "testnet" ? (
+        <TestnetStrip />
+      ) : null}
       <div className="relative flex min-h-0 flex-1">
+        {chartNote}
         <div className="min-h-0 flex-1">
           <ChartPanel
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            initialNarrowChartView={panelLayouts.layouts.narrowChartView}
             initialChart={initialChart}
             chartToolbarPosition={panelLayouts.layouts.chartToolbarPosition}
             onChartToolbarPositionChange={
@@ -1475,20 +1268,10 @@ export function TradeWorkspace({
             shownTrade={shownTrade}
             onClearShownTrade={() => setShownTrade(null)}
             onOlderBars={setOlderBars}
-            // On a wide screen the box sits in the left panel while that
-            // panel is open. Narrower, the panel is a sheet that is only
-            // there while it is pulled out, and the box follows it.
-            rulesSlot={
-              desktop && (marketsCollapsed || chartFullscreen)
-                ? null
-                : rulesSlot
-            }
-            // With that panel shut, a card over the chart sums the rules up
-            // instead, unless Settings, Trading rules switched it off.
+            // Every Rules block whose page is on screen.
+            rulesSlots={shownRulesSlots}
             rulesCard={
-              desktop &&
-              (marketsCollapsed || chartFullscreen) &&
-              showsRulesChartCard(tradingRules)
+              shownRulesSlots.length === 0 && showsRulesChartCard(tradingRules)
             }
             cornerControl={
               <div className="flex items-center gap-2">
@@ -1520,250 +1303,331 @@ export function TradeWorkspace({
             onAddOpened={addOpened}
           />
         </div>
-        {/* Shown where the panel disappeared, so getting it back is findable
-            without remembering that the divider is still draggable. Both
-            edges carry one: the orders panel had only the menu in the chart
-            header, which says what is in the panel but never that the panel
-            itself can come back. */}
-        {desktop && marketsCollapsed && !chartFullscreen ? (
-          <PanelReopenTab
-            side="left"
-            label="Show markets"
-            onClick={toggleMarkets}
-          />
-        ) : null}
-        {desktop && smartOrdersCollapsed && !chartFullscreen ? (
-          <PanelReopenTab
-            side="right"
-            label="Show orders"
-            onClick={toggleSmartOrders}
-          />
-        ) : null}
       </div>
+    </div>
+  )
+
+  // The market's facts, in a popover on the "i" inside the chart tab, after
+  // the market's name (Tyler, 8 Nov 2026: "for the market info, just add the
+  // tooltip beside market ticker on the middle tab"). It opens on a click
+  // only, never on hover (Tyler, 13 Nov 2026: "Make this tooltip click to
+  // reveal only"). A tab is itself a button, so the "i" is not a second one
+  // inside it: a press or a key on the "i" stays the "i"'s, never the tab's.
+  const marketInfo =
+    selection.kind === "market" ? (
+      <Popover>
+        <PopoverTrigger asChild>
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label={`About ${selection.row.symbol} market`}
+            data-market-info=""
+            className="-mr-1 ml-0.5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+            onPointerDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <InfoIcon className="size-3.5" />
+          </span>
+        </PopoverTrigger>
+        {/* Drawn as the tooltip it replaced: dark ground, light words. */}
+        <PopoverContent
+          side="bottom"
+          align="start"
+          className="w-fit max-w-xs gap-0 bg-foreground p-0 text-xs text-background ring-0"
+        >
+          <MarketInfoFacts selection={selection} />
+        </PopoverContent>
+      </Popover>
+    ) : null
+
+  // The middle panel: the chart and the three tables as tabs (Tyler, 7 Nov
+  // 2026: "[marketname chart][positions][journal]", with Open orders kept as
+  // a tab of its own). In full screen only the chart shows, with its header,
+  // and it is the same chart, never drawn again.
+  const middle = (
+    // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
+    // a width to fill it shrinks to its content.
+    <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+      <ActivityPanel
+          protocol={protocol}
+          network={network}
+          trading={trading}
+          tab={activityTab}
+          onTabChange={setActivityTab}
+          catalogs={catalogs}
+          wallets={account.wallets}
+          onSelectMarket={onSelectMarket}
+          onAddToPosition={(position) => {
+            setActivityTab("chart")
+            addToPosition(position)
+          }}
+          canChangeLeverage={allowed(abilities?.changeLeverage)}
+          leverageRefusal={refusalOf(abilities?.changeLeverage)}
+          canAdjustMargin={allowed(abilities?.adjustMargin)}
+          marginRefusal={refusalOf(abilities?.adjustMargin)}
+          shownTrade={shownTrade}
+          onShowTrade={showTrade}
+          onShowOnChart={(trade) => {
+            showTrade(trade)
+            setActivityTab("chart")
+          }}
+          detailsSlot={showingOverview ? null : detailsSlot}
+          chartOnly={!desktop}
+          chartMarketKey={selection.kind === "market" ? selection.row.key : null}
+          onDetailsOpened={showDetails}
+          journalView={panelLayouts.layouts.journalView}
+          onJournalViewChange={panelLayouts.rememberJournalView}
+          fit={STILL_PANEL}
+          chart={{
+            label:
+              selection.kind === "market"
+                ? `${selection.row.symbol} chart`
+                : "Chart",
+            info: marketInfo,
+            content: chart,
+            only: chartFullscreen,
+          }}
+          // The shut left panel comes back from the header's start, as on the
+          // shell's dashboards (Tyler, 8 Nov 2026: "put the uncollapse here
+          // like how shell does it"), in place of the slim tab on the edge.
+          lead={
+            desktop && blocksCollapsed && !chartFullscreen ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Show the page"
+                    className="-ml-1 shrink-0 rounded-lg"
+                    onClick={toggleBlocks}
+                  >
+                    <PanelLeftDashedIcon className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Show the page</TooltipContent>
+              </Tooltip>
+            ) : null
+          }
+          menuRows={
+            selection.kind === "market" ? (
+              <>
+                <FoldersMenuRow
+                  marketKey={selection.row.key}
+                  folders={folders}
+                  actions={folderActions}
+                />
+                <PinMenuRow marketKey={selection.row.key} />
+              </>
+            ) : null
+          }
+          controls={chartControls}
+          wallet={{
+            name: account.activeWallet?.label ?? null,
+            menu: (trigger) => (
+              <WalletManagement
+                walletButtonRef={walletButtonRef}
+                account={account}
+                cacheScope={dashboardCacheScope}
+                detailsOpen={walletDetails !== null}
+                onAddWallet={() => setAddingWallet(true)}
+                onOpenWalletDetails={(wallet) => setWalletDetailsId(wallet.id)}
+                trigger={trigger}
+              />
+            ),
+          }}
+        />
     </WorkspacePanel>
   )
 
-  const upper = desktop ? (
+  // Overview in the middle's place: the widgets straight on the dashboard,
+  // with no panel of their own, as the shell's Admin Overview. The chart and
+  // its tables stay mounted under it, out of sight. The knob at the edge
+  // brings the shut left panel back, as on the chart.
+  const middleOrOverview = (
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      {showingOverview ? (
+        <div data-trade-overview="" className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {overview}
+          {desktop && blocksCollapsed ? (
+            <PanelReopenTab side="left" label="Show blocks" onClick={toggleBlocks} />
+          ) : null}
+        </div>
+      ) : null}
+      <div
+        className={showingOverview ? "hidden" : "flex min-h-0 min-w-0 flex-1 flex-col"}
+        inert={showingOverview}
+      >
+        {middle}
+      </div>
+    </div>
+  )
+
+  // The right panel: the middle panel draws the open trade into it.
+  const detailsColumn = (
+    <WorkspacePanel
+      collapsed={desktop ? detailsState.collapsed : false}
+      onDoubleClick={desktop ? detailsDoubleClick : undefined}
+      className="flex min-w-0 flex-1 flex-col"
+    >
+      <div ref={setDetailsSlot} className="flex h-full min-h-0 flex-col" />
+    </WorkspacePanel>
+  )
+
+  // Under 1280px: the chart, with the bar along the bottom sliding the other
+  // panels up over it (Tyler, 13 Nov 2026: "The main thing is a way to access
+  // the left and right panel. I'm thinking 4 sticky buttons in the bottom.
+  // Left panel, positions, browse market, right panel."). The bar replaces
+  // the Page / chart / Trade pills. Positions is the header's Active trades
+  // panel, every exchange's open trades (Tyler, 13 Nov 2026: "the positions
+  // tab is supposed to use the active trades table in navigation (with filter
+  // and hide/show col)"), so Overview has it too. Overview has no Right panel,
+  // the same as it had no Trade pill.
+  const narrowPanels: NarrowPanel[] = [
+    "left",
+    "positions",
+    ...(selection.kind === "market" ? (["browse"] as const) : []),
+    ...(showingOverview ? [] : (["right"] as const)),
+  ]
+  const shownNarrowPanel =
+    narrowPanel !== null && narrowPanels.includes(narrowPanel) && !chartFullscreen
+      ? narrowPanel
+      : null
+  const toggleNarrowPanel = (panel: NarrowPanel) =>
+    setNarrowPanel(shownNarrowPanel === panel ? null : panel)
+  const narrow = (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Clips the shut panel, which waits just below this box. */}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {middleOrOverview}
+        <NarrowPanelLayer
+          open={shownNarrowPanel}
+          onClose={() => setNarrowPanel(null)}
+          panels={{
+            left: blocksColumn,
+            // The header's Active trades panel, the same table with its
+            // Filter and its ⋮ of columns, read once for both. A trade
+            // pressed opens its chart and shuts the panel.
+            positions: (
+              <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+                <ActiveTradesPanelBody
+                  // Room under the knob, cells 8px apart with 10px at the
+                  // table's outer edges, and a long ticker cut at 104px rather
+                  // than 144px, so the columns fit a 360px phone without
+                  // sliding sideways. The figures are never the part cut short.
+                  className="h-full pt-3 [&_[data-slot=table-cell]]:!px-2 [&_[data-slot=table-head]]:!px-2 [&_td:first-child]:!pl-2.5 [&_td:last-child]:!pr-2.5 [&_th:first-child]:!pl-2.5 [&_th:last-child]:!pr-2.5 [&_tbody_td:first-child]:!max-w-26"
+                  onTradeOpen={() => setNarrowPanel(null)}
+                />
+              </WorkspacePanel>
+            ),
+            // Drawn fresh each time it opens, so its search starts empty.
+            browse:
+              selection.kind === "market" && shownNarrowPanel === "browse" ? (
+                <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
+                  <MarketPicker
+                    inline
+                    key={protocol}
+                    rows={marketRows}
+                    selected={selection.row}
+                    capabilities={selection.picker}
+                    folders={folders}
+                    folderActions={folderActions}
+                    onSelect={pickMarket}
+                    venueLabel={selection.protocolLabel}
+                    onSearchBeyond={onSearchMarkets}
+                  />
+                </WorkspacePanel>
+              ) : null,
+            right: showingOverview ? null : detailsColumn,
+          }}
+        />
+      </div>
+      {chartFullscreen ? null : (
+        <NarrowPanelBar
+          panels={narrowPanels}
+          open={shownNarrowPanel}
+          onToggle={toggleNarrowPanel}
+        />
+      )}
+    </div>
+  )
+
+  const panels = desktop ? (
     <ResizablePanelGroup
       elementRef={horizontalGroupElementRef}
       groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
-      className="min-h-0 flex-1"
+      className={cn("min-h-0 flex-1", foldingClassName)}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
-        id="markets"
-        panelRef={marketsPanelRef}
+        id="blocks"
+        panelRef={blocksPanelRef}
         collapsible
         collapsedSize="0%"
-        // A reset returns the panel to the smallest useful width. The chart
-        // takes every pixel left after both side panels claim their minimums.
-        defaultSize="12%"
-        minSize="12%"
-        maxSize="30%"
-        // A smaller window shrinks the chart, never this list. Without it every
-        // panel gave up its share of the lost width, and the market list came
-        // out of a half-width window too narrow to read.
+        // The left panel opens at its narrowest, the Side panels setting's
+        // left width, and drags to 36%; the middle takes the rest (the Admin
+        // 3 panel design).
+        defaultSize={`${blocksWidth}%`}
+        minSize={`${blocksWidth}%`}
+        maxSize="36%"
+        // A smaller window shrinks the chart, never the page beside it.
         groupResizeBehavior="preserve-pixel-size"
-        onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
+        onResize={(size) => setBlocksCollapsed(size.asPercentage < 0.5)}
       >
-        <div className="flex h-full min-h-0">{marketColumn}</div>
+        <div className="flex h-full min-h-0">{blocksColumn}</div>
       </ResizablePanel>
-      <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" minSize="30%">
-        {middle}
+      <ResizableHandle gap collapsed={blocksCollapsed} className={NO_RING} />
+      <ResizablePanel id="chart" minSize="32%">
+        {middleOrOverview}
       </ResizablePanel>
-      <ResizableHandle
-        gap
-        collapsed={smartOrdersCollapsed}
-        className={NO_RING}
-      />
-      <ResizablePanel
-        id="smart-orders"
-        panelRef={smartOrdersPanelRef}
-        collapsible
-        collapsedSize="0%"
-        // Keep reset and first-open width at the smallest usable size, just
-        // like the market list. Omitting the chart default lets it fill the
-        // exact remainder instead of stretching both side panels.
-        defaultSize="18.5rem"
-        minSize="18.5rem"
-        maxSize="42%"
-        // Same rule as the market list: the chart absorbs a window shrink.
-        groupResizeBehavior="preserve-pixel-size"
-        onResize={(size) => setSmartOrdersCollapsed(size.asPercentage < 0.5)}
-      >
-        {smartOrdersCollapsed ? null : (
-          <div
-            onDoubleClick={smartOrdersDoubleClick}
-            className="flex h-full min-h-0 flex-col"
+      {showingOverview ? null : (
+        <>
+          <ResizableHandle gap collapsed={detailsState.collapsed} className={NO_RING} />
+          <ResizablePanel
+            id="details"
+            panelRef={detailsPanelRef}
+            collapsible
+            collapsedSize="0%"
+            // Opens at its narrowest, the Side panels right width, as every
+            // side panel does (UI standard, "Three-column dashboards").
+            defaultSize={`${detailsWidth}%`}
+            minSize={`${detailsWidth}%`}
+            maxSize="36%"
+            groupResizeBehavior="preserve-pixel-size"
+            onResize={detailsState.onResize}
           >
-            {orderPanels}
-          </div>
-        )}
-      </ResizablePanel>
+            {detailsColumn}
+          </ResizablePanel>
+        </>
+      )}
     </ResizablePanelGroup>
   ) : (
-    middle
+    narrow
   )
 
   return (
     // One memory of which settings cards are folded, for every window under
     // here — the ladder window and a live ladder's exits both draw the same
     // cards, and folding one in one place should mean it is folded in both.
+    <ShowLeftPanelProvider value={showBlocks}>
+    {/* The right panel carries the left page's cover on, as every dashboard
+        in the Admin 3 panel design does (Tyler, 11 Nov 2026: "the right panel
+        is also not wired to the background theme"). */}
+    <RightCoverProvider value={page.cover.url}>
+    <SideTogglesProvider value={desktop && !showingOverview ? sideToggles : null}>
     <CardFolds initial={initialCardFolds}>
-      <div
-        data-chart-fullscreen={chartFullscreen ? "true" : undefined}
-        className={cn(
-          "flex min-h-0 flex-1 flex-col",
-          chartFullscreen &&
-            "fixed inset-0 z-50 bg-background p-[var(--shell-gutter,0.75rem)]"
-        )}
-      >
-        {/* A phone gets the chart and nothing under it. The tables are a
-          screen's worth of columns each, and sharing 844 points of height
-          with them left the chart too short to read a candle on. They open
-          over the chart from the market row's three dots instead. */}
-        {phone ? (
-          <div className="flex min-h-0 flex-1">{upper}</div>
-        ) : (
-          <ResizablePanelGroup
-            elementRef={verticalGroupElementRef}
-            groupRef={verticalLayout.groupRef}
-            orientation="vertical"
-            className="min-h-0 flex-1"
-            onLayoutChanged={activityFit.onLayoutChanged}
-          >
-            <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
-              <div className="flex h-full min-h-0">{upper}</div>
-            </ResizablePanel>
-            {/* Keeps its gap even while the panel below is collapsed — that
-            collapsed tab row is still a panel on screen, and this handle is
-            what makes it draggable back open. */}
-            <ResizableHandle
-              gap
-              className={cn(NO_RING, chartFullscreen && "hidden")}
-            />
-            <ResizablePanel
-              id="activity"
-              panelRef={activityPanelRef}
-              className={chartFullscreen ? "hidden" : undefined}
-              defaultSize="28%"
-              minSize="12%"
-              maxSize="60%"
-              // A shorter window shrinks the chart above, not this panel's rows.
-              groupResizeBehavior="preserve-pixel-size"
-              // Down to its own header rather than to nothing, so its tabs and
-              // their counts never disappear.
-              collapsible
-              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-            >
-              <WorkspacePanel onDoubleClick={activityDoubleClick}>
-                <ActivityPanel
-                  trading={trading}
-                  tab={activityTab}
-                  onTabChange={setActivityTab}
-                  catalogs={catalogs}
-                  wallets={account.wallets}
-                  onSelectMarket={onSelectMarket}
-                  onAddToPosition={addToPosition}
-                  canChangeLeverage={allowed(abilities?.changeLeverage)}
-                  leverageRefusal={refusalOf(abilities?.changeLeverage)}
-                  canAdjustMargin={allowed(abilities?.adjustMargin)}
-                  marginRefusal={refusalOf(abilities?.adjustMargin)}
-                  shownTrade={shownTrade}
-                  onShowTrade={showTrade}
-                  fit={activityFit}
-                />
-              </WorkspacePanel>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
-
-        {/* The bottom panel on a phone: the same tables, over the chart,
-          opened by their line in the market row's three dots. The panel keeps
-          its own tabs inside, so the other two tables are one press away
-          without going back to the menu. */}
-        {phone ? (
-          <Sheet open={phoneActivity} onOpenChange={setPhoneActivity}>
-            <SheetContent
-              side="bottom"
-              showCloseButton={false}
-              // The height is written against the side, because the sheet's own
-              // `h-auto` for a bottom sheet is the more specific rule and wins
-              // over a plain height. `svh` is the small viewport height, which
-              // is the phone screen with its address bar showing — the one
-              // height that never changes as the bar slides away.
-              // The tab row slides sideways rather than painting over Close
-              // all beside it. Three words and a count are wider than a phone,
-              // and the row's own box already shrinks to fit — it just had
-              // nothing telling it to keep its tabs inside.
-              className="gap-0 overflow-hidden rounded-t-2xl p-0 duration-150 ease-out data-[side=bottom]:h-[85svh] motion-reduce:animate-none motion-reduce:transition-none [&_[data-slot=tabs-list]]:overflow-x-auto"
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>Positions, open orders and journal</SheetTitle>
-              </SheetHeader>
-              {/* The same grab bar as the market menu, and the same way back:
-                  the chart above it closes the sheet. */}
-              <div
-                aria-hidden
-                className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30"
-              />
-              <ActivityPanel
-                trading={trading}
-                tab={activityTab}
-                onTabChange={setActivityTab}
-                catalogs={catalogs}
-                wallets={account.wallets}
-                // Both of these put something on the chart, and the chart is
-                // behind this sheet, so the sheet goes.
-                onSelectMarket={(key) => {
-                  onSelectMarket(key)
-                  setPhoneActivity(false)
-                }}
-                onAddToPosition={addToPosition}
-                canChangeLeverage={allowed(abilities?.changeLeverage)}
-                leverageRefusal={refusalOf(abilities?.changeLeverage)}
-                canAdjustMargin={allowed(abilities?.adjustMargin)}
-                marginRefusal={refusalOf(abilities?.adjustMargin)}
-                shownTrade={shownTrade}
-                onShowTrade={(trade) => {
-                  showTrade(trade)
-                  setPhoneActivity(false)
-                }}
-                fit={STILL_PANEL}
-              />
-            </SheetContent>
-          </Sheet>
-        ) : null}
-
-        {/* Narrow screens keep the market itself as the page and reach the side
-          panels through the two buttons in its header, rather than squeezing
-          three columns into a width none of them fits in. */}
-        <Sheet
-          open={sideSheet.open}
-          onOpenChange={(open) =>
-            setSideSheet((current) => ({ ...current, open }))
-          }
+      <TradeBlocksProvider value={tradeBlocks}>
+        <div
+          data-chart-fullscreen={chartFullscreen ? "true" : undefined}
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            chartFullscreen &&
+              "fixed inset-0 z-50 bg-background p-[var(--shell-gutter,0.75rem)]"
+          )}
         >
-          <SheetContent
-            side={sideSheet.side === "smart-orders" ? "right" : "left"}
-            className="duration-150 ease-out motion-reduce:animate-none motion-reduce:transition-none data-closed:ease-in data-[side=left]:data-closed:slide-out-to-left-full data-[side=right]:data-closed:slide-out-to-right-full"
-          >
-            <SheetHeader className="sr-only">
-              <SheetTitle>
-                {sideSheet.side === "smart-orders"
-                  ? "Smart and manual orders"
-                  : "Markets"}
-              </SheetTitle>
-            </SheetHeader>
-            {sideSheet.side === "smart-orders" ? (
-              <div className="flex min-h-0 flex-1">{orderPanels}</div>
-            ) : (
-              <div className="flex min-h-0 flex-1">{marketColumn}</div>
-            )}
-          </SheetContent>
-        </Sheet>
+          {panels}
 
         {editingRuleId ? (
           <TradingRuleEditor
@@ -1823,8 +1687,12 @@ export function TradeWorkspace({
           onChanged={() => void account.refresh()}
           onUse={account.switchWallet}
         />
-      </div>
+        </div>
+      </TradeBlocksProvider>
     </CardFolds>
+    </SideTogglesProvider>
+    </RightCoverProvider>
+    </ShowLeftPanelProvider>
   )
 }
 

@@ -35,8 +35,8 @@ import {
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
 import { phoneHistory } from "./history"
-import { listPhones, phonesFreeFor, updatePhone } from "./phones"
-import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "./rack"
+import { changePhone, listPhones, phonesFreeFor } from "./phones"
+import { checkIn, createPairingCode, createRack, finishAction, nextAction, pairRack, type VerifiedRack } from "./rack"
 import { RACK_VERSION } from "./release"
 import { promoPhoneActionChecks, promoPhoneActions, promoPhones } from "./schema"
 import { callPhone } from "./dispatch"
@@ -81,8 +81,8 @@ describe("phone farm files 04 and 05", () => {
     setDbForTests(db)
     userId = (await insertUser(db, { role: "admin" })).id
     await db.insert(promoBehaviourSettings).values({ userId, wakeFromMinute: 0, wakeUntilMinute: 0 })
-    const { code } = await createPairingCode(userId, db)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
   })
 
@@ -210,7 +210,7 @@ describe("phone farm files 04 and 05", () => {
         tags: [],
         shelfSlot: "",
       }
-      await updatePhone(userId, A1, input, db)
+      await changePhone(userId, A1, input, db)
       await expect(createProfile(userId, { name: "Browser one", proxyId: proxy.id }, db)).rejects.toThrow(
         "that proxy is already used by the phone Phone A1"
       )
@@ -218,7 +218,7 @@ describe("phone farm files 04 and 05", () => {
       const [other] = await db.insert(promoProxies).values({ id: uuid(), userId, host: "gate2.test", port: 8000 }).returning()
       const profileId = await createProfile(userId, { name: "Browser two" }, db)
       await updateProfile(userId, profileId, { name: "Browser two", proxyId: other.id, notes: "", folderId: null, labelId: null, tags: [] }, db)
-      await expect(updatePhone(userId, A1, { ...input, proxyId: other.id }, db)).rejects.toThrow(
+      await expect(changePhone(userId, A1, { ...input, proxyId: other.id }, db)).rejects.toThrow(
         "that proxy is already used by the browser profile Browser two"
       )
     })

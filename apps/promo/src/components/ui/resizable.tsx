@@ -2,7 +2,6 @@ import * as React from "react"
 import * as ResizablePrimitive from "react-resizable-panels"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
-import { DASHBOARD_CARD_COLLAPSED_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
@@ -74,19 +73,9 @@ function ResizableHandle({
   )
 }
 
-/**
- * What a workspace's bottom panel collapses to: exactly its own header (the
- * 57px row plus the card's top and bottom hairlines). The panel stays on
- * screen when collapsed — its header holds the reopen controls, and the handle
- * above it keeps its gap so the bar stays draggable back open. Pass `gap`
- * alone to that handle, never `collapsed`.
- */
-const BOTTOM_COLLAPSED_HEIGHT = `${DASHBOARD_CARD_COLLAPSED_HEIGHT_PX}px`
-
 function WorkspacePanel({
   className,
   collapsed,
-  headerOnly,
   ...props
 }: React.ComponentProps<"div"> & {
   /**
@@ -95,36 +84,16 @@ function WorkspacePanel({
    * which land on top of each other and leave a stray hairline down the
    * workspace, so the card is taken away entirely while the panel is shut.
    *
-   * Never pass this for a panel that collapses to its own header, like the
-   * bottom panel on `BOTTOM_COLLAPSED_HEIGHT` — that header is still on screen
-   * and still needs its card.
-   *
    * The border comes off in `theme.css`, on the `data-collapsed` attribute
    * below: the styling rule there sets the border width from the user's
    * settings and would put it straight back over any class written here.
    */
   collapsed?: boolean
-  /**
-   * The panel is shut down to **its own header**, on
-   * `BOTTOM_COLLAPSED_HEIGHT`, so that header is the last thing in it.
-   *
-   * A panel header carries a line under it to part it from what follows. Shut,
-   * nothing follows — and the panel's own bottom edge is already drawn one
-   * pixel below, so the two land on top of each other and the bar reads as
-   * having a double-thick line along the bottom. This takes the header's line
-   * off for as long as there is nothing under it to part it from.
-   *
-   * Off by default, so a panel nobody tells about this is drawn exactly as it
-   * always was. The rule is in `theme.css`, beside the one that sets these
-   * borders from the user's settings, because a class here would lose to it.
-   */
-  headerOnly?: boolean
 }) {
   return (
     <div
       data-slot="workspace-panel"
       data-collapsed={collapsed ? "true" : undefined}
-      data-header-only={headerOnly ? "true" : undefined}
       className={cn(
         // A REAL border, not a ring: these panels sit flush inside
         // resizable-panel containers that clip anything drawn outside the box
@@ -182,7 +151,6 @@ function PanelReopenTab({
 }
 
 export {
-  BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
   ResizableHandle,
   ResizablePanel,

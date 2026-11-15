@@ -25,6 +25,12 @@ export const appOptions: AppOptions = {
         label: "Activity types",
         panel: () => import("@/components/travel/activity-types-settings"),
       }),
+      // Google lookups today and this month, and who used the most (Travel features 4, part 4).
+      defineSettingsTab({
+        id: "google-use",
+        label: "Google use",
+        panel: () => import("@/components/travel/google-use-settings"),
+      }),
     ],
   },
 }

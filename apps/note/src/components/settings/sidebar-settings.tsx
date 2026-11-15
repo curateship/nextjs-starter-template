@@ -17,10 +17,10 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  ChevronDownIcon,
   EyeIcon,
   EyeOffIcon,
   GripVertical,
-  MinusIcon,
   PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
@@ -43,22 +43,18 @@ import {
   CardAction,
   CardContent,
   CardDescription,
-  CardGroup,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Switch } from "@/components/ui/switch"
 import { ShellIconPicker } from "@/components/settings/shell-icon-picker"
 import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  EditPopover,
+  EditPopoverBody,
+  EditPopoverFooter,
+  EditPopoverHeader,
+} from "@/components/ui/edit-popover"
 import { Input } from "@/components/ui/input"
 import {
   collapseStorageKey,
@@ -225,7 +221,9 @@ function SortableChild({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
+      // Background and line from Styling → Cards inside modals (theme.css).
+      data-slot="card-row"
+      className="grid items-center gap-2 rounded-md p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
     >
       <button
         type="button"
@@ -305,6 +303,7 @@ function SortableSidebarItem({
   onSaveConfig,
 }: SortableItemProps) {
   const labelInputRef = React.useRef<HTMLInputElement>(null)
+  const nameRef = React.useRef<HTMLButtonElement>(null)
   // Whether this row's editor is open is the parent's business, not the row's:
   // it is the only way "Add link" can open the editor of the link it has just
   // made. It also means a row remounting mid-drag cannot lose or reopen it.
@@ -323,25 +322,26 @@ function SortableSidebarItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="group rounded-lg bg-background transition-colors hover:bg-muted/40"
+      className="group bg-background transition-colors hover:bg-muted/30"
     >
-      <div className="flex items-center">
+      <div className="flex items-center gap-1 py-1.5 pr-2 pl-1.5">
         <button
           type="button"
           {...attributes}
           {...listeners}
-          className={cn(DRAG_HANDLE_CLASS, "shrink-0")}
+          className={cn(DRAG_HANDLE_CLASS, "size-7 shrink-0 text-muted-foreground/60")}
           aria-label={`Reorder ${itemName}`}
         >
           <GripVertical className="h-4 w-4" />
         </button>
 
         <button
+          ref={nameRef}
           type="button"
           className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
           onClick={() => onOpenItemChange(item.id)}
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center text-foreground">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
             {renderShellIcon(item.icon, "h-4 w-4")}
           </span>
           <span className="min-w-0 flex-1">
@@ -358,8 +358,9 @@ function SortableSidebarItem({
             </span>
           </span>
           {children.length ? (
-            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
               {children.length} {plural(children.length, "child", "children")}
+              <ChevronDownIcon aria-hidden className="size-3" />
             </span>
           ) : null}
           {!item.visible ? (
@@ -369,24 +370,21 @@ function SortableSidebarItem({
           ) : null}
         </button>
 
-        <label
-          className="flex size-8 shrink-0 items-center justify-center rounded-md"
-          title={item.visible ? "Visible" : "Hidden"}
-        >
-          <Checkbox
-            checked={item.visible}
-            onCheckedChange={(checked) =>
-              onItemChange(sectionId, item.id, { visible: checked === true })
-            }
-          />
-          <span className="sr-only">Show {itemName}</span>
-        </label>
+        {/* A switch rather than a tick box: it shows or hides the link. */}
+        <Switch
+          className="mx-2 shrink-0"
+          checked={item.visible}
+          onCheckedChange={(checked) =>
+            onItemChange(sectionId, item.id, { visible: checked })
+          }
+          aria-label={`Show ${itemName}`}
+        />
 
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="hover:bg-transparent"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-destructive"
           onClick={() => onItemDelete(sectionId, item.id)}
           aria-label={`Delete ${itemName}`}
         >
@@ -394,112 +392,113 @@ function SortableSidebarItem({
         </Button>
       </div>
 
-      <Dialog
+      <EditPopover
         open={dialogOpen}
-        onOpenChange={(open) => onOpenItemChange(open ? item.id : null)}
+        onOpenChange={(open) => {
+          // Edits save as they are typed; closing flushes the last of them.
+          if (!open) void onSaveConfig()
+          onOpenItemChange(open ? item.id : null)
+        }}
+        anchorRef={nameRef}
+        wide
+        aria-label={isNamed ? item.label : "Sidebar link"}
+        // Opening a link that has no name yet drops the cursor straight in
+        // the Label box so you can type. A named link keeps the normal focus,
+        // since landing in a filled field invites a stray edit.
+        onOpenAutoFocus={(event) => {
+          if (isNamed) return
+          event.preventDefault()
+          labelInputRef.current?.focus()
+        }}
       >
-        <DialogContent
-          variant="admin"
-          // Opening a link that has no name yet drops the cursor straight in
-          // the Label box so you can type. A named link keeps the dialog's
-          // normal focus, since landing in a filled field invites a stray edit.
-          onOpenAutoFocus={(event) => {
-            if (isNamed) return
-            event.preventDefault()
-            labelInputRef.current?.focus()
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{isNamed ? item.label : "Sidebar link"}</DialogTitle>
-            <DialogDescription>
-              Edit this sidebar destination and its child links.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <NavLinkDestinationCard
-              linkNoun="Sidebar link"
-              icon={item.icon}
-              label={item.label}
-              href={item.href}
-              onChange={(patch) => onItemChange(sectionId, item.id, patch)}
-              labelInputRef={labelInputRef}
-              addressCheck={addressCheck}
-            />
+        <EditPopoverHeader
+          title={isNamed ? item.label : "Sidebar link"}
+          description="Edit this sidebar destination and its child links."
+        />
+        <EditPopoverBody>
+          <NavLinkDestinationCard
+            linkNoun="Sidebar link"
+            icon={item.icon}
+            label={item.label}
+            href={item.href}
+            onChange={(patch) => onItemChange(sectionId, item.id, patch)}
+            labelInputRef={labelInputRef}
+            addressCheck={addressCheck}
+          />
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle>Child links</CardTitle>
-                <CardDescription>
-                  These become the nested links and sticky header shortcuts.
-                </CardDescription>
-                <CardAction>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onChildAdd(sectionId, item.id)}
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Child links</CardTitle>
+              <CardDescription>
+                These become the nested links and sticky header shortcuts.
+              </CardDescription>
+              <CardAction>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onChildAdd(sectionId, item.id)}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add child
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              {children.length ? (
+                <DndContext
+                  id={`custom-shell-sidebar-children-${item.id}`}
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event) =>
+                    onChildDragEnd(sectionId, item.id, event)
+                  }
+                >
+                  <SortableContext
+                    items={children.map((child) => child.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <PlusIcon className="h-4 w-4" />
-                    Add child
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent>
-                {children.length ? (
-                  <DndContext
-                    id={`custom-shell-sidebar-children-${item.id}`}
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(event) =>
-                      onChildDragEnd(sectionId, item.id, event)
-                    }
-                  >
-                    <SortableContext
-                      items={children.map((child) => child.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="space-y-2">
-                        {children.map((child, childIndex) => (
-                          <SortableChild
-                            key={child.id}
-                            child={child}
-                            position={childIndex + 1}
-                            isNew={child.id === newChildId}
-                            onChange={(childId, patch) =>
-                              onChildChange(sectionId, item.id, childId, patch)
-                            }
-                            onDelete={(childId) =>
-                              onChildDelete(sectionId, item.id, childId)
-                            }
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                ) : (
-                  <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    No child links.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </DialogBody>
-          {/* Edits here save themselves as you type, so there is nothing for a
-              Cancel to undo — this window ends with a single Done. */}
-          <DialogFooter>
-            <Button
-              type="button"
-              onClick={async () => {
-                // Flush any pending debounce, then close.
-                await onSaveConfig()
-                onOpenItemChange(null)
-              }}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                    <div className="space-y-2">
+                      {children.map((child, childIndex) => (
+                        <SortableChild
+                          key={child.id}
+                          child={child}
+                          position={childIndex + 1}
+                          isNew={child.id === newChildId}
+                          onChange={(childId, patch) =>
+                            onChildChange(sectionId, item.id, childId, patch)
+                          }
+                          onDelete={(childId) =>
+                            onChildDelete(sectionId, item.id, childId)
+                          }
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  No child links.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </EditPopoverBody>
+        {/* Edits here save themselves as you type, so there is nothing for a
+            Cancel to undo. This popover ends with a single Done. */}
+        <EditPopoverFooter>
+          <Button
+            type="button"
+            onClick={async () => {
+              // Flush any pending debounce, then close.
+              await onSaveConfig()
+              onOpenItemChange(null)
+            }}
+          >
+            Done
+          </Button>
+        </EditPopoverFooter>
+      </EditPopover>
     </div>
   )
 }
@@ -544,110 +543,98 @@ function SortableSectionCard({
     opacity: isDragging ? 0.55 : 1,
   }
 
+  // Drawn as a bordered box with a grey heading row: the grip, the name in
+  // small capitals, Add link and a bin, then one row per link (Tyler, 9 Nov
+  // 2026, the Navigations redesign). Its lines are a light grey of their own,
+  // as the drawing has them, not the Divider lines setting.
   return (
-    <Card ref={setNodeRef} style={style}>
-      <CardContent className="space-y-3">
-        {/* Wraps rather than side-scrolls: on a phone the title keeps a usable
-            width and the buttons drop to their own line. `basis-40` is what
-            makes that happen — a flex-1 child alone has a zero base size, so
-            the row would squeeze the title to nothing before it ever wrapped. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            className={cn(DRAG_HANDLE_CLASS, "shrink-0")}
-            aria-label={`Reorder ${sectionName}`}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-          <div className="min-w-0 flex-1 basis-40">
-            {/* "Add section" makes the card and the cursor lands here, which
-                also scrolls it into view at the bottom of a long page.
-                Mount-only, so an existing section never grabs focus later. */}
-            <Input
-              autoFocus={isNew}
-              value={section.title}
-              onChange={(event) =>
-                onSectionTitleChange(section.id, event.target.value)
-              }
-              placeholder={UNTITLED_SECTION_LABEL}
-              aria-label="Sidebar section label"
-              className="h-8 max-w-xs border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/40 focus-visible:bg-background"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onItemAdd(section.id)}
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add link
-            </Button>
-            {/* Must be the destructive variant, not an outline button with a
-                red hover class: the outline variant's own dark:hover:bg-input/50
-                beats a call-site hover, so the red would vanish in dark mode. */}
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => onSectionDelete(section.id)}
-              aria-label={`Delete ${sectionName}`}
-            >
-              <MinusIcon className="h-4 w-4" />
-              Delete section
-            </Button>
-          </div>
-        </div>
-
-        <SortableContext
-          items={sortableItemIds}
-          strategy={verticalListSortingStrategy}
+    <div ref={setNodeRef} style={style} className="overflow-hidden rounded-xl border bg-background border-zinc-200/40 dark:border-zinc-700/40">
+      <div className="flex items-center gap-2 border-b bg-muted/40 py-1.5 pr-2 pl-1.5 border-zinc-200/40 dark:border-zinc-700/40">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className={cn(DRAG_HANDLE_CLASS, "size-7 shrink-0 text-muted-foreground/60")}
+          aria-label={`Reorder ${sectionName}`}
         >
-          <div
-            ref={setDropNodeRef}
-            className={cn(
-              "-m-1 min-h-11 rounded-lg p-1 transition-colors",
-              isOver && "bg-primary/5"
-            )}
-          >
-            {section.entries.map((entry) =>
-              isShellItem(entry) ? (
-                <SortableSidebarItem
-                  key={entry.id}
-                  sectionId={section.id}
-                  item={entry}
-                  openItemId={openItemId}
-                  onOpenItemChange={onOpenItemChange}
-                  newChildId={newChildId}
-                  onItemChange={onItemChange}
-                  onItemDelete={onItemDelete}
-                  onChildAdd={onChildAdd}
-                  onChildChange={onChildChange}
-                  onChildDelete={onChildDelete}
-                  onChildDragEnd={onChildDragEnd}
-                  onSaveConfig={onSaveConfig}
-                />
-              ) : (
-                <DividerPreview key={entry.id} entry={entry} />
-              )
-            )}
-            {!sortableItemIds.length ? (
-              <div
-                className={cn(
-                  "rounded-lg border border-dashed p-4 text-center text-sm",
-                  "text-muted-foreground"
-                )}
-              >
-                No sidebar links in this section.
-              </div>
-            ) : null}
-          </div>
-        </SortableContext>
-      </CardContent>
-    </Card>
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1">
+          {/* "Add section" makes the box and the cursor lands here, which
+              also scrolls it into view at the bottom of a long page.
+              Mount-only, so an existing section never grabs focus later. */}
+          <Input
+            autoFocus={isNew}
+            value={section.title}
+            onChange={(event) =>
+              onSectionTitleChange(section.id, event.target.value)
+            }
+            placeholder={UNTITLED_SECTION_LABEL}
+            aria-label="Sidebar section label"
+            className="h-8 max-w-xs border-transparent bg-transparent px-2 text-xs font-medium tracking-wider text-muted-foreground uppercase shadow-none placeholder:normal-case hover:bg-background/60 focus-visible:bg-background dark:bg-transparent"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onItemAdd(section.id)}
+        >
+          <PlusIcon className="h-4 w-4" />
+          Add link
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => onSectionDelete(section.id)}
+          aria-label={`Delete ${sectionName}`}
+        >
+          <Trash2Icon className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <SortableContext
+        items={sortableItemIds}
+        strategy={verticalListSortingStrategy}
+      >
+        <div
+          ref={setDropNodeRef}
+          className={cn(
+            "min-h-11 divide-y divide-zinc-200/40 transition-colors dark:divide-zinc-700/40",
+            isOver && "bg-primary/5"
+          )}
+        >
+          {section.entries.map((entry) =>
+            isShellItem(entry) ? (
+              <SortableSidebarItem
+                key={entry.id}
+                sectionId={section.id}
+                item={entry}
+                openItemId={openItemId}
+                onOpenItemChange={onOpenItemChange}
+                newChildId={newChildId}
+                onItemChange={onItemChange}
+                onItemDelete={onItemDelete}
+                onChildAdd={onChildAdd}
+                onChildChange={onChildChange}
+                onChildDelete={onChildDelete}
+                onChildDragEnd={onChildDragEnd}
+                onSaveConfig={onSaveConfig}
+              />
+            ) : (
+              <DividerPreview key={entry.id} entry={entry} />
+            )
+          )}
+          {!sortableItemIds.length ? (
+            <div className="px-4 py-3 text-center text-sm text-muted-foreground">
+              No links in this section yet.
+            </div>
+          ) : null}
+        </div>
+      </SortableContext>
+    </div>
   )
 }
 
@@ -1130,9 +1117,21 @@ export function SidebarSettings({
           onOpenChange: setCardOpen,
           noFlashKey: cardNoFlashKey,
         }}
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => setResetOpen(true)}
+          >
+            <RotateCcwIcon className="h-4 w-4" />
+            {reset.label}
+          </Button>
+        }
       >
         {topLeftNavigation ? (
-          <div className="mb-4">{topLeftNavigation}</div>
+          <div className="mb-4 max-w-2xl rounded-xl bg-muted/50 p-4">{topLeftNavigation}</div>
         ) : null}
         {sections.length === 0 ? (
           <EmptyRow>
@@ -1152,7 +1151,7 @@ export function SidebarSettings({
               items={sections.map((section) => section.id)}
               strategy={verticalListSortingStrategy}
             >
-              <CardGroup style={{ gap: "1rem" }}>
+              <div className="grid max-w-2xl gap-3">
                 {sections.map((section) => (
                   <SortableSectionCard
                     key={section.id}
@@ -1180,24 +1179,22 @@ export function SidebarSettings({
                     onSaveConfig={onSaveConfig}
                   />
                 ))}
-              </CardGroup>
+              </div>
             </SortableContext>
           </DndContext>
         )}
-        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={handleAddSection}>
-            <PlusIcon className="h-4 w-4" />
-            Add section
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => setResetOpen(true)}
-          >
-            <RotateCcwIcon className="h-4 w-4" />
-            {reset.label}
-          </Button>
-        </div>
+        {/* As wide as the sections, dashed, like an empty section waiting.
+            The top-left box, the sections and this stop at 42rem rather than
+            spanning a wide card (Tyler, 9 Nov 2026: "make the sidebar
+            elements not full width"). */}
+        <button
+          type="button"
+          onClick={handleAddSection}
+          className="mt-3 flex h-11 w-full max-w-2xl items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-sm dark:border-zinc-600 text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:text-foreground"
+        >
+          <PlusIcon className="h-4 w-4" />
+          Add section
+        </button>
       </CollapsibleSettingsCard>
 
       <ConfirmDialog

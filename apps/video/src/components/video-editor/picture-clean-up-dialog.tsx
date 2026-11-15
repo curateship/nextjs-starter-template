@@ -103,7 +103,6 @@ export function PictureCleanUpDialog({
       })
       dispatch({ type: "SELECT_CLIP", clipId: clip.id })
       showBeforeAfter({ clipId: clip.id, beforeUrl: clip.url })
-      toast.success("Done. Drag the line on the preview to compare. Undo brings the old picture back.")
       onClose()
     } catch (error) {
       const message = getPictureEditErrorMessage(error)

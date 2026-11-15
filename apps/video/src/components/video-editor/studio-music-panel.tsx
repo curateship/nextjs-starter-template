@@ -19,6 +19,7 @@ import {
   type MusicShelfFile,
 } from "@/lib/api/video/music"
 import {
+  layAudioRepeats,
   MUSIC_UNREADABLE_MESSAGE,
   musicRefusal,
   planMusicClips,
@@ -26,7 +27,9 @@ import {
 import { loadMediaDurationMs, formatClock } from "@/lib/video/timeline-utils"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { Button } from "@/components/ui/button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
@@ -61,6 +64,7 @@ import {
   useEditorRuntime,
 } from "@/components/video-editor/editor-store"
 import { forgetBeats } from "@/components/video-editor/sound-tool-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 
 /**
  * The Music panel: the tracks you uploaded as music, each with a + that lays it
@@ -75,6 +79,9 @@ export function MusicPanel() {
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [refresh, setRefresh] = React.useState(0)
   const [busyId, setBusyId] = React.useState<string | null>(null)
+  // Blend the repeats: a track shorter than the video fades into its next
+  // copy instead of cutting (background-music.md).
+  const [blend, setBlend] = React.useState(false)
   const [uploading, setUploading] = React.useState(false)
   const [playingId, setPlayingId] = React.useState<string | null>(null)
   const [making, setMaking] = React.useState(false)
@@ -109,21 +116,23 @@ export function MusicPanel() {
         return
       }
       const tracks = store.getSnapshot().state.tracks
-      const clips = planMusicClips(
-        {
-          mediaId: file.id,
-          name: file.original_name,
-          url: file.url,
-          sourceDurationMs,
-        },
-        timelineDurationMs(tracks)
-      )
+      const source = {
+        mediaId: file.id,
+        name: file.original_name,
+        url: file.url,
+        sourceDurationMs,
+      }
+      const projectMs = timelineDurationMs(tracks)
+      const [clips, blended] =
+        blend && projectMs > sourceDurationMs
+          ? layAudioRepeats(source, { fromMs: 0, toMs: projectMs })
+          : [planMusicClips(source, projectMs), []]
       const refusal = musicRefusal(tracks, clips)
       if (refusal) {
         showErrorToast(refusal)
         return
       }
-      dispatch({ type: "ADD_MUSIC_TRACK", clips })
+      dispatch({ type: "ADD_MUSIC_TRACK", clips, blended })
     } finally {
       setBusyId(null)
     }
@@ -221,19 +230,22 @@ export function MusicPanel() {
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid p-3">
-          {files === null && !loadFailed ? null : loadFailed ? (
-            <div className="grid justify-items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              The music shelf could not be loaded.
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRefresh((count) => count + 1)}
-              >
-                Try again
-              </Button>
+        <div className="grid gap-3 p-3">
+          <div className="grid gap-1">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="music-blend">Blend the repeats</Label>
+              <Switch id="music-blend" checked={blend} onCheckedChange={setBlend} />
             </div>
-          ) : (
+            <p className="text-xs text-muted-foreground">
+              A track shorter than the video fades into its next copy instead of cutting, on two lanes.
+            </p>
+          </div>
+          {loadFailed ? (
+            <ErrorRow
+              message="The music shelf could not be loaded."
+              onRetry={() => setRefresh((count) => count + 1)}
+            />
+          ) : files === null ? null : (
             music.length ? (
               <ul className="grid gap-3">
                 {music.map((file) => (
@@ -327,6 +339,7 @@ function MakeMusicDialog({
                   disabled={busy}
                   onChange={(event) => setMood(event.target.value)}
                 />
+                <LengthCounter length={mood.length} max={AI_MUSIC_MOOD_MAX} />
               </div>
               <p className="text-sm text-muted-foreground">
                 {videoMs <= 0
@@ -420,7 +433,7 @@ function MusicRow({
         <span className="line-clamp-2 text-xs font-medium [overflow-wrap:anywhere]">
           {file.original_name}
         </span>
-        <span className="text-[0.625rem] text-muted-foreground tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {lengthMs ? formatClock(lengthMs) : "-"}
         </span>
       </div>

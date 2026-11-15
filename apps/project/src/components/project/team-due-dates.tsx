@@ -77,8 +77,8 @@ function DeadlineIcon({ kind, className }: { kind: TeamDeadline["kind"]; classNa
 
 /**
  * While "Due dates" is on: the chosen day's milestones and projects due,
- * each opening its project, then its due tasks, each opening its task
- * window, as a card in the right panel under its meetings.
+ * each opening its project, then its due tasks, each opening in the right
+ * panel, as a card under the day's meetings in the Calendar tab.
  */
 export function DayDueTasks({
   tasks,

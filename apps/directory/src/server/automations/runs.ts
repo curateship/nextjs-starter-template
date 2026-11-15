@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm"
 
 import { automationNodeName } from "@/lib/automations/node-registry"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
@@ -20,21 +20,16 @@ import {
 /**
  * Reading run history. The engine writes these rows; nothing here changes one.
  *
- * Two lists, because there are two questions. "What has this flow done?" is
- * answered while you are looking at that flow, in the editor's bottom panel.
- * "What is waiting on me?" is not about one flow at all, so it reaches across
- * every flow you own — same panel, second tab.
+ * Two lists on the Automations dashboard (Tyler, 9 Nov 2026): one flow's
+ * runs, on that flow's Runs tab, and the runs stopped at an approval step
+ * across every flow, in the Waiting on you section.
  */
 
-/** One panel's worth of history. More is a "Load more" away. */
+/** One page of history. More is a "Load more" away. */
 const RUNS_PAGE_SIZE = 25
 const DELIVERIES_PAGE_SIZE = 25
 
-/**
- * The most decisions one person can be shown at once. A queue longer than this
- * is a problem to fix in the flows, not to scroll — and the panel says plainly
- * that it is showing the oldest ones rather than quietly truncating.
- */
+/** One page of the Waiting on you list, oldest deadline first. */
 const WAITING_LIMIT = 50
 
 export type AutomationRunRow = {
@@ -53,6 +48,8 @@ export type AutomationRunRow = {
   testRun: boolean
   /** The step that started it, named the way the canvas names it. */
   triggerName: string | null
+  /** The approval step the run stopped at, named as the canvas names it. */
+  approvalStepName: string | null
   startedAt: Date
   finishedAt: Date | null
 }
@@ -196,19 +193,55 @@ export async function listRunsForAutomation(
  */
 export async function listRunsAwaitingApproval(
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  { offset = 0, search = "" }: { offset?: number; search?: string } = {}
 ): Promise<{ runs: AutomationRunRow[]; total: number }> {
   const waiting = and(
     eq(customShellAutomationRuns.workspaceId, workspaceId),
-    eq(customShellAutomationRuns.status, "waiting_approval")
+    eq(customShellAutomationRuns.status, "waiting_approval"),
+    searchCondition(search)
   )
 
   const rows = await runQuery(database)
     .where(waiting)
     .orderBy(asc(customShellAutomationRuns.approvalDeadlineAt), asc(customShellAutomationRuns.id))
     .limit(WAITING_LIMIT)
+    .offset(offset)
 
   return toPage(rows)
+}
+
+/** A search over the flow's name and who the run was about, or nothing. */
+function searchCondition(search: string | undefined): SQL | undefined {
+  const words = search?.trim()
+  if (!words) return undefined
+  const like = `%${words.replace(/[\\%_]/g, (match) => `\\${match}`)}%`
+  return or(ilike(customShellAutomations.name, like), ilike(customShellAutomationRuns.subjectLabel, like))
+}
+
+/**
+ * The Dashboards block's two pills: every flow, and every run waiting on a
+ * decision.
+ */
+export async function automationSectionCounts(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<{ automations: number; waiting: number }> {
+  const [flows] = await database
+    .select({ total: count() })
+    .from(customShellAutomations)
+    .where(eq(customShellAutomations.workspaceId, workspaceId))
+  const [waiting] = await database
+    .select({ total: count() })
+    .from(customShellAutomationRuns)
+    .innerJoin(customShellAutomations, eq(customShellAutomations.id, customShellAutomationRuns.automationId))
+    .where(
+      and(
+        eq(customShellAutomationRuns.workspaceId, workspaceId),
+        eq(customShellAutomationRuns.status, "waiting_approval")
+      )
+    )
+  return { automations: Number(flows?.total ?? 0), waiting: Number(waiting?.total ?? 0) }
 }
 
 /**
@@ -412,6 +445,14 @@ function runTriggerName(run: CustomShellAutomationRun): string | null {
   })
 }
 
+/** The approval step a waiting run stopped at, or null. */
+function runApprovalStepName(run: CustomShellAutomationRun): string | null {
+  if (!run.approvalNodeId) return null
+  const node = run.configSnapshot?.nodes?.[run.approvalNodeId]
+  if (!node) return null
+  return automationNodeName({ id: run.approvalNodeId, kind: node.kind, x: 0, y: 0, settings: node.settings })
+}
+
 function toRunRow(
   run: CustomShellAutomationRun,
   automationName: string,
@@ -428,6 +469,7 @@ function toRunRow(
     subjectLabel: run.subjectLabel,
     testRun: run.testRun,
     triggerName: runTriggerName(run),
+    approvalStepName: runApprovalStepName(run),
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
   }

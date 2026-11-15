@@ -94,7 +94,7 @@ export const userPost = createMiddleware({ type: "function" }).server(
  * Reads behind a part of the shell an app role may not get, such as billing.
  * Admins and members pass, as they always did; an app role passes only when
  * its app gave it that feature. `src/server/role-features.test.ts` checks
- * every billing, feedback, changelog and AI usage endpoint uses one of these.
+ * every billing, feedback and AI usage endpoint uses one of these.
  */
 export function featureGet(feature: RoleFeature) {
   return createMiddleware({ type: "function" }).server(async ({ next }) => {

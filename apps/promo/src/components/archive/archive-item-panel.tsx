@@ -15,7 +15,6 @@ import {
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
@@ -26,6 +25,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -69,12 +69,15 @@ type Item = ArchiveItemView & { canDownload: boolean }
 export function ArchiveItemPanel({
   itemId,
   canManage,
+  collapse = false,
   projects,
   onChanged,
   onOpen,
 }: {
   itemId: string | undefined
   canManage: boolean
+  /** The collapse button at the header's edge, on the Projects dashboard, whose right panel shuts from it. */
+  collapse?: boolean
   /** Every project, for Copy and Move. Empty for a guest. */
   projects: { id: string; name: string }[]
   /** The list behind should read again: the item changed, moved or left. */
@@ -115,7 +118,11 @@ export function ArchiveItemPanel({
   if (!itemId) {
     return (
       <>
-        <DashboardCardTitleHeader icon={<FilmIcon className="size-4" />} title="Item" />
+        <DashboardCardTitleHeader
+          icon={<FilmIcon className="size-4" />}
+          title="Item"
+          action={collapse ? <SidePanelCollapseButton side="right" label="Hide the item" /> : undefined}
+        />
         <p className="p-4 text-center text-sm text-muted-foreground">Click a video, carousel or picture to play it and see where it went.</p>
       </>
     )
@@ -129,7 +136,8 @@ export function ArchiveItemPanel({
         icon={<Icon className="size-4" />}
         title={shown?.title || (shown ? "Untitled" : "Opening…")}
         action={
-          shown ? (
+          <>
+          {shown ? (
             <ItemMenu
               item={shown}
               canManage={canManage}
@@ -144,7 +152,9 @@ export function ArchiveItemPanel({
                 onOpen(next)
               }}
             />
-          ) : null
+          ) : null}
+          {collapse ? <SidePanelCollapseButton side="right" label="Hide the item" /> : null}
+          </>
         }
       />
       <ScrollArea className="min-h-0 flex-1">
@@ -189,15 +199,21 @@ export function ArchiveItemPanel({
                 </Button>
               ) : null}
             </div>
-            {shown.caption ? (
-              <PanelCard storageId="promo-archive-caption" title="Caption from Video">
-                <p className="text-sm whitespace-pre-wrap">{shown.caption}</p>
-              </PanelCard>
-            ) : null}
-            {shown.status === "ready" && !shown.deletedAt ? (
-              <CaptionsCard item={shown} onSaved={(captions) => setItem({ ...shown, captions })} />
-            ) : null}
-            <PostedCard item={shown} />
+            {/* The panel's cards together, marked as its body, so the first of
+                them follows Settings -> Styling -> Panel cards -> Opacity (UI
+                standard, "A side panel's body"). The preview, facts and buttons
+                above are not cards. */}
+            <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3">
+              {shown.caption ? (
+                <PanelCard storageId="promo-archive-caption" title="Caption from Video">
+                  <p className="text-sm whitespace-pre-wrap">{shown.caption}</p>
+                </PanelCard>
+              ) : null}
+              {shown.status === "ready" && !shown.deletedAt ? (
+                <CaptionsCard item={shown} onSaved={(captions) => setItem({ ...shown, captions })} />
+              ) : null}
+              <PostedCard item={shown} />
+            </div>
           </div>
         )}
       </ScrollArea>
@@ -299,7 +315,6 @@ function CaptionsCard({ item, onSaved }: { item: Item; onSaved: (captions: Item[
       const written = await writeArchiveCaptions(item.id)
       setCaptions(written.captions)
       onSaved(written.captions)
-      toast.success(`Wrote ${written.written.map((network) => NETWORK_NAMES[network]).join(" and ")} captions.`)
     } catch (failure) {
       showErrorToast(getArchiveErrorMessage(failure))
     } finally {
@@ -482,10 +497,8 @@ function ItemMenu({
                           showErrorToast("Pick a project first.")
                           return
                         }
-                        const name = others.find((project) => project.id === target)?.name ?? "the project"
                         await placeArchiveItem(item.id, target, keep)
                         setOpen(false)
-                        toast.success(keep === "copy" ? `Copied to ${name}.` : `Moved to ${name}.`)
                         // A moved item leaves this project's list; a copy leaves this one open.
                         onLeft(keep === "move" ? undefined : item.id)
                       })
@@ -508,7 +521,6 @@ function ItemMenu({
                 void act(async () => {
                   await restoreArchiveItem(item.id)
                   setOpen(false)
-                  toast.success("Put back in the archive.")
                   onChanged()
                 })
               }
@@ -547,10 +559,7 @@ function ItemMenu({
                 void act(async () => {
                   await binArchiveItems([item.id])
                   setOpen(false)
-                  // It goes to the Bin with Put back, so it doesn't ask first (the UI standard's Delete rule).
-                  toast.success("Moved to the Bin.", {
-                    action: { label: "Put back", onClick: () => void restoreArchiveItem(item.id).then(onChanged, () => undefined) },
-                  })
+                  // It goes to the Bin, where it can be put back, so it doesn't ask first.
                   onLeft(undefined)
                 })
               }

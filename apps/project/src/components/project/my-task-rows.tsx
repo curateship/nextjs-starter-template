@@ -10,12 +10,11 @@ import {
 } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { useRouter } from "@tanstack/react-router"
-import { CheckIcon, ChevronRightIcon, HourglassIcon, ListChecksIcon, PlayIcon } from "lucide-react"
+import { CheckIcon, ChevronRightIcon, HourglassIcon, PlayIcon } from "lucide-react"
 
 import {
   DueDate,
   HeldTaskGhost,
-  LabelChip,
   PickedDaysBadge,
   PriorityMark,
   ReviewBadge,
@@ -25,7 +24,6 @@ import {
   UnreadBadge,
   WaitingBadge,
 } from "@/components/project/task-bits"
-import { RowClock } from "@/components/project/task-clock"
 import { HeadingAddButton, HeadingFoldButton } from "@/components/project/task-list-heading"
 import { FOLDING_HEADING_CLASS, foldOnHeadingClick } from "@/lib/project/heading-fold"
 import { TaskBulkBar, type BulkTargets } from "@/components/project/task-bulk-bar"
@@ -36,7 +34,6 @@ import { changeTasks, type BulkOutcome, type TaskCard } from "@/lib/api/project/
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
-import { pauseTaskClock } from "@/lib/api/project/clock"
 import { reportBulkOutcome } from "@/lib/project/bulk-outcome"
 import { todayKey } from "@/lib/project/dates"
 import { HEADING_DROP, type ListDrop } from "@/lib/project/list-drop"
@@ -47,6 +44,7 @@ import { DUE_MOVED_MANY, TASK_STATUS_LABEL, isOpenStatus } from "@/lib/project/r
 import { useFoldedHeadings } from "@/lib/project/use-folded-headings"
 import { useListDrop } from "@/lib/project/use-list-drop"
 import { cn } from "@/lib/utils"
+import { SlideBar } from "@/components/shared/notes/side-rows"
 
 export type RowGroup = { key: string; label: string }
 
@@ -67,7 +65,7 @@ const GROUP_DOT: Record<string, string> = {
  * My tasks on My dashboard, as Tyler drew them on 13 Oct 2026: one row a
  * task under small capital headings (OVERDUE, THIS WEEK, NO DATE), each row a
  * round tick box, the title with the project and its chips under it, then the
- * due date, steps, status and an arrow. Clicking a row opens the task. Ticked
+ * due date, status and an arrow. Clicking a row opens the task. Ticked
  * rows can be marked Done, handed over, dated or given a status together.
  * With `onDrop`, rows drag up or down to set my own order, or into another
  * heading (`lib/project/my-task-order.ts`).
@@ -88,7 +86,7 @@ export function MyTaskRows({
   /** The task open in the right panel, whose row is marked. */
   openTaskId?: string
   groups?: readonly RowGroup[]
-  /** The headings a task sits under; a task with two tags shows under both. */
+  /** The headings a task sits under. */
   groupsOf?: (task: TaskCard) => string[]
   /** Where the folded headings are remembered, one place per grouping. */
   foldsKey?: string
@@ -96,7 +94,7 @@ export function MyTaskRows({
   /** A row let go inside its heading or under another. Left out, rows don't drag. */
   onDrop?: (drop: ListDrop) => void
   bulk: BulkTargets
-  emptyText: string
+  emptyText: React.ReactNode
   /** A heading's "+": wraps `button` in a New task that lands under that heading, or null where none can. */
   addTask?: (groupKey: string, button: React.ReactNode) => React.ReactNode
 }) {
@@ -122,11 +120,6 @@ export function MyTaskRows({
   const drop = useListDrop(grouped, { groups, onDrop, canMove, showsEmpty: takesDrops })
   const sections = drop.sections
   const folds = useFoldedHeadings(foldsKey)
-
-  /** The row's own Pause, for a clock left running (Task panel task 01, part 6). */
-  async function pauseClock(task: TaskCard) {
-    if (await run(() => pauseTaskClock(task.id))) await router.invalidate()
-  }
 
   /** Each task is marked Done on its own, so one with a field still to fill is refused alone and named. */
   async function markDone() {
@@ -192,7 +185,6 @@ export function MyTaskRows({
                         selected={selection.selected.has(task.id)}
                         onToggle={() => selection.toggle(task.id)}
                         onOpen={() => onOpenTask(task)}
-                        onPauseClock={() => void pauseClock(task)}
                       />
                     ))}
                   </ul>
@@ -241,7 +233,6 @@ function Row({
   selected,
   onToggle,
   onOpen,
-  onPauseClock,
 }: {
   task: TaskCard
   open: boolean
@@ -249,7 +240,6 @@ function Row({
   selected: boolean
   onToggle: () => void
   onOpen: () => void
-  onPauseClock: () => void
 }) {
   // The rows slide apart for the held one, whose place shows dimmed while a copy follows the pointer.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -269,8 +259,8 @@ function Row({
       data-task-id={task.id}
       className={cn(
         "flex items-center gap-3 border-b px-4 py-3 hover:bg-muted/40",
-        // Open beside the list: a bar down its left edge, as the Board outlines its card.
-        open && "bg-muted/60 shadow-[inset_2px_0_0_var(--foreground)]",
+        // Open beside the list: the shell's small bar slides in before its name, as
+        // its tables and blocks show the one open (9 Nov 2026).
         isDragging && "opacity-40"
       )}
     >
@@ -290,16 +280,15 @@ function Row({
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <span className="grid min-w-0 flex-1 gap-1">
-          <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
-            {task.title}
+          <span className="flex min-w-0 items-center">
+            <SlideBar on={open} />
+            <span className={cn("truncate font-medium", task.priority === "low" && "text-muted-foreground")}>
+              {task.title}
+            </span>
           </span>
           <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             <span className="truncate">{task.projectName}</span>
             <PriorityMark priority={task.priority} />
-            {task.type ? <TintChip color={task.type.color}>{task.type.name}</TintChip> : null}
-            {task.labels.map((label) => (
-              <LabelChip key={label.id} label={label} />
-            ))}
             {slipping ? <TintChip color="amber">Date moved {task.dueMoves} times</TintChip> : null}
             <WaitingOnChip waitingOn={task.waitingOn} />
             {task.waiting ? <WaitingBadge /> : null}
@@ -313,13 +302,6 @@ function Row({
           {task.dueDate ? (
             <DueDate dueDate={task.dueDate} dueAt={task.dueAt} status={task.status} className="max-sm:hidden" />
           ) : null}
-          {task.steps.total ? (
-            <span className="flex items-center gap-1 text-muted-foreground max-sm:hidden">
-              <ListChecksIcon className="size-4" aria-hidden />
-              {task.steps.done}/{task.steps.total}
-              <span className="sr-only"> steps done</span>
-            </span>
-          ) : null}
           <span className="inline-flex h-6 items-center gap-1.5 rounded-md bg-muted px-2 text-xs font-medium">
             <StatusDot status={task.status} />
             {TASK_STATUS_LABEL[task.status]}
@@ -327,8 +309,6 @@ function Row({
           <ChevronRightIcon className="size-4 text-muted-foreground" aria-hidden />
         </span>
       </button>
-      {/* Beside the row's button, not in it, so Pause never opens the task. */}
-      <RowClock task={task} onPause={onPauseClock} />
     </li>
   )
 }

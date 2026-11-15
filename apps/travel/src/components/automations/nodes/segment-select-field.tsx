@@ -100,10 +100,11 @@ export function SegmentSelectField({
         <InspectorNote>
           There are no segments yet. Make one in{" "}
           <Link
-            to="/admin/contacts"
+            to="/admin/crm"
+            search={{ tab: "subscribers" }}
             className="underline underline-offset-2 hover:text-foreground"
           >
-            Contacts
+            CRM, People
           </Link>
           .
         </InspectorNote>

@@ -1,70 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminRoomsDashboard } from "@/components/pomodoro/admin-rooms-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getPomodoroAdminErrorMessage,
-  loadPomodoroRoomsPage,
-} from "@/lib/api/pomodoro/admin"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import {
-  ROOM_PHASE_FILTERS,
-  ROOM_SORT_COLUMNS,
-  ROOM_VISIBILITY_FILTERS,
-  readMemberSearch,
-} from "@/lib/pomodoro/admin-lists"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
-type RoomsSearch = {
-  /** The member window open over the list (admin task 06). */
-  member?: string
-  open?: string
-  q?: string
-  phase?: (typeof ROOM_PHASE_FILTERS)[number]
-  visibility?: (typeof ROOM_VISIBILITY_FILTERS)[number]
-  sort?: (typeof ROOM_SORT_COLUMNS)[number]
-  direction?: "asc" | "desc"
-  page?: number
-}
-
-/** The list's own state, so Back returns the exact list you left. */
-function readRoomsSearch(search: Record<string, unknown>): RoomsSearch {
-  return {
-    ...readMemberSearch(search),
-    ...readOpenSearch(search),
-    q: readSearchText(search.q),
-    phase: readOneOf(search.phase, ROOM_PHASE_FILTERS),
-    visibility: readOneOf(search.visibility, ROOM_VISIBILITY_FILTERS),
-    sort: readOneOf(search.sort, ROOM_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    page: readPage(search.page),
-  }
-}
-
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-rooms")({
-  validateSearch: readRoomsSearch,
-  // Opening the window is not a new list.
-  loaderDeps: ({ search }) => ({ ...search, open: undefined, member: undefined }),
-  loader: ({ deps: search }) => {
-    return loadPomodoroRoomsPage({
-      search: search.q ?? "",
-      phase: search.phase ?? "all",
-      visibility: search.visibility ?? "all",
-      sort: search.sort ?? "created",
-      direction: search.direction ?? "desc",
-      page: search.page ?? 1,
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-rooms", location.search as Record<string, unknown>),
+      replace: true,
     })
   },
-  component: AdminPomodoroRoomsRoute,
-  errorComponent: routeErrorComponent(getPomodoroAdminErrorMessage),
 })
-
-function AdminPomodoroRoomsRoute() {
-  const { list, pageSize } = Route.useLoaderData()
-  return <AdminRoomsDashboard initial={list} initialPageSize={pageSize} />
-}

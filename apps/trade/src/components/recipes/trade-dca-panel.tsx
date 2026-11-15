@@ -1,5 +1,16 @@
 import * as React from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import {
+  AnchorIcon,
+  CandlestickChartIcon,
+  LayersIcon,
+  LogOutIcon,
+  PlusIcon,
+  ScaleIcon,
+  Settings2Icon,
+  ShieldIcon,
+  Trash2Icon,
+  TrendingDownIcon,
+} from "lucide-react"
 
 import {
   InspectorCard,
@@ -163,7 +174,7 @@ export default function TradeDcaFields({
 
   return (
     <>
-      <InspectorCard title="Ladder">
+      <InspectorCard title="Ladder" icon={<LayersIcon />}>
         <div className="rounded-md border bg-background px-2.5 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Most one coin may buy</span>
@@ -265,7 +276,7 @@ export default function TradeDcaFields({
         </Button>
       </InspectorCard>
 
-      <InspectorCard title="Position">
+      <InspectorCard title="Position" icon={<ScaleIcon />}>
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`dca-${node.id}-compound`}
@@ -285,16 +296,16 @@ export default function TradeDcaFields({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="compound">
-                Compound — grow bets with the account
+                Compound, grow bets with the account
               </SelectItem>
-              <SelectItem value="fixed">Fixed — same bet every time</SelectItem>
+              <SelectItem value="fixed">Fixed, same bet every time</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <TradeNumberField
           id={`dca-${node.id}-pot`}
           label="Most of the pot, per coin"
-          hint="The most of the shared pot one coin's ladder may ever spend, split across its buys by the size ramp. Twenty coins at 25% each cannot all be full at once — first come, first served, and that is what running this for real would be like."
+          hint="The most of the shared pot one coin's ladder may ever spend, split across its buys by the size ramp. Twenty coins at 25% each cannot all be full at once. First come, first served, and that is what running this for real would be like."
           value={params.maxPositionPct}
           min={0.01}
           max={100}
@@ -314,7 +325,7 @@ export default function TradeDcaFields({
         <TradeNumberField
           id={`dca-${node.id}-leverage`}
           label="Borrowing"
-          hint="How many dollars of coin each dollar of the pot buys. 1 is cash — you own what you paid for and nobody can take it off you. At 2, $1,000 of the pot holds $2,000 of coin, and the exchange sells the position out from under you if it falls about a third below your average buy — on most coins here, less on some. That sale is final: the ladder does not get to buy the recovery."
+          hint="How many dollars of coin each dollar of the pot buys. 1 is cash. You own what you paid for and nobody can take it off you. At 2, $1,000 of the pot holds $2,000 of coin, and the exchange sells the position out from under you if it falls about a third below your average buy, on most coins here, and less on some. That sale is final: the ladder does not get to buy the recovery."
           value={params.leverage}
           min={1}
           max={50}
@@ -336,7 +347,7 @@ export default function TradeDcaFields({
           numbers, unreachable from here and unreachable from the chart, so
           every run tested one definition of a base and no other could be
           tried. */}
-      <InspectorCard title="What counts as a base">
+      <InspectorCard title="What counts as a base" icon={<AnchorIcon />}>
         <TradeNumberField
           id={`dca-${node.id}-search`}
           label="Candles to search back"
@@ -356,7 +367,7 @@ export default function TradeDcaFields({
         <TradeNumberField
           id={`dca-${node.id}-hold`}
           label="Candles it must hold"
-          hint="How long that new low has to stand without being broken before it counts as a base. It can never be as long as the search itself — a low found in the last 36 candles cannot then wait 40 for nothing to beat it."
+          hint="How long that new low has to stand without being broken before it counts as a base. It can never be as long as the search itself. A low found in the last 36 candles cannot then wait 40 for nothing to beat it."
           value={params.baseDetection.holdBars}
           min={1}
           max={499}
@@ -428,12 +439,12 @@ export default function TradeDcaFields({
         </InspectorNote>
       </InspectorCard>
 
-      <InspectorCard title="Candles">
+      <InspectorCard title="Candles" icon={<CandlestickChartIcon />}>
         <div className="grid gap-1.5">
           <FieldLabel
             htmlFor={`dca-${node.id}-interval`}
             className="text-xs"
-            hint="The bar size the run walks. Smaller bars mean a finer replay and far less history — the exchange keeps roughly 5,000 bars of each size, so a 1h test tops out near 200 days."
+            hint="The bar size the run walks. Smaller bars mean a finer replay and far less history. The exchange keeps roughly 5,000 bars of each size, so a 1h test tops out near 200 days."
           >
             Candle size
           </FieldLabel>
@@ -463,7 +474,7 @@ export default function TradeDcaFields({
         </div>
       </InspectorCard>
 
-      <InspectorCard title="Exit">
+      <InspectorCard title="Exit" icon={<LogOutIcon />}>
         {/* The rule sits on the checkbox's own row, so switching Exit on and
             picking how it sells read as one choice. The row and the picker
             may shrink, so a long rule ends in "…" instead of pushing the
@@ -566,7 +577,7 @@ export default function TradeDcaFields({
 
       {/* Directly under Exit because that is the only thing it changes:
           it pauses the "sell at previous rung" exits and nothing else. */}
-      <InspectorCard title="Market crash">
+      <InspectorCard title="Market crash" icon={<TrendingDownIcon />}>
         <div className="flex items-center gap-2">
           <Checkbox
             id={`dca-${node.id}-cascade-on`}
@@ -680,7 +691,7 @@ export default function TradeDcaFields({
             <TradeNumberField
               id={`dca-${node.id}-entry-coins`}
               label="Open at most"
-              hint="Counts a coin going from holding nothing to holding something. Adding to a coin it already holds is never counted — leaving room for exactly that is the point."
+              hint="Counts a coin going from holding nothing to holding something. Adding to a coin it already holds is never counted. Leaving room for exactly that is the point."
               value={entries.coins}
               min={1}
               max={500}
@@ -705,7 +716,7 @@ export default function TradeDcaFields({
         ) : null}
       </InspectorCard>
 
-      <InspectorCard title="Stop loss">
+      <InspectorCard title="Stop loss" icon={<ShieldIcon />}>
         <div className="flex items-center gap-2">
           <Checkbox
             id={`dca-${node.id}-sl-on`}
@@ -722,7 +733,7 @@ export default function TradeDcaFields({
           <FieldLabel
             htmlFor={`dca-${node.id}-sl-on`}
             className="text-xs"
-            hint="Off means nothing ever cuts a losing ladder — every rung rides to the end of the test."
+            hint="Off means nothing ever cuts a losing ladder. Every rung rides to the end of the test."
           >
             Stop loss
           </FieldLabel>
@@ -796,7 +807,7 @@ export default function TradeDcaFields({
         ) : null}
       </InspectorCard>
 
-      <InspectorCard title="Advanced settings">
+      <InspectorCard title="Advanced settings" icon={<Settings2Icon />}>
         {/* No "rungs measured from" choice here on purpose.
 
             The app this is a port of has no such setting: its first rung is
@@ -827,7 +838,7 @@ export default function TradeDcaFields({
           <FieldLabel
             htmlFor={`dca-${node.id}-two-green`}
             className="text-xs"
-            hint={`Nothing rests waiting: the ladder watches the ${settings.interval} candles and buys at market once two rising closes confirm the turn — so fills sit a little off the lines.`}
+            hint={`Nothing rests waiting: the ladder watches the ${settings.interval} candles and buys at market once two rising closes confirm the turn, so fills sit a little off the lines.`}
           >
             Only buy after 2 rising candles
           </FieldLabel>
@@ -835,8 +846,8 @@ export default function TradeDcaFields({
       </InspectorCard>
 
       <InspectorNote>
-        Pressing Run above the canvas starts the test. Nothing follows this step
-        — it is the end of the flow, and where it got to shows in the Backtests
+        Pressing Run above the canvas starts the test. Nothing follows this step.
+        It is the end of the flow, and where it got to shows in the Backtests
         tab below.
       </InspectorNote>
     </>

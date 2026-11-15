@@ -87,6 +87,7 @@ describe("a stopped run's coins", () => {
       root.render(
         <FlowRunCoinsPanel
           report={STOPPED_REPORT}
+          tab="coins"
           openCoin={null}
           onOpenCoin={vi.fn()}
         />
@@ -123,6 +124,7 @@ it("confirms the coin, surfaces refusals, and waits for engine completion", asyn
     root.render(
       <FlowRunCoinsPanel
         report={report}
+        tab="coins"
         openCoin={null}
         onOpenCoin={vi.fn()}
         onRefresh={refresh}
@@ -165,6 +167,7 @@ it("confirms the coin, surfaces refusals, and waits for engine completion", asyn
             words: "Stopped by you",
           })),
         }}
+        tab="coins"
         openCoin={null}
         onOpenCoin={vi.fn()}
       />

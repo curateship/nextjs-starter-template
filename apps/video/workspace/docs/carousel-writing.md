@@ -19,6 +19,8 @@ ordinary edit that Undo takes back out.
     words its voiceovers say, in the order they play, or the words written on
     its timeline when it has none. The carousel remembers the video's project
     as the one it was made from (see [carousel-projects.md](carousel-projects.md)).
+    With no video projects yet, or no videos in the one picked, the window
+    says so in place of an empty picker.
   - **A web link**, a public https page whose words are read once.
 - **How many slides:** 3 to 20, 7 to start. The shape is 4:5, square or story.
 - **What comes back:** a cover slide that hooks, one slide per point, and a

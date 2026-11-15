@@ -121,7 +121,6 @@ export function ProgramsDashboard({ page, clientName }: { page: ProgramsPage; cl
       })
       const line = describeBulkResult({ done: done.length, kept: kept.length, one: "program", many: "programs", verb: "deleted" })
       if (kept.length) toast.error(line)
-      else toast.success(targets.length === 1 ? `${targets[0].name} deleted.` : line)
       setDeleting(null)
       selection.clear()
       if (done.length) await router.invalidate()
@@ -362,7 +361,6 @@ function CoachRequests({ coaches }: { coaches: MyCoach[] }) {
     setAnswering(coach.coachId)
     try {
       await changeMyCoach({ action: "answer", coachId: coach.coachId, accept })
-      toast.success(accept ? `${coach.name} is now your coach.` : `You said no to ${coach.name}.`)
       await router.invalidate()
     } catch (error) {
       reportFitnessError(error)
@@ -418,13 +416,6 @@ function MyCoaches({ coaches }: { coaches: MyCoach[] }) {
     setBusy(coach.coachId)
     try {
       await changeMyCoach({ ...change, coachId: coach.coachId })
-      toast.success(
-        change.action === "remove"
-          ? `${coach.name} is no longer your coach.`
-          : change.allowed
-            ? `${coach.name} can now see your photos.`
-            : `${coach.name} can no longer see your photos.`
-      )
       await router.invalidate()
     } catch (error) {
       reportFitnessError(error)
@@ -605,7 +596,6 @@ function ClientsTable({ clients, today }: { clients: CoachClient[]; today: Day }
       })
       const line = describeBulkResult({ done: done.length, kept: kept.length, one: "client", many: "clients", verb: "removed" })
       if (kept.length) toast.error(line)
-      else toast.success(targets.length === 1 ? `${targets[0].name} removed.` : line)
       setRemoving(null)
       selection.clear()
       if (done.length) await router.invalidate()

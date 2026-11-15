@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { createShellId } from "@/components/settings/nav-editor-shared"
@@ -97,13 +96,11 @@ export function PublicThemePresetsCard({
       { id: createShellId("preset"), name: name.trim(), theme },
     ])
     setSavingOpen(false)
-    toast.success("Preset saved.")
   }
 
   const applyPreset = (preset: PublicThemePreset) => {
     onApply(preset.theme)
     setApplying(null)
-    toast.success(`${preset.name} applied.`)
   }
 
   const deletePreset = (preset: PublicThemePreset) => {
@@ -114,7 +111,6 @@ export function PublicThemePresetsCard({
     }
     onPresetsChange(presets.filter((entry) => entry.id !== preset.id))
     setDeleting(null)
-    toast.success("Preset deleted.")
   }
 
   return (

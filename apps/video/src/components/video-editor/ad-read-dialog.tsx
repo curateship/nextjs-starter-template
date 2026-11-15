@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { getAdsErrorMessage, makeAdRead } from "@/lib/api/video/ads"
 import { loadClonedVoices, type ClonedVoice } from "@/lib/api/video/cloned-voices"
@@ -161,6 +162,7 @@ export function AdReadDialog({
                         setAboutMissing(false)
                       }}
                     />
+                    <LengthCounter length={about.length} max={AD_ABOUT_MAX} />
                   </div>
                 </CardContent>
               </Card>

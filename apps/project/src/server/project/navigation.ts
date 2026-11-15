@@ -7,18 +7,16 @@ import {
 import {
   MY_DASHBOARD_ITEM_ID,
   PROJECT_NAV_SECTION_ID,
-  TASK_TYPES_ITEM_ID,
   TEAM_ITEM_ID,
   projectNavSection,
-  taskTypesItem,
 } from "@/lib/project/menu"
 import { db, type CustomShellDb } from "@/server/db"
 import { projectNavigationAdded } from "@/server/project/schema"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
- * Puts Project's dashboards in the left menu: My dashboard, Projects, Team
- * and Task templates, with Teams in place of Team in the admins' menus. An employee's menu comes from `roles` in `src/app/options.ts`.
+ * Puts Project's dashboards in the left menu: My dashboard, Projects and
+ * Team, with Teams in place of Team in the admins' menus. An employee's menu comes from `roles` in `src/app/options.ts`.
  *
  * The shell keeps its menus in the database, not in code. Members share one
  * list on the settings row and an admin sees their workspace's own list, and
@@ -30,24 +28,10 @@ import { customShellSettings, customShellWorkspaces } from "@/server/schema"
  * the menus may not exist yet when migrations run: a brand-new install makes
  * its first workspace when its first admin signs in.
  *
- * A link added after a menu already has the section (Task types, 12 Oct 2026)
- * goes in by its own pass with its own marker, into the section where it
- * stands. A menu whose admin removed the whole section stays without it.
+ * A link added or taken out after a menu already has the section goes by its
+ * own pass with its own marker, in the section where it stands. A menu whose
+ * admin removed the whole section stays without it.
  */
-
-/** Task types goes after Team in the Work section, when that section is still there. */
-function withTaskTypesLink(sections: unknown): ShellSection[] | null {
-  if (!Array.isArray(sections)) return null
-  const list = sections as ShellSection[]
-  return list.map((section) => {
-    if (section?.id !== PROJECT_NAV_SECTION_ID || !Array.isArray(section.entries)) return section
-    if (section.entries.some((entry) => entry?.id === TASK_TYPES_ITEM_ID)) return section
-    const team = section.entries.findIndex((entry) => entry?.id === TEAM_ITEM_ID)
-    const entries = [...section.entries]
-    entries.splice(team === -1 ? entries.length : team + 1, 0, taskTypesItem())
-    return { ...section, entries }
-  })
-}
 
 /**
  * My dashboard comes back first in the admins' menus (Tyler, 23 Oct 2026: "I
@@ -89,23 +73,19 @@ function withTeamsLink(sections: unknown): ShellSection[] | null {
   )
 }
 
+/** The left menu's Task templates link, kept only so stored menus can lose it. */
+const TASK_TEMPLATES_ITEM_ID = "item-project-task-types"
+
 /**
- * Task types became Task templates (Tyler, 28 Oct 2026, Misc 4: "its template
- * not task type"). A link an admin renamed themselves keeps their name.
+ * Task templates left Project (Tyler, 6 Nov 2026: "We need to remove the
+ * tasks templates feature too"), so their link leaves every menu that has it.
  */
-function withTaskTemplatesName(sections: unknown): ShellSection[] | null {
+function withoutTaskTemplatesLink(sections: unknown): ShellSection[] | null {
   if (!Array.isArray(sections)) return null
   const list = sections as ShellSection[]
   return list.map((section) =>
     section?.id === PROJECT_NAV_SECTION_ID && Array.isArray(section.entries)
-      ? {
-          ...section,
-          entries: section.entries.map((entry) =>
-            entry?.id === TASK_TYPES_ITEM_ID && entry.type === "item" && entry.label === "Task types"
-              ? { ...entry, label: taskTypesItem().label }
-              : entry
-          ),
-        }
+      ? { ...section, entries: section.entries.filter((entry) => entry?.id !== TASK_TEMPLATES_ITEM_ID) }
       : section
   )
 }
@@ -117,10 +97,9 @@ function withTaskTemplatesName(sections: unknown): ShellSection[] | null {
  */
 const PASSES: readonly { suffix: string; change: MenuChange; adminsOnly?: true }[] = [
   { suffix: "", change: withProjectSection },
-  { suffix: ":task-types", change: withTaskTypesLink },
   { suffix: ":admin-my-dashboard", change: withMyDashboardFirst, adminsOnly: true },
   { suffix: ":teams", change: withTeamsLink, adminsOnly: true },
-  { suffix: ":task-templates-name", change: withTaskTemplatesName },
+  { suffix: ":no-task-templates", change: withoutTaskTemplatesLink },
 ]
 
 /** The section goes first, ahead of whatever the menu already holds. */

@@ -22,9 +22,8 @@ const addFileFn = createServerFn({ method: "POST" })
     if (!(data instanceof FormData)) throw new Error("Expected form data")
     const file = data.get("file")
     const taskId = id.parse(data.get("taskId"))
-    const fieldId = data.get("fieldId") === null ? null : id.parse(data.get("fieldId"))
     if (!(file instanceof File)) throw new Error("Pick a file to add.")
-    return { taskId, fieldId, file }
+    return { taskId, file }
   })
   .handler(async ({ data, context }) => {
     // Refused before anything is stored or counted against the team.
@@ -42,7 +41,6 @@ const addFileFn = createServerFn({ method: "POST" })
     }
     return addTaskFile(context.user, {
       taskId: data.taskId,
-      fieldId: data.fieldId,
       name: data.file.name,
       mimeType: data.file.type,
       data: new Uint8Array(await data.file.arrayBuffer()),
@@ -59,11 +57,9 @@ const deleteFileFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ fileId: id }))
   .handler(async ({ data, context }) => deleteTaskFile(context.user, data.fileId))
 
-/** With `fieldId`, the file goes into that File field instead of the Files card. */
-export function addFileToTask(taskId: string, file: File, fieldId?: string) {
+export function addFileToTask(taskId: string, file: File) {
   const form = new FormData()
   form.append("taskId", taskId)
-  if (fieldId) form.append("fieldId", fieldId)
   form.append("file", file)
   return addFileFn({ data: form })
 }

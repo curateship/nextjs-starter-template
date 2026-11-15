@@ -129,6 +129,15 @@ The other rules the store keeps, and the editor waits for in the same way:
 - both the wording and the link on a hero button, or neither
 - a background colour that is a real colour
 
+**A block held back says so, under its fields.** While a block that was saved
+breaks one of these rules, nothing goes out, so the header has nothing to say.
+A red line under the block's fields says "Not saved." and the reason, in the
+words of `frontPageBlockProblem` (`src/lib/pages/front-page.ts`), for example
+"Not saved. Give the row a heading." When the fault is the heading, the line is
+tied to the heading box, so a screen reader reads it with the box. The line
+goes as soon as the block can save, and the block saves itself again. A block
+that has not been typed into yet never shows it.
+
 **A new block is given its id when it is picked, not when it is first saved.**
 The write is an upsert on that id, so a second keystroke arriving before the
 first answer updates the block being made rather than putting a second copy of
@@ -140,6 +149,13 @@ does Escape. Either one writes the block first rather than waiting out the
 timer, so closing never loses the last thing typed. The only thing that still
 asks a question is leaving a block that **cannot** be saved, because that is the
 only work leaving can throw away.
+
+**One Escape closes one thing, the one on top.** Escape in an open dropdown
+(Layout, Stars) closes only the dropdown. Escape in the "Throw this block
+away?" window closes only that window and leaves the block open. The block
+panel closes on Escape only when nothing above it took the key: a dropdown or
+window marks the key as used, and the editor leaves a used key alone
+(`onEscape` in `src/components/pages/front-page-editor.tsx`).
 
 **What is stored is what the page draws.** The save puts the block through the
 same normaliser the read uses, so a heading typed with spaces around it is
@@ -193,7 +209,7 @@ address, so a page whose address changes stays on the list.
 **Only pages an admin added can be ticked.** They are the ones with a picture
 and a description to put on a card. The page being built is left off its own
 list, because a card linking to the page it sits on goes nowhere. The cards
-follow the order of the list in the panel, which is the Pages screen's own order
+follow the order of the list in the panel, which is Admin's Pages section's own order
 by address, so there is nothing to drag. One block shows up to 24 pages.
 
 **A card is left out for a visitor who could not open its page.** A switched-off
@@ -264,6 +280,14 @@ in a strip at the foot of the panel, under everything it writes, where it stays
 while the panel is scrolled. It was between two of the cards until Tyler moved
 it on 6 October 2026. It is greyed out until something changes.
 
+**Typed settings wait for Save, even while a block is open.** Clicking a block
+swaps this panel for the block's, and on a phone the tabs swap it out too. The
+typed name, address, description, picture and search settings are held by the
+editor, not by this panel (`src/components/pages/use-written-page-draft.ts`), so they are still there
+when the panel comes back. They go back to the saved page only when the saved
+values change, which is what Save page does. Leaving the page itself works as
+it always has.
+
 **Why a button here when a block saves itself:** the page's address is what the
 editor is keyed by. A half-typed `/ab` written as it is typed would rename the
 page, move its blocks to that address and break every link to it, four times
@@ -310,7 +334,7 @@ outside the block entirely, where no background reaches.
 
 ## Adding a page
 
-Press **Add a page** on the Pages screen. It asks for a name, an address, a
+Press **Add a page** on Admin's Pages section. It asks for a name, an address, a
 description and a picture, makes the page, and opens it in the editor with one empty rich text
 block waiting.
 Everything else about the page is built there, including its own settings.
@@ -375,7 +399,7 @@ permission, not plumbing. The front page is the only page in this shell's code
 that says it, and **every page an admin adds says it by existing** — those pages
 are there to be built.
 
-## The Pages screen has two tabs
+## Admin's Pages section has two tabs
 
 **Pages** holds the ones an admin builds: a page made of blocks, and a page they
 wrote the words of. Each says how many blocks it holds, and clicking its name
@@ -400,7 +424,7 @@ first tab with nothing else to change. The chosen tab is in the address as
 `?group=system`, so the screen can be linked and survives a reload.
 
 **An admin edits the site the website serves.** On a deployment with one public
-front door, the editor, the Pages screen and the website all read the same site,
+front door, the editor, Admin's Pages section and the website all read the same site,
 whichever site the admin happens to be switched to. With workspace domains on,
 every site has its own address and the editor follows the switcher. The public
 menu and footer already worked this way, and the blocks follow them.

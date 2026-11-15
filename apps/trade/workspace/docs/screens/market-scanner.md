@@ -1,22 +1,19 @@
 # Market scanner
 
-The market scanner finds unusual trading volume and price movement. It opens
-from a radar button in the chart header, after the Folders button and the
-Alerts siren. Tyler moved it there from the left panel on 15 Oct 2026, and the
-left panel now holds the Rules box.
+The market scanner finds unusual trading volume and price movement. It is the
+Scanner block on the exchange's page, the dashboard's left panel (the Admin 3
+panel design, 7 Nov 2026, `dashboard-blocks.md`).
 
-- **The scanner keeps running with its menu shut.** A red number on the radar
-  counts the matches found since the menu was last opened. Opening the menu
-  clears the number, and a match found while the menu is open is counted as
-  seen when it closes, the same way the siren counts fired alerts.
+- **The scanner keeps running with its block folded.** The count beside the
+  block's title is the matches found since the block was last open. An open
+  block counts what it shows as seen, the same way the Alerts block counts
+  fired alerts.
 - **The matches already seen are kept in this browser**, beside the matches
   themselves, so a reload does not count the whole list as new. A market that
   is deleted and found again later counts as new.
-- **On a phone** the scanner is a "Market scanner" line in the market menu,
-  after Alerts, carrying the same number.
-- The cog and the broom each shut the menu before their window opens. When the
-  settings window closes, focus goes back to the radar.
-- The menu's header shows a radar icon beside "Market scanner". It uses the workspace's
+- **On a phone** the Scanner block is on the Blocks pill, the same block.
+- The cog and the broom sit in the block's heading row.
+- The block's heading shows a radar icon beside "Scanner". It uses the workspace's
   standard dashboard heading font, height and spacing. Result rows use the same
   36px height, 12px side gutter and ticker font as other workspace market rows.
   Its right-hand cog opens account settings.
@@ -116,8 +113,7 @@ migration `0177_trade_market_scanner.sql`. Discovery preferences are independent
 
 ## Testing the dashboard
 
-1. Open a protocol chart and press the radar after the siren. The menu should
-   say "Market scanner".
+1. Open a protocol chart and find the Scanner block on the left page.
 2. Open the cog with the mouse and keyboard. Change thresholds and save, then
    reload. Settings should persist. Cancel and discard should retain saved values.
 3. Select a supported exchange and wait for volume history to warm up.

@@ -9,7 +9,6 @@ import {
   Trash2Icon,
   WandSparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import {
   ColorField,
@@ -35,6 +34,7 @@ import {
   useSelectedLayer,
   useThumbnails,
 } from "@/components/video-thumbnails/thumbnail-store"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { changePicture } from "@/lib/api/video/thumbnail-ai"
 import {
@@ -155,6 +155,7 @@ function TextCards({
           // Words typed afresh drop marks that no longer line up with them.
           onChange={(event) => patch({ text: event.target.value, marks: undefined })}
         />
+        <LengthCounter length={layer.text.length} max={2_000} />
         <div className="grid gap-2">
           <Label htmlFor="thumbnail-font">Font</Label>
           <Select value={layer.fontId} onValueChange={(fontId) => patch({ fontId: fontId as TextFontId })}>
@@ -241,7 +242,6 @@ function PictureCards({
       // The first new version opens with the slider over the changed picture.
       selectLayer(layer.id)
       setBeforeAfter({ layerId: layer.id, beforeUrl: layer.url })
-      toast.success(`${rows.length} new ${rows.length === 1 ? "version" : "versions"}. The one you started from is still on the left.`)
     })
   }
 

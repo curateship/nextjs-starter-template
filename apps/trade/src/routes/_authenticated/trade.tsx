@@ -1,18 +1,37 @@
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 
-import { readTradeSearch } from "@/lib/trade/trade-network"
+import { marketTitleFromMatches } from "@/app/page-title"
+import {
+  TradeDashboard,
+  tradeDashboardLoader,
+  tradeDashboardLoaderDeps,
+} from "@/components/trade/trade-dashboard-page"
+import { readTradeDashboardSearch } from "@/lib/trade/dashboard-view"
 
 /**
- * The old address of the Hyperliquid dashboard, kept as a redirect.
+ * The Trade dashboard: Overview's widgets and every exchange's chart and
+ * tables, picked from the Protocols block on the left page (Tyler, 8 Nov
+ * 2026: "consolidate everything into one 3 panel dashboard"). It takes the
+ * place of the trading overview and the eleven `/protocols/<x>` dashboards,
+ * whose addresses are gone ("we dont need to forward old adress as the site
+ * is not open to public yet").
  *
- * Each protocol has its own dashboard now, and Hyperliquid's lives at
- * `/protocols/hyper-liquid`. Old links, the browser's memory and anything else
- * still pointing here keep working — the market and network in the address
- * ride along, so a saved link to a testnet coin still lands on that coin.
+ * This address sits outside `/admin` so that a member reaches it too. What
+ * they see is their own: every wallet, order, drawing and widget is keyed to
+ * the person who made it, and every call this page makes asks only for a
+ * signed-in user.
+ *
+ * The one-minute staleTime means a market click, or coming back inside that
+ * window, paints at once instead of asking the server again. The search
+ * params are explained in `@/lib/trade/dashboard-view`.
  */
 export const Route = createFileRoute("/_authenticated/trade")({
-  validateSearch: readTradeSearch,
-  beforeLoad: ({ search }) => {
-    throw redirect({ to: "/protocols/hyper-liquid", search, replace: true })
-  },
+  validateSearch: readTradeDashboardSearch,
+  loaderDeps: tradeDashboardLoaderDeps,
+  staleTime: 60_000,
+  loader: tradeDashboardLoader,
+  head: ({ matches }) => ({
+    meta: [{ title: marketTitleFromMatches(matches, "market", "Trade") }],
+  }),
+  component: TradeDashboard,
 })

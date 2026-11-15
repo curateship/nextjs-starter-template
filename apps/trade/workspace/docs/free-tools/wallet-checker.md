@@ -40,7 +40,7 @@ answer the same questions off an open socket with gap bookkeeping around them.
 All of that exists to keep a wallet Trade watches every second cheap, and none
 of it fits a stranger's address pasted once.
 
-## The counting is the P&L page's counting
+## The counting is the month grid's counting
 
 A wallet that is on a Trade profile shows the same numbers here and on
 `/t/<handle>`, because both call the same three functions. This is in

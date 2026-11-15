@@ -6,6 +6,7 @@ import { POST_ONLY_RETRY } from "@/server/trade/smart-order-pause"
 
 import { and, eq, inArray, sql } from "drizzle-orm"
 
+import { recordOrderAim } from "@/server/trade/order-aims"
 import {
   marketKey as marketKeyOf,
   parseMarketKey,
@@ -357,6 +358,15 @@ export async function placeLiveOrder(
      * exchange has one. Never set for an order somebody placed by hand.
      */
     copied?: boolean
+    /**
+     * The price this order was FIRST placed at, kept by its order id for
+     * slippage (`order-aims.ts`). Required, with no default, so a re-place
+     * can never quietly record its own price: a chase passes the price of
+     * its first send every time. `"sent"` is this send's own price, the mark
+     * for a market order and the book-joined price for a limit, for an order
+     * going out for the first time. Null records nothing.
+     */
+    aimedPx: number | "sent" | null
   }
 ): Promise<PlaceOrderOutcome> {
   // The stopwatch every real placement reports — one line per order saying
@@ -568,6 +578,18 @@ export async function placeLiveOrder(
           action: "refused",
           side: input.side,
           note: outcome.protectionNote,
+        })
+      }
+      // The price it was aimed at, for slippage, after the Journal rows and
+      // in the same background step, so the two never race. It never throws.
+      if (outcome.orderId && input.aimedPx !== null) {
+        await recordOrderAim({
+          userId,
+          walletId: row.id,
+          orderId: outcome.orderId,
+          marketKey: input.marketKey,
+          side: input.side,
+          aimedPx: input.aimedPx === "sent" ? entryPx : input.aimedPx,
         })
       }
     })()

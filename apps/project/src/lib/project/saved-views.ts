@@ -19,8 +19,8 @@ export type SavedViewFilters = TaskFilters & {
   group?: TaskGrouping
 }
 
-/** The person's and label's names when the view was saved, so a missing one can be named. */
-export type SavedViewNames = { person?: string; label?: string; type?: string }
+/** The person's name when the view was saved, so a missing one can be named. */
+export type SavedViewNames = { person?: string }
 
 const id = z.string().regex(/^[\w-]{1,36}$/)
 
@@ -29,8 +29,6 @@ export const savedViewFiltersSchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
   person: id.optional(),
-  label: id.optional(),
-  type: id.optional(),
   due: z.enum(DUE_FILTERS.map((option) => option.key) as [DueKey, ...DueKey[]]).optional(),
   // A view keeps its client (Tyler, 16 Oct 2026).
   client: z.string().trim().min(1).max(LIMITS.clientName).optional(),
@@ -47,8 +45,6 @@ export function viewFilters(filters: SavedViewFilters): SavedViewFilters {
   if (filters.status) kept.status = filters.status
   if (filters.priority) kept.priority = filters.priority
   if (filters.person) kept.person = filters.person
-  if (filters.label) kept.label = filters.label
-  if (filters.type) kept.type = filters.type
   if (filters.due) kept.due = filters.due
   if (filters.client) kept.client = filters.client
   if (filters.project) kept.project = filters.project
@@ -63,16 +59,12 @@ export function viewHasFilters(filters: SavedViewFilters) {
 
 /**
  * Opening a view: the filters that still make sense here, and a sentence for
- * each one that doesn't, such as a label deleted since or a person no longer
- * on the project. `NOBODY_FILTER` is always there.
+ * each one that doesn't, such as a person no longer on the project.
+ * `NOBODY_FILTER` is always there.
  */
 export function openView(
   view: { filters: SavedViewFilters; names: SavedViewNames },
-  here: {
-    people?: readonly { id: string }[]
-    labels: readonly { id: string }[]
-    types: readonly { id: string }[]
-  },
+  here: { people?: readonly { id: string }[] },
   nobody: string
 ): { filters: SavedViewFilters; missing: string[] } {
   const filters: SavedViewFilters = { ...view.filters }
@@ -86,16 +78,6 @@ export function openView(
       )
       delete filters.person
     }
-  }
-  if (filters.label && !here.labels.some((label) => label.id === filters.label)) {
-    missing.push(
-      view.names.label ? `The tag "${view.names.label}" was deleted` : "Its tag was deleted"
-    )
-    delete filters.label
-  }
-  if (filters.type && !here.types.some((type) => type.id === filters.type)) {
-    missing.push(view.names.type ? `The template "${view.names.type}" is gone` : "Its task template is gone")
-    delete filters.type
   }
   return { filters, missing }
 }

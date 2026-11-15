@@ -1,6 +1,6 @@
-import type { ShellStyling } from "@/lib/custom-shell"
+import type { ScaffoldStyling } from "@/lib/layout/styling-values"
 
-export const scaffoldStyling: ShellStyling | null = {
+export const scaffoldStyling: ScaffoldStyling | null = {
   "cardBorderColor": {
     "color": "#f2f2fd",
     "mode": "muted",

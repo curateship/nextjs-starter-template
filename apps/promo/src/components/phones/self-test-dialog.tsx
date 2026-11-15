@@ -1,6 +1,5 @@
 import * as React from "react"
 import { DownloadIcon, FlaskConicalIcon, Loader2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,7 +58,7 @@ function rolloutWords(rollout: Rollout | undefined, testVersion: string | undefi
 
 /**
  * The daily self-test and app updates, from the Self-test button on the
- * Phones dashboard (parts 20 and 21 of the phone farm), one side per kind of
+ * Racks dashboard (parts 20 and 21 of the phone farm), one side per kind of
  * phone (part 51): the Android test phone's answers and Play Store updates,
  * and the iPhone test phone's answers and App Store updates.
  *
@@ -108,7 +107,7 @@ export function SelfTestDialog({
   async function act(key: string, work: () => Promise<string>) {
     setBusy(key)
     try {
-      toast.success(await work())
+      await work()
       setAttempt((count) => count + 1)
       await onChanged()
     } catch (actError) {

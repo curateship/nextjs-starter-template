@@ -20,7 +20,6 @@ import { SmallPicture } from "@/components/project/task-files-card"
 import { TagTextarea, TaggedWords, type TaskLinking } from "@/components/project/tag-textarea"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -35,13 +34,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   deleteChatMessage,
   editChatMessage,
-  findLinkableTasks,
   reactToChatMessage,
   sendChatMessage,
   type ChatMessage,
   type LinkChoice,
 } from "@/lib/api/project/chat"
-import type { TaskDetail, TaskFile } from "@/lib/api/project/tasks"
+import { findLinkTargets } from "@/lib/api/project/project-notes"
+import type { TaskFile } from "@/lib/api/project/tasks"
 import type { PersonRoom } from "@/lib/api/project/team-running"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
@@ -56,6 +55,7 @@ import {
   tagPeople,
   tokenizeMessage,
 } from "@/lib/project/mentions"
+import { NOTE_LINK, isNoteLink } from "@/lib/project/notes"
 import { namesLine } from "@/lib/project/names-line"
 import { useOpenPerson } from "@/lib/project/person-pages"
 import { LIMITS, REACTIONS, REACTION_LOOK, type ChatPlace, type Reaction } from "@/lib/project/rules"
@@ -64,47 +64,6 @@ import { cn } from "@/lib/utils"
 import { useTeamId } from "@/lib/project/team-scope"
 
 export type ChatPerson = { id: string; name: string; avatarUrl: string }
-
-/**
- * A task's chat: messages oldest at the top and newest at the bottom, with
- * the box to write in under them. The rules are in `workspace/docs/task-chat.md`.
- */
-export function TaskChatCard({
-  detail,
-  myUserId,
-  readOnly,
-  change,
-  room,
-}: {
-  detail: TaskDetail
-  myUserId: string
-  readOnly: boolean
-  change: Change
-  /** Who is away, so a tag of someone on time off says so before sending. */
-  room: Record<string, PersonRoom>
-}) {
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Chat</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <ChatThread
-          chat={{ taskId: detail.task.id }}
-          messages={detail.comments}
-          people={detail.assignable}
-          myUserId={myUserId}
-          readOnly={readOnly}
-          change={change}
-          room={room}
-          fileRoom={LIMITS.filesPerTask - detail.fields.fileCount}
-          emptyText={`No messages yet.${readOnly ? "" : " Type @ to ask someone on the project about this task."}`}
-          listClassName="max-h-96"
-        />
-      </CardContent>
-    </Card>
-  )
-}
 
 /**
  * One chat: a task's, or a project's own. Enter sends and Shift+Enter starts
@@ -188,9 +147,14 @@ export function ChatThread({
     height.current = area.scrollHeight
   }, [firstId])
 
+  // A # link opens its task, or the project page with its note open.
   const openTask = React.useCallback(
-    (projectId: string, taskId: string) =>
-      void navigate({ to: "/projects/$projectId", params: { projectId }, search: { task: taskId } }),
+    (projectId: string, linkId: string) =>
+      void navigate({
+        to: "/projects/$projectId",
+        params: { projectId },
+        search: isNoteLink(linkId) ? { note: linkId.slice(NOTE_LINK.length) } : { task: linkId },
+      }),
     [navigate]
   )
 
@@ -280,7 +244,7 @@ function useTaskLinking(onPick: (task: LinkChoice) => void): TaskLinking {
     latest.current = onPick
   })
   return React.useMemo(
-    () => ({ find: (q: string) => findLinkableTasks(q, teamId), onPick: (task) => latest.current(task) }),
+    () => ({ find: (q: string) => findLinkTargets(q, teamId), onPick: (task) => latest.current(task) }),
     [teamId]
   )
 }
@@ -353,8 +317,7 @@ function Composer({
     const sentFiles = files
     const sentLinks = links
     const ok = await change(
-      () => sendChatMessage({ chat, body, replyToId: replyTo?.id ?? null, files: sentFiles }),
-      sentFiles.length ? `${sentFiles.length} ${plural(sentFiles.length, "file")} sent.` : undefined
+      () => sendChatMessage({ chat, body, replyToId: replyTo?.id ?? null, files: sentFiles })
     )
     inFlight.current = false
     setSending(false)
@@ -543,7 +506,7 @@ function MessageBox({
           wholeProject
           maxLength={LIMITS.comment}
           autoFocus={autoFocus}
-          placeholder="Write a message. Type @ to tag someone, # to link a task."
+          placeholder="Write a message. Type @ to tag someone, # to link a task or note."
           aria-describedby={away.length ? `${id}-away` : undefined}
           className="max-h-48 min-h-16 resize-none border-0 !bg-transparent shadow-none focus-visible:ring-0"
           onKeyDown={(event) => {
@@ -613,11 +576,11 @@ function MessageRow({
   // A teammate's page opens from the name, except inside a window.
   const openPerson = useOpenPerson()
 
-  async function work(task: () => Promise<unknown>, successText?: string) {
+  async function work(task: () => Promise<unknown>) {
     if (inFlight.current) return false
     inFlight.current = true
     setBusy(true)
-    const ok = await change(task, successText)
+    const ok = await change(task)
     inFlight.current = false
     setBusy(false)
     return ok
@@ -627,8 +590,8 @@ function MessageRow({
     setDraft(messageText(message.body))
     setEditLinks(
       messageParts(message.body).flatMap((part) =>
-        part.kind === "link" && message.links[part.taskId]
-          ? [{ id: part.taskId, title: part.name, projectId: message.links[part.taskId], projectName: "" }]
+        part.kind === "link" && message.links[part.linkId]
+          ? [{ id: part.linkId, title: part.name, projectId: message.links[part.linkId], projectName: "" }]
           : []
       )
     )
@@ -648,8 +611,7 @@ function MessageRow({
   async function remove() {
     const keepFiles = !dropFiles
     const ok = await work(
-      () => deleteChatMessage({ commentId: message.id, keepFiles }),
-      message.deleted ? `${plural(fileCount, "File")} deleted.` : "Message deleted."
+      () => deleteChatMessage({ commentId: message.id, keepFiles })
     )
     if (ok) setConfirmDelete(false)
   }

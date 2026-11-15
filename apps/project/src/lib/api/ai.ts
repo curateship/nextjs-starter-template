@@ -2,12 +2,8 @@ import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "./error-message"
 import { z } from "zod"
 
-import {
-  AI_PROVIDERS,
-  AI_USAGE_RANGES,
-  type AiProvider,
-  type AiUsageRange,
-} from "@/lib/ai/ai-models"
+import { AI_PROVIDERS, type AiProvider } from "@/lib/ai/ai-models"
+import { analyticsRangeSchema, type AnalyticsRange } from "@/lib/analytics/range"
 import {
   getAiKeyStatuses,
   removeAiKey,
@@ -27,14 +23,12 @@ import {
 } from "@/server/ai/usage"
 import { adminGet, adminPost, featureGet } from "@/server/guards"
 
-export { AI_USAGE_RANGES }
 export type {
   AiKeyStatus,
   AiKeyTestResult,
   AiProvider,
   AiUsageDashboard,
   AiUsagePersonRow,
-  AiUsageRange,
   MyAiRecentCall,
   MyAiUsage,
 }
@@ -56,13 +50,13 @@ export const getAiErrorMessage = createErrorMessage(
 
 const loadAiUsageDashboardFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .inputValidator(z.object({ range: z.enum(AI_USAGE_RANGES) }))
+  .inputValidator(z.object({ days: analyticsRangeSchema }))
   .handler(async ({ data }): Promise<AiUsageDashboard> => {
-    return loadAiUsageDashboardQuery(data.range)
+    return loadAiUsageDashboardQuery(data.days)
   })
 
-export function loadAiUsageDashboard(range: AiUsageRange) {
-  return loadAiUsageDashboardFn({ data: { range } })
+export function loadAiUsageDashboard(days: AnalyticsRange) {
+  return loadAiUsageDashboardFn({ data: { days } })
 }
 
 const providerSchema = z.enum(AI_PROVIDERS)

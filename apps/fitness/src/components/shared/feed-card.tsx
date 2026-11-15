@@ -1,10 +1,6 @@
 import * as React from "react"
 
-import {
-  DashboardCardHeader,
-  DashboardCardTitleHeader,
-  dashboardCardHeadingClassName,
-} from "@/components/shared/dashboard-card-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -67,69 +63,6 @@ function SampleBadge({ className }: { className?: string }) {
     >
       Sample
     </Badge>
-  )
-}
-
-/**
- * A card header whose right-hand side is a tab strip, drawn as the same pill
- * tabs every other tab group uses, in the card-header tab font. The count
- * beside the heading truncates rather than pushing the tabs off the card.
- * Same icon, heading and gutters as `CardTop`, so a row of cards still lines
- * up whether or not its header carries tabs.
- */
-export function CardHeaderRow({
-  icon: Icon,
-  title,
-  meta,
-  iconClassName,
-  children,
-  className,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  meta?: string
-  iconClassName?: string
-  /** The right-hand side — the tab strip. */
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    // On a phone the tabs take a row of their own under the title. Beside it,
-    // four pills leave the title two letters wide.
-    <DashboardCardHeader
-      className={cn("flex-wrap gap-2.5 sm:flex-nowrap", className)}
-    >
-      <span
-        className={cn(
-          "flex shrink-0 items-center text-muted-foreground",
-          iconClassName
-        )}
-        aria-hidden
-      >
-        <Icon className="size-4" />
-      </span>
-      <h2
-        className={cn(
-          "flex min-w-0 items-center truncate",
-          dashboardCardHeadingClassName
-        )}
-      >
-        {title}
-      </h2>
-      {meta ? (
-        <div className="flex min-w-0 items-center truncate text-xs text-muted-foreground">
-          {meta}
-        </div>
-      ) : null}
-      {/* As tall as the header's row, so underlined tabs reach out to the
-          header's bottom edge and their line sits on the divider. Only as
-          tall as the words, the line floated above it. On a phone the tabs
-          wrap onto a row of their own, and the same reach up would pull
-          underlined tabs into the title, so that row gets the room back. */}
-      <div className="flex w-full shrink-0 items-center self-stretch max-sm:has-[[data-slot=dashboard-tab-line]]:pt-3 sm:ml-auto sm:w-auto">
-        {children}
-      </div>
-    </DashboardCardHeader>
   )
 }
 

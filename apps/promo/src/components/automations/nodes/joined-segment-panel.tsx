@@ -1,3 +1,4 @@
+import { SlidersHorizontalIcon } from "lucide-react"
 import {
   InspectorCard,
   InspectorNote,
@@ -13,7 +14,7 @@ export default function JoinedSegmentFields({
   const { segmentId, segmentName } = readJoinedSegment(node.settings)
 
   return (
-    <InspectorCard title="Settings">
+    <InspectorCard icon={<SlidersHorizontalIcon />} title="Settings">
       <SegmentSelectField
         id={`joined-segment-${node.id}`}
         segmentId={segmentId}

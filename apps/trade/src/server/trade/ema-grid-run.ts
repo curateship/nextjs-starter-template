@@ -288,6 +288,7 @@ async function closeGridForFlip(
             tpPx: null,
             slPx: null,
             marketOnly: true,
+            aimedPx: "sent",
           })
         } catch (error) {
           // The paired stop was already confirmed cancelled. Leave its saved

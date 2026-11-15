@@ -29,7 +29,7 @@ export function isBanKind(value: unknown): value is BanKind {
  * The kinds that count toward a phone kept off an app (part 3), a proxy
  * refused (part 5) and the app-wide brake (part 11). Tyler's open question:
  * whether locked and "confirm it's you" screens count too. Until he answers,
- * they are recorded on the Bans dashboard and not counted. Changing this
+ * they are recorded in the Anti Detect dashboard's Bans and not counted. Changing this
  * list is the whole change.
  */
 export const COUNTED_BAN_KINDS: readonly BanKind[] = ["suspended", "restricted", "suspended_reading"]
@@ -75,7 +75,7 @@ export function halfOf(limit: number): number {
 /** Why an account's work waits while the app-wide brake is on (part 11). */
 export function brakeWords(app: string): string {
   const name = appName(app)
-  return `Two ${name} bans in a day paused every ${name} account. Release ${name} on the Bans dashboard once you have looked.`
+  return `Two ${name} bans in a day paused every ${name} account. Release ${name} in Waiting on you, on the Anti Detect dashboard's Overview, once you have looked.`
 }
 
 /** Why an account was retired (part 15). */

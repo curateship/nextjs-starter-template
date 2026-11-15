@@ -1,8 +1,8 @@
 import * as React from "react"
 import { Loader2Icon, ScissorsIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -122,9 +122,6 @@ export function JumpCutsDialog({
       }
       setFound(answer.suggestions)
       setKeep(new Set())
-      if (!answer.suggestions.length) {
-        toast.success("Nothing in that clip is worth taking out.")
-      }
     } catch (error) {
       showErrorToast(getAiToolErrorMessage(error))
     } finally {
@@ -135,11 +132,9 @@ export function JumpCutsDialog({
   function cut(cuts: JumpCutSuggestion[]) {
     if (!clipId) return
     if (!cuts.length) {
-      toast.success("Nothing in that clip is worth taking out.")
       onOpenChange(false)
       return
     }
-    const removedMs = cuts.reduce((total, one) => total + one.removedDurationMs, 0)
     dispatch({
       type: "APPLY_JUMP_CUTS",
       clipId,
@@ -149,9 +144,6 @@ export function JumpCutsDialog({
       })),
       rippleClipIds: [],
     })
-    toast.success(
-      `${cuts.length} ${plural(cuts.length, "cut", "cuts")} made - ${formatSeconds(removedMs)} shorter. Undo puts it back.`
-    )
     onOpenChange(false)
   }
 
@@ -189,9 +181,14 @@ export function JumpCutsDialog({
               >
                 <TabsList>
                   <TabsTrigger value="dead-air">Dead air</TabsTrigger>
-                  <TabsTrigger value="filler" disabled={!canUseWords}>
-                    Filler words
-                  </TabsTrigger>
+                  <DisabledReason
+                    disabled={!canUseWords}
+                    reason="Finding filler words needs a Gemini or OpenAI key. Add one on Settings, AI."
+                  >
+                    <TabsTrigger value="filler" disabled={!canUseWords}>
+                      Filler words
+                    </TabsTrigger>
+                  </DisabledReason>
                 </TabsList>
               </Tabs>
 

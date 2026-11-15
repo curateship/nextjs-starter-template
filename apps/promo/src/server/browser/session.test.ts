@@ -155,7 +155,7 @@ describe("looking after the browsers", () => {
     await db.update(promoProfiles).set({ proxyId: "dead" })
 
     await expect(ensureSession(userId, profileId, db)).rejects.toThrow(
-      "The proxy US-residential-3 failed its last test at 14:02. Test it on the Proxies dashboard."
+      "The proxy US-residential-3 failed its last test at 14:02. Test it in the Anti Detect dashboard's Proxies."
     )
     // Nothing was started, and the refusal is in the profile's history.
     expect(docker).not.toHaveBeenCalled()
@@ -275,7 +275,7 @@ describe("looking after the browsers", () => {
     const third = await createProfile(userId, { name: "Third" }, db)
 
     await expect(ensureSession(userId, third, db)).rejects.toThrow(
-      "2 browsers are open, which is the limit. Stop one on the Browser profiles dashboard, or raise the limit in Settings."
+      "2 browsers are open, which is the limit. Stop one in the Anti Detect dashboard's Profiles, or raise the limit in Settings."
     )
     const rows = await db.select().from(promoBrowserSessions)
     expect(rows.filter((each) => each.profileId === third)).toHaveLength(0)

@@ -3,6 +3,10 @@
 One line per doc. The repo's `docs/` covers what is true of every app; these
 cover this one.
 
+- [The Flowfly admin dashboard](admin-dashboard.md). Every Pomodoro admin
+  page as one three-panel dashboard at `/admin/flowfly`: seven sections with
+  their lists as tabs, each row's record on the right, Waiting on you, the
+  Overview widgets, and where the old `/admin/pomodoro-*` addresses go.
 - [The product shell](product-shell.md) — the `_pomodoro` layout: the app's
   own sidebar, header and settings page; the admin chrome is never the
   frontend.
@@ -24,9 +28,14 @@ cover this one.
   background tab, and how both go back on stop.
 - [Zen mode](zen-mode.md) — the fullscreen timer: the ring, the phase and
   the task name, how you get in and out, and why the countdown never notices.
+- [The floating timer](floating-timer.md) — the small window on top of your
+  other apps, opening by itself when a focus starts, the switch for it in
+  Settings → Timer, Chrome, Edge and Arc only.
+- [The timer inside Notion](embed-timer.md) — `/embed/timer` for a Notion
+  embed block, always a guest timer, and why nothing about framing changed.
 - [Tasks](tasks.md) — today's plan and the six days after it: create,
   inline edit, drag to reorder, complete and abandon, the focus task the
-  timer counts on, the repeat rule, steps inside a task, and tags.
+  timer counts on, the repeat rule, steps inside a task, tags and due dates.
 - [Projects](projects.md) — grouping tasks at the level people bill at, an
   hours target per week or month, what archiving does, and the per-project
   split in Stats.
@@ -108,7 +117,8 @@ cover this one.
   with the one you are in lit, shared timers with a host, the Rhythm preset
   picker in Host a room, the fifteen-second
   server clock, SSE snapshots, invite links, the task beside a member's name,
-  saved rooms, and who you focus with.
+  the tick before a room starts, "Did you finish?" after a focus, saved
+  rooms, and who you focus with.
 - [Scheduled rooms](scheduled-rooms.md) — booking a room for later or every
   week, the invitation emails, and the worker that opens the room on time.
 - [Room chat and moderation](room-chat-and-moderation.md) — talking in a
@@ -127,10 +137,10 @@ cover this one.
 - [Backgrounds and sounds in the admin](catalog-admin.md) — the catalogue in the
   database, the Backgrounds and Sounds dashboards, the window, the 2-to-5-minute
   rule, uploads and the worker, and what members fall back to.
-- [Admin sections](admin-sections.md) — every Pomoder operator page under
-  `/admin`, from focus data and the report queue to member profiles, uploads,
-  badges, groups and projects, and what each delete takes with it.
-- [Members in the admin](admin-members.md) — the window a member's name opens
+- [Admin sections](admin-sections.md). What each Flowfly list does, from
+  focus data and the report queue to member profiles, uploads, badges, groups
+  and projects, and what each delete takes with it.
+- [Members in the admin](admin-members.md). The record a member's name opens
   on any admin list, fixing a broken streak day without touching hours or the
   leaderboard, and the private admin notes.
 - [Made-up members](made-up-members.md) — the accounts that focus every day
@@ -157,3 +167,4 @@ cover this one.
 - [Launching Pomodoro](launch.md) — the two Coolify resources, every value and
   who supplies it, the HTTPS requirement, making the first admin, the live
   walk-through, and what the 8 Oct 2026 laptop dry run proved.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, Undo bars included.

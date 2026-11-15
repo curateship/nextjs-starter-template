@@ -1,7 +1,6 @@
 import * as React from "react"
 import { CreditCardIcon, PlusIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "lucide-react"
 import { useRouter } from "@tanstack/react-router"
-import { toast } from "sonner"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -239,7 +238,6 @@ export function FeaturedDashboard({
           await removeFeaturedPlan(deletePlan!.id)
           setDeletePlan(null)
           await router.invalidate()
-          toast.success("Featured plan deleted.")
         })}
       />
       <ConfirmDialog
@@ -253,7 +251,6 @@ export function FeaturedDashboard({
           await revokeFeatured(revoke!.id)
           setRevoke(null)
           await router.invalidate()
-          toast.success("Featured placement revoked.")
         })}
       />
     </>
@@ -454,7 +451,6 @@ function FeaturedPlanDialog({
             })
             onClose()
             onSaved()
-            toast.success(plan ? "Featured plan saved." : "Featured plan created.")
           })}>{plan ? "Save changes" : "Create plan"}</Button>
         </DialogFooter>
       </DialogContent>}

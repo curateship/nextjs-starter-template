@@ -263,3 +263,50 @@ describe("the chart price type", () => {
     )
   })
 })
+
+describe("the remembered view", () => {
+  it("is saved when a hand moves the chart, never when only its box changes size", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance"],
+    })
+    vi.advanceTimersByTime(10_000)
+    const onViewChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <PriceChart
+          candles={candles}
+          options={DEFAULT_CHART_OPTIONS}
+          viewKey="BTC@15m"
+          onViewChange={onViewChange}
+        />
+      )
+      await Promise.resolve()
+    })
+    // Past the frame this component sets itself.
+    await act(async () => vi.advanceTimersByTime(500))
+    const repaint = engine.series[0].attachPrimitive.mock.calls[0][0] as {
+      updateAllViews: () => void
+    }
+    // A plot from $130 down to $80, so the candles ($90 to $116) sit inside it.
+    engine.series[0].coordinateToPrice.mockImplementation((y: number) => 130 - y / 10)
+    const moveTo = async (from: number, to: number) => {
+      engine.timeScale.getVisibleLogicalRange.mockReturnValue({ from, to })
+      engine.timeScale.logicalToCoordinate.mockImplementation((bar: number) => bar * (10 + from))
+      await act(async () => {
+        repaint.updateAllViews()
+        vi.advanceTimersToNextFrame()
+      })
+    }
+
+    // The box narrows, as a phone turning or Safari's bar showing does.
+    vi.advanceTimersByTime(5_000)
+    await moveTo(0, 4)
+    expect(onViewChange).not.toHaveBeenCalled()
+
+    // A finger drags the chart: that one is somebody's view.
+    const box = host.querySelector<HTMLElement>(".absolute.inset-0")!
+    box.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+    await moveTo(1, 5)
+    expect(onViewChange).toHaveBeenCalledTimes(1)
+  })
+})

@@ -23,13 +23,11 @@ import { projectNoticeLinks, projectTasks } from "@/server/project/schema"
 import { moveTask } from "@/server/project/task-changes"
 import { sendMessage } from "@/server/project/task-chat"
 import {
-  addStep,
   createTask,
   deleteTask,
   loadMyWork,
   loadTaskDetail,
   setTaskStatus,
-  updateStep,
   updateTask,
 } from "@/server/project/tasks"
 import { loadTeamDay } from "@/server/project/team-days"
@@ -75,7 +73,7 @@ async function task(title: string, assignee: CustomShellUser | null = ben, proje
   return (
     await createTask(
       actor(anna),
-      { projectId, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate: null, steps: [] },
+      { projectId, title, notes: "", assigneeUserId: assignee?.id ?? null, dueDate: null },
       database
     )
   ).id
@@ -94,8 +92,6 @@ describe("repeating tasks", () => {
   it("makes one fresh copy each Monday once the last one is Done, with the rule moving to it", async () => {
     const first = await task("Send the client report")
     await madeOn(first, "2099-02-20T10:00:00Z")
-    const step = await addStep(actor(anna), { taskId: first, text: "Attach figures" }, database)
-    await updateStep(actor(anna), { stepId: step.id, done: true }, database)
     await setRepeat(actor(anna), { taskId: first, repeat: { every: "week", weekDays: [1] } }, database)
 
     // Not Done yet, so Monday passes with no copy (Tyler's rule).
@@ -116,7 +112,6 @@ describe("repeating tasks", () => {
     expect(copy.waiting).toBe(false)
     expect(copy.repeat).toEqual({ every: "week", weekDays: [1] })
     expect(page.tasks.find((t) => t.id === first)!.repeat).toBeNull()
-    expect((await loadTaskDetail(anna.id, copy.id, database)).steps.map((s) => s.done)).toEqual([false])
   })
 
   it("stops when the newest copy is deleted", async () => {
@@ -204,7 +199,7 @@ describe("Just me tasks", () => {
   it("can't be opened by anyone else on the team, only the site admin, and read as a personal task on the Team dashboard", async () => {
     const { id } = await createTask(
       actor(ben),
-      { projectId: PERSONAL_PROJECT_ID, title: "Book the dentist", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId: PERSONAL_PROJECT_ID, title: "Book the dentist", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     expect((await loadMyWork(ben.id, database)).map((t) => t.title)).toEqual(["Book the dentist"])
@@ -229,7 +224,7 @@ describe("Just me tasks", () => {
   it("can be moved into a project later", async () => {
     const { id } = await createTask(
       actor(ben),
-      { projectId: PERSONAL_PROJECT_ID, title: "Draft the FAQ", notes: "", assigneeUserId: ben.id, dueDate: null, steps: [] },
+      { projectId: PERSONAL_PROJECT_ID, title: "Draft the FAQ", notes: "", assigneeUserId: ben.id, dueDate: null },
       database
     )
     await moveTask(actor(ben), { taskId: id, projectId: website }, database)

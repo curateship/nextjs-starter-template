@@ -8,16 +8,66 @@ screen built this way, and every app gets them with its next shell merge.
 
 All of them are in `src/components/shared/`.
 
-- **`three-panels.tsx`, `ThreePanels`.** The layout: left 16%, middle 68%,
-  right 16%; each side opens at the narrowest it can be dragged to (Tyler, 31
-  Oct 2026: "The default width needs to be the narrowest width the panel
-  have"). A side panel drags shut, comes back from a tab on the middle
-  panel's edge, and a double-click on blank space toggles it. Widths are kept
+- **`three-panels.tsx`, `ThreePanels`.** The layout: left 10%, middle 78%,
+  right 12% (Tyler, 9 Nov 2026: "default 14% on left and 16% on right", then
+  "Set left side panel narrowest default to 10%"; 10 Nov 2026: "the right
+  panel width 16px is default. Make default 12px", meaning the 16%; both
+  sides 16% before 9 Nov). Each side's default is also the narrowest it drags to,
+  as Tyler has wanted since 31 Oct 2026 ("The default width needs to be the
+  narrowest width the panel have"; 9 Nov: "cannot go lower than that").
+  Admin → Styling → Side panels can open them wider, up to 36%
+  each (Tyler, 9 Nov 2026; the app's `workspace/docs/settings/side-panel-widths.md`).
+  The settings save accepts the same 12% floor for the right width
+  (`src/lib/api/shell-settings.ts`). Until 11 Nov 2026 it still said 16%, so
+  every Styling save with the right width at 12 to 15% was refused with a raw
+  "too_small" message.
+  A side panel drags shut, comes back from a tab on the middle
+  panel's edge, and a double-click on blank space toggles it. Folding or
+  opening slides over 240ms (`usePanelFold` in `src/lib/layout/panel-collapse.ts`,
+  used by `ThreePanels` and the page and automation editors), rather than
+  snapping and jumping again a frame later as the gap closed (Tyler, 11 Nov
+  2026: "make it smooth"); a dragged divider still follows the pointer at once.
+  Widths are kept
   in the browser under a key listed in `panelLayoutKey`
   (`src/lib/layout/panel-layout.ts`). Under 1280px one panel shows at a time
   under a row of pills, and all three stay mounted. `showRightFor` switches a
   narrow screen to the right panel when a record opens; `showMiddleFor` does
-  the same for the middle.
+  the same for the middle. Leaving `right` out makes two panels, the middle
+  taking the right one's room, and `middle.bare` draws the middle with no
+  card, its content straight on the page (Admin's Overview, 8 Nov 2026). A
+  screen that switches between two and three panels keeps a layout key for
+  each. `reopenInHeader` takes away the knobs on the middle's edge;
+  the middle's header then draws `PanelReopenButton`s (Lucide's
+  PanelLeftDashed first, PanelRightDashed last), which show only while that
+  side is shut (Admin, 8 Nov 2026, then the CRM). `CrmListHeader`'s `end`
+  slot holds the right one. `MiddleHeading` draws the left one, then a
+  section's icon and name, and `middleGutterClassName` sets the middle's
+  24px left and right on its header and table, both in `three-panels.tsx`.
+  A price chart's cells are left out: the chart library draws inside a
+  table of its own, and padding it moved the candles 24px right of the
+  arrows drawn over them (Tyler, 11 Nov 2026: "the arrow is floating outside
+  of its trade candle").
+- **One frame for a dashboard of sections.** The Admin dashboard and the CRM
+  each keep one `ThreePanels` while their section changes; a section draws
+  its middle in place, its record into a spot in the right panel through a
+  portal, and tells the frame its rows, so the left page and its ⋮ never
+  draw again on a switch (`TabPanels` in `admin-dashboard.tsx`,
+  `crm-frame.tsx`). `place.section` names the section showing, so
+  `useDashboardPlace` treats each new one as an arrival and opens its first
+  row, as it did when each section had a frame of its own.
+- **`SidePanelCollapseButton`, in `three-panels.tsx`.** The collapse button at
+  a side panel header's outer edge (the Admin 3 panel design; Tyler, 7 Nov
+  2026: "add a collasible icon here to collapse the left panel"). Put it
+  first in the left header and last in the right one. It shuts the panel the
+  way a double-click on blank space does. It draws nothing under 1280px,
+  where one panel shows at a time.
+- **`SideTogglesProvider`, in `three-panels.tsx`.** For an app whose screen
+  keeps a three-panel frame of its own, such as Project's
+  (`apps/project/src/components/project/three-panels.tsx`, which has a
+  phone tab more and a remembered task instead of `place`). The frame
+  provides each side's press and whether it is shut, and the two buttons
+  above then work in it unchanged, so the app never redraws them (9 Nov
+  2026, Project's shell look).
 - **`ThreePanels`' `place`, read by `useDashboardPlace`
   (`src/lib/layout/dashboard-place.ts`).** Required. It takes a key from
   `panelLayoutKey` named `…Place`, the route's own `useSearch()`, and the ids
@@ -34,15 +84,59 @@ All of them are in `src/components/shared/`.
   belong to the address before the last change. The first row waits for it,
   so a remembered folder never opens a row from the folder it replaced.
   Note's library dashboard is the one that does.
+- **`crm-table.tsx`, `CrmTableRow`'s buttons.** A row ends in a cog, which
+  opens the row, and a bin when the app passes `onDelete`. `cog` gives the
+  cog another job and name and, with `icon`, another picture.
+- **A row press goes to the record's own dashboard; the cog opens the right
+  panel** (Tyler, 14 Nov 2026: "clicking on the table item should always
+  lead to another dashboard (if there is one) and the cog icon should always
+  open up the right panel"). A row whose record has a dashboard of its own (a
+  page's builder, a flow's canvas, a backtest's chart) opens it on a press,
+  and its cog shows the record on the right. A row with no dashboard of its
+  own opens on the right either way. Pages, Video's Flows, and Trade's
+  Recipes and Backtests follow it. `buttons` adds icon buttons between the cog and the bin.
+  Trade's Backtests rows use both: a chart that opens the run's chart and a
+  recipe icon that opens its recipe (Tyler, 11 Nov 2026).
+  A long name in `MainCell` is cut short rather than widening the table, so
+  the buttons at the row's end stay in view. It is clamped to one line, not
+  given no width, so the column still sizes to the whole name when there is
+  room: with no width of its own the column fell to its 160px floor and the
+  Users table read "Bet..." (Tyler, 11 Nov 2026).
+- **Cards and blocks in a side panel sit flush, one under the next** (Tyler,
+  11 Nov 2026: "remove the spacing here for the right panels", then "the same
+  for left panels too"). `PANEL_GUTTER` keeps its 15px at the panel's edges
+  and has no gap between cards, the automation step panel likewise, and two
+  "/" blocks in a row on a left page lose the 15px between them
+  (`saving-document.tsx`); a block next to written text keeps it.
+- **The first card or block sits straight under the panel's header**, left
+  and right (Tyler, 11 Nov 2026: "remove this spacing here", "for both left
+  and right panels"). `PANEL_GUTTER` has no top padding, nor does the
+  automation step panel, and a left page that opens with a block drops the
+  writing area's 15px top edge; a page that opens with written text keeps it.
+- **Every card in a right panel has an icon** before its title (Tyler, 11 Nov
+  2026, after Trade's details panel): `PanelCard`, the automation step
+  `InspectorCard` and the shared `InspectorCard` (used by the email and page
+  editors) all take `icon`.
+- **A ⋮ in a panel header sits 24px from the icons beside it.** Its dots are
+  narrower than an icon, so `DashboardCardHeader` pulls any button marked
+  `data-more-button` (the `TabbedMenu` trigger) 6px into the gap on each side
+  (Tyler, 11 Nov 2026: "the icon spacing of the right panel has to match with
+  the spacing from the middle panel").
 - **`panel-card.tsx`, `PanelCard` and `PanelHeading`.** The grey folding card
   of a side panel, which remembers being open or shut, with a muted note after
-  its title, a badge, a button of its own and a footer of buttons. Its cog, its own buttons and its fold arrow show only while the card is
+  its title, a badge, a button of its own and a footer of buttons. Its cog and its own buttons show only while the card is
   pointed at or focused (Tyler, 20 Oct 2026: "all these should be hover to
   show only"); always on a phone. Hidden, they take no room, so a title has
   the card's whole width in a narrow side panel and is cut short only while
   the card is pointed at (Tyler, 5 Nov 2026, of Promo's network cards
   reading "Reddi..."); before that they were see-through and still held
   their place.
+  It has no fold arrow: pressing the heading folds and opens the card
+  (Tyler, 11 Nov 2026: "remove the arrow toggle").
+  Inside an `InspectorCollapseAllProvider` it also folds or opens with the
+  panel header's `InspectorCollapseAllButton`, as `InspectorCard` does
+  (`useCollapseAllCommand`, 10 Nov 2026, first for Trade's open backtest and
+  bot, whose header button reads "Shut every card" through its `noun`).
   `icon` draws a 16px mark before the title, such as a network's on Promo's
   network cards. `openWhen` opens a folded card each time it turns true,
   whatever was remembered, so a row picked from elsewhere (a notice's link)
@@ -76,7 +170,7 @@ All of them are in `src/components/shared/`.
 
 - **`dashboard-tabs.tsx`, `DashboardTabs` and `DashboardTabButton`.** The tabs
   in a panel header, with a count after the word. They are drawn the way
-  Settings → Styling → **Dashboard tabs** says for the whole site: the grey
+  Admin → Styling → **Dashboard tabs** says for the whole site: the grey
   pills, or words with a line under the one showing. Tyler, 20 Oct 2026: "Line
   tab or pill tabs should be a choice all apps can make", with pills for a
   site that never chose. Either way the marker slides to the tab picked, on
@@ -85,11 +179,9 @@ All of them are in `src/components/shared/`.
   `DashboardTabButton` is a control drawn as one more tab, such as Project's
   More dropdown. The setting is `ShellStyling.dashboardTabs`
   (`src/lib/layout/styling-values.ts`), optional, so a site saved before it
-  existed reads as pills. The CRM inbox's All / Unread uses it too, and so do
-  the Overview widgets' tabs (Activity, Visitors over time, People joining),
-  which pass `tabClassName` to keep the smaller card-header font. Tyler, 4 Nov
-  2026: "wire the dashboard widgets tabs to the settings tab styling". In a
-  widget header the tabs' box is as tall as the header row, so the line sits on
+  existed reads as pills. The CRM inbox's All / Unread uses it too. Tyler,
+  4 Nov 2026: "wire the dashboard widgets tabs to the settings tab styling". In
+  a card header the tabs' box is as tall as the header row, so the line sits on
   the header's bottom divider ("border to be at the edge").
 - **`saved-views.tsx`, `SavedViewsControls` and `SaveViewDialog`.** Views: a
   person's own named filters on one dashboard, the Views button with its menu
@@ -127,6 +219,10 @@ All of them are in `src/components/shared/`.
 - **Contacts, `/admin/contacts`.** Every piece above.
   `src/components/broadcasts/contacts-dashboard.tsx` is the place to start
   reading.
+- **The CRM, `/admin/crm`.** `ThreePanels`, `SidePanelCollapseButton`,
+  `DashboardTabs`, `FilterPopover`, `SelectedMenu` and the page pieces in
+  `page-blocks.md`, since 7 Nov 2026.
+  `src/components/crm/crm-workspace.tsx` is the place to start reading.
 - **Video's Viral project, `/admin/video-viral/<id>`.** `ThreePanels`,
   `PanelCard`, `DashboardTabs`, `SearchToggle`, `FilterPopover`, mass select,
   `NewRecordDropdown` (the Creators card's +) and saved views, since 20 Oct

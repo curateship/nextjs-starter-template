@@ -45,51 +45,62 @@ screen: anything not written there has not been agreed yet.
   wallets or a fixed amount, what the header button says, what counts as money
   made today, and how often the exchanges are asked.
 
-- `market-scanner.md` — the scanner behind the radar button in the chart header, its count of new matches, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
+- `market-scanner.md` — the Scanner block on the dashboard's left page, its count of new matches, account settings, rolling price-rise rules, retained detections, manual deletion, volume and volatility calculations, and testing steps.
 - `market-explorer.md` — Markets across exchanges, live estimates, filters,
   standard table header, saved views, grouping, folder stars, discovery filters,
   pins, map, first-seen migration verification, audit coverage and the Moving now widget.
 - `market-search.md` — the header's search field: every exchange's market list
   searched at once, what a row says, how the rows are ordered, mainnet only, and
   what happens when an exchange will not answer.
-- `pnl-page.md` — the P&L page at `/pnl`: the whole Journal read-only, the
-  month grid on the Toronto clock, the three period windows, the five pattern
-  groupings, what the AI score sends to the model and how long it is kept.
 
 - `dialog-button-wording.md` — Save changes for wallet edits, Create folder in
   both folder forms, and primary Done in folder management.
-- `who-can-open-a-protocol-screen.md` — the protocol screens sit outside
-  `/admin` so a member can open one, the address of each, why protocol rather
-  than exchange, why there is one address rather than one per role, and what
-  stays admin-only.
-- `dashboard-on-a-phone.md` — the exchange dashboard below 768px: the one-row
-- [The active trades button](screens/active-trades-button.md) — click to open, why the table fits exactly, and why it never shows two dashes.
-  market header, the three-dot sheet holding Indicators, Wallet, Alerts, Pin to
-  top, Watchlists and Contract info, the pinned markets and figures in the
-  header's own three-dot dropdown, and the three tables that slide up over the
-  chart instead of sitting under it.
-- `workspace.md` — the trading workspace: its panels, the Positions tab, Close
-  all, Long/Short badge columns, and where the navigation lives.
-- `trading-overview.md`: visible profit date labels and empty-history explanations; the signed-in home page and its Active trades menu,
-  including matching tab widths, waiting-order distances, scrolling, loading and failed reads.
-  Panels size to content, with bottom panels filling spare space and no draggable dividers.
-  Widgets retains its loading card and collapses Reset with the body.
+- `who-can-open-a-protocol-screen.md` — the Trade dashboard at `/trade` sits
+  outside `/admin` so a member opens it, Overview included, why one address
+  serves every protocol, and what stays admin-only.
+- `bots-dashboard.md` — the Bots dashboard at `/bots` (9 Nov 2026): Recipes,
+  Backtests and Bots in one 3 panel dashboard with an Overview, the left page
+  that never changes, a line opened in the middle (a chart, or the recipe's
+  step list and canvas), Result and Trades cards on the right with a coin's
+  trades in a pinnable popover, admins only, and where the old links went.
+- `no-success-toasts.md` — nothing pops up when something works (Tyler, 10
+  Nov 2026); errors and part-done results still do, and which ones those are.
+- [The active trades button](screens/active-trades-button.md) — click to open, the panel sized to its table, tabs that follow the Dashboard tabs setting, the ⋮ that hides columns, why it never shows two dashes, and the one read it shares with a phone's Positions panel.
+- `trade-details-panel.md` — the Trade dashboard's right panel (10 Nov 2026):
+  what the chart, Positions and Journal tabs open in it, every grid sale read
+  from the server, who placed a trade, the footer buttons, right-click and
+  Mass select, and the Journal's Placed by filter and Hide practice switch.
+- `dashboard-blocks.md` — the one Trade dashboard at `/trade` (8 Nov 2026):
+  the left page with the fixed Protocols block (Overview and each exchange,
+  with open positions counts, hidden from the ⋮), the trading blocks, Overview
+  of widgets in the shell's rows, the chart tab's "i" and the ⋮'s Folders and
+  Pin to top, no right panel on Overview, and the one Trade link in the left menu.
+- `dashboard-on-a-phone.md` — the Trade dashboard under 1280px: the bottom
+  bar's Left panel, Positions, Browse and Right panel sliding up over the
+  chart, the top row and the tables.
+- `workspace.md` — the trading workspace: its panels, the Positions tab (every
+  position, Grid and DCA badges), Close all, Long/Short badge columns, and
+  where the navigation lives.
+- `trading-overview.md` — Overview's six widgets on the Trade dashboard: PnL
+  Graph's dates and figures, Active Trades, Running bots, Profit calendar and
+  All trades, their fifteen-second read, the shell's rows they sit in, and the
+  header's Active trades menu.
 - `engine-settings.md` — the trading engine settings screen, 30-day outage history,
   engine errors, and the health notices it raises.
 - `market-list.md` — per-protocol market memory, remembered picker filters, the market list, compact three-column pinned picker,
   checkbox filters, labelled search input, narrow-screen Testnet warning and the Manual orders panel.
-- `panels-and-loading.md` — shared Reading labels and spinners; content-based order-panel sizing where the spare column height goes to the longer of Smart orders and Manual orders, the View options "Hide on empty" switch that takes an empty Grid, DCA or Manual orders panel out of the column, the trade-count row with Value and PnL sums under each of those three tables, how panels behave, narrow screens, stand-in
+- `panels-and-loading.md` — shared Reading labels and spinners; the trade-count row with Value and PnL sums under the Grid, DCA and Manual tables, how panels behave, narrow screens, stand-in
   figures, empty states, loading, and live prices.
 - `rules-everywhere.md` — the interaction rules that hold on every screen.
   The Testnet warning remains in the market header.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
   every number, the text scale, the small badge every table shares, and what an
   open position has cost in fees.
-- `bottom-panel-tables.md` — pinned totals including projected profit and fees for visible Positions and Open orders,
+- `bottom-panel-tables.md` — the middle panel's tables: pinned totals including projected profit and fees for visible Positions and Open orders,
   and the one frame shared by Positions, Open orders and
   the Journal, the safety rules its empty and failed rows keep, and the separate warnings
   for missing position stops and watched stops.
-- `market-folders.md` — the folder dropdown visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
+- `market-folders.md` — the Folders block's visibility, full-width rows and scrolling; how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
 - `notices.md` — stable stop and target notices across split fills and recovery; one per order with total dollars and weighted
   average price, how pushed fills and recovery avoid repeats, what a flow says when it stops or goes quiet on its own, and
@@ -109,25 +120,10 @@ screen: anything not written there has not been agreed yet.
   permanent record binning and deleting cannot touch, the ownership check
   and what "checked by Trade" means, how far back each exchange goes, the
   figures and the leaderboard minimums.
-- `social-feed.md` — the feed at `/social`: three panels, creators in folders
-  on the left, every tracked creator's posts in the middle, the coins they
-  name on the right, the three narrowings and their chips, and the folder
-  rules (Everyone, the eye, a creator in several folders).
-- `every-creator.md` — the table at `/social/manage`: what each row says, what
-  the search reads, what the filters mean, why "gone quiet" is 30 days,
-  deleting one creator or many and what gets let go with them, and why the
-  table, the feed and a creator's dashboard are separate screens.
-- `social-dashboard.md` — the creator dashboard at `/social/<handle>`: the
-  three panels, opening one post in a window and why a long one arrives cut,
-  adding a creator from an address or a handle, where the
-  follower count and the links come from, what Sync profile reads off the
-  public X page, how the coins a post names are counted, and why posts are
-  held once per member.
-- `which-coins-a-post-names.md` — how Trade reads a post's words and works out
-  which markets it is about: the three match rules, the words that are never a
-  market and why each is on that list, why only markets Trade lists can be
-  matched, the stocks switch and what a shut market's price is, and what
-  Re-read coins does.
+- Social, the screens for following X creators (`/social`, `/social/manage`
+  and `/social/<handle>`), was removed on 9 Nov 2026 along with its four docs.
+  Migration 0240 deleted its saved creators and posts, and the P&L page's
+  saved AI scores, in the release after the code went.
 - `copy-a-trader.md` — following and copying a trader: who can be copied, how
   a trade is heard and copied, every skip and pause rule, the 0.1% fee and the
   trader's half, the fee on each exchange with its source, the fee record and
@@ -152,12 +148,15 @@ screen: anything not written there has not been agreed yet.
   why the stocks are switched off.
 - `wallet-checker.md` — `/tools/wallet-checker`: where any Hyperliquid
   wallet's history comes from, how far back Hyperliquid will go, the counting
-  it shares with the P&L page, and the limits that keep it off the trading's
+  it shares with the month grid, and the limits that keep it off the trading's
   request budget.
 
 ## charts/ — the chart itself
 
 - `drawing.md` — levels, trendlines and TradingView-style fib retracements, by mouse and by touch.
+- `chart-on-a-narrow-screen.md` — under 1280px: the chart's own remembered
+  zoom that fills a phone, prices without cents from $1,000 up, and grid levels
+  that show their dollars and × only when tapped.
 - `smart-tools.md` — break-then-retest stages, resets and testing steps; custom-day and line-end alert expiry, retry errors and testing steps, grid stop links and alerts carried by drawn lines: Alert on for new lines,
   the remembered on/off choice, the cog, the alert
   window, every way into it without a mouse, naming a line, the bell and the
@@ -313,8 +312,9 @@ always used.
   catalogue size, the figures its public API does not state, and how each
   coin's leverage ceiling is read with a connected wallet's keys.
 - `dukascopy.md` — the stock, index, metal and currency-pair history feed:
-  instrument naming, start dates, bid prices, hours, volume, request pacing
-  and the measured numbers from the build.
+  instrument naming, start dates, bid prices, hours, volume, request pacing,
+  the firewall check that needs dukascopy-node 1.51.1 or later, and the
+  measured numbers from the build.
 - `lighter.md` — Lighter's markets, charts and hourly funding: why 18 listed
   markets are left out, how far its three prices ran from the other four
   venues, what a minute of reading costs against its sixty-a-minute cap, why

@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -53,19 +52,7 @@ export function BlockedSendersCard() {
       return
     }
 
-    // The sentence says which of the two happened, because pressing Block on
-    // somebody already blocked is not a failure and not a second row.
-    const done = await run(async () => {
-      const { pattern: saved, added } = await blockAddress(
-        typed,
-        note.trim() || undefined
-      )
-      toast.success(
-        added
-          ? `Mail from ${saved} will not reach the inbox.`
-          : `${saved} was already blocked.`
-      )
-    })
+    const done = await run(() => blockAddress(typed, note.trim() || undefined))
     if (!done) return
     setPattern("")
     setNote("")
@@ -75,10 +62,7 @@ export function BlockedSendersCard() {
   const remove = async (row: BlockedSender) => {
     setRemovingId(row.id)
     try {
-      const done = await run(
-        () => unblockAddress(row.id),
-        `${row.pattern} is unblocked. Their next message lands in the inbox.`
-      )
+      const done = await run(() => unblockAddress(row.id))
       if (done) reload()
     } finally {
       setRemovingId(null)

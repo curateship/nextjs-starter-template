@@ -1,6 +1,18 @@
 import { eq, sql } from "drizzle-orm"
 
-import { parseMarketKey, type ProtocolId } from "@/lib/protocols/contracts"
+import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import {
+  hasDashboard,
+  parseMarketKey,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
+import {
+  isDashboardView,
+  OVERVIEW_VIEW,
+  readHiddenProtocols,
+  readProtocolOrder,
+  type DashboardView,
+} from "@/lib/trade/dashboard-view"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import { readChartOptions, type ChartOptions } from "@/lib/trade/chart-options"
 import {
@@ -12,8 +24,7 @@ import { readGoal, type Goal } from "@/lib/trade/goal"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
 import {
-  normalizeTradingDashboardWidgets,
-  type TradingDashboardWidgetLayout,
+  readTradingWidgetLayout,
 } from "@/lib/trade/dashboard/widgets"
 import {
   readQuickOrderPrefs,
@@ -28,20 +39,18 @@ import type { TradeSoundSettings } from "@/lib/trade/trade-sounds"
 import {
   emptyTradePanelLayouts,
   marketPanelScopeKey,
-  MAX_NAMED_PANEL_LAYOUTS,
-  matchingPanelLayout,
   readOpenMarketRows,
   readChartToolbarPosition,
-  type ChartToolbarPosition,
+  readJournalView,
   readTradePanelLayouts,
   type MarketPanelScope,
   type TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
 import {
-  type TradePanelLayoutKey,
-  tradePanelIds,
-  tradePanelLayoutKey,
-} from "@/lib/trade/panel-keys"
+  isTradesPopoverColumn,
+  readHiddenTradeColumns,
+  type TradesPopoverKind,
+} from "@/lib/trade/trades-popover-columns"
 import {
   minimumMarketVolumeSchema,
   readMinimumMarketVolume,
@@ -323,37 +332,6 @@ export async function saveLineAlertsPaused(
   return paused
 }
 
-/**
- * Whether Social reads stocks, metals and currencies out of a post's words as
- * well as coins. Off until chosen, and a missing row means off.
- */
-export async function loadSocialMatchStocks(
-  userId: string,
-  database: CustomShellDb = db
-): Promise<boolean> {
-  const [row] = await database
-    .select({ stocks: tradePrefs.socialMatchStocks })
-    .from(tradePrefs)
-    .where(eq(tradePrefs.userId, userId))
-    .limit(1)
-  return row?.stocks ?? false
-}
-
-export async function saveSocialMatchStocks(
-  userId: string,
-  stocks: boolean,
-  database: CustomShellDb = db
-): Promise<boolean> {
-  await database
-    .insert(tradePrefs)
-    .values({ userId, socialMatchStocks: stocks, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: tradePrefs.userId,
-      set: { socialMatchStocks: stocks, updatedAt: new Date() },
-    })
-  return stocks
-}
-
 /** Remember both independent account-wide sound choices. */
 export async function saveTradeSoundPreferences(
   userId: string,
@@ -422,32 +400,148 @@ export async function saveLastWalletId(
     })
 }
 
-/** The trading dashboard arrangement, separate from the platform Overview. */
-export async function loadTradingDashboardWidgets(
+/**
+ * The Trade dashboard's Overview widgets, one layout per person, kept apart
+ * from the shell's Admin Overview. Nothing saved is the starting layout.
+ */
+export async function loadTradingOverviewWidgets(
   userId: string
-): Promise<TradingDashboardWidgetLayout> {
+): Promise<WidgetLayout> {
   const row = await db
-    .select({ dashboardWidgets: tradePrefs.dashboardWidgets })
+    .select({ overviewWidgets: tradePrefs.overviewWidgets })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  return normalizeTradingDashboardWidgets(row[0]?.dashboardWidgets)
+  return readTradingWidgetLayout(row[0]?.overviewWidgets)
 }
 
-/** Remember the complete arrangement against this account. */
-export async function saveTradingDashboardWidgets(
+/** Remember the whole layout against this account, cleaned, and answer with what was stored. */
+export async function saveTradingOverviewWidgets(
   userId: string,
   value: unknown
-): Promise<TradingDashboardWidgetLayout> {
-  const dashboardWidgets = normalizeTradingDashboardWidgets(value)
+): Promise<WidgetLayout> {
+  const overviewWidgets = readTradingWidgetLayout(value)
   await db
     .insert(tradePrefs)
-    .values({ userId, dashboardWidgets, updatedAt: new Date() })
+    .values({ userId, overviewWidgets, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { dashboardWidgets, updatedAt: new Date() },
+      set: { overviewWidgets, updatedAt: new Date() },
     })
-  return dashboardWidgets
+  return overviewWidgets
+}
+
+/**
+ * Where a bare `/trade` opens: the Protocols block's row picked last, the
+ * exchange picked last (whose blocks Overview keeps showing), and the
+ * exchanges hidden from the block. A value this build does not know reads
+ * as nothing saved.
+ */
+export type TradeDashboardStart = {
+  view: DashboardView | null
+  protocol: ProtocolId | null
+  hiddenProtocols: ProtocolId[]
+  /** Every exchange, in the order dragged in the block's ⋮. */
+  protocolOrder: ProtocolId[]
+  /** "Hide empty blocks", off until switched on. */
+  hideEmptyBlocks: boolean
+}
+
+export async function loadTradeDashboardStart(
+  userId: string
+): Promise<TradeDashboardStart> {
+  const [row] = await db
+    .select({
+      view: tradePrefs.dashboardView,
+      protocol: tradePrefs.dashboardProtocol,
+      hidden: tradePrefs.hiddenProtocols,
+      order: tradePrefs.protocolOrder,
+      hideEmptyBlocks: tradePrefs.hideEmptyBlocks,
+    })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return {
+    view: isDashboardView(row?.view) ? row.view : null,
+    protocol: row?.protocol && hasDashboard(row.protocol) ? row.protocol : null,
+    hiddenProtocols: readHiddenProtocols(row?.hidden),
+    protocolOrder: readProtocolOrder(row?.order),
+    hideEmptyBlocks: row?.hideEmptyBlocks ?? false,
+  }
+}
+
+/** Switches "Hide empty blocks" on or off for this account. */
+export async function saveHideEmptyBlocks(
+  userId: string,
+  hideEmptyBlocks: boolean
+): Promise<boolean> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, hideEmptyBlocks, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { hideEmptyBlocks, updatedAt: new Date() },
+    })
+  return hideEmptyBlocks
+}
+
+/**
+ * The row just picked. Picking an exchange also makes it the one Overview
+ * keeps showing; picking Overview leaves that exchange as it was.
+ */
+export async function saveTradeDashboardView(
+  userId: string,
+  view: DashboardView
+): Promise<void> {
+  const protocol = view === OVERVIEW_VIEW ? undefined : view
+  await db
+    .insert(tradePrefs)
+    .values({
+      userId,
+      dashboardView: view,
+      dashboardProtocol: protocol ?? null,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        dashboardView: view,
+        ...(protocol ? { dashboardProtocol: protocol } : {}),
+        updatedAt: new Date(),
+      },
+    })
+}
+
+/** The exchanges hidden from the Protocols block, cleaned, answered as stored. */
+export async function saveHiddenProtocols(
+  userId: string,
+  value: unknown
+): Promise<ProtocolId[]> {
+  const hiddenProtocols = readHiddenProtocols(value)
+  await db
+    .insert(tradePrefs)
+    .values({ userId, hiddenProtocols, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { hiddenProtocols, updatedAt: new Date() },
+    })
+  return hiddenProtocols
+}
+
+/** The Protocols block's order, made whole, answered as stored. */
+export async function saveProtocolOrder(
+  userId: string,
+  value: unknown
+): Promise<ProtocolId[]> {
+  const protocolOrder = readProtocolOrder(value)
+  await db
+    .insert(tradePrefs)
+    .values({ userId, protocolOrder, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { protocolOrder, updatedAt: new Date() },
+    })
+  return protocolOrder
 }
 
 /**
@@ -773,7 +867,7 @@ export async function loadTradePanelLayouts(
   return readTradePanelLayouts(row?.panelLayouts)
 }
 
-/** Remember the eye choice and carry it into the selected named layout. */
+/** Remember the eye choice. */
 export async function saveHeaderProfitVisibility(
   userId: string,
   visible: boolean,
@@ -782,14 +876,10 @@ export async function saveHeaderProfitVisibility(
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
     headerProfitVisible: visible,
-    named: updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      headerProfitVisible: visible,
-    })),
   }))
 }
 
-/** Remember the drawing rail and carry it into the selected named layout. */
+/** Remember the drawing rail. */
 export async function saveChartToolbarPosition(
   userId: string,
   value: unknown,
@@ -800,43 +890,56 @@ export async function saveChartToolbarPosition(
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
     chartToolbarPosition: position,
-    named: updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      chartToolbarPosition: position,
-    })),
   }))
 }
 
-function updateActiveNamedLayout(
-  layouts: TradePanelLayouts,
-  change: (
-    layout: TradePanelLayouts["named"][number]
-  ) => TradePanelLayouts["named"][number]
-) {
-  if (!layouts.activeNamedId) return layouts.named
-  return layouts.named.map((layout) =>
-    layout.id === layouts.activeNamedId ? change(layout) : layout
-  )
+/**
+ * Remember the columns hidden in one of the trades popover's tables. A column
+ * this build does not know is refused rather than kept.
+ */
+export async function saveHiddenTradeColumns(
+  userId: string,
+  kind: TradesPopoverKind,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  if (!Array.isArray(value) || value.some((key) => typeof key !== "string" || !isTradesPopoverColumn(kind, key))) {
+    throw new Error("PANEL_LAYOUT_INVALID")
+  }
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    hiddenTradeColumns: readHiddenTradeColumns({ ...layouts.hiddenTradeColumns, [kind]: value }),
+  }))
 }
 
-function namedLayoutPanelChange(
-  layouts: TradePanelLayouts,
-  key: TradePanelLayoutKey,
-  layout: Record<string, number>
-) {
-  if (key === tradePanelLayoutKey.workspaceHorizontal) {
-    return updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      horizontal: layout,
-    }))
-  }
-  if (key === tradePanelLayoutKey.workspaceVertical) {
-    return updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      vertical: layout,
-    }))
-  }
-  return layouts.named
+/**
+ * Remember the chart's zoom and scroll under 1280px. A view this build cannot
+ * read is refused rather than stored.
+ */
+export async function saveNarrowChartView(
+  userId: string,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const view = readChartView(value)
+  if (view === null) throw new Error("PANEL_LAYOUT_INVALID")
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    narrowChartView: view,
+  }))
+}
+
+/** Remember the Journal's filter and its hide-practice switch. */
+export async function saveJournalView(
+  userId: string,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const view = readJournalView(value)
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    journalView: view,
+  }))
 }
 
 /** The two account-owned answers the live-run route needs, in one row read. */
@@ -858,24 +961,7 @@ export async function loadChartWorkspacePrefs(
   }
 }
 
-/** Remember one panel group and update the selected workspace layout. */
-export async function saveTradePanelLayout(
-  userId: string,
-  key: TradePanelLayoutKey,
-  value: unknown,
-  database: CustomShellDb = db
-): Promise<void> {
-  const layout = matchingPanelLayout(value, tradePanelIds[key])
-  if (!layout) throw new Error("PANEL_LAYOUT_INVALID")
-  await updateTradePanelLayouts(userId, database, (layouts) => ({
-    ...layouts,
-    legacyImported: true,
-    current: { ...layouts.current, [key]: layout },
-    named: namedLayoutPanelChange(layouts, key, layout),
-  }))
-}
-
-/** Remember the open folder row in both the account and selected layout. */
+/** Remember the open folder row. */
 export async function saveOpenMarketRow(
   userId: string,
   scope: MarketPanelScope,
@@ -885,214 +971,8 @@ export async function saveOpenMarketRow(
   const { key, rowId } = validOpenMarketRow(scope, value)
   await updateTradePanelLayouts(userId, database, (layouts) => ({
     ...layouts,
-    legacyImported: true,
     openMarketRows: { ...layouts.openMarketRows, [key]: rowId },
-    named: updateActiveNamedLayout(layouts, (named) => ({
-      ...named,
-      openMarketRows: { ...named.openMarketRows, [key]: rowId },
-    })),
   }))
-}
-
-/**
- * Bring this browser's old layouts across only while the account has no newer
- * account-owned answer. The conflict update is one statement, so two browsers
- * cannot both win the first import.
- */
-export async function importLegacyTradePanelLayouts(
-  userId: string,
-  value: TradePanelLayouts["current"],
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  const imported = readTradePanelLayouts({
-    legacyImported: true,
-    current: value,
-    named: [],
-  })
-  if (Object.keys(imported.current).length === 0) {
-    return loadTradePanelLayouts(userId, database)
-  }
-
-  const base = validPanelLayoutsSql()
-  const [row] = await database
-    .insert(tradePrefs)
-    .values({ userId, panelLayouts: imported, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: tradePrefs.userId,
-      set: {
-        panelLayouts: sql`case
-          when ${base}->>'legacyImported' = 'true' then ${base}
-          else ${JSON.stringify(imported)}::jsonb || jsonb_build_object(
-            'headerProfitVisible',
-            coalesce(${base}->'headerProfitVisible', 'true'::jsonb)
-          )
-        end`,
-        updatedAt: new Date(),
-      },
-    })
-    .returning({ panelLayouts: tradePrefs.panelLayouts })
-  return readTradePanelLayouts(row?.panelLayouts)
-}
-
-/** Save the current trade workspace as one of at most five named choices. */
-export async function createNamedTradePanelLayout(
-  userId: string,
-  input: {
-    name: string
-    horizontal: unknown
-    vertical: unknown
-    scope: MarketPanelScope
-    openMarketRowId: unknown
-    headerProfitVisible: boolean
-    chartToolbarPosition: ChartToolbarPosition | null
-  },
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  const name = input.name.trim()
-  const horizontal = matchingPanelLayout(
-    input.horizontal,
-    tradePanelIds[tradePanelLayoutKey.workspaceHorizontal]
-  )
-  const vertical = matchingPanelLayout(
-    input.vertical,
-    tradePanelIds[tradePanelLayoutKey.workspaceVertical]
-  )
-  const chartToolbarPosition = readChartToolbarPosition(
-    input.chartToolbarPosition
-  )
-  if (
-    !name ||
-    name.length > 32 ||
-    !horizontal ||
-    !vertical ||
-    typeof input.headerProfitVisible !== "boolean" ||
-    chartToolbarPosition === undefined
-  ) {
-    throw new Error("PANEL_LAYOUT_INVALID")
-  }
-  const { key: scopeKey, rowId: openMarketRowId } = validOpenMarketRow(
-    input.scope,
-    input.openMarketRowId
-  )
-
-  return database.transaction(async (tx) => {
-    await tx
-      .insert(tradePrefs)
-      .values({ userId, panelLayouts: emptyTradePanelLayouts() })
-      .onConflictDoNothing()
-    const [row] = await tx
-      .select({ panelLayouts: tradePrefs.panelLayouts })
-      .from(tradePrefs)
-      .where(eq(tradePrefs.userId, userId))
-      .for("update")
-    const layouts = readTradePanelLayouts(row?.panelLayouts)
-    if (
-      layouts.named.some(
-        (layout) => layout.name.toLocaleLowerCase() === name.toLocaleLowerCase()
-      )
-    ) {
-      throw new Error("PANEL_LAYOUT_NAME_TAKEN")
-    }
-    if (layouts.named.length >= MAX_NAMED_PANEL_LAYOUTS) {
-      throw new Error("PANEL_LAYOUT_LIMIT")
-    }
-    const id = crypto.randomUUID()
-    const openMarketRows = {
-      ...layouts.openMarketRows,
-      [scopeKey]: openMarketRowId,
-    }
-    const saved: TradePanelLayouts = {
-      legacyImported: true,
-      current: {
-        ...layouts.current,
-        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
-        [tradePanelLayoutKey.workspaceVertical]: vertical,
-      },
-      openMarketRows,
-      headerProfitVisible: input.headerProfitVisible,
-      chartToolbarPosition,
-      activeNamedId: id,
-      named: [
-        ...layouts.named,
-        {
-          id,
-          name,
-          horizontal,
-          vertical,
-          openMarketRows: { [scopeKey]: openMarketRowId },
-          headerProfitVisible: input.headerProfitVisible,
-          chartToolbarPosition,
-        },
-      ],
-    }
-    await tx
-      .update(tradePrefs)
-      .set({ panelLayouts: saved, updatedAt: new Date() })
-      .where(eq(tradePrefs.userId, userId))
-    return saved
-  })
-}
-
-/** Make a named arrangement current in the same write that selects it. */
-export async function applyNamedTradePanelLayout(
-  userId: string,
-  id: string,
-  scope: MarketPanelScope,
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  return updateTradePanelLayouts(userId, database, (layouts) => {
-    const named = layouts.named.find((layout) => layout.id === id)
-    if (!named) throw new Error("PANEL_LAYOUT_NOT_FOUND")
-    const scopeKey = marketPanelScopeKey(scope)
-    const hasOpenRow = Object.prototype.hasOwnProperty.call(
-      named.openMarketRows,
-      scopeKey
-    )
-    return {
-      ...layouts,
-      legacyImported: true,
-      current: {
-        ...layouts.current,
-        [tradePanelLayoutKey.workspaceHorizontal]: named.horizontal,
-        [tradePanelLayoutKey.workspaceVertical]: named.vertical,
-      },
-      openMarketRows: hasOpenRow
-        ? {
-            ...layouts.openMarketRows,
-            [scopeKey]: named.openMarketRows[scopeKey] ?? null,
-          }
-        : layouts.openMarketRows,
-      headerProfitVisible:
-        named.headerProfitVisible ?? layouts.headerProfitVisible,
-      chartToolbarPosition: Object.prototype.hasOwnProperty.call(
-        named,
-        "chartToolbarPosition"
-      )
-        ? (named.chartToolbarPosition ?? null)
-        : layouts.chartToolbarPosition,
-      activeNamedId: id,
-    }
-  })
-}
-
-/** Delete one named arrangement without moving the dividers on screen. */
-export async function deleteNamedTradePanelLayout(
-  userId: string,
-  id: string,
-  database: CustomShellDb = db
-): Promise<TradePanelLayouts> {
-  return updateTradePanelLayouts(userId, database, (layouts) => {
-    const named = layouts.named.filter((layout) => layout.id !== id)
-    if (named.length === layouts.named.length) {
-      throw new Error("PANEL_LAYOUT_NOT_FOUND")
-    }
-    return {
-      ...layouts,
-      activeNamedId:
-        layouts.activeNamedId === id ? null : layouts.activeNamedId,
-      named,
-    }
-  })
 }
 
 async function updateTradePanelLayouts(
@@ -1118,16 +998,6 @@ async function updateTradePanelLayouts(
       .where(eq(tradePrefs.userId, userId))
     return saved
   })
-}
-
-/** Treat a hand-edited non-object value as an empty current-format answer. */
-function validPanelLayoutsSql() {
-  const empty = JSON.stringify(emptyTradePanelLayouts())
-  return sql`case
-    when jsonb_typeof(${tradePrefs.panelLayouts}) = 'object'
-      then ${tradePrefs.panelLayouts}
-    else ${empty}::jsonb
-  end`
 }
 
 function validOpenMarketRow(scope: MarketPanelScope, value: unknown) {

@@ -5,7 +5,6 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -527,7 +526,7 @@ function GroupPanels({
             await leaveFocusGroup(group.id)
             setConfirmingLeave(false)
             await onGone()
-          }, "You left the group.")
+          })
         }
       />
     </div>
@@ -578,7 +577,6 @@ function CheerButton({
               dismissErrorToast()
               try {
                 await cheerFocusGroupMember(groupId, membershipId, cheer.id)
-                toast.success(`Cheer sent to ${name}.`)
               } catch (cause) {
                 showErrorToast(cheerErrorMessage(cause))
               } finally {
@@ -665,12 +663,8 @@ function GroupInvitesPanel({
                   const result = await acceptFocusGroupInvite(invite.inviteId)
                   reload()
                   if (result.status === "requested") {
-                    toast.success(
-                      `${result.name} lets each person in. Your request is waiting for the owner.`
-                    )
                     return
                   }
-                  toast.success("You are in the group.")
                   await onJoined(result.id)
                 })
               }
@@ -685,7 +679,7 @@ function GroupInvitesPanel({
                 void run(async () => {
                   await declineFocusGroupInvite(invite.inviteId)
                   reload()
-                }, "Invite declined.")
+                })
               }
             >
               Decline
@@ -764,7 +758,7 @@ function CreateGroupDialog({
                 const created = await run(async () => {
                   const { groupId } = await createFocusGroup(name.trim())
                   await onCreated(groupId)
-                }, "Group created.")
+                })
                 if (created) onOpenChange(false)
               }}
             >
@@ -832,12 +826,8 @@ function JoinGroupDialog({
                 const joined = await run(async () => {
                   const result = await joinFocusGroup(tokenFromLink(link))
                   if (result.status === "requested") {
-                    toast.success(
-                      `${result.name} lets each person in. Your request is waiting for the owner.`
-                    )
                     return
                   }
-                  toast.success("You are in the group.")
                   await onJoined(result.id)
                 })
                 if (joined) onOpenChange(false)

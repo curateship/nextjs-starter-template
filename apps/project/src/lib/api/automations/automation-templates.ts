@@ -38,6 +38,21 @@ export type AutomationTemplatesPage = {
   templates: AutomationTemplateListItem[]
 }
 
+/** The list's copy of a template the server just answered with. */
+export function toAutomationTemplateListItem(
+  template: AutomationTemplateDetail
+): AutomationTemplateListItem {
+  return {
+    key: template.key,
+    name: template.name,
+    description: template.description,
+    steps: template.steps,
+    isCustomized: template.isCustomized,
+    isValid: template.isValid,
+    updated_at: template.updated_at,
+  }
+}
+
 const keySchema = z.object({
   templateKey: z.enum(AUTOMATION_TEMPLATE_KEYS),
 })

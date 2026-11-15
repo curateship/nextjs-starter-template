@@ -5,6 +5,7 @@ import {
   removeGuestKey,
 } from "@/lib/pomodoro/guest-storage"
 import {
+  normalizeDueDate,
   normalizeEstimatedPomodoros,
   normalizeTaskPriority,
 } from "@/lib/pomodoro/tasks"
@@ -53,6 +54,7 @@ export async function maybeImportGuestState() {
           estimatedPomodoros: normalizeEstimatedPomodoros(
             task.estimatedPomodoros
           ),
+          dueDate: normalizeDueDate(task.dueDate),
         }))
     : []
   try {

@@ -3,15 +3,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { stopRunCoin } from "@/lib/api/trade/flow-trading"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import * as React from "react"
-import { CoinsIcon, ListOrderedIcon } from "lucide-react"
 
 import { toneClass, usd } from "@/components/backtest/backtest-kpi"
-import {
-  DashboardCardTab,
-  DashboardCardTabsHeader,
-} from "@/components/shared/dashboard-card-header"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -43,19 +36,26 @@ import { cn } from "@/lib/utils"
  * The words come from `flow-waiting.ts`, the same ones the canvas chip uses, so
  * the two places that report on a run never say it differently.
  */
-type Tab = "coins" | "results"
+/** The Trades card's tabs on an open bot: the coins it traded, then every coin it watches. */
+export type CoinsTab = "traded" | "coins"
 type Column = "coin" | "net" | "trades"
 
 const TABLE_CLASS =
-  "table-fixed text-xs [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_th:first-child]:pl-5 [&_th:last-child]:pr-5 [&_th]:overflow-hidden [&_th]:px-1.5"
+  "table-fixed text-xs [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_th:first-child]:pl-4 [&_th:last-child]:pr-4 [&_th]:overflow-hidden [&_th]:px-1.5"
 
 export function FlowRunCoinsPanel({
   report,
+  tab,
   openCoin,
   onOpenCoin,
   onRefresh,
 }: {
   report: FlowRunReport
+  /**
+   * Which list shows. The Trades card's tabs pick it; this list has no header
+   * of its own, and the card is its frame, so nothing here scrolls.
+   */
+  tab: CoinsTab
   openCoin: string | null
   onRefresh?: () => Promise<void>
   onOpenCoin: (marketKey: string) => void
@@ -66,7 +66,6 @@ export function FlowRunCoinsPanel({
   const [busy, setBusy] = React.useState(false)
   const [requested, setRequested] = React.useState(new Set<string>())
   const pending = React.useRef(false)
-  const [tab, setTab] = React.useState<Tab>("coins")
   const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
 
   const traded = React.useMemo(
@@ -122,31 +121,9 @@ export function FlowRunCoinsPanel({
   )
 
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => setTab(value as Tab)}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
-    >
-      <DashboardCardTabsHeader>
-        <DashboardCardTab
-          value="coins"
-          icon={<CoinsIcon className="size-4" />}
-          label="Coins"
-          count={report.coins.length}
-        />
-        <DashboardCardTab
-          value="results"
-          icon={<ListOrderedIcon className="size-4" />}
-          label="Results"
-          count={traded.length}
-        />
-      </DashboardCardTabsHeader>
-
-      <TabsContent value="coins" className="flex min-h-0 flex-1 flex-col">
-        <ScrollArea
-          className="min-h-0 flex-1"
-          viewportClassName="[&>div]:block!"
-        >
+    <>
+      {tab === "coins" ? (
+        <div className="-mx-4">
           <Table className={TABLE_CLASS}>
             <TableHeader>
               <TableRow>
@@ -231,7 +208,7 @@ export function FlowRunCoinsPanel({
                             : coin.working
                               ? "Rungs placed"
                               : coin.problem
-                                ? `Needs you — ${lowerFirst(coin.words ?? "something is wrong")}`
+                                ? `Needs you: ${lowerFirst(coin.words ?? "something is wrong")}`
                                 : (coin.words ?? "Not looked at yet")}
                       </span>
                     </TableCell>
@@ -278,19 +255,15 @@ export function FlowRunCoinsPanel({
               })}
             </TableBody>
           </Table>
-        </ScrollArea>
-      </TabsContent>
-
-      <TabsContent value="results" className="flex min-h-0 flex-1 flex-col">
+        </div>
+      ) : (
+      <>
         {traded.length === 0 ? (
-          <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+          <p className="py-2 text-center text-xs text-muted-foreground">
             No coin has finished a trade yet.
           </p>
         ) : (
-          <ScrollArea
-            className="min-h-0 flex-1"
-            viewportClassName="[&>div]:block!"
-          >
+          <div className="-mx-4">
             <Table className={TABLE_CLASS}>
               <TableHeader>
                 <TableRow>
@@ -333,13 +306,13 @@ export function FlowRunCoinsPanel({
                 ))}
               </TableBody>
             </Table>
-          </ScrollArea>
+          </div>
         )}
         {report.notMine > 0 ? (
           // Said out loud rather than left out quietly. Every figure on this
           // page leaves these trades alone, and a page that did that without
           // saying so would read as the whole wallet.
-          <p className="shrink-0 border-t px-5 py-2 text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {report.notMine} finished{" "}
             {report.notMine === 1 ? "trade" : "trades"} on{" "}
             {report.head.walletLabel} {report.notMine === 1 ? "was" : "were"}{" "}
@@ -347,7 +320,8 @@ export function FlowRunCoinsPanel({
             out of every figure here.
           </p>
         ) : null}
-      </TabsContent>
+      </>
+      )}
       <ConfirmDialog
         open={stopping !== null}
         onOpenChange={(open) => {
@@ -382,7 +356,7 @@ export function FlowRunCoinsPanel({
             })
         }}
       />
-    </Tabs>
+    </>
   )
 }
 

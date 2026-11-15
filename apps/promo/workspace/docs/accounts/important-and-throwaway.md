@@ -14,8 +14,8 @@ to, so nothing may link the two groups.
   14 Oct 2026, until Tyler marks it.
 - **Important is one way** (Tyler, 14 Oct 2026). An important account is never
   marked throwaway again, and it never goes back onto a browser profile.
-- **Marking one important** is in the account's settings on the Reddit
-  accounts dashboard: **Mark important**, after a confirmation. Only an
+- **Marking one important** is on the account's right panel in the
+  Projects dashboard's Accounts: **Mark important**, after a confirmation. Only an
   account that already runs on a phone can be marked. One on a browser profile
   uses **Move to a phone** instead, which marks it important once the phone
   reads it signed in ([Reddit on phones](../reddit/reddit-on-phones.md)).
@@ -24,7 +24,7 @@ to, so nothing may link the two groups.
   voice and project rules still hold then.
 - **Bringing a retired account back** is refused when its project or voice
   now holds the other group.
-- **The Accounts dashboard** shows "Important" under an important
+- **The Projects dashboard's Accounts** shows "Important" under an important
   account's status, and a menu filters the list to either group.
 - **The Projects dashboard** lists a project's accounts under an Important or a
   Throwaway heading.

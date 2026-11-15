@@ -2,10 +2,7 @@ import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
 import {
   BellIcon,
-  CheckIcon,
-  CopyIcon,
   CreditCardIcon,
-  GiftIcon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
   ThumbsUpIcon,
@@ -16,8 +13,6 @@ import { CardTop, EmptyRow, FeedCard } from "@/components/shared/feed-card"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   markNotificationRead,
   type NotificationItem,
@@ -26,7 +21,6 @@ import type {
   MemberHome as MemberHomeData,
   MemberHomeFeedback,
   MemberHomePlan,
-  MemberReferralSummary,
 } from "@/lib/api/people/member-home"
 import {
   feedbackStatusClassNames,
@@ -41,7 +35,6 @@ import { pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { plural } from "@/lib/format/plural"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
-import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * The member's front door: where their plan stands, what has happened since
@@ -71,15 +64,13 @@ export function MemberHome({ home }: { home: MemberHomeData }) {
   const gutter = { gap: pageGutter }
 
   return (
-    // Roughly 55/45 as proportions rather than a pinned width, the same split
-    // the admin Overview uses, so the two front doors feel like one app.
+    // Roughly 55/45 as proportions rather than a pinned width.
     <div
       className="grid shrink-0 items-start xl:grid-cols-[minmax(0,11fr)_minmax(0,9fr)]"
       style={gutter}
     >
       <div className="flex min-w-0 flex-col" style={gutter}>
         <PlanCard plan={home.plan} />
-        <ReferralsCard referrals={home.referrals} />
         <FeedbackCard
           items={home.feedback}
           total={home.feedbackTotal}
@@ -96,112 +87,6 @@ export function MemberHome({ home }: { home: MemberHomeData }) {
         />
       </div>
     </div>
-  )
-}
-
-/** The member's stable invite link and the progress of each person who used it. */
-function ReferralsCard({ referrals }: { referrals: MemberReferralSummary }) {
-  const [copied, setCopied] = React.useState(false)
-
-  async function copyInviteLink() {
-    try {
-      await navigator.clipboard.writeText(referrals.inviteLink)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2_000)
-    } catch {
-      showErrorToast(
-        "We could not copy the invite link. Select it and copy it instead."
-      )
-    }
-  }
-
-  return (
-    <FeedCard>
-      <CardTop
-        icon={GiftIcon}
-        title="Invite friends"
-        meta={
-          referrals.total
-            ? `${referrals.total} ${plural(referrals.total, "referral")}`
-            : undefined
-        }
-      />
-      <div className="grid gap-2 px-4 py-4 sm:px-5">
-        <Label htmlFor="referral-link">Your invite link</Label>
-        <div className="flex min-w-0 gap-2">
-          <Input
-            id="referral-link"
-            value={referrals.inviteLink}
-            readOnly
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <Button type="button" variant="outline" onClick={copyInviteLink}>
-            {copied ? <CheckIcon /> : <CopyIcon />}
-            {copied ? "Copied" : "Copy link"}
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          When someone joins with this link and makes their first payment, you
-          earn one free month.
-        </p>
-      </div>
-
-      {referrals.items.length ? (
-        <div className="divide-y border-t">
-          {referrals.items.map((referral) => (
-            <div
-              key={referral.id}
-              className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {referral.status === "converted"
-                    ? "Became a paying member"
-                    : referral.status === "joined"
-                      ? "Joined"
-                      : "Waiting for email verification"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Invited {formatDate(referral.createdAt)}
-                </p>
-              </div>
-              <Badge
-                variant={
-                  referral.rewardStatus === "granted"
-                    ? "default"
-                    : referral.rewardStatus === "revoked"
-                      ? "destructive"
-                      : "outline"
-                }
-              >
-                {referral.rewardStatus === "granted"
-                  ? "Free month added"
-                  : referral.rewardStatus === "pending"
-                    ? "Reward waiting"
-                    : referral.rewardStatus === "revoked"
-                      ? "Reward reversed"
-                      : referral.status === "converted"
-                        ? "Converted"
-                        : referral.status === "joined"
-                          ? "Joined"
-                          : "Invited"}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyRow>
-          Nobody has used your link yet. Copy it above when you are ready to
-          invite someone.
-        </EmptyRow>
-      )}
-
-      {referrals.total > referrals.items.length ? (
-        <div className="border-t px-4 py-3 text-center text-xs text-muted-foreground sm:px-5">
-          Showing the latest {referrals.items.length} of {referrals.total}.
-        </div>
-      ) : null}
-    </FeedCard>
   )
 }
 
@@ -394,9 +279,7 @@ function NotificationsCard({
   function openNotification(item: NotificationItem) {
     const action = notificationAction(item)
 
-    if (action.kind === "changelog") {
-      void navigate({ to: "/changelog/whats-new" })
-    } else if (action.kind === "billing") {
+    if (action.kind === "billing") {
       void navigate({
         to: ".",
         search: (prev) => ({ ...prev, account: "billing" }),

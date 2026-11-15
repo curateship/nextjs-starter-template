@@ -5,7 +5,9 @@ import { z } from "zod"
 
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
+import { isPublicCallbackUrl } from "@/server/browser/proxy-probe"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
+import { readCappedText } from "@/server/social/capped-body"
 
 import { promoVideoLinks, type PromoVideoLinkRow } from "./schema"
 
@@ -84,6 +86,9 @@ export function cleanVideoUrl(raw: string): string | null {
   return `${url.origin}${url.pathname.replace(/\/+$/, "")}`
 }
 
+/** Said when Video's address points inside the server's own network. */
+export const INSIDE_VIDEO_ADDRESS = "Video's address points inside the server's own network, so Promo will not call it."
+
 /** Keeps the Video address that pressed Test, the only one files are fetched from. */
 export async function rememberVideoUrl(userId: string, videoUrl: string, db: CustomShellDb = defaultDb, now = new Date()) {
   await db.update(promoVideoLinks).set({ videoUrl, lastUsedAt: now }).where(eq(promoVideoLinks.userId, userId))
@@ -109,7 +114,7 @@ export class VideoLinkRefusal extends Error {
 }
 
 /** A message from Video is a few kilobytes; subtitles for a long video are the biggest part. */
-const MAX_BODY_CHARS = 2_000_000
+const MAX_BODY_BYTES = 2_000_000
 
 const NEVER_CACHE = { "cache-control": "no-store" }
 
@@ -128,7 +133,7 @@ export async function answerVideo<Shape extends z.ZodType>(
   work: (link: PromoVideoLinkRow, data: z.infer<Shape>) => Promise<unknown>,
   db: CustomShellDb = defaultDb
 ): Promise<Response> {
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_CHARS) {
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
     return answer(413, { error: "This message is too large." })
   }
   let link: PromoVideoLinkRow | null
@@ -157,8 +162,8 @@ export async function answerVideo<Shape extends z.ZodType>(
 
   let parsed: unknown = {}
   if (shape) {
-    const body = await request.text()
-    if (body.length > MAX_BODY_CHARS) return answer(413, { error: "This message is too large." })
+    const body = await readCappedText(request, MAX_BODY_BYTES)
+    if (body === null) return answer(413, { error: "This message is too large." })
     try {
       parsed = body ? JSON.parse(body) : {}
     } catch {
@@ -198,6 +203,7 @@ export async function callVideo(
   const [link] = await db.select().from(promoVideoLinks).where(eq(promoVideoLinks.userId, userId)).limit(1)
   if (!link) throw new Error("Make a key on Settings → Video and paste it into Video first.")
   if (!link.videoUrl) throw new Error("Press Test on Video's Settings → Promo first, so Promo knows where Video is.")
+  if (!(await isPublicCallbackUrl(link.videoUrl))) throw new Error(INSIDE_VIDEO_ADDRESS)
   const response = await fetchImpl(`${link.videoUrl}${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {

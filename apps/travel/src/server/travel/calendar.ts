@@ -77,11 +77,17 @@ function utcStamp(at: Date) {
  * gives times with no zone, which a phone reads as its own local time. A trip
  * with no start date gives a calendar with no events, because its days have
  * no dates yet.
+ *
+ * Each event carries the link that opens the trip on its card (Travel
+ * features 4, part 2; Tyler, 6 Nov 2026: "Link to the card"), as its `URL` and
+ * again as its notes, because some phones never show `URL`. Signed out, the
+ * link goes to sign-in first and then on to the card.
  */
 export function buildTripCalendar(
   trip: CalendarTrip,
   activities: readonly CalendarActivity[],
-  at: Date = new Date()
+  at: Date = new Date(),
+  cardLink: (activityId: string) => string = (activityId) => appUrlFor(`/trips/${trip.id}?open=${activityId}`)
 ) {
   const lines = [
     "BEGIN:VCALENDAR",
@@ -117,6 +123,8 @@ export function buildTripCalendar(
       .filter((part, index, all) => part && all.indexOf(part) === index)
       .join(", ")
     if (location) lines.push(`LOCATION:${escapeText(location)}`)
+    const link = cardLink(activity.id)
+    lines.push(`URL:${link}`, `DESCRIPTION:${escapeText(link)}`)
     lines.push("END:VEVENT")
   }
 

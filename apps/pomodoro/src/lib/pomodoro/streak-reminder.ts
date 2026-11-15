@@ -8,8 +8,6 @@ export const STREAK_REMINDER_HOURS = [
   12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
 ] as const
 
-export const DEFAULT_STREAK_REMINDER_HOUR = 19
-
 /** "7pm", the way the settings card and the doc say an hour. */
 export function formatReminderHour(hour: number) {
   if (hour === 12) return "noon"

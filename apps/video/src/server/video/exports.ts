@@ -1,5 +1,6 @@
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -146,20 +147,44 @@ export async function listOwnedExports({
   ])
 
   const total = totals?.total ?? 0
+  const places = await queuePlaces(userId, rows.map((row) => row.job), database)
   return {
-    exports: rows.map((row) =>
-      serializeRenderJob(
+    exports: rows.map((row) => ({
+      ...serializeRenderJob(
         row.job,
         { project: row.projectName, video: row.videoName },
         row.carouselName,
         row
-      )
-    ),
+      ),
+      queue_position: places.get(row.job.id) ?? null,
+    })),
     total,
     page: safePage,
     page_size: safePageSize,
     total_pages: Math.max(1, Math.ceil(total / safePageSize)),
   }
+}
+
+/**
+ * Where each waiting job on this page sits in the person's own queue, 1 being
+ * next, counted the way the Export window counts (render-queue.ts,
+ * queuePosition). One read of the person's waiting jobs, however many rows the
+ * page holds, and none at all when nothing on the page is waiting.
+ */
+async function queuePlaces(
+  userId: string,
+  jobs: { id: string; status: string }[],
+  database: CustomShellDb
+) {
+  const places = new Map<string, number>()
+  if (!jobs.some((job) => job.status === "queued")) return places
+  const waiting = await database
+    .select({ id: videoRenderJobs.id })
+    .from(videoRenderJobs)
+    .where(and(eq(videoRenderJobs.userId, userId), eq(videoRenderJobs.status, "queued")))
+    .orderBy(asc(videoRenderJobs.createdAt), asc(videoRenderJobs.id))
+  waiting.forEach((job, index) => places.set(job.id, index + 1))
+  return places
 }
 
 /** One export of the caller's own, or a refusal. Never anybody else's. */

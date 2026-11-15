@@ -18,6 +18,7 @@ const FONT_FILES: Record<TextFontId, string> = {
   "space-grotesk": "SpaceGrotesk-SemiBold.ttf",
   caveat: "Caveat-SemiBold.ttf",
   anton: "Anton-Regular.ttf",
+  fredoka: "Fredoka-SemiBold.ttf",
 }
 
 /**

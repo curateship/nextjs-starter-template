@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { type CustomShellDb } from "@/server/db"
+import { readCappedText } from "@/server/social/capped-body"
 
 import { RackRefusal, signReply, verifyRackRequest, type VerifiedRack } from "./rack"
 
@@ -15,7 +16,7 @@ import { RackRefusal, signReply, verifyRackRequest, type VerifiedRack } from "./
  */
 
 /** A check-in is a few kilobytes; a result may carry thirty shrunk step pictures. */
-const MAX_BODY_CHARS = 10_000_000
+const MAX_BODY_BYTES = 10_000_000
 
 const NEVER_CACHE = { "cache-control": "no-store" }
 
@@ -25,13 +26,10 @@ export async function answerSigned<Shape extends z.ZodType>(
   work: (rack: VerifiedRack, data: z.infer<Shape>) => Promise<unknown>,
   db?: CustomShellDb
 ): Promise<Response> {
-  // Refused on its stated size before it is read, so a stranger cannot make
-  // the server hold a huge body in memory, and again on its real size.
-  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_CHARS) {
-    return refuse(413, "This message is too large.")
-  }
-  const body = await request.text()
-  if (body.length > MAX_BODY_CHARS) return refuse(413, "This message is too large.")
+  // Read through a counter that stops at the limit, so a stranger cannot
+  // make the server hold a huge body in memory, stated size or not.
+  const body = await readCappedText(request, MAX_BODY_BYTES)
+  if (body === null) return refuse(413, "This message is too large.")
 
   let rack: VerifiedRack
   try {

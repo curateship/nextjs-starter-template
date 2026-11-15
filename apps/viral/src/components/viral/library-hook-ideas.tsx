@@ -1,8 +1,7 @@
 import * as React from "react"
 import { CopyIcon, Loader2Icon, PenLineIcon } from "lucide-react"
-import { toast } from "sonner"
 
-import { InspectorCard } from "@/components/shared/inspector-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
@@ -74,7 +73,6 @@ export function HookIdeasCards({
     try {
       const written = await writeHookIdeasFn({ kind, id }, pickedProject.id)
       setIdeas((was) => (was.state === "ready" ? { state: "ready", ideas: [written, ...was.ideas] } : was))
-      toast.success(`${HOOK_IDEAS_COUNT} hooks written.`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -86,10 +84,10 @@ export function HookIdeasCards({
 
   return (
     <>
-      <InspectorCard
+      <PanelCard
         storageId="viral-library-hook-write"
         title="Write hooks like this"
-        description={priceLine.charAt(0).toUpperCase() + priceLine.slice(1)}
+        meta={priceLine.charAt(0).toUpperCase() + priceLine.slice(1)}
       >
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
           <div className="grid gap-2">
@@ -118,9 +116,9 @@ export function HookIdeasCards({
             </Button>
           </div>
         </div>
-      </InspectorCard>
+      </PanelCard>
 
-      <InspectorCard storageId="viral-library-hook-written" title="Hooks written">
+      <PanelCard storageId="viral-library-hook-written" title="Hooks written">
         {ideas.state === "loading" ? (
           <LoadingRow label="Reading the hooks written" />
         ) : ideas.state === "failed" ? (
@@ -143,7 +141,7 @@ export function HookIdeasCards({
         ) : (
           <p className="text-sm text-muted-foreground">Nothing written from this hook yet.</p>
         )}
-      </InspectorCard>
+      </PanelCard>
     </>
   )
 }
@@ -152,7 +150,6 @@ function WrittenHook({ line }: { line: string }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(line)
-      toast.success("Hook copied.")
     } catch {
       showErrorToast("The hook could not be copied. Select the words and copy them instead.")
     }

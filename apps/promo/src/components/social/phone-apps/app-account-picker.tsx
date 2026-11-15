@@ -118,7 +118,7 @@ export function AppAccountPicker({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem asChild>
-          <Link to="/admin/accounts" search={{ platform: network }}>
+          <Link to="/admin/projects" search={{ section: "accounts", platform: network }}>
             <UsersIcon />
             Manage accounts
           </Link>

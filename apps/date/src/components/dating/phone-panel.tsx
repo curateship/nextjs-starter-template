@@ -1,6 +1,5 @@
 import * as React from "react"
 import { CameraIcon, KeyRoundIcon, Loader2Icon, MonitorSmartphoneIcon, PlayIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
@@ -80,12 +79,11 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
     }
   }, [])
 
-  async function act(key: string, work: () => Promise<unknown>, success?: string): Promise<boolean> {
+  async function act(key: string, work: () => Promise<unknown>): Promise<boolean> {
     setBusy(key)
     dismissErrorToast()
     try {
       await work()
-      if (success) toast.success(success)
       setScreen(await loadPhoneScreen())
       onChanged()
       return true
@@ -133,7 +131,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                     </button>
                   ) : null}
                   <p className="text-muted-foreground">Nothing runs for this profile until you sort it out on the phone itself and press Resume.</p>
-                  <Button type="button" size="sm" className="justify-self-start" disabled={busy === "resume"} onClick={() => void act("resume", () => resume(), `Resumed. The phone looks at ${appName} again now.`)}>
+                  <Button type="button" size="sm" className="justify-self-start" disabled={busy === "resume"} onClick={() => void act("resume", () => resume())}>
                     {busy === "resume" ? <Loader2Icon className="animate-spin" /> : <PlayIcon />}
                     Resume
                   </Button>
@@ -145,7 +143,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                     id="date-phone-in-control"
                     checked={phone.inControl}
                     onCheckedChange={(on) =>
-                      void act("control", () => switchDateInControl(phone.id, on), on ? "Date is in control of the phone again." : "Date is switched off. The phone is handed nothing.")
+                      void act("control", () => switchDateInControl(phone.id, on))
                     }
                   />
                   <div className="grid gap-0.5">
@@ -160,7 +158,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                     <Button type="button" variant="outline" size="sm" onClick={() => setScreenOpen(true)}>
                       <MonitorSmartphoneIcon /> Screen window
                     </Button>
-                    <Button type="button" variant="outline" size="sm" disabled={busy === "picture"} onClick={() => void act("picture", () => takePicture(phone.id), "The phone will take a picture. It shows below once it arrives.")}>
+                    <Button type="button" variant="outline" size="sm" disabled={busy === "picture"} onClick={() => void act("picture", () => takePicture(phone.id))}>
                       {busy === "picture" ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
                       Picture
                     </Button>
@@ -192,7 +190,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                           variant="outline"
                           size="sm"
                           disabled={busy === `share:${item.id}`}
-                          onClick={() => void act(`share:${item.id}`, () => sharePhone(item.id), `${appName} runs on ${item.name} now.`)}
+                          onClick={() => void act(`share:${item.id}`, () => sharePhone(item.id))}
                         >
                           {busy === `share:${item.id}` ? <Loader2Icon className="animate-spin" /> : null}
                           Use this phone
@@ -268,7 +266,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                 Twelve sample cards and seven chats, to look around before a phone is paired. The AI never reads them and no button on one reaches a phone.
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={busy === "samples"} onClick={() => void act("samples", addSampleData, "Sample cards and chats added.")}>
+                <Button type="button" variant="outline" size="sm" disabled={busy === "samples"} onClick={() => void act("samples", addSampleData)}>
                   {busy === "samples" ? <Loader2Icon className="animate-spin" /> : null}
                   {screen.hasSamples ? "Add them again" : "Add sample data"}
                 </Button>
@@ -292,7 +290,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
         loading={busy === "unpair"}
         onConfirm={() => {
           if (!phone) return
-          void act("unpair", () => unpair(phone.id), "Unpaired.").then((ok) => ok && setConfirm(null))
+          void act("unpair", () => unpair(phone.id)).then((ok) => ok && setConfirm(null))
         }}
       />
       <ConfirmDialog
@@ -302,7 +300,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
         description="The sample cards and chats are deleted. Nothing a phone read is touched."
         confirmLabel="Remove sample data"
         loading={busy === "remove-samples"}
-        onConfirm={() => void act("remove-samples", removeSampleData, "Sample data removed.").then((ok) => ok && setConfirm(null))}
+        onConfirm={() => void act("remove-samples", removeSampleData).then((ok) => ok && setConfirm(null))}
       />
       <PictureDialog picture={picture} onClose={() => setPicture(null)} />
       {screenOpen && phone ? <ScreenWindow phone={phone} onClose={() => setScreenOpen(false)} /> : null}

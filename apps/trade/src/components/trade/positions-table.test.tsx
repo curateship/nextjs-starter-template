@@ -215,13 +215,13 @@ function drawOrders(state: { settled: boolean; failed: boolean }): string {
 }
 
 function drawTrades(state: { settled: boolean; failed: boolean }): string {
-  return renderToStaticMarkup(
+  return draw(
     <TradesTable
       {...shared}
       {...state}
       trades={[]}
-      selectedId={null}
-      onSelectTrade={() => {}}
+      openId={null}
+      onOpenRow={() => {}}
       onRemove={() => {}}
       ticked={new Set<string>()}
       onTickTrade={() => {}}
@@ -242,8 +242,9 @@ describe("the bottom panel's tables say what they know", () => {
         unmatchedHistory={[stale, open]}
         settled={true}
         failed={false}
-        selectedId={null}
-        onSelectTrade={() => {}}
+        openId={null}
+        onOpenRow={() => {}}
+        selectShown
         onRemove={() => {}}
         ticked={new Set<string>()}
         onTickTrade={() => {}}
@@ -305,14 +306,14 @@ describe("the bottom panel's tables say what they know", () => {
         onResume={async () => true}
       />
     )
-    const trades = renderToStaticMarkup(
+    const trades = draw(
       <TradesTable
         {...shared}
         trades={[liveTrade("mainnet")]}
         settled={true}
         failed={false}
-        selectedId={null}
-        onSelectTrade={() => {}}
+        openId={null}
+        onOpenRow={() => {}}
         onRemove={() => {}}
         ticked={new Set<string>()}
         onTickTrade={() => {}}
@@ -508,7 +509,7 @@ describe("the bottom panel's tables say what they know", () => {
           trades={[trade("SOL", 50, 60), trade("USELESS", 10, 100)]}
           settled={true}
           failed={false}
-          selectedId={null}
+          openId={null}
         />
       </TooltipProvider>
     )
@@ -544,13 +545,15 @@ describe("the bottom panel's tables say what they know", () => {
 
     await act(async () => {
       root.render(
+        <TooltipProvider>
         <TradesTable
           {...shared}
           trades={[trade("one", "BTC"), trade("two", "ETH")]}
           settled={true}
           failed={false}
-          selectedId={null}
-          onSelectTrade={(chosen) => opened.push(chosen.id)}
+          openId={null}
+          selectShown
+          onOpenRow={(row) => opened.push(row.kind === "finished" ? row.trade.id : row.history.id)}
           onRemove={() => {}}
           ticked={new Set<string>()}
           onTickTrade={(id) => ticked.push(id)}
@@ -558,6 +561,7 @@ describe("the bottom panel's tables say what they know", () => {
           tickAllState={() => false}
           onLoadOlder={() => {}}
         />
+        </TooltipProvider>
       )
     })
 
@@ -1121,10 +1125,10 @@ describe("position and order totals", () => {
 
   it("adds displayed position value, margin, profit and stop changes", () => {
     const rows = [1, 2, 3].map((size, i) => ({ ...position("P" + i, size), entryPx: 90, slPx: 80 }))
-    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "—/-$60.00", "-$120.00", "$0.00", "+$60.00", ""])
+    expect(cells(renderPositions(rows))).toEqual(["Total", "", "$600.00", "$540.00", "", "—/-$60.00", "-$120.00", "$0.00", "—", "+$60.00", ""])
     expect(cells(renderPositions(rows.slice(0, 1)))[2]).toBe("$100.00")
     expect(cells(renderPositions(rows, true, false, 110))[2]).toBe("$660.00")
-    expect(cells(renderPositions(rows, true, false, 110))[8]).toBe("+$120.00")
+    expect(cells(renderPositions(rows, true, false, 110))[9]).toBe("+$120.00")
   })
 
   it("totals target and stop projections separately, with fees and rebates", () => {
@@ -1153,11 +1157,55 @@ describe("position and order totals", () => {
     expect(cells(renderPositions([row], true, false, 100, [{ ...fill, sz: 0.5 }]))[7]).toBe("—")
   })
 
+  it("shows slippage in dollars on each position and in the total, from the fills' aims", () => {
+    // Slippage, "aimed vs filled" (Tyler, 10 Nov 2026). A live position whose
+    // 1 coin was bought at $101 against an aim of $100, and a practice one
+    // whose 2 coins were bought at $99 against $100.
+    const live = { ...position("BTC", 1), walletId: "live-wallet",
+      live: { marginUsed: 100, liquidationPx: null, tpOrderId: null, slOrderId: null } }
+    const practice = position("SOL", 2)
+    const fill = (row: TradePosition, px: number, sz: number, aimedPx?: number): LiveFill => ({
+      fillId: `${row.id}-fill`, orderId: `${row.id}-order`, walletId: row.walletId,
+      marketKey: row.marketKey, side: "buy", px, sz, at: 1, closedPnl: 0, fee: 0,
+      dir: "Open Long", liquidation: false, aimedPx })
+    const host = renderPositions([live, practice], true, false, 100, [fill(live, 101, 1, 100), fill(practice, 99, 2, 100)])
+    const heads = Array.from(host.querySelectorAll("thead th")).map((th) => th.textContent)
+    const at = heads.findIndex((head) => head?.startsWith("Slippage"))
+    expect(at).toBeGreaterThan(-1)
+    const shown = Array.from(host.querySelectorAll("tbody tr")).map((row) => row.children[at]?.textContent)
+    expect(shown).toEqual(["-$1.00", "+$2.00"])
+    expect(cells(host)[8]).toBe("+$1.00")
+
+    // One fill with no aim makes that row a dash, and the total with it.
+    const unaimed = renderPositions([live, practice], true, false, 100, [fill(live, 101, 1), fill(practice, 99, 2, 100)])
+    expect(Array.from(unaimed.querySelectorAll("tbody tr")).map((row) => row.children[at]?.textContent)).toEqual(["—", "+$2.00"])
+    expect(cells(unaimed)[8]).toBe("—")
+  })
+
+  it("shows a Journal trade's slippage from its fills' aims", () => {
+    const trade: LiveTrade = { ...liveTrade("mainnet"), fills: [
+      { fillId: "in", orderId: "in", walletId: "live-wallet", marketKey: "hyperliquid:mainnet:BTC",
+        side: "buy", px: 100.5, sz: 1, at: 1, closedPnl: 0, fee: 0, dir: "Open Long", liquidation: false, aimedPx: 100 },
+      { fillId: "out", orderId: "out", walletId: "live-wallet", marketKey: "hyperliquid:mainnet:BTC",
+        side: "sell", px: 110, sz: 1, at: 2, closedPnl: 10, fee: 0, dir: "Close Long", liquidation: false, aimedPx: 110 },
+    ] }
+    const host = document.createElement("div")
+    host.innerHTML = draw(
+      <TradesTable {...shared} trades={[trade]} settled={true} failed={false} openId={null}
+        onOpenRow={() => {}} onRemove={() => {}} ticked={new Set<string>()}
+        onTickTrade={() => {}} onTickVisible={() => {}} tickAllState={() => false} />
+    )
+    const heads = Array.from(host.querySelectorAll("thead th")).map((th) => th.textContent)
+    const at = heads.findIndex((head) => head?.startsWith("Slippage"))
+    expect(host.querySelector("tbody tr")?.children[at]?.textContent).toBe("-$0.50")
+  })
+
   it("does not label incomplete sums as complete totals", () => {
     const rows = [position("BTC", 1), { ...position("SOL", 1), owned: { priced: false, entryKnown: false } }]
     const totals = cells(renderPositions(rows))
     expect(totals[2]).toBe("—")
-    expect(totals[8]).toBe("—")
+    // Making / losing, after Slippage.
+    expect(totals[9]).toBe("—")
     expect(totals[6]).toBe("—")
   })
 
@@ -1274,5 +1322,58 @@ describe("the flip position action", () => {
       await act(async () => root.unmount())
       host.remove()
     }
+  })
+})
+
+describe("every position, and the right panel's rows (10 Nov 2026)", () => {
+  it("lists a coin a grid you placed is running, badged Grid, and marks the open row", () => {
+    const held = position("BTC", 1)
+    const grid = {
+      id: "grid-1",
+      kind: "grid",
+      status: "active",
+      flowRunId: null,
+      walletId: held.walletId,
+      marketKey: held.marketKey,
+      createdAt: 0,
+      updatedAt: 0,
+      plan: { direction: "long", topPx: 200, bottomPx: 50, stopLoss: null, baseWatch: null },
+    } as unknown as SmartOrder
+    const html = draw(
+      <PositionsTable
+        {...positionsShared}
+        smartOrders={[grid]}
+        positions={[held]}
+        settled={true}
+        failed={false}
+        openId={held.id}
+        onAdd={() => {}}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
+      />
+    )
+    expect(html).toContain(">Grid<")
+    expect(html).toContain('data-state="selected"')
+    // No tick boxes until Mass select is on.
+    expect(html).not.toContain('aria-label="Select the BTC position"')
+  })
+
+  it("keeps the Journal's tick boxes hidden until Mass select", () => {
+    const props = {
+      ...shared,
+      trades: [liveTrade("mainnet")],
+      settled: true,
+      failed: false,
+      openId: null,
+      ticked: new Set<string>(),
+      onTickTrade: () => {},
+      onTickVisible: () => {},
+      tickAllState: () => false as const,
+    }
+    expect(draw(<TradesTable {...props} />)).not.toContain('aria-label="Select every removable Journal row"')
+    expect(draw(<TradesTable {...props} selectShown />)).toContain('aria-label="Select every removable Journal row"')
   })
 })

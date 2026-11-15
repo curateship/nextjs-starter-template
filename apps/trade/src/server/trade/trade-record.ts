@@ -27,7 +27,7 @@ import { listWalletsWithCredentials } from "@/server/trade/wallets"
  * The database writes it (migration 0186): every real mainnet wallet joins
  * `trade_record_wallets` when it is saved, every write to `trade_live_fills`
  * is copied into `trade_record_fills`, and deleting a wallet only marks it
- * removed. This file reads it back, prices it the way the P&L page prices
+ * removed. This file reads it back, prices it the way the month grid prices
  * fills, and does the two writes app code owns: freezing a wallet's money as
  * it is deleted, and the ownership check.
  */

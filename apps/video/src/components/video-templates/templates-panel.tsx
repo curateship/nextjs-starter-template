@@ -1,5 +1,4 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
 import {
   GalleryHorizontalIcon,
   LayoutTemplateIcon,
@@ -9,7 +8,6 @@ import {
   SettingsIcon,
   SparklesIcon,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { InspectorCard } from "@/components/shared/inspector-card"
@@ -63,8 +61,10 @@ import {
 } from "@/lib/video/templates"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { useSaveAfterTyping } from "@/components/video-editor/use-save-after-typing"
+import { LengthCounter } from "@/components/video-assets/length-counter"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
+import { PINNED_ICON_CLASS } from "@/lib/video/pinned-look"
 
 /**
  * The Templates panel on the editor's left menu (`workspace/docs/templates.md`).
@@ -283,6 +283,7 @@ export function VideoTemplateFields({
             placeholder="Paste your script. A blank line or --- starts a new scene, and [show: me at my desk] picks a scene's picture."
             onChange={(event) => typeScript(event.target.value)}
           />
+          <LengthCounter length={script.length} max={TEMPLATE_SCRIPT_MAX} />
           {words ? (
             <p className="text-xs text-muted-foreground tabular-nums">
               {countWords(words)} words, about {seconds} seconds read aloud.{" "}
@@ -338,7 +339,6 @@ export function VideoTemplateFields({
 /** The same script as a carousel (part 37), in a carousel project picked here. */
 function CarouselFromScript({ script, writer }: { script: string; writer: WriterId | null }) {
   const { videoId } = useEditorRuntime()
-  const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [projects, setProjects] = React.useState<{ id: string; name: string }[] | null>(null)
   const [into, setInto] = React.useState("")
@@ -369,7 +369,7 @@ function CarouselFromScript({ script, writer }: { script: string; writer: Writer
     }
     setBusy(true)
     try {
-      const made = await carouselFromScript({
+      await carouselFromScript({
         videoId,
         carouselProjectId: into,
         script: spokenScript(script),
@@ -377,17 +377,6 @@ function CarouselFromScript({ script, writer }: { script: string; writer: Writer
         format,
       })
       setOpen(false)
-      toast.success(`"${made.name}" is in the carousel project.`, {
-        action: {
-          label: "Open",
-          onClick: () =>
-            void navigate({
-              to: "/admin/video-carousels/$projectId",
-              params: { projectId: made.carousel_project_id },
-              search: { carousel: made.id },
-            }),
-        },
-      })
     } catch (error) {
       showErrorToast(getTemplateErrorMessage(error))
     } finally {
@@ -522,12 +511,12 @@ function TemplateList({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1 text-xs font-medium">
                       <span className="truncate">{template.name}</span>
-                      {/* Yellow, the shell's favourite colour (automation-inspector.tsx); Tyler, 5 Nov 2026: "make this yellow". */}
+                      {/* Yellow, the shell's favourite colour; Tyler, 5 Nov 2026: "make this yellow". */}
                       {template.pinned ? (
-                        <PinIcon aria-label="Pinned" className="size-3 shrink-0 text-amber-500 dark:text-amber-400" />
+                        <PinIcon aria-label="Pinned" className={cn("size-3 shrink-0", PINNED_ICON_CLASS)} />
                       ) : null}
                     </span>
-                    <span className="block truncate text-[10px] leading-4 text-muted-foreground">
+                    <span className="block truncate text-xs leading-4 text-muted-foreground">
                       {formatAiEstimate(template.typical_cents)} a video
                       {template.tags.length ? ` · ${template.tags.join(", ")}` : ""}
                     </span>
@@ -652,7 +641,6 @@ function NewTemplateForm({
               ? await createTemplate({ start, name, videoId })
               : await createTemplate({ start, name, savedVideoId })
       onMade(made)
-      toast.success(`${made.name} is made. Press its cog to change anything.`)
     } catch (error) {
       showErrorToast(getTemplateErrorMessage(error))
       setBusy(false)
@@ -702,6 +690,7 @@ function NewTemplateForm({
             placeholder="Me working at a café, calm, 45 seconds"
             onChange={(event) => setDescribe(event.target.value)}
           />
+          <LengthCounter length={describe.length} max={TEMPLATE_DESCRIBE_MAX} />
         </div>
       ) : null}
       {start === "video" ? (

@@ -152,25 +152,25 @@ function RedditAccountSettings() {
             {chosenPhone ? (
               <>
                 <Link
-                  to="/admin/phones"
-                  search={{ open: chosenPhone.id }}
+                  to="/admin/anti-detect"
+                  search={{ section: "phones", open: chosenPhone.id }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
                   Open {chosenPhone.name}
                 </Link>{" "}
-                on the Phones dashboard. Phones take Reddit&apos;s jobs from a later step, so
+                on its rack&apos;s page. Phones take Reddit&apos;s jobs from a later step, so
                 until then nothing is searched or posted from it.
               </>
             ) : chosen ? (
               <>
                 <Link
-                  to="/admin/profiles"
-                  search={{ open: chosen.id }}
+                  to="/admin/anti-detect"
+                  search={{ section: "profiles", open: chosen.id }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
                   Open {chosen.name}
                 </Link>{" "}
-                on the Browser profiles dashboard to sign in or clear a captcha.
+                in the Anti Detect dashboard&apos;s Profiles to sign in or clear a captcha.
               </>
             ) : (
               <>
@@ -178,11 +178,11 @@ function RedditAccountSettings() {
                 that already holds a Reddit account is not offered. Make a new
                 one on the{" "}
                 <Link
-                  to="/admin/profiles"
-                  search={{ open: undefined }}
+                  to="/admin/anti-detect"
+                  search={{ section: "profiles" }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
-                  Browser profiles dashboard
+                  Anti Detect dashboard&apos;s Profiles
                 </Link>
                 .
               </>
@@ -220,13 +220,13 @@ function RedditAccountSettings() {
               <>
                 Drafts use this voice&apos;s words, what you make and your rules.{" "}
                 <Link
-                  to="/admin/voices"
-                  search={{ open: chosenVoice.id }}
+                  to="/admin/projects"
+                  search={{ section: "voices", open: chosenVoice.id }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
                   Open {chosenVoice.name}
                 </Link>{" "}
-                on the Voices dashboard to change them. Every account using it changes
+                in the Projects dashboard's Voices to change them. Every account using it changes
                 with it.
               </>
             ) : (
@@ -234,11 +234,11 @@ function RedditAccountSettings() {
                 Without a voice, drafts are written plainly and never mention what
                 you make. Write one on the{" "}
                 <Link
-                  to="/admin/voices"
-                  search={{ open: undefined }}
+                  to="/admin/projects"
+                  search={{ section: "voices" }}
                   className="font-medium text-foreground underline underline-offset-2"
                 >
-                  Voices dashboard
+                  Projects dashboard&apos;s Voices
                 </Link>
                 .
               </>

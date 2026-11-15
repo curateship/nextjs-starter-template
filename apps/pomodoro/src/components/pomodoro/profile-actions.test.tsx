@@ -124,7 +124,7 @@ describe("the cheer picker", () => {
 
     expect(following.send).toHaveBeenCalledTimes(2)
     expect(following.send).toHaveBeenNthCalledWith(2, "sam", "keep-going")
-    expect(toasts.success).toHaveBeenCalledTimes(2)
+    expect(toasts.success).not.toHaveBeenCalled()
     expect(picker().value).toBe("")
   })
 
@@ -201,7 +201,7 @@ describe("follow and block", () => {
     await press(button("Follow Sam"))
 
     expect(onFollowChange).toHaveBeenCalledWith(1)
-    expect(toasts.success).toHaveBeenCalledWith("You follow Sam.")
+    expect(toasts.success).not.toHaveBeenCalled()
   })
 
   it("moves the count down on Unfollow", async () => {

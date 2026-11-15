@@ -196,7 +196,7 @@ function describePlace(
     refusal =
       found.proxyOn === "phone"
         ? `The proxy ${found.proxy} was used by a banned ${name} account. Pick another proxy on the phone's Settings tab before it takes ${article} ${name} account.`
-        : `The proxy ${found.proxy} was used by a banned ${name} account. Pick another proxy for this browser profile on the Browser profiles dashboard before it takes ${article} ${name} account.`
+        : `The proxy ${found.proxy} was used by a banned ${name} account. Pick another proxy for this browser profile in the Anti Detect dashboard's Profiles before it takes ${article} ${name} account.`
     notes.push(`its proxy was in ${article} ${name} ban`)
   }
   return { refusal, warnings, note: notes.join(", ") }

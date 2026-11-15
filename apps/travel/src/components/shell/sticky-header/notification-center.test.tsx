@@ -33,8 +33,6 @@ const notice = {
   recipient_name: "Reader",
   feedback_id: null,
   feedback_message: null,
-  changelog_entry_id: null,
-  changelog_title: null,
   announcement_id: "announcement-1",
   announcement_title: "Something happened",
   announcement_body: "A line about it",

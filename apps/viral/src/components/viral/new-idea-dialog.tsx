@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Loader2Icon, PlusIcon } from "lucide-react"
-import { toast } from "sonner"
 
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Button } from "@/components/ui/button"
@@ -114,7 +113,6 @@ export function NewIdeaDialog({
     setBusy(true)
     try {
       const item = await createOwnIdeaFn({ projectId: picked, title, notes: notesWritten ? JSON.stringify(notes) : "" })
-      toast.success(`"${item.title}" is in ${item.projectName}'s vault. Press Write a script on it when you want one.`)
       onClose()
       await onCreated(item)
     } catch (error) {

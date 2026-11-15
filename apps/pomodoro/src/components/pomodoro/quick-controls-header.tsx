@@ -10,6 +10,7 @@ import {
   MusicIcon,
   PaletteIcon,
   PauseIcon,
+  PictureInPicture2Icon,
   PlayIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -18,6 +19,16 @@ import {
   WifiOffIcon,
 } from "lucide-react"
 import { Popover as PopoverPrimitive } from "radix-ui"
+
+import {
+  openFloatingTimer,
+  useFloatingTimerSupported,
+} from "@/components/pomodoro/floating-timer"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -52,6 +63,7 @@ import {
   roomActionErrorMessage,
   roomPhaseName,
   useRoomClockReading,
+  useRoomStartTicks,
   type RoomHostActionClient,
 } from "@/components/pomodoro/room-clock-controls"
 import { RESET_TO_CHANGE_RHYTHM_REASON } from "@/lib/pomodoro/disabled-reasons"
@@ -199,6 +211,7 @@ function TimerQuickControl() {
 
 function PersonalTimerQuickControl() {
   const pomodoro = usePomodoro()
+  const floatingSupported = useFloatingTimerSupported()
   const { requestReset, discardDialog } = useDiscardFocusConfirm(pomodoro)
   const { authenticated } = useProductAuth()
   const [presets, setPresets] = React.useState<CustomTimerPreset[]>([])
@@ -374,6 +387,30 @@ function PersonalTimerQuickControl() {
           >
             <RotateCcwIcon aria-hidden="true" />
           </Button>
+          {/* Only where the browser can float a window (Chrome, Edge and
+              Arc), so nobody meets a button that does nothing. Here rather
+              than in the ring, whose button row is already full on a
+              break, and here it is on every page. */}
+          {floatingSupported ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setOpen(false)
+                    void openFloatingTimer()
+                  }}
+                  aria-label="Open the floating timer"
+                >
+                  <PictureInPicture2Icon aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Floating timer: a small window on top of your other apps
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
 
         {/* One wrapper for all three rows rather than six wrappers around six
@@ -530,6 +567,7 @@ function RoomQuickControl({
     (player.state.status === "playing" || player.state.status === "loading")
   // A snapshot of another room is from before a switch, so it is not shown.
   const snapshot = clock.snapshot?.room.slug === roomSlug ? clock.snapshot : null
+  useRoomStartTicks(snapshot?.room ?? null)
   const heading = role === "host" ? "Hosting a room" : "Room I'm in"
   return (
     <Popover open={open} onOpenChange={setOpen}>

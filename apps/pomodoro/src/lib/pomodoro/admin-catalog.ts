@@ -50,7 +50,6 @@ export const CATALOG_LICENCES = [
   { value: "own", label: "Our own" },
   { value: "other", label: "Other, see the note" },
 ] as const
-export type CatalogLicence = (typeof CATALOG_LICENCES)[number]["value"]
 
 /**
  * Tyler, 8 Oct 2026: every sound runs 2 to 5 minutes, because shuffle moves

@@ -14,6 +14,10 @@ import {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 
+
+/** A lookup counter that never refuses, for tests that aren't about the limit. */
+const free = async () => {}
+
 describe("google with no key", () => {
   beforeEach(() => vi.stubEnv("GOOGLE_MAPS_API_KEY", ""))
   afterEach(() => {
@@ -26,8 +30,8 @@ describe("google with no key", () => {
     vi.stubGlobal("fetch", fetchMock)
     expect(googleEnabled()).toBe(false)
     await expect(autocompletePlaces("kyoto", "t")).rejects.toThrow(TRAVEL_ERRORS.googleOff)
-    await expect(placeDetails("abc", "t")).rejects.toThrow(TRAVEL_ERRORS.googleOff)
-    await expect(routeMinutes({ lat: 1, lng: 1 }, { lat: 2, lng: 2 }, "walk")).rejects.toThrow(
+    await expect(placeDetails("abc", "t", free)).rejects.toThrow(TRAVEL_ERRORS.googleOff)
+    await expect(routeMinutes({ lat: 1, lng: 1 }, { lat: 2, lng: 2 }, "walk", free)).rejects.toThrow(
       TRAVEL_ERRORS.googleOff
     )
     expect(fetchMock).not.toHaveBeenCalled()
@@ -90,7 +94,7 @@ describe("google places", () => {
       })
     )
     vi.stubGlobal("fetch", fetchMock)
-    const details = await placeDetails("p1", "session-1")
+    const details = await placeDetails("p1", "session-1", free)
     // More Travel features parts 1 and 9: the rating to one place, the price as 0 to 4, and the kinds once each.
     expect(details.place).toEqual({
       name: "Kinkaku-ji",
@@ -122,14 +126,14 @@ describe("google places", () => {
         json({ id: "p2", displayName: { text: "Corner stand" }, rating: "high", photos: [{ name: "https://elsewhere.example/x.jpg" }] })
       )
     )
-    const details = await placeDetails("p2", "session-2")
+    const details = await placeDetails("p2", "session-2", free)
     expect(details.place).toMatchObject({ rating: null, ratingCount: null, priceLevel: null, kinds: [] })
     expect(details.photoName).toBeNull()
   })
 
   it("says Google failed on a bad answer or no answer", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ error: {} }, 403)))
-    await expect(placeDetails("p1", "t")).rejects.toThrow(TRAVEL_ERRORS.googleFailed)
+    await expect(placeDetails("p1", "t", free)).rejects.toThrow(TRAVEL_ERRORS.googleFailed)
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("timed out", "TimeoutError")))
     await expect(autocompletePlaces("kyoto", "t")).rejects.toThrow(TRAVEL_ERRORS.googleFailed)
   })
@@ -199,37 +203,44 @@ describe("travel time between two places", () => {
     await client.close()
   })
 
+  let spent = 0
+  const spend = async () => {
+    spent += 1
+  }
   const temple = { lat: 35.0394, lng: 135.7292 }
   const station = { lat: 34.9858, lng: 135.7588 }
 
   it("asks Google once, then reuses the saved time until an address moves", async () => {
+    spent = 0
     const fetchMock = vi.fn().mockImplementation(async () => json({ routes: [{ duration: "1250s" }] }))
     vi.stubGlobal("fetch", fetchMock)
 
-    expect(await routeMinutes(temple, station, "walk")).toBe(21)
+    expect(await routeMinutes(temple, station, "walk", spend)).toBe(21)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe("https://routes.googleapis.com/directions/v2:computeRoutes")
     expect((init.headers as Record<string, string>)["X-Goog-FieldMask"]).toBe("routes.duration")
     expect(JSON.parse(String(init.body)).travelMode).toBe("WALK")
 
     // Same places, a hair apart after rounding: no second call.
-    expect(await routeMinutes({ lat: 35.039401, lng: 135.729201 }, station, "walk")).toBe(21)
+    expect(await routeMinutes({ lat: 35.039401, lng: 135.729201 }, station, "walk", spend)).toBe(21)
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     // Another mode is another question.
-    await routeMinutes(temple, station, "drive")
+    await routeMinutes(temple, station, "drive", spend)
     expect(fetchMock).toHaveBeenCalledTimes(2)
 
     // A changed address is a new position, so Google is asked again.
-    await routeMinutes({ lat: 35.0116, lng: 135.7681 }, station, "walk")
+    await routeMinutes({ lat: 35.0116, lng: 135.7681 }, station, "walk", spend)
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    // Each time Google is asked counts as one lookup; a saved time counts nothing (Travel features 4, part 4).
+    expect(spent).toBe(3)
   })
 
   it("returns null and saves nothing when Google finds no route", async () => {
     const fetchMock = vi.fn().mockImplementation(async () => json({}))
     vi.stubGlobal("fetch", fetchMock)
-    expect(await routeMinutes(temple, station, "transit")).toBeNull()
-    expect(await routeMinutes(temple, station, "transit")).toBeNull()
+    expect(await routeMinutes(temple, station, "transit", spend)).toBeNull()
+    expect(await routeMinutes(temple, station, "transit", spend)).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

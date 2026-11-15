@@ -1,8 +1,6 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { ActivityTypeSelect } from "@/components/travel/type-icon"
-import { filledLine } from "@/components/travel/activity-place-fields"
 import { useTrip } from "@/components/travel/trip-context"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { Input } from "@/components/ui/input"
@@ -86,7 +84,6 @@ export function useNewActivity() {
     setLink("")
     openActivity(id)
     if (made?.failed) showErrorToast(getTravelErrorMessage(new Error(made.failed)))
-    else if (made) toast.success(filledLine(made))
   }
 
   /** Opens one trigger's dropdown, set to the column it was opened from; null is Ideas. */

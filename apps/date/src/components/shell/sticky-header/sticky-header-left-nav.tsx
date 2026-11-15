@@ -72,7 +72,9 @@ function NavLink({
 }) {
   const classes = cn(
     navLinkClassName,
-    link.active ? "bg-muted text-foreground" : "hover:bg-muted",
+    // The light grey at half, as the left menu's selected link (Tyler, 8 Nov
+    // 2026: "make sidebar and topnav selected to light gray").
+    link.active ? "bg-muted/50 text-foreground" : "hover:bg-muted/50",
     className
   )
 

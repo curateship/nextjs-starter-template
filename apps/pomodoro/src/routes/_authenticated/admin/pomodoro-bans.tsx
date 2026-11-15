@@ -1,46 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { AdminSafetyDashboard } from "@/components/pomodoro/admin-safety-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getSafetyErrorMessage,
-  loadPomodoroSafetyPage,
-} from "@/lib/api/pomodoro/admin-safety"
-import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
-import { SAFETY_TABS, readMemberSearch } from "@/lib/pomodoro/admin-lists"
+import { oldPageSearch } from "@/lib/pomodoro/flowfly-search"
 
-type SafetySearch = {
-  /** The member window open over the list (admin task 06). */
-  member?: string
-  tab?: (typeof SAFETY_TABS)[number]
-  q?: string
-  page?: number
-}
-
-function readSafetySearch(search: Record<string, unknown>): SafetySearch {
-  return {
-    ...readMemberSearch(search),
-    tab: readOneOf(search.tab, SAFETY_TABS),
-    q: readSearchText(search.q),
-    page: readPage(search.page),
-  }
-}
-
+/**
+ * This page moved into the Flowfly admin dashboard on 13 Nov 2026 (Tyler:
+ * "consolidate and combine all of the app's dashboard into one 3 panel
+ * dashboard"). The old address forwards to its tab there, keeping the rest of
+ * its address, so a bookmark or an old link still lands in the right list.
+ * `OLD_ADMIN_PAGES` in `src/lib/pomodoro/flowfly-search.ts` says where.
+ */
 export const Route = createFileRoute("/_authenticated/admin/pomodoro-bans")({
-  validateSearch: readSafetySearch,
-  // The member window is not the list, so opening it never reloads the page.
-  loaderDeps: ({ search: { member: _member, ...list } }) => list,
-  loader: ({ deps }) =>
-    loadPomodoroSafetyPage({
-      tab: deps.tab ?? "bans",
-      search: deps.q ?? "",
-      page: deps.page ?? 1,
-    }),
-  component: AdminPomodoroBansRoute,
-  errorComponent: routeErrorComponent(getSafetyErrorMessage),
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: "/admin/flowfly",
+      search: oldPageSearch("pomodoro-bans", location.search as Record<string, unknown>),
+      replace: true,
+    })
+  },
 })
-
-function AdminPomodoroBansRoute() {
-  const { list, pageSize } = Route.useLoaderData()
-  return <AdminSafetyDashboard initial={list} initialPageSize={pageSize} />
-}

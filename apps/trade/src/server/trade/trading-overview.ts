@@ -1,6 +1,11 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm"
 
-import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
+import {
+  DASHBOARD_PROTOCOLS,
+  parseMarketKey,
+  protocolLabel,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import {
   buildTradingOverviewBots,
   buildTradingOverviewProfit,
@@ -19,7 +24,7 @@ import {
   type TradeWallet,
 } from "@/lib/trade/wallets"
 import { gridRoundTrips, type LiveFill } from "@/lib/trade/live-trades"
-import type { TradeSide } from "@/lib/trade/paper"
+import type { TradePosition, TradeSide } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { stampGridFills } from "@/server/trade/grid-fills"
 import { tradeLiveFills } from "@/server/trade/schema"
@@ -143,8 +148,8 @@ export async function loadTradingOverview(
 
 /**
  * Every visible real fill of the wallets given, newest first, priced the way
- * the overview's Made or lost figure prices them. Shared with the P&L page so
- * its month grid adds up the same fills, and the same money, as the PnL Graph.
+ * the overview's Made or lost figure prices them. Shared with the month grid so
+ * it adds up the same fills, and the same money, as the PnL Graph.
  *
  * **A grid's sale is worth what its own rung made**, the same figure the chart
  * arrow and the Smart orders panel show, never the exchange's. The exchange
@@ -156,7 +161,7 @@ export async function loadTradingOverview(
  * decided by the buy it closed, which is often older than the window: the
  * daily goal reads today's fills, and a rung that bought yesterday and sold
  * this morning has its buy outside them. Pricing from the window alone made
- * the goal and the P&L page disagree about the same day by $68 on
+ * the goal and the month grid disagree about the same day by $68 on
  * 20 Sep 2026. So the fills of every market in the window are read in full,
  * used to work the round trips out, and only the window's own rows come back.
  */
@@ -164,7 +169,7 @@ export async function loadOverviewFills(
   userId: string,
   wallets: readonly Pick<TradeWallet, "id" | "label" | "protocol">[],
   /**
-   * Only fills at or after this instant. The overview and the P&L page want
+   * Only fills at or after this instant. The overview and the month grid want
    * every fill and leave it unset; the daily goal wants today's alone and
    * reads it every fifteen seconds, which is not a reason to carry eighty
    * thousand rows out of the database each time.
@@ -250,7 +255,7 @@ export async function loadOverviewFills(
 /**
  * What each fill made after fees, keyed by fill id: a grid's sale priced on
  * its own rung, everything else at the exchange's figure, and a zero the
- * exchange has not spoken for as null. The P&L page, the overview, the daily
+ * exchange has not spoken for as null. The month grid, the overview, the daily
  * goal and the public profile all price through here, so none of them can
  * count a fill differently. Hand it the buys behind the sales too.
  *
@@ -258,7 +263,7 @@ export async function loadOverviewFills(
  * already takes that entry fee off: `gridRoundTrips` prices a round trip after
  * both fees. Charged on the buy as well, the same fee came off twice, and a
  * finished run read lower here than its Journal row — the USELESS run of
- * 29 Sep 2026 was $18.34 down on the P&L page and $17.80 down in the Journal.
+ * 29 Sep 2026 was $18.34 down on the month grid and $17.80 down in the Journal.
  * The fee is not lost, it is counted on the day the rung sells, which is the
  * day the rest of that round trip is counted on.
  */
@@ -322,6 +327,75 @@ export async function loadActiveTradesSnapshot(
       walletRead.credentials
     )),
   }
+}
+
+/**
+ * Every open position on every exchange, with the last price of each coin,
+ * for the All protocols tab of the Positions glance on the Trade dashboard
+ * (Tyler, 13 Nov 2026). Practice and real wallets both count, as in Active
+ * trades. A wallet that did not answer is named in `unavailable`, so the tab
+ * can say its list may be short rather than pass it off as whole.
+ */
+export async function loadAllOpenPositions(userId: string): Promise<{
+  positions: TradePosition[]
+  marks: Record<string, number>
+  unavailable: string[]
+}> {
+  const { wallets, credentials } = await listWalletsWithCredentials(userId)
+  const [paper, live] = await Promise.all([
+    loadPaperPortfolio(userId, wallets).catch((error) => {
+      recordEngineError("trading-overview", "Practice positions could not be read", error)
+      return null
+    }),
+    loadLivePortfolio(userId, wallets, { credentials }).catch((error) => {
+      recordEngineError("trading-overview", "Live positions could not be read", error)
+      return null
+    }),
+  ])
+  if (!paper && !live) throw new Error("POSITIONS_UNREADABLE")
+  const positions = [...(paper?.positions ?? []), ...(live?.positions ?? [])]
+  const marks = await marksForKeys([
+    ...new Set(positions.map((position) => position.marketKey)),
+  ])
+  const unavailable = new Set(live?.unreachable ?? [])
+  for (const wallet of wallets) {
+    if ((wallet.kind === "paper" && !paper) || (wallet.kind === "live" && !live)) {
+      unavailable.add(wallet.id)
+    }
+  }
+  return { positions, marks: Object.fromEntries(marks), unavailable: [...unavailable] }
+}
+
+/**
+ * How many trades are open on each exchange with a place on the Trade
+ * dashboard, for the number on its row in the Protocols block (8 Nov 2026).
+ * Every wallet counts, practice ones too, as in Active Trades. An exchange
+ * with a wallet that did not answer is left out, so its row shows no number
+ * rather than a count that is short.
+ */
+export async function loadOpenPositionCounts(
+  userId: string
+): Promise<Partial<Record<ProtocolId, number>>> {
+  const walletRead = await listWalletsWithCredentials(userId)
+  const { activeTrades, activeTradesUnavailable } = await loadActiveTrades(
+    userId,
+    walletRead.wallets,
+    walletRead.credentials
+  )
+  const unread = new Set(
+    walletRead.wallets
+      .filter((wallet) => activeTradesUnavailable.includes(wallet.id))
+      .map((wallet) => wallet.protocol)
+  )
+  const counts: Partial<Record<ProtocolId, number>> = {}
+  for (const protocol of DASHBOARD_PROTOCOLS) {
+    if (!unread.has(protocol)) counts[protocol] = 0
+  }
+  for (const trade of activeTrades) {
+    const protocol = parseMarketKey(trade.marketKey)?.protocol
+    if (protocol && counts[protocol] !== undefined) counts[protocol] += 1
+  }
+  return counts
 }
 
 async function loadActiveTrades(

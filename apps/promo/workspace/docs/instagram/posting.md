@@ -32,7 +32,7 @@ is pressed, with a back arrow to the list.
 
 ## What the AI is told
 
-The account's voice and its rules from the Voices dashboard, the project's
+The account's voice and its rules from the Projects dashboard's Voices, the project's
 description, what Tyler said the post is about, whether it is a photo or a
 video, and the network's limits: "at most 30 hashtags" on Instagram, and the
 caption's length. A caption that comes back too long is still put in the box,
@@ -141,8 +141,10 @@ the Posts tab shows, with a carousel mark.
 - The server: `queueAppPost`, `runAppPost`, `listAppPosts` and `cancelAppPost`
   in `src/server/social/phone-apps/posts.ts`; the caption in `captions.ts`
   beside it.
-- The endpoints: `sendAppPost`, `writeCaption` and `callOffAppPost` in
-  `src/lib/api/social/phone-apps.ts`.
+- The endpoints: `writeCaption` and `callOffAppPosts` in
+  `src/lib/api/social/phone-apps.ts`. Post goes through `sendAppPosts` in
+  `src/lib/api/archive/posting.ts`, the same one the Archive posts with, for
+  one account or several.
 - The screen: `src/components/social/phone-apps/post-composer.tsx` and the
   Posts table in `app-tables.tsx`.
 - The rack: `action_app_post`, `download_media`, `put_in_gallery` and

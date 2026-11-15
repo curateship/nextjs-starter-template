@@ -40,7 +40,7 @@ import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { MAX_TRIP_DAYS } from "@/lib/travel/rules"
 import { hoursWarning, nearestOpenDay } from "@/lib/travel/hours"
 import { mustDoWarning } from "@/lib/travel/must-do"
-import { rainyDayMove } from "@/lib/travel/rainy-day"
+import { cardRainLine, rainyDayMove } from "@/lib/travel/rainy-day"
 import { HOLIDAY_WARNING } from "@/lib/travel/weather"
 import { readDayInfo } from "@/lib/travel/trip-days"
 import { usePhone } from "@/lib/travel/use-phone"
@@ -68,6 +68,7 @@ export function DayBoard({
   selecting,
   selected,
   onToggleSelected,
+  onMassSelect,
   layout,
   showGaps,
   between,
@@ -85,6 +86,8 @@ export function DayBoard({
   selecting: boolean
   selected: ReadonlySet<string>
   onToggleSelected: (id: string) => void
+  /** Mass select on or off from a card's right-click, that card ticked as it comes on. */
+  onMassSelect?: (tickId?: string) => void
   /** Folded days and the hidden Ideas column, shared with the header's buttons. */
   layout: BoardLayout
   /** Off while a filter hides cards, since the time between two shown cards isn't free (task part 17). */
@@ -98,7 +101,7 @@ export function DayBoard({
   /** Whether a day is a public holiday at the destination (More Travel features part 8). */
   holidayOn?: (day: number) => boolean
   /** Each day's chance of rain, for moving outdoor cards off a rainy day (More Travel features part 9). */
-  forecast?: readonly { day: number; rain: number | null }[]
+  forecast?: readonly { day: number; rain: number | null; hourlyRain?: readonly (number | null)[] }[]
 }) {
   const { page, typesById, refresh, openActivity, openActivityId, readOnly } = useTrip()
   const { trip } = page
@@ -214,7 +217,7 @@ export function DayBoard({
       void run(async () => {
         await moveTripDay(trip.id, from, to)
         await refresh()
-      }, `Moved Day ${from} to Day ${to}.`)
+      })
       return
     }
     const state = heldRef.current
@@ -356,7 +359,7 @@ export function DayBoard({
                                   onToggleSelected={() => onToggleSelected(card.id)}
                                   onOpen={() => openActivity(card.id)}
                                   onMenu={(at) => (readOnly ? undefined : setMenu({ id: card.id, at }))}
-                                  onDone={readOnly ? undefined : () => void actions.setField(card, { done: !card.done })}
+                                  onDone={readOnly ? undefined : () => actions.setField(card, { done: !card.done })}
                                   footer={
                                     openDay !== null && warning ? (
                                       <ClosedDayMove
@@ -384,6 +387,8 @@ export function DayBoard({
                                     compact={compact}
                                     roomForMenu
                                     warning={openDay !== null ? null : (warning ?? (rainy && !rainy.toDay ? rainy.warning : null))}
+                                    // Rain at the card's own hour (Travel features 4, part 3); a place shut that day says that instead.
+                                    rain={openDay !== null || held ? null : cardRainLine(card, forecast)}
                                     beenHere={beenHereById.get(card.id) ?? null}
                                   />
                                 </BoardCard>
@@ -425,6 +430,7 @@ export function DayBoard({
           days={trip.days}
           startDate={trip.startDate}
           actions={actions}
+          massSelect={onMassSelect ? { on: selecting, onToggle: () => onMassSelect(menuActivity.id) } : undefined}
           onOpen={() => openActivity(menuActivity.id)}
           onClose={() => setMenu(null)}
         />
@@ -584,7 +590,7 @@ function AddDayButton() {
             void run(async () => {
               await addTripDay(trip.id, trip.days)
               await refresh()
-            }, `Added Day ${trip.days + 1}.`)
+            })
           }
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}

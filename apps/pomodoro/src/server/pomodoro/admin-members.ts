@@ -495,7 +495,7 @@ export async function hideProfilesByAdmin({
     return {
       changed: ids,
       skipped: userIds.filter((id) => !ids.includes(id)),
-      handles: hidden.map((row) => row.handle),
+      profiles: hidden,
     }
   })
 }

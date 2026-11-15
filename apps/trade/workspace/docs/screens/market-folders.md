@@ -24,11 +24,39 @@ The market picker uses the same control. Its Favorites view reads Fav only.
 
 ## Opening folders
 
-The chart header's folder menu holds saved folders and All markets. The left
-column now holds the Rules box, and the market scanner is a radar button in
-the chart header, described in `market-scanner.md`. Folder data
-is preserved. The menu's cog opens create, rename, reorder, hide and delete
-controls. The management window ends with a primary Done button.
+The Folders block on the dashboard's page (its left panel,
+`dashboard-blocks.md`) holds the picked exchange's saved folders and All
+markets. Its heading has no buttons of its own: the block's ⋮ holds a New
+folder box with + to make a folder, then Manage folders, then Delete block
+(Tyler, 8 Nov 2026: "replace these 2 icons wil the 3 dot dropdown. inside
+have add folder name, manage folder and delete block"). Manage folders opens
+a popover beside the block, over the middle, with the create, rename,
+reorder, hide and delete controls below, ending with a primary Done button
+("replace the manage folder modal with a popover instead"). Its heading is
+the name alone ("remove 'Rename a folder, drag any row ...'"); its cards
+follow Settings → Styling's card border as the page's cards do ("wire the
+cards to the styling settings"); and its cards scroll between the heading
+and Done with the app's own scrollbar ("also add areascroll"), every card at
+its full height.
+
+**A new folder shows at once** (Tyler, 8 Nov 2026: "i cant create folders").
+Saving one takes a few seconds, and nothing on screen moved meanwhile, so a
+press read as doing nothing. Now, from the ⋮'s box or from Manage folders,
+the folder joins the list straight away, empty and last, and the box clears
+for the next name. A name the exchange's folders already have is refused:
+the folder comes back out and an error says why (`create-folder-at-once.ts`).
+
+**Folders switched off do not show in the block.** The eye in Manage folders
+switches a folder off; it keeps its coins and is still listed there with
+"Hidden" and an eye with a line through it. Adding the market
+on the chart to a folder is the Folders row in the chart header's ⋮ (8 Nov
+2026, when the right panel went), which does what the star in the chart
+header once did.
+
+When the Folders block is the last block on the page, it reaches the
+panel's bottom and an open folder's coins scroll inside it, rather than
+stopping at 320px (`dashboard-blocks.md`, "The last block fills the
+panel").
 
 Markets inside an open folder run from the largest reported 24-hour gain to
 the largest loss. A market whose exchange did not report a 24-hour change sits
@@ -39,7 +67,7 @@ right edge. The border follows the theme's text color, so it is black in the
 light theme and white in the dark theme. The same marker appears in saved
 folders and All markets.
 
-## The cog window
+## Manage folders
 
 The Order card lists Fav, each named folder, and All markets.
 
@@ -55,7 +83,7 @@ The Order card lists Fav, each named folder, and All markets.
   takes coins from the star, and still runs in a flow.
 - The bin deletes, and only named folders have one.
 
-The chart header's cog remains available when folders are hidden.
+Manage folders stays in the Folders block's ⋮ when every row is hidden.
 
 The Hidden markets card under Order lists every market hidden by hand from All
 markets on this exchange, with a Show button beside each. Show puts the market
@@ -135,13 +163,12 @@ A backtest also reads the folder once at the start. The backtest saves the
 exact market keys it read, so the result still records the coins that produced
 it after the folder changes.
 
-## The folder dropdown
+## The Folders block
 
-The folder button beside the market name opens the same market rows as the left panel.
+The Folders block shows the same market rows as the market list.
 
-- **Visibility:** The dropdown respects each saved folder's visibility setting, including Favorites. Watched and All markets respect their own visibility settings.
+- **Visibility:** The block respects each saved folder's visibility setting, including Favorites. Watched and All markets respect their own visibility settings.
 - **Contents:** Watched uses the same waiting-order list. All markets respects the daily volume cutoff and manually hidden markets.
-- **Rows:** Market rows fill the dropdown width. Symbols, daily volume, change badges and selected states use the left panel's MarketRowLine component.
-- **Size:** The dropdown is at most 16.8rem wide, about 269 pixels at the default text size. The width is 30 percent smaller than the previous 384 pixels.
-- **Scrolling:** Expanded lists use the themed ScrollArea. The folder heading stays visible; the create form and list scroll below it.
-- **Selection:** Choosing a market keeps the dropdown open. Moving the pointer away or pressing Escape closes the dropdown.
+- **Rows:** Market rows fill the block's width. Symbols, daily volume, change badges and selected states use the MarketRowLine component.
+- **Scrolling:** Expanded lists use the themed ScrollArea, at most 20rem tall inside the block.
+- **Selection:** Choosing a market puts it on the chart and leaves the block as it is.

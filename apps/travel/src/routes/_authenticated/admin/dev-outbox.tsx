@@ -1,18 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { DevOutboxPage } from "@/components/system-emails/dev-outbox-page"
-import {
-  getDevOutboxErrorMessage,
-  loadDevOutbox,
-} from "@/lib/api/email/dev-outbox"
-
+/**
+ * The development outbox is the Outbox pill under the CRM's Inbox (Tyler,
+ * 7 Nov 2026: "an 'Outbox' pill under Inbox, local only, read like
+ * conversations"). This address stays so old links land.
+ */
 export const Route = createFileRoute("/_authenticated/admin/dev-outbox")({
-  loader: () => loadDevOutbox(),
-  component: AdminDevOutboxRoute,
-  errorComponent: routeErrorComponent(getDevOutboxErrorMessage),
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/crm", search: { tab: "inbox", view: "outbox" }, replace: true })
+  },
 })
-
-function AdminDevOutboxRoute() {
-  return <DevOutboxPage emails={Route.useLoaderData()} />
-}

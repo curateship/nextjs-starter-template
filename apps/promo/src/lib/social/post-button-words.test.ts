@@ -31,9 +31,9 @@ describe("the Post button says which device (part 30)", () => {
     expect(postingBlockedReason(phoneAccount, read)).toBeNull()
     expect(
       postingBlockedReason({ ...phoneAccount, phone: { ...phoneAccount.phone, status: "offline", offlineReason: "Not plugged in" } }, read)?.text
-    ).toBe("Pixel 8a in slot 4 is offline: Not plugged in. Check it on the Phones dashboard.")
+    ).toBe("Pixel 8a in slot 4 is offline: Not plugged in. Check it on its rack's page.")
     expect(postingBlockedReason({ ...phoneAccount, phone: { ...phoneAccount.phone, status: "held" } }, read)?.text).toBe(
-      "Pixel 8a in slot 4 is held. Release it on the Phones dashboard, then post."
+      "Pixel 8a in slot 4 is held. Release it on its rack's page, then post."
     )
     expect(
       postingBlockedReason({ ...phoneAccount, phone: { ...phoneAccount.phone, status: "held", inUse: true } }, read)?.text

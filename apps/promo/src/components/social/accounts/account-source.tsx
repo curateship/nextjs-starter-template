@@ -1,5 +1,4 @@
 import * as React from "react"
-import { toast } from "sonner"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -46,7 +45,7 @@ export function SourceFields({
             onCommit?.(next)
           }}
         >
-          <SelectTrigger id={`${idPrefix}-source`} className="w-full sm:w-fit sm:min-w-48">
+          <SelectTrigger id={`${idPrefix}-source`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -116,7 +115,6 @@ export function AccountSourceCard({
     try {
       await saveAccountSource(accountId, { source: next.source, seller: next.seller, priceCents: cents ?? null })
       setSaved(next)
-      toast.success("Saved where it came from.")
       await onSaved()
     } catch (error) {
       showErrorToast(getBansErrorMessage(error))

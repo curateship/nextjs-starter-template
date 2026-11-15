@@ -2,11 +2,12 @@ import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import type { Network } from "@/lib/social/networks"
+import { isPublicCallbackUrl } from "@/server/browser/proxy-probe"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { customShellUsers } from "@/server/schema"
 import { promoProjects } from "@/server/social/schema"
 
-import { cleanViralUrl, rememberViralUrl, ViralLinkRefusal } from "./link"
+import { cleanViralUrl, INSIDE_VIRAL_ADDRESS, rememberViralUrl, ViralLinkRefusal } from "./link"
 import type { PromoViralLinkRow } from "./schema"
 
 /**
@@ -34,6 +35,7 @@ export const viralHelloShape = z.object({ viralUrl: z.string().max(500) })
 export async function viralHello(link: PromoViralLinkRow, data: z.infer<typeof viralHelloShape>, db: CustomShellDb = defaultDb) {
   const viralUrl = cleanViralUrl(data.viralUrl)
   if (!viralUrl) throw new ViralLinkRefusal(400, "Viral's address must be a web address, and https on the live server.")
+  if (!(await isPublicCallbackUrl(viralUrl))) throw new ViralLinkRefusal(400, INSIDE_VIRAL_ADDRESS)
   await rememberViralUrl(link.userId, viralUrl, db)
   const [owner] = await db.select({ name: customShellUsers.name }).from(customShellUsers).where(eq(customShellUsers.id, link.userId)).limit(1)
   return { name: owner?.name ?? "", projects: await projectsOf(link.userId, db) }

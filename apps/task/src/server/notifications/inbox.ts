@@ -29,7 +29,7 @@ import {
   type CustomShellNotification,
   type CustomShellUser,
 } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/auth/security"
+import { findCurrentUser, now, uuid } from "@/server/auth/security"
 import { type NotificationItem } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
@@ -418,6 +418,29 @@ export async function clearAdminNotificationRows() {
     .returning({ id: customShellNotifications.id })
 
   return { count: rows.length }
+}
+
+/**
+ * One made-up notice in the admin's own bell, so the red number and the tray
+ * can be looked at without waiting for a real one. Tyler asked for it on
+ * 7 Nov 2026. It is an `app_activity` notice, the kind that carries its own
+ * words, so nothing else in the database has to exist behind it.
+ */
+export async function sendCurrentUserTestNotification() {
+  requireAppOrigin()
+  const user = await requireAdminNotificationUser()
+
+  await db.insert(customShellNotifications).values({
+    id: uuid(),
+    recipientUserId: user.id,
+    type: "app_activity",
+    message: "Test notification",
+    detail: "Sent from the Notifications page to check the bell.",
+    createdAt: now(),
+  })
+  await publishNotificationCreated(user.id)
+
+  return { sent: true }
 }
 
 async function requireNotificationUser() {

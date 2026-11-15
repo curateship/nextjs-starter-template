@@ -271,7 +271,7 @@ describe("who a guest's call acts as", () => {
   it("keeps a guest to the description, to editing, and names them on what they send", async () => {
     const actor = await actorFor(asGuest, projectId, db)
     expect(() => guestOnlyDescription({ name: "New name" })).toThrow("description only")
-    expect(() => guestOnlyDescription({ imageUrl: "" })).toThrow("description only")
+    expect(() => guestOnlyDescription({ cover: { coverUrl: null, coverImages: [] } })).toThrow("description only")
     expect(() => guestOnlyDescription({})).not.toThrow()
     expect(() => refuseGuestDelete(actor, "delete")).toThrow("cannot delete")
     expect(() => refuseGuestDelete(actor, "edit")).not.toThrow()
@@ -294,7 +294,7 @@ describe("the calls a guest is never let into", () => {
     "social/reddit/blocked.ts": ["blockFn", "unblockFn"],
     "social/comments.ts": ["markFn", "draftFn"],
     "social/jobs.ts": ["loadFn", "cancelFn", "retryFn"],
-    "social/phone-apps.ts": ["captionFn", "postFn", "cancelFn", "draftReplyFn"],
+    "social/phone-apps.ts": ["captionFn", "cancelFn", "draftReplyFn"],
   }
 
   for (const [file, names] of Object.entries(ADMIN_ONLY)) {

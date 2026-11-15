@@ -2,7 +2,7 @@
 
 A ban now leaves a lasting mark on the phone, SIM, proxy and browser profile
 it happened on, and Promo keeps new accounts away from places an app has
-flagged. One button cleans up after a ban, the Bans dashboard lists every
+flagged. One button cleans up after a ban, the Anti Detect dashboard's Bans lists every
 ban, and accounts in trouble slow down before they are lost. The task is
 `workspace/tasks/Bans/01-ban-features.md`.
 
@@ -45,7 +45,7 @@ Instagram twice".
 - **Suspended, restricted and a suspended Reddit reading count.** They mark
   the phone, the proxy and the SIM, and they count toward the brake.
 - **Locked and "confirm it's you" screens are recorded but not counted.**
-  They show on the Bans dashboard as "Recorded, not counted" and make the
+  They show in the Anti Detect dashboard's Bans as "Recorded, not counted" and make the
   account At risk for 7 days once it runs again.
 - **This is Tyler's open question.** The default holds until he answers;
   changing it is one list, `COUNTED_BAN_KINDS` in `src/lib/bans/options.ts`.
@@ -74,13 +74,13 @@ Instagram twice".
 ## On the phone (parts 1 to 5)
 
 - **Banned on.** The phone's window, on the Settings tab under "On it", and
-  its row on the Phones dashboard say "Banned on: Instagram twice, TikTok
+  its row in the Anti Detect dashboard's Phones say "Banned on: Instagram twice, TikTok
   once". Nothing shows when there are none. A wipe never clears it, because
   a wipe doesn't clear the app's mark.
 - **A History line.** Each ban writes a Banned line in the phone's History.
 - **Accounts card.** The phone's History tab starts with every account it
   has held: handle, app, from and to, and how it left (moved, banned or
-  retired). Each opens the account's settings on the Accounts dashboard.
+  retired). Each opens the account on the Projects dashboard's Accounts.
   Older phones start with the account on them now; older moves are only the
   free-text lines below. Promo never deletes an account, so "deleted" is
   never a way to leave.
@@ -97,16 +97,16 @@ Instagram twice".
 - **A banned SIM warns.** A SIM phone whose number was in a counted ban of an
   app says "This SIM was used by a banned Instagram account" when it takes a
   new one, and saving still goes through. An empty SIM number never matches.
-- **Finding usable phones.** The Phones dashboard's "Banned on" filter lives
+- **Finding usable phones.** The "Banned on" filter in the Anti Detect dashboard's Phones lives
   in the address as `?banned=instagram`, and the back button undoes it. The
   Map draws a ban mark on each slot with a ban, naming the apps on hover.
-- **The proxy row.** The Proxies dashboard says "Banned on: Instagram" under
+- **The proxy row.** The Anti Detect dashboard's Proxies says "Banned on: Instagram" under
   a proxy that was in a counted ban.
 
 ## At a ban (parts 6 to 11)
 
-- **Clean up** is in the account's settings window, on its ban card, and in
-  the ban's window on the Bans dashboard. It asks once in the card, then
+- **Clean up** is on the ban card of the account's right panel, and in
+  the ban's window in the Anti Detect dashboard's Bans. It asks once in the card, then
   retires the account as Banned, takes it off its phone or browser profile,
   closes its row on the phone as banned, and queues the phone's wipe. A
   browser profile's saved sign-in is forgotten instead, and the profile
@@ -132,7 +132,8 @@ Instagram twice".
   that matched nothing it knows. A line with "no" or "not" just before the
   ban word ("You have no violations") is the app saying all is well. That stops the account, keeps the picture,
   and asks: the bell says "Promo doesn't know this screen. Is it a ban?" and
-  the Bans dashboard shows the screen with **It's a ban** and **Not a ban**.
+  Waiting on you, on the Anti Detect dashboard's Overview, shows the screen
+  with **It's a ban** and **Not a ban**.
   The answer applies to every account that same screen stopped, not only
   the last one asked about. "It's a ban" records the ban and teaches the rack the line, which it
   fetches with its next action, so the next copy is a normal ban. "Not a
@@ -141,30 +142,34 @@ Instagram twice".
   suspended after one comment?") or a line about someone else never asks.
 - **The ban picture is kept.** The last step picture of the action that found
   the ban is copied to a key of its own, still encrypted, and the step
-  pictures' tidy-up never deletes it. The ban card and the Bans dashboard
+  pictures' tidy-up never deletes it. The ban card and the Anti Detect dashboard's Bans
   show it; a click shows it full size.
 - **The brake.** A second counted ban of one app inside 24 hours pauses every
   account on that app, on phones and in browsers. The bell says "Two
   Instagram bans in a day. Every Instagram account is paused." Their jobs
   wait and are not failed, like a held phone's, and Post says why. Other
-  apps keep running. Release is on the Bans dashboard and in Settings →
+  apps keep running. Release is in Waiting on you, on the Anti Detect
+  dashboard's Overview, and in Settings →
   Phones; nothing restarts by itself. The brake is its own record, never an
   account's pause, so Release never resumes an account a person paused.
 
 ## Records and dashboards (parts 12 to 18)
 
-- **The Bans dashboard** is `/admin/bans`, under Anti Detect in the left
-  menu, after Phones. Columns: the account, when, the app, the kind, the
+- **Bans** is a section of [the Anti Detect
+  dashboard](anti-detect-dashboard.md) (`/admin/anti-detect?section=bans`;
+  the old `/admin/bans` is gone, [Old addresses](old-addresses.md)). Columns: the account, when, the app, the kind, the
   phone or profile, the proxy or SIM carrier, how old the account was, its
   posts in the week before, the seller, the appeal, and what happened since
   (stopped, let run again, cleaned up, looks back). Filters by app, kind,
-  phone, proxy, seller, project and date live in the address. Each row opens
-  the ban's window: the picture, the screen's words, the appeal, Let it run
+  phone, proxy, seller and date are in its Filter and the address, and the
+  project comes from the dashboard's Projects block. Each row opens the ban
+  on the right: the picture, the screen's words, the appeal, Let it run
   again and Clean up, and the phone's last 20 actions before the ban. An
   empty list says "No account has been banned yet".
-- **Above the list,** only when there is something: the apps the brake holds,
-  each screen Promo is asking about, and the sellers.
-- **Each account's own history** is the History tab of its settings window:
+- **The brake, the screens Promo asks about and the sellers** were cards
+  above the list until 12 Nov 2026. They are Overview's Waiting on you and
+  Bans in 30 days now (Tyler: "Overview widgets").
+- **Each account's own history** is the History list on its right panel:
   added, moved, banned, appealed, the appeal's answer, let run again,
   retired with its reason, and cleaned up, newest first. Lines start from
   this task; nothing older was recorded.
@@ -173,24 +178,25 @@ Instagram twice".
   "Retired 2 days ago · Sold", accounts retired before read "Not recorded",
   and with Show retired on, a filter splits them by reason.
 - **Where it came from.** Made or bought, the seller and the price in
-  dollars, in the add-account window and the account's settings window,
-  saved as they change. The Bans dashboard groups bans by seller: "Seller A:
+  dollars, in the add-account window and on the account's right panel,
+  saved as they change. The Anti Detect dashboard's Bans groups bans by seller: "Seller A:
   4 bans out of 10 bought, $120 lost". A seller counts the accounts a counted
   ban hit, and the dollars are what those accounts cost.
-- **Counts per app.** A strip at the top of the Accounts dashboard has one
-  card per app with accounts, counting Warming up, Ready, Working, At risk
-  and Banned among the accounts in use. Clicking a count filters the list to
-  that app and status.
+- **Counts per app.** The Projects dashboard's Overview has Accounts by
+  status, counting Warming up, Ready, Working, At risk and Banned among the
+  accounts in use; a press opens Accounts filtered to that status, and
+  Accounts' Filter narrows to one app. The strip of counts per app that sat
+  above the Accounts list went on 12 Nov 2026, so that list keeps one header.
 - **Lost accounts per project.** Each project's row and its left column say
   "2 accounts banned in the last 30 days", counting accounts a counted ban
-  hit. Clicking it opens the Bans dashboard filtered to that project and the
+  hit. Clicking it opens the Anti Detect dashboard's Bans filtered to that project and the
   last 30 days. Nothing shows when there are none.
 
 ## Keeping accounts alive (parts 19 to 24)
 
 - **Instagram and TikTok warm up for 7 days,** counted from when the account
   was added to Promo, a number in Settings → Behaviour, and the account reads
-  Warming up on the Accounts dashboard until then. Post is refused with the
+  Warming up on the Projects dashboard's Accounts until then. Post is refused with the
   day it ends. Once a day inside waking hours the phone opens the app,
   scrolls the feed for a few minutes and likes a few posts by pressing each
   post's own Like button found on screen. Nothing else is ever pressed, a
@@ -261,9 +267,11 @@ Instagram twice".
   `throwaway-first.ts`, `browser.ts` (Reddit and Medium ban pages),
   `dashboard.ts`, `upkeep.ts` (on the ticker as `promo-bans`), `schema.ts`.
 - **Words and numbers:** `src/lib/bans/options.ts`.
-- **Screens:** `src/components/bans/bans-dashboard.tsx`,
+- **Screens:** the Anti Detect dashboard's Bans, `src/components/anti-detect/bans-section.tsx`,
   `src/components/social/accounts/ban-card.tsx`, `retire-dialog.tsx`,
-  `account-counts.tsx`, `account-source.tsx`, `account-history-panel.tsx`.
+  `account-source.tsx`, `account-history-panel.tsx`, all shown in the
+  account's right panel on the Projects dashboard (`account-record.tsx`); the
+  status counts are Overview's Accounts by status widget.
 - **Tables:** `drizzle/0133_promo_bans.sql` adds `promo_bans`,
   `promo_phone_tenancies`, `promo_ban_phrases`, `promo_account_events`,
   `promo_app_brakes`, and account columns for the retire reason, the source,

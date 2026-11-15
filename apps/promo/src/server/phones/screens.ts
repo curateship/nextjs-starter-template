@@ -55,7 +55,7 @@ type Screen = {
 // On `globalThis` so the dev server's module reloads keep the windows open.
 const holder = globalThis as unknown as {
   __promoPhoneScreens?: Map<string, Screen>
-  /** When each person's wall of every phone last asked for pictures, by user id. */
+  /** When each rack's wall last asked for pictures, by `<user id>:<rack id>`. */
   __promoPhoneWalls?: Map<string, number>
 }
 const screens = (holder.__promoPhoneScreens ??= new Map<string, Screen>())
@@ -71,12 +71,13 @@ function screenOf(phoneId: string): Screen {
 }
 
 /**
- * The wall of every phone asked for pictures (part 57). It counts as open for
- * ten seconds, like a window, so closing the wall stops the rack's wall
- * pictures within ten seconds without a message of its own.
+ * One rack's wall asked for pictures (part 57; the rack's Wall tab since the
+ * Racks dashboard, part 104). It counts as open for ten seconds, like a
+ * window, so leaving the tab stops that rack's wall pictures within ten
+ * seconds without a message of its own. Another rack is never asked.
  */
-export function wantWall(userId: string, now: number = Date.now()): void {
-  walls.set(userId, now)
+export function wantWall(userId: string, rackId: string, now: number = Date.now()): void {
+  walls.set(`${userId}:${rackId}`, now)
 }
 
 /** The newest wall picture of a phone, or null when there is none or it is over 30 seconds old. */
@@ -202,7 +203,7 @@ export async function exchangeScreens(
 
   // The wall wants only the phones that would show a picture: connected or
   // busy. A held or offline phone shows its status word on the wall instead.
-  const wallWatchedAt = walls.get(rack.userId) ?? 0
+  const wallWatchedAt = walls.get(`${rack.userId}:${rack.id}`) ?? 0
   const wall =
     now.getTime() - wallWatchedAt > WATCH_MS
       ? []

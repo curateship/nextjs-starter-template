@@ -263,11 +263,7 @@ export function SubmissionsDashboard({
           // Amber, not green, when the sender was not reached. The decision
           // held, so it is not a failure, but it is not finished either.
           const message = submissionDecisionMessage(decision, emailed)
-          if (emailed) {
-            toast.success(message)
-          } else {
-            toast.warning(message)
-          }
+          if (!emailed) toast.warning(message)
           void router.invalidate()
         }}
       />

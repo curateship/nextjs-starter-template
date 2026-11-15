@@ -107,6 +107,18 @@ edited where it stands, with no settings screen.
     `--shell-rail-card-share` on the page, the variable Custom Shell's
     `src/theme.css` (copied over unchanged on 30 Oct 2026) reads for the
     menu colour. The slider is Custom Shell's `src/components/ui/slider.tsx`.
+- **Make the line down the menu's right edge fainter or stronger** with the
+  cog's "Menu edge", under Appearance, below Menu shade. It opens a slider that
+  changes the line as it moves. Tyler asked for it on 9 Nov 2026.
+  - **The scale is the theme's line.** 0% is no line ("None"), 100% is the
+    theme's full line, and 50% is the half-strength line the menu has had since
+    16 Oct 2026 ("Default"). "Back to the default edge" shows once it has moved.
+  - **Only the right edge changes.** The lines above the bottom links and the
+    cog row stay at half strength.
+  - **Saved in the menu file** as `menuEdge`, 0 to 100, half a second after the
+    slider stops. 50 leaves it out of the file. `src/app.tsx` mixes the
+    theme's `--sidebar-border` with see-through at that share on the `<aside>`,
+    so it works the same in light and dark mode.
 - **Set how dark the dark mode is** with the cog's "Dark mode", under
   Appearance. It lists the same four shades as an app's Settings -> Styling ->
   Dark mode, each with its swatch: Near black, Charcoal, Graphite and Soft

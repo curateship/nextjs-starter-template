@@ -1,16 +1,14 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { LayersIcon } from "lucide-react"
-import { toast } from "sonner"
 
-import { KeywordListSlotContext } from "@/components/social/keyword-list-slot"
 import { MediumModule } from "@/components/social/medium/medium-module"
 import { AppModule } from "@/components/social/phone-apps/app-module"
 import { RedditModule } from "@/components/social/reddit/reddit-module"
 import { RedditPostsModule } from "@/components/social/reddit/reddit-posts-module"
 import { LinkedinModule } from "@/components/social/linkedin/linkedin-module"
 import { XModule } from "@/components/social/x/x-module"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import {
   getNetworkErrorMessage,
   getProjectErrorMessage,
@@ -19,6 +17,7 @@ import {
   pauseProjectCommenting,
   pauseProjectNetwork,
   setProjectNetwork,
+  arrangeNetworks,
   type ProjectView,
 } from "@/lib/api/social/projects"
 import { MEDIUM_COMMENT_VIEWS, MEDIUM_POST_VIEWS } from "@/lib/social/medium/options"
@@ -34,7 +33,10 @@ import { ArchiveItemPanel } from "@/components/archive/archive-item-panel"
 import { ArchiveItemsPanel } from "@/components/archive/archive-items-panel"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 
+import { CommentingPauseContext } from "@/components/social/commenting-pause"
 import { ProjectColumns } from "./project-columns"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { ProjectBackButton, ProjectBackProvider } from "./project-back"
 import { ProjectColumnsPick } from "./project-columns-pick"
 import { ProjectDialogs, type ProjectDialog } from "./project-dialogs"
 import { ProjectPanel } from "./project-panel"
@@ -108,12 +110,12 @@ export function ProjectsWorkspace({
   const projectId = initialView.project.id
   const [view, setView] = React.useState(initialView)
   const [dialog, setDialog] = React.useState<ProjectDialog>(null)
-  const [keywordSlot, setKeywordSlot] = React.useState<HTMLDivElement | null>(null)
-  const slot = React.useMemo(() => ({ element: keywordSlot }), [keywordSlot])
 
   const networks = view.project.networks
   const archive = search.archive === "1"
-  const network = archive ? null : search.network && networks.includes(search.network) ? search.network : (networks[0] ?? null)
+  // With none named, the first network the Networks block shows; a hidden one only when every one is.
+  const firstShown = networks.find((each) => !view.project.hiddenNetworks.includes(each)) ?? networks[0] ?? null
+  const network = archive ? null : search.network && networks.includes(search.network) ? search.network : firstShown
   const side: Side = archive ? "posts" : sideOf(network, search)
   const guest = usePromoGuest()
   // What the left column picked, which a phone shows in the middle column.
@@ -126,7 +128,15 @@ export function ProjectsWorkspace({
           : { key: "", label: "Networks" },
     [archive, network, side]
   )
-  const framed = (node: React.ReactNode) => <ProjectColumnsPick.Provider value={pick}>{node}</ProjectColumnsPick.Provider>
+  // The arrow back to the Projects dashboard, which every network's middle header draws first; none for a guest.
+  const framed = (node: React.ReactNode) => (
+    <ProjectBackProvider value={guest ? null : projectId}>
+      {/* The right panels carry on the left panel's cover, as on every three-panel dashboard. */}
+      <RightCoverProvider value={view.project.imageUrl || null}>
+        <ProjectColumnsPick.Provider value={pick}>{node}</ProjectColumnsPick.Provider>
+      </RightCoverProvider>
+    </ProjectBackProvider>
+  )
 
   const setSearch = React.useCallback(
     (patch: ProjectRouteSearch, options: { replace?: boolean } = {}) =>
@@ -157,22 +167,40 @@ export function ProjectsWorkspace({
       if (use) {
         // The network just added is the one wanted next.
         setSearch({ ...LEAVE_SIDE, network: changed })
-        toast.success(`${NETWORK_NAMES[changed]} added.`)
       } else {
         if (changed === network) setSearch({ ...LEAVE_SIDE, network: undefined })
-        toast.success(`${NETWORK_NAMES[changed]} taken off ${view.project.name}.`)
       }
     } catch (error) {
       showErrorToast(getNetworkErrorMessage(error))
     }
   }
 
+  // Pause commenting, at the foot of the keywords dropdown of the network
+  // whose Commenting row shows; none for a guest.
+  const commentingPause = React.useMemo(
+    () =>
+      network && side === "commenting" && !guest
+        ? {
+            networkName: NETWORK_NAMES[network],
+            paused: view.project.pausedCommenting.includes(network),
+            onToggle: async (paused: boolean) => {
+              try {
+                await pauseProjectCommenting(projectId, network, paused)
+                await refreshView()
+              } catch (error) {
+                showErrorToast(getNetworkErrorMessage(error))
+              }
+            },
+          }
+        : null,
+    [network, side, guest, view.project.pausedCommenting, projectId, refreshView]
+  )
+
   const left = (
     <ProjectPanel
       view={view}
       selectedNetwork={network}
       selectedSide={side}
-      keywordSlot={setKeywordSlot}
       onSelect={(picked, pickedSide) => {
         if (picked !== network || pickedSide !== side || archive) {
           setSearch({ ...LEAVE_ARCHIVE, ...LEAVE_SIDE, network: picked, side: pickedSide === "commenting" ? "commenting" : undefined })
@@ -183,29 +211,21 @@ export function ProjectsWorkspace({
         if (!archive) setSearch({ ...LEAVE_SIDE, archive: "1", network: undefined })
       }}
       onAddNetwork={(added) => changeNetwork(added, true)}
+      onArrangeNetworks={async (arranged) => {
+        // Drawn at once, then saved; a refusal puts back what is stored.
+        setView((was) => ({ ...was, project: { ...was.project, networks: arranged.order, hiddenNetworks: arranged.hidden } }))
+        try {
+          await arrangeNetworks(projectId, arranged)
+        } catch (error) {
+          showErrorToast(getNetworkErrorMessage(error))
+          await refreshView()
+        }
+      }}
       onRemoveNetwork={(removed) => changeNetwork(removed, false)}
       onToggleNetworkPause={async (changed, paused) => {
         try {
           await pauseProjectNetwork(projectId, changed, paused)
           await refreshView()
-          toast.success(
-            paused
-              ? `${NETWORK_NAMES[changed]} paused on ${view.project.name}. Its accounts do not post or warm up; the rest of the project runs.`
-              : `${NETWORK_NAMES[changed]} resumed on ${view.project.name}.`
-          )
-        } catch (error) {
-          showErrorToast(getNetworkErrorMessage(error))
-        }
-      }}
-      onToggleCommentingPause={async (changed, paused) => {
-        try {
-          await pauseProjectCommenting(projectId, changed, paused)
-          await refreshView()
-          toast.success(
-            paused
-              ? `Commenting on ${NETWORK_NAMES[changed]} paused for ${view.project.name}. Comments wait; your own posts still go out.`
-              : `Commenting on ${NETWORK_NAMES[changed]} resumed for ${view.project.name}.`
-          )
         } catch (error) {
           showErrorToast(getNetworkErrorMessage(error))
         }
@@ -217,11 +237,6 @@ export function ProjectsWorkspace({
         try {
           await pauseProject(projectId, pausing)
           await refreshView()
-          toast.success(
-            pausing
-              ? `${view.project.name} paused. None of its accounts posts, warms up or takes readings.`
-              : `${view.project.name} resumed.`
-          )
         } catch (error) {
           showErrorToast(getProjectErrorMessage(error))
         }
@@ -323,11 +338,7 @@ export function ProjectsWorkspace({
       )
   }
 
-  if (module) {
-    // On Commenting, each network's keyword header draws its keywords as a
-    // list under the Commenting row of the left column (part 11).
-    return framed(side === "commenting" ? <KeywordListSlotContext.Provider value={slot}>{module}</KeywordListSlotContext.Provider> : module)
-  }
+  if (module) return framed(<CommentingPauseContext.Provider value={commentingPause}>{module}</CommentingPauseContext.Provider>)
 
   // No network yet: the middle and right columns say where to start.
   return framed(
@@ -335,7 +346,11 @@ export function ProjectsWorkspace({
       left={left}
       middle={
         <>
-          <DashboardCardTitleHeader icon={<LayersIcon className="size-4" />} title="No network yet" />
+          <DashboardCardHeader className="gap-2">
+            <ProjectBackButton />
+            <LayersIcon className="size-4 text-muted-foreground" aria-hidden />
+            <h2 className={dashboardCardHeadingClassName}>No network yet</h2>
+          </DashboardCardHeader>
           <p className="p-4 text-sm text-muted-foreground">
             This project uses no network yet. Press Add network in the left column, and your
             posts on that network open here.

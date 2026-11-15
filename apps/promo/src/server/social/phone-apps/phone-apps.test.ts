@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { uuid } from "@/server/auth/security"
 import { createProfile } from "@/server/browser/profiles"
 import { setDbForTests } from "@/server/db"
-import { checkIn, createPairingCode, finishAction, nextAction, pairRack, type VerifiedRack } from "@/server/phones/rack"
+import { checkIn, createPairingCode, createRack, finishAction, nextAction, pairRack, type VerifiedRack } from "@/server/phones/rack"
 import { RACK_VERSION } from "@/server/phones/release"
 import { promoMediaLinks, promoPhoneActionChecks, promoPhoneActions, promoPhones } from "@/server/phones/schema"
 import { customShellMedia, customShellNotifications } from "@/server/schema"
@@ -65,8 +65,8 @@ describe("Instagram and TikTok on phones", () => {
     workspaceId = (await insertWorkspace(db)).id
     // No Instagram or TikTok warm-up (Bans task, part 19), which is tested on its own.
     await db.insert(promoBehaviourSettings).values({ userId, wakeFromMinute: 0, wakeUntilMinute: 0, appWarmUpDays: 0 })
-    const { code } = await createPairingCode(userId, db)
-    const paired = await pairRack({ code, name: "Mac", platform: "", version: RACK_VERSION }, db)
+    const { code } = await createPairingCode(userId, await createRack(userId, { name: "Mac" }, db), db)
+    const paired = await pairRack({ code, platform: "", version: RACK_VERSION }, db)
     rack = { id: paired.rackId, userId, key: paired.key }
     projectId = await createProject(userId, "Pomoder", db)
   })

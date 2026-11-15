@@ -92,6 +92,6 @@ rings once.
 
 Once a week a search account opens the account's five latest comments under
 their posts. When none of them shows, the account is marked "Comments
-hidden?" on the Accounts dashboard and the bell rings once. It is Promo's
-best guess: LinkedIn never says. Check now on the Accounts dashboard takes the
+hidden?" on the Projects dashboard's Accounts and the bell rings once. It is Promo's
+best guess: LinkedIn never says. Check now on the Projects dashboard's Accounts takes the
 look straight away.

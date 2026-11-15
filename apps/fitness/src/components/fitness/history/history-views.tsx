@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import { BookmarkIcon, Loader2Icon, Trash2Icon } from "lucide-react"
-import { toast } from "sonner"
 
 import { PanelBody, PanelEmpty } from "@/components/fitness/dashboard/panel-parts"
 import type { ProgramViewProps } from "@/components/fitness/dashboard/view-props"
@@ -312,7 +311,6 @@ function ViewsMenu({ views, onOpen }: { views: SavedView[]; onOpen: (view: Saved
     setDeleting(view.id)
     try {
       await deleteHistoryView(view.id)
-      toast.success(`"${view.name}" deleted.`)
       await router.invalidate()
     } catch (error) {
       reportFitnessError(error)
@@ -394,7 +392,6 @@ function SaveViewDialog({
     try {
       const kept = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== undefined))
       await saveHistoryView({ programId, name: name.trim(), filters: kept })
-      toast.success(`"${name.trim()}" saved. Open it from Views.`)
       await router.invalidate()
       setName("")
       onClose()

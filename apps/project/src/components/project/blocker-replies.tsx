@@ -71,8 +71,7 @@ export function BlockerReplies({
       return
     }
     const ok = await run(
-      () => replyToBlocker({ checkinId, taskId, body }, teamId),
-      taskId ? `Replied. ${blockedName} has been told, and it's in the task's chat.` : `Replied. ${blockedName} has been told.`
+      () => replyToBlocker({ checkinId, taskId, body }, teamId)
     )
     if (!ok) return
     close()

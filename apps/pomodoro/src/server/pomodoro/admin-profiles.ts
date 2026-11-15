@@ -7,7 +7,7 @@ import {
   forgetUsersPages,
   isDuplicateHandle,
 } from "@/server/pomodoro/public-profile"
-import { pomodoroAuditLogs, pomodoroFollows, pomodoroProfiles } from "@/server/pomodoro/schema"
+import { dailyFocusStats, pomodoroAuditLogs, pomodoroFollows, pomodoroProfiles } from "@/server/pomodoro/schema"
 import { customShellUsers as users } from "@/server/schema"
 import type { PROFILE_VISIBILITY_FILTERS, ProfileSortColumn } from "@/lib/pomodoro/admin-lists"
 import { profileEditedMessage } from "@/lib/pomodoro/notices"
@@ -21,6 +21,15 @@ import { isHandleAvailableShape, isHandleShape } from "@/lib/pomodoro/public-pro
  */
 
 const followers = sql<number>`(select count(*)::int from ${pomodoroFollows} where ${pomodoroFollows.followedUserId} = ${pomodoroProfiles.userId})`
+
+/**
+ * All-time focus, from the same daily rollup the member's own Stats read, so
+ * the column and their History never disagree. It took the place of the
+ * Focus list (Tyler, 13 Nov 2026: "we dont need the focus and leaderboard
+ * tab ... instead on profile table, add a focus time col instead"). The
+ * select joins the accounts table, so drizzle keeps both table names here.
+ */
+const focusSeconds = sql<number>`(select coalesce(sum(${dailyFocusStats.focusSeconds}), 0)::int from ${dailyFocusStats} where ${dailyFocusStats.userId} = ${pomodoroProfiles.userId})`
 
 export async function listAdminProfiles(query: {
   search: string
@@ -53,6 +62,7 @@ export async function listAdminProfiles(query: {
     name: users.name,
     handle: pomodoroProfiles.handle,
     followers,
+    focus: focusSeconds,
     updated: pomodoroProfiles.updatedAt,
   }[query.sort]
 
@@ -69,6 +79,7 @@ export async function listAdminProfiles(query: {
         leaderboardOptIn: pomodoroProfiles.leaderboardOptIn,
         leaderboardHiddenAt: pomodoroProfiles.leaderboardHiddenAt,
         followers,
+        focusSeconds,
         updatedAt: pomodoroProfiles.updatedAt,
       })
       .from(pomodoroProfiles)
