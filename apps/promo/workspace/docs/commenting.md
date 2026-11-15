@@ -36,25 +36,51 @@ project's page, not a card each (Tyler: "Description page + Networks block";
 rows of 5 Nov 2026 stay.
 
 - **Each network** is its mark and name, with Paused after it while the
-  whole network is paused. Pause and Take off for the whole network are in
+  whole network is paused. Only a network with both rows folds; Instagram
+  and TikTok are one line that opens their posts. The block's ⋮ hides and
+  reorders networks
+  ([The Networks block](projects-dashboard.md#a-projects-own-page)). Pause and Take off for the whole network are in
   the project's ⋮, under Networks.
 - **Posts** has how many of your posts on it need you in its pill: failed
   ones and drafts not sent yet.
-- **Commenting** has what waits in its pill: strong posts and replies to
-  answer. Its Pause (below) shows while the row is pointed at, and it says
-  Paused while it is.
-- **Picked, Commenting lists its keywords under it,** under "Keywords · 3"
-  with a + to add one: All keywords, then a row per keyword (part 11; below).
+- **Commenting** has no count (Tyler, 14 Nov 2026, of its "2", the Strong
+  fit posts and replies waiting: "remove it"). It says Paused after its name
+  while commenting is paused. The Pause button itself is in the keywords dropdown (below).
+- **The keywords are not on the left.** Since 14 Nov 2026 they are a
+  dropdown in Commenting's middle header ([The keywords](#the-keywords)).
 - **The picked row** has the sliding bar, as a Dashboards row does.
 
 ## Commenting's middle and right columns
 
-- **Middle: the posts to comment on.** On Reddit since 12 Nov 2026 the one
-  header holds the tabs, Search posts, the keyword picker and a "⋮" with
-  Jobs; the other networks' headers still name the network, with Search
-  posts, Jobs and a "⋮" on the right, until their part of the redesign. Under it the warnings about
-  searching (no search account, the browser program not running), then the
-  tabs: To look at, Replied, Skipped, Today and Sent. LinkedIn adds People.
+- **Middle: the posts to comment on, under one header.** Every network's
+  Commenting has Reddit's header since 14 Nov 2026 (Tyler: "fix all the
+  tabs. the only thing that looks right is the reddit tabs"): the arrow back
+  and the tabs on the left, To look at, Replied, Skipped, Today and Sent
+  (LinkedIn adds People); then Search posts, Select (Reddit), the keywords
+  dropdown, the amber jobs warning and a "⋮" whose first row is Jobs. No
+  header names the network any more. Under the header, only the warnings
+  that need a setting changed stay as red lines, such as no search account
+  or no reader browser.
+- **Every Posts row has one header too:** the arrow back, the tabs, and the
+  list's own buttons at its right end, such as Post ideas or Article ideas
+  and New post, New publication on Medium's Publications and Add community
+  on X's Communities. Until 14 Nov 2026 those sat on a row of their own
+  under the tabs, with a line saying what publications or communities are;
+  that line is gone. The list puts its buttons there through `HeaderActions`
+  (`src/components/social/header-actions.tsx`).
+- **The tabs are the dashboard's own** (`DashboardTabs`) on every network,
+  drawn in the style Settings → Styling picks, as Reddit's are (Tyler,
+  14 Nov 2026: "some networks is not using the correct tab ui", of
+  Instagram's grey pill tabs). Every header is 57px with the tabs 56px tall,
+  starting at the same place. Narrower than 768px, Medium's, X's and
+  LinkedIn's tabs become one "Which list" dropdown, as Reddit's do. A tab's
+  count is the plain grey count; Medium's, X's and LinkedIn's Sent tab shows
+  how many failed when any did, no longer in red. Instagram's and TikTok's
+  tabs sit in the shell's table toolbar, given the header's height, its line
+  and its 20px sides from `app-tables.tsx` (`APP_TABLE`), since the toolbar
+  is the shell's.
+- **Sent's Sent and Failed buttons** on Medium, X and LinkedIn still sit on a
+  row under the header, with Check.
 - **Right: the post and the comment box.** With no post picked, the first one
   in the list opens by itself, so the column is never empty (part 14). It is
   worked out from the list rather than written to the address, so on a phone
@@ -86,25 +112,36 @@ row's Replies tab.
 
 ## The counts
 
-- **Commenting's** is filled by `loadProject` in
-  `src/lib/api/social/projects.ts` (`networkCounts`). Reddit's is Today's posts
-  and its unanswered replies; Medium's and X's are strong posts plus replies to
-  answer; LinkedIn's adds the connection requests waiting.
+- **Commenting's row has none** since 14 Nov 2026. The figure is still
+  worked out by `loadProject` in `src/lib/api/social/projects.ts`
+  (`networkCounts`) for the Projects dashboard's project summary, where it
+  reads "2 to answer". Reddit's is Today's posts and its unanswered replies;
+  Medium's and X's are strong posts plus replies to answer; LinkedIn's adds
+  the connection requests waiting.
 - **Posts'** is `readPostCounts` in `src/server/social/post-counts.ts`
   (`postCounts`).
 
 ## Pause commenting
 
-The Pause on a card's Commenting row holds back that network's commenting on
-that project, and only that (part 20). The project's own posts on the
-network, its warm-up and its readings carry on.
+**Pause commenting on Reddit** (or Medium, X, LinkedIn) sits at the foot of
+that network's keywords dropdown, under a line, with "Comments wait; your
+own posts still go out." under it. Pressed again it reads Resume commenting.
+It was a button on the Commenting row in the left panel until Tyler moved it,
+14 Nov 2026: "remove this pause thing. that belings in the keyword
+dropdown". A guest has no Pause. The dropdown gets it from
+`CommentingPauseContext` (`src/components/social/commenting-pause.ts`),
+which the project's dashboard puts around the network's Commenting.
+
+The pause holds back that network's commenting on that project, and only
+that (part 20). The project's own posts on the network, its warm-up and its
+readings carry on.
 
 - **What waits:** a Reddit comment and an answer to a reply, a Medium response,
   an X reply, quote or answer, a LinkedIn comment and a LinkedIn connection
   request (`COMMENTING_JOB_KINDS` in `src/lib/social/options.ts`).
 - **Pressed while paused,** each is refused with "Commenting on Reddit is
-  paused on this project. Resume it on the network's Commenting row in the
-  project's left column first." (`refuseWhileCommentingPaused` in
+  paused on this project. Resume it at the foot of the keywords dropdown on
+  the network's Commenting first." (`refuseWhileCommentingPaused` in
   `src/server/social/pause.ts`).
 - **Pressed before the pause,** it waits in the queue and goes once commenting
   is resumed, like a paused account's comment, and can still be cancelled.
@@ -159,63 +196,60 @@ the project's owner. They have no Pause and no Jobs.
 
 ## Reddit's Commenting
 
-### The keywords list
+### The keywords
 
 Tyler, 21 Oct 2026, with a picture of the chips taking two lines at three
-keywords: "have to organize the keywords ui better". Of three drawings he
-picked one dropdown in the middle column's header, for every network. On 5 Nov
-2026 he picked the keywords as a list in the project's left column, under Commenting instead
-(part 11), so the list that dropdown held is drawn there, open, under
-**Keywords**. The same day the list took the left panel standard: the heading
-counts the keywords ("Keywords · 3"), a + beside it adds one, and a row's
-buttons show on hover (left-column-standards task, parts 16 to 19).
+keywords: "have to organize the keywords ui better". He picked one dropdown in
+the middle column's header, for every network. On 5 Nov 2026 the list moved
+to the project's left column, under the Commenting row. On 14 Nov 2026 it
+moved back into the header, beside Select, with a picture of the header:
+"the keywords for the reddit network should be moved here", "same as medium
+and any other commenting link from the left panel".
 
-- **The list** has All keywords first, grey when picked, then a row per
-  keyword. Picking a row lists that keyword's posts
-  alone; All keywords goes back to every keyword's posts in one ranked list,
-  which is what shows when the screen opens. The picked keyword is in the
-  address as `?keyword=<id>`, so a reload keeps it. A post row then names the keyword that found it, once the project has
-  more than one.
-- **A keyword's row** shows its name and post count, and under them when it
-  last searched and what it searches ("2 hours ago · Past week · All of
-  Reddit", or "Watching · Newest first" for a watch). A failed last search says
-  "search failed" in red, with the reason on hover. No hover on the name:
-  Tyler asked for those tooltips to go on 13 Oct 2026.
+- **Where it sits:** on Reddit, after Select and before the amber jobs
+  warning. On Medium, X and LinkedIn, after Search posts and before Jobs.
+- **The button** names the picked keyword with its count, or says All
+  keywords. Medium, X and LinkedIn give All keywords a count too; Reddit
+  does not. While the project has no keywords the button says Add keyword
+  with a +, and opens straight on the add form.
+- **In a narrow header the button is a tags mark alone,** with no words and
+  no arrow, as Select is its mark alone. Reddit's header turns narrow under
+  768px, which a 1280px window already is; Medium, X and LinkedIn turn on a
+  phone. The button never shrinks under the search box. On a 390px phone
+  Reddit's header is 2px too wide and its search box has no room left,
+  measured 14 Nov 2026; at 430px everything fits.
+- **The dropdown** has "Keywords · 3" as a quiet line with a + beside it,
+  then All keywords, then a row per keyword with its post count. Picking a
+  row lists that keyword's posts alone and shuts the dropdown; All keywords
+  goes back to every keyword's posts in one ranked list, which is what shows
+  when the screen opens. The picked keyword is in the address as
+  `?keyword=<id>`, so a reload keeps it. A post row then names the keyword
+  that found it, once the project has more than one.
+- **A keyword's last search** shows on hover over its row ("2 hours ago ·
+  Past week · All of Reddit", or "Watching · Newest first" for a watch). In
+  the row it shows only while it searches (a spinner) or after it failed
+  ("failed" in red, the reason on hover).
 - **Three buttons on the row's right,** shown while the row is pointed at or
-  holds the keyboard's focus, so a keyword's name has the column's width; on
-  a phone they always show. The timer switches its timed searches off and on
-  (a timer while it searches by itself, a crossed-out timer and "timer off"
-  in its line while it only searches when pressed); the arrow searches again;
-  the "⋮", in the shell's one dropdown look, holds **Remove**, which removes
-  the keyword and everything it found, at once, with no question asked. A
-  search running shows its spinner after the count whatever the pointer does.
-- **The + beside Keywords** opens the network's add form as a dropdown: the
-  words, subreddits, Reddit's order and how far back, with **Add and search**.
-  While the project has no keywords the form sits open under the heading
-  instead. Pressing Add and search with both boxes empty says what is missing
-  and marks the box.
-- **While a search waits or runs** its row says "searching" and its arrow
-  spins. When the browser program is not running, the row says "waiting"
-  instead and nothing spins. On Reddit a small amber warning in the header
-  says how many jobs are waiting and opens the Jobs window when pressed;
-  Medium, X and LinkedIn still draw a red line under the header with **See
-  the jobs** until their part of the redesign. Both open the same window as
-  **Jobs** in the ⋮ ([The Jobs window](browser/jobs-dashboard.md)). Before
-  that line, a search with no program to run it spun forever and looked the
-  same as one about to finish.
-- **Search posts** is the first box in the buttons on the right of the middle
-  column's header, so the row beneath holds only the tabs and the ticked posts' buttons
-  ([Finding a post you remember](reddit/finding-posts.md)).
-- **The keyword rows** are drawn as the Networks block's rows: grey names,
-  the picked one dark with the small bar, the count in the grey pill, and
-  "Keywords · 3" as a quiet line over them with its +. A keyword's last search
-  shows on hover, and in the row only while it searches or after it failed.
-- **The same list draws Medium's, X's and LinkedIn's keywords.** It is
-  `src/components/social/keyword-picker.tsx`; each network passes its own rows,
-  its own "⋮" items and its own add box from its header, and the picker draws
-  them into the left column through `KeywordListSlotContext`
-  (`keyword-list-slot.ts`). On a phone the left column stays drawn behind its
-  name, so the list is always there.
+  holds the keyboard's focus, so a keyword's name has the dropdown's width;
+  on a phone they always show. The timer switches its timed searches off and
+  on (a timer while it searches by itself, a crossed-out timer while it only
+  searches when pressed); the arrow searches again; the "⋮", in the shell's
+  one dropdown look, holds **Remove**, which removes the keyword and
+  everything it found, at once, with no question asked.
+- **The + beside Keywords** turns the dropdown into the network's add form:
+  for Reddit the words, subreddits, Reddit's order and how far back, with
+  **Add and search**. A "Keywords" link with a back arrow over the form goes
+  back to the list, and so does a save. Pressing Add and search with both
+  boxes empty says what is missing and marks the box.
+- **While a search waits or runs** its row spins. When the browser program is
+  not running, nothing spins and its hover says "waiting". On Reddit the
+  amber warning in the header says how many jobs are waiting and opens the
+  Jobs window when pressed, on every network since 14 Nov 2026
+  (`stalled-jobs.tsx`). It opens the same window as **Jobs** in the ⋮
+  ([The Jobs window](browser/jobs-dashboard.md)).
+- **One dropdown draws every network's keywords.** It is
+  `src/components/social/keyword-picker.tsx`; each network passes its own
+  rows, its own "⋮" items and its own add form from its header.
 
 ### The posts
 
@@ -344,8 +378,7 @@ dropdown above the box picks who comments.
 
 - **The page** is the project's own, `src/routes/_authenticated/admin/projects_.$projectId.tsx`,
   and `src/components/social/projects/workspace.tsx` draws the picked row.
-- **The cards** are `ProjectNetworks` in `project-panel.tsx`, which also holds
-  the element the keywords are drawn into.
+- **The cards** are `ProjectNetworks` in `project-panel.tsx`.
 - **The networks** are their own modules with `side="commenting"` or
   `side="posts"` (`medium-module.tsx`, `x-module.tsx`, `linkedin-module.tsx`).
   Reddit's Commenting is `reddit-module.tsx` and its Posts

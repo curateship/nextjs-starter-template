@@ -18,8 +18,6 @@ import {
 } from "lucide-react"
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
 
-import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Hint } from "@/components/social/hint"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -73,8 +71,10 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 import { KeywordPicker } from "../keyword-picker"
-import { NetworkIcon } from "../network-icon"
 import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { PanelReopenButton } from "@/components/shared/three-panels"
+import { StalledJobs } from "../stalled-jobs"
 
 type Keyword = LinkedinModuleView["keywords"][number]
 
@@ -121,8 +121,9 @@ function dollars(cents: number): string {
 const dayFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" })
 
 /**
- * The middle column's header: LinkedIn's name, then on the right the search
- * box, the shared keywords dropdown, Jobs and More, the same row as X's. A
+ * The middle column's one header, as Reddit's: the arrow back and the tabs,
+ * then the search box, the shared keywords dropdown, the amber jobs warning
+ * and More, which holds Jobs. A
  * LinkedIn keyword is search words, a hashtag, or a person or company page
  * watched for its new posts (parts 10 and 12). Search words can be marked as
  * the product's own name or a rival's (part 15), and a watched one rings the
@@ -136,6 +137,7 @@ export function LinkedinKeywords({
   projectId,
   selectedId,
   search,
+  tabs,
   onSelect,
   onChanged,
   onOpenJobs,
@@ -145,8 +147,10 @@ export function LinkedinKeywords({
   failed: boolean
   projectId: string
   selectedId: string | null
-  /** The search box, drawn among the row's buttons on the post tabs. */
-  search: React.ReactNode
+  /** The search box's words on the post tabs; null hides it. */
+  search: { value: string; onChange: (value: string) => void } | null
+  /** The tabs, drawn after the arrow back. */
+  tabs: React.ReactNode
   onSelect: (keywordId: string | null) => void
   onChanged: () => Promise<void>
   onOpenJobs: () => void
@@ -179,16 +183,31 @@ export function LinkedinKeywords({
     }
   }
 
+  // The one middle header Reddit's Commenting has (`CrmListHeader`; Tyler,
+  // 14 Nov 2026: "fix all the tabs. the only thing that looks right is the
+  // reddit tabs"): the arrow back and the tabs on the left, then the search
+  // box, the keywords dropdown, the amber jobs warning and the ⋮ with Jobs.
   return (
-    <DashboardCardHeader className="flex-wrap items-center gap-x-3 gap-y-2">
-      <ProjectBackButton />
-      <DashboardCardHeaderIcon>
-        <NetworkIcon network="linkedin" />
-      </DashboardCardHeaderIcon>
-      <h2 className={cn(dashboardCardHeadingClassName, "min-w-0 truncate")}>LinkedIn</h2>
-
-      <div className="ml-auto flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
-        {search}
+    <>
+    <CrmListHeader
+      tabs={
+        <>
+          <PanelReopenButton side="left" label="Show the project" />
+          <ProjectBackButton />
+          {tabs}
+        </>
+      }
+      end={<PanelReopenButton side="right" label="Show the post and your comment" />}
+      selected={null}
+      massSelect={null}
+      menuLabel="More"
+      search={
+        search
+          ? { name: "linkedin-post-search", label: "Search these posts by words or writer", placeholder: "Search posts", value: search.value, onChange: search.onChange }
+          : null
+      }
+      view={
+        <>
         <KeywordPicker
           items={keywords.map((keyword) => ({
             id: keyword.id,
@@ -289,18 +308,9 @@ export function LinkedinKeywords({
             />
           )}
         />
-        <DashboardToolbarButton
-          type="button"
-          variant="outline"
-          onClick={onOpenJobs}
-          aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-        >
-          <ListChecksIcon className="size-4" />
-          <span className="hidden sm:inline">Jobs</span>
-          {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-        </DashboardToolbarButton>
+        {view && !view.jobs.programRunning && view.jobs.queued > 0 ? <StalledJobs queued={view.jobs.queued} onOpen={onOpenJobs} /> : null}
         <DropdownMenu>
-          <Hint label="Search all, ideas, who you sell to, groups, AI spend and hidden people">
+          <Hint label="Jobs, search all, ideas, who you sell to, groups, AI spend and hidden people">
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="More">
                 {asking ? <Loader2Icon className="animate-spin" /> : <EllipsisVerticalIcon />}
@@ -308,6 +318,10 @@ export function LinkedinKeywords({
             </DropdownMenuTrigger>
           </Hint>
           <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuItem onSelect={onOpenJobs}>
+              <ListChecksIcon />
+              {jobsWaiting ? `Jobs · ${jobsWaiting}` : "Jobs"}
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() =>
                 void act(async () => {
@@ -376,6 +390,9 @@ export function LinkedinKeywords({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        </>
+      }
+    />
         <Dialog open={ideas !== null} onOpenChange={(open) => (open ? null : setIdeas(null))}>
           <DialogContent variant="admin">
             <DialogHeader>
@@ -413,8 +430,7 @@ export function LinkedinKeywords({
           <BuyerTitlesWindow projectId={projectId} titles={view?.buyerTitles ?? []} onClose={() => setOpenWindow(null)} onChanged={onChanged} />
         ) : null}
         <GroupsWindow open={openWindow === "groups"} projectId={projectId} groups={view?.groups ?? []} onClose={() => setOpenWindow(null)} onChanged={onChanged} />
-      </div>
-    </DashboardCardHeader>
+    </>
   )
 }
 

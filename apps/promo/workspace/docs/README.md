@@ -19,7 +19,7 @@ the repo's `docs/`, and is never copied here.
   make, and pausing a project.
 - [Commenting inside a project](commenting.md): Tyler's answers of 5 Nov 2026,
   each network a folding card with a Posts row and a Commenting row, the
-  keywords listed under Commenting, what sits on each row, the counts, Pause
+  keywords dropdown in Commenting's header, what sits on each row, the counts, Pause
   commenting, the first post opening by itself, the address and old
   addresses, guests, and Reddit's keywords, posts, comment box, Today and
   accounts dropdown.

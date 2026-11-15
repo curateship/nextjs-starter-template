@@ -158,6 +158,13 @@ export const promoProjects = pgTable(
      * project's own posts keep going out.
      */
     pausedCommenting: jsonb("paused_commenting").$type<Network[]>().notNull().default([]),
+    /**
+     * The networks left out of the project's Networks block, from the
+     * block's ⋮ (Tyler, 14 Nov 2026: "i should be able to hide and drag and
+     * drop networks here"). They stay on the project and keep running.
+     * Added by `drizzle/0161_promo_hidden_networks.sql`.
+     */
+    hiddenNetworks: jsonb("hidden_networks").$type<Network[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

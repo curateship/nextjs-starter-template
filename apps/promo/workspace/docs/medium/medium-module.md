@@ -39,12 +39,14 @@ the middle and right columns with Medium's panels. It came from
 - **Two rows of Medium's card since 5 Nov 2026**
   ([Commenting inside a project](../commenting.md)). The
   Posts row has Posts (`articles`) and Publications; its Commenting row has
-  the keywords under it in the left column and the rest below.
-- **The header** of Commenting's middle column: "Medium" on the left, and on
-  the right the search box on the story tabs, Jobs, and More. More holds
+  the rest below.
+- **The header** of Commenting's middle column, Reddit's since 14 Nov 2026:
+  the arrow back and the tabs on the left, and on the right the search box on
+  the story tabs, the keywords dropdown, the amber jobs warning while the
+  browser program is not running, and More. More holds Jobs,
   Search every keyword now, Tag and publication ideas, Medium's AI this
   month, and the writers and publications you hid.
-- **Five tabs** sit under it: To look at, Replied, Skipped, Today and Sent
+- **Five tabs** sit in it, after the arrow: To look at, Replied, Skipped, Today and Sent
   (`responses`). The tab is in the address as `?tab=` (none is To look at on
   Commenting, Posts on Posts), and whatever is open in the right
   column as `?open=<id>`.
@@ -74,12 +76,12 @@ rival**. Stories found by a marked keyword carry a chip and score twice as high,
 since that conversation is already about you.
 
 The keywords are the same list as Reddit's
-([The keywords list](../commenting.md#the-keywords-list)). All
+([The keywords](../commenting.md#the-keywords)). All
 keywords counts each story waiting once, though two keywords found it. A
 keyword's row says when it last searched and its kind ("2 hours ago · tag"),
 with the timer switch (searches by itself every few hours), search again now,
 and a "⋮" with the mark (search words only) and Remove. The + beside
-Keywords opens the kind and its box as a dropdown.
+"Keywords · 3" turns the dropdown into the kind and its box.
 Removing a keyword deletes the stories only it found. A response already sent
 keeps its own record of the story's title and address.
 

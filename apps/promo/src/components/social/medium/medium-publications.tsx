@@ -1,4 +1,5 @@
 import * as React from "react"
+import { HeaderActions } from "@/components/social/header-actions"
 import { ArrowLeftIcon, BookOpenIcon, ExternalLinkIcon, Loader2Icon, PlusIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -75,8 +76,7 @@ export function MediumPublicationsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-        <span className="flex-1 text-xs text-muted-foreground">Group blogs run by editors. An editor adds an account as a writer, on Medium.</span>
+      <HeaderActions>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <DashboardToolbarButton type="button">
@@ -99,7 +99,7 @@ export function MediumPublicationsList({
             </form>
           </PopoverContent>
         </Popover>
-      </div>
+      </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
           <div className="grid justify-items-start gap-3 p-4">

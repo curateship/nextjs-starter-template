@@ -22,6 +22,7 @@ const {
   accountForFind,
   addAccountToProject,
   addProjectNetwork,
+  arrangeProjectNetworks,
   createProject,
   deleteProject,
   deleteProjects,
@@ -200,6 +201,21 @@ describe("projects", () => {
     // Tab one goes on from what the server gave back.
     await updateProject(userId, id, { page: JSON.stringify(doc("Still tab one.")), base: afterFirst! }, db)
     expect(await projectDescription(userId, id, db)).toBe("Still tab one.")
+  })
+
+  it("saves the Networks block's order and hidden networks, refusing an order that is not the project's networks", async () => {
+    const id = await createProject(userId, "Arranged", db, ["reddit", "instagram", "medium"])
+    await arrangeProjectNetworks(userId, id, { order: ["medium", "reddit", "instagram"], hidden: ["instagram", "x"] }, db)
+    const view = await readProjectView(userId, id, db)
+    expect(view.project.networks).toEqual(["medium", "reddit", "instagram"])
+    // A network the project does not use is never stored as hidden.
+    expect(view.project.hiddenNetworks).toEqual(["instagram"])
+
+    await expect(arrangeProjectNetworks(userId, id, { order: ["medium", "reddit"], hidden: [] }, db)).rejects.toThrow("networks changed")
+    await expect(arrangeProjectNetworks(userId, id, { order: ["medium", "reddit", "x"], hidden: [] }, db)).rejects.toThrow("networks changed")
+    // Taken off, a hidden network leaves the hidden list too.
+    await removeProjectNetwork(userId, id, "instagram", db)
+    expect((await readProjectView(userId, id, db)).project.hiddenNetworks).toEqual([])
   })
 
   it("pins a project for the table, and another person's id pins nothing", async () => {
