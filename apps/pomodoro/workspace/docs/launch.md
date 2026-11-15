@@ -14,13 +14,14 @@ value, and what has been proven so far.
   2 Nov 2026, with all 88,147 rows. Tyler: "Only core we dont need to move".
   The US copies, Pomoder Web `w21w5iit9f1kgxxak2et2hmg`, Pomoder Worker
   `cxjb1e2704wr4ewqztrdnsm7` and Pomoder DB `lemznkk0o4h0wqcq295kozv7`, are
-  stopped there as the backup. On server1 they are Pomoder Web
-  `v0hykgu0jg9yi2z9tieqlnlj`, Pomoder Worker `hasivc8zbffsgaw7oq5sku2s` and
-  Pomoder DB `agbwgycisgnvtbbyl6ivkdty`.
-- **Coolify project:** "Pomoder", its own project. Tyler, 8 Oct 2026: each app
+  stopped there as the backup. On server1 they are Flowfly Web
+  `v0hykgu0jg9yi2z9tieqlnlj`, Flowfly Worker `hasivc8zbffsgaw7oq5sku2s` and
+  Flowfly DB `agbwgycisgnvtbbyl6ivkdty`, renamed from Pomoder Web, Pomoder
+  Worker and Pomoder DB on 15 Nov 2026.
+- **Coolify project:** "Flowfly", its own project. Tyler, 8 Oct 2026: each app
   gets its own project, because everything in "System Everything" is out of
   date.
-- **Database:** "Pomoder DB", a Postgres 18 created 8 Oct 2026 in that
+- **Database:** "Flowfly DB" (first named "Pomoder DB"), a Postgres 18 created 8 Oct 2026 in that
   project. It has no public port, so only containers on the same server can
   reach it. The System Everything database was not used, because its SSL is
   off and turning it on would restart the live System Everything site.
@@ -40,8 +41,9 @@ value, and what has been proven so far.
   resources plus a restart.
 - **DNS moved to Cloudflare** by Tyler on 8 Oct 2026. The nameservers are
   `colin.ns.cloudflare.com` and `nia.ns.cloudflare.com`.
-- **Resend:** pomoder.com was added as a sending domain on 8 Oct 2026 (US East,
-  id `848e712d-149e-41c7-a5fd-0d3ae5d5c97c`). It needs these records in
+- **Resend:** pomoder.com was the sending domain from 8 Oct 2026 (US East,
+  id `848e712d-149e-41c7-a5fd-0d3ae5d5c97c`) until 15 Nov 2026, when it was
+  removed from Resend to make room for flowfly.app (see "Sender" below). It needed these records in
   Cloudflare, all **DNS only** (grey cloud). All four were added and Resend
   verified the domain on 8 Oct 2026:
   - TXT `resend._domainkey`, the DKIM key Resend shows for the domain
@@ -51,8 +53,9 @@ value, and what has been proven so far.
 - **Turnstile:** widget "Pomoder" for pomoder.com, managed mode, created
   8 Oct 2026. Both keys are in `apps/pomodoro/.env.live`.
 - **R2:** bucket `pomoder`, stored in Western North America near the US
-  server, created 8 Oct 2026. Its public address is `https://media.pomoder.com`,
-  connected the same day. The live key is the account token "Pomoder storage
+  server, created 8 Oct 2026. Its public address was `https://media.pomoder.com`,
+  connected the same day, and is `https://media.flowfly.app` since 15 Nov 2026
+  (see "Media address" below). The live key is the account token "Pomoder storage
   (pomoder bucket only)", made through the API on 8 Oct 2026. It wrote, read
   and deleted a test file in `pomoder`, and `nodabot` and `system-everything`
   refused it. It replaced a first key that could write to every bucket, and
@@ -62,8 +65,13 @@ value, and what has been proven so far.
   and nothing plays media through the Web Audio API, so the bucket needs no
   CORS rule. The other apps' buckets use a public `r2.dev` address, which
   Cloudflare limits and means for development.
-- **Sender:** `Pomoder <hello@pomoder.com>`, to change if Tyler wants another
-  address. The key and sender are in `apps/pomodoro/.env.live`.
+- **Sender:** `Flowfly <hello@flowfly.app>` since 15 Nov 2026 (Tyler: "Change
+  email too"), on Flowfly Web and Flowfly Worker, both copies. flowfly.app is
+  Resend domain `ded0a9b7-72d2-49d2-ba66-daf8e119b671`, US East, with the same
+  four DNS-only records in the flowfly.app zone. Resend's plan allows three
+  sending domains, so pomoder.com was removed to fit it; nothing can send from
+  hello@pomoder.com now. flowfly.app has no MX record of its own, so a reply
+  to hello@flowfly.app does not arrive anywhere. The key and sender are in `apps/pomodoro/.env.live`.
 
 ## The two resources
 
@@ -96,7 +104,7 @@ arguments can be read by anyone who can pull the image.
 
 | Value | Where it comes from | Missing means |
 | --- | --- | --- |
-| `CUSTOM_SHELL_DATABASE_URL` | Pomoder DB's internal address, kept in `apps/pomodoro/.env.live` (gitignored, never committed). It has no `sslmode` suffix: the link stays inside the server, so nothing crosses the internet. A database on another machine would need `?uselibpqcompat=true&sslmode=require`. | Nothing starts. On purpose. |
+| `CUSTOM_SHELL_DATABASE_URL` | Flowfly DB's internal address, kept in `apps/pomodoro/.env.live` (gitignored, never committed). It has no `sslmode` suffix: the link stays inside the server, so nothing crosses the internet. A database on another machine would need `?uselibpqcompat=true&sslmode=require`. | Nothing starts. On purpose. |
 | `CUSTOM_SHELL_APP_URL` | The public address, `https://<the domain>` | Production refuses to send any email, because every link would point at `localhost`. |
 | `CUSTOM_SHELL_APP_ORIGINS` | `https://pomoder.com,https://www.pomoder.com`, web only | Every form submission is refused with "Invalid origin". Sign-in, sign-up and every save fail with "We could not complete that request." Setting `CUSTOM_SHELL_APP_URL` alone is not enough (`getAllowedOrigins` in `src/server/auth/origin.ts`). |
 | `CUSTOM_SHELL_API_ENV` | `production` | Without it, the laptop addresses (`localhost` on the dev port) stay on the allowed list in production. |
@@ -128,7 +136,7 @@ HTTPS, so the live site is safe, but a test copy on a bare IP address is not.
 ## Releasing, in order
 
 1. Create Pomodoro's own database and its own R2 bucket. Nothing is shared
-   with another app. The database is done: Pomoder DB, 8 Oct 2026.
+   with another app. The database is done: Flowfly DB, 8 Oct 2026.
 2. Create the web resource with every value above, and deploy it. It applies
    all the database changes on the way in, then serves.
 3. Wait until the web resource reads healthy.
@@ -208,12 +216,12 @@ What the laptop could not prove:
 
 ## The move to flowfly.app, 29 Oct 2026
 
-pomoder.com stays registered and stays in Cloudflare for good. Two things on
-it can never move:
+pomoder.com stays registered and stays in Cloudflare. Two things still use
+it:
 
-- **`media.pomoder.com`** serves every uploaded file, and the database saves
-  full addresses (profile photos, the logo and favicons in the settings row,
-  181 catalogue files). Moving it would break them all.
+- **`media.pomoder.com`** stays attached to the bucket. Uploads moved to
+  `media.flowfly.app` on 15 Nov 2026 and the stored full addresses were
+  rewritten, but links in emails already sent still use the old address.
 - **`simulated.pomoder.com`** is the made-up members' email domain, saved on
   130 accounts.
 
@@ -227,18 +235,31 @@ What the move needs, and where each part stands:
   since 31 Oct 2026, when the zone turned active.
 - **Turnstile:** the widget, now named "Flowfly", lists `flowfly.app`,
   `pomoder.com` and `pomodoro.barelycompany.com`. The keys did not change.
-- **Coolify:** Pomoder Web answers on `flowfly.app`, `www.flowfly.app`,
+- **Coolify:** Flowfly Web answers on `flowfly.app`, `www.flowfly.app`,
   `pomoder.com`, `www.pomoder.com` and `pomodoro.barelycompany.com`.
   `CUSTOM_SHELL_APP_ORIGINS` lists all five. `CUSTOM_SHELL_EMAIL_FROM` is
-  `Flowfly <hello@pomoder.com>` on both resources.
+  `Flowfly <hello@flowfly.app>` on both resources.
+- **Only flowfly.app is on the web.** Since 15 Nov 2026 Cloudflare holds a
+  website record for `flowfly.app` and `www.flowfly.app` only. The records for
+  `pomoder.com`, `www.pomoder.com` and `pomodoro.barelycompany.com` were
+  deleted (Tyler: "only keep flowfly.app, www.flowfly.app in cloudflare"), so
+  those three addresses no longer open the site. Coolify still lists them,
+  which does nothing. With no website record, the redirect below no
+  longer runs either.
+- **Media address:** uploads load from `https://media.flowfly.app` since
+  15 Nov 2026 (Tyler: "move the media from media.pomoder.com to
+  media.flowfly.app"). It is a second custom domain on the same R2 bucket,
+  `pomoder`, so no file moved. `CUSTOM_SHELL_R2_PUBLIC_URL` says so on Flowfly
+  Web and Flowfly Worker, both copies; the database has no saved
+  `storage_settings` row, so that variable decides. The 229 links the database
+  stored in full (catalog `file_url` and `picture_url`, the site logo, one
+  avatar) were rewritten to the new address. `media.pomoder.com` is still
+  attached to the bucket, so a link in an email already sent keeps working.
 - **`CUSTOM_SHELL_APP_URL`** is `https://flowfly.app` on both resources since
   31 Oct 2026. Every email link is built from it, so it waited until
   flowfly.app answered. The preview copies still say pomoder.com.
-- **Resend:** refused flowfly.app with "You have reached the domain limit of
-  your plan". The account holds three sending domains (barelycompany.com,
-  pomoder.com, systemeverything.com). Until Tyler upgrades or frees one,
-  emails go out from hello@pomoder.com.
-- **The redirect:** pomoder.com and www.pomoder.com send every page to the
+- **The redirect (stopped 15 Nov 2026, when the website records were
+  deleted):** pomoder.com and www.pomoder.com sent every page to the
   same path on flowfly.app with a 301, except `/api/webhooks/*`. These are
   three Page Rules on the pomoder.com zone, which is the free plan's whole
   allowance. Top: `pomoder.com/api/webhooks/*` with cache bypass, which only
@@ -387,7 +408,7 @@ What the move needs, and where each part stands:
 - **Deployments:** web `heutibv6as1tum35g9b8uv7g` (725s), worker
   `jzfpr49za0ux0d4tgeix1qfy` (649s). Health 200. The admin left menu was copied
   to live; the AI keys were already there.
-- **Worker packages:** `WORKER_PACKAGES` on Pomoder Worker became
+- **Worker packages:** `WORKER_PACKAGES` on Flowfly Worker became
   `ffmpeg yt-dlp`, in the production and preview copies. It must stay
   "literal", so Coolify quotes it: an update through the API turned that off,
   and an unquoted value with a space could split in the build command.
