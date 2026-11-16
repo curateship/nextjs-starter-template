@@ -173,7 +173,7 @@ export function WorkspaceSwitcher({
     <>
       <SidebarMenu>
         <SidebarMenuItem>
-          <div className="group/workspace flex min-h-8 items-center gap-2 py-2">
+          <div className="group/workspace relative flex min-h-8 items-center gap-2 py-2">
             <Link
               to="/home"
               onClick={closeMobileSidebar}
@@ -202,161 +202,164 @@ export function WorkspaceSwitcher({
                   </span>
                 ) : null}
               </Link>
-              {/* Hovering the name is how an admin asks to see the site the way
-                  a visitor does, so the button appears there rather than
-                  sitting in the row all day. It keeps its 28px either way, so
-                  the name does not reflow under the pointer, and a keyboard
-                  reaches it because focus reveals it as well.
+              {/* Both buttons appear only while the pointer is on the block,
+                  and they sit on top of the name rather than beside it, so the
+                  name and address use the full width the rest of the time
+                  (Tyler, 16 Nov 2026: "make both icon appear only hover and
+                  make it appear over the text and logo"). The menu's own colour
+                  behind them hides the text they cover. A keyboard reaches
+                  them because focus reveals them too, and they stay up while
+                  the switcher menu is open. Hidden, they ignore the pointer, so
+                  a click on the name still goes home.
 
-                  On a phone there is no hover, so it is simply always drawn.
+                  On a phone there is no hover, so they are simply always drawn
+                  beside the name.
 
-                  No tooltip, on Tyler's instruction of 5 Oct 2026. The button
-                  only appears once the pointer is already on the block, so a
+                  No tooltip, on Tyler's instruction of 5 Oct 2026. The buttons
+                  only appear once the pointer is already on the block, so a
                   label arriving a beat later says what the icon has just said.
                   The `aria-label` stays, because a screen reader never sees the
                   icon. */}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                asChild
+              <div
                 className={cn(
-                  "shrink-0 transition-opacity",
-                  isMobile
-                    ? undefined
-                    : "opacity-0 group-hover/workspace:opacity-100 focus-visible:opacity-100"
+                  "flex shrink-0 items-center",
+                  !isMobile &&
+                    "pointer-events-none absolute inset-y-0 right-0 bg-sidebar opacity-0 transition-opacity group-hover/workspace:pointer-events-auto group-hover/workspace:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
                 )}
               >
-                <a
-                  href={frontendUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Open ${brandName} in a new tab`}
-                  onClick={closeMobileSidebar}
-                >
-                  <ExternalLinkIcon />
-                </a>
-              </Button>
-              {maySwitch ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    {/* The shared Button already draws the app's focus ring and
-                        shades itself while the menu is open (`aria-expanded`). */}
-                    <Button variant="ghost" size="icon-sm">
-                      <ChevronsUpDownIcon />
-                      <span className="sr-only">Change {word.one}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className="w-72 rounded-lg"
-                    align="start"
-                    side={isMobile ? "bottom" : "right"}
-                    sideOffset={4}
+                <Button variant="ghost" size="icon-sm" asChild>
+                  <a
+                    href={frontendUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${brandName} in a new tab`}
+                    onClick={closeMobileSidebar}
                   >
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      {capitalise(word.many)}
-                    </DropdownMenuLabel>
-                    {workspaces.map((workspace) => {
-                      const displayName = workspace.name
-                      // Gated like the header above. The rows do NOT fall
-                      // back to the app logo, though: a row answers "which
-                      // site", and the same logo on every row answers nothing.
-                      // The site editor's chosen shape is what tells them
-                      // apart.
-                      const workspaceFavicon = siteBranding
-                        ? workspace.active
-                          ? activeFavicon
-                          : workspace.favicon
-                        : ""
-                      const busy = busyWorkspaceId === workspace.id
+                    <ExternalLinkIcon />
+                  </a>
+                </Button>
+                {maySwitch ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      {/* The shared Button already draws the app's focus ring and
+                          shades itself while the menu is open (`aria-expanded`). */}
+                      <Button variant="ghost" size="icon-sm">
+                        <ChevronsUpDownIcon />
+                        <span className="sr-only">Change {word.one}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      className="w-72 rounded-lg"
+                      align="start"
+                      side={isMobile ? "bottom" : "right"}
+                      sideOffset={4}
+                    >
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        {capitalise(word.many)}
+                      </DropdownMenuLabel>
+                      {workspaces.map((workspace) => {
+                        const displayName = workspace.name
+                        // Gated like the header above. The rows do NOT fall
+                        // back to the app logo, though: a row answers "which
+                        // site", and the same logo on every row answers nothing.
+                        // The site editor's chosen shape is what tells them
+                        // apart.
+                        const workspaceFavicon = siteBranding
+                          ? workspace.active
+                            ? activeFavicon
+                            : workspace.favicon
+                          : ""
+                        const busy = busyWorkspaceId === workspace.id
 
-                      return (
-                        // The shading is on the row rather than on the name,
-                        // so the pointer anywhere along it lights the whole
-                        // row up, the Open button included.
-                        <div
-                          key={workspace.id}
-                          className="flex items-center rounded-md hover:bg-accent hover:text-accent-foreground"
-                        >
-                          <DropdownMenuItem
-                            disabled={Boolean(busyWorkspaceId)}
-                            onSelect={() => void handleSwitch(workspace.id)}
-                            className="min-w-0 flex-1 gap-2 p-2"
+                        return (
+                          // The shading is on the row rather than on the name,
+                          // so the pointer anywhere along it lights the whole
+                          // row up, the Open button included.
+                          <div
+                            key={workspace.id}
+                            className="flex items-center rounded-md hover:bg-accent hover:text-accent-foreground"
                           >
-                            <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
-                              <WorkspaceLogo
-                                favicon={workspaceFavicon}
-                                icon={workspace.icon}
-                                name={displayName}
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium">
-                                {displayName}
-                              </div>
-                              <div className="truncate text-xs text-muted-foreground">
-                                {addressOf(workspace)}
-                              </div>
-                            </div>
-                            {busy ? (
-                              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                            ) : workspace.active ? (
-                              <CheckIcon className="size-4 text-muted-foreground" />
-              ) : null}
-                        </DropdownMenuItem>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
                             <DropdownMenuItem
-                              asChild
-                              className="size-8 shrink-0 p-0"
+                              disabled={Boolean(busyWorkspaceId)}
+                              onSelect={() => void handleSwitch(workspace.id)}
+                              className="min-w-0 flex-1 gap-2 p-2"
                             >
-                              <a
-                                href={publicUrlOf(workspace)}
-                                target="_blank"
-                                rel="noreferrer"
-                                aria-label={`Open ${displayName} site in a new tab`}
-                                onClick={closeMobileSidebar}
+                              <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
+                                <WorkspaceLogo
+                                  favicon={workspaceFavicon}
+                                  icon={workspace.icon}
+                                  name={displayName}
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-medium">
+                                  {displayName}
+                                </div>
+                                <div className="truncate text-xs text-muted-foreground">
+                                  {addressOf(workspace)}
+                                </div>
+                              </div>
+                              {busy ? (
+                                <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                              ) : workspace.active ? (
+                                <CheckIcon className="size-4 text-muted-foreground" />
+                ) : null}
+                          </DropdownMenuItem>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuItem
+                                asChild
+                                className="size-8 shrink-0 p-0"
                               >
-                                <ExternalLinkIcon className="size-4" />
-                              </a>
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent side="right">
-                            Open site in a new tab
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    )
-                  })}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild className="gap-2 p-2">
-                    <Link
-                      to="/workspaces"
-                      search={{ open: undefined }}
-                      onClick={closeMobileSidebar}
+                                <a
+                                  href={publicUrlOf(workspace)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label={`Open ${displayName} site in a new tab`}
+                                  onClick={closeMobileSidebar}
+                                >
+                                  <ExternalLinkIcon className="size-4" />
+                                </a>
+                              </DropdownMenuItem>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                              Open site in a new tab
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )
+                    })}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="gap-2 p-2">
+                      <Link
+                        to="/workspaces"
+                        search={{ open: undefined }}
+                        onClick={closeMobileSidebar}
+                      >
+                        <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
+                          {renderShellIcon("settings")}
+                        </div>
+                        <div className="font-medium text-muted-foreground">
+                          Manage {word.many}
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={Boolean(busyWorkspaceId)}
+                      onSelect={() => setCreateOpen(true)}
+                      className="gap-2 p-2"
                     >
                       <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
-                        {renderShellIcon("settings")}
+                        <PlusIcon className="size-4" />
                       </div>
                       <div className="font-medium text-muted-foreground">
-                        Manage {word.many}
+                        New {word.one}
                       </div>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={Boolean(busyWorkspaceId)}
-                    onSelect={() => setCreateOpen(true)}
-                    className="gap-2 p-2"
-                  >
-                    <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
-                      <PlusIcon className="size-4" />
-                    </div>
-                    <div className="font-medium text-muted-foreground">
-                      New {word.one}
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              ) : null}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                ) : null}
+              </div>
             </div>
           </div>
         </SidebarMenuItem>
