@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { AlarmClockIcon, CheckCheckIcon, EllipsisVerticalIcon, ListChecksIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
+import { AlarmClockIcon, CheckCheckIcon, Loader2Icon, PlusIcon } from "lucide-react"
 
 import { useAttentionActions } from "@/components/project/attention-actions"
 import { CatchUpDialog } from "@/components/project/catch-up-dialog"
@@ -14,14 +14,13 @@ import { TaskCalendar } from "@/components/project/task-calendar"
 import { TaskFilterPopover, type FilterProject } from "@/components/project/task-filter-popover"
 import { TaskList, type ProjectColumn } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
-import { SearchToggle } from "@/components/project/task-header-controls"
+import { TaskSearchBox, TaskSelectButton } from "@/components/project/task-header-controls"
+import { TASK_HEADER_BUTTONS, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import type { AdminAttention } from "@/lib/api/project/admin-dashboard"
 import type { SavedView } from "@/lib/api/project/finding"
@@ -65,6 +64,7 @@ import {
 } from "@/lib/project/task-filters"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 const MY_VIEWS = ["list", "board", "calendar", "timeline", "attention"] as const
 type MyView = (typeof MY_VIEWS)[number]
@@ -165,13 +165,10 @@ export function MyTasksPanel({
   const view: MyView = rememberedView === "attention" && !source.attention ? "list" : rememberedView
   const attention = useAttentionActions(source.attention ?? NO_ATTENTION)
   // The site admin's List and Need your attention are both the project page's table, so both
-  // have Mass select in the header's ⋮ and the "3 selected" button beside the search.
+  // have Select after the header's search box and the "3 selected" button before it.
   const tableView = view === "list" || view === "attention"
   // Every task in the tab has its heading, set by the server.
   const attentionHeading = (source.attention ?? NO_ATTENTION).heading
-  // Both opened from the header's ⋮.
-  const [searchOpen, setSearchOpen] = React.useState(false)
-  const searchFromMenu = React.useRef(false)
   const [massSelectOn, setMassSelectOn] = React.useState(false)
   // The row whose right-click turned Mass select on, ticked as it starts.
   const [tickOnStart, setTickOnStart] = React.useState<string | null>(null)
@@ -531,15 +528,23 @@ export function MyTasksPanel({
               : []),
           ]}
         />
-        <div className="flex shrink-0 items-center gap-1">
+        {/* Search and Select sit in the header itself, not in a ⋮ (Tyler, 16 Nov 2026:
+            "move the mass select and search outside"), as on the CRM's header. */}
+        <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
           {/* The site admin's List puts its "3 selected" button here, left of the search, as a project page does. */}
           {tableView && source.table ? <div ref={setSelectedSlot} className="contents" /> : null}
-          <SearchToggle
-            value={filters.q ?? ""}
-            onChange={(q) => onFilters({ q: q || undefined })}
-            open={searchOpen}
-            onOpenChange={setSearchOpen}
-          />
+          <TaskSearchBox narrow="early" value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
+          {/* Mass select is the site admin's table's own, so only their List offers it. */}
+          {tableView && source.table ? (
+            <TaskSelectButton
+              narrow="early"
+              on={massSelectOn}
+              onToggle={() => {
+                setTickOnStart(null)
+                setMassSelectOn(!massSelectOn)
+              }}
+            />
+          ) : null}
           <TaskFilterPopover
             filters={filters}
             onChange={onFilters}
@@ -575,61 +580,15 @@ export function MyTasksPanel({
               // Words where there is room; an icon with its name in a narrow panel.
               <Button
                 type="button"
-                className="ml-1 @max-3xl:size-8 @max-3xl:px-0"
+                className={TASK_HEADER_NEW.early.button}
                 aria-label="New task"
                 disabled={loading}
               >
                 {loading ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-                <span className="@max-3xl:hidden">New task</span>
+                <span className={TASK_HEADER_NEW.early.word}>New task</span>
               </Button>
             )}
           </NewTaskWithProjectPicker>
-          {/* Search and Mass select live behind a ⋮ after New task (Tyler, 6 Nov 2026: "Add
-              the 3 dot icon here and move mass select and search under its dropdown"). Mass
-              select is the site admin's table's own, so only their List offers it. */}
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" aria-label="More for My tasks" className="size-8">
-                    <EllipsisVerticalIcon className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Search and Mass select</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent
-              align="end"
-              // Picking Search opens its box once the menu has closed, so the cursor lands in
-              // the box rather than back on the ⋮ (the open menu keeps the focus to itself).
-              onCloseAutoFocus={(event) => {
-                if (!searchFromMenu.current) return
-                event.preventDefault()
-                searchFromMenu.current = false
-                setSearchOpen(true)
-              }}
-            >
-              <DropdownMenuItem
-                onSelect={() => {
-                  searchFromMenu.current = true
-                }}
-              >
-                <SearchIcon className="size-4" />
-                Search tasks
-              </DropdownMenuItem>
-              {tableView && source.table ? (
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setTickOnStart(null)
-                    setMassSelectOn(!massSelectOn)
-                  }}
-                >
-                  <ListChecksIcon className="size-4" />
-                  {massSelectOn ? "Hide select" : "Mass select"}
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
         <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>

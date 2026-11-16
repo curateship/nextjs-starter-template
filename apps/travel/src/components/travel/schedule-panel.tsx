@@ -10,7 +10,6 @@ import {
   LightbulbIcon,
   LightbulbOffIcon,
   ListChecksIcon,
-  SearchIcon,
   UnfoldHorizontalIcon,
   MailOpenIcon,
   MapPinPlusIcon,
@@ -39,7 +38,7 @@ import { TripCalendarView } from "@/components/travel/trip-calendar-view"
 import { useTrip } from "@/components/travel/trip-context"
 import { wantsDraftOnArrival } from "@/components/travel/draft-on-arrival"
 import { NoSignalLine } from "@/components/travel/no-signal-line"
-import { MenuSearch } from "@/components/travel/menu-search"
+import { HeaderSearch } from "@/components/travel/header-search"
 import { DraftPlanDialog } from "@/components/travel/draft-plan-dialog"
 import { TripListView } from "@/components/travel/trip-list-view"
 import { ActivityTypeIcon } from "@/components/travel/type-icon"
@@ -71,6 +70,7 @@ import {
 } from "@/lib/travel/trip-views"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 const ANY = "any"
 const ON_OFF = ["on", "off"] as const
@@ -108,7 +108,6 @@ export function SchedulePanel({
   const view: TripView = search.view ?? rememberedView
   const [compact, setCompact] = useRememberedChoice(COMPACT_CARDS_KEY, "off", ON_OFF)
   const [selecting, setSelecting] = React.useState(false)
-  const [searchOpen, setSearchOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<ReadonlySet<string>>(new Set())
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
@@ -180,7 +179,9 @@ export function SchedulePanel({
             { value: "photos", label: "Photos" },
           ]}
         />
-        <div className="flex shrink-0 items-center gap-1">
+        {/* Every button but "+ Add" has the outline look, a white fill and a light grey line of its own,
+            as on the shell's CRM header (the Admin 3 panel design). */}
+        <div className="flex shrink-0 items-center gap-1.5 [&_[data-variant=ghost]]:border [&_[data-variant=ghost]]:bg-background [&_[data-variant=ghost]:hover]:bg-muted [&_[data-variant=ghost]]:border-zinc-200/60 [&_[data-variant=outline]]:border-zinc-200/60 [&_input]:border-zinc-200/60 dark:[&_[data-variant=ghost]]:border-zinc-700/60 dark:[&_[data-variant=outline]]:border-zinc-700/60 dark:[&_input]:border-zinc-700/60">
           {selectedIds.length && !readOnly ? (
             <SelectedMenu
               count={selectedIds.length}
@@ -238,17 +239,28 @@ export function SchedulePanel({
               }}
             />
           ) : null}
-          {/* Opened from the ⋮ after the tabs, which holds Search and Mass select (the Admin 3 panel design,
-              Tyler, 6 Nov 2026: "mass selects is also not ui standards"). */}
-          <MenuSearch
-            open={searchOpen}
-            onOpenChange={setSearchOpen}
+          {/* Search and Select sit in the header itself, not in the ⋮ (Tyler, 16 Nov 2026: "move the mass
+              select and search outside"). Select is the Board's and the List's. */}
+          <HeaderSearch
             name="activity-search"
             label="Search activities"
             placeholder="Search activities…"
             value={search.q ?? ""}
             onChange={(q) => onSearch({ q: q || undefined })}
           />
+          {!readOnly && (view === "board" || view === "list") ? (
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              aria-pressed={selecting}
+              aria-label={selecting ? "Hide select" : "Mass select"}
+              className={cn(selecting && "bg-muted")}
+              onClick={() => toggleMassSelect()}
+            >
+              <ListChecksIcon className="size-4" />
+              <span className="@max-4xl:sr-only">Select</span>
+            </DashboardToolbarButton>
+          ) : null}
           {/* Shows or hides the Ideas column, between the search and Filter
               (Tyler, 3 Nov 2026: "move the idea icon here"). Lit while Ideas shows. */}
           {view === "board" ? (
@@ -393,12 +405,7 @@ export function SchedulePanel({
           {/* The ⋮ sits after "+ Add", the last thing in the header, as Project's does (Tyler, 6 Nov 2026,
               pointing past "+ Add": "The 3 dots icon is supposed to be here"). */}
           {readOnly ? null : (
-            <ScheduleMenu
-              binCount={page.binCount}
-              onBin={() => setWindowOpen("bin")}
-              onSearch={() => setSearchOpen(true)}
-              massSelect={view === "board" || view === "list" ? { on: selecting, onToggle: () => toggleMassSelect() } : undefined}
-            />
+            <ScheduleMenu binCount={page.binCount} onBin={() => setWindowOpen("bin")} />
           )}
         </div>
       </DashboardCardHeader>
@@ -822,29 +829,13 @@ function JumpToDay({ days, startDate, onJump }: { days: number; startDate: strin
 /**
  * The ⋮ at the end of the header, after "+ Add" (Tyler, 6 Nov 2026: "The 3
  * dots icon is supposed to be here"). It took the place of the More dropdown
- * (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot"),
- * and sat after the tabs until 6 Nov 2026. Since 6 Nov 2026 it
- * also holds Search activities and, on the Board, Mass select, which were
- * buttons in the header (the Admin 3 panel design: "The ⋮ holds Search and
- * Mass select"; Tyler: "mass selects is also not ui standards"). Search opens
- * its box once the menu has closed, so the cursor lands in the box rather
- * than back on the ⋮.
+ * (Tyler, 3 Nov 2026: "Replace the "More" dropdown with a 3 vertical dot").
+ * It holds the bin. Search and Mass select were in it from 6 to 16 Nov 2026
+ * and are buttons in the header again (Tyler: "move the mass select and
+ * search outside").
  */
-function ScheduleMenu({
-  binCount,
-  onBin,
-  onSearch,
-  massSelect,
-}: {
-  binCount: number
-  onBin: () => void
-  onSearch: () => void
-  /** Only where the view has Mass select, the Board and the List. */
-  massSelect?: { on: boolean; onToggle: () => void }
-}) {
+function ScheduleMenu({ binCount, onBin }: { binCount: number; onBin: () => void }) {
   const [open, setOpen] = React.useState(false)
-  const searchNext = React.useRef(false)
-  const named = massSelect ? "Search, Mass select and the bin" : "Search and the bin"
   return (
     <Tooltip>
         <FoldingMenu
@@ -853,12 +844,6 @@ function ScheduleMenu({
           fit
           open={open}
           onOpenChange={setOpen}
-          onCloseAutoFocus={(event) => {
-            if (!searchNext.current) return
-            event.preventDefault()
-            searchNext.current = false
-            onSearch()
-          }}
           trigger={
             <TooltipTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="More for this trip" className="size-8">
@@ -867,26 +852,6 @@ function ScheduleMenu({
             </TooltipTrigger>
           }
         >
-          <MenuAction
-            icon={<SearchIcon className="size-4" />}
-            onClick={() => {
-              searchNext.current = true
-              setOpen(false)
-            }}
-          >
-            Search activities
-          </MenuAction>
-          {massSelect ? (
-            <MenuAction
-              icon={<ListChecksIcon className="size-4" />}
-              onClick={() => {
-                setOpen(false)
-                massSelect.onToggle()
-              }}
-            >
-              {massSelect.on ? "Hide select" : "Mass select"}
-            </MenuAction>
-          ) : null}
           <MenuAction
             icon={<Trash2Icon className="size-4" />}
             onClick={() => {
@@ -897,7 +862,7 @@ function ScheduleMenu({
             Bin{binCount ? ` (${binCount})` : ""}
           </MenuAction>
         </FoldingMenu>
-        <TooltipContent>{named}</TooltipContent>
+        <TooltipContent>The bin</TooltipContent>
       </Tooltip>
   )
 }

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CheckIcon, ChevronDownIcon, SearchIcon, UserIcon, UsersIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, ListChecksIcon, SearchIcon, UserIcon, UsersIcon } from "lucide-react"
 
 import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
@@ -9,40 +9,41 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectMemberRow } from "@/lib/api/project/projects"
 import { plural } from "@/lib/format/plural"
 import { NOBODY_FILTER } from "@/lib/project/task-filters"
+import { NARROW_SEARCH, NARROW_WORD, type TaskHeaderNarrow } from "@/lib/project/task-header-look"
 import { cn } from "@/lib/utils"
 
 /**
- * The search as a magnifying glass that opens into the box. It stays open
- * while something is typed; Escape empties and closes it.
+ * The search box, always in the header (Tyler, 16 Nov 2026: "move the mass
+ * select and search outside", out of the ⋮ they sat in since 6 Nov). Escape
+ * empties it. In a header under 672px wide, as on a phone, the box would
+ * squeeze the tabs to nothing, so it shows as a magnifying glass there and
+ * opens into the box while it is used or holds words.
  */
-export function SearchToggle({
+export function TaskSearchBox({
   value,
   onChange,
-  open: openFromMenu,
-  onOpenChange,
+  narrow = "normal",
 }: {
   value: string
   onChange: (value: string) => void
-  /**
-   * Opened from a menu instead of its own button, as in My tasks' ⋮ (Tyler,
-   * 6 Nov 2026): then only the box is drawn, while open or holding words.
-   */
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
+  narrow?: TaskHeaderNarrow
 }) {
-  const [ownOpen, setOwnOpen] = React.useState(false)
-  const fromMenu = openFromMenu !== undefined
-  const open = fromMenu ? openFromMenu : ownOpen
-  const setOpen = (next: boolean) => (fromMenu ? onOpenChange?.(next) : setOwnOpen(next))
-  if (open || value) {
-    return (
+  const [open, setOpen] = React.useState(false)
+  const box = React.useRef<HTMLInputElement>(null)
+  React.useEffect(() => {
+    if (open) box.current?.focus()
+  }, [open])
+  const showBox = open || Boolean(value)
+  return (
+    <>
       <DashboardToolbarSearch
-        autoFocus={open}
-        inputClassName="sm:w-44 lg:w-48"
+        ref={box}
+        className={cn("min-w-0 shrink", !showBox && "@max-2xl:hidden")}
+        // The clear button's room on the right is kept only once there are words to clear.
+        inputClassName={cn(NARROW_SEARCH[narrow], !value && "pr-2")}
         name="task-search"
         aria-label="Search tasks by title and notes"
         placeholder="Search tasks"
@@ -51,28 +52,51 @@ export function SearchToggle({
         onBlur={() => setOpen(false)}
         onKeyDown={(event) => {
           if (event.key !== "Escape") return
-          onChange("")
+          if (value) onChange("")
           setOpen(false)
         }}
       />
-    )
-  }
-  if (fromMenu) return null
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+      {showBox ? null : (
         <DashboardToolbarButton
           type="button"
           variant="ghost"
-          className="w-8 px-0"
+          className="hidden w-8 px-0 @max-2xl:inline-flex"
           aria-label="Search tasks"
           onClick={() => setOpen(true)}
         >
           <SearchIcon className="size-4" />
         </DashboardToolbarButton>
-      </TooltipTrigger>
-      <TooltipContent>Search tasks</TooltipContent>
-    </Tooltip>
+      )}
+    </>
+  )
+}
+
+/**
+ * Mass select, right after the search box: an icon and the word Select,
+ * pressed while on ("Hide select" to a screen reader). In a narrow header
+ * the word drops and the icon stays.
+ */
+export function TaskSelectButton({
+  on,
+  onToggle,
+  narrow = "normal",
+}: {
+  on: boolean
+  onToggle: () => void
+  narrow?: TaskHeaderNarrow
+}) {
+  return (
+    <DashboardToolbarButton
+      type="button"
+      variant="outline"
+      aria-pressed={on}
+      aria-label={on ? "Hide select" : "Mass select"}
+      className={cn(on && "bg-muted")}
+      onClick={onToggle}
+    >
+      <ListChecksIcon className="size-4" />
+      <span className={NARROW_WORD[narrow]}>Select</span>
+    </DashboardToolbarButton>
   )
 }
 

@@ -173,12 +173,13 @@ this browser.
   remembered in this browser. Compact cards and Fold every day float together
   at the board's bottom right (Tyler, 3 Nov 2026: "Move the 2 fold icons to
   the bottom right of the canvas").
-- **Mass select** is in the ⋮ after "+ Add", on the Board tab, and first in
-  a card's right-click menu (the Admin 3 panel design, Tyler, 6 Nov 2026:
-  "mass selects is also not ui standards"). Until then it was a small button
-  left of the search. Picked, it reads "Hide select" and shows a tick box on
-  each card. Turned on from a card's right-click, that card starts ticked;
-  from the ⋮, none is. Leaving the Board tab turns it off. Ticked cards
+- **Mass select** is the Select button right after the search box, on the
+  Board and List tabs, and first in a card's right-click menu (Tyler, 16 Nov
+  2026: "move the mass select and search outside"; from 6 to 16 Nov it sat in
+  the ⋮ after "+ Add"). Pressed, it stays pressed ("Hide select" to a screen
+  reader) and shows a tick box on each card. Under 896px wide the word drops
+  and the icon stays. Turned on from a card's right-click, that card starts
+  ticked; from the button, none is. Leaving the Board tab turns it off. Ticked cards
   gather in the "N selected" button. Its first row is Mark done (Tyler, 4 Nov
   2026: "Mark done / not done"), which reads Mark not done when every ticked
   card is already done, then Move to day and Delete. Mark done is one request
@@ -190,10 +191,11 @@ this browser.
 
 ## Search, Filter and Views
 
-- **Search activities** is in the ⋮ after "+ Add", not a button in the
-  header (the Admin 3 panel design, 6 Nov 2026). It opens the search box in
-  the header with the cursor in it, once the menu has closed. The box stays
-  while something is typed; Escape empties and closes it.
+- **Search activities** is a box that is always in the header, after "N
+  selected" (Tyler, 16 Nov 2026: "move the mass select and search outside";
+  from 6 to 16 Nov it was in the ⋮). Escape empties it. In a header under
+  672px wide, as on a phone, it is a magnifying glass that opens the box
+  with the cursor in it, and the box stays while something is typed.
 - The search matches words in a card's name or place.
 - **No matches:** a search or filter that hides every card says so under the
   header, `No activities match "x".`, with a Clear filters button.
@@ -234,7 +236,7 @@ this browser.
   - **Type changes from its cell:** a press opens your types, and a pick saves.
   - **Sorting:** Activity, Type and Cost sort within each day. Time is the
     day's own order, the board's, and pressing it again turns it round.
-  - **Mass select** works here as on the Board, from the ⋮ or first in a
+  - **Mass select** works here as on the Board, from the Select button or first in a
     row's right-click, which is the card's menu. It shows tick boxes, a tick
     box over the column to tick every row in view, and drag handles. A row
     dragged under another day moves there; a row with a start time
@@ -268,12 +270,13 @@ this browser.
   On a screen under 1280px wide, or with the left panel folded away, the note
   opens out of sight, so the left panel has to be shown first.
 - **The ⋮ at the end of the header,** after "+ Add" (Tyler, 6 Nov 2026: "The
-  3 dots icon is supposed to be here"), holds Search activities, Mass select
-  (on the Board tab), then the Bin with how many cards are in it. Its hover
-  hint names them. It took the place of the More dropdown (Tyler, 3 Nov 2026:
+  3 dots icon is supposed to be here"), holds the Bin with how many cards
+  are in it. It took the place of the More dropdown (Tyler, 3 Nov 2026:
   "Replace the "More" dropdown with a 3 vertical dot") and sat after the tabs
-  until 6 Nov 2026. The header reads: the tabs, "N selected", the Ideas bulb,
-  Jump to a day, Filter, Views, "+ Add", then the ⋮.
+  until 6 Nov 2026. The header reads: the tabs, "N selected", the search
+  box, Select, the Ideas bulb, Jump to a day, Filter, Views, "+ Add", then
+  the ⋮. Every button but "+ Add" has the outline look, a white fill and a
+  light grey line, as on the shell's CRM header.
 
 ## + Add
 

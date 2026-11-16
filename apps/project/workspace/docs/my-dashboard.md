@@ -116,11 +116,17 @@ check-in. It is described in
 
 The header is the project page's (Tyler, 14 Oct 2026): the same four views,
 List, Board, Calendar and Timeline, as tabs drawn the way Settings → Styling →
-Dashboard tabs says (pills unless the site picked Underlined), then Filter,
-Views, New task and a ⋮. The ⋮ holds Search tasks and, on the site admin's
-List, Mass select (Tyler, 6 Nov 2026: "Add the 3 dot icon here and move mass
-select and search under its dropdown"). This parts from the shell's toolbar
-order, where search and Mass select sit in the header itself. List is first since 19 Oct 2026,
+Dashboard tabs says (pills unless the site picked Underlined), then the
+search box, Select (Mass select, on the site admin's List and Need your
+attention only), Filter, Views and New task. Search and Select sit in the
+header itself, as on the CRM's header (Tyler, 16 Nov 2026: "move the mass
+select and search outside"); from 6 to 16 Nov they were in a ⋮ after New
+task, which is gone. Every button but New task has the outline look: a white
+fill and a light grey line. My dashboard's header saves room early, since
+the site admin's five tabs need it: under 1088px wide the search box narrows
+to 152px and Select and New task show only their icons, and under 896px
+Filter and Views do too. Under 672px, as on a phone, the search is a
+magnifying glass that opens into the box. List is first since 19 Oct 2026,
 as on the project page. New task
 opens the same dropdown as the signed-in header's, with a Project picker
 starting on the last project used. There is no members dropdown, since every
@@ -274,8 +280,9 @@ my own order (below), then any I haven't placed, soonest first.
 A task whose chat has messages I haven't read says "3 new" beside its title,
 and opening it reads them (see [Task chat](task-chat.md#new-messages)).
 
-Search tasks in the ⋮ opens the search box in the header, with the cursor in
-it. The box stays open while it holds words; Escape empties and closes it. Filter holds Status, Priority, Due
+The search box is always in the header. Escape empties it. On a phone the
+magnifying glass opens it with the cursor in it, and it stays open while it
+holds words. Filter holds Status, Priority, Due
 and Client, then Clear and Save as view. Due is the project
 page's: Any time, Overdue, Today, This week, Next week, No date. It was a
 dropdown of its own in the header until Tyler moved it into Filter on
@@ -457,16 +464,15 @@ again (a menu pass marked `:admin-my-dashboard`). His answers are in
   `project_site_admin_prefs`, beside their Board's column order, since the
   site admin has no team row to keep either on.
 - **The middle** is the same My tasks as an employee's (List, Board, Calendar,
-  Timeline, Filter, Views, New task, and the ⋮ with Search tasks and Mass
-  select), plus a fifth tab, **Need your attention**
+  Timeline, the search box, Select, Filter, Views and New task), plus a fifth tab, **Need your attention**
   ([below](#the-need-your-attention-tab)), with every open task handed to
   them in any team's projects mixed with their own list. **The List is the
   project page's table** (Tyler, 23 Oct 2026: "The tasks table have to look
   like the project's tasks table"), grouped under Overdue, Today, This week,
   Later, No date and Done, with Mass select, each cell changing its task, and
   a cog and a bin in Actions. Ticked rows gather in the "1 selected" button in
-  the header, left of Filter. Mass select, from the ⋮, reads "Hide select"
-  there while it is on, and leaving the List turns it off. A task's
+  the header, left of the search box. Mass select, the Select button after the
+  search box, is pressed while it is on, and leaving the List turns it off. A task's
   right-click menu has it too, first, above Duplicate and Delete (Tyler, 6
   Nov 2026: "Add mass select here on right click on tasks"); turned on from
   there, that task starts ticked. Its columns are Task, **Project**, Status,
@@ -529,8 +535,8 @@ your attention card in the left panel's footer the same day.
   the same columns: Task, Project, Status, Priority, Due and Actions. Every
   cell changes its task as on the List, a row opens the task on the right,
   and a right-click has Duplicate and Delete. Search and Filter narrow it as
-  they narrow the List, and Mass select is in the header's ⋮, as on the List,
-  with the "3 selected" button beside the search. It has no "+" on its headings and rows don't drag,
+  they narrow the List, and Select is after the search box, as on the List,
+  with the "3 selected" button before the search. It has no "+" on its headings and rows don't drag,
   since a heading here is a reason, not a date.
 - **Every task that needs them, across every team** (Tyler picked "Every task
   that needs you"), under six headings, top to bottom:

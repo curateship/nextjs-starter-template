@@ -257,9 +257,11 @@ shows at a time, under Tasks, Team and Task tabs.
     column, under Status headings. The site admin sees every one; an
     employee the projects they are on ("As today", his pick). "Just me"
     lists and archived tasks stay out. The header after the tabs: the "N
-    selected" slot, Filter (its Group row offers Status, Priority, Due date,
-    Assigned to, Project and None), Views, New task (this team's projects
-    only), and ⋮ with Search and Mass select. With Mass select on, a row
+    selected" slot, the search box, Select (Mass select), Filter (its Group
+    row offers Status, Priority, Due date, Assigned to, Project and None),
+    Views and New task (this team's projects only), with no ⋮ (Tyler, 16 Nov
+    2026: "move the mass select and search outside"). Under 896px wide the
+    words drop for icons, and under 672px the search is a magnifying glass. With Mass select on, a row
     dragged under another status, priority or due date takes it. Each
     person's views are kept under the team (`team-tasks:<team id>`).
   - **Calendar:** the header has the view dropdown with a filter mark

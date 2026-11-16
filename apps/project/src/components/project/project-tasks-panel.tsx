@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ChevronDownIcon, EllipsisVerticalIcon, ListChecksIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react"
+import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BinDialog } from "@/components/project/bin-dialog"
 import { NOBODY, NewTaskDialog, type NewTaskStart } from "@/components/project/new-task-dialog"
@@ -17,7 +17,8 @@ import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION } from "@/components/project/t
 import { TaskFilterPopover } from "@/components/project/task-filter-popover"
 import {
   MembersFilterMenu,
-  SearchToggle,
+  TaskSearchBox,
+  TaskSelectButton,
 } from "@/components/project/task-header-controls"
 import { TaskList } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
@@ -34,7 +35,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { loadProjectChatUnread } from "@/lib/api/project/chat"
 import { saveStatusOrder, type ProjectPage } from "@/lib/api/project/projects"
 import { saveTaskOrder } from "@/lib/api/project/sorting"
@@ -66,7 +66,9 @@ import { placesAfterReorder } from "@/lib/project/task-order"
 import { useProjectLive } from "@/lib/project/use-project-live"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { pickedWordsUnder, readRightClick, type RightClickTarget } from "@/lib/project/right-click"
+import { TASK_HEADER_BUTTONS, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 const VIEWS = ["list", "board", "calendar", "timeline", "activity", "files", "chat"] as const
 type View = (typeof VIEWS)[number]
@@ -212,9 +214,6 @@ export function ProjectTasksPanel({
   const [stuck, setStuck] = React.useState<{ task: TaskCard; order?: string[] } | null>(null)
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
   const readOnly = page.project.archived
-  // Search and Mass select open from the header's ⋮ (the Admin 3 panel design, Tyler, 6 Nov 2026).
-  const [searchOpen, setSearchOpen] = React.useState(false)
-  const searchFromMenu = React.useRef(false)
   const [massSelectOn, setMassSelectOn] = React.useState(false)
   // The row whose right-click turned Mass select on, ticked as it starts.
   const [tickOnStart, setTickOnStart] = React.useState<string | null>(null)
@@ -557,17 +556,25 @@ export function ProjectTasksPanel({
             />
           }
         />
-        <div className="flex shrink-0 items-center gap-1">
+        {/* Search and Select sit in the header itself, not in a ⋮ (Tyler, 16 Nov 2026:
+            "move the mass select and search outside"), as on My dashboard. */}
+        <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
           {taskTab ? (
             <>
               {/* The List's "3 selected" button lands here, left of the search. */}
               {view === "list" ? <div ref={setSelectedSlot} className="contents" /> : null}
-              <SearchToggle
-                value={filters.q ?? ""}
-                onChange={(q) => onFilters({ q: q || undefined })}
-                open={searchOpen}
-                onOpenChange={setSearchOpen}
-              />
+              <TaskSearchBox narrow="early" value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
+              {/* Mass select is the List's, so only the List offers it. */}
+              {view === "list" && !readOnly ? (
+                <TaskSelectButton
+                  narrow="early"
+                  on={massSelectOn}
+                  onToggle={() => {
+                    setTickOnStart(null)
+                    setMassSelectOn(!massSelectOn)
+                  }}
+                />
+              ) : null}
               <TaskFilterPopover
                 filters={filters}
                 onChange={onFilters}
@@ -615,53 +622,11 @@ export function ProjectTasksPanel({
             : quickNewTask(
                 HEADER_NEW_TASK,
                 // Words where there is room; an icon with its name in a narrow panel.
-                <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="New task">
+                <Button type="button" className={TASK_HEADER_NEW.early.button} aria-label="New task">
                   <PlusIcon className="size-4" />
-                  <span className="@max-3xl:hidden">New task</span>
+                  <span className={TASK_HEADER_NEW.early.word}>New task</span>
                 </Button>
               )}
-          {/* Search and Mass select behind a ⋮ after New task, as on My dashboard. Mass
-              select is the List's, so only the List offers it. */}
-          {taskTab ? (
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="ghost" size="icon" aria-label="More for the tasks" className="size-8">
-                      <EllipsisVerticalIcon className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Search and Mass select</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent
-                align="end"
-                // Picking Search opens its box once the menu has closed, so the cursor lands in it.
-                onCloseAutoFocus={(event) => {
-                  if (!searchFromMenu.current) return
-                  event.preventDefault()
-                  searchFromMenu.current = false
-                  setSearchOpen(true)
-                }}
-              >
-                <DropdownMenuItem onSelect={() => (searchFromMenu.current = true)}>
-                  <SearchIcon className="size-4" />
-                  Search tasks
-                </DropdownMenuItem>
-                {view === "list" && !readOnly ? (
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      setTickOnStart(null)
-                      setMassSelectOn(!massSelectOn)
-                    }}
-                  >
-                    <ListChecksIcon className="size-4" />
-                    {massSelectOn ? "Hide select" : "Mass select"}
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
         </div>
         <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>

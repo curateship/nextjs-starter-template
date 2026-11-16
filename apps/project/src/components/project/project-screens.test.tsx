@@ -386,11 +386,11 @@ describe("the project page", () => {
     expect(html).not.toContain("Set by")
     expect(html).toContain("Board")
     expect(html).toContain("New task")
-    // Whose tasks show is the header's; the search is behind the ⋮ after New task
-    // (the Admin 3 panel design, 6 Nov 2026).
+    // Whose tasks show is the header's; the search box sits in the header, with no ⋮
+    // (Tyler, 16 Nov 2026: "move the mass select and search outside").
     expect(html).toContain(`aria-label="Showing: All members"`)
-    expect(html).not.toContain(`aria-label="Search tasks"`)
-    expect(html.indexOf(`aria-label="More for the tasks"`)).toBeGreaterThan(html.indexOf(`aria-label="New task"`))
+    expect(html.indexOf(`aria-label="Search tasks by title and notes"`)).toBeLessThan(html.indexOf(`aria-label="New task"`))
+    expect(html).not.toContain(`aria-label="More for the tasks"`)
     expect(html).not.toContain("Tyler (you)")
     // When it is due moved into Filter (Tyler, 19 Oct 2026).
     expect(html).not.toContain("All time")

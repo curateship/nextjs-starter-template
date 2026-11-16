@@ -409,11 +409,12 @@ show out of the left panel and into that header.
   red), as tall as its cards. The List has the same tasks in rows, under
   the headings picked in Filter's Group row, or none (see
   [Groups and the project's order](groups.md#group)). Its tick boxes and drag
-  handles stay hidden until Mass select is picked, from the ⋮ after New
-  task or first in a task row's right-click menu, which also ticks that row
-  (Tyler, 6 Nov 2026, the Admin 3 panel design; on 5 Nov it had been a
-  button left of the search). The ⋮ offers it on the List only, and leaving
-  the List turns it off. While it is on it reads "Hide select", which hides
+  handles stay hidden until Mass select is picked, from the Select button
+  right after the search box or first in a task row's right-click menu,
+  which also ticks that row (Tyler, 16 Nov 2026: "move the mass select and
+  search outside"; from 6 to 16 Nov it sat in a ⋮ after New task). Select
+  shows on the List only, and leaving the List turns it off. While it is on
+  it is pressed ("Hide select" to a screen reader), and pressing it hides
   the tick boxes and handles again and clears the ticks (Tyler, 19 Oct 2026). Each visit starts with them hidden, and someone who
   can only read the project never sees it. The table's first column
   starts 16px in, under the List tab's word, and its last column ends 12px
@@ -430,12 +431,15 @@ show out of the left panel and into that header.
   Chat say the same for the project's chat (see
   [Task chat](task-chat.md#new-messages)). The header's right end holds, in
   order (under a line drawn stronger than the app's other dividers, so it
-  shows against the List's grey header, Tyler, 19 Oct 2026): Filter (which
-  holds the due date), Views, whose tasks show (the members' faces, with no
-  background), New task, then a ⋮ holding Search tasks and Mass select (see
-  Search and filters below). Under 896px wide the dropdowns drop their
-  words for their icons, and under 768px New task shows only its plus. A
-  panel narrower still, such as on a phone, scrolls the tabs sideways.
+  shows against the List's grey header, Tyler, 19 Oct 2026): the search box,
+  Select (the List's Mass select), Filter (which holds the due date), Views,
+  whose tasks show (the members' faces, with no background), and New task.
+  There is no ⋮. Every button but New task has the outline look, a white
+  fill and a light grey line, as on the CRM's header. Under 1088px wide the
+  search box narrows to 152px and Select and New task show only their
+  icons, under 896px the dropdowns drop their words too, and under 672px the
+  search is a magnifying glass that opens into the box. A panel narrower
+  still, such as on a phone, scrolls the tabs sideways.
 - **Board columns move.** Drag a column by its heading to the left or right
   to change the order of To do, Doing, Done and Stuck (Tyler, 14 Oct 2026).
   The order belongs to the project: everyone on it sees the same one, it
@@ -701,11 +705,11 @@ goes, so it no longer ends up on whatever task was open.
   asked for Viral's views and said "Fix project too". Every view saved before
   was copied there with its own id, and `project_saved_views` is kept but
   nothing reads or writes it.
-- **Search and filters.** Search tasks in the header's ⋮ opens the search
-  box with the cursor in it, which
+- **Search and filters.** The search box is always in the header, and
   looks through each task's title and notes, every word typed, whatever its
-  capitals. The box stays open
-  while it holds words; Escape empties and closes it. Filter opens a popover
+  capitals. Escape empties it. On a phone it is a magnifying glass that
+  opens the box with the cursor in it, and the box stays open while it holds
+  words. Filter opens a popover
   with Status, Priority and Due, which narrow the Board, List,
   Calendar and Timeline at once, then Group (see
   [Groups and the project's order](groups.md#group)), then Clear and Save as

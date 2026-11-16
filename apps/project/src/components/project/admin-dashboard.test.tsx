@@ -234,13 +234,16 @@ describe("the site admin's My dashboard", () => {
     expect(header).not.toContain("Edit the Daily card")
   })
 
-  it("puts Search and Mass select behind a ⋮ after New task in My tasks' header", () => {
+  it("puts the search box and Select in My tasks' header, with no ⋮", () => {
     const html = render(dashboard())
     const middle = html.slice(html.indexOf('id="middle"'), html.indexOf('id="right"'))
-    expect(middle.indexOf('aria-label="More for My tasks"')).toBeGreaterThan(middle.indexOf('aria-label="New task"'))
-    // Tyler, 6 Nov 2026: "move mass select and search under its dropdown".
-    expect(middle).not.toContain('aria-label="Mass select"')
-    expect(middle).not.toContain('aria-label="Search tasks"')
+    // Tyler, 16 Nov 2026: "move the mass select and search outside".
+    const search = middle.indexOf('aria-label="Search tasks by title and notes"')
+    const select = middle.indexOf('aria-label="Mass select"')
+    expect(search).toBeGreaterThan(0)
+    expect(select).toBeGreaterThan(search)
+    expect(middle.indexOf('aria-label="New task"')).toBeGreaterThan(select)
+    expect(middle).not.toContain('aria-label="More for My tasks"')
   })
 
   it("draws the List as the project page's table: Task, Project, Status, Priority, Due and Actions", () => {

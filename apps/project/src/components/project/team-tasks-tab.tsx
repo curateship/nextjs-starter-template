@@ -1,21 +1,20 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { EllipsisVerticalIcon, ListChecksIcon, Loader2Icon, PlusIcon, SearchIcon } from "lucide-react"
+import { Loader2Icon, PlusIcon } from "lucide-react"
 
 import { NewTaskWithProjectPicker } from "@/components/project/new-task-header"
 import { ReasonDialog } from "@/components/project/reason-dialog"
 import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
 import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION } from "@/components/project/task-body"
 import { TaskFilterPopover, type FilterProject } from "@/components/project/task-filter-popover"
-import { SearchToggle } from "@/components/project/task-header-controls"
+import { TaskSearchBox, TaskSelectButton } from "@/components/project/task-header-controls"
+import { TASK_HEADER_BUTTONS, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
 import { TaskList, type ProjectColumn } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { deleteProjectTask, duplicateProjectTask, saveTask, setStatus, type TaskCard } from "@/lib/api/project/tasks"
 import type { TeamTasks } from "@/lib/api/project/teams"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
@@ -56,7 +55,8 @@ const TEAM_GROUPING_LABEL: Record<TeamGrouping, string> = {
  * project page's table of every task the viewer can see in the team's shared
  * projects, with a Project and an Assigned to column, under Status headings.
  * The header has, left to right: the panel's tabs, the "N selected" slot,
- * Filter, Views, New task, and the ⋮ holding Search and Mass select. With Mass
+ * the search box, Select (Mass select), Filter, Views and New task (Tyler,
+ * 16 Nov 2026: "move the mass select and search outside"). With Mass
  * select on, a row dragged under another status, priority or due date takes
  * it; a drop that would hand the task over or move it to another project
  * isn't offered.
@@ -103,8 +103,6 @@ export function TeamTasksTab({
   const [tasks, setTasks] = useSyncedDraft(source.tasks)
   const [grouping, setGrouping] = useRememberedChoice<TeamGrouping>(TEAM_TASK_GROUPING_KEY, "status", TEAM_GROUPINGS)
   const [selectedSlot, setSelectedSlot] = React.useState<HTMLDivElement | null>(null)
-  const [searchOpen, setSearchOpen] = React.useState(false)
-  const searchFromMenu = React.useRef(false)
   const [massSelectOn, setMassSelectOn] = React.useState(false)
   // The row whose right-click turned Mass select on, ticked as it starts.
   const [tickOnStart, setTickOnStart] = React.useState<string | null>(null)
@@ -262,14 +260,10 @@ export function TeamTasksTab({
         {tabs}
         {/* The buttons sit at the header's right end, as on My dashboard and the Calendar tab. */}
         <span className="flex-1" />
-        <div className="flex shrink-0 items-center gap-1">
+        <div className={TASK_HEADER_BUTTONS}>
           <div ref={setSelectedSlot} className="contents" />
-          <SearchToggle
-            value={filters.q ?? ""}
-            onChange={(q) => onFilters({ q: q || undefined })}
-            open={searchOpen}
-            onOpenChange={setSearchOpen}
-          />
+          <TaskSearchBox value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
+          <TaskSelectButton on={massSelectOn} onToggle={toggleMassSelect} />
           <TaskFilterPopover
             filters={filters}
             onChange={onFilters}
@@ -297,50 +291,15 @@ export function TeamTasksTab({
               // Words where there is room; an icon with its name in a narrow panel.
               <Button
                 type="button"
-                className="ml-1 @max-3xl:size-8 @max-3xl:px-0"
+                className={TASK_HEADER_NEW.normal.button}
                 aria-label="New task"
                 disabled={loading}
               >
                 {loading ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-                <span className="@max-3xl:hidden">New task</span>
+                <span className={TASK_HEADER_NEW.normal.word}>New task</span>
               </Button>
             )}
           </NewTaskWithProjectPicker>
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" aria-label="More for Tasks" className="size-8">
-                    <EllipsisVerticalIcon className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Search and Mass select</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent
-              align="end"
-              // Search opens once the menu has closed, so the cursor lands in its box.
-              onCloseAutoFocus={(event) => {
-                if (!searchFromMenu.current) return
-                event.preventDefault()
-                searchFromMenu.current = false
-                setSearchOpen(true)
-              }}
-            >
-              <DropdownMenuItem
-                onSelect={() => {
-                  searchFromMenu.current = true
-                }}
-              >
-                <SearchIcon className="size-4" />
-                Search tasks
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={toggleMassSelect}>
-                <ListChecksIcon className="size-4" />
-                {massSelectOn ? "Hide select" : "Mass select"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
         <PanelReopenButton side="right" label="Show the task" />
       </DashboardCardHeader>

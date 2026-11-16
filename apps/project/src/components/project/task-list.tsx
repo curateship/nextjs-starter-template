@@ -214,9 +214,10 @@ export function TaskList({
    */
   projectColumn?: ProjectColumn
   /**
-   * Mass select switched from outside, as from My tasks' ⋮ (Tyler, 6 Nov 2026:
-   * "move mass select and search under its dropdown"). The header then shows
-   * no Mass select button of its own, only "N selected".
+   * Mass select switched from outside, as from the Select button in My
+   * tasks' header (Tyler, 16 Nov 2026: "move the mass select and search
+   * outside"). The list then shows no Mass select button of its own, only
+   * "N selected".
    */
   massSelect?: { on: boolean; onToggle: () => void; tick?: string | null }
   /**

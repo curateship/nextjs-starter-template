@@ -204,7 +204,7 @@ describe("the Need your attention tab", () => {
     expect(html).toContain(`aria-label="Project: Logo. Move it"`)
     // The site admin's own List rows aren't in it.
     expect(html).not.toContain("Send the contract")
-    // Mass select is in the header's ⋮, as on the List, not a row of its own over the table.
+    // Mass select is the header's Select button, as on the List, not a row of its own over the table.
     expect(html).not.toMatch(/<button[^>]*>(?:(?!<\/button>).)*Mass select<\/button>/)
   })
 
