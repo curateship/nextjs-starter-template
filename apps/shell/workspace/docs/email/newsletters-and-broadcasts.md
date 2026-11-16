@@ -10,6 +10,10 @@ counts are in the footer").
 
 ## The Broadcasts tab
 
+The section's header has two tabs, Broadcasts and Sequences (Tyler, 16 Nov
+2026). This file is about the first. A sequence, a set of emails sent days
+apart that an automation starts for a person, is in [Sequences](sequences.md).
+
 - **The view dropdown:** Drafts, Scheduled, Sent and Templates, each with a
   count. Sent
   holds a send still going or paused too, and the row says which

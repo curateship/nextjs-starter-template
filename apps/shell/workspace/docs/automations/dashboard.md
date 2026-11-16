@@ -19,6 +19,11 @@ Template      Dashboards block    step list | canvas, "Template, <name>"   the s
 Waiting on you Dashboards block   runs stopped at an approval step         the run, Reject and Approve
 ```
 
+The flows table and its count hold flows only. A sequence from the CRM's
+Broadcasts section is an automation too, but it is listed and written there,
+and the canvas cannot save one. A flow sends one with its Send sequence step
+([Sequences](../email/sequences.md)).
+
 ## Tyler's picks (9 Nov 2026)
 
 - **Canvas in the middle.** An automation opens its canvas in the middle and

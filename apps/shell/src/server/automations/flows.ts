@@ -145,7 +145,13 @@ export async function listWorkspaceAutomations(
   const rows = await database
     .select()
     .from(customShellAutomations)
-    .where(eq(customShellAutomations.workspaceId, workspaceId))
+    .where(
+      and(
+        eq(customShellAutomations.workspaceId, workspaceId),
+        // Sequences belong to the CRM's Broadcasts section, never the canvas.
+        eq(customShellAutomations.kind, "flow")
+      )
+    )
     .orderBy(desc(customShellAutomations.updatedAt))
 
   return rows.map((row) => {
@@ -280,7 +286,8 @@ export async function createWorkspaceAutomation(
   userId: string,
   name: string,
   database: CustomShellDb = db,
-  sourceGraph: AutomationGraph = EMPTY_AUTOMATION_GRAPH
+  sourceGraph: AutomationGraph = EMPTY_AUTOMATION_GRAPH,
+  kind: CustomShellAutomation["kind"] = "flow"
 ): Promise<CustomShellAutomation> {
   const trimmed = name.trim().slice(0, NAME_MAX_LENGTH)
   if (!trimmed) throw new Error("NAME_REQUIRED")
@@ -300,6 +307,7 @@ export async function createWorkspaceAutomation(
         // Who wrote it, kept for the record. The site above is what owns it.
         userId,
         name: trimmed,
+        kind,
         graph,
         compiledConfig: compiled.config,
         // A template is a starting point, never permission to contact people.
@@ -315,10 +323,16 @@ export async function createWorkspaceAutomation(
   }
 }
 
+/**
+ * Saves the steps. `kind` is which screen is saving: the canvas saves flows
+ * only, so a sequence opened on the canvas by its address cannot be redrawn
+ * into a shape the Sequence tab cannot show; that save finds no row.
+ */
 export async function saveWorkspaceAutomation(
   workspaceId: string,
   input: { id: string; name: string; graph: AutomationGraph },
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind: CustomShellAutomation["kind"] = "flow"
 ): Promise<CustomShellAutomation | null> {
   const trimmed = input.name.trim().slice(0, NAME_MAX_LENGTH)
   if (!trimmed) throw new Error("NAME_REQUIRED")
@@ -347,7 +361,8 @@ export async function saveWorkspaceAutomation(
       .where(
         and(
           eq(customShellAutomations.id, input.id),
-          eq(customShellAutomations.workspaceId, workspaceId)
+          eq(customShellAutomations.workspaceId, workspaceId),
+          eq(customShellAutomations.kind, kind)
         )
       )
       .returning()
@@ -433,6 +448,7 @@ export async function duplicateWorkspaceAutomation(
           workspaceId,
           userId,
           name: copyName(source.name, copyNumber),
+          kind: source.kind,
           graph: source.graph,
           compiledConfig: source.compiledConfig,
           createdAt,

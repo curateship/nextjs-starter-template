@@ -56,6 +56,7 @@ local setup docs.
 ## Email and notifications
 
 - [Newsletters and broadcasts](email/newsletters-and-broadcasts.md)
+- [Sequences](email/sequences.md)
 - [System emails](email/system-emails.md)
 - [Notifications](email/notifications.md)
 

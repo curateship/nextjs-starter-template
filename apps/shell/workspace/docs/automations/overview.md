@@ -192,10 +192,17 @@ its own line, and decides whether to carry on.
 - **Switching the flow off stops everyone at their next wait.** Otherwise the
   only way to stop a running sequence would be to delete it. A run somebody
   started by hand is not stopped, because a flow that only runs by hand is
-  always off.
+  always off. Nor is a run of one of the CRM's sequences, which have no
+  switch.
 - **A test with one contact does not wait.** The step says "Would wait 2 days.
   Skipped in this test." and the test carries straight on, so every email in
   the sequence arrives within seconds.
+
+**Send sequence starts one of the CRM's sequences for the run's person.** A
+sequence is a set of emails and waits written in CRM, Broadcasts, Sequences,
+with no start of its own. The step starts it at email 1 on a run of the
+sequence's own and carries straight on. See
+[Sequences](../email/sequences.md).
 
 **What a sequence cannot do.**
 

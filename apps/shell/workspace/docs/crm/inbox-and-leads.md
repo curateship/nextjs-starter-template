@@ -113,9 +113,18 @@ and not linked it outside. The Ui is all over the place as well."
   - Inbox: From, Email, Stage (from a 896px middle), Tags (from 1024px),
     When. From is only as wide as the names and Email takes the rest, so the
     words sit next to who sent them. Leads: Lead, Email, Company, Stage,
-    Value, Added (Lead, Email and Added sort). Subscribers: Person, Email,
-    Status (from 896px), Tags (from 1024px), Opened (from 1152px), Added
-    (Person, Email, Status and Added sort).
+    Value, Added (Lead, Email and Added sort). Subscribers (Tyler, 16 Nov 2026,
+    pasting the table he wanted): Person, Status (from 576px), Tags (from
+    768px), Opened (from 896px), Added (Person, Status and Added sort). The
+    person is their initials, then their name over their address, or with no
+    name the address split at the @ ("eva.jakljevic" over "@gmail.com"), so
+    there is no Email column. Status is a soft coloured pill with its dot
+    (`segmentStatusPillClassName`). Tags shows the first tag with a coloured
+    dot worked out from its letters (`tagDotClassName`), then "+N". Opened
+    reads "Opened 2 of 3", or "No sends yet". The title has the number of
+    people matching beside it. The rows have no cog, only the bin, because a
+    press on the row opens the person ("remove the settings cog icon and
+    link"); `CrmTableRow`'s `cog={false}`.
     Broadcasts: Newsletter, Subject, Status, Sent (from 896px), Changed. Templates and the
     Outbox have the same shape.
   - Every row right-clicks: Mass select first, the row's own actions, the

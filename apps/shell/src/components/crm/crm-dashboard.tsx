@@ -3,6 +3,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { HandshakeIcon, InboxIcon, MailCheckIcon, MegaphoneIcon, UsersIcon, type LucideIcon } from "lucide-react"
 
 import { CrmBroadcastsTab } from "@/components/crm/crm-broadcasts-tab"
+import { BroadcastListTabs, CrmSequencesTab } from "@/components/crm/crm-sequences-tab"
 import { CrmSegmentActionsContext, useCrmFrame, type CrmSegmentActions } from "@/components/crm/crm-frame"
 import { CrmPagePanel } from "@/components/crm/crm-page-panel"
 import { askForNewSegment, CrmPeopleTab } from "@/components/crm/crm-people-tab"
@@ -28,6 +29,7 @@ import {
   type CrmBlockFigures,
 } from "@/lib/api/crm/page"
 import type { BroadcastsPage, BroadcastTemplateItem } from "@/lib/api/email/broadcasts"
+import type { SequenceItem } from "@/lib/api/email/sequences"
 import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
 import type { SystemEmailListItem } from "@/lib/api/email/system-emails"
 import type { SegmentChoice } from "@/lib/api/people/contact-segments"
@@ -62,6 +64,8 @@ export type CrmLoaded =
       segments: SegmentChoice[]
       /** How new email blocks start out on this site. */
       blockDefaults: BroadcastBlockDefaults
+      /** The Sequences tab's rows, read on either tab for its count. */
+      sequences: SequenceItem[]
     }
   | {
       tab: "system"
@@ -307,19 +311,46 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
       />
     )
   } else if (loaded.tab === "broadcasts") {
-    middle = (
-      <CrmBroadcastsTab
-        key="broadcasts"
-        page={loaded.broadcasts}
-        templates={loaded.templates}
-        segments={loaded.segments}
-        blockDefaults={loaded.blockDefaults}
-        search={search}
-        heading={heading}
-        headingEnd={headingEnd}
-        frame={frame}
-      />
+    // The section's two header tabs, with no icon or name before them (Tyler,
+    // 16 Nov 2026: "remove icon"). The first tab is the section's own name.
+    const listTabs = (
+      <>
+        <PanelReopenButton side="left" label="Show the page" />
+        {/* Straight in the header, never wrapped: underlined tabs stretch to
+            the header's full height so their line sits on its bottom line. */}
+        <BroadcastListTabs
+          list={search.list ?? "broadcasts"}
+          counts={{
+            broadcasts: loaded.broadcasts.counts.drafts + loaded.broadcasts.counts.scheduled + loaded.broadcasts.counts.sent,
+            sequences: loaded.sequences.length,
+          }}
+        />
+      </>
     )
+    middle =
+      search.list === "sequences" ? (
+        <CrmSequencesTab
+          key="sequences"
+          sequences={loaded.sequences}
+          blockDefaults={loaded.blockDefaults}
+          search={search}
+          heading={listTabs}
+          headingEnd={headingEnd}
+          frame={frame}
+        />
+      ) : (
+        <CrmBroadcastsTab
+          key="broadcasts"
+          page={loaded.broadcasts}
+          templates={loaded.templates}
+          segments={loaded.segments}
+          blockDefaults={loaded.blockDefaults}
+          search={search}
+          heading={listTabs}
+          headingEnd={headingEnd}
+          frame={frame}
+        />
+      )
   } else if (loaded.tab === "leads") {
     middle = (
       <CrmLeadsTab
