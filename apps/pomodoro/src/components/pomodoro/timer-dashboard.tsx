@@ -291,6 +291,19 @@ export function TimerDashboard() {
   }
   const [zen, setZen] = React.useState(false)
   const zenButton = React.useRef<HTMLButtonElement>(null)
+  // A pause sends the ring's firefly over to circle the button that starts
+  // the timer again, until the next start (Tyler, 15 Nov 2026). Only a pause
+  // made here counts: a focus that runs out also stops the timer, and that is
+  // no pause.
+  const startButton = React.useRef<HTMLButtonElement>(null)
+  const [pausedHere, setPausedHere] = React.useState(false)
+  // A start from anywhere, another device included, ends the pause, so a
+  // focus that later runs out never counts as one.
+  if (pausedHere && pomodoro.timer.running) setPausedHere(false)
+  const toggleTimer = () => {
+    setPausedHere(pomodoro.timer.running)
+    pomodoro.toggleTimer()
+  }
   // Leaving unmounts zen mode and mounts this screen again, so the focus move
   // back to the control that opened it waits for that button to exist.
   const leaveZen = React.useCallback(() => {
@@ -306,7 +319,7 @@ export function TimerDashboard() {
     pomodoro.todayFocusSessions >= pomodoro.dailyGoalSessions
   // The same toggle the break's play button and the Start pill call, here and
   // in zen mode alike, which is why it lives above the early return.
-  useSpaceToggle(pomodoro.toggleTimer)
+  useSpaceToggle(toggleTimer)
 
   if (zen) return <ZenMode pomodoro={pomodoro} onLeave={leaveZen} />
 
@@ -362,6 +375,8 @@ export function TimerDashboard() {
               radius={ringRadius}
               fraction={pomodoro.remainingSeconds / totalSeconds}
               running={pomodoro.timer.running}
+              perchRef={startButton}
+              perched={pausedHere && !pomodoro.timer.running}
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -394,10 +409,11 @@ export function TimerDashboard() {
                   the focus screen keeps its two buttons. */}
               {pomodoro.onBreak ? (
                 <Button
+                  ref={startButton}
                   variant="outline"
                   size="icon-lg"
                   className={ringIconButtonClass}
-                  onClick={pomodoro.toggleTimer}
+                  onClick={toggleTimer}
                   aria-label={
                     pomodoro.timer.running
                       ? "Pause the break"
@@ -416,6 +432,7 @@ export function TimerDashboard() {
                   hand-rolled so the keyboard focus ring is the one every
                   other button draws. */}
               <Button
+                ref={pomodoro.onBreak ? undefined : startButton}
                 size="lg"
                 // Narrower on a break, where a fourth round button joins the
                 // row and the wider pill would press against the ring.
@@ -424,7 +441,7 @@ export function TimerDashboard() {
                   pomodoro.onBreak ? "px-4" : "px-7"
                 )}
                 onClick={
-                  pomodoro.onBreak ? pomodoro.skipBreak : pomodoro.toggleTimer
+                  pomodoro.onBreak ? pomodoro.skipBreak : toggleTimer
                 }
               >
                 {pomodoro.onBreak

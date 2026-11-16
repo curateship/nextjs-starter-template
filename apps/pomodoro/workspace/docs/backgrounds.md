@@ -78,8 +78,10 @@ the background. A screen with no pointer, such as a phone, shows them all the ti
   to my personal room" saves it, "Add to this room" is there for a host, and
   the background in use is labelled "Currently selected". The card is `ThemeCard`
   in `backgrounds-page.tsx`; the menu is `MediaAddMenu`.
-- **The "+" shows while the pointer is over the card.** Tyler, 10 Oct 2026,
-  pointing at the corner: "move the + icon on hover here". It is a round dark
+- **The "+" sits in the middle of the picture** and shows while the pointer
+  is over the card (Tyler, 15 Nov 2026: "move the add icon to the middle";
+  from 10 Oct it sat on the top corner). The rest of the picture still plays
+  the card when pressed. It is a round dark
   glass button, the same as the cog and bin on your own uploads. It stays
   while its menu is open or it has the keyboard's focus, and on a phone,
   which has no hover, it always shows. The name below has the card's full

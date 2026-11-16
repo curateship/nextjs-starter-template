@@ -1,4 +1,4 @@
-import { useId, useState } from "react"
+import { useId, useLayoutEffect, useRef, useState, type RefObject } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -100,14 +100,29 @@ export function RingFirefly({
   fraction,
   running,
   scale = 1.3,
+  perchRef,
+  perched = false,
 }: {
   center: number
   radius: number
   fraction: number
   running: boolean
   scale?: number
+  /** The button the firefly circles while `perched` is on. */
+  perchRef?: RefObject<HTMLElement | null>
+  /** On from a pause until the next start. */
+  perched?: boolean
 }) {
   const glowId = useId()
+  const flyerRef = useRef<SVGGElement>(null)
+  const away = useFlightToPerch({
+    flyerRef,
+    perchRef,
+    perched,
+    center,
+    radius,
+    fraction,
+  })
   // Each start plays one back flip, and a pause plays none (Tyler, 15 Nov
   // 2026: "actually dont make it flip from green to orange"). Counting the
   // starts gives the flipping group a new key, which is what makes the
@@ -121,35 +136,280 @@ export function RingFirefly({
   // The loop's middle, straight out from the ring above the firefly. It grows
   // with the firefly, so a small ring gets a small loop.
   const loopRadius = 17 * scale
+  const colours = cn(
+    "flowfly-logo flowfly-logo-letter",
+    !running && "flowfly-logo-waiting"
+  )
   return (
-    <g
-      className={cn(
-        "flowfly-logo flowfly-logo-letter",
-        !running && "flowfly-logo-waiting"
-      )}
-      style={{
-        transform: `rotate(${fraction * 360}deg)`,
-        transformOrigin: `${center}px ${center}px`,
-        transition: "transform .9s linear",
-      }}
-    >
-      <defs>
-        <GlowGradient id={glowId} />
-      </defs>
+    <>
       <g
-        key={flips}
-        className={flips > 0 ? "flowfly-flip" : undefined}
+        className={colours}
         style={{
-          transformOrigin: `${center}px ${center - radius - loopRadius}px`,
+          transform: `rotate(${fraction * 360}deg)`,
+          transformOrigin: `${center}px ${center}px`,
+          transition: "transform .9s linear",
+          opacity: away ? 0 : 1,
         }}
       >
-        <Firefly
-          transform={`translate(${center} ${center - radius}) rotate(-90) scale(${scale}) translate(-20 -24)`}
-          glowId={glowId}
-        />
+        <defs>
+          <GlowGradient id={glowId} />
+        </defs>
+        <g
+          key={flips}
+          className={flips > 0 ? "flowfly-flip" : undefined}
+          style={{
+            transformOrigin: `${center}px ${center - radius - loopRadius}px`,
+          }}
+        >
+          <Firefly
+            transform={`translate(${center} ${center - radius}) rotate(-90) scale(${scale}) translate(-20 -24)`}
+            glowId={glowId}
+          />
+        </g>
       </g>
-    </g>
+      {perchRef ? (
+        // The same firefly, flown by `useFlightToPerch`. It is drawn from the
+        // start, unseen, so its drift keeps time with the ring's and the swap
+        // between the two does not jump.
+        <g
+          ref={flyerRef}
+          className={colours}
+          style={{ opacity: away ? 1 : 0 }}
+        >
+          <Firefly
+            transform={`scale(${scale}) translate(-20 -24)`}
+            glowId={glowId}
+          />
+        </g>
+      ) : null}
+    </>
   )
+}
+
+type Point = { x: number; y: number }
+
+/** The flight over to the button, one turn around it, and the flight back. */
+const OUT_MS = 1100
+const LAP_MS = 2600
+const BACK_MS = 900
+/** How far outside the button's edge the firefly's glow circles, in ring units. */
+const PERCH_GAP = 16
+
+/**
+ * How far along a leg the firefly is at `t`, from 0 to 1, when it leaves at
+ * `startPace` and arrives at `endPace` (1 is the leg's average). Matching the
+ * lap's pace on arrival is what keeps it from slowing to a stop at the button
+ * and then setting off again (Tyler, 15 Nov 2026: "It flew there, pause and
+ * then fly again").
+ */
+function along(t: number, startPace: number, endPace: number) {
+  const t2 = t * t
+  const t3 = t2 * t
+  return (
+    (t3 - 2 * t2 + t) * startPace + (-2 * t3 + 3 * t2) + (t3 - t2) * endPace
+  )
+}
+
+/** A pace for `along`, kept where the leg still only moves forwards. */
+function pace(unitsPerMs: number, legMs: number, reach: number) {
+  return Math.min(2.5, Math.max(0, (unitsPerMs * legMs) / (3 * reach)))
+}
+
+function unit(v: Point): Point {
+  const length = Math.hypot(v.x, v.y) || 1
+  return { x: v.x / length, y: v.y / length }
+}
+
+/**
+ * A curve that leaves `from` heading along `fromDir` and lands on `to` heading
+ * along `toDir`, so the firefly turns smoothly at both ends. Answers the spot
+ * and the heading at `t` from 0 to 1.
+ */
+function curveAt(from: Point, fromDir: Point, to: Point, toDir: Point, t: number) {
+  const reach = curveReach(from, to)
+  const a = from
+  const b = { x: from.x + fromDir.x * reach, y: from.y + fromDir.y * reach }
+  const c = { x: to.x - toDir.x * reach, y: to.y - toDir.y * reach }
+  const d = to
+  const u = 1 - t
+  const at = (p: keyof Point) =>
+    u * u * u * a[p] + 3 * u * u * t * b[p] + 3 * u * t * t * c[p] + t * t * t * d[p]
+  const slope = (p: keyof Point) =>
+    3 * u * u * (b[p] - a[p]) + 6 * u * t * (c[p] - b[p]) + 3 * t * t * (d[p] - c[p])
+  return {
+    at: { x: at("x"), y: at("y") },
+    heading: unit({ x: slope("x"), y: slope("y") }),
+  }
+}
+
+/** How far the curve's ends reach out along their headings, for `pace`. */
+function curveReach(from: Point, to: Point) {
+  return Math.hypot(to.x - from.x, to.y - from.y) * 0.45 + 20
+}
+
+/**
+ * Flies the firefly over to a button and around it while `perched` is on, and
+ * back to the end of the ring's bar when it goes off (Tyler, 15 Nov 2026: "add
+ * an animation that when I pause the timer. The fly flies over and circle
+ * around the start button"). Answers whether the firefly is away from the
+ * ring, so the ring's own copy can hide.
+ *
+ * It runs frame by frame rather than in CSS, because both ends move: the
+ * button is wherever the layout put it, and the bar's end keeps moving while
+ * the firefly flies back. Positions are in the ring's own units, measured from
+ * the `<svg>` the firefly is drawn in. Nothing flies with reduce motion on.
+ */
+function useFlightToPerch({
+  flyerRef,
+  perchRef,
+  perched,
+  center,
+  radius,
+  fraction,
+}: {
+  flyerRef: RefObject<SVGGElement | null>
+  perchRef?: RefObject<HTMLElement | null>
+  perched: boolean
+  center: number
+  radius: number
+  fraction: number
+}) {
+  const [away, setAway] = useState(false)
+  // The running flight reads these each frame instead of starting over.
+  const latest = useRef({ perched, fraction })
+  useLayoutEffect(() => {
+    latest.current = { perched, fraction }
+  }, [perched, fraction])
+
+  if (perched && !away && perchRef) {
+    const calm =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    if (!calm) setAway(true)
+  }
+
+  // Before the paint, so the firefly is already on the bar's end the first
+  // time it shows.
+  useLayoutEffect(() => {
+    if (!away) return
+    const flyer = flyerRef.current
+    const svg = flyer?.ownerSVGElement
+    if (!flyer || !svg) return
+
+    // The bar's end and the way it travels, which is anticlockwise.
+    const ringEnd = () => {
+      const angle = latest.current.fraction * 2 * Math.PI
+      return {
+        at: {
+          x: center + radius * Math.sin(angle),
+          y: center - radius * Math.cos(angle),
+        },
+        heading: { x: -Math.cos(angle), y: -Math.sin(angle) },
+      }
+    }
+    // The button's middle and the loop around it, in ring units.
+    const perch = () => {
+      const button = perchRef?.current
+      if (!button || !button.isConnected) return null
+      const box = svg.getBoundingClientRect()
+      const target = button.getBoundingClientRect()
+      if (!box.width || !target.width) return null
+      const units = svg.viewBox.baseVal.width / box.width
+      return {
+        x: (target.left + target.width / 2 - box.left) * units,
+        y: (target.top + target.height / 2 - box.top) * units,
+        rx: (target.width / 2) * units + PERCH_GAP,
+        ry: (target.height / 2) * units + PERCH_GAP,
+      }
+    }
+    // Clockwise from the top of the loop.
+    const loopAt = (loop: NonNullable<ReturnType<typeof perch>>, turn: number) => ({
+      at: { x: loop.x + loop.rx * Math.sin(turn), y: loop.y - loop.ry * Math.cos(turn) },
+      heading: unit({ x: loop.rx * Math.cos(turn), y: loop.ry * Math.sin(turn) }),
+    })
+
+    const start = ringEnd()
+    let here = start.at
+    let heading = start.heading
+    let leg: "out" | "lap" | "back" = "out"
+    let legStart = performance.now()
+    let from = { at: here, heading, speed: 0 }
+    let speed = 0
+    let lastNow = legStart
+    let frame = 0
+
+    const switchTo = (next: typeof leg, now: number) => {
+      leg = next
+      legStart = now
+      from = { at: here, heading, speed }
+    }
+
+    const step = (now: number) => {
+      const before = here
+      const loop = perch()
+      const wanted = latest.current.perched && loop
+      if (!wanted && leg !== "back") switchTo("back", now)
+      if (wanted && leg === "back") switchTo("out", now)
+
+      if (leg === "out" && loop) {
+        const t = Math.min(1, (now - legStart) / OUT_MS)
+        const landing = loopAt(loop, 0)
+        const reach = curveReach(from.at, landing.at)
+        // At the top of the loop the lap moves at its sideways radius times
+        // its turning speed.
+        const lapSpeed = (loop.rx * 2 * Math.PI) / LAP_MS
+        const spot = curveAt(
+          from.at,
+          from.heading,
+          landing.at,
+          landing.heading,
+          along(t, pace(from.speed, OUT_MS, reach), pace(lapSpeed, OUT_MS, reach))
+        )
+        here = spot.at
+        heading = spot.heading
+        if (t >= 1) switchTo("lap", now)
+      } else if (leg === "lap" && loop) {
+        const spot = loopAt(loop, ((now - legStart) / LAP_MS) * 2 * Math.PI)
+        here = spot.at
+        heading = spot.heading
+      } else {
+        const t = Math.min(1, (now - legStart) / BACK_MS)
+        const end = ringEnd()
+        const reach = curveReach(from.at, end.at)
+        // It leaves at the pace it had and settles onto the bar's slow end.
+        const spot = curveAt(
+          from.at,
+          from.heading,
+          end.at,
+          end.heading,
+          along(t, pace(from.speed, BACK_MS, reach), 0)
+        )
+        here = spot.at
+        heading = spot.heading
+        if (t >= 1) {
+          setAway(false)
+          return
+        }
+      }
+
+      if (now > lastNow)
+        speed = Math.hypot(here.x - before.x, here.y - before.y) / (now - lastNow)
+      lastNow = now
+
+      // The firefly is drawn head up, so it turns by the heading's angle from
+      // straight up.
+      const degrees = (Math.atan2(heading.x, -heading.y) * 180) / Math.PI
+      flyer.setAttribute(
+        "transform",
+        `translate(${here.x.toFixed(2)} ${here.y.toFixed(2)}) rotate(${degrees.toFixed(1)})`
+      )
+      frame = requestAnimationFrame(step)
+    }
+    step(performance.now())
+    return () => cancelAnimationFrame(frame)
+  }, [away, flyerRef, perchRef, center, radius])
+
+  return away
 }
 
 export function FlowflyLogo({

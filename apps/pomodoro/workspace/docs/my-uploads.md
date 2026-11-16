@@ -19,6 +19,11 @@ Reached from "My uploads" in the photo menu, the "+ Add" beside Shuffle on
 Backgrounds and Sounds, and the bell. A guest who opens it sees the Sign in
 card and nothing of anybody's.
 
+A round back arrow left of the title leads back: to Sounds from the Sounds
+tab, and to Backgrounds from the Backgrounds and Bin tabs (Tyler, 15 Nov
+2026: "Add a back button to go back to the background page"). It is the
+header's glass circle, like the menu button.
+
 ## When the files cannot be loaded
 
 The tab shows the shared error row with Try again, which reads the files once

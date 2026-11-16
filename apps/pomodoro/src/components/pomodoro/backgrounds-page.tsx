@@ -276,14 +276,19 @@ function ThemeCard({
       {/* Beside the card's button, because a button cannot sit inside
           another one. */}
       {locked ? null : (
-        <MediaAddMenu
-          item={{ kind: "background", reference, label }}
-          // On the picture's top corner, shown while the pointer is over the
-          // card. Tyler, 10 Oct 2026, pointing at it: "move the + icon on
-          // hover here". A phone has no hover, so there it always shows, and
-          // it stays while its menu is open or it has the keyboard's focus.
-          className="absolute top-2 right-2 bg-black/45 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/card:opacity-100 hover:bg-black/60 hover:text-white focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
-        />
+        // In the middle of the picture (Tyler, 15 Nov 2026: "move the add
+        // icon to the middle"; it sat on the top corner from 10 Oct). The
+        // layer is the picture's size and lets clicks through, so the rest of
+        // the picture still plays the card.
+        <div className="pointer-events-none absolute inset-x-0 top-0 grid aspect-video place-items-center">
+          <MediaAddMenu
+            item={{ kind: "background", reference, label }}
+            // Shown while the pointer is over the card. A phone has no hover,
+            // so there it always shows, and it stays while its menu is open
+            // or it has the keyboard's focus.
+            className="pointer-events-auto bg-black/45 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover/card:opacity-100 hover:bg-black/60 hover:text-white focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+          />
+        </div>
       )}
     </Card>
   )

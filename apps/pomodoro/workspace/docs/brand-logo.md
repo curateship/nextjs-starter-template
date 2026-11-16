@@ -61,7 +61,11 @@ Each part is his pick, made on 15 Nov 2026 from sketches on a private page.
 - **The header**: the word, 32px tall, only between 640px and 1024px wide,
   where the left menu is a drawer. From 1024px the menu is open beside the
   header, and a second logo there was removed (Tyler, 15 Nov 2026: "remove
-  this one"). Under 640px the header has no room, and the drawer has the logo.
+  this one"). Under 640px the word has no room, so the f stands in: 45px
+  square, at the far left with the menu button 16px to its right (Tyler, 15
+  Nov 2026: "its to the left of the hamburger", then "add some spacing
+  between logo and the icon", then 45px). It goes to `/timer`, as the
+  word does.
 - **Every timer ring**: on `/timer`, in Zen mode, in a room, in the floating
   timer and in the Notion timer, the firefly rides the end of the bar
   (Tyler, 15 Nov 2026: "add the firefly floating around the ring when it
@@ -79,6 +83,27 @@ Each part is his pick, made on 15 Nov 2026 from sketches on a private page.
   `RingFirefly` in the logo's file draws it, sized
   to each ring. In a room the glow is teal during the focus and orange on a
   break or while the room waits, the same rule the room's bar follows.
+- **A pause on `/timer` sends the firefly to the Start button** (Tyler, 15
+  Nov 2026: "add an animation that when I pause the timer. The fly flies
+  over and circle around the start button"). It leaves the end of the bar,
+  curves over to the button in about a second and circles it, one lap
+  every 2.6 seconds, for as long as the timer stays paused. On a break it
+  circles the round play button instead, since that is what starts the
+  break again. Starting again flies it back onto the end of the bar in 0.9
+  seconds. It flies behind the buttons, so the label stays readable.
+  - **It never stops at the button.** The flight arrives at the lap's own
+    speed and the flight back leaves at the speed it had, so the two join
+    up without a halt (Tyler: "It flew there, pause and then fly again").
+  - **Only a pause made on the page counts**, by the button or by Space. A
+    focus that runs out also stops the timer, and that is not a pause, so
+    the firefly stays on the ring then. A pause from another device does
+    not send it either.
+  - **Zen mode, rooms, the floating timer and the Notion timer** keep the
+    firefly on the ring when paused.
+  - **With reduce motion on**, it stays on the ring.
+  - `useFlightToPerch` in the logo's file flies it frame by frame, because
+    the button sits wherever the layout puts it and the bar's end keeps
+    moving during the flight back.
 - **The tab icon and the phone's home-screen icon**: the f with the firefly,
   still, on a rounded tile in the light canvas colour `#f3efe8`. The tile is
   there because a dark f on a clear background vanishes on a dark tab bar.

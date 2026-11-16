@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { PlusIcon } from "lucide-react"
+import { ArrowLeftIcon, PlusIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -18,6 +18,10 @@ import { pillTabsList, pillTabsTrigger } from "@/lib/pomodoro/pill-tabs"
 
 import type { PomodoroUploadPurpose } from "@/lib/pomodoro/media-limits"
 import { MediaAddMenu } from "@/components/pomodoro/media-add-actions"
+import {
+  quickPillHoverClass,
+  quickPillSurfaceClass,
+} from "@/components/pomodoro/quick-controls-header"
 import { SoundWave } from "@/components/pomodoro/sound-wave"
 import { MediaUploadsSection } from "@/components/pomodoro/media-uploads-section"
 import { MediaGeneratorSection } from "@/components/pomodoro/media-generator-section"
@@ -60,7 +64,24 @@ export function UploadsPage({
     <div className={`${contentColumn} flex flex-col gap-6 py-8`}>
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="title-halo flex flex-col gap-2">
-          <h2 className="text-4xl font-bold tracking-tight">My uploads</h2>
+          <div className="flex items-center gap-3">
+            {/* Back to the page the Add came from: Sounds from the Sounds
+                tab, Backgrounds from the others (Tyler, 15 Nov 2026: "Add a
+                back button to go back to the background page"). The header's
+                glass circle, like the menu button. */}
+            <Link
+              to={kind === "sound" ? "/sounds" : "/backgrounds"}
+              aria-label={kind === "sound" ? "Back to Sounds" : "Back to Backgrounds"}
+              className={cn(
+                "grid size-9 shrink-0 place-items-center text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                quickPillSurfaceClass,
+                quickPillHoverClass
+              )}
+            >
+              <ArrowLeftIcon className="size-[18px]" aria-hidden="true" />
+            </Link>
+            <h2 className="text-4xl font-bold tracking-tight">My uploads</h2>
+          </div>
           <p className="text-muted-foreground">
             {aiShown
               ? "Your own backgrounds and sounds, uploaded or made with AI. Press + on one to add it to your personal room."
