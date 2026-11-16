@@ -21,6 +21,21 @@ All of them are in `src/components/shared/`.
   (`src/lib/api/shell-settings.ts`). Until 11 Nov 2026 it still said 16%, so
   every Styling save with the right width at 12 to 15% was refused with a raw
   "too_small" message.
+  Once on screen, the side panels keep their width in pixels. Folding the
+  left menu, or a window getting wider or narrower, changes only the middle
+  (Tyler, 16 Nov 2026: "when i collapse the sidebar. The left panel changes
+  the width I set it as, it expands about 10%"). Before, each side kept its
+  share of the frame, so folding the menu grew the left panel from 149 to 163
+  pixels on a 1440-wide window. A dragged width is saved with the frame's
+  width at the time and comes back as the same pixels whatever the menu is
+  doing (`inPixelsOf` in `src/lib/layout/panel-layout.ts`). Without that, a
+  width saved with the menu folded came back narrower, a little more on each
+  reload. The narrowest and widest a side panel drags to are shares of the
+  frame as measured when the dashboard opens, and again only when the window
+  itself is resized (`useSideSizeBasis` in `three-panels.tsx`). As plain
+  shares they grew with the frame when the menu folded, so a panel at its
+  narrowest was still pushed from 124 to 136 pixels and stayed there (Tyler,
+  same day: "it still does it but less").
   A side panel drags shut, comes back from a tab on the middle
   panel's edge, and a double-click on blank space toggles it. Folding or
   opening slides over 240ms (`usePanelFold` in `src/lib/layout/panel-collapse.ts`,
