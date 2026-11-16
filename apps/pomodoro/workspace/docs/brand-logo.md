@@ -34,6 +34,12 @@ Each part is his pick, made on 15 Nov 2026 from sketches on a private page.
   allows a logo.
 - **Two versions.** `variant="word"` is the whole name. `variant="letter"` is
   the f with the same firefly, for a square space.
+- **The lone f stands upright.** Grandstander's f leans right, about one unit
+  across for every seven down, so the letter version is tilted back 8
+  degrees around its middle (Tyler, 15 Nov 2026: "make the f straight
+  instead of slanted"). The f's inside the word keep the typeface's lean.
+  The still pictures of the f (the tab icon, the phone's home-screen icon
+  and the Branding logo) were drawn before this and still lean.
 - **The letters take the page's text colour**, so they are dark on the light
   theme and light on every dark shade.
 - **The firefly's colours** are set on `.flowfly-logo` in `theme.css`. Light
@@ -61,11 +67,12 @@ Each part is his pick, made on 15 Nov 2026 from sketches on a private page.
 - **The header**: the word, 32px tall, only between 640px and 1024px wide,
   where the left menu is a drawer. From 1024px the menu is open beside the
   header, and a second logo there was removed (Tyler, 15 Nov 2026: "remove
-  this one"). Under 640px the word has no room, so the f stands in: 35px
+  this one"). Under 640px the word has no room, so the f stands in: 40px
   square, 16px to the right of the menu button (Tyler, 15 Nov 2026: "add
   some spacing between logo and the icon", "move the logo back to the right
-  side of the hamburger icon", then "resize logo to 35px"). It goes to
-  `/timer`, as the word does.
+  side of the hamburger icon", then "make it 40px"). It goes to
+  `/timer`, as the word does. On a 320px phone, signed in, the bell and
+  photo wrap to a second line; from 340px everything fits on one.
 - **Every timer ring**: on `/timer`, in Zen mode, in a room, in the floating
   timer and in the Notion timer, the firefly rides the end of the bar
   (Tyler, 15 Nov 2026: "add the firefly floating around the ring when it

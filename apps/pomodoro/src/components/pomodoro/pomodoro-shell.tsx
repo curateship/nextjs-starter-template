@@ -435,16 +435,16 @@ export function PomodoroShell({
             >
               <MenuIcon className="size-[18px]" aria-hidden="true" />
             </button>
-            {/* On a phone the word has no room, so the f stands in, 35px
+            {/* On a phone the word has no room, so the f stands in, 40px
                 square to the right of the menu button with 16px between them
                 (Tyler, 15 Nov 2026: "add some spacing", "move the logo back to
-                the right side of the hamburger icon", then 35px). */}
+                the right side of the hamburger icon", then 40px). */}
             <Link
               to="/timer"
               className="ml-2 sm:hidden"
               aria-label="Flowfly dashboard"
             >
-              <FlowflyLogo variant="letter" className="size-[35px]" />
+              <FlowflyLogo variant="letter" className="size-10" />
             </Link>
             {/* Only while the left menu is a drawer. Beside the open menu it
                 was a second logo, and Tyler had it removed (15 Nov 2026:

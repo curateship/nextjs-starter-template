@@ -412,6 +412,14 @@ function useFlightToPerch({
   return away
 }
 
+/**
+ * Stands the f upright: Grandstander's f leans right about one unit across
+ * for every seven down, so it tilts back 8 degrees, pivoting on its middle so
+ * it stays centred (Tyler, 15 Nov 2026: "make the f straight instead of
+ * slanted"). The f's in the word keep the typeface's lean.
+ */
+const LETTER_UPRIGHT = "translate(15 22) skewX(-8) translate(-15 -22)"
+
 export function FlowflyLogo({
   variant = "word",
   className,
@@ -436,7 +444,10 @@ export function FlowflyLogo({
       <defs>
         <GlowGradient id={glowId} />
       </defs>
-      <path d={isWord ? WORD_PATH : LETTER_PATH} />
+      <path
+        d={isWord ? WORD_PATH : LETTER_PATH}
+        transform={isWord ? undefined : LETTER_UPRIGHT}
+      />
       <Firefly
         transform={
           isWord
