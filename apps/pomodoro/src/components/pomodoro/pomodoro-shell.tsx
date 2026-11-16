@@ -418,17 +418,6 @@ export function PomodoroShell({
               of the first line, so there they sit in the middle of the room
               left over instead (`mx-auto`), as before. */}
           <div className="flex items-center gap-2 md:gap-6 min-[1440px]:flex-1 min-[1440px]:basis-0">
-            {/* On a phone the word has no room, so the f stands in, 45px
-                square to the left of the menu button with 16px between them
-                (Tyler, 15 Nov 2026: "its to the left of the hamburger", then
-                "add some spacing", then 45px). */}
-            <Link
-              to="/timer"
-              className="mr-2 sm:hidden"
-              aria-label="Flowfly dashboard"
-            >
-              <FlowflyLogo variant="letter" className="size-[45px]" />
-            </Link>
             {/* The header's glass circle, the same as the bell and the timer
                 pill beside it. Tyler, 10 Oct 2026: "add a background to the
                 hamburger icon so that it matches with the other buttons". */}
@@ -446,6 +435,17 @@ export function PomodoroShell({
             >
               <MenuIcon className="size-[18px]" aria-hidden="true" />
             </button>
+            {/* On a phone the word has no room, so the f stands in, 35px
+                square to the right of the menu button with 16px between them
+                (Tyler, 15 Nov 2026: "add some spacing", "move the logo back to
+                the right side of the hamburger icon", then 35px). */}
+            <Link
+              to="/timer"
+              className="ml-2 sm:hidden"
+              aria-label="Flowfly dashboard"
+            >
+              <FlowflyLogo variant="letter" className="size-[35px]" />
+            </Link>
             {/* Only while the left menu is a drawer. Beside the open menu it
                 was a second logo, and Tyler had it removed (15 Nov 2026:
                 "remove this one"). */}

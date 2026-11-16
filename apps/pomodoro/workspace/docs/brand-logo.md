@@ -61,11 +61,11 @@ Each part is his pick, made on 15 Nov 2026 from sketches on a private page.
 - **The header**: the word, 32px tall, only between 640px and 1024px wide,
   where the left menu is a drawer. From 1024px the menu is open beside the
   header, and a second logo there was removed (Tyler, 15 Nov 2026: "remove
-  this one"). Under 640px the word has no room, so the f stands in: 45px
-  square, at the far left with the menu button 16px to its right (Tyler, 15
-  Nov 2026: "its to the left of the hamburger", then "add some spacing
-  between logo and the icon", then 45px). It goes to `/timer`, as the
-  word does.
+  this one"). Under 640px the word has no room, so the f stands in: 35px
+  square, 16px to the right of the menu button (Tyler, 15 Nov 2026: "add
+  some spacing between logo and the icon", "move the logo back to the right
+  side of the hamburger icon", then "resize logo to 35px"). It goes to
+  `/timer`, as the word does.
 - **Every timer ring**: on `/timer`, in Zen mode, in a room, in the floating
   timer and in the Notion timer, the firefly rides the end of the bar
   (Tyler, 15 Nov 2026: "add the firefly floating around the ring when it
