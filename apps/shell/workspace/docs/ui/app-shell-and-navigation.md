@@ -25,28 +25,33 @@ only in an app that builds distinct sites, meaning `workspaces.siteBranding` is
 on. With neither, the plain shape from the site editor's Icon list is drawn
 instead.
 
-An admin gets a chevron beside the name that opens the list of sites they may
-switch between. **A member gets the name and the logo and no chevron**, because
+An admin gets a chevron that opens the list of sites they may switch between. **A member gets the name and the logo and no chevron**, because
 a member may not change site. Clicking either the logo or the name goes home,
 for both.
 
 The address under the name is drawn only for an admin. It is there to tell two
 sites apart, and a member has only the one.
 
-### Hovering the name opens the site
+### Hovering the name shows its buttons
 
-Putting the pointer anywhere on that block shows an external-link button beside
-the name, and it opens the site in a new tab. It is for the question an admin
-asks all day, which is what this looks like to somebody who is not signed in,
-and it saves retyping the address or going through the switcher menu.
+The external-link button and the chevron appear only while the pointer is on
+that block (Tyler, 16 Nov 2026: "make both icon appear only hover and make it
+appear over the text and logo"). The external-link button opens the site in a
+new tab. It is for the question an admin asks all day, which is what this
+looks like to somebody who is not signed in, and it saves retyping the address
+or going through the switcher menu.
 
-- **It keeps its 28px whether or not it is showing**, so the name does not
-  reflow under the pointer the moment the button appears.
-- **A keyboard reaches it**, because focus reveals it the same way hover does.
-- **On a phone it is simply always drawn**, since a touch screen has no hover
-  and a button nobody can reveal is a button nobody has.
-- **It carries no tooltip.** Tyler's instruction on 5 Oct 2026. The button only
-  appears once the pointer is already on the block, so a label arriving a beat
+- **They sit on top of the end of the name**, not beside it, so the name and
+  address use the whole width the rest of the time. The left menu's own colour
+  behind them hides the letters they cover.
+- **Hidden, they ignore the pointer**, so a click on the end of the name still
+  goes home.
+- **A keyboard reaches them**, because focus reveals them the same way hover
+  does. They also stay up while the site list is open.
+- **On a phone they are simply always drawn beside the name**, since a touch
+  screen has no hover and a button nobody can reveal is a button nobody has.
+- **The external-link button carries no tooltip.** Tyler's instruction on 5
+  Oct 2026. The button only appears once the pointer is already on the block, so a label arriving a beat
   later repeats what the icon has just said. It keeps its `aria-label`, because
   a screen reader never sees the icon. This is the exception to the rule that an
   icon-only button outside a table row gets a tooltip.
