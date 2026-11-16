@@ -94,6 +94,8 @@ Drawn to Tyler's design of 7 Oct 2026
   buttons and a native input, and the two had drifted apart. A fix to one
   list is now a fix to both.
 - **Remove** marks the row `abandoned`; it keeps its finished sessions.
+  An open task and a done one can both be removed. A done task's tick stays
+  in that day's done count, because the work was finished.
 - **The X asks before it removes.** A window titled "Remove this task?" says
   the task comes off the list and its finished focus stays in History, and
   for a repeating task that it still comes back on its next repeat day.

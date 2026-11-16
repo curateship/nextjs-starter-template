@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
@@ -377,7 +377,9 @@ const abandonTaskFn = createServerFn({ method: "POST" })
         and(
           eq(tasks.id, data.taskId),
           eq(tasks.userId, context.user.id),
-          eq(tasks.status, "active")
+          // A done task can be removed too. Its tick stays in the day's done
+          // count, because the work was finished.
+          inArray(tasks.status, ["active", "completed"])
         )
       )
       .returning()
