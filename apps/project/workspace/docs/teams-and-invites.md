@@ -261,7 +261,8 @@ shows at a time, under Tasks, Team and Task tabs.
     row offers Status, Priority, Due date, Assigned to, Project and None),
     Views and New task (this team's projects only), with no ⋮ (Tyler, 16 Nov
     2026: "move the mass select and search outside"). Under 896px wide the
-    words drop for icons, and under 672px the search is a magnifying glass. With Mass select on, a row
+    words drop for icons, each a 32px square with the search box's 10px
+    corners, and under 672px the search is a magnifying glass. With Mass select on, a row
     dragged under another status, priority or due date takes it. Each
     person's views are kept under the team (`team-tasks:<team id>`).
   - **Calendar:** the header has the view dropdown with a filter mark

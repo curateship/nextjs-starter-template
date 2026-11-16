@@ -12,7 +12,7 @@ import {
 import type { ProjectMemberRow } from "@/lib/api/project/projects"
 import { plural } from "@/lib/format/plural"
 import { NOBODY_FILTER } from "@/lib/project/task-filters"
-import { NARROW_SEARCH, NARROW_WORD, type TaskHeaderNarrow } from "@/lib/project/task-header-look"
+import { NARROW_SEARCH, NARROW_SQUARE, NARROW_WORD, type TaskHeaderNarrow } from "@/lib/project/task-header-look"
 import { cn } from "@/lib/utils"
 
 /**
@@ -26,10 +26,16 @@ export function TaskSearchBox({
   value,
   onChange,
   narrow = "normal",
+  what = "tasks",
+  boxClassName,
 }: {
   value: string
   onChange: (value: string) => void
   narrow?: TaskHeaderNarrow
+  /** What it searches, for its words: a project's Notes and Milestones dashboards have one too. */
+  what?: "tasks" | "notes" | "milestones"
+  /** The box's widths in place of the task headers' narrowing, for a header with more room. */
+  boxClassName?: string
 }) {
   const [open, setOpen] = React.useState(false)
   const box = React.useRef<HTMLInputElement>(null)
@@ -43,10 +49,10 @@ export function TaskSearchBox({
         ref={box}
         className={cn("min-w-0 shrink", !showBox && "@max-2xl:hidden")}
         // The clear button's room on the right is kept only once there are words to clear.
-        inputClassName={cn(NARROW_SEARCH[narrow], !value && "pr-2")}
-        name="task-search"
-        aria-label="Search tasks by title and notes"
-        placeholder="Search tasks"
+        inputClassName={cn(boxClassName ?? NARROW_SEARCH[narrow], !value && "pr-2")}
+        name={`${what}-search`}
+        aria-label={what === "tasks" ? "Search tasks by title and notes" : `Search ${what}`}
+        placeholder={`Search ${what}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={() => setOpen(false)}
@@ -61,7 +67,7 @@ export function TaskSearchBox({
           type="button"
           variant="ghost"
           className="hidden w-8 px-0 @max-2xl:inline-flex"
-          aria-label="Search tasks"
+          aria-label={`Search ${what}`}
           onClick={() => setOpen(true)}
         >
           <SearchIcon className="size-4" />
@@ -91,7 +97,7 @@ export function TaskSelectButton({
       variant="outline"
       aria-pressed={on}
       aria-label={on ? "Hide select" : "Mass select"}
-      className={cn(on && "bg-muted")}
+      className={cn(NARROW_SQUARE[narrow], on && "bg-muted")}
       onClick={onToggle}
     >
       <ListChecksIcon className="size-4" />

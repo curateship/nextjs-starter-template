@@ -91,11 +91,14 @@ export function TaskPlanCard({
   readOnly,
   busy,
   change,
+  withMilestone = true,
 }: {
   detail: TaskDetail
   readOnly: boolean
   busy: boolean
   change: Change
+  /** Off in the task's ⋮, where the milestone is a row of its own beside Priority. */
+  withMilestone?: boolean
 }) {
   const { task } = detail
   return (
@@ -104,7 +107,7 @@ export function TaskPlanCard({
         <CardTitle>Plan</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <MilestoneField detail={detail} disabled={readOnly || busy} change={change} />
+        {withMilestone ? <MilestoneField detail={detail} disabled={readOnly || busy} change={change} /> : null}
         <RepeatField taskId={task.id} repeat={task.repeat} disabled={readOnly || busy} change={change} />
         <div className="grid content-start gap-2">
           <Label htmlFor="task-snooze">Snooze until</Label>

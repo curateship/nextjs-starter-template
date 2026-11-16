@@ -14,7 +14,8 @@ import {
   WeekDrawing,
   WorkloadDrawing,
 } from "@/components/project/notes/team-blocks"
-import { MilestonesDrawing, ProjectNotesDrawing } from "@/components/project/notes/project-page-blocks"
+import { ProjectSectionsDrawing } from "@/components/project/notes/project-page-blocks"
+import type { SectionSettings } from "@/lib/project/project-sections"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import {
   CalloutFrame,
@@ -108,11 +109,9 @@ function Block({ node }: { node: NoteNode }) {
       return <WeekDrawing editing={READING} />
     case "noteTeamMembers":
       return <MembersDrawing editing={READING} />
-    // A project's page, as everyone but the site admin reads it.
-    case "noteMilestones":
-      return <MilestonesDrawing editing={READING} />
-    case "noteProjectNotes":
-      return <ProjectNotesDrawing editing={READING} />
+    // A project's page, as everyone but the site admin reads it: the only way to its Notes and Milestones.
+    case "noteProjectSections":
+      return <ProjectSectionsDrawing editing={READING} settings={attrs as SectionSettings} />
     case "noteCallout":
       return (
         <CalloutFrame kind={(attrs.kind as CalloutKind) ?? "note"} editing={READING}>

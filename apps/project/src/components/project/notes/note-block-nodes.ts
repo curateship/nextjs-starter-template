@@ -14,7 +14,6 @@ import {
   FolderKanbanIcon,
   SunriseIcon,
   FileIcon,
-  FlagIcon,
   GlobeIcon,
   InboxIcon,
   ImageIcon,
@@ -28,7 +27,6 @@ import {
   MinusIcon,
   PlayIcon,
   type LucideIcon,
-  NotebookPenIcon,
 } from "lucide-react"
 
 import {
@@ -57,7 +55,9 @@ import {
   WeekBlockView,
   WorkloadBlockView,
 } from "@/components/project/notes/team-blocks"
-import { MilestonesBlockView, ProjectNotesBlockView } from "@/components/project/notes/project-page-blocks"
+import { ProjectSectionsBlockView } from "@/components/project/notes/project-page-blocks"
+import { keepOnPage } from "@/components/shared/notes/note-block-nodes"
+import { PROJECT_SECTIONS_NODE } from "@/lib/project/note-blocks"
 import { NoteFolds } from "@/components/project/notes/note-folds"
 import type { NoteWhere } from "@/components/project/notes/note-setup"
 
@@ -93,8 +93,6 @@ export type BlockKey =
   | "teamAttention"
   | "teamWeek"
   | "teamMembers"
-  | "milestones"
-  | "projectNotes"
 
 /**
  * The "/" list's two groups (Tyler, 6 Nov 2026: "divider the blocks into basic
@@ -139,10 +137,6 @@ const BLOCKS: BlockChoice[] = [
   { key: "teamAttention", label: "Attention", icon: CircleAlertIcon, group: "advanced" },
   { key: "teamWeek", label: "This week", icon: ActivityIcon, group: "advanced" },
   { key: "teamMembers", label: "Members", icon: UsersIcon, group: "advanced" },
-  // A project's own page only (Tyler, 9 Nov 2026: "make milestone a block").
-  { key: "milestones", label: "Milestones", icon: FlagIcon, group: "advanced" },
-  // A project's own page only (task "Misc/writing-canvas", 15 Nov 2026: "Turn notes into block").
-  { key: "projectNotes", label: "Notes", icon: NotebookPenIcon, group: "advanced" },
 ]
 
 /** Blocks only the site admin's own page on My dashboard offers. */
@@ -167,7 +161,6 @@ export function blocksFor(where: NoteWhere, hasRecord: boolean): BlockChoice[] {
   return BLOCKS.filter((block) => {
     if (DASHBOARD_BLOCKS.has(block.key)) return where === "dashboard"
     if (TEAM_BLOCKS.has(block.key)) return where === "team"
-    if (block.key === "milestones" || block.key === "projectNotes") return where === "projectPage"
     if (block.key === "file" || block.key === "comments") return where === "task"
     if (block.key === "record") return where === "task" && hasRecord
     return true
@@ -323,9 +316,10 @@ export const BLOCK_NODES: Extensions = [
   atomNode("noteTeamAttention", {}, AttentionBlockView),
   atomNode("noteTeamWeek", {}, WeekBlockView),
   atomNode("noteTeamMembers", {}, MembersBlockView),
-  atomNode("noteMilestones", {}, MilestonesBlockView),
-  // A list and an editor of its own, so it keeps its own clicks, keys and right-clicks.
-  atomNode("noteProjectNotes", {}, ProjectNotesBlockView, true),
+  // A project's page only, and always on it: the editor refuses to take it off or make
+  // a second (the shell's `keepOnPage`), and it is never in the "/" list. Its rows keep
+  // their own clicks, so a press picks a dashboard rather than selecting the block.
+  keepOnPage(atomNode(PROJECT_SECTIONS_NODE, { hidden: [], order: [] }, ProjectSectionsBlockView, true)),
   Callout,
   Fold,
   TaskList,

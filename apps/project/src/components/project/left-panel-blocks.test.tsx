@@ -236,10 +236,13 @@ describe("the \"/\" list", () => {
     expect(names("dashboard")).toContain("Callout")
   })
 
-  it("offers Milestones on a project's own page only, not in its notes", () => {
+  it("offers no Milestones, Notes or Dashboards block anywhere: they are a project page's dashboards and its fixed block (16 Nov 2026)", () => {
     const names = (where: Parameters<typeof blocksFor>[0]) => blocksFor(where, false).map((block) => block.label)
-    expect(names("projectPage")).toContain("Milestones")
-    for (const where of ["project", "dashboard", "team", "task", "new"] as const) expect(names(where)).not.toContain("Milestones")
+    for (const where of ["projectPage", "project", "dashboard", "team", "task", "new"] as const) {
+      expect(names(where)).not.toContain("Milestones")
+      expect(names(where)).not.toContain("Notes")
+      expect(names(where)).not.toContain("Dashboards")
+    }
   })
 
   it("lists the basic blocks first, then the advanced ones that show something live from the app", () => {

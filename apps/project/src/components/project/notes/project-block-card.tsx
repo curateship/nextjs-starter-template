@@ -35,6 +35,8 @@ export function ProjectBlockCard({
   icon,
   count,
   menu,
+  onReorder,
+  fixed = false,
   children,
 }: {
   editing: BlockEditing
@@ -46,20 +48,25 @@ export function ProjectBlockCard({
   count?: number
   /** The block's own rows in its ⋮, above Delete block. */
   menu?: BlockMenuItem[]
+  /** Given, the ⋮ rows with a `sortKey` drag into a new order. */
+  onReorder?: (keys: string[]) => void
+  /** A block the page always keeps, as the Dashboards block: Move up and Move down, no Delete block. */
+  fixed?: boolean
   children: React.ReactNode
 }) {
   return (
     <div className={ONE_LINE_TITLE}>
     <BlockCard
       editable={editing.editable}
-      onRemove={editing.editable ? editing.remove : undefined}
+      onRemove={editing.editable && !fixed ? editing.remove : undefined}
       // Move up and Move down between its own rows and Delete block, as on every shell block.
-      moves={editing.editable ? editing.moves : undefined}
+      // A fixed block on a locked page hands in its own moves, which save through the lock.
+      moves={editing.editable || fixed ? editing.moves : undefined}
       kind={kind}
       title={title}
       icon={icon}
     >
-      <HeadingExtras count={count} menu={menu} />
+      <HeadingExtras count={count} menu={menu} onReorder={onReorder} />
       <BlockBody>{children}</BlockBody>
     </BlockCard>
     </div>
@@ -167,9 +174,17 @@ export function QuietHeadingButtons({ children }: { children: React.ReactNode })
 }
 
 /** Hands the count and the ⋮ rows to the heading, from inside the card. */
-function HeadingExtras({ count, menu }: { count: number | undefined; menu: BlockMenuItem[] | undefined }) {
+function HeadingExtras({
+  count,
+  menu,
+  onReorder,
+}: {
+  count: number | undefined
+  menu: BlockMenuItem[] | undefined
+  onReorder?: (keys: string[]) => void
+}) {
   useBlockCount(count)
-  useBlockMenu(menu)
+  useBlockMenu(menu, onReorder)
   return null
 }
 

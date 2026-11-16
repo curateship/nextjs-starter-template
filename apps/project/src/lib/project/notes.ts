@@ -49,7 +49,11 @@ function readStored<Body>(stored: string, clean: (value: unknown) => Body): { ki
 
 /** A task's notes, with `projectPage` a project's page, or with `dashboard` the site admin's own page and with `team` a team's page. */
 export function readTaskNotes(stored: string, rules: NoteRules = {}): TaskNotes {
-  return readStored(stored, (value) => cleanNoteBody(value, rules))
+  const notes = readStored(stored, (value) => cleanNoteBody(value, rules))
+  // A project's page is always a document, since it holds the Dashboards block even
+  // when nothing is written: an empty page, or one of plain words saved before blocks.
+  if (notes.kind === "text" && rules.projectPage) return { kind: "doc", body: cleanNoteBody(notesForEditor(notes), rules) }
+  return notes
 }
 
 /** A meeting's notes: words, lists and links, never a block. */

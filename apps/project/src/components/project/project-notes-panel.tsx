@@ -1,25 +1,9 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
 import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-import {
-  ArrowLeftIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
   CopyIcon,
-  GripVerticalIcon,
   Loader2Icon,
   NotebookPenIcon,
   PinIcon,
@@ -28,9 +12,14 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { TILE_BODY } from "@/components/project/notes/project-block-card"
+import { CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
+import { SideRecord, SideRecordAction, SideRecordMenu } from "@/components/project/side-record"
 import { PageNoteEditor } from "@/components/project/project-page-notes"
+import { TaskSearchBox } from "@/components/project/task-header-controls"
 import { PersonAvatar } from "@/components/project/task-bits"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
+import { MiddleHeading } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -41,32 +30,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  deleteNote,
-  duplicateNote,
-  loadProjectNotes,
-  moveNote,
-  newProjectNote,
-  pinNote,
-  saveNote,
-  type ProjectNote,
-  type ProjectNotesList,
-} from "@/lib/api/project/project-notes"
+import { TableCell, type TableSortDirection } from "@/components/ui/table"
+import { duplicateNote, pinNote, saveNote, type ProjectNote } from "@/lib/api/project/project-notes"
 import { formatDate } from "@/lib/format/format-time"
-import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { focusRingInset } from "@/lib/layout/focus-ring"
-import { getProjectErrorMessage } from "@/lib/project/errors"
 import type { NoteNode } from "@/lib/project/note-blocks"
-import { noteTitle } from "@/lib/project/project-notes"
+import { TASK_HEADER_BUTTONS } from "@/lib/project/task-header-look"
+import type { ProjectNotesState } from "@/lib/project/use-project-notes"
 import { cn } from "@/lib/utils"
-
-type Loaded = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; list: ProjectNotesList }
-
-/** Hidden until the row is pointed at or holds the keyboard's focus; always shown on a phone. */
-const QUIET =
-  "opacity-0 transition-opacity group-hover/note:opacity-100 group-has-[:focus-visible]/note:opacity-100 [@media(hover:none)]:opacity-100"
 
 /** A point on the page for a menu to open from, in the page's body so no scroller shifts it off the mouse. */
 const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(function PointAnchor(
@@ -80,232 +50,221 @@ const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(
 })
 
 /**
- * The project's notes, in the Notes block on the project's page (`inBlock`),
- * or in the page's place for a # link with no Notes block to open in (task
- * "Project notes"; Tyler, 6 Nov 2026: "Add a note feature here ... like in
- * travel app"). Copied from Travel's trip notes: with none yet, it is one
- * place to press that makes the first
- * note; with some, they're listed pinned first, then in the order the
- * project's people dragged them into, with New note under them. Right-click a
- * note to pin it, duplicate it or delete it; Delete puts it in the project's
- * bin and doesn't ask ("Bin with Undo, no ask"; the Undo went on 11 Nov 2026). An open note is
- * the project page's own editor, saving itself, with Back to notes under it.
+ * A project's notes, the Notes dashboard on its page (Tyler, 16 Nov 2026:
+ * "remove the notes and milestone block and instead create a dashboards for
+ * it"): the list in the middle and the open note on the right, as a task
+ * opens beside the task list. The notes were a block on the project's page
+ * from 15 Nov 2026, and behind a note icon in the panel's header before that
+ * (task "Project notes", Tyler, 6 Nov 2026: "Add a note feature here ... like
+ * in travel app").
  *
- * Everyone who can see the project sees and writes all its notes. There are
- * no private notes (Tyler, 6 Nov 2026: "remove the privacy feature").
+ * They're listed pinned first, then in the order the project's people dragged
+ * them into. Right-click a note, or use the ⋮ over the open one, to pin it,
+ * duplicate it or delete it; Delete puts it in the project's bin and doesn't
+ * ask. Everyone who can see the project sees and writes all its notes; there
+ * are no private notes (Tyler, 6 Nov 2026: "remove the privacy feature").
+ *
+ * The page loads the list once (`useProjectNotes`) and both panels share it,
+ * so the Dashboards block can count them too.
  */
-export function ProjectNotes({
-  projectId,
-  startOpen = null,
-  inBlock = false,
-}: {
-  projectId: string
-  /** A note to open at once, from a # link. */
-  startOpen?: string | null
-  /** Drawn in the page's Notes block, whose tile already scrolls. */
-  inBlock?: boolean
-}) {
-  const [loaded, setLoaded] = React.useState<Loaded>({ state: "loading" })
-  const [reloads, setReloads] = React.useState(0)
-  const [openId, setOpenId] = React.useState<string | null>(startOpen)
-  const [justMade, setJustMade] = React.useState<string | null>(null)
-  const [menu, setMenu] = React.useState<{ note: ProjectNote; at: { x: number; y: number } } | null>(null)
-  const [run, busy] = useAsyncAction(getProjectErrorMessage)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-  const dndId = React.useId()
-  const Body = inBlock ? BlockBody : PanelBody
-
-  React.useEffect(() => {
-    let live = true
-    loadProjectNotes(projectId).then(
-      (list) => live && setLoaded({ state: "ready", list }),
-      (error: unknown) => live && setLoaded({ state: "error", message: getProjectErrorMessage(error) })
-    )
-    return () => {
-      live = false
-    }
-  }, [projectId, reloads])
-
-  const reload = () => setReloads((n) => n + 1)
-
-  if (loaded.state === "loading") {
-    return (
-      <Body>
-        <LoadingRow label="Loading the notes…" />
-      </Body>
-    )
-  }
-  if (loaded.state === "error") {
-    return (
-      <Body>
-        <ErrorRow message={loaded.message} onRetry={reload} />
-      </Body>
-    )
-  }
-
-  const list = loaded.list
-  const { notes, canWrite } = list
-  const open = openId ? notes.find((note) => note.id === openId) : undefined
-
-  /** Keeps a saved note's words in the list, so going back shows them at once. */
-  function keep(noteId: string, stored: string) {
-    setLoaded((was) =>
-      was.state === "ready"
-        ? {
-            state: "ready",
-            list: {
-              ...was.list,
-              notes: was.list.notes.map((note) =>
-                note.id === noteId
-                  ? { ...note, body: stored, title: noteTitle(stored), updatedAt: new Date().toISOString() }
-                  : note
-              ),
-            },
-          }
-        : was
-    )
-  }
-
-  /** Opens the new note together with a list that holds it, so it never reads as missing. */
-  async function create() {
-    await run(async () => {
-      const { id } = await newProjectNote(projectId)
-      const fresh = await loadProjectNotes(projectId)
-      setLoaded({ state: "ready", list: fresh })
-      setJustMade(id)
-      setOpenId(id)
-    })
-  }
-
-  async function remove(note: ProjectNote) {
-    if (!(await run(() => deleteNote(note.id)))) return
-    if (openId === note.id) setOpenId(null)
-    reload()
-  }
-
-  async function change(work: () => Promise<unknown>) {
-    if (await run(work)) reload()
-  }
-
-  /** A note dropped on another in its own group goes just before or after it, as the drag showed. */
-  function drop(event: DragEndEvent) {
-    const overId = event.over?.id
-    if (overId === undefined || overId === event.active.id) return
-    const moved = notes.find((note) => note.id === event.active.id)
-    const over = notes.find((note) => note.id === overId)
-    if (!moved || !over || moved.pinned !== over.pinned) return
-    const group = notes.filter((note) => note.pinned === moved.pinned)
-    const next = arrayMove(group, group.indexOf(moved), group.indexOf(over))
-    const beforeId = next[next.indexOf(moved) + 1]?.id ?? null
-    const rest = notes.filter((note) => note.pinned !== moved.pinned)
-    // Shown at once; a refused move puts the list back as the server has it.
-    setLoaded({ state: "ready", list: { ...list, notes: moved.pinned ? [...next, ...rest] : [...rest, ...next] } })
-    void run(() => moveNote(moved.id, beforeId)).then((ok) => (ok ? undefined : reload()))
-  }
-
-  let body: React.ReactNode
-  if (open) {
-    body = (
-      <div className="grid gap-3">
-        <PageNoteEditor
-          key={open.id}
-          stored={open.body}
-          canWrite={canWrite}
-          startFocused={justMade === open.id}
-          placeholder="Write a note. Type / for a picture, a checklist and more."
-          onSave={(next: NoteNode) => saveNote(open.id, next)}
-          onSaved={(stored) => keep(open.id, stored)}
-        />
-        {/* Right under the note, as in Travel (Tyler, 3 Nov 2026: "add a link here that says Back to notes"). */}
-        <div>
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="px-1"
-            onClick={() => {
-              setOpenId(null)
-              setJustMade(null)
-              reload()
-            }}
-          >
-            <ArrowLeftIcon className="size-4" />
-            Back to notes
-          </Button>
-        </div>
-      </div>
-    )
-  } else if (openId) {
-    // A # link to a note that has gone.
-    body = (
-      <div className="grid gap-2">
-        <p className="px-1 py-2 text-sm text-muted-foreground">
-          That note isn't here any more. The project's other notes are below.
-        </p>
-        <div>
-          <Button type="button" variant="link" size="sm" className="px-1" onClick={() => setOpenId(null)}>
-            <ArrowLeftIcon className="size-4" />
-            Back to notes
-          </Button>
-        </div>
-      </div>
-    )
-  } else if (notes.length === 0 && !canWrite) {
-    body = <p className="px-1 py-2 text-sm text-muted-foreground">No notes on this project.</p>
-  } else if (notes.length === 0) {
-    body = (
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void create()}
-        className="grid min-h-48 w-full content-center justify-items-center gap-2 rounded-lg border border-dashed p-6 text-center text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60"
+/** Pin, Duplicate, Move up and Move down, and Delete, in a row's right-click menu and the open note's ⋮. */
+function NoteMenuItems({ state, note, onDeleted }: { state: ProjectNotesState; note: ProjectNote; onDeleted: () => void }) {
+  const up = state.moveOf(note, -1)
+  const down = state.moveOf(note, 1)
+  return (
+    <>
+      <DropdownMenuItem onSelect={() => void state.change(() => pinNote(note.id, !note.pinned))}>
+        {note.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
+        {note.pinned ? "Unpin" : "Pin to top"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => void state.change(() => duplicateNote(note.id))}>
+        <CopyIcon className="size-4" />
+        Duplicate
+      </DropdownMenuItem>
+      {up ? (
+        <DropdownMenuItem onSelect={up}>
+          <ArrowUpIcon className="size-4" />
+          Move up
+        </DropdownMenuItem>
+      ) : null}
+      {down ? (
+        <DropdownMenuItem onSelect={down}>
+          <ArrowDownIcon className="size-4" />
+          Move down
+        </DropdownMenuItem>
+      ) : null}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        variant="destructive"
+        onSelect={() => void state.remove(note).then((gone) => (gone ? onDeleted() : undefined))}
       >
-        {busy ? <Loader2Icon className="size-5 animate-spin" aria-hidden /> : <NotebookPenIcon className="size-5" aria-hidden />}
-        <span className="text-sm font-medium text-foreground">Add a note</span>
-        <span className="max-w-56 text-xs">Keep meeting notes, links and lists for this project.</span>
-      </button>
-    )
-  } else {
-    const pinned = notes.filter((note) => note.pinned)
-    const rest = notes.filter((note) => !note.pinned)
-    const group = (items: ProjectNote[], label: string) =>
-      items.length ? (
-        <SortableContext items={items.map((note) => note.id)} strategy={verticalListSortingStrategy}>
-          <ul className="grid grid-cols-[minmax(0,1fr)] gap-1" aria-label={label}>
-            {items.map((note) => (
-              <NoteRow
-                key={note.id}
-                note={note}
-                dragDisabled={!canWrite || busy || items.length < 2}
-                onOpen={() => setOpenId(note.id)}
-                onMenu={canWrite ? (at) => setMenu({ note, at }) : undefined}
-              />
-            ))}
-          </ul>
-        </SortableContext>
-      ) : null
-    body = (
-      <div className="grid gap-2">
-        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={drop}>
-          {group(pinned, "Pinned notes")}
-          {group(rest, pinned.length ? "Other notes" : "Notes")}
-        </DndContext>
+        <Trash2Icon className="size-4" />
+        Delete
+      </DropdownMenuItem>
+    </>
+  )
+}
+
+type NoteSort = "order" | "title" | "writer" | "updated"
+
+const NOTE_COLUMNS: TableHeaderColumn<NoteSort>[] = [
+  { key: "title", label: "Note", column: "main", className: "min-w-40" },
+  { key: "writer", label: "Written by", column: "preview", className: "hidden md:hidden @xl:table-cell" },
+  { key: "updated", label: "Changed", column: "meta" },
+]
+
+function compareNotes(sort: NoteSort, a: ProjectNote, b: ProjectNote) {
+  if (sort === "title") return a.title.localeCompare(b.title)
+  if (sort === "writer") return (a.writer?.name ?? "").localeCompare(b.writer?.name ?? "")
+  if (sort === "updated") return a.updatedAt.localeCompare(b.updatedAt)
+  return 0
+}
+
+/**
+ * The Notes dashboard's middle: the section's icon and name, a search box
+ * that is always there, and New note, then the notes as a table, the shell's
+ * `CrmTable` as the CRM's and Admin's lists are (Tyler, 16 Nov 2026: "add
+ * proper table to both notes and milestones"). Each row is the writer's face,
+ * the note's first line and a pin when pinned, who wrote it and when it last
+ * changed, and a bin. Pinned notes sit under their own heading above the
+ * rest. The order everyone shares shows until a column heading sorts them.
+ */
+export function ProjectNotesMiddle({
+  state,
+  openId,
+  onOpen,
+  onDeleted,
+}: {
+  state: ProjectNotesState
+  /** The note on the right. */
+  openId: string | undefined
+  onOpen: (noteId: string) => void
+  /** A deleted note: the right panel moves to another. */
+  onDeleted: (noteId: string) => void
+}) {
+  const [query, setQuery] = React.useState("")
+  const [sort, setSort] = React.useState<NoteSort>("order")
+  const [direction, setDirection] = React.useState<TableSortDirection>("asc")
+  const folds = useFolds()
+  const [menu, setMenu] = React.useState<{ note: ProjectNote; at: { x: number; y: number } } | null>(null)
+  const ready = state.loaded.state === "ready" ? state.loaded.list : null
+  const canWrite = ready?.canWrite ?? false
+
+  async function create() {
+    const id = await state.create()
+    if (id) onOpen(id)
+  }
+
+  /** A heading sorts by it, then the other way, then goes back to the shared order. */
+  function toggleSort(column: NoteSort) {
+    if (sort !== column) {
+      setSort(column)
+      setDirection(column === "updated" ? "desc" : "asc")
+    } else if (direction === (column === "updated" ? "desc" : "asc")) {
+      setDirection(direction === "asc" ? "desc" : "asc")
+    } else {
+      setSort("order")
+    }
+  }
+
+  const header = (
+    <DashboardCardHeader className="@container">
+      <MiddleHeading icon={NotebookPenIcon} label="Notes" />
+      <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
+        <TaskSearchBox value={query} onChange={setQuery} what="notes" />
         {canWrite ? (
-          <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={() => void create()}>
-            {busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-            New note
+          <Button type="button" aria-label="New note" disabled={state.busy} onClick={() => void create()} className="@max-2xl:size-8 @max-2xl:px-0">
+            {state.busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
+            <span className="@max-2xl:hidden">New note</span>
           </Button>
         ) : null}
       </div>
+    </DashboardCardHeader>
+  )
+
+  if (!ready) {
+    return (
+      <>
+        {header}
+        <div className="grid p-3">
+          {state.loaded.state === "error" ? (
+            <ErrorRow message={state.loaded.message} onRetry={state.reload} />
+          ) : (
+            <LoadingRow label="Loading the notes…" />
+          )}
+        </div>
+      </>
     )
   }
 
+  const words = query.trim().toLowerCase()
+  const shown = words ? ready.notes.filter((note) => note.title.toLowerCase().includes(words)) : ready.notes
+  const sorted = (items: ProjectNote[]) => {
+    if (sort === "order") return items
+    const sign = direction === "asc" ? 1 : -1
+    return [...items].sort((a, b) => sign * compareNotes(sort, a, b))
+  }
+  const pinned = sorted(shown.filter((note) => note.pinned))
+  const rest = sorted(shown.filter((note) => !note.pinned))
+  const row = (note: ProjectNote) => {
+    const writer = note.writer?.name ?? "A deleted account"
+    return (
+      <CrmTableRow
+        key={note.id}
+        open={note.id === openId}
+        label={note.title}
+        onOpen={() => onOpen(note.id)}
+        onDelete={canWrite ? () => void state.remove(note).then((gone) => (gone ? onDeleted(note.id) : undefined)) : undefined}
+        onRightClick={canWrite ? (x, y) => setMenu({ note, at: { x, y } }) : undefined}
+      >
+        <MainCell name={note.title} lead={<PersonAvatar name={writer} avatarUrl={note.writer?.avatarUrl} />}>
+          {note.pinned ? (
+            <>
+              <PinIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-hidden />
+              <span className="sr-only">Pinned</span>
+            </>
+          ) : null}
+        </MainCell>
+        <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
+          <span className="block max-w-48 truncate text-muted-foreground">{writer}</span>
+        </TableCell>
+        <TableCell column="mutedMeta">{formatDate(note.updatedAt)}</TableCell>
+      </CrmTableRow>
+    )
+  }
+  const group = (key: string, label: string, items: ProjectNote[]) =>
+    items.length ? (
+      <React.Fragment key={key}>
+        <CrmGroupRow label={label} count={items.length} folded={folds.folded(key)} onToggle={() => folds.toggle(key)} />
+        {folds.folded(key) ? null : items.map(row)}
+      </React.Fragment>
+    ) : null
+
   return (
-    <>
-      <Body>{body}</Body>
+    // Its own container, so columns drop out as the middle narrows, as the CRM's tables do.
+    <div className="@container flex h-full min-h-0 flex-col">
+      {header}
+      <CrmTable<NoteSort>
+        columns={NOTE_COLUMNS}
+        sort={sort}
+        direction={direction}
+        onSort={toggleSort}
+        empty={
+          shown.length > 0 ? null : words ? (
+            <span className="grid justify-items-center gap-2">
+              {`No note matches "${query.trim()}".`}
+              <Button type="button" variant="outline" size="sm" onClick={() => setQuery("")}>
+                Clear search
+              </Button>
+            </span>
+          ) : (
+            "No notes on this project yet."
+          )
+        }
+      >
+        {/* Headings only once something is pinned; otherwise the notes are one list. */}
+        {pinned.length ? [group("pinned", "Pinned", pinned), group("rest", "Notes", rest)] : rest.map(row)}
+      </CrmTable>
       {menu ? (
         // Not modal, so a right-click on another note moves the menu there in one go.
         <DropdownMenu open onOpenChange={(next) => (next ? undefined : setMenu(null))} modal={false}>
@@ -313,112 +272,114 @@ export function ProjectNotes({
             <PointAnchor x={menu.at.x} y={menu.at.y} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-44" onCloseAutoFocus={(event) => event.preventDefault()}>
-            <DropdownMenuItem onSelect={() => void change(() => pinNote(menu.note.id, !menu.note.pinned))}>
-              {menu.note.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
-              {menu.note.pinned ? "Unpin" : "Pin to top"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void change(() => duplicateNote(menu.note.id))}>
-              <CopyIcon className="size-4" />
-              Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => void remove(menu.note)}>
-              <Trash2Icon className="size-4" />
-              Delete
-            </DropdownMenuItem>
+            <NoteMenuItems state={state} note={menu.note} onDeleted={() => onDeleted(menu.note.id)} />
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
-    </>
+    </div>
   )
 }
 
-function PanelBody({ children }: { children: React.ReactNode }) {
-  return (
-    <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
-      {/* A side panel's body, so a first card follows Panel cards -> Opacity
-          (UI standard, "A side panel's body"). */}
-      <div data-side-panel-body="" className="grid gap-3 p-3">{children}</div>
-    </ScrollArea>
-  )
-}
-
-/** Inside the Notes block: the tile's own padding, with its scroll area round it. */
-function BlockBody({ children }: { children: React.ReactNode }) {
-  return <div className={TILE_BODY}>{children}</div>
-}
-
-/** One note in the list: its writer, first line and last change, and a handle to drag it by. */
-function NoteRow({
+/**
+ * The Notes dashboard's right panel, drawn as the open task's is
+ * (`SideRecord`; Tyler, 16 Nov 2026: "still not following ui standards"): the
+ * note's first line in the header, then its ⋮, the task menu's own look, with
+ * Pin to top, Duplicate, Move up and Move down, then Delete in red under a
+ * line, which goes to the Bin and doesn't ask. The body is the note, written
+ * in place and saving itself, and the footer says who wrote it and when it
+ * last changed. It is never empty: with no note in the address it shows the
+ * first, and a project with none says how to write one.
+ */
+export function ProjectNoteSide({
+  state,
   note,
-  dragDisabled,
-  onOpen,
-  onMenu,
+  onDeleted,
 }: {
-  note: ProjectNote
-  dragDisabled: boolean
-  onOpen: () => void
-  /** Right-click: opens the note's menu at the mouse. Absent where the notes read only. */
-  onMenu?: (at: { x: number; y: number }) => void
+  state: ProjectNotesState
+  note: ProjectNote | undefined
+  onDeleted: (noteId: string) => void
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: note.id,
-    disabled: dragDisabled,
-  })
-  const style: React.CSSProperties | undefined = transform
-    ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
-    : undefined
-  const writer = note.writer?.name ?? "A deleted account"
-  return (
-    <li ref={setNodeRef} style={style} className={cn("group/note relative", isDragging && "z-10 rounded-md bg-card shadow-md")}>
-      <button
-        type="button"
-        data-note-id={note.id}
-        onClick={onOpen}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onMenu?.({ x: event.clientX, y: event.clientY })
-        }}
-        className="flex w-full min-w-0 items-center gap-2 rounded-md py-2 pr-8 pl-2 text-left hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      >
-        <PersonAvatar name={writer} avatarUrl={note.writer?.avatarUrl} />
-        <span className="grid min-w-0 flex-1 gap-0.5">
-          <span className="truncate text-sm font-medium">{note.title}</span>
-          <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            <span className="truncate">
-              {writer}, {formatDate(note.updatedAt)}
-            </span>
-          </span>
-        </span>
-        {note.pinned ? (
-          <>
-            <PinIcon className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-hidden />
-            <span className="sr-only">Pinned</span>
-          </>
+  const ready = state.loaded.state === "ready" ? state.loaded.list : null
+  const canWrite = ready?.canWrite ?? false
+  if (!note) {
+    return (
+      <SideRecord icon={<NotebookPenIcon className="size-4" />} title="Note" hideLabel="Hide the note">
+        {/* Nothing while the notes load, never a loading circle in a panel. */}
+        {ready ? (
+          <p className="text-sm text-muted-foreground">
+            {canWrite ? "No notes on this project yet. Press New note to write the first." : "No notes on this project."}
+          </p>
         ) : null}
-      </button>
-      {dragDisabled ? null : (
-        <div className={cn("absolute top-1/2 right-1 -translate-y-1/2", QUIET)}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                ref={setActivatorNodeRef}
-                {...listeners}
-                {...attributes}
-                aria-label={`Drag "${note.title}" to change the order`}
-                className={cn(
-                  "flex size-6 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:text-foreground",
-                  focusRingInset
-                )}
-              >
-                <GripVerticalIcon className="size-4" aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Drag to change the order</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-    </li>
+      </SideRecord>
+    )
+  }
+  return (
+    <SideRecord
+      key={note.id}
+      icon={<NotebookPenIcon className="size-4" />}
+      title={note.title}
+      menu={canWrite ? <NoteMenu state={state} note={note} onDeleted={() => onDeleted(note.id)} /> : null}
+      hideLabel="Hide the note"
+      footer={
+        <span className="text-sm text-muted-foreground">
+          {note.writer?.name ?? "A deleted account"}, {formatDate(note.updatedAt)}
+        </span>
+      }
+    >
+      <PageNoteEditor
+        stored={note.body}
+        canWrite={canWrite}
+        startFocused={state.justMade === note.id}
+        placeholder="Write a note. Type / for a picture, a checklist and more."
+        onSave={(next: NoteNode) => saveNote(note.id, next)}
+        onSaved={(stored) => state.keep(note.id, stored)}
+      />
+    </SideRecord>
+  )
+}
+
+/** The open note's ⋮: its actions as the task menu's rows, Delete last in red. */
+function NoteMenu({ state, note, onDeleted }: { state: ProjectNotesState; note: ProjectNote; onDeleted: () => void }) {
+  const [open, setOpen] = React.useState(false)
+  const up = state.moveOf(note, -1)
+  const down = state.moveOf(note, 1)
+  const act = (work: () => void) => () => {
+    setOpen(false)
+    work()
+  }
+  return (
+    <SideRecordMenu
+      label="Note menu"
+      open={open}
+      onOpenChange={setOpen}
+      actions={
+        <>
+          <SideRecordAction
+            icon={note.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
+            onSelect={act(() => void state.change(() => pinNote(note.id, !note.pinned)))}
+          >
+            {note.pinned ? "Unpin" : "Pin to top"}
+          </SideRecordAction>
+          <SideRecordAction icon={<CopyIcon className="size-4" />} onSelect={act(() => void state.change(() => duplicateNote(note.id)))}>
+            Duplicate
+          </SideRecordAction>
+          {up ? (
+            <SideRecordAction icon={<ArrowUpIcon className="size-4" />} onSelect={act(up)}>
+              Move up
+            </SideRecordAction>
+          ) : null}
+          {down ? (
+            <SideRecordAction icon={<ArrowDownIcon className="size-4" />} onSelect={act(down)}>
+              Move down
+            </SideRecordAction>
+          ) : null}
+        </>
+      }
+      remove={{
+        label: "Delete note",
+        icon: <Trash2Icon className="size-4" />,
+        onSelect: act(() => void state.remove(note).then((gone) => (gone ? onDeleted() : undefined))),
+      }}
+    />
   )
 }

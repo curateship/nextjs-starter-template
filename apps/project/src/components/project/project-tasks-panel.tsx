@@ -66,7 +66,7 @@ import { placesAfterReorder } from "@/lib/project/task-order"
 import { useProjectLive } from "@/lib/project/use-project-live"
 import { viewHasFilters } from "@/lib/project/saved-views"
 import { pickedWordsUnder, readRightClick, type RightClickTarget } from "@/lib/project/right-click"
-import { TASK_HEADER_BUTTONS, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
+import { TASK_HEADER_BUTTONS, TASK_HEADER_EARLY, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
@@ -558,7 +558,7 @@ export function ProjectTasksPanel({
         />
         {/* Search and Select sit in the header itself, not in a ⋮ (Tyler, 16 Nov 2026:
             "move the mass select and search outside"), as on My dashboard. */}
-        <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
+        <div className={cn("ml-auto", TASK_HEADER_BUTTONS, TASK_HEADER_EARLY)}>
           {taskTab ? (
             <>
               {/* The List's "3 selected" button lands here, left of the search. */}

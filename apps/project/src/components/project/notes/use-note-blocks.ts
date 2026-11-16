@@ -45,8 +45,6 @@ const ATOMS: Partial<Record<BlockKey, string>> = {
   teamAttention: "noteTeamAttention",
   teamWeek: "noteTeamWeek",
   teamMembers: "noteTeamMembers",
-  milestones: "noteMilestones",
-  projectNotes: "noteProjectNotes",
 }
 
 /** Blocks a note holds once at most. */
@@ -61,10 +59,6 @@ const ONE_PER_NOTE: Partial<Record<BlockKey, string>> = {
   teamAttention: "noteTeamAttention",
   teamWeek: "noteTeamWeek",
   teamMembers: "noteTeamMembers",
-  // The project's milestones, all of them, so a second would only repeat it.
-  milestones: "noteMilestones",
-  // Every note on the project, so a second would only repeat it.
-  projectNotes: "noteProjectNotes",
 }
 
 function hasNode(editor: Editor, type: string) {
