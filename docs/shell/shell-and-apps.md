@@ -60,6 +60,16 @@ visited:
   deployment's own — its sign-in pages, and every page of a one-site app. So
   General settings shows one logo box, not two: the site's on a multisite app,
   the app's on a one-site one
+
+  **An app with `siteBranding` on that runs as one website** (no base domain,
+  as Course does on systemeverything.com) still saves that Logo box on its one
+  site, because the box follows `siteBranding` and not the base domain. So its
+  public pages and browser tab read the logo, dark logo and tab sizes from that
+  site, the oldest one in the database. If the site has no logo of its own they
+  fall back to the app-wide logo. Before 16 Nov 2026 they read only the
+  app-wide one, so the logo Tyler uploaded on systemeverything.com was saved
+  but never shown, and the site had no tab icon.
+  `src/server/shell-settings.ts`, tested in `public-branding.test.ts`.
 - its brand colour, in `publicTheme`
 - its public menu, its public footer and the footer's copyright line
 - **its front page rows**, from 27 Sep 2026. They were app-wide until then, so

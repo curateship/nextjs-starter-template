@@ -15,10 +15,12 @@ website again and every address is that website.
 - **Locally** it is `localhost`, in `.env.local`, so a site answers on
   `<subdomain>.localhost:3019` with no hosts file. Browsers send every
   `*.localhost` name to this machine on their own.
-- **Live** it is the deployment's own domain, set on the server, and each
-  site's own domain (systemeverything.com for the System Everything site) is
-  saved on that site under Settings. `.env.example` does not list it, because
-  that file came from the shell and an app does not edit shell files.
+- **Live** on systemeverything.com (Course SE Web) it is not set, checked in
+  Coolify on 16 Nov 2026. That deployment runs as one website: every address
+  is the System Everything site. Its logo, dark logo and tab icon come from
+  that site's Logo box in General settings, the shell's rule in
+  `docs/shell/shell-and-apps.md`. `.env.example` does not list the setting,
+  because that file came from the shell and an app does not edit shell files.
 
 `src/app/options.ts` says the rest: admins have and switch sites, members have
 none, siteBranding is on, and every screen says "site" where the shell says
