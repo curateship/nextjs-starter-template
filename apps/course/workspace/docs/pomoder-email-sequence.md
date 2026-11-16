@@ -32,9 +32,12 @@ Each person gets their own copy. Day 1 is the day their batch is let in.
 
 ## The flow
 
-Segment, a few at a time → Email 1 → Wait 2 days → Email 2 → … → Wait 2 days →
-Email 7. Every Wait has "Stop for anyone who clicked a link" on, so a click on
-any of the buttons ends the sequence for that person.
+Segment, with "Also send to people already in this segment" on → Email 1 →
+Wait 2 days → Email 2 → … → Wait 2 days → Email 7. Before 16 Nov 2026 that
+start was its own card, "Segment, a few at a time".
+
+Every Wait has "Stop for anyone who clicked a link" on, so a click on any of
+the buttons ends the sequence for that person.
 
 ## How long a list takes
 

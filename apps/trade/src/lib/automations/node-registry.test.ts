@@ -81,7 +81,6 @@ describe("an app that adds nothing", () => {
     expect(automationPaletteItems().map((item) => item.key)).toEqual([
       "trigger-billing-moment",
       "trigger-joined-segment",
-      "trigger-segment-drip",
       "trigger-member-event",
       "trigger-time-activate",
       "action-member-tag",

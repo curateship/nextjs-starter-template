@@ -163,7 +163,7 @@ const at = (minutes: number) =>
 const tick = (minutes: number) =>
   runSegmentDripTriggers(database, { timestamp: at(minutes) })
 
-describe("Segment, a few at a time", () => {
+describe("Segment start with people already in it", () => {
   it("lets the people already there in one batch at a time, oldest first", async () => {
     const first = await addToSegment("first")
     const second = await addToSegment("second")

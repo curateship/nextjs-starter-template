@@ -39,8 +39,7 @@ Built-in starts include:
 - Member events.
 - Billing events.
 - Schedules.
-- Segment changes.
-- A whole segment, a few at a time (below).
+- Segment changes, with or without the people already in the segment (below).
 - Manual starts for flows that allow them.
 
 Templates are ordinary flow definitions that can be copied and then edited.
@@ -136,23 +135,40 @@ The picker reads from `src/server/automations/test-contacts.ts`. Apps can hide
 the button on flows with nobody in them through the `memberTest` option, which
 keeps its older name so no app breaks.
 
-## Sequences: a segment a few at a time, and Wait
+## Sequences: a whole segment a few at a time, and Wait
 
 These two steps exist so a flow can send a run of emails days apart, such as
 seven emails every other day.
 
-**"Joined a segment" keeps a list of who was in the segment at its last
+**The "Segment" start, with its switch off, keeps a list of who was in the segment at its last
 look,** checked every 15 seconds. A row on that list is written only when a
 person first appears or their segment changes. A 5,000-person segment used to
 rewrite 5,000 rows on every look, about 28.8 million writes a day for one flow.
 The row's `last_seen_at` therefore says when the row was written, not when the
 person was last seen. Nothing reads that column.
 
-**"Segment, a few at a time" lets a whole segment in.** "Joined a segment"
-ignores the people already in it and stops the flow when more than 100 join at
-once, which suits a welcome email and rules out an existing list. This start
-lets everyone already there in, then anyone who joins later, one batch at a
-time.
+**The "Segment" start has a switch, "Also send to people already in this
+segment".** Tyler, 16 Nov 2026: "merge them into one card with the switch".
+Before, the two ways were two cards, "Joined a segment" and "Segment, a few at
+a time". The card was then renamed "Segment", because "Joined a segment" only
+described one of its two ways (Tyler: "join a segment only tells one thing").
+
+- **Off, for a welcome email:** only people who join from now on start the
+  flow, straight away. The flow stops when more than 100 join at once, in case
+  the segment changed by mistake.
+- **On, for a sequence to a list:** everyone already there is let in one batch
+  at a time, then anyone who joins later. The rest of this list is about this
+  way.
+- **Why off is not paced too:** a paced flow only sends in the sending hours,
+  so a welcome for someone who signs up at 11pm would wait until morning.
+- **The switch changes the step's stored kind:** `joinedSegment` when off,
+  `segmentDrip` when on. Both kinds stay, so every flow saved before the merge
+  runs as it did. Only `joinedSegment` is in the step menu
+  (`src/lib/automations/nodes/segment-drip.ts`, `palette: null`), and both
+  kinds draw `src/components/automations/nodes/joined-segment-panel.tsx`.
+- **Switching it on a live flow:** on lets in everyone in the segment not let
+  in before. Off goes back to watching for new joiners, taking whoever is there
+  at that moment as already there.
 
 - **The pace is the drip rules in Settings > Email**: people per batch, minutes
   between batches, sending hours, weekdays only, and the bounce limit. They
@@ -173,7 +189,7 @@ time.
 - **Nothing new is stored for the pace.** The last batch time is the newest
   enrollment row for the flow, and the gap after it is picked from the range
   using that time as the seed, so every pass of the ticker gets the same gap.
-- **The step's panel shows progress**: how many people are let in, how many
+- **The step's panel shows progress** when the switch is on: how many people are let in, how many
   are still to go, and when the next batch goes.
 
 **Wait holds a run for 1 hour to 60 days.** The engine records a "Waiting 2
@@ -181,8 +197,8 @@ days, until ..." line, keeps the run pointed at the Wait, and moves its wake-up
 time. A sleeping run costs nothing. When it wakes, the Wait runs again, finds
 its own line, and decides whether to carry on.
 
-- **It keeps to the sending hours** when the flow starts with "Segment, a few
-  at a time". A wait that ends outside them, or on a weekend when weekends are
+- **It keeps to the sending hours** when the flow starts with "Segment"
+  and its "Also send to people already in this segment" switch is on. A wait that ends outside them, or on a weekend when weekends are
   skipped, carries on at the next allowed hour. Any other start wakes at the
   exact time.
 - **"Stop for anyone who clicked a link"** is on by default. On waking, a person

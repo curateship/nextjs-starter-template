@@ -19,7 +19,8 @@ export const joinedSegmentNode = defineNode({
   palette: {
     key: "trigger-joined-segment",
     group: "Triggers",
-    description: "Start once when somebody joins a chosen segment",
+    description:
+      "Start for people who join a segment, and if you choose, those already in it",
   },
   createSettings: () => ({ segmentId: "", segmentName: "" }),
   settingsSchema: z
@@ -30,7 +31,7 @@ export const joinedSegmentNode = defineNode({
     .refine((settings) => settings.segmentId !== "", {
       message: "Pick which segment starts this flow.",
     }),
-  name: () => "Joined a segment",
+  name: () => "Segment",
   description: (settings) => {
     const { segmentName } = readJoinedSegment(settings)
     return segmentName

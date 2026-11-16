@@ -44,7 +44,7 @@ vi.mock("@/lib/api/automations/segment-drip", () => ({
   loadSegmentDripProgress: api.loadProgress,
 }))
 
-import SegmentDripFields from "@/components/automations/nodes/segment-drip-panel"
+import JoinedSegmentFields from "@/components/automations/nodes/joined-segment-panel"
 import WaitFields from "@/components/automations/nodes/wait-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { AutomationNode } from "@/lib/automations/graph"
@@ -139,7 +139,7 @@ describe("the Wait panel", () => {
   })
 })
 
-describe("the Segment, a few at a time panel", () => {
+describe("the Segment panel", () => {
   it("shows how far through the segment the flow is and where its pace is set", async () => {
     const nextBatchAt = new Date(Date.now() + 20 * 60_000).toISOString()
     api.loadProgress.mockResolvedValue({
@@ -149,7 +149,7 @@ describe("the Segment, a few at a time panel", () => {
       pace: "400–500 people at a time, 30–60 minutes apart, any time of day.",
     })
     await draw(
-      <SegmentDripFields
+      <JoinedSegmentFields
         node={startNode}
         automationId="flow-1"
         onChange={() => {}}
@@ -173,7 +173,7 @@ describe("the Segment, a few at a time panel", () => {
   it("offers a retry when the progress cannot be read", async () => {
     api.loadProgress.mockRejectedValueOnce(new Error("down"))
     await draw(
-      <SegmentDripFields
+      <JoinedSegmentFields
         node={startNode}
         automationId="flow-1"
         onChange={() => {}}
@@ -197,8 +197,55 @@ describe("the Segment, a few at a time panel", () => {
   })
 
   it("shows no progress for a template, which has no saved flow", async () => {
-    await draw(<SegmentDripFields node={startNode} onChange={() => {}} />)
+    await draw(<JoinedSegmentFields node={startNode} onChange={() => {}} />)
     expect(api.loadProgress).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain("let in,")
+  })
+  it("switches between the two segment starts and shows progress only when on", async () => {
+    const onChange = vi.fn()
+    const joinedNode: AutomationNode = { ...startNode, kind: "joinedSegment" }
+    await draw(
+      <JoinedSegmentFields
+        node={joinedNode}
+        automationId="flow-1"
+        onChange={onChange}
+      />
+    )
+    const toggle = container.querySelector<HTMLButtonElement>(
+      "#joined-segment-start-existing"
+    )!
+    expect(toggle.getAttribute("aria-checked")).toBe("false")
+    expect(api.loadProgress).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("more than 100 join at once")
+
+    await act(async () => toggle.click())
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...joinedNode,
+      kind: "segmentDrip",
+    })
+
+    api.loadProgress.mockResolvedValue({
+      letIn: 0,
+      waiting: 3,
+      nextBatchAt: null,
+      pace: "Any pace.",
+    })
+    await draw(
+      <JoinedSegmentFields
+        node={startNode}
+        automationId="flow-1"
+        onChange={onChange}
+      />
+    )
+    const on = container.querySelector<HTMLButtonElement>(
+      "#joined-segment-start-existing"
+    )!
+    expect(on.getAttribute("aria-checked")).toBe("true")
+    expect(api.loadProgress).toHaveBeenCalledWith("flow-1")
+    await act(async () => on.click())
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...startNode,
+      kind: "joinedSegment",
+    })
   })
 })

@@ -235,7 +235,7 @@ export async function startSequenceForRun(
   const who = run.subjectLabel?.trim()
   if (!run.subjectContactId && !run.subjectUserId) {
     throw new Error(
-      "This run is not about one person, so there is nobody to send the sequence to. Start the flow from a step about one person, such as Joined a segment."
+      "This run is not about one person, so there is nobody to send the sequence to. Start the flow from a step about one person, such as the Segment start."
     )
   }
   const [sequence] = await database
