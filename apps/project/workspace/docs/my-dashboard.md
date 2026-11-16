@@ -124,8 +124,9 @@ select and search outside"); from 6 to 16 Nov they were in a ⋮ after New
 task, which is gone. Every button but New task has the outline look: a white
 fill and a light grey line. My dashboard's header saves room early, since
 the site admin's five tabs need it: under 1088px wide the search box narrows
-to 152px and Select and New task show only their icons, and under 896px
-Filter and Views do too. Under 672px, as on a phone, the search is a
+to 152px and Select, Filter, Views and New task all show only their icons,
+each a 32px square with the search box's 10px corners, 6px apart (Tyler,
+16 Nov 2026: "also need to fix the ui here too"). Under 672px, as on a phone, the search is a
 magnifying glass that opens into the box. List is first since 19 Oct 2026,
 as on the project page. New task
 opens the same dropdown as the signed-in header's, with a Project picker

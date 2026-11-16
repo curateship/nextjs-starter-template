@@ -9,6 +9,7 @@ import { TaskFilesCard } from "@/components/project/task-files-card"
 import { LiveTaskNotes, NoteVersionsList, type NotesHandle } from "@/components/project/task-notes"
 import { AskTimeCard, MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
 import { setReminder } from "@/lib/api/project/planning"
+import { saveTaskMilestone } from "@/lib/api/project/projects"
 import { PickDayRow, PickGroup, PickMenuRow, PickRow } from "@/components/project/pick-rows"
 import { DueDayPicker } from "@/components/project/due-day-picker"
 import { TaskPlanCard } from "@/components/project/task-plan-card"
@@ -987,6 +988,7 @@ function TaskForm({
     />
   ) : null
   const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const menuPlanCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} withMilestone={false} />
 
   const body = (
     <>
@@ -1218,8 +1220,28 @@ function TaskForm({
               {linkField}
             </PickRow>
           ) : null}
+          {/* The milestone it counts toward, a row of its own so the link shows at a glance
+              (Tyler, 16 Nov 2026: "theres no connections in tasks from milestone"). It was a
+              field inside Plan. Shown once the project has milestones. */}
+          {detail.milestones.length ? (
+            <PickMenuRow
+              label="Milestone"
+              disabled={readOnly || busy}
+              empty={!detail.milestoneId}
+              value={detail.milestones.find((one) => one.id === detail.milestoneId)?.name ?? "None"}
+              selected={detail.milestoneId ?? NO_MILESTONE}
+              onPick={(value) => void change(() => saveTaskMilestone(task.id, value === NO_MILESTONE ? null : value))}
+              options={[
+                { value: NO_MILESTONE, label: "No milestone" },
+                ...detail.milestones.map((milestone) => ({
+                  value: milestone.id,
+                  label: milestone.dueDate ? `${milestone.name} · ${dayLabel(milestone.dueDate)}` : milestone.name,
+                })),
+              ]}
+            />
+          ) : null}
           <PickRow label="Plan" empty={planSummary(detail) === "Nothing set"} value={planSummary(detail)}>
-            <div className={INNER_CARD}>{planCard}</div>
+            <div className={INNER_CARD}>{menuPlanCard}</div>
           </PickRow>
         </PickGroup>
       </div>
@@ -1311,10 +1333,12 @@ const INNER_CARD =
   "[&_[data-slot=card]]:rounded-none [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card]]:ring-0 [&_[data-slot=card-content]]:!px-0 [&_[data-slot=card-header]]:hidden"
 
 /** What the Plan holds, in a few words, or "Nothing set". */
+/** What the Plan row reads; the milestone has its own row. */
+/** The Milestone row's "No milestone". */
+const NO_MILESTONE = "none"
+
 function planSummary(detail: TaskDetail) {
-  const milestone = detail.milestones.find((one) => one.id === detail.milestoneId)
   const parts = [
-    milestone ? milestone.name : null,
     detail.task.repeat ? "Repeats" : null,
     detail.task.snoozedUntil ? `Snoozed to ${dayLabel(detail.task.snoozedUntil)}` : null,
     detail.waitingOn.length ? `Waits on ${detail.waitingOn.length} ${plural(detail.waitingOn.length, "task")}` : null,

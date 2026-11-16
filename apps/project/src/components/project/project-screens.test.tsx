@@ -14,6 +14,10 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 
+/** What the project page hands its left page's Dashboards block: Tasks showing. */
+const SECTION_BLOCKS: ProjectPageBlocks = { section: "tasks", onPick: () => {}, counts: { tasks: 3, notes: 1, milestones: 2 } }
+import type { ProjectPageBlocks } from "@/components/project/notes/project-page-blocks"
+
 // The signed-in account the `/_authenticated` route hands every screen. Tyler
 // is the site admin unless a test makes him an employee.
 const signedIn = vi.hoisted(() => ({ user: { id: "me", name: "Tyler", role: "admin" } }))
@@ -405,7 +409,7 @@ describe("the project page", () => {
   it("draws the project's banner faintly behind the left panel's top, and no avatar there", () => {
     const plain = renderToStaticMarkup(
       <TooltipProvider>
-        <ProjectDetailsPanel page={page} />
+        <ProjectDetailsPanel blocks={SECTION_BLOCKS} page={page} />
       </TooltipProvider>
     )
     expect(plain).not.toContain("<img")
@@ -414,6 +418,7 @@ describe("the project page", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <ProjectDetailsPanel
+          blocks={SECTION_BLOCKS}
           page={{
             ...page,
             project: { ...page.project, client: "Hart Dental", bannerUrl: "/b.jpg" },
@@ -432,17 +437,48 @@ describe("the project page", () => {
     expect(html).not.toContain("<footer")
   })
 
-  it("draws the Milestones block on the project's page, with its milestones on the tile", () => {
-    const notes = JSON.stringify({ type: "doc", content: [{ type: "noteMilestones" }] })
+  it("draws the fixed Dashboards block on the project's page in place of the old Milestones and Notes blocks", () => {
+    // A page saved before 16 Nov 2026, with the two blocks the dashboards replaced.
+    const notes = JSON.stringify({ type: "doc", content: [{ type: "noteMilestones" }, { type: "noteProjectNotes" }] })
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <ProjectDetailsPanel page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
+        <ProjectDetailsPanel blocks={SECTION_BLOCKS} page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
       </TooltipProvider>
     )
-    expect(html).toMatch(/<h2[^>]*><button[^>]*>(?:<span[^>]*>)+Milestones</)
-    expect(html).toContain("data-block-tile")
-    expect(html).toContain("Design signed off")
-    expect(html).toContain("Overdue · ")
+    expect(html).toMatch(/<h2[^>]*><button[^>]*>(?:<span[^>]*>)+Dashboards</)
+    expect(html).toMatch(/aria-current="true"[^>]*>(?:(?!<\/button>).)*>Tasks</)
+    expect(html).toContain(">Notes<")
+    expect(html).toContain(">Milestones<")
+    // The counts in each row's pill.
+    expect(html).toMatch(/>Milestones<\/span><\/span><span[^>]*>2</)
+    // The milestones themselves are on the Milestones dashboard now, not on the page.
+    expect(html).not.toContain("Design signed off")
+  })
+
+  it("leaves hidden rows out of the Dashboards block, but keeps the one showing, in the order dragged", () => {
+    const notes = JSON.stringify({
+      type: "doc",
+      content: [{ type: "noteProjectSections", attrs: { hidden: ["notes", "tasks"], order: ["milestones", "tasks", "notes"] } }],
+    })
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectDetailsPanel blocks={SECTION_BLOCKS} page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
+      </TooltipProvider>
+    )
+    expect(html).not.toContain(">Notes<")
+    // Tasks is hidden but showing, so it keeps its row, after Milestones as dragged.
+    expect(html.indexOf(">Milestones<")).toBeGreaterThan(-1)
+    expect(html.indexOf(">Milestones<")).toBeLessThan(html.indexOf(">Tasks<"))
+  })
+
+  it("gives an empty project page its Dashboards block, so a reader can still reach Notes and Milestones", () => {
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectDetailsPanel blocks={SECTION_BLOCKS} page={{ ...page, myRole: "member", project: { ...page.project, notes: "" } }} />
+      </TooltipProvider>
+    )
+    expect(html).toContain(">Dashboards<")
+    expect(html).toContain(">Milestones<")
   })
 
   it("shows the project's page, links and callout blocks, where the avatar was, with the status as a dot by the name", () => {
@@ -455,7 +491,7 @@ describe("the project page", () => {
     })
     const html = renderToStaticMarkup(
       <TooltipProvider>
-        <ProjectDetailsPanel page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
+        <ProjectDetailsPanel blocks={SECTION_BLOCKS} page={{ ...page, myRole: "member", project: { ...page.project, notes } }} />
       </TooltipProvider>
     )
     expect(html).toContain("Launch on the 14th")

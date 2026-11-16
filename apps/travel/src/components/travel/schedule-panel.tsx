@@ -180,8 +180,10 @@ export function SchedulePanel({
           ]}
         />
         {/* Every button but "+ Add" has the outline look, a white fill and a light grey line of its own,
-            as on the shell's CRM header (the Admin 3 panel design). */}
-        <div className="flex shrink-0 items-center gap-1.5 [&_[data-variant=ghost]]:border [&_[data-variant=ghost]]:bg-background [&_[data-variant=ghost]:hover]:bg-muted [&_[data-variant=ghost]]:border-zinc-200/60 [&_[data-variant=outline]]:border-zinc-200/60 [&_input]:border-zinc-200/60 dark:[&_[data-variant=ghost]]:border-zinc-700/60 dark:[&_[data-variant=outline]]:border-zinc-700/60 dark:[&_input]:border-zinc-700/60">
+            as on the shell's CRM header (the Admin 3 panel design). Every button has the search box's
+            10px corners, and one showing only its icon is a 32px square (Tyler, 16 Nov 2026: "also
+            need to fix the ui here too"). */}
+        <div className="flex shrink-0 items-center gap-1.5 [&_button:not(.absolute)]:rounded-lg [&_button:not(.absolute):not(:has(>:not(svg)))]:w-8 [&_button:not(.absolute):not(:has(>:not(svg)))]:px-0 @max-3xl:[&_button[aria-label=Filter]]:w-8 @max-3xl:[&_button[aria-label=Filter]]:px-0 @max-4xl:[&_button:has(>.lucide-bookmark)]:w-8 @max-4xl:[&_button:has(>.lucide-bookmark)]:px-0 [&_[data-variant=ghost]]:border [&_[data-variant=ghost]]:bg-background [&_[data-variant=ghost]:hover]:bg-muted [&_[data-variant=ghost]]:border-zinc-200/60 [&_[data-variant=outline]]:border-zinc-200/60 [&_input]:border-zinc-200/60 dark:[&_[data-variant=ghost]]:border-zinc-700/60 dark:[&_[data-variant=outline]]:border-zinc-700/60 dark:[&_input]:border-zinc-700/60">
           {selectedIds.length && !readOnly ? (
             <SelectedMenu
               count={selectedIds.length}
@@ -254,7 +256,7 @@ export function SchedulePanel({
               variant="outline"
               aria-pressed={selecting}
               aria-label={selecting ? "Hide select" : "Mass select"}
-              className={cn(selecting && "bg-muted")}
+              className={cn("@max-4xl:w-8 @max-4xl:px-0", selecting && "bg-muted")}
               onClick={() => toggleMassSelect()}
             >
               <ListChecksIcon className="size-4" />

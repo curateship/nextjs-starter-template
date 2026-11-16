@@ -5,6 +5,7 @@ import {
   emptyWrittenPageBody,
   type WrittenPageMark,
 } from "@/lib/pages/written-page-body"
+import { withFixedBlock } from "@/lib/notes/fixed-block"
 import { readVideoLink } from "@/lib/project/video-links"
 
 /**
@@ -39,8 +40,7 @@ export const NOTE_ATOM_TYPES = [
   "noteTeamAttention",
   "noteTeamWeek",
   "noteTeamMembers",
-  "noteMilestones",
-  "noteProjectNotes",
+  "noteProjectSections",
 ] as const
 export type NoteAtomType = (typeof NOTE_ATOM_TYPES)[number]
 
@@ -74,17 +74,17 @@ export const TEAM_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
 ])
 
 /**
- * Blocks only a project's own page may hold (Tyler, 9 Nov 2026: "remove the
- * details card and make milestone a block"): its Milestones, which were a card
- * at the foot of the project's left panel. Its notes and every other page drop
- * them.
+ * Blocks only a project's own page may hold: its Dashboards block, the fixed
+ * links to its Tasks, Notes and Milestones (Tyler, 16 Nov 2026: "remove the
+ * notes and milestone block and instead create a dashboards for it. Also need
+ * to create a fixed block for link dashboards"). Its notes and every other
+ * page drop it. The Milestones and Notes blocks it replaced are dropped from
+ * any page saved with them, as every block this list doesn't know is.
  */
-export const PROJECT_PAGE_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set([
-  "noteMilestones",
-  // The project's notes, which were behind a note icon in the panel's header
-  // until 15 Nov 2026 (task "Misc/writing-canvas": "Turn notes into block").
-  "noteProjectNotes",
-])
+export const PROJECT_PAGE_ATOM_TYPES: ReadonlySet<NoteAtomType> = new Set(["noteProjectSections"])
+
+/** The project page's fixed Dashboards block. */
+export const PROJECT_SECTIONS_NODE = "noteProjectSections"
 
 /**
  * The "/" list's advanced blocks, the ones that show something live from the
@@ -109,7 +109,7 @@ export const ADVANCED_ATOM_TYPES: ReadonlySet<string> = new Set<NoteAtomType>([
  * Where a note is kept: `dashboard` for the site admin's own page, which alone
  * keeps the dashboard blocks, `team` for a team's page, which alone keeps
  * the team blocks, and `projectPage` for a project's own page, which alone
- * keeps Milestones.
+ * keeps its fixed Dashboards block.
  */
 export type NoteRules = { dashboard?: boolean; team?: boolean; projectPage?: boolean }
 
@@ -240,6 +240,22 @@ export function linkWords(link: NoteLink) {
   return link.label || link.url.replace(/^https:\/\//, "").replace(/\/$/, "")
 }
 
+/** The project's three dashboards, as the Dashboards block keeps them (`project-sections.ts`). */
+const SECTION_KEYS = ["tasks", "notes", "milestones"]
+
+/**
+ * The Dashboards block's hidden rows and their order (Tyler, 16 Nov 2026:
+ * "missing 3 dot dropdown to move block up and down as well as hide/unhide
+ * items"): each a list of known dashboards, once each. Neither kept when empty.
+ */
+function cleanProjectSections(attrs: Record<string, unknown>) {
+  const keys = (value: unknown) =>
+    Array.isArray(value) ? [...new Set(value.filter((key): key is string => SECTION_KEYS.includes(key as string)))] : []
+  const hidden = keys(attrs.hidden)
+  const order = keys(attrs.order)
+  return { ...(hidden.length ? { hidden } : {}), ...(order.length ? { order } : {}) }
+}
+
 const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Record<string, unknown> | null> = {
   noteImage: cleanImage,
   noteVideo: cleanVideo,
@@ -267,10 +283,8 @@ const ATOM_CLEANERS: Record<NoteAtomType, (attrs: Record<string, unknown>) => Re
   noteTeamAttention: () => ({}),
   noteTeamWeek: () => ({}),
   noteTeamMembers: () => ({}),
-  // The project's own milestones, read when drawn, so it holds nothing.
-  noteMilestones: () => ({}),
-  // The project's own notes, read when drawn, so it holds nothing.
-  noteProjectNotes: () => ({}),
+  // Links to the project's own dashboards: only which rows are hidden and their order.
+  noteProjectSections: cleanProjectSections,
 }
 
 function isAtom(type: unknown): type is NoteAtomType {
@@ -361,8 +375,12 @@ function cleanNode(value: unknown, depth: number, rules: NoteRules): NoteNode | 
  * team's page.
  */
 export function cleanNoteBody(value: unknown, rules: NoteRules = {}): NoteNode {
-  if (!value || typeof value !== "object" || (value as { type?: unknown }).type !== "doc") return emptyWrittenPageBody()
-  return { type: "doc", content: cleanChildren(value as { content?: unknown }, 0, () => true, rules) }
+  const isDoc = value && typeof value === "object" && (value as { type?: unknown }).type === "doc"
+  const body = isDoc
+    ? { type: "doc", content: cleanChildren(value as { content?: unknown }, 0, () => true, rules) }
+    : emptyWrittenPageBody()
+  // A project's page always holds its one Dashboards block, at the top of a page saved without it.
+  return rules.projectPage ? withFixedBlock(body, PROJECT_SECTIONS_NODE) : body
 }
 
 /** The site admin's own page, cleaned: a note's rules, keeping the dashboard blocks. */
@@ -375,33 +393,13 @@ export function cleanTeamBody(value: unknown): NoteNode {
   return cleanNoteBody(value, { team: true })
 }
 
-/** A project's own page, cleaned: a note's rules, keeping Milestones. */
+/** A project's own page, cleaned: a note's rules, keeping its one Dashboards block. */
 export function cleanProjectPageBody(value: unknown): NoteNode {
   return cleanNoteBody(value, { projectPage: true })
 }
 
-/**
- * A new project's page: the Milestones block alone, where the Milestones card
- * sat at the foot of the panel until 9 Nov 2026, so its milestones show from
- * the start.
- */
-export const NEW_PROJECT_PAGE = JSON.stringify({ type: "doc", content: [{ type: "noteMilestones" }] })
-
-/** Whether a stored page holds a block of this type anywhere, folded sections included. */
-export function storedPageHolds(stored: string, type: NoteAtomType): boolean {
-  let body: unknown
-  try {
-    body = JSON.parse(stored)
-  } catch {
-    return false
-  }
-  const holds = (node: unknown): boolean => {
-    if (!node || typeof node !== "object") return false
-    const { type: kind, content } = node as { type?: unknown; content?: unknown }
-    return kind === type || (Array.isArray(content) && content.some(holds))
-  }
-  return holds(body)
-}
+/** A new project's page: its Dashboards block alone, the way to its Tasks, Notes and Milestones. */
+export const NEW_PROJECT_PAGE = JSON.stringify({ type: "doc", content: [{ type: PROJECT_SECTIONS_NODE }] })
 
 /** A new Fold section's id, which each reader's folds are remembered by. */
 export function newFoldId() {

@@ -1,7 +1,8 @@
 # Project notes
 
-A project has its own list of notes, shown in a Notes block on the project's
-page in the left panel. They work like a trip's notes in Travel. The tasks
+A project has its own list of notes, its Notes dashboard: the list in the
+middle panel and the open note on the right, picked from the Dashboards block
+on the project's page. They work like a trip's notes in Travel. The tasks
 are `workspace/tasks/project-notes/01-project-notes.md` and
 `workspace/tasks/Misc/writing-canvas.md`.
 
@@ -25,32 +26,42 @@ On 6 Nov 2026:
 - 15 Nov 2026: "Turn notes into block", pointing at the note icon. He then
   picked a block that shows the list and opens a note inside itself, added
   "Only through /". There is no note icon any more.
+- 16 Nov 2026: "remove the notes and milestone block and instead create a
+  dashboards for it. Also need to create a fixed block for link dashboards."
+  He picked the list in the middle and the open note on the right, where it
+  can be written in.
 
-## The Notes block and the list
+## The Notes dashboard
 
-- **The site admin adds it** by typing "/" on the project's page and picking
-  Notes, under Advanced blocks. No page gets it by itself, and a page holds
-  one at most; picking it again shows the one already there. Only a
-  project's own page offers it (`PROJECT_PAGE_ATOM_TYPES` in
-  `src/lib/project/note-blocks.ts`), so a note can't hold the notes.
-- **It is a block like the others**: a card headed Notes with the notebook
-  icon, the block's ⋮ with Delete block, folding from its title,
-  and scrolling inside its tile. Deleting the block deletes no notes; adding
-  it again shows them all.
-- **Everyone on the project writes notes in it**, even on a page they only
-  read: employees, and the site admin with Lock blocks on. Who may write a
-  note comes from the notes, not from the page.
-- **A right-click inside the block stays the block's.** On a note it opens
-  Pin to top, Duplicate and Delete, never the page's "/" list. The page's
-  editor leaves every click and key inside the block to the block
-  (`atomNode`'s `ownsEvents` in `note-block-nodes.ts`).
-- **With no notes** the block is one dashed area, Add a note, that makes the
-  first one. An archived project with no notes says "No notes on this
-  project." instead.
-- **With notes,** each row shows the writer's face, the note's first line,
-  and the writer's name with the day it last changed, such as "Anna, Nov 6,
-  2026". A pinned note has a yellow pin.
-  New note sits under the list.
+- **Notes in the page's Dashboards block** opens it, with its count in the
+  row's pill (see "The project page's dashboards" in
+  [Projects and tasks](projects-and-tasks.md)). The Notes block that held
+  the list on the page from 15 Nov 2026 is gone, and a page saved with it
+  drops it.
+- **The middle** has the notebook icon, "Notes", a search box that is always
+  there and narrows the list by each note's first line, and New note.
+- **The notes are a table** (Tyler, 16 Nov 2026: "add proper table to both
+  notes and milestones"), the shell's `CrmTable` as on the CRM and Admin:
+  each row is the writer's face, the note's first line with a yellow pin
+  when pinned, Written by, Changed, and a cog and a bin. Once a note is
+  pinned, Pinned and Notes headings with their counts fold the rows under
+  them. The open row has the sliding bar before its name. The order everyone
+  shares shows until a column heading sorts the notes; a third press on the
+  same heading goes back to it. Written by drops out as the middle narrows.
+- **The right panel** is the open note, drawn as the other apps' right panels
+  are, Travel's open activity first among them (Tyler, 16 Nov 2026: "look at
+  the other apps right panel and do it again"): the notebook in its square,
+  the note's first line, its ⋮ and the button that hides the panel; the body
+  is the note, written in place; the footer says who wrote it and when it
+  last changed. The ⋮ is the task's own menu look, a General tab of action
+  rows: Pin to top, Duplicate, Move up, Move down, then Delete note in red
+  under a line. It is never empty: with no note in the address it shows the
+  first, and a project with no notes says to press New note.
+- **The address keeps the open note** (`?note=`), so a reload or a pasted
+  link opens it again.
+- **Everyone on the project writes notes**, employees too, and the site admin
+  with Lock blocks on the page. Who may write a note comes from the notes,
+  not from the page.
 - **A note's name is its first line of words.** A note that starts with a
   picture is named by the first words under it, and a note with no words is
   "Empty note". The words of a # link inside it are left out of the name,
@@ -60,8 +71,8 @@ On 6 Nov 2026:
 
 ## Writing a note
 
-- **A new note opens with the cursor in it.** It is the same editor as the
-  project's page above the notes, with the same "/" blocks: everything a
+- **A new note opens on the right with the cursor in it.** It is the same
+  editor as the project's page in the left panel, with the same "/" blocks: everything a
   task's notes have except File and the Video or Promo card, which belong to
   a task.
 - **Pictures come from Unsplash or a web address.** There's no upload,
@@ -69,7 +80,6 @@ On 6 Nov 2026:
   task. The project's page works the same way.
 - **It saves itself** 700ms after the last letter and when it's left. A save
   that fails says why and is tried again with the next letter.
-- **Back to notes,** right under the note, goes back to the list.
 - **Everyone who can see the project writes its team notes:** its members
   and the site admin. An archived project's notes read only.
 - **At most 200 notes a project.** One more is refused with "A project can
@@ -83,27 +93,28 @@ On 6 Nov 2026:
   who can see the project on every read and every change, not just the
   screen.
 - **A "Just me" list's notes** are its person's and the site admin's, the
-  same as the list. A "Just me" list has no page, so no Notes block and no
-  note icon: its notes open only from a # link.
+  same as the list. A "Just me" list has no page, so no Dashboards block: its
+  notes open only from a # link, which shows its Notes dashboard.
 
 ## Right-click, pins and order
 
-- **Right-click a note** for Pin to top (or Unpin), Duplicate and Delete.
+- **Right-click a note**, or use the ⋮ over the open one, for Pin to top (or
+  Unpin), Duplicate, Move up, Move down and Delete. Deleting the open note shows the first one left.
   Where the notes read only, right-click does nothing.
 - **Pinned notes sit above the rest,** and a pin is the same for everyone on
   the project. Pinning puts a note at the top of the pinned ones. Unpinning
   puts it at the top of the rest.
 - **Duplicate** makes a copy at the top of the unpinned notes. Whoever made
   the copy is its writer.
-- **Drag a note by its handle** to change the order. The handle shows when
-  the row is pointed at, and always on a phone. The order is the same for
-  everyone. A pinned note can only move among pinned notes, and an unpinned
-  note among the rest.
+- **Move up and Move down** in the same menus change the order, the same for
+  everyone. A pinned note only moves among pinned notes, and an unpinned
+  note among the rest. Until the notes became a table on 16 Nov 2026 a note
+  was dragged by a handle instead; the table's rows don't drag.
 - **A new note** goes to the top of the unpinned ones.
 
 ## Deleting
 
-- **Delete doesn't ask.** The note goes to the project's Bin, where Bring
+- **Delete doesn't ask,** from the menus or a row's bin. The note goes to the project's Bin, where Bring
   back puts it back where it was. Nothing pops up.
 - **The Bin,** under the tasks panel's More menu, lists deleted notes beside
   deleted tasks, newest first. Each note says "Note, deleted by Ben" and when.
@@ -117,11 +128,9 @@ On 6 Nov 2026:
   tasks, each with a notebook icon and its project's name. Only notes on
   projects the writer can see are offered. The list looks through the 500 most recently
   changed notes the writer can see.
-- **The link shows the note's first line** and opens the project page with
-  that note open in the page's Notes block. A page with no Notes block, and
-  a "Just me" list, which has no page, shows the notes in the page's place,
-  with an × in the header that puts the page back. A note that has since been renamed shows its
-  new first line.
+- **The link shows the note's first line** and opens the project page on its
+  Notes dashboard with that note open on the right. A note that has since
+  been renamed shows its new first line.
 - **A reader who can't see the note's project reads "a note you can't
   see",** and it isn't a link. A note in the Bin, or gone, reads "deleted note".
 - **The writer can only link notes they can open right now.** Anything else
@@ -132,16 +141,17 @@ On 6 Nov 2026:
   Both go through the same reading as task links
   (`src/server/project/task-links.ts`); see "Linking a task with #" in
   [Task chat](task-chat.md).
-- **Opening a note from a link** reads `?note=` once and then takes it out of
-  the address, so the same link works again. On a screen under 1280px wide
-  the left panel stays behind its Details pill until it's tapped.
+- **Opening a note from a link** keeps `?note=` in the address, as the open
+  task's `?task=` is kept. On a screen under 1280px wide the note opens on
+  the Note tab.
 
 ## What it doesn't do
 
 - **Notes don't update live.** A teammate's new note or change shows the
-  next time the notes open or Back to notes is pressed.
-- **There's no search, no earlier versions, no @ tags and no lock** on a
-  project note. Tyler was offered them on 6 Nov 2026 and didn't pick them.
+  next time the project page opens.
+- **There are no earlier versions, no @ tags and no lock** on a project
+  note. Tyler was offered them on 6 Nov 2026 and didn't pick them. The search
+  box came with the dashboard, and looks at first lines only.
 - **There are no private notes.** They were built on 6 Nov 2026 and taken
   out the same day ("remove the privacy feature").
 
@@ -153,9 +163,9 @@ On 6 Nov 2026:
 - `src/lib/project/project-notes.ts`: a note's name from its first line.
 - `src/lib/api/project/project-notes.ts`: the calls the screen makes, and the
   # list's search across tasks and notes.
-- `src/components/project/project-notes-panel.tsx`: the list and the open
-  note. `project-page-notes.tsx` holds the editor shared with the project's
-  page, `notes/project-page-blocks.tsx` the Notes block, and
-  `project-details-panel.tsx` where a # link opens.
+- `src/components/project/project-notes-panel.tsx`: the dashboard's middle
+  and right panels, and `src/lib/project/use-project-notes.ts` the list they
+  share, loaded once by `project-workspace.tsx`. `project-page-notes.tsx`
+  holds the editor shared with the project's page.
 - `src/server/project/project-notes.test.ts`: who sees what, the cap, the
   order, the Bin and # links.

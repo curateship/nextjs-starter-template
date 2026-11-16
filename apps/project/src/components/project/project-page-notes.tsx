@@ -97,7 +97,7 @@ export function ProjectPageNotes({ projectId, notes, canWrite }: { projectId: st
       stored={notes}
       canWrite={canWrite}
       where="projectPage"
-      placeholder="About this project. Type / for milestones, links and more."
+      placeholder="About this project. Type / for links, a checklist and more."
       onSave={save}
     />
   )

@@ -156,43 +156,62 @@ So every project has one person answerable for it.
 
 So a long project shows whether it's on time well before its end date.
 
-- **No tooltips on the Milestones block**, on its "+" or on each milestone's
-  cog (Tyler, 19 Oct 2026: "Remove all the tooltips in status and milestone
-  left panel"). The buttons still carry their names for screen readers.
-- **A "/" block on the project's page** (Tyler, 9 Nov 2026: "remove the
-  details card and make milestone a block",
-  `assets/pasted-image-1794255884841743000.png`). It was a card at the foot
-  of the left panel from 15 Oct 2026. The block is the block card every
-  block has: a flag, "Milestones" with the count after it, and a ⋮ with
-  Delete block while the site admin can write the page. The milestones sit
-  on its white tile, one row each, a line between them.
-  - **Only a project's own page offers it**, once per page. The project's
-    notes, a task's and every other page don't, and drop one sent to them
-    (`PROJECT_PAGE_ATOM_TYPES` in `note-blocks.ts`).
-  - **Every project starts with it**: a new project's page is the block
-    alone, and migration 0174 put it at the end of every shared project's
-    page that had none. Deleting it hides the milestones from the page;
-    "/" then "Milestones" puts it back. The milestones themselves stay.
-  - It holds nothing of its own. It draws the milestones the page already
-    loaded (`ProjectPageBlocksProvider`, `notes/project-page-blocks.tsx`).
-- **A name and a date**, such as "Design signed off, Nov 15", soonest first
-  and the ones with no date last. The "+" in the block's heading, shown
-  while the heading is pointed at, makes one, and the cog on a row changes
-  or deletes it.
-- **A milestone's tasks.** The list icon beside a row's cog, centred on the
-  row with it, opens a dropdown of every task in that milestone, in the
-  project's order, each with its status dot and status. Clicking one opens it
-  in the right panel. It shows on an archived project too, since it changes
-  nothing. Each task card carries `milestoneId` for this. Both
-  show only while pointed at, and open a dropdown, not a window. Anyone
-  who can change the project can do all three, up to 30 per project.
+- **A dashboard of their own** (Tyler, 16 Nov 2026: "remove the notes and
+  milestone block and instead create a dashboards for it"). Milestones in
+  the page's Dashboards block (see "The project page's dashboards") puts the
+  milestones in the middle panel, under a header with the flag,
+  "Milestones", a search box and New milestone.
+- **A table** (Tyler, 16 Nov 2026: "add proper table to both notes and
+  milestones"), the shell's `CrmTable` as on the CRM and Admin: each row is
+  its dot (red overdue, amber open, green done, grey with no tasks), the
+  name, Status (Overdue in red, Open, Done or No tasks yet; it sorts most
+  urgent first), Tasks done as a bar with "3 of 5", the date (red once overdue), and
+  a cog and a bin, which asks first. Soonest first and the ones with no date
+  last, until a column heading sorts them. The open row has the sliding bar
+  before its name. Tasks done drops out as the middle narrows. Pressing a row opens it on the right, and the
+  address keeps it (`?milestone=`). They were a block on the page from 9 Nov
+  2026, and a card at the foot of the left panel from 15 Oct 2026 before
+  that.
+- **The open milestone, on the right**, is drawn as the other apps' right
+  panels are, Travel's open activity and Promo's open item (Tyler, 16 Nov
+  2026: "not following ui standard", then "look at the other apps right panel
+  and do it again"). The header is the flag in its square, the name, the ⋮
+  and the button that hides the panel. The ⋮ is the task's own menu look
+  ("there needs to be a 3 dotted dropdown for these options to go in there"):
+  a General tab, a Milestone group with Name (a box that saves as it's left,
+  with Saving… then Saved under the group) and Date (a calendar that saves on
+  a pick), then Delete milestone in red, which asks first. The body is a
+  Tasks card with "0 of 2 done", the bar, its tasks, and Add task. A task's
+  title opens it on the Tasks dashboard, and its status is the List's own
+  status dropdown, so it changes there, Stuck asking why first (Tyler, 16
+  Nov 2026: "this should be a dropdown to change status"). Where the
+  milestone stands is in the table's Status column, not in the panel
+  ("remove ... and put the status on the table instead"). It is never empty: with none picked it
+  shows the first, and a project with none says how to add one. An archived
+  project shows it with no ⋮ and no Add task.
+- **Add task** ("there should be an "Add task" button to add tasks to this
+  milestone or connect an existing task to it") opens a box of two plain
+  parts, with no grey behind them ("remove bg"). New task takes a title and makes the task in the project, counting
+  toward this milestone and handed to me when I'm on the project, as New task
+  does. Connect a task lists the project's other tasks, open ones first,
+  searchable by title; pressing one moves it into this milestone. One in
+  another milestone says "In another" and leaves it, since a task counts
+  toward one at most.
+- **New milestone** opens a dropdown with the name and the date, and the new
+  one opens on the right. Anyone who can change the project can add, change
+  or delete them, up to 30 per project.
 - **Each reads "3 of 5 done, Nov 15"** with a bar, and turns red with
   "Overdue" once its date has passed with tasks still open. Tasks in the bin
   don't count, and a milestone with no tasks reads "No tasks yet".
-- **A task joins one from its Plan card** (the Milestone field, shown once
-  the project has milestones). A task belongs to at most one. Moving a task
-  to another project takes it off; Duplicate keeps it; a repeating task's
-  next copy keeps it, unless the milestone's date has already passed (see
+- **A task shows its milestone** as a row of its own in the task's ⋮,
+  Milestone, under Priority (Tyler, 16 Nov 2026: "theres no connections in
+  tasks from milestone. Shouldnt we have an option in here that shows the
+  milestone it connected to?"), shown once the project has milestones.
+  Picking one there, or No milestone, saves at once. Until then it was a
+  field inside the Plan card, which no longer holds it in the ⋮ and no longer
+  names it in the Plan row. A task belongs to at most one. Moving a task to
+  another project takes it off; Duplicate keeps it; a repeating task's next
+  copy keeps it, unless the milestone's date has already passed (see
   [Repeating tasks](repeating-tasks.md)).
 - **Deleting a milestone** leaves its tasks where they are, counting toward
   none.
@@ -212,8 +231,8 @@ So a long project shows whether it's on time well before its end date.
 - **Copy project** copies milestones with no date, the same rule
   as tasks, and keep which tasks belong to each.
 - **Saved** in `project_milestones` and `project_tasks.milestone_id`. Rules
-  in `src/server/project/milestones.ts`; the panel's list is
-  `project-milestones.tsx`.
+  in `src/server/project/milestones.ts`; the dashboard's middle and right
+  panels are `project-milestones.tsx`.
 
 ## Clients
 
@@ -277,13 +296,13 @@ couple of blocks like a links block and call out block".
   test data, so nothing was kept.
 - **In their place** the left panel is the project's page: the notes editor
   with its "/" blocks, the new Links block and Callout among them, less File
-  and the Video or Promo card, which belong to a task. Milestones is a block
-  only this page offers (see Milestones). How
-  the blocks work is in [Notes and the "/" blocks](notes-and-blocks.md).
+  and the Video or Promo card, which belong to a task. The Dashboards block
+  is always on it (see "The project page's dashboards"). How the blocks work
+  is in [Notes and the "/" blocks](notes-and-blocks.md).
 - **The site admin writes in it**; it saves 700ms after the last letter and
-  when it's left. Everyone else, and an archived project, reads it, and an
-  empty page shows nothing to them. A "Just me" list has no page. "/" opens
-  the list of blocks.
+  when it's left. Everyone else, and an archived project, reads it, the
+  Dashboards block and all. A "Just me" list has no page. "/" opens the list
+  of blocks.
 - **Lock blocks.** The ⋮ menu's General tab ends in Lock blocks, in its
   footer under a line as on the shell's left page ⋮ (it read Lock page until
   11 Nov 2026). It makes the page read only for everyone, the site admin
@@ -295,10 +314,54 @@ couple of blocks like a links block and call out block".
 - **Copy project** copies the page and whether it is locked.
 - **Saved** in `project_projects.notes` and `notes_locked`
   (`drizzle/0146_project_page_lock.sql`, `src/components/project/project-page-notes.tsx`).
-- **The project's notes are a Notes block** the site admin adds with "/"
-  on the page (Tyler, 15 Nov 2026: "Turn notes into block"). Everyone on the
-  project writes in it, even on a page they only read. See
-  [Project notes](project-notes.md).
+
+## The project page's dashboards
+
+Tyler, 16 Nov 2026: "I want to remove the notes and milestone block and
+instead create a dashboards for it. Also need to create a fixed block for
+link dashboards. The currant link now is Tasks, Notes, Milestone."
+
+- **The Dashboards block** is on every shared project's page, with a row each
+  for Tasks, Notes and Milestones and a count in each row's pill: the
+  project's tasks, its notes and its milestones. It is drawn the shell's way
+  (`DashboardsRows`, as on Admin and the CRM): names grey, the one showing
+  dark with a small bar growing in before it, and the switch made once the
+  bar has grown.
+- **Picking one keeps the left page** and changes the middle and right
+  panels: Tasks is the task list and the open task, as before; Notes is the
+  notes and the open note ([Project notes](project-notes.md)); Milestones is
+  the milestones and the open one (see Milestones). On a phone the tabs take
+  the dashboard's names.
+- **The block is fixed.** It is never in the "/" list, the editor refuses to
+  delete it (Backspace, cut, select all and delete), and a page saved without
+  it, or an empty one, gets it back at the top (`cleanNoteBody` with
+  `withFixedBlock`). Everyone who reads the page has it, since it is the only
+  way to Notes and Milestones.
+- **Its ⋮** (Tyler, 16 Nov 2026: "missing 3 dot dropdown to move block up and
+  down as well as hide/unhide items") lists Tasks, Notes and Milestones, each
+  with an eye that hides or shows its row and a grip that drags it into a new
+  order, then Move up and Move down where there is a line or block on that
+  side. It has no Delete block. Both are kept on the block, in the page, so
+  everyone on the project sees the same rows; the dashboard showing keeps its
+  row while hidden. Only the site admin changes them. On a locked page they
+  still can: the change unlocks the page, saves it and locks it again, as the
+  shell's locked pages move their blocks.
+- **It replaced two blocks.** The Milestones block (9 Nov 2026) and the Notes
+  block (15 Nov 2026) are no longer offered, and a page saved with them
+  drops them. Their lists are the two dashboards now.
+- **The address says which dashboard**: `?section=notes` or
+  `?section=milestones`, with nothing for Tasks. An address without it goes
+  by what it opens, so older links still land: a # link's `?note=` opens
+  Notes, `?milestone=` Milestones, and `?task=` or a chat notice Tasks. The
+  open task stays in the address on the other two, so going back to Tasks
+  shows it again.
+- **The last one comes back.** Opening a project from a bare address, as from
+  the Projects list, shows the dashboard last open on it in this browser.
+- **A "Just me" list** has no page and no Dashboards block, so it stays on
+  Tasks. Only a # link to one of its notes opens its Notes dashboard.
+- **Where it lives:** `notes/project-page-blocks.tsx` draws the block,
+  `project-workspace.tsx` picks the panels, `src/lib/project/project-sections.ts`
+  reads the address, and the route's `beforeLoad` brings the last one back.
 
 ## Project templates are gone
 
@@ -341,7 +404,7 @@ show out of the left panel and into that header.
   The project's page), then the archived and "Just me" notes, and it fills
   the panel. There is no footer (Tyler, 9 Nov 2026: "remove the details card
   and make milestone a block"): the Details card with the lead and the client
-  is gone, and Milestones is a block on the page. The lead and the client are
+  is gone, and the milestones have their own dashboard (see Milestones). The lead and the client are
   set in Project settings, and the Projects table shows both. The Status
   card that was here went with the manual status on 19 Oct 2026 (see Project
   status). Pin project in the ⋮ pins the project for me (see Pins below).
@@ -435,10 +498,13 @@ show out of the left panel and into that header.
   Select (the List's Mass select), Filter (which holds the due date), Views,
   whose tasks show (the members' faces, with no background), and New task.
   There is no ⋮. Every button but New task has the outline look, a white
-  fill and a light grey line, as on the CRM's header. Under 1088px wide the
-  search box narrows to 152px and Select and New task show only their
-  icons, under 896px the dropdowns drop their words too, and under 672px the
-  search is a magnifying glass that opens into the box. A panel narrower
+  fill and a light grey line, as on the CRM's header. Every button has the
+  search box's 10px corners, 6px apart, and a button showing only its icon is
+  a 32px square like New task (Tyler, 16 Nov 2026: "also need to fix the ui
+  here too"). Under 1088px wide the search box narrows to 152px and Select,
+  Filter, Views and New task all show only their icons, so the row is never
+  half words and half squares, and under 672px the search is a magnifying
+  glass that opens into the box. A panel narrower
   still, such as on a phone, scrolls the tabs sideways.
 - **Board columns move.** Drag a column by its heading to the left or right
   to change the order of To do, Doing, Done and Stuck (Tyler, 14 Oct 2026).

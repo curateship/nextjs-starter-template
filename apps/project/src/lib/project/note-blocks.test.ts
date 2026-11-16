@@ -7,7 +7,6 @@ import {
   noteForCopy,
   noteIsEmpty,
   noteTaskIds,
-  storedPageHolds,
 } from "@/lib/project/note-blocks"
 import {
   readPlainNotes,
@@ -229,30 +228,45 @@ describe("a team's page", () => {
 })
 
 describe("a project's page", () => {
-  it("keeps Milestones only on a project's own page, and on a copy made for one", () => {
-    const body = doc(paragraph("Brief"), { type: "noteMilestones", attrs: { projectId: "x" } })
-    expect(cleanNoteBody(body, { projectPage: true }).content).toEqual([paragraph("Brief"), { type: "noteMilestones" }])
-    // The project's notes, a task's and every other page drop it.
+  const sections = { type: "noteProjectSections" }
+
+  it("always holds one Dashboards block: at the top of a page saved without it, and never two", () => {
+    expect(cleanNoteBody(doc(paragraph("Brief")), { projectPage: true }).content).toEqual([sections, paragraph("Brief")])
+    // Moved below the words, it stays where it was put.
+    expect(cleanNoteBody(doc(paragraph("Brief"), sections), { projectPage: true }).content).toEqual([paragraph("Brief"), sections])
+    expect(cleanNoteBody(doc(sections, paragraph("a"), sections), { projectPage: true }).content).toEqual([sections, paragraph("a")])
+    // A copy made for a project's page keeps it too.
+    const stored = JSON.stringify(doc(paragraph("Brief"), { type: "noteComments" }))
+    expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, projectPage: true }))).toEqual(doc(sections, paragraph("Brief")))
+  })
+
+  it("drops the Milestones and Notes blocks the dashboards replaced (16 Nov 2026)", () => {
+    const old = doc({ type: "noteMilestones" }, paragraph("Brief"), { type: "noteProjectNotes" })
+    expect(cleanNoteBody(old, { projectPage: true }).content).toEqual([sections, paragraph("Brief")])
+  })
+
+  it("reads an empty page, or one of plain words, as a page holding the block", () => {
+    expect(readTaskNotes("", { projectPage: true })).toEqual({ kind: "doc", body: doc(sections) })
+    const words = readTaskNotes("Kick-off\nThen launch", { projectPage: true })
+    expect(words.kind === "doc" && words.body.content?.[0]).toEqual(sections)
+    // Every other note keeps plain words as they were saved.
+    expect(readTaskNotes("Kick-off")).toEqual({ kind: "text", text: "Kick-off" })
+  })
+
+  it("keeps the block's hidden rows and order, known dashboards once each", () => {
+    const body = doc({ type: "noteProjectSections", attrs: { hidden: ["notes", "notes", "chat"], order: ["milestones", "tasks", 4] } })
+    expect(cleanNoteBody(body, { projectPage: true }).content).toEqual([
+      { type: "noteProjectSections", attrs: { hidden: ["notes"], order: ["milestones", "tasks"] } },
+    ])
+    // Nothing kept when nothing is hidden or ordered.
+    expect(cleanNoteBody(doc({ type: "noteProjectSections", attrs: { hidden: [] } }), { projectPage: true }).content).toEqual([sections])
+  })
+
+  it("keeps the Dashboards block off every other page", () => {
+    const body = doc(paragraph("Brief"), sections)
     expect(cleanNoteBody(body).content).toEqual([paragraph("Brief")])
     expect(cleanNoteBody(body, { team: true }).content).toEqual([paragraph("Brief")])
     expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Brief")])
-    const stored = JSON.stringify(doc({ type: "noteMilestones" }, { type: "noteComments" }))
-    expect(JSON.parse(storedNotesForCopy(stored, { noTask: true, projectPage: true }))).toEqual(doc({ type: "noteMilestones" }))
-  })
-
-  it("keeps the Notes block only on a project's own page, so a note can't hold the notes", () => {
-    const body = doc(paragraph("Brief"), { type: "noteProjectNotes", attrs: { noteId: "x" } })
-    expect(cleanNoteBody(body, { projectPage: true }).content).toEqual([paragraph("Brief"), { type: "noteProjectNotes" }])
-    expect(cleanNoteBody(body).content).toEqual([paragraph("Brief")])
-    expect(cleanNoteBody(body, { dashboard: true }).content).toEqual([paragraph("Brief")])
-  })
-
-  it("finds a Notes block anywhere on a stored page, and nothing in plain words", () => {
-    const folded = { type: "noteFold", attrs: { id: "f" }, content: [{ type: "noteProjectNotes" }] }
-    expect(storedPageHolds(JSON.stringify(doc(paragraph("a"), folded)), "noteProjectNotes")).toBe(true)
-    expect(storedPageHolds(JSON.stringify(doc({ type: "noteMilestones" })), "noteProjectNotes")).toBe(false)
-    expect(storedPageHolds("", "noteProjectNotes")).toBe(false)
-    expect(storedPageHolds("plain words", "noteProjectNotes")).toBe(false)
   })
 })
 

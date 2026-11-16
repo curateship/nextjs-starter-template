@@ -276,7 +276,9 @@ this browser.
   until 6 Nov 2026. The header reads: the tabs, "N selected", the search
   box, Select, the Ideas bulb, Jump to a day, Filter, Views, "+ Add", then
   the ⋮. Every button but "+ Add" has the outline look, a white fill and a
-  light grey line, as on the shell's CRM header.
+  light grey line, as on the shell's CRM header. Every button has the search
+  box's 10px corners, and one showing only its icon is a 32px square (Tyler,
+  16 Nov 2026: "also need to fix the ui here too").
 
 ## + Add
 

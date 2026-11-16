@@ -64,7 +64,7 @@ tasks templates feature too").
     card, File, Comments and Video or Promo where the box offers them, and on
     the site admin's own page Projects, Daily card, Rating calendar,
     Rating trend and Inbox, on a team's page Check-ins, Workload, Attention, This
-    week and Members, and on a project's own page Milestones and Notes.
+    week and Members. A project's own page offers none of its own.
   - The arrow keys walk the list as it shows, through the basic blocks and
     on into the advanced ones. Narrowing it by typing keeps only the headings
     whose group still has a block (`BLOCKS` in `note-block-nodes.ts`, drawn
@@ -79,19 +79,17 @@ tasks templates feature too").
   Promo only when the task points at a record. New task, quick new task,
   a project's page and a project's notes leave out File and Video
   or Promo, because there is no task to hold a file or a record.
-- **A project's own page** offers Milestones, which no other note has, its
-  notes included (Tyler, 9 Nov 2026: "make milestone a block"). It shows
-  every milestone of the project, so it goes in once. Every other save drops
-  it, on the server too (`PROJECT_PAGE_ATOM_TYPES` in
-  `src/lib/project/note-blocks.ts`). What it shows is in
-  [Projects and tasks](projects-and-tasks.md#milestones).
-- **A project's own page also offers Notes** (Tyler, 15 Nov 2026: "Turn notes
-  into block"). It is the project's list of notes in a block, added only by
-  typing "/" on the page; no page gets it by itself. It goes in once, and no
-  other page or note can hold it. What it does is in
-  [Project notes](project-notes.md).
-- **The site admin's own page** offers what a project's page does but
-  Milestones and Notes, plus five
+- **A project's own page always holds its Dashboards block**, the fixed
+  links to the project's Tasks, Notes and Milestones (Tyler, 16 Nov 2026:
+  "remove the notes and milestone block and instead create a dashboards for
+  it. Also need to create a fixed block for link dashboards"). It is never in
+  the "/" list, the editor won't delete it, its ⋮ hides, shows and orders
+  its rows and moves it up and down but has no Delete block, and every other page or note drops it, on the server too
+  (`PROJECT_PAGE_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). The
+  Milestones block (9 Nov 2026) and the Notes block (15 Nov 2026) it replaced
+  are no longer offered, and a page saved with them drops them. What it does
+  is in [Projects and tasks](projects-and-tasks.md#the-project-pages-dashboards).
+- **The site admin's own page** offers what a project's page does, plus five
   blocks no other note has: Projects, Daily card, Rating calendar, Rating
   trend and Inbox (Tyler, 6 Nov 2026: "Your My dashboard page only"; Inbox on
   11 Nov 2026). Look back was a sixth until 13 Nov 2026, when it moved into the
@@ -100,8 +98,8 @@ tasks templates feature too").
   that page sits beside. The Daily card block, like Comments, goes in once. Every other save drops the four, on the server too
   (`DASHBOARD_ATOM_TYPES` in `src/lib/project/note-blocks.ts`). What each one
   shows is in [My dashboard](my-dashboard.md#their-pages-blocks).
-- **A team's page** on the Team dashboard offers what a project's page does
-  but Milestones, plus five blocks no other note has: Check-ins, Workload, Attention, This
+- **A team's page** on the Team dashboard offers what a project's page does,
+  plus five blocks no other note has: Check-ins, Workload, Attention, This
   week and Members (Tyler, 7 Nov 2026: "checkins, workload and attention
   becomes blocks for the left panel"). Each shows the whole team, so each goes
   in once. Every other save drops the five, the site admin's own page too, on

@@ -1,22 +1,24 @@
 import * as React from "react"
-import { XIcon } from "lucide-react"
+import { useRouter } from "@tanstack/react-router"
 
-import { ProjectPageBlocksProvider } from "@/components/project/notes/project-page-blocks"
-import { ProjectNotes } from "@/components/project/project-notes-panel"
+
+import { ProjectPageBlocksProvider, type ProjectPageBlocks } from "@/components/project/notes/project-page-blocks"
 import { ProjectPageNotes } from "@/components/project/project-page-notes"
 import { ProjectPaceDot } from "@/components/project/project-pace"
 import { ProjectMenu } from "@/components/project/project-menu"
 import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
-import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ProjectPage } from "@/lib/api/project/projects"
-import { storedPageHolds } from "@/lib/project/note-blocks"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { cn } from "@/lib/utils"
+import { saveProject } from "@/lib/api/project/projects"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import type { NoteNode } from "@/lib/project/note-blocks"
+import { readTaskNotes } from "@/lib/project/notes"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { PageCover } from "@/components/shared/notes/page-cover"
 
 /**
@@ -49,62 +51,46 @@ import { PageCover } from "@/components/shared/notes/page-cover"
  * The header is the button that hides the panel, the name with its status
  * dot, and the ⋮ (task "Misc/writing-canvas", Tyler, 15 Nov 2026: "Remove
  * arrow back", "Move pin into the buttons here"). The pin is a row in the ⋮
- * above Archive project, and the project's notes are a Notes block on the
- * page ("Turn notes into block"), so there is no note icon. A # link to a
- * note (`openNoteId`) opens it in the page's Notes block. A page with no
- * Notes block, and a "Just me" list, which has no page, shows the notes in
- * the page's place instead, with an × in the header that puts the page back.
+ * above Archive project.
+ *
+ * The page always holds the fixed Dashboards block, the way to the project's
+ * Tasks, Notes and Milestones (Tyler, 16 Nov 2026). `blocks` is what it draws.
+ * A "Just me" list has no page, so it has only its tasks.
  */
-export function ProjectDetailsPanel({
-  page,
-  openNoteId,
-  onNoteOpened,
-}: {
-  page: ProjectPage
-  /** A note to open, from a # link's `?note=`. */
-  openNoteId?: string
-  /** Told once that note is open, so the address can let it go. */
-  onNoteOpened?: () => void
-}) {
+export function ProjectDetailsPanel({ page, blocks }: { page: ProjectPage; blocks: ProjectPageBlocks }) {
   const { project } = page
-  // Each # link opens its note afresh, even with that note already showing.
-  const [request, setRequest] = React.useState(openNoteId ? { noteId: openNoteId, at: 0 } : null)
-  const [seenNoteId, setSeenNoteId] = React.useState(openNoteId)
-  if (openNoteId !== seenNoteId) {
-    setSeenNoteId(openNoteId)
-    if (openNoteId) setRequest({ noteId: openNoteId, at: (request?.at ?? 0) + 1 })
-  }
-  React.useEffect(() => {
-    if (openNoteId) onNoteOpened?.()
-  }, [openNoteId, onNoteOpened])
-  // How many Notes blocks are drawn on the page right now: one added since the page
-  // loaded counts as soon as it shows, before the page is saved.
-  const [notesBlocks, setNotesBlocks] = React.useState(0)
-  const notesBlockShown = React.useCallback((shown: boolean) => setNotesBlocks((n) => n + (shown ? 1 : -1)), [])
+  const router = useRouter()
   const shared = !project.personal
-  const pageHasNotes = shared && (notesBlocks > 0 || storedPageHolds(project.notes, "noteProjectNotes"))
-  // A # link with no Notes block to open in shows the notes in the page's place.
-  const notesInstead = request !== null && !pageHasNotes
   const siteAdmin = runsTheTeam(page.myRole)
+  // On a locked page the site admin still hides, shows and orders the Dashboards block's rows
+  // and moves the block: one save unlocks the page, writes it and locks it again, as the
+  // shell's locked pages move their blocks.
+  const locked = shared && siteAdmin && !project.archived && project.notesLocked
+  const lockedPage = React.useMemo(() => {
+    if (!locked) return undefined
+    const read = readTaskNotes(project.notes, { projectPage: true })
+    if (read.kind !== "doc") return undefined
+    return {
+      body: read.body,
+      change: (next: NoteNode) =>
+        void (async () => {
+          try {
+            await saveProject({ projectId: project.id, notes: next, notesLocked: false })
+            await saveProject({ projectId: project.id, notesLocked: true })
+          } catch (error) {
+            showErrorToast(getProjectErrorMessage(error))
+          }
+          await router.invalidate()
+        })(),
+    }
+  }, [locked, project.notes, project.id, router])
+  const pageBlocks = React.useMemo(() => ({ ...blocks, lockedPage }), [blocks, lockedPage])
   // A "Just me" list has no cover. `PageCover` leaves out a picture that no longer loads.
   const banner = shared ? project.bannerUrl : null
   const late = countLate(page.tasks)
 
-  // What the page's Milestones and Notes blocks draw.
-  const blocks = React.useMemo(
-    () => ({
-      projectId: project.id,
-      milestones: page.milestones,
-      tasks: page.tasks,
-      readOnly: project.archived,
-      noteLink: request,
-      notesBlockShown,
-    }),
-    [project.id, page.milestones, page.tasks, project.archived, request, notesBlockShown]
-  )
-
   return (
-    <ProjectPageBlocksProvider value={blocks}>
+    <ProjectPageBlocksProvider value={pageBlocks}>
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* The project's cover, a picture or the sky, faintly behind the header and the top of
           its page, as every page in the shell's design draws it. */}
@@ -123,30 +109,13 @@ export function ProjectDetailsPanel({
             </span>
           </h2>
           <div className="flex shrink-0 items-center gap-1">
-            {notesInstead ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Close the notes" onClick={() => setRequest(null)}>
-                    <XIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Close the notes</TooltipContent>
-              </Tooltip>
-            ) : null}
             {shared && siteAdmin ? <ProjectMenu page={page} /> : null}
           </div>
         </DashboardCardHeader>
       </div>
-      {/* The page, or its notes, fill the rest of the panel. */}
+      {/* The page fills the rest of the panel. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {notesInstead ? (
-          <ProjectNotes
-            key={`${project.id}:${request?.at ?? "notes"}`}
-            projectId={project.id}
-            startOpen={request?.noteId ?? null}
-          />
-        ) : (
-          <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
+        <ScrollArea className="relative min-h-0 flex-1" viewportClassName="h-full">
             {/* The panel's 15px gutter round the page and between its blocks, as on My dashboard. */}
             <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)]", PANEL_GUTTER)}>
               {/* Where the avatar was: the project's own page of notes and blocks (Tyler, 5 Nov 2026).
@@ -175,7 +144,6 @@ export function ProjectDetailsPanel({
               ) : null}
             </div>
           </ScrollArea>
-        )}
       </div>
     </div>
     </ProjectPageBlocksProvider>

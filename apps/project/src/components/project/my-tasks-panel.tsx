@@ -15,7 +15,7 @@ import { TaskFilterPopover, type FilterProject } from "@/components/project/task
 import { TaskList, type ProjectColumn } from "@/components/project/task-list"
 import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
 import { TaskSearchBox, TaskSelectButton } from "@/components/project/task-header-controls"
-import { TASK_HEADER_BUTTONS, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
+import { TASK_HEADER_BUTTONS, TASK_HEADER_EARLY, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
 import { TaskTimeline } from "@/components/project/task-timeline"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
@@ -530,7 +530,7 @@ export function MyTasksPanel({
         />
         {/* Search and Select sit in the header itself, not in a ⋮ (Tyler, 16 Nov 2026:
             "move the mass select and search outside"), as on the CRM's header. */}
-        <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
+        <div className={cn("ml-auto", TASK_HEADER_BUTTONS, TASK_HEADER_EARLY)}>
           {/* The site admin's List puts its "3 selected" button here, left of the search, as a project page does. */}
           {tableView && source.table ? <div ref={setSelectedSlot} className="contents" /> : null}
           <TaskSearchBox narrow="early" value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
