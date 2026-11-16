@@ -1006,6 +1006,15 @@ export const customShellAutomations = pgTable(
      */
     compiledConfig: jsonb("compiled_config").$type<AutomationCompiledConfig>(),
     /**
+     * Which screen owns the row: `flow` is drawn on the Automations canvas,
+     * `sequence` is a list of emails in the CRM's Broadcasts section. Each
+     * screen lists only its own, and the canvas never saves a sequence.
+     */
+    kind: varchar("kind", { length: 20 })
+      .$type<"flow" | "sequence">()
+      .notNull()
+      .default("flow"),
+    /**
      * Whether this flow's trigger is live. Off until somebody says otherwise,
      * including for every flow that existed before triggers did.
      *
@@ -1022,8 +1031,10 @@ export const customShellAutomations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("automations_workspace_name_unique").on(
+    // Per kind: a sequence and a flow may share a name (migration 0116).
+    unique("automations_workspace_kind_name_unique").on(
       table.workspaceId,
+      table.kind,
       table.name
     ),
     index("ix_automations_workspace_updated").on(
@@ -1036,6 +1047,7 @@ export const customShellAutomations = pgTable(
     index("ix_automations_enabled")
       .on(table.enabled)
       .where(sql`${table.enabled}`),
+    check("automations_kind_check", sql`${table.kind} in ('flow', 'sequence')`),
   ]
 )
 

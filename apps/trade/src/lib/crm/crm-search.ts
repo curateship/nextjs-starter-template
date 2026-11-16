@@ -82,10 +82,20 @@ export type CrmLeadsSearch = {
   page?: number
 }
 
+/**
+ * The Broadcasts section's two header tabs (Tyler, 16 Nov 2026: "So we have 2
+ * tabs broadcast and sequence"). Broadcasts when absent.
+ */
+export const CRM_BROADCAST_LISTS = ["broadcasts", "sequences"] as const
+export type CrmBroadcastList = (typeof CRM_BROADCAST_LISTS)[number]
+
 export type CrmBroadcastSearch = {
-  /** The newsletter, or the template, open on the right. */
+  /** Sequences, or absent for the newsletters. */
+  list?: Exclude<CrmBroadcastList, "broadcasts">
+  /** The newsletter, the template, or the sequence open on the right. */
   open?: string
   q?: string
+  /** The newsletters' dropdown; a sequence list has none. */
   view?: Exclude<CrmBroadcastView, "all">
 }
 
@@ -106,6 +116,8 @@ export type CrmSearch = {
   open?: string
   q?: string
   view?: CrmInboxView | CrmBroadcastView
+  // Broadcasts
+  list?: CrmBroadcastSearch["list"]
   sort?: CrmInboxSort | NonNullable<ContactsSearch["sort"]> | NonNullable<CrmLeadsSearch["sort"]>
   // Inbox
   stage?: CrmStage | "all"
@@ -145,11 +157,13 @@ export function readCrmSearch(search: Record<string, unknown>): CrmSearch {
     }
   }
   if (tab === "broadcasts") {
+    const list = readOneOf(search.list, CRM_BROADCAST_LISTS.filter((entry) => entry !== "broadcasts"))
     return {
       tab,
+      list,
       ...readOpenSearch(search),
       q: readSearchText(search.q),
-      view: readOneOf(search.view, CRM_BROADCAST_VIEWS.filter((view) => view !== "all")),
+      view: list ? undefined : readOneOf(search.view, CRM_BROADCAST_VIEWS.filter((view) => view !== "all")),
     }
   }
   return {

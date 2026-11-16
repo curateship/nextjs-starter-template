@@ -230,7 +230,7 @@ export async function automationSectionCounts(
   const [flows] = await database
     .select({ total: count() })
     .from(customShellAutomations)
-    .where(eq(customShellAutomations.workspaceId, workspaceId))
+    .where(and(eq(customShellAutomations.workspaceId, workspaceId), eq(customShellAutomations.kind, "flow")))
   const [waiting] = await database
     .select({ total: count() })
     .from(customShellAutomationRuns)

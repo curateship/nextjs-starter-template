@@ -99,6 +99,10 @@ piece of it the shell has is the shell's own copy, imported.
   (`drizzle/0122_note_library_page.sql`). It saves itself 700ms after typing
   stops, cleaned on the server by `LIBRARY_PAGE_BLOCK_TYPES`
   (`src/lib/note/library/library-page.ts`). A locked page refuses a save.
+  Every block's ⋮ still has Move up and Move down on a locked page: the page
+  is unlocked just long enough to save the new order, then locked again, as
+  the shell's pages do. Delete on a locked page unlocks it and leaves it
+  unlocked.
 - **A new page starts with** Libraries, then Tags, then an empty line. A page
   saved with the Pinned, Folders, Authors or Recently opened blocks loses them
   on its next read.

@@ -268,6 +268,39 @@ export const segmentStatusLabels: Record<ContactSegmentStatus, string> = {
  * because they chose it. The dot always sits beside the words, so the colour
  * is never the only way to tell.
  */
+/**
+ * A status as a soft filled pill, the Subscribers table's Status column
+ * (Tyler, 16 Nov 2026, pasting the table he wanted). On the list is green,
+ * the two that need a look are red and amber, and Opted out is grey.
+ */
+export const segmentStatusPillClassName: Record<ContactSegmentStatus, string> = {
+  subscribed: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  unsubscribed: "bg-muted text-muted-foreground",
+  bounced: "bg-destructive/10 text-destructive",
+  complained: "bg-destructive/10 text-destructive",
+  cold: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+}
+
+/** The dot colours a tag can get, in a fixed order. */
+const TAG_DOT_CLASSES = [
+  "bg-blue-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-cyan-500",
+  "bg-violet-500",
+  "bg-rose-500",
+] as const
+
+/**
+ * A tag's dot colour, worked out from its letters so the same tag is the same
+ * colour on every row and every visit, with nothing stored.
+ */
+export function tagDotClassName(tag: string): string {
+  let hash = 0
+  for (const character of tag.trim().toLowerCase()) hash = (hash * 31 + character.charCodeAt(0)) >>> 0
+  return TAG_DOT_CLASSES[hash % TAG_DOT_CLASSES.length]!
+}
+
 export const segmentStatusDotClassName: Record<ContactSegmentStatus, string> = {
   subscribed: "bg-emerald-500 dark:bg-emerald-400",
   unsubscribed: "bg-muted-foreground/60",

@@ -11,7 +11,7 @@ import { ContactFilterMenu } from "@/components/broadcasts/contact-filter-menu"
 import { ContactImportDialog } from "@/components/broadcasts/contact-import"
 import { NewContactDropdown } from "@/components/broadcasts/new-contact-dropdown"
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
-import { Chip, CrmTable, CrmTableRow, Dot, MainCell } from "@/components/crm/crm-table"
+import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { TableCell, TableSortButton } from "@/components/ui/table"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
@@ -32,8 +32,11 @@ import type { SegmentItem } from "@/lib/api/people/contact-segments"
 import {
   segmentStatusDotClassName,
   segmentStatusLabels,
+  segmentStatusPillClassName,
+  tagDotClassName,
   type SegmentRules,
 } from "@/lib/contacts/contact-segments"
+import { cn } from "@/lib/utils"
 import type { CrmPeopleSearch } from "@/lib/crm/crm-search"
 import { formatInboxTime } from "@/lib/crm/inbox-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
@@ -43,25 +46,44 @@ import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useListSort } from "@/lib/nav/list-search"
 
-/** Tags a row shows before it stops; the rest are in the person's ⋮. */
-const TAGS_SHOWN = 2
+/** Tags a row shows before "+N"; the rest are on the person's panel. */
+const TAGS_SHOWN = 1
 
+/** Each tag a chip with its own coloured dot, then "+N" for the rest. */
 function TagChips({ tags }: { tags: string[] }) {
   if (tags.length === 0) return <span className="text-muted-foreground">None</span>
   return (
     <span className="flex items-center gap-1 whitespace-nowrap">
       {tags.slice(0, TAGS_SHOWN).map((tag) => (
-        <Chip key={tag} muted>
-          {tag}
+        <Chip key={tag}>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("size-1.5 shrink-0 rounded-[2px]", tagDotClassName(tag))} />
+            {tag}
+          </span>
         </Chip>
       ))}
-      {tags.length > TAGS_SHOWN ? <span className="text-xs text-muted-foreground">+{tags.length - TAGS_SHOWN}</span> : null}
+      {tags.length > TAGS_SHOWN ? (
+        <Chip muted className="bg-muted">
+          +{tags.length - TAGS_SHOWN}
+        </Chip>
+      ) : null}
     </span>
   )
 }
 
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
+}
+
+/**
+ * The person's two lines: their name over their address, or with no name the
+ * address split at the @, "eva.jakljevic" over "@gmail.com".
+ */
+function personLines(contact: ContactItem) {
+  const name = fullName(contact)
+  if (name) return { name, line: contact.email }
+  const at = contact.email.lastIndexOf("@")
+  return at > 0 ? { name: contact.email.slice(0, at), line: contact.email.slice(at) } : { name: contact.email, line: "" }
 }
 
 /**
@@ -74,9 +96,9 @@ function fullName(contact: ContactItem) {
  *   was taken off (Tyler, 9 Nov 2026: "Remove the download sample file
  *   feature").
  * - **Pills:** All, Leads, Subscribers, Opted out, then each segment.
- * - **Rows:** the name and when they were added; the address; then which
- *   kind they are ("Lead", "Lead + Subscriber", or their list status), a
- *   lead's stage, and their first tags.
+ * - **Rows:** the person, their name over their address (or the address
+ *   split at the @); their list status as a coloured pill; their first tag
+ *   with "+N"; how many emails they opened; when they were added.
  * - **Right-click:** Mass select, then Take off or Put back on the list and
  *   Delete.
  *
@@ -170,14 +192,16 @@ export function CrmPeopleList({
         </TableSortButton>
       ),
     },
-    { key: "email", label: "Email", column: "preview", className: "hidden md:hidden @xl:table-cell" },
-    { key: "status", label: "Status", column: "preview", className: "hidden md:hidden @4xl:table-cell" },
-    // Each column shows only once the middle is wide enough for every one
-    // before it as well, so the table never runs past the panel. `md:hidden`
-    // takes away a preview column's own `md:table-cell`, which would show it
-    // on any laptop otherwise, as on the Admin lists.
-    { key: "tags", label: "Tags", sortable: false, column: "preview", className: "hidden md:hidden @5xl:table-cell" },
-    { key: "opened", label: "Opened", sortable: false, column: "meta", className: "hidden @6xl:table-cell" },
+    // The address is the person's second line, so it has no column of its
+    // own, and Status, Tags and Opened fit a laptop's middle panel (Tyler,
+    // 16 Nov 2026, pasting the table he wanted). Each column shows only once
+    // the middle is wide enough for every one before it as well, so the
+    // table never runs past the panel. `md:hidden` takes away a preview
+    // column's own `md:table-cell`, which would show it on any laptop
+    // otherwise, as on the Admin lists.
+    { key: "status", label: "Status", column: "preview", className: "hidden md:hidden @xl:table-cell" },
+    { key: "tags", label: "Tags", sortable: false, column: "preview", className: "hidden md:hidden @3xl:table-cell" },
+    { key: "opened", label: "Opened", sortable: false, column: "meta", className: "hidden @4xl:table-cell" },
     { key: "created", label: "Added", column: "meta" },
   ]
   const contactById = new Map(data.contacts.map((contact) => [contact.id, contact]))
@@ -228,7 +252,15 @@ export function CrmPeopleList({
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <CrmListHeader
-        tabs={heading}
+        tabs={
+          <>
+            {heading}
+            {/* How many match, beside the title. */}
+            <Chip muted className="shrink-0 bg-muted tabular-nums">
+              {data.total.toLocaleString("en-US")}
+            </Chip>
+          </>
+        }
         end={headingEnd}
         selected={
           massSelect && (selectedIds.length || allMatching) ? (
@@ -326,7 +358,7 @@ export function CrmPeopleList({
         }
       >
         {data.contacts.map((contact) => {
-          const name = fullName(contact) || contact.email
+          const { name, line } = personLines(contact)
           return (
             <CrmTableRow
               key={contact.id}
@@ -341,25 +373,29 @@ export function CrmPeopleList({
                 },
               }}
               onOpen={() => onOpen(contact.id)}
+              // A press on the row opens the person, so the row has no cog
+              // (Tyler, 16 Nov 2026: "remove the settings cog icon and link").
+              cog={false}
               onDelete={() => setDeleteTarget(contact)}
               onRightClick={(x, y) => setRightClick({ id: contact.id, x, y })}
             >
-              <MainCell
-                name={name}
-                avatar={{ name: fullName(contact), email: contact.email }}
-                lead={<Dot className={segmentStatusDotClassName[contact.status]} label={segmentStatusLabels[contact.status]} />}
-              />
+              <MainCell name={name} line={line} avatar={{ name: fullName(contact), email: contact.email }} />
               <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
-                <span className="block max-w-64 truncate text-muted-foreground">{contact.email}</span>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+                    segmentStatusPillClassName[contact.status]
+                  )}
+                >
+                  <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", segmentStatusDotClassName[contact.status])} />
+                  {segmentStatusLabels[contact.status]}
+                </span>
               </TableCell>
-              <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
-                <Chip muted>{segmentStatusLabels[contact.status]}</Chip>
-              </TableCell>
-              <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
+              <TableCell column="preview" className="hidden md:hidden @3xl:table-cell">
                 <TagChips tags={contact.tags} />
               </TableCell>
-              <TableCell column="mutedMeta" className="hidden @6xl:table-cell">
-                {contact.emailsSent ? `Opened ${contact.emailsOpened} of ${contact.emailsSent}` : "Not sent any"}
+              <TableCell column="mutedMeta" className="hidden @4xl:table-cell">
+                {contact.emailsSent ? `Opened ${contact.emailsOpened} of ${contact.emailsSent}` : "No sends yet"}
               </TableCell>
               <TableCell column="mutedMeta">{formatInboxTime(contact.created_at)}</TableCell>
             </CrmTableRow>

@@ -10,6 +10,7 @@ import {
   segmentConditionIsComplete,
   segmentReferences,
   segmentRulesMatch,
+  tagDotClassName,
   type SegmentCondition,
 } from "@/lib/contacts/contact-segments"
 
@@ -334,3 +335,15 @@ describe("finding what a segment points at", () => {
     expect(segmentReferences(defaultSegmentRules())).toEqual([])
   })
 })
+
+describe("a tag's dot colour on the Subscribers table", () => {
+  it("is the same for the same tag, whatever its case or spaces", () => {
+    expect(tagDotClassName("Job Tracker")).toBe(tagDotClassName(" job tracker "))
+  })
+
+  it("spreads different tags over more than one colour", () => {
+    const colours = new Set(["Job Tracker", "Wheel of Life", "Test Prep Manager", "Running Log Planner", "beta", "sdf"].map(tagDotClassName))
+    expect(colours.size).toBeGreaterThan(1)
+  })
+})
+

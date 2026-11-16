@@ -1,0 +1,275 @@
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+
+import { newSequenceEmail, type SequenceSteps } from "@/lib/broadcasts/sequence-graph"
+import { sendSequenceNode } from "@/lib/automations/nodes/send-sequence"
+import { automationExecutors } from "@/server/automations/executors"
+import { executeWaitNode } from "@/server/automations/wait"
+import {
+  createWorkspaceAutomation,
+  listWorkspaceAutomations,
+  saveWorkspaceAutomation,
+} from "@/server/automations/flows"
+import { automationSectionCounts } from "@/server/automations/runs"
+import { now, uuid } from "@/server/auth/security"
+import type { CustomShellDb } from "@/server/db"
+import {
+  createSequence,
+  deleteSequences,
+  duplicateSequence,
+  listSequences,
+  saveSequence,
+  startSequenceForRun,
+} from "@/server/email/sequences"
+import {
+  customShellAutomationRuns,
+  customShellAutomationRunSteps,
+  customShellContacts,
+  type CustomShellAutomationRun,
+} from "@/server/schema"
+import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
+
+let client: PGlite
+let database: CustomShellDb
+let workspaceId: string
+let userId: string
+
+beforeEach(async () => {
+  const created = await createTestDatabase()
+  client = created.client
+  database = created.db
+  workspaceId = (await insertWorkspace(database)).id
+  userId = (await insertUser(database, { role: "admin" })).id
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+async function addContact(label: string) {
+  const contactId = uuid()
+  await database.insert(customShellContacts).values({
+    id: contactId,
+    workspaceId,
+    email: `${label}@example.test`,
+    firstName: label,
+    status: "subscribed",
+    tags: [],
+    createdAt: now(),
+    updatedAt: now(),
+  })
+  return contactId
+}
+
+function readySteps(): SequenceSteps {
+  return {
+    emails: [
+      { ...newSequenceEmail(true), id: "one", subject: "Welcome" },
+      { ...newSequenceEmail(false), id: "two", subject: "Three days in", wait: { amount: 3, unit: "days" } },
+    ],
+  }
+}
+
+async function makeReadySequence() {
+  const made = await createSequence(workspaceId, userId, "Welcome series", database)
+  return saveSequence(workspaceId, { id: made.id, name: made.name, steps: readySteps() }, database)
+}
+
+/** A flow run about one person, as a segment start makes, stopped at its Send sequence step. */
+function flowRun(subject: { contactId: string | null; label: string | null }): CustomShellAutomationRun {
+  const timestamp = now()
+  const run: CustomShellAutomationRun = {
+    id: uuid(),
+    automationId: uuid(),
+    userId,
+    workspaceId,
+    status: "active",
+    currentNodeId: "send",
+    configSnapshot: { v: 1, kind: "automation", nodes: {}, edges: [] },
+    wakeAt: timestamp,
+    attempts: 0,
+    claimToken: null,
+    claimedAt: null,
+    error: null,
+    approvalNodeId: null,
+    approvalSummary: null,
+    approvalDeadlineAt: null,
+    approvalDecision: null,
+    approvalDecidedAt: null,
+    approvalDecidedBy: null,
+    subjectUserId: null,
+    subjectLabel: subject.label,
+    subjectContactId: subject.contactId,
+    testRun: false,
+    testRecipientEmail: null,
+    triggerKind: "joinedSegment",
+    triggerKey: null,
+    triggerFacts: null,
+    startedAt: timestamp,
+    finishedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  return run
+}
+
+async function sequenceRuns(sequenceId: string) {
+  return database.select().from(customShellAutomationRuns).where(eq(customShellAutomationRuns.automationId, sequenceId))
+}
+
+describe("sequences", () => {
+  it("starts with one email and nothing about who gets it", async () => {
+    const made = await createSequence(workspaceId, userId, "Welcome series", database)
+    expect(made.steps).toEqual({ emails: [expect.objectContaining({ subject: "", wait: { amount: 0, unit: "days" } })] })
+    expect(made.usedBy).toEqual([])
+  })
+
+  it("stays off the Automations dashboard, and flows stay off the Sequences tab", async () => {
+    await makeReadySequence()
+    await createWorkspaceAutomation(workspaceId, userId, "A canvas flow", database)
+
+    expect((await listSequences(workspaceId, database)).map((row) => row.name)).toEqual(["Welcome series"])
+    expect((await listWorkspaceAutomations(workspaceId, database)).map((row) => row.name)).toEqual(["A canvas flow"])
+    expect((await automationSectionCounts(workspaceId, database)).automations).toBe(1)
+  })
+
+  it("cannot be saved from the canvas", async () => {
+    const sequence = await makeReadySequence()
+    const saved = await saveWorkspaceAutomation(
+      workspaceId,
+      { id: sequence.id, name: "Redrawn", graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } } },
+      database
+    )
+    expect(saved).toBeNull()
+    expect((await listSequences(workspaceId, database))[0]?.steps?.emails).toHaveLength(2)
+  })
+
+  it("names the automations whose Send sequence step sends it", async () => {
+    const sequence = await makeReadySequence()
+    await createWorkspaceAutomation(workspaceId, userId, "New subscriber welcome", database, {
+      nodes: [{ id: "send", kind: sendSequenceNode.kind, x: 0, y: 0, settings: { sequenceId: sequence.id, sequenceName: "Welcome series" } }],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    })
+    await createWorkspaceAutomation(workspaceId, userId, "Unrelated flow", database)
+    expect((await listSequences(workspaceId, database))[0]?.usedBy.map((flow) => flow.name)).toEqual(["New subscriber welcome"])
+  })
+
+  it("may share a name with an automation, but not with another sequence", async () => {
+    await createWorkspaceAutomation(workspaceId, userId, "test", database)
+    const sequence = await createSequence(workspaceId, userId, "test", database)
+    expect(sequence.name).toBe("test")
+    await expect(createSequence(workspaceId, userId, "test", database)).rejects.toThrow("NAME_TAKEN")
+  })
+
+  it("copies as a sequence", async () => {
+    const sequence = await makeReadySequence()
+    const copy = await duplicateSequence(workspaceId, userId, sequence.id, database)
+    expect(copy.name).toBe("Welcome series copy")
+    expect(copy.steps?.emails).toHaveLength(2)
+  })
+
+  it("deletes sequences only, never a flow passed by mistake", async () => {
+    const sequence = await makeReadySequence()
+    const flow = await createWorkspaceAutomation(workspaceId, userId, "A canvas flow", database)
+    expect(await deleteSequences(workspaceId, [sequence.id, flow.id], database)).toBe(1)
+    expect(await listSequences(workspaceId, database)).toEqual([])
+    expect(await listWorkspaceAutomations(workspaceId, database)).toHaveLength(1)
+  })
+})
+
+describe("the Send sequence step", () => {
+  it("starts the sequence for the run's person at email 1, once even if retried", async () => {
+    const sequence = await makeReadySequence()
+    const contactId = await addContact("newcomer")
+    const run = flowRun({ contactId, label: "newcomer" })
+    const settings = { sequenceId: sequence.id, sequenceName: "Welcome series" }
+
+    const summary = await startSequenceForRun({ run, nodeId: "send", settings, now: now(), testRun: false }, database)
+    await startSequenceForRun({ run, nodeId: "send", settings, now: now(), testRun: false }, database)
+
+    expect(summary).toBe("Started “Welcome series” (2 emails) for newcomer.")
+    const runs = await sequenceRuns(sequence.id)
+    expect(runs).toHaveLength(1)
+    expect(runs[0]).toEqual(expect.objectContaining({ subjectContactId: contactId, currentNodeId: "email-one", status: "active" }))
+    expect(runs[0]!.configSnapshot?.edges).toEqual([
+      expect.objectContaining({ from: "email-one", to: "wait-two" }),
+      expect.objectContaining({ from: "wait-two", to: "email-two" }),
+    ])
+    expect((await listSequences(workspaceId, database))[0]?.inProgress).toBe(1)
+  })
+
+  it("carries on past a wait, although a sequence is never switched on", async () => {
+    const sequence = await makeReadySequence()
+    const run = flowRun({ contactId: await addContact("waiter"), label: "waiter" })
+    await startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: sequence.id }, now: now(), testRun: false }, database)
+    const [started] = await sequenceRuns(sequence.id)
+    // The line the Wait wrote on the way in, as the engine records it.
+    const timestamp = now()
+    await database.insert(customShellAutomationRunSteps).values({
+      id: uuid(),
+      runId: started!.id,
+      nodeId: "wait-two",
+      kind: "wait",
+      status: "completed",
+      summary: "Waiting 3 days.",
+      output: { waitingUntil: timestamp.toISOString() },
+      startedAt: timestamp,
+      finishedAt: timestamp,
+    })
+
+    const woke = await executeWaitNode({
+      database,
+      run: started!,
+      nodeId: "wait-two",
+      settings: { amount: 3, unit: "days", stopOnClick: false },
+      now,
+    })
+    expect(woke).toEqual({ type: "next", summary: "Finished waiting." })
+  })
+
+  it("stops a run that is not about one person", async () => {
+    const sequence = await makeReadySequence()
+    const run = flowRun({ contactId: null, label: null })
+    await expect(
+      startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: sequence.id }, now: now(), testRun: false }, database)
+    ).rejects.toThrow("not about one person")
+    expect(await sequenceRuns(sequence.id)).toEqual([])
+  })
+
+  it("stops on a sequence that was deleted, naming it", async () => {
+    const sequence = await makeReadySequence()
+    await deleteSequences(workspaceId, [sequence.id], database)
+    const run = flowRun({ contactId: await addContact("late"), label: "late" })
+    await expect(
+      startSequenceForRun(
+        { run, nodeId: "send", settings: { sequenceId: sequence.id, sequenceName: "Welcome series" }, now: now(), testRun: false },
+        database
+      )
+    ).rejects.toThrow("The sequence “Welcome series” no longer exists")
+  })
+
+  it("stops on a sequence with an email not ready to send", async () => {
+    const made = await createSequence(workspaceId, userId, "Half written", database)
+    const run = flowRun({ contactId: await addContact("early"), label: "early" })
+    await expect(
+      startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: made.id }, now: now(), testRun: false }, database)
+    ).rejects.toThrow("has an email that is not ready")
+  })
+
+  it("starts nothing in a dry run", async () => {
+    const sequence = await makeReadySequence()
+    const run = flowRun({ contactId: await addContact("dry"), label: "dry" })
+    const result = await automationExecutors[sendSequenceNode.kind]!({
+      database,
+      run,
+      nodeId: "send",
+      settings: { sequenceId: sequence.id },
+      now,
+      dryRun: true,
+    })
+    expect(result.type).toBe("next")
+    expect(await sequenceRuns(sequence.id)).toEqual([])
+  })
+})

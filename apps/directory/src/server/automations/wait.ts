@@ -66,6 +66,8 @@ async function waitingUntil(
  *
  * A run somebody started by hand is left alone: a flow that is only ever run
  * by hand is always off, and stopping it here would stop every one of them.
+ * So is a run of one of the CRM's sequences: a sequence has no switch, so it
+ * is always off, and a flow's Send sequence step is what started it.
  */
 async function flowSwitchedOff(
   run: CustomShellAutomationRun,
@@ -73,10 +75,14 @@ async function flowSwitchedOff(
 ): Promise<boolean> {
   if (!run.triggerKind) return false
   const [flow] = await database
-    .select({ enabled: customShellAutomations.enabled })
+    .select({
+      enabled: customShellAutomations.enabled,
+      kind: customShellAutomations.kind,
+    })
     .from(customShellAutomations)
     .where(eq(customShellAutomations.id, run.automationId))
     .limit(1)
+  if (flow?.kind === "sequence") return false
   return !flow?.enabled
 }
 

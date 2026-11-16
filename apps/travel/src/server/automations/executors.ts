@@ -8,6 +8,7 @@ import {
   waitForApprovalNode,
 } from "@/lib/automations/nodes/wait-for-approval"
 import { sendEmailNode } from "@/lib/automations/nodes/send-email"
+import { sendSequenceNode } from "@/lib/automations/nodes/send-sequence"
 import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
@@ -44,6 +45,7 @@ import {
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
 import { executeWaitNode } from "@/server/automations/wait"
+import { startSequenceForRun } from "@/server/email/sequences"
 import { changeMemberTag } from "@/server/people/member-tags"
 import { normalizeMemberTag } from "@/lib/member-tags"
 
@@ -209,6 +211,17 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
       summary: `${MEMBER_EVENT_LABELS[event]} for ${who}.`,
     }
   },
+
+  /**
+   * Starts one of the CRM's sequences for this run's person, and the flow
+   * carries on at once. The sequence's own run sends its emails and waits.
+   */
+  [sendSequenceNode.kind]: async ({ database, run, nodeId, settings, now, testRun, dryRun }) => ({
+    type: "next",
+    summary: dryRun
+      ? "Would start the sequence for this person. Nothing was started in this dry run."
+      : await startSequenceForRun({ run, nodeId, settings, now: now(), testRun: Boolean(testRun) }, database),
+  }),
 
   [memberTagNode.kind]: async ({ database, run, settings, testRun }) => {
     const mode = settings.mode

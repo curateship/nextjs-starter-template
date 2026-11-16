@@ -9,6 +9,7 @@ import {
   loadBroadcastsPage,
   loadBroadcastTemplates,
 } from "@/lib/api/email/broadcasts"
+import { loadSequences } from "@/lib/api/email/sequences"
 import { loadDevOutbox } from "@/lib/api/email/dev-outbox"
 import { loadSystemEmailsPage } from "@/lib/api/email/system-emails"
 import { loadSegmentChoices } from "@/lib/api/people/contact-segments"
@@ -89,7 +90,7 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
     // they can go to by name, and how new blocks start out. The saved block
     // setups are a convenience, so a failure there falls back to the
     // built-in ones.
-    const [broadcasts, templates, segments, defaults] = await Promise.all([
+    const [broadcasts, templates, segments, defaults, sequences] = await Promise.all([
       loadBroadcastsPage({
         search: search.q,
         limit: 200,
@@ -102,8 +103,10 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
       templatesPill ? loadBroadcastTemplates().then((read) => read.templates) : Promise.resolve([]),
       loadSegmentChoices(),
       loadBroadcastBlockDefaults().catch(() => ({ defaults: {} })),
+      // Read on either tab, so both header tabs carry their counts.
+      loadSequences(),
     ])
-    return { tab, broadcasts, templates, segments, blockDefaults: defaults.defaults }
+    return { tab, broadcasts, templates, segments, blockDefaults: defaults.defaults, sequences }
   }
 
   const view = search.view

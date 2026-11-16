@@ -278,9 +278,11 @@ export function CrmTableRow({
    * a Pages row's cog opens its page in the builder (Tyler, 9 Nov 2026: "in
    * pages table clicking on the cog should go to the editor"). `icon` draws
    * something other than the cog, as Trade's Backtests rows draw a chart
-   * (11 Nov 2026).
+   * (11 Nov 2026). `false` draws no cog, where a press on the row is the only
+   * way in (Subscribers; Tyler, 16 Nov 2026: "remove the settings cog icon
+   * and link").
    */
-  cog?: { label: string; onPress: () => void; icon?: React.ReactNode }
+  cog?: { label: string; onPress: () => void; icon?: React.ReactNode } | false
   /** More icon buttons after the cog and before the bin, each with its name. */
   buttons?: readonly { label: string; icon: React.ReactNode; onPress: () => void }[]
   /** A bin after the open button, as Project's rows have; the caller asks first. */
@@ -369,15 +371,17 @@ export function CrmTableRow({
       <RowOpen.Provider value={shownOpen}>{children}</RowOpen.Provider>
       {withActions ? (
       <TableCell column="actions">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={cog?.label ?? `Open ${label}`}
-          onClick={cog ? cog.onPress : press}
-        >
-          {cog?.icon ?? <SettingsIcon className="size-4" />}
-        </Button>
+        {cog === false ? null : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={cog?.label ?? `Open ${label}`}
+            onClick={cog ? cog.onPress : press}
+          >
+            {cog?.icon ?? <SettingsIcon className="size-4" />}
+          </Button>
+        )}
         {buttons?.map((button) => (
           <Button
             key={button.label}
@@ -412,12 +416,15 @@ export function CrmTableRow({
 export function MainCell({
   lead,
   name,
+  line,
   avatar,
   strong = false,
   children,
 }: {
   lead?: React.ReactNode
   name: string
+  /** A muted second line under the name, such as a subscriber's address. */
+  line?: string
   /**
    * A person's row: their initials in a small round avatar between the dot
    * and the name (Tyler, 9 Nov 2026: "Users, inbox, subscribers and leads
@@ -446,9 +453,18 @@ export function MainCell({
             <AvatarFallback className="text-[0.5625rem] font-medium">{initialsFor(avatar.name, avatar.email)}</AvatarFallback>
           </Avatar>
         ) : null}
-        <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
-          {name}
-        </span>
+        {line ? (
+          <span className="grid min-w-0 leading-tight">
+            <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
+              {name}
+            </span>
+            <span className="line-clamp-1 min-w-0 break-all text-xs text-muted-foreground">{line}</span>
+          </span>
+        ) : (
+          <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
+            {name}
+          </span>
+        )}
         {children}
       </span>
     </TableCell>

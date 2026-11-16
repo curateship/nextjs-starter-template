@@ -21,6 +21,7 @@ import { memberTagNode } from "./nodes/member-tag"
 import { placeholderNode } from "./nodes/placeholder"
 import { segmentDripNode } from "./nodes/segment-drip"
 import { sendEmailNode } from "./nodes/send-email"
+import { sendSequenceNode } from "./nodes/send-sequence"
 import { timeActivateNode } from "./nodes/time-activate"
 import { waitNode } from "./nodes/wait"
 import { waitForApprovalNode } from "./nodes/wait-for-approval"
@@ -44,6 +45,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   timeActivateNode,
   placeholderNode,
   sendEmailNode,
+  sendSequenceNode,
   waitNode,
   waitForApprovalNode,
   webhookNode,

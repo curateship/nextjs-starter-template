@@ -88,6 +88,7 @@ describe("an app that adds nothing", () => {
       "action-send-email",
       "action-webhook",
       "flow-audience",
+      "flow-send-sequence",
       "flow-wait",
       "flow-approval",
       "step-ai",
