@@ -20,9 +20,25 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
  *
  * The layout is saved per browser, not per account. Every key belongs in
  * `panelLayoutKey` below so they cannot collide or drift.
+ *
+ * `keepPixels` names panels that keep their width in pixels when the group
+ * gets wider or narrower, as a three-panel dashboard's side panels do when the
+ * left menu folds (Tyler, 16 Nov 2026: "when i collapse the sidebar. The left
+ * panel changes the width I set it as"). Those panels also carry
+ * `groupResizeBehavior="preserve-pixel-size"`, and `elementRef` goes on the
+ * group so the saved layout keeps the group's width with it. A layout saved
+ * with the menu folded then comes back at the same pixels with it open, rather
+ * than as the same share of a narrower group, which shrank the panels a little
+ * on every reload.
  */
-export function useRememberedPanelLayout(key: string, defaults?: Layout) {
+export function useRememberedPanelLayout(
+  key: string,
+  defaults?: Layout,
+  { keepPixels = [] }: { keepPixels?: readonly string[] } = {}
+) {
   const [group, groupRef] = useGroupCallbackRef()
+  const elementRef = React.useRef<HTMLDivElement | null>(null)
+  const keepPixelsJson = JSON.stringify(keepPixels)
   // The key whose saved layout is on the group now. Nothing is saved for a
   // key until then: a group that adds or drops a panel (Admin's Overview has
   // two, its other sections three) reports its default layout while it
@@ -43,7 +59,13 @@ export function useRememberedPanelLayout(key: string, defaults?: Layout) {
     let saved: Layout | null = null
     try {
       const text = localStorage.getItem(key)
-      saved = text ? (JSON.parse(text) as Layout) : null
+      saved = text
+        ? inPixelsOf(
+            JSON.parse(text) as SavedLayout,
+            elementRef.current?.offsetWidth ?? 0,
+            JSON.parse(keepPixelsJson) as string[]
+          )
+        : null
     } catch {
       // Storage that cannot be read leaves the defaults standing.
     }
@@ -78,13 +100,14 @@ export function useRememberedPanelLayout(key: string, defaults?: Layout) {
     }
     apply()
     return () => cancelAnimationFrame(frame)
-  }, [key, group])
+  }, [key, group, keepPixelsJson])
 
   const onLayoutChanged = React.useCallback(
     (layout: Layout) => {
       if (appliedKey !== key) return
+      const width = elementRef.current?.offsetWidth ?? 0
       try {
-        localStorage.setItem(key, JSON.stringify(layout))
+        localStorage.setItem(key, JSON.stringify(width > 0 ? { layout, width } : layout))
       } catch {
         // Storage may be blocked; resizing still works for this session.
       }
@@ -92,7 +115,36 @@ export function useRememberedPanelLayout(key: string, defaults?: Layout) {
     [key, appliedKey]
   )
 
-  return { groupRef, onLayoutChanged }
+  return { groupRef, elementRef, onLayoutChanged }
+}
+
+/** A layout as saved: the shares alone, or with the group's width then. */
+type SavedLayout = Layout | { layout: Layout; width: number }
+
+/**
+ * The saved layout for a group `width` pixels wide: each `keepPixels` panel
+ * at the pixels it had when saved, and the space that frees or takes given to
+ * the panels that keep their share. The group checks the result against each
+ * panel's smallest and largest size, as it does any layout handed to it.
+ */
+export function inPixelsOf(saved: SavedLayout, width: number, keepPixels: readonly string[]): Layout {
+  if (!("layout" in saved && typeof saved.layout === "object")) return saved as Layout
+  const { layout, width: savedWidth } = saved
+  if (!(width > 0) || !(savedWidth > 0) || width === savedWidth) return layout
+  const next: Layout = { ...layout }
+  let kept = 0
+  let keptBefore = 0
+  for (const id of keepPixels) {
+    if (!(id in layout)) continue
+    next[id] = (layout[id] * savedWidth) / width
+    kept += next[id]
+    keptBefore += layout[id]
+  }
+  const others = Object.keys(layout).filter((id) => !keepPixels.includes(id))
+  const othersBefore = 100 - keptBefore
+  if (others.length === 0 || othersBefore <= 0) return layout
+  for (const id of others) next[id] = (layout[id] / othersBefore) * (100 - kept)
+  return next
 }
 
 /**

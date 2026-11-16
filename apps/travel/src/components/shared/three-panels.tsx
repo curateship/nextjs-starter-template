@@ -35,9 +35,38 @@ import {
 } from "@/lib/layout/styling-values"
 import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { cn } from "@/lib/utils"
 
 type Side = { label: string; content: React.ReactNode; showLabel: string }
+
+/** The panels that keep their pixels when the left menu folds. */
+const SIDE_PANELS = ["left", "right"] as const
+
+/**
+ * A side panel's narrowest and widest sizes, as a share of the frame measured
+ * when the dashboard opens and again only when the window itself is resized.
+ * Folding the left menu widens the frame but leaves these in pixels. As
+ * shares of the frame, they grew with it: a panel at its narrowest was pushed
+ * wider, from 124 to 136 pixels, and stayed there once the menu came back
+ * (Tyler, 16 Nov 2026: "it still does it but less"). Until the frame is
+ * measured they stay plain shares.
+ */
+function useSideSizeBasis(elementRef: React.RefObject<HTMLDivElement | null>, wide: boolean) {
+  const [basis, setBasis] = React.useState(0)
+  useEffectBeforePaint(() => {
+    const element = elementRef.current
+    if (!wide || !element) return
+    const measure = () => setBasis(element.offsetWidth)
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [elementRef, wide])
+  return React.useCallback(
+    (percent: number) => (basis > 0 ? `${(basis * percent) / 100}px` : `${percent}%`),
+    [basis]
+  )
+}
 
 /**
  * What a panel's header can reach: the press that shuts or opens each side,
@@ -297,7 +326,8 @@ export function ThreePanels({
     () => ({ left: leftWidth, middle: middleWidth, ...(right ? { right: rightWidth } : {}) }),
     [leftWidth, middleWidth, rightWidth, right]
   )
-  const layout = useRememberedPanelLayout(widthsKey, defaultLayout)
+  const layout = useRememberedPanelLayout(widthsKey, defaultLayout, { keepPixels: SIDE_PANELS })
+  const sideSize = useSideSizeBasis(layout.elementRef, wide)
   const leftState = usePanelCollapsed(leftRef)
   const rightState = usePanelCollapsed(rightRef)
   // Every fold and open slides rather than snapping (`usePanelFold`).
@@ -364,6 +394,7 @@ export function ThreePanels({
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
         groupRef={layout.groupRef}
+        elementRef={layout.elementRef}
         orientation="horizontal"
         className={cn("min-h-0 flex-1", foldingClassName)}
         onLayoutChanged={layout.onLayoutChanged}
@@ -373,9 +404,14 @@ export function ThreePanels({
           panelRef={leftRef}
           collapsible
           collapsedSize="0%"
+          // Folding the left menu, or any change in the window's width, goes
+          // to the middle. The side panels keep the widths set for them
+          // (Tyler, 16 Nov 2026: "when i collapse the sidebar. The left panel
+          // changes the width I set it as, it expands about 10%").
+          groupResizeBehavior="preserve-pixel-size"
           defaultSize={`${leftWidth}%`}
-          minSize={`${DEFAULT_LEFT_PANEL_WIDTH}%`}
-          maxSize="36%"
+          minSize={sideSize(DEFAULT_LEFT_PANEL_WIDTH)}
+          maxSize={sideSize(36)}
           onResize={leftState.onResize}
         >
           <WorkspacePanel
@@ -408,9 +444,10 @@ export function ThreePanels({
               panelRef={rightRef}
               collapsible
               collapsedSize="0%"
+              groupResizeBehavior="preserve-pixel-size"
               defaultSize={`${rightWidth}%`}
-              minSize={`${DEFAULT_RIGHT_PANEL_WIDTH}%`}
-              maxSize="36%"
+              minSize={sideSize(DEFAULT_RIGHT_PANEL_WIDTH)}
+              maxSize={sideSize(36)}
               onResize={rightState.onResize}
             >
               <WorkspacePanel

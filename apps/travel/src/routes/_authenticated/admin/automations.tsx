@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { AutomationsDashboard, type AutomationsLoaded } from "@/components/automations/automations-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { restoreDashboardPlace, ssrUnlessBare } from "@/lib/layout/dashboard-place"
+import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { listWaitingRuns } from "@/lib/api/automations/automation-runs"
 import { getAutomationTemplate } from "@/lib/api/automations/automation-templates"
 import {
@@ -27,6 +29,11 @@ import {
  * `/admin/automations/templates/<key>` addresses are gone.
  */
 export const Route = createFileRoute("/_authenticated/admin/automations")({
+  // A bare address goes back to where the dashboard was before anything
+  // loads (`src/lib/layout/dashboard-place.ts`).
+  ssr: ssrUnlessBare,
+  beforeLoad: ({ search, location, matches, cause }): void =>
+    restoreDashboardPlace(panelLayoutKey.automationsPlace, { search, location, matches, cause }),
   // The canvas keeps its own graph state. Never redraw it from a cached
   // loader answer after somebody leaves, or a saved step could look lost.
   gcTime: 0,

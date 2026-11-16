@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate } from "@tanstack/react-router"
+import { getRouteApi, redirect, useNavigate } from "@tanstack/react-router"
 
 const authenticatedRoute = getRouteApi("/_authenticated")
 
@@ -28,6 +28,14 @@ const authenticatedRoute = getRouteApi("/_authenticated")
  * place is kept in this browser, once per person and per site, so one site's
  * segment never opens on another's. Both moves replace the address rather than
  * adding to the history, so Back still leaves the page.
+ *
+ * The way back is taken before the dashboard loads anything, by
+ * `restoreDashboardPlace` in the route's `beforeLoad`, so a left-menu
+ * click never draws the Overview first and then swaps (Tyler, 16 Nov 2026:
+ * "it loads the overview first and it takes 1 sec to redirect me"). The
+ * server cannot read this browser's memory, so it leaves a bare address to
+ * the browser (`ssrUnlessBare`). The effect below still covers a dashboard
+ * whose route does not ask early.
  *
  * `onQuietOpen` hears each id this opens by itself, so a narrow screen stays on
  * the list instead of jumping to the record nobody pressed.
@@ -61,7 +69,7 @@ export function useDashboardPlace({
   const site =
     workspaces.workspaces.find((workspace) => workspace.active) ??
     workspaces.workspaces[0]
-  const storageKey = `${placeKey}:${user.id}:${site?.id ?? "app"}`
+  const storageKey = placeStorageKey(placeKey, user.id, site?.id)
   // Compared as text: the route hands over a fresh object and the screen a
   // fresh list on every render, and neither means anything moved.
   const placeJson = JSON.stringify(placeOf(search))
@@ -76,6 +84,13 @@ export function useDashboardPlace({
   // Counts the remembered addresses that have finished loading, so the
   // effect runs again with the list they brought.
   const [restores, setRestores] = React.useState(0)
+  // While this dashboard shows, its route leaves in-page moves alone.
+  React.useEffect(() => {
+    shownPlaces.add(placeKey)
+    return () => {
+      shownPlaces.delete(placeKey)
+    }
+  }, [placeKey])
   // Fresh every render; keeping it in a ref leaves the effect keyed on what
   // actually changes.
   const onQuietOpenRef = React.useRef(onQuietOpen)
@@ -96,8 +111,12 @@ export function useDashboardPlace({
       }
     }
     if (stepRef.current === "start") {
-      const saved = Object.keys(place).length === 0 ? readPlace(storageKey) : null
       stepRef.current = "opening"
+      // Already taken back by the route, before anything loaded: still a
+      // remembered place, so its open record is checked against the list.
+      if (takeEarlyRestore(storageKey, placeJson)) restoredRef.current = true
+      const saved =
+        !restoredRef.current && Object.keys(place).length === 0 ? readPlace(storageKey) : null
       if (saved) {
         stepRef.current = "restoring"
         restoredRef.current = true
@@ -136,6 +155,92 @@ export function useDashboardPlace({
     }
     writePlace(storageKey, placeJson)
   }, [placeJson, storageKey, idsJson, ready, navigate, restores, section])
+}
+
+/**
+ * The route's half of coming back: called in a dashboard route's
+ * `beforeLoad`, it sends a bare address straight to the remembered one, so
+ * only that section loads. In the browser only, since the place is kept in
+ * this browser. It needs the signed-in area's data to know whose place to
+ * read; when that is not in hand yet, the hook's own effect does the job.
+ */
+export function restoreDashboardPlace(
+  placeKey: string,
+  {
+    search,
+    location,
+    matches,
+    cause,
+  }: {
+    search: Record<string, unknown>
+    /** A hover's preload never goes back; only a real arrival does. */
+    cause: "enter" | "stay" | "preload"
+    location: { pathname: string }
+    matches: ReadonlyArray<{ routeId: string; loaderData?: unknown }>
+  }
+) {
+  if (typeof window === "undefined") return
+  // Only on arrival. A move inside a dashboard already showing, such as
+  // closing its record, leaves the address as it is. The first load in the
+  // browser counts as "stay", so whether the dashboard is showing decides.
+  if (cause === "preload" || shownPlaces.has(placeKey)) return
+  if (Object.keys(placeOf(search)).length > 0) return
+  const shell = matches.find((match) => match.routeId === "/_authenticated")?.loaderData as
+    | {
+        user?: { id: string }
+        workspaces?: { workspaces: Array<{ id: string; active?: boolean }> }
+      }
+    | undefined
+  if (!shell?.user || !shell.workspaces) return
+  const site =
+    shell.workspaces.workspaces.find((workspace) => workspace.active) ??
+    shell.workspaces.workspaces[0]
+  const storageKey = placeStorageKey(placeKey, shell.user.id, site?.id)
+  const saved = readPlace(storageKey)
+  if (!saved) return
+  const next = { ...search, ...saved }
+  earlyRestore = { storageKey, placeJson: sortedJson(placeOf(next)) }
+  const options = { to: location.pathname, search: next, replace: true }
+  throw redirect(options as unknown as Parameters<typeof redirect>[0])
+}
+
+/**
+ * A route's `ssr`: a bare address is drawn in the browser, which knows where
+ * the dashboard was, rather than by the server, which would draw the Overview
+ * only for the browser to leave it at once.
+ */
+export function ssrUnlessBare({
+  search,
+}: {
+  search: { status: "success"; value: unknown } | { status: "error" }
+}) {
+  if (search.status !== "success") return true
+  return Object.keys(placeOf(search.value as Record<string, unknown>)).length > 0
+}
+
+/** The `…Place` keys of the dashboards showing now. */
+const shownPlaces = new Set<string>()
+
+/** The last place a route restored early, for the hook to recognise. */
+let earlyRestore: { storageKey: string; placeJson: string } | null = null
+
+function takeEarlyRestore(storageKey: string, placeJson: string) {
+  const taken =
+    earlyRestore !== null &&
+    earlyRestore.storageKey === storageKey &&
+    // Key order aside: the route's search reader may list them differently.
+    earlyRestore.placeJson === sortedJson(JSON.parse(placeJson) as Record<string, unknown>)
+  if (taken) earlyRestore = null
+  return taken
+}
+
+function sortedJson(place: Record<string, unknown>) {
+  const entries = Object.entries(place).sort(([a], [b]) => a.localeCompare(b))
+  return JSON.stringify(Object.fromEntries(entries))
+}
+
+function placeStorageKey(placeKey: string, userId: string, siteId: string | undefined) {
+  return `${placeKey}:${userId}:${siteId ?? "app"}`
 }
 
 /**
