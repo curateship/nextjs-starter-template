@@ -16,6 +16,7 @@ import {
   loadLivePortfolio,
   placeLiveOrder,
   setLiveBrackets,
+  changeLiveLeverage,
 } from "@/server/trade/live-orders"
 import { loadLiveRefusals } from "@/server/trade/live-fills"
 import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
@@ -40,6 +41,7 @@ const cancel = vi.fn()
 const close = vi.fn()
 const fills = vi.fn()
 const setBrackets = vi.fn()
+const setLeverage = vi.fn()
 const portfolio = vi.fn()
 const actionPortfolio = vi.fn()
 const accountFetch = vi.fn()
@@ -96,7 +98,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
                 : {}),
             }
           : undefined,
-        orders: { place, cancel, close, fills, setBrackets, portfolio },
+        orders: { place, cancel, close, fills, setBrackets, setLeverage, portfolio },
       }
     },
   }
@@ -121,6 +123,7 @@ beforeEach(async () => {
     close,
     fills,
     setBrackets,
+    setLeverage,
     portfolio,
     actionPortfolio,
     accountFetch,
@@ -1951,5 +1954,134 @@ describe("a stop set by hand", () => {
     // The wait still applies: the readings the engine holds are just as old
     // whichever line was dragged.
     expect(plan.handSetAt).not.toBeNull()
+  })
+})
+
+describe("a leverage change on an open position", () => {
+  async function gridAt(
+    userId: string,
+    walletId: string,
+    direction: "long" | "short"
+  ) {
+    const plan = readSmartPlan("grid", {
+      topPx: 100_000,
+      bottomPx: 95_000,
+      potPct: 20,
+      startedAt: 1,
+      sizeDecimals: 3,
+      maxLeverage: 20,
+      direction,
+      levels: [95_000, 96_000].map((buyPx) => ({
+        buyPx,
+        sellPx: buyPx * 1.02,
+        sz: 0.2,
+        budget: buyPx * 0.2,
+        heldSz: 0.2,
+        status: "holding" as const,
+        armed: true,
+        dead: false,
+        cycles: 0,
+      })),
+      stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
+      aimedSlPx: 90_250,
+    })
+    if (!plan) throw new Error("the test's grid plan did not parse")
+    const id = crypto.randomUUID()
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id,
+      walletId,
+      marketKey: MARKET,
+      kind: "grid",
+      status: "active",
+      plan,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    return id
+  }
+
+  async function savedPlan(id: string) {
+    const rows = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, id))
+    return rows[0].plan as GridPlan
+  }
+
+  it("saves the new leverage on the coin's grid and keeps each rung's dollars", async () => {
+    // Tyler, 16 Nov 2026: a BTC position changed to 2x left its grid at 1x,
+    // so the grid's next fresh buy would have put the exchange back to 1x.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const long = await gridAt(userId, walletId, "long")
+    const short = await gridAt(userId, walletId, "short")
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 0.2,
+          entryPx: 95_000,
+          leverage: 1,
+          marginUsed: 19_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    setLeverage.mockResolvedValue(undefined)
+
+    await changeLiveLeverage(userId, {
+      walletId,
+      marketKey: MARKET,
+      leverage: 2,
+    })
+
+    expect(setLeverage).toHaveBeenCalledOnce()
+    const after = await savedPlan(long)
+    expect(after.leverage).toBe(2)
+    expect(after.levels.map((level) => level.budget)).toEqual([19_000, 19_200])
+    // The short side of a hedged coin is a different position.
+    expect((await savedPlan(short)).leverage).toBe(1)
+  })
+
+  it("leaves the grid alone when the exchange refuses", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const id = await gridAt(userId, walletId, "long")
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 0.2,
+          entryPx: 95_000,
+          leverage: 1,
+          marginUsed: 19_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+    setLeverage.mockRejectedValue(new Error("Hyperliquid refused"))
+
+    await expect(
+      changeLiveLeverage(userId, { walletId, marketKey: MARKET, leverage: 2 })
+    ).rejects.toThrow()
+
+    expect((await savedPlan(id)).leverage).toBe(1)
   })
 })

@@ -260,8 +260,8 @@ screen: anything not written there has not been agreed yet.
 - `dust-sweeper.md` - Sweep leftovers on a real Solana or BNB Chain wallet:
   what counts as a leftover, the fee-over-half rule, why BNB Chain sweeps into
   USDT, the one-coin-at-a-time run, and the real-money switches.
-- `position-margin.md` — changing leverage and the cash behind an open
-  position, Lighter signed changes and testing steps, ApeX Omni's per-market
+- `position-margin.md` — changing leverage and the cash behind an open position, how a leverage change carries over to the coin's grid,
+  Lighter signed changes and testing steps, ApeX Omni's per-market
   leverage and its one margin pool, exchange limits,
   withdrawal refusals and the estimated liquidation figure.
 - `stuck-wallet-warning.md` — when a wallet turn is called stuck, what the

@@ -193,9 +193,11 @@ add up to.
   position is then sold with the same chased maker order a part close uses —
   see `wallets/flatten-wallet.md`.
 - **Leverage and margin on an open position come from the exchange, never from
-  a copy.** Changing either asks the venue and writes nothing here; the row's
-  leverage, margin and liquidation price all come from the next portfolio read,
-  so a venue that clamps a request shows its own number.
+  a copy.** Changing either asks the venue; the row's leverage, margin and
+  liquidation price all come from the next portfolio read, so a venue that
+  clamps a request shows its own number. The one thing written here is the
+  accepted leverage on the coin's grids and ladders, so their next buys keep
+  it — see `wallets/position-margin.md`.
 - **Taking margin out is refused when it would bring the liquidation price
   inside the stop.** The stop is the worst case that was agreed to, and a
   liquidation inside it replaces that worst case with a bigger one quietly.

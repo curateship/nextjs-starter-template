@@ -36,7 +36,7 @@ import { readSmartPlan } from "@/lib/trade/smart-plan"
 import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
 import { formatUsd } from "@/lib/trade/format"
 import { overrodeNote } from "@/lib/trade/trading-rules"
-import { db } from "@/server/trade/db"
+import { db, withWalletPlanWrite } from "@/server/trade/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { slippageFraction } from "@/lib/trade/quick-order"
@@ -990,6 +990,13 @@ export async function changeLiveLeverage(
       szi: held.szi,
     })
     dropEngineExchangeReads(row)
+    await followLeverageOnPlans(
+      userId,
+      row.id,
+      input.marketKey,
+      held.szi > 0 ? "long" : "short",
+      asked
+    )
     // Behind the answer, not in front of it — see `placeLiveOrder`.
     void journal(userId, row.id, input.marketKey, {
       action: "brackets",
@@ -998,6 +1005,58 @@ export async function changeLiveLeverage(
     })
   } catch (error) {
     await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
+/**
+ * Saves a changed position leverage on the grids and DCA ladders trading that
+ * coin, so their next buys keep it.
+ *
+ * Without this, only the exchange's setting changed. A grid's buys added to the
+ * open position ran at the new figure, but once the grid sold everything, its
+ * next fresh buy sent the grid's own saved figure and put the exchange back
+ * (Tyler, 16 Nov 2026: a BTC grid at 1x after the position was changed to 2x).
+ *
+ * Only the leverage moves. Each rung keeps its dollar size, so the same buys
+ * tie up less of the wallet's cash. A grid on the other side of a hedged coin
+ * is left alone, and so is a DCA ladder when a short changes, because ladders
+ * only buy. Never throws, because the exchange has already changed.
+ */
+async function followLeverageOnPlans(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  side: "long" | "short",
+  leverage: number
+): Promise<void> {
+  try {
+    await withWalletPlanWrite(userId, walletId, async () => {
+      await db
+        .update(tradeSmartLadders)
+        .set({
+          plan: sql`jsonb_set(${tradeSmartLadders.plan}, '{leverage}', to_jsonb(${leverage}::int))`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(tradeSmartLadders.userId, userId),
+            eq(tradeSmartLadders.walletId, walletId),
+            eq(tradeSmartLadders.marketKey, marketKey),
+            eq(tradeSmartLadders.status, "active"),
+            sql`(
+              (${tradeSmartLadders.kind} = 'grid'
+                and coalesce(${tradeSmartLadders.plan}->>'direction', 'long') = ${side})
+              or (${tradeSmartLadders.kind} = 'dca' and ${side} = 'long')
+            )`
+          )
+        )
+    })
+  } catch (error) {
+    recordEngineError(
+      "live-orders",
+      "could not save a changed leverage on the coin's grids",
+      error
+    )
   }
 }
 

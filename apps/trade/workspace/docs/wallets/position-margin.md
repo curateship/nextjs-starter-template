@@ -44,6 +44,27 @@ too. Measured on a real Hyperliquid position at 1×: the app estimates
 liquidation at about 5% of the entry price where Hyperliquid says a fraction of
 a cent.
 
+## A leverage change carries over to the coin's grid
+
+Changing the leverage also saves the new figure on every active grid and DCA
+ladder trading that coin in that wallet. Before 16 Nov 2026 it changed only
+the exchange's setting. The grid kept its own saved figure, and once it had
+sold everything, its next fresh buy sent that old figure and put the exchange
+back.
+
+- **Each rung keeps its dollar size.** A grid at 1x changed to 2x still buys
+  $40 of BTC on a $40 rung, but now ties up $20 of the wallet's cash for it.
+- **The grid's own leverage is otherwise locked while it holds coins.** This
+  carry-over is the one way it changes then, because it only follows what the
+  exchange already holds.
+- **A refused change leaves the grid alone.** The grid is only written after
+  the exchange has said yes.
+- **The other side of a hedged coin is a separate position**, so a short grid
+  is left alone when the long changes. A DCA ladder only buys, so it is left
+  alone when a short changes.
+- **Cash already behind the position stays put.** On Hyperliquid, raising the
+  leverage takes no cash back out. The margin box does that.
+
 ## Taking margin out is refused when it would bring liquidation inside the stop
 
 A stop at $90 with liquidation moved to $92 means the exchange takes the trade
