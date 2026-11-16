@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { CrmDashboard, type CrmLoaded } from "@/components/crm/crm-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { restoreDashboardPlace, ssrUnlessBare } from "@/lib/layout/dashboard-place"
+import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { loadOverviewWidgets } from "@/lib/api/admin-dashboard"
 import { getCrmErrorMessage, loadInbox } from "@/lib/api/crm/inbox"
 import {
@@ -30,6 +32,11 @@ import {
  * `src/lib/crm/crm-search.ts` says which address keys belong to which.
  */
 export const Route = createFileRoute("/_authenticated/admin/crm")({
+  // A bare address goes back to where the dashboard was before anything
+  // loads (`src/lib/layout/dashboard-place.ts`).
+  ssr: ssrUnlessBare,
+  beforeLoad: ({ search, location, matches, cause }): void =>
+    restoreDashboardPlace(panelLayoutKey.crmPlace, { search, location, matches, cause }),
   validateSearch: readCrmSearch,
   // Everything except which record is open. Opening one must not refetch the
   // list underneath it: the right panel fetches its own.

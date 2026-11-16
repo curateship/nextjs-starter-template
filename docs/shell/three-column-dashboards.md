@@ -84,6 +84,18 @@ All of them are in `src/components/shared/`.
   belong to the address before the last change. The first row waits for it,
   so a remembered folder never opens a row from the folder it replaced.
   Note's library dashboard is the one that does.
+- **The way back is taken before anything loads** (Tyler, 16 Nov 2026: "it
+  loads the overview first and it takes 1 sec to redirect me"). Left to the
+  hook alone, a bare address loaded and drew the Overview, and only then
+  moved to the remembered section and loaded that too. On a live site this
+  took about a second. So a dashboard route also sets
+  `beforeLoad: restoreDashboardPlace(<its …Place key>, …)` and
+  `ssr: ssrUnlessBare`, both from `dashboard-place.ts`. A menu click then goes
+  straight to the remembered address, and only that section loads. The
+  server does not draw a bare address, because it cannot read this browser's
+  memory. The browser draws it instead and goes to the place first. Admin,
+  the CRM and Automations do this. A dashboard whose route does not still
+  gets back by the hook, just with the Overview showing first.
 - **`crm-table.tsx`, `CrmTableRow`'s buttons.** A row ends in a cog, which
   opens the row, and a bin when the app passes `onDelete`. `cog` gives the
   cog another job and name and, with `icon`, another picture.

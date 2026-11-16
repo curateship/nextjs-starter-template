@@ -3,6 +3,8 @@ import { createFileRoute, getRouteApi } from "@tanstack/react-router"
 import { AdminDashboard, type AdminLoaded } from "@/components/admin-dashboard/admin-dashboard"
 import { loadOverviewFigures } from "@/lib/admin-dashboard/overview-figures"
 import { routeErrorComponent } from "@/components/shell/route-error"
+import { restoreDashboardPlace, ssrUnlessBare } from "@/lib/layout/dashboard-place"
+import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import {
   adminRangeOf,
   adminTabOf,
@@ -32,6 +34,11 @@ const authenticatedRoute = getRouteApi("/_authenticated")
  * `src/lib/admin-dashboard/admin-search.ts` says what each address key means.
  */
 export const Route = createFileRoute("/_authenticated/admin/dashboard")({
+  // A bare address goes back to where the dashboard was before anything
+  // loads (`src/lib/layout/dashboard-place.ts`).
+  ssr: ssrUnlessBare,
+  beforeLoad: ({ search, location, matches, cause }): void =>
+    restoreDashboardPlace(panelLayoutKey.adminPlace, { search, location, matches, cause }),
   validateSearch: readAdminSearch,
   // The section and the range only. Users and the Media library read their
   // first page here from the address and then ask again in place as the
