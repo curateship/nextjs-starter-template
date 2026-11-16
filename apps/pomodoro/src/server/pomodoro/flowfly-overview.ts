@@ -6,6 +6,7 @@ import { listAdminBoard } from "@/server/pomodoro/admin-leaderboard"
 import { countWaitingShares } from "@/server/pomodoro/admin-shared-media"
 import {
   focusSessions,
+  pomodoroCatalogItems,
   pomodoroGroups,
   pomodoroMediaUploads,
   pomodoroProfiles,
@@ -48,10 +49,12 @@ const waitingShare = and(
 )
 
 /**
- * Each section's pill on the Dashboards block. Safety and Library count
- * what is waiting for an admin (reports to decide, shared files to approve,
- * Tyler's pick "Counts show waiting"); every other section counts its first
- * tab's rows: rooms, accounts, groups, tasks.
+ * Each section's pill on the Dashboards block. Safety counts the reports
+ * waiting for an admin (Tyler's pick "Counts show waiting"). Library counts
+ * every background and sound, Draft and Live together (Tyler, 15 Nov 2026:
+ * "it should show the amount of themes and sounds combineed"); `shares`, the
+ * shared files waiting for approval, is the Uploads tab's own count. Every
+ * other section counts its first tab's rows: rooms, accounts, groups, tasks.
  */
 export type FlowflyCounts = {
   rooms: number
@@ -60,15 +63,17 @@ export type FlowflyCounts = {
   social: number
   tasks: number
   library: number
+  shares: number
 }
 
 export async function readFlowflyCounts(): Promise<FlowflyCounts> {
-  const [[roomTotal], [accountTotal], [pending], [groupTotal], [taskTotal], shares] = await Promise.all([
+  const [[roomTotal], [accountTotal], [pending], [groupTotal], [taskTotal], [catalogTotal], shares] = await Promise.all([
     db.select({ total: count() }).from(rooms),
     db.select({ total: count() }).from(users),
     db.select({ total: count() }).from(roomReports).where(eq(roomReports.status, "pending")),
     db.select({ total: count() }).from(pomodoroGroups),
     db.select({ total: count() }).from(tasks),
+    db.select({ total: count() }).from(pomodoroCatalogItems),
     countWaitingShares(),
   ])
   return {
@@ -77,7 +82,8 @@ export async function readFlowflyCounts(): Promise<FlowflyCounts> {
     safety: pending?.total ?? 0,
     social: groupTotal?.total ?? 0,
     tasks: taskTotal?.total ?? 0,
-    library: shares,
+    library: catalogTotal?.total ?? 0,
+    shares,
   }
 }
 

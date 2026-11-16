@@ -10,7 +10,7 @@ import { readAdminRoomRecord, readFlowflyCounts, readFlowflyOverview, readWaitin
 import { listAdminProfiles } from "@/server/pomodoro/admin-profiles"
 import { getFlowflyPageAndSections, saveFlowflyPageBody, setFlowflyPageLock } from "@/server/pomodoro/flowfly-page"
 import { createRoomWithHost, joinRoomBySlug, postRoomMessage, reportRoomMessage } from "@/server/pomodoro/rooms"
-import { dailyFocusStats, pomodoroProfiles, roomMessages } from "@/server/pomodoro/schema"
+import { dailyFocusStats, pomodoroCatalogItems, pomodoroProfiles, roomMessages } from "@/server/pomodoro/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 
 /**
@@ -85,7 +85,9 @@ describe("the Flowfly dashboard's reads", () => {
     expect(waiting).toMatchObject({ total: 1, reports: 1, shares: 0, held: 0 })
     expect(waiting.items).toEqual([expect.objectContaining({ kind: "report", label: "Message report, Deep Work", line: "rude" })])
 
-    expect(await readFlowflyCounts()).toMatchObject({ rooms: 1, safety: 1, library: 0 })
+    // Library counts every background and sound; the shipped ones are already in.
+    const catalog = await db.select({ id: pomodoroCatalogItems.id }).from(pomodoroCatalogItems)
+    expect(await readFlowflyCounts()).toMatchObject({ rooms: 1, safety: 1, library: catalog.length, shares: 0 })
 
     const record = await readAdminRoomRecord(deep.id)
     expect(record?.reports.map((report) => [report.reason, report.status])).toEqual([["rude", "pending"]])

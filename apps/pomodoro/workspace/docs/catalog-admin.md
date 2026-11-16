@@ -40,6 +40,13 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
   where the worker cannot reach it, so `public/backgrounds/thumbs-lofi_girl.png`
   was replaced by hand with the frame at 30 seconds of its 60-second film. It
   used to be a 120 by 72 drawing.
+- **The record's ⋮ holds the details and credits** (Tyler, 15 Nov 2026: "the
+  details edit and the credit should be moved into the 3 dotted settings",
+  then "this is not following ui standard"). This replaces his 8 Oct rule
+  that the cog opens a window to edit. The ⋮ is the Admin 3 panel design's
+  record menu, and every row in it saves on its own.
+- **Backgrounds open as a grid** (Tyler, 15 Nov 2026: "add a list/grid
+  option here", then "make grid the default view").
 - **A sound has no picture at all.** Tyler, 10 Oct 2026: "remove all the
   current sound images with a new animated one (but static until played)".
   Every sound card, here and for members, draws a waveform from the sound's
@@ -88,12 +95,39 @@ and one for sounds. Add ability to add sound and theme in admin dashboard
 Flowfly → Library → Backgrounds and Sounds, one component
 (`admin-catalog-dashboard.tsx`). The old `/admin/pomodoro-themes`, `/admin/pomodoro-sounds` and `/admin/pomodoro-media` forward there.
 
+- **List or grid.** Backgrounds show as a grid of their pictures, four
+  across on a wide screen and two on a phone, each with its name and Draft
+  or Live. Two icons left of New background switch to the list and back.
+  The list is kept in the address as `?layout=list`; the grid is the
+  default, so it has no address value. Sounds have no pictures and are
+  always a list.
+  - **A tile** opens on the right when pressed. Pointed at, its film plays,
+    muted, and goes back to its still when the pointer leaves.
+  - **With Select on,** each tile has a tick box on its picture, and pressing
+    the tile ticks it. The grid has no tick-all box; that is in the list's
+    header.
+  - **Dragging into members' order** works in the list only.
 - **A row** shows the picture, the name, its kind, a sound's length, Free or
   Pro, a note while a new file is being prepared, or "File refused:" with the
   reason, "No licence set" on a Live item with none, Draft or Live, and how
   many personal rooms and open rooms have it.
-- **The name or the cog opens the window**, with `?open=<id>` in the address,
-  so Back closes it. New background or New sound opens it with `?open=new`.
+- **The right panel** shows the open item in one Details card: its film
+  (playable, with the browser's own controls, muted), its still while the
+  film is not ready, or a sound's wave with Play. Under it are Status, Free
+  or Pro, the kind, a sound's length, tags, who chose it, when it was added
+  and the licence. There are no Preview, Files or Credits cards (Tyler, 15
+  Nov 2026: "the preview should also be playable", "Put the video in
+  details", "remove these 2 toggles"). The foot holds Make live or Back to
+  draft alone, with no Live or Draft word beside it ("remove this label").
+- **The record's ⋮** is a menu with one General tab:
+  - **Details:** Name, Hint, Tags, Kind, Free or Pro, Status.
+  - **Credits:** Artist, Source link, Licence, Licence note.
+  - **Then** Replace file, and Delete in red under a line.
+  - Each row saves the moment it changes, with no Save button. Going Live
+    still needs a picture, and a sound needs a file; a refused change shows
+    why and puts the row back.
+- **Replace file** opens the window on its Files card alone. New background
+  or New sound opens the whole window.
 - **A sound row has a play button** that plays in the page only and stops when
   another plays.
 - **A tag filter** sits beside Draft or Live and Free or Pro once anything is
@@ -208,11 +242,12 @@ from Pixabay" meanwhile.
 ### A sound waiting for its file
 
 - **The row** says "Needs the file from Pixabay" with an "Open on Pixabay"
-  link that opens in a new tab. The window's Files card says the same, with
-  the link, in place of "No file yet."
+  link that opens in a new tab. The right panel shows the same link under the
+  picture, and the window's Files card says the same, with the link, in place
+  of "No file yet."
 - **Choose file in the window** is where the MP3 goes. Save queues it through
   the usual 2-to-5-minute check and the worker. There is no upload button on
-  the row; the cog is one click away.
+  the row; Replace file in the record's ⋮ is one click away.
 - **Live is refused until the file is ready**, by the check every sound
   already has.
 
@@ -308,7 +343,11 @@ queue (`link-imports.ts`).
 
 ## The window
 
-`admin-catalog-dialog.tsx`, three cards:
+`admin-catalog-dialog.tsx`. New background and New sound show all three
+cards. Replace file in the record's ⋮ shows Files alone, because the ⋮ holds
+the details and credits.
+
+The three cards:
 
 - **Details.** The name, the hint, the tags, the kind, Free or Pro, and Draft
   or Live. Tags are what members filter the cards by, and tick to shuffle; see

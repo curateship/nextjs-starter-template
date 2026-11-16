@@ -55,9 +55,12 @@ tabs in the middle's one header.
   Detect page.
 - **Dashboards block**, fixed: Overview and the six sections, each with a
   count, hidden and dragged from its ⋮. Safety counts the reports waiting for a
-  decision and Library counts the shared files waiting for approval (Tyler's
-  pick "Counts show waiting"); every other section counts its first tab's rows:
-  rooms, accounts, groups, tasks.
+  decision (Tyler's pick "Counts show waiting"). Library counts every
+  background and sound, Draft and Live together (Tyler, 15 Nov 2026: "it
+  should show the amount of themes and sounds combineed"); the shared files
+  waiting for approval are counted on Library's Member uploads tab instead.
+  Every other section counts its first tab's rows: rooms, accounts, groups,
+  tasks.
 - **Waiting on you block:** reports to decide, shared files to approve and
   held chat lines, oldest first. Pressing one opens it: a report on Safety →
   Reports, a share on Library → Member uploads, a held line in its room's

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
-import { Trash2Icon, XIcon } from "lucide-react"
+import { CheckIcon, Trash2Icon, XIcon } from "lucide-react"
 
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
 import { CrmTable, CrmTableRow } from "@/components/crm/crm-table"
@@ -46,6 +46,7 @@ const NOT_FILTERS = new Set([
   "tab",
   "window",
   "open",
+  "layout",
   "message",
   "member",
   // The Flowfly dashboard's own place: which section and tab show.
@@ -230,6 +231,7 @@ export function AdminListTable<Row, Sort extends string>({
   record,
   windows,
   footnote,
+  tiles,
   children,
 }: {
   /** Plural, lower case: "tasks". Used in the empty line and the tick-all box. */
@@ -272,6 +274,11 @@ export function AdminListTable<Row, Sort extends string>({
   windows?: React.ReactNode
   /** One muted line under the rows, such as Focus's totals. */
   footnote?: React.ReactNode
+  /**
+   * The rows as a grid of tiles (`AdminTile`), drawn in place of the table.
+   * Left out, the list is the table.
+   */
+  tiles?: React.ReactNode
   children: React.ReactNode
 }) {
   const { heading, frame, search: address } = useFlowflyTab()
@@ -397,6 +404,19 @@ export function AdminListTable<Row, Sort extends string>({
           buttons drops out: the open row's record on the right holds the rest. */}
       <div className="@container flex min-h-0 flex-1 flex-col @max-md:[&_[data-column=meta]]:hidden @max-md:[&_[data-column=mutedMeta]]:hidden @max-md:[&_[data-column=preview]]:hidden">
         <Rows.Provider value={rows}>
+          {tiles ? (
+            empty ? (
+              <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">{empty}</div>
+            ) : (
+              <div
+                role="list"
+                aria-label={noun}
+                className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-1 overflow-y-auto px-4 py-3 @xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5"
+              >
+                {tiles}
+              </div>
+            )
+          ) : (
           <CrmTable<Sort>
             // The main column's heading drops the table's 320px floor to 160px,
             // as the shell's Users list does, so a row never runs past the panel.
@@ -420,6 +440,7 @@ export function AdminListTable<Row, Sort extends string>({
           >
             {children}
           </CrmTable>
+          )}
         </Rows.Provider>
         {footnote ? (
           <p className="border-t px-6 py-2 text-sm text-muted-foreground" aria-live="polite">
@@ -534,4 +555,71 @@ export function AdminRow({
 /** Whether Select is on in the list around a row, so a row can show its drag handle only then. */
 export function useMassSelectOn() {
   return React.useContext(Rows)?.massSelect ?? false
+}
+
+/**
+ * One row of an operator list drawn as a tile in the grid: its picture, then
+ * what goes under it. Pressed, it opens on the right, as a row does; while
+ * Select is on, a tick box sits on the picture and pressing it ticks it.
+ * Right-click offers Mass select and Delete, as on a row.
+ */
+export function AdminTile({
+  id,
+  label,
+  tickable = true,
+  onDelete,
+  picture,
+  children,
+}: {
+  id: string
+  label: string
+  tickable?: boolean
+  onDelete?: () => void
+  picture: React.ReactNode
+  children: React.ReactNode
+}) {
+  const rows = React.useContext(Rows)
+  if (!rows) throw new Error("An admin tile is drawn outside its list.")
+  const selection = rows.massSelect ? rows.selection : null
+  const ticked = selection?.selected.has(id) ?? false
+  const open = rows.openId === id
+  return (
+    <div role="listitem" className="min-w-0">
+      <button
+        type="button"
+        aria-label={selection ? `Tick ${label}` : `Open ${label}`}
+        aria-pressed={selection ? ticked : undefined}
+        aria-current={open ? "true" : undefined}
+        disabled={Boolean(selection) && !tickable}
+        onClick={() => (selection ? selection.toggle(id) : rows.open(id))}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          rows.rightClick(id, event.clientX, event.clientY, onDelete)
+        }}
+        className={cn(
+          "group grid w-full gap-1.5 rounded-lg p-1.5 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring",
+          // The name grey, black while pointed at and while open, as a row's.
+          "[&_[data-row-name]]:text-muted-foreground [&_[data-row-name]]:transition-colors hover:[&_[data-row-name]]:text-foreground",
+          open && !selection && "bg-muted [&_[data-row-name]]:text-foreground",
+          ticked && "bg-muted/60"
+        )}
+      >
+        <span className="relative block aspect-video overflow-hidden rounded-md bg-muted">
+          {picture}
+          {selection && tickable ? (
+            <span
+              aria-hidden
+              className={cn(
+                "absolute top-1.5 left-1.5 grid size-4 place-items-center rounded-[4px] border shadow-xs",
+                ticked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"
+              )}
+            >
+              {ticked ? <CheckIcon className="size-3.5" /> : null}
+            </span>
+          ) : null}
+        </span>
+        {children}
+      </button>
+    </div>
+  )
 }

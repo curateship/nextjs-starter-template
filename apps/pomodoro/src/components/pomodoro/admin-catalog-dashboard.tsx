@@ -23,6 +23,8 @@ import {
   GripVerticalIcon,
   ImageIcon,
   ImportIcon,
+  LayoutGridIcon,
+  ListIcon,
   Loader2Icon,
   LockIcon,
   LockOpenIcon,
@@ -30,7 +32,6 @@ import {
   PauseIcon,
   PlayIcon,
   PlusIcon,
-  SettingsIcon,
   Trash2Icon,
   UploadIcon,
 } from "lucide-react"
@@ -40,20 +41,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { TableCell } from "@/components/ui/table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
-import { PanelCard } from "@/components/shared/panel-card"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { Chip, MainCell } from "@/components/crm/crm-table"
-import { AdminListTable, AdminRow, useAdminList, useMassSelectOn } from "@/components/pomodoro/admin-list"
+import { AdminListTable, AdminRow, AdminTile, useAdminList, useMassSelectOn } from "@/components/pomodoro/admin-list"
 import { AdminDeleteConfirm, useAdminDelete } from "@/components/pomodoro/admin-delete"
 import { DetailRecord, NoRecord } from "@/components/pomodoro/flowfly/detail-record"
 import { FilterPick } from "@/components/pomodoro/flowfly/filter-pick"
 import { AdminCatalogDialog } from "@/components/pomodoro/admin-catalog-dialog"
+import { CatalogRecordMenu } from "@/components/pomodoro/admin-catalog-record-menu"
 import { SoundWave } from "@/components/pomodoro/sound-wave"
 import { AdminCatalogImportDialog } from "@/components/pomodoro/admin-catalog-import-dialog"
 import { AdminCatalogYoutubeDialog } from "@/components/pomodoro/admin-catalog-youtube-dialog"
@@ -92,6 +92,7 @@ import { usePreviewAudio } from "@/lib/pomodoro/use-preview-audio"
 import { waitsForPixabayFile } from "@/lib/pomodoro/pixabay-links"
 import { isYoutubeClipImport } from "@/lib/pomodoro/youtube-links"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
  * Library → Backgrounds and Library → Sounds on the Flowfly dashboard, one
@@ -99,11 +100,13 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * generations and members upload can be in one dashboard. We just need
  * filtering and tabs to seperate them"). See `workspace/docs/catalog-admin.md`.
  *
- * A row is one item, Draft or Live, with its picture, whether it is free or
- * Pro, and how many personal rooms and open rooms have it. It opens on the
- * right with its picture or sound, its details, files and credits, and Make
- * live or Back to draft at the foot; Change opens the window that edits
- * them. Ticked rows can be made Free, Pro, Draft or Live in one press. With
+ * Backgrounds show as a grid of pictures by default, or as a list; Sounds
+ * are always a list. A row is one item, Draft or Live, with its picture,
+ * whether it is free or Pro, and how many personal rooms and open rooms have
+ * it. It opens on the right with its film, picture or sound and its details
+ * in one card, and Make live or Back to draft at the foot. Its ⋮ holds the
+ * details and credits, saving as they change, and Replace file, which opens
+ * the window on its Files card. Ticked rows can be made Free, Pro, Draft or Live in one press. With
  * Select on and the list in members' order on one page, rows drag into the
  * order members see. New, Upload several and the imports are the New
  * button's dropdown.
@@ -154,11 +157,14 @@ export function AdminCatalogDashboard({
   const sort: CatalogSortColumn = search.sort ?? "position"
   const direction = search.direction ?? "asc"
   const page = search.page ?? 1
+  // Backgrounds show as a grid of their pictures unless the list is picked
+  // (Tyler, 15 Nov 2026: "make grid the default view"); Sounds have none.
+  const grid = kind === "theme" && search.layout !== "list"
   const setPage = React.useCallback(
     (next: number) => setListSearch({ page: next > 1 ? next : undefined }),
     [setListSearch]
   )
-  // The item window: an item's id, "new", or shut.
+  // The item window: "new", an item's id for its Files card alone, or shut.
   const [windowFor, setWindowFor] = React.useState<string | undefined>(undefined)
 
   const selection = useSelection()
@@ -364,8 +370,33 @@ export function AdminCatalogDashboard({
             </>
           ),
         }}
+        view={
+          kind === "theme" ? (
+            <LayoutSwitch grid={grid} onChange={(next) => setListSearch({ layout: next ? undefined : "list" })} />
+          ) : undefined
+        }
+        tiles={
+          grid
+            ? rows.map((row) => (
+                <AdminTile
+                  key={row.id}
+                  id={row.id}
+                  label={row.label}
+                  onDelete={() => del.ask([row.id])}
+                  picture={<TilePicture row={row} />}
+                >
+                  <span className="flex min-w-0 items-center gap-2 px-0.5">
+                    <span data-row-name className="min-w-0 flex-1 truncate text-sm">
+                      {row.label}
+                    </span>
+                    <Chip muted={row.status !== "live"}>{row.status === "live" ? "Live" : "Draft"}</Chip>
+                  </span>
+                </AdminTile>
+              ))
+            : undefined
+        }
         footnote={
-          canDrag ? undefined : (
+          canDrag || grid ? undefined : (
             <>
               Rows drag into the order members see while the list is in that order, unfiltered and on one page.{" "}
               {sort !== "position" || direction !== "asc" ? (
@@ -482,7 +513,12 @@ export function AdminCatalogDashboard({
                 row={row}
                 busy={busy}
                 preview={preview}
-                onChange={() => setWindowFor(row.id)}
+                knownTags={tags}
+                onSaved={async () => {
+                  await list.refresh()
+                  setTags(await loadCatalogTags(kind).catch(() => tags))
+                }}
+                onReplaceFile={() => setWindowFor(row.id)}
                 onStatus={(next) => void runBulk([row.id], next)}
                 onDelete={() => del.ask([row.id])}
               />
@@ -529,6 +565,73 @@ export function AdminCatalogDashboard({
         </SortableContext>
       </AdminListTable>
     </DndContext>
+  )
+}
+
+/**
+ * List or grid, the two icons side by side in the list's header (Tyler,
+ * 15 Nov 2026: "add a list/grid option here ... to view the background
+ * theme"). The grid shows each background's picture; rows drag into the
+ * members' order only in the list.
+ */
+function LayoutSwitch({ grid, onChange }: { grid: boolean; onChange: (grid: boolean) => void }) {
+  const choices = [
+    { grid: false, label: "Show as a list", icon: <ListIcon className="size-4" /> },
+    { grid: true, label: "Show as a grid", icon: <LayoutGridIcon className="size-4" /> },
+  ]
+  return (
+    <div
+      role="group"
+      aria-label="List or grid"
+      className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-md border border-zinc-200/60 bg-background p-0.5 dark:border-zinc-700/60"
+    >
+      {choices.map((choice) => (
+        <button
+          key={choice.label}
+          type="button"
+          aria-label={choice.label}
+          aria-pressed={grid === choice.grid}
+          onClick={() => onChange(choice.grid)}
+          className={cn(
+            "grid h-full w-7 place-items-center rounded-[5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+            grid === choice.grid && "bg-muted text-foreground"
+          )}
+        >
+          {choice.icon}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * A grid tile's picture. Pointed at, the background's film plays in it,
+ * muted, and stops back on its picture when the pointer leaves.
+ */
+function TilePicture({ row }: { row: AdminCatalogRow }) {
+  const video = React.useRef<HTMLVideoElement>(null)
+  if (!row.fileUrl)
+    return row.pictureUrl ? <img src={row.pictureUrl} alt="" className="size-full object-cover" /> : null
+  return (
+    <video
+      ref={video}
+      src={row.fileUrl}
+      poster={row.pictureUrl ?? undefined}
+      muted
+      loop
+      playsInline
+      preload="none"
+      aria-hidden
+      className="size-full object-cover"
+      onPointerEnter={() => void video.current?.play().catch(() => {})}
+      onPointerLeave={() => {
+        const film = video.current
+        if (!film) return
+        film.pause()
+        film.currentTime = 0
+        film.load()
+      }}
+    />
   )
 }
 
@@ -670,7 +773,9 @@ function CatalogRecord({
   row,
   busy,
   preview,
-  onChange,
+  knownTags,
+  onSaved,
+  onReplaceFile,
   onStatus,
   onDelete,
 }: {
@@ -678,7 +783,9 @@ function CatalogRecord({
   row: AdminCatalogRow
   busy: boolean
   preview: ReturnType<typeof usePreviewAudio>
-  onChange: () => void
+  knownTags: string[]
+  onSaved: () => Promise<void>
+  onReplaceFile: () => void
   onStatus: (next: BulkAction) => void
   onDelete: () => void
 }) {
@@ -693,28 +800,62 @@ function CatalogRecord({
       line={rowLine(row)}
       hideLabel={`Hide the ${kind === "sound" ? "sound" : "background"}`}
       actions={
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label={`${row.label} menu`}>
-              <SettingsIcon className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuItem onSelect={onChange}>
-              <SettingsIcon />
-              Change
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onStatus(row.locked ? "free" : "pro")}>
-              {row.locked ? <LockOpenIcon /> : <LockIcon />}
-              {row.locked ? "Make it free" : "Make it Pro"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-              <Trash2Icon />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <CatalogRecordMenu
+          kind={kind}
+          row={row}
+          knownTags={knownTags}
+          onSaved={onSaved}
+          onReplaceFile={onReplaceFile}
+          onDelete={onDelete}
+        />
+      }
+      // The film, picture or sound sits at the top of Details, with no
+      // Preview, Files or Credits cards (Tyler, 15 Nov 2026: "Put the video
+      // in details", "remove these 2 toggles"). The licence is a line of
+      // its own, and file trouble shows in the line under the name.
+      media={
+        <>
+          {kind === "sound" ? (
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+              <span className="block h-20 overflow-hidden rounded-lg">
+                <SoundWave seed={row.key} />
+              </span>
+              {reference ? (
+                <Button type="button" variant="outline" className="justify-self-start" onClick={() => preview.toggle(reference)}>
+                  {playing ? <PauseIcon /> : <PlayIcon />}
+                  {playing ? "Stop" : "Play"}
+                </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">No file yet.</p>
+              )}
+            </div>
+          ) : row.fileUrl ? (
+            // The film members see, playable here (Tyler, 15 Nov 2026: "the
+            // preview should also be playable"), as the item's window plays
+            // it. The film has no sound.
+            <video
+              key={row.fileUrl}
+              src={row.fileUrl}
+              poster={row.pictureUrl ?? undefined}
+              aria-label={`Preview of ${row.label}`}
+              controls
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="aspect-video w-full rounded-lg bg-muted object-cover"
+            />
+          ) : row.pictureUrl ? (
+            <img src={row.pictureUrl} alt="" className="aspect-video w-full rounded-lg bg-muted object-cover" />
+          ) : (
+            <p className="text-sm text-muted-foreground">No picture yet.</p>
+          )}
+          {waitsForPixabayFile(row) && row.sourceUrl ? (
+            <a href={row.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline underline-offset-2">
+              Open on Pixabay
+            </a>
+          ) : null}
+        </>
       }
       facts={[
         ["Status", live ? "Live" : "Draft"],
@@ -724,56 +865,19 @@ function CatalogRecord({
         ["Tags", row.tags.length ? row.tags.join(", ") : "None"],
         ["Chosen by", `${row.personalCount} ${plural(row.personalCount, "person", "people")}, ${row.roomCount} open ${plural(row.roomCount, "room", "rooms")}`],
         ["Added", formatDate(row.createdAt)],
+        ["Licence", row.licence ? (CATALOG_LICENCES.find((licence) => licence.value === row.licence)?.label ?? row.licence) : "None set"],
       ]}
-      state={live ? "Live" : "Draft"}
+      // No Live or Draft word at the foot: Details already says it (Tyler,
+      // 15 Nov 2026: "remove this label").
       footer={
         <>
-          <Button type="button" variant="outline" onClick={onChange}>
-            <SettingsIcon />
-            Change
-          </Button>
           <Button type="button" variant={live ? "outline" : "default"} disabled={busy} onClick={() => onStatus(live ? "draft" : "live")}>
             {live ? <EyeOffIcon /> : <EyeIcon />}
             {live ? "Back to draft" : "Make live"}
           </Button>
         </>
       }
-    >
-      <PanelCard storageId="pomodoro-flowfly-catalog-preview" icon={<EyeIcon />} title="Preview">
-        {kind === "sound" ? (
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-            <span className="block h-20 overflow-hidden rounded-lg">
-              <SoundWave seed={row.key} />
-            </span>
-            {reference ? (
-              <Button type="button" variant="outline" className="justify-self-start" onClick={() => preview.toggle(reference)}>
-                {playing ? <PauseIcon /> : <PlayIcon />}
-                {playing ? "Stop" : "Play"}
-              </Button>
-            ) : (
-              <p className="text-sm text-muted-foreground">No file yet.</p>
-            )}
-          </div>
-        ) : row.pictureUrl ? (
-          <img src={row.pictureUrl} alt="" className="aspect-video w-full rounded-lg bg-muted object-cover" />
-        ) : (
-          <p className="text-sm text-muted-foreground">No picture yet.</p>
-        )}
-      </PanelCard>
-      <PanelCard storageId="pomodoro-flowfly-catalog-files" icon={<UploadIcon />} title="Files">
-        <p className="text-sm text-muted-foreground">{fileLine(row) ?? (row.fileUrl || row.pictureUrl ? "Ready." : "No file yet.")}</p>
-        {waitsForPixabayFile(row) && row.sourceUrl ? (
-          <a href={row.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium underline underline-offset-2">
-            Open on Pixabay
-          </a>
-        ) : null}
-      </PanelCard>
-      <PanelCard storageId="pomodoro-flowfly-catalog-credits" icon={<ImportIcon />} title="Credits">
-        <p className="text-sm text-muted-foreground">
-          {row.licence ? (CATALOG_LICENCES.find((licence) => licence.value === row.licence)?.label ?? row.licence) : "No licence set."}
-        </p>
-      </PanelCard>
-    </DetailRecord>
+    />
   )
 }
 

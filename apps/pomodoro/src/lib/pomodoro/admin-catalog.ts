@@ -134,6 +134,8 @@ export type CatalogSearch = {
   direction?: "asc" | "desc"
   page?: number
   open?: string
+  /** Backgrounds show as a grid of pictures unless the list is picked. */
+  layout?: "list"
 }
 
 /** The dashboards' address, every value checked before use. */
@@ -150,5 +152,6 @@ export function readCatalogSearch(search: Record<string, unknown>): CatalogSearc
     sort: readOneOf(search.sort, CATALOG_SORT_COLUMNS),
     direction: readDirection(search.direction),
     page: readPage(search.page),
+    layout: search.layout === "list" ? "list" : undefined,
   }
 }

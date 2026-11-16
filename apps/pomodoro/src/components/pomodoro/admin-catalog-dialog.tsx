@@ -53,8 +53,11 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { useHeldWhileClosing } from "@/lib/pomodoro/use-held-while-closing"
 
 /**
- * The window a theme or a sound opens in, from its name, its settings cog, or
- * New theme / New sound. See `workspace/docs/catalog-admin.md`.
+ * The window a background or a sound opens in: every card for New background
+ * or New sound, and the Files card alone for Replace file in an item's ⋮,
+ * which holds the details and credits itself (Tyler, 15 Nov 2026: "the
+ * details edit and the credit should be moved into the 3 dotted settings").
+ * See `workspace/docs/catalog-admin.md`.
  *
  * It takes only the item's id and reads the item itself, so it opens the same
  * way from anywhere, and `?open=<id>` (or `?open=new`) keeps it in the
@@ -138,6 +141,7 @@ export function AdminCatalogDialog({
   const open = openId !== undefined
   // Kept while the window fades out, so it never redraws as a new item.
   const creating = useHeldWhileClosing(openId) === "new"
+  const shows = (card: "details" | "files" | "credits") => creating || card === "files"
   const [item, setItem] = React.useState<AdminCatalogItem | null>(null)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState<Draft>(() => emptyDraft(kind))
@@ -267,7 +271,7 @@ export function AdminCatalogDialog({
   const title = creating
     ? `New ${NOUN[kind]}`
     : item
-      ? item.label
+      ? `Files of ${item.label}`
       : `Edit ${NOUN[kind]}`
   const hasFile = Boolean(item?.fileUrl)
 
@@ -301,6 +305,7 @@ export function AdminCatalogDialog({
                 </div>
               ) : (
                 <>
+                  {shows("details") ? (
                   <Card size="sm">
                     <CardHeader>
                       <CardTitle>Details</CardTitle>
@@ -406,7 +411,9 @@ export function AdminCatalogDialog({
                       </div>
                     </CardContent>
                   </Card>
+                  ) : null}
 
+                  {shows("files") ? (
                   <Card size="sm">
                     <CardHeader>
                       <CardTitle>Files</CardTitle>
@@ -497,7 +504,9 @@ export function AdminCatalogDialog({
                       ) : null}
                     </CardContent>
                   </Card>
+                  ) : null}
 
+                  {shows("credits") ? (
                   <Card size="sm">
                     <CardHeader>
                       <CardTitle>Credits</CardTitle>
@@ -562,6 +571,7 @@ export function AdminCatalogDialog({
                       </div>
                     </CardContent>
                   </Card>
+                  ) : null}
                 </>
               )}
             </DialogBody>

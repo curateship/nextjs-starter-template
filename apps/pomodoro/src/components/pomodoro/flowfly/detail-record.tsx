@@ -17,6 +17,7 @@ export function DetailRecord({
   title,
   line,
   facts,
+  media,
   hideLabel,
   actions,
   children,
@@ -28,6 +29,8 @@ export function DetailRecord({
   line?: string | null
   /** Name and value pairs, the row's columns and more. */
   facts: [string, React.ReactNode][]
+  /** A picture, film or player at the top of Details, above the facts. */
+  media?: React.ReactNode
   /** "Hide the tag". */
   hideLabel: string
   /** The record's own header buttons, its ⋮ last. */
@@ -50,6 +53,7 @@ export function DetailRecord({
         <>
           <PanelCard storageId="pomodoro-flowfly-details" icon={<InfoIcon />} title="Details">
             <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+              {media}
               {facts.map(([label, value]) => (
                 <DetailRow key={label} label={label} value={value} />
               ))}

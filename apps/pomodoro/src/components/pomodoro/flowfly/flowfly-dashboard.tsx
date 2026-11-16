@@ -168,10 +168,11 @@ export function FlowflyDashboard({
       overview: widgets.layout ? String(widgetsShown(widgets.layout)) : null,
       rooms: counts.rooms.toLocaleString(),
       members: counts.members.toLocaleString(),
-      // What waits for an admin: reports to decide, shared files to approve.
+      // What waits for an admin: reports to decide.
       safety: counts.safety.toLocaleString(),
       social: counts.social.toLocaleString(),
       tasks: counts.tasks.toLocaleString(),
+      // Every background and sound.
       library: counts.library.toLocaleString(),
     },
     waiting: waitingRead.data ? { total: waitingRead.data.total, items: waitingRead.data.items } : null,
@@ -194,7 +195,7 @@ export function FlowflyDashboard({
         <FlowflySectionTabs
           tabs={FLOWFLY_TABS[section]}
           value={shownTab ?? tab}
-          counts={{ reports: counts.safety, uploads: counts.library }}
+          counts={{ reports: counts.safety, uploads: counts.shares }}
           onPick={(next) => goTo(flowflySearchFor(section, next))}
         />
       </>
