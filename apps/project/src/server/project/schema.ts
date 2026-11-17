@@ -186,9 +186,14 @@ export const projectProjects = pgTable("project_projects", {
    * The banner behind the top of the project page's left panel
    * (`drizzle/0121_project_pictures.sql`). A media library address, or null
    * for none, or "sky" for the drawn sky (`drizzle/0173_project_cover_images.sql`).
-   * Projects have no avatar (`drizzle/0145_project_no_avatar.sql`).
    */
   bannerUrl: text("banner_url"),
+  /**
+   * The picture, SVG or MP4 before the name in the project page's header, a
+   * media library address, or null for none (`drizzle/0184_project_avatar.sql`;
+   * 0145 had dropped the old avatar).
+   */
+  avatarUrl: text("avatar_url"),
   /** The pictures the banner has had, each a tile to pick again. */
   coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
   /**

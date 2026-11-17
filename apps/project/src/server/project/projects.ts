@@ -14,7 +14,7 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { readCoverImages } from "@/lib/notes/page-cover"
-import { checkCoverPictures } from "@/server/project/cover"
+import { checkAvatarMedia, checkCoverPictures } from "@/server/project/cover"
 import {
   findMembership,
   isProjectMember,
@@ -295,6 +295,8 @@ export type ProjectPage = {
     bannerUrl: string | null
     /** The pictures the banner has had, tiles in its Cover photo row. */
     coverImages: string[]
+    /** The picture, SVG or MP4 before the name in the header, or null. */
+    avatarUrl: string | null
   }
   /** The project's milestones, soonest first, each with its task counts. */
   milestones: Milestone[]
@@ -389,6 +391,7 @@ export async function loadProjectPage(
       wholeTeam: project.wholeTeam,
       bannerUrl: project.bannerUrl,
       coverImages: readCoverImages(project.coverImages),
+      avatarUrl: project.avatarUrl,
     },
     milestones: await listMilestones(project.id, database),
     teamClients: await visibleClients(membership, database),
@@ -450,6 +453,8 @@ export async function updateProject(
     doingLimit?: number | null
     bannerUrl?: string
     coverImages?: string[]
+    /** A media library address, or "" to take the avatar away. */
+    avatarUrl?: string
     slowingAt?: number
     behindAt?: number
     category?: string | null
@@ -459,7 +464,7 @@ export async function updateProject(
   },
   database = db
 ) {
-  const { projectId, bannerUrl, coverImages, notes, ...rest } = patch
+  const { projectId, bannerUrl, coverImages, avatarUrl, notes, ...rest } = patch
   // A project page has no task, so no File block, uploaded picture or Video or Promo card.
   const fields = notes === undefined ? rest : { ...rest, notes: storedNotesForCopy(notes, { noTask: true, projectPage: true }) }
   const { project } = await requireProjectSettings(userId, projectId, database)
@@ -481,10 +486,13 @@ export async function updateProject(
     { url: project.bannerUrl, images: readCoverImages(project.coverImages) },
     database
   )
+  // The avatar may be a video too, and the same rule holds: only the site admin's own upload.
+  if (avatarUrl && avatarUrl !== project.avatarUrl) await checkAvatarMedia(userId, avatarUrl, database)
   await database
     .update(projectProjects)
     .set({
       ...fields,
+      ...(avatarUrl === undefined ? null : { avatarUrl: avatarUrl || null }),
       ...(bannerUrl === undefined ? null : { bannerUrl: bannerUrl || null }),
       ...(coverImages === undefined ? null : { coverImages }),
       updatedAt: now(),

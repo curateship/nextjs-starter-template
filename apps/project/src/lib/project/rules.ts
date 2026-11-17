@@ -552,6 +552,8 @@ export const updateProjectSchema = z.object({
   bannerUrl: z.string().trim().max(2048).optional(),
   /** The pictures the banner has had, kept as tiles in its Cover photo row. */
   coverImages: coverImagesSchema.optional(),
+  /** The header's avatar: a media library picture, SVG or MP4, or "" for none. */
+  avatarUrl: z.string().trim().max(2048).optional(),
   /** The left panel's page of notes and "/" blocks. */
   notes: pageNotesSchema.optional(),
   /** Locks the page so it reads only, or unlocks it. */

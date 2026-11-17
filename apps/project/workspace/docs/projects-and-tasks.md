@@ -443,8 +443,9 @@ show out of the left panel and into that header.
   became a block the same day. At the panel's narrowest the name has no room
   left; dragging the panel wider shows it. The colour dot before the name, the
   avatar with the name beside it, the description and the links left the
-  panel on 5 Nov 2026 (Tyler), and projects have no avatar at all since then
-  (migration 0145; the Dashboard's Projects card shows the colour dot). Since
+  panel on 5 Nov 2026 (Tyler), and migration 0145 dropped the avatar. It came
+  back on 17 Nov 2026 as an optional one before the name (see The project's
+  avatar); the Dashboard's Projects card still shows the colour dot. Since
   6 Nov 2026 the panel follows the Admin 3 panel design
   (`.agents/skills/Design/admin-3-panel-design`; Tyler: "Apply this to the
   project dashboard"). The body, at the top, holds the project's page (see
@@ -462,7 +463,7 @@ show out of the left panel and into that header.
   2026 it is the tabbed menu My settings is, 326px wide, opening on General
   each time:
   - **General** is three grouped lists, as the task's ⋮ is. **Project:** Name,
-    Colour, Client, Category. **Page:** Cover photo (below). **Schedule:** Due date, Status,
+    Colour, Client, Category. **Page:** Cover photo and Avatar (below). **Schedule:** Due date, Status,
     Doing per person, Everyone on the team. Each row names the setting on
     the left and shows what it holds on the right. Colour lists the colours
     and Due date opens the calendar at once, so one press picks and saves
@@ -509,6 +510,31 @@ show out of the left panel and into that header.
     now. A picture picked here takes its place."
   - The client is always under its own CLIENT heading beside Lead (Tyler,
     19 Oct 2026: "the client name should be here").
+- **The project's avatar.** An optional picture, SVG or MP4 before the name
+  in the project page's header, and nowhere else (Tyler, 17 Nov 2026: "I want
+  to be able to add an optional avatar here", then "Header only and this is
+  only for project. I want to be able to use images, svg (like the pomodoro
+  animattion logo) or even mp4").
+  - Set in the ⋮'s Page group, under Cover photo. The Avatar row says None,
+    Picture or Video, and opens to tiles: **None**, the avatar picked, and
+    **+**, which picks from the media library. A pick saves at once.
+  - Drawn as a 28px rounded square, filled edge to edge. An MP4 plays by
+    itself, silent and looping. The file's ending decides which: `.mp4`,
+    `.m4v`, `.mov` or `.webm` is a video, anything else a picture
+    (`src/components/project/project-avatar.tsx`).
+  - It must be the site admin's own upload, a picture or a video, or the
+    save is refused with "Pick a photo you uploaded yourself."
+    (`checkAvatarMedia` in `src/server/project/cover.ts`).
+  - An SVG arrives still: the media library's cleaner keeps only plain
+    shapes and drops animation, styles and gradients
+    (`src/server/media/library.ts:211`, a shell file). Tyler left it that
+    way on 17 Nov 2026 ("forget about the svg animatin"), so a moving
+    avatar is an MP4.
+  - A file that stops loading, say one deleted from the media library, is
+    left out rather than drawn broken.
+  - A video can't be uploaded from a local dev site unless the storage
+    bucket lists that address (`docs/shell/big-uploads.md`).
+  - Saved in `project_projects.avatar_url`, null for none (migration 0184).
 - **Middle: tasks.** List, Board, Calendar and Timeline tabs, then More, which
   holds Activity, Files, Chat and the Bin. While Activity, Files or Chat
   shows, More wears its name. The tabs are words with a line under the one

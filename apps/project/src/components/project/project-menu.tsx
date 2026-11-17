@@ -1,6 +1,7 @@
 import { useRouter } from "@tanstack/react-router"
 import { ArchiveIcon, ArchiveRestoreIcon, PinIcon, PinOffIcon } from "lucide-react"
 
+import { AvatarRow } from "@/components/project/project-avatar"
 import { ProjectMembersList } from "@/components/project/project-members-card"
 import { CoverRow } from "@/components/shared/notes/page-rows"
 import {
@@ -105,6 +106,8 @@ export function ProjectMenu({ page }: { page: ProjectPage }) {
                 void cover.save({ bannerUrl: url ?? "", coverImages: images }),
             }}
           />
+          {/* The picture, SVG or MP4 before the name in the header (17 Nov 2026). */}
+          <AvatarRow url={project.avatarUrl} busy={cover.busy} onSet={(avatarUrl) => void cover.save({ avatarUrl })} />
         </PickGroup>
       )}
       <PickGroup title="Schedule">

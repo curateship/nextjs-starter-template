@@ -405,6 +405,7 @@ describe("the project page", () => {
       wholeTeam: false,
       bannerUrl: null,
       coverImages: [],
+      avatarUrl: null,
       notesLocked: false,
     },
     milestones: [{ id: "m1", name: "Design signed off", dueDate: "2020-01-01", done: 3, total: 5 }],

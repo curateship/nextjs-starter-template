@@ -20,6 +20,7 @@ import type { NoteNode } from "@/lib/project/note-blocks"
 import { readTaskNotes } from "@/lib/project/notes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { PageCover } from "@/components/shared/notes/page-cover"
+import { ProjectAvatar } from "@/components/project/project-avatar"
 
 /**
  * The project's page, with its milestones as a "/" block on it (Tyler, 9 Nov
@@ -103,6 +104,12 @@ export function ProjectDetailsPanel({ page, blocks }: { page: ProjectPage; block
           <SidePanelCollapseButton side="left" label="Hide the project page" />
           <h2 className={cn("min-w-0 flex-1 truncate pl-1", dashboardCardHeadingClassName)}>
             <span className="flex min-w-0 items-center gap-1.5">
+              {/* The optional avatar, a picture, SVG or looping MP4, set in the ⋮ under Page. */}
+              {project.avatarUrl ? (
+                <span className="mr-0.5 flex size-7 shrink-0 overflow-hidden rounded-md empty:hidden">
+                  <ProjectAvatar url={project.avatarUrl} />
+                </span>
+              ) : null}
               <span className="truncate">{project.name}</span>
               {/* A "Just me" list has no late-task rule, so no status. */}
               {shared ? <ProjectPaceDot pace={projectPace(late, project)} late={late} /> : null}
