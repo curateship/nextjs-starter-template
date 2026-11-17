@@ -11,7 +11,7 @@ import { TaskBulkMenu } from "@/components/project/task-bulk-bar"
 import { TaskList } from "@/components/project/task-list"
 import { TeamStart } from "@/components/project/team-start"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import type { ProjectPage } from "@/lib/api/project/projects"
+import type { ProjectPage, ProjectsPage } from "@/lib/api/project/projects"
 import type { TaskCard } from "@/lib/api/project/tasks"
 
 /** What the project page hands its left page's Dashboards block: Tasks showing. */
@@ -234,7 +234,8 @@ describe("before there is a team", () => {
     const html = renderToStaticMarkup(
       <ProjectsDashboard
         page={{ team: null, siteAdmin: false, teams: [], teamFilter: null, projects: [] }}
-        onTeamFilter={() => {}}
+        filter={{}}
+        onFilter={() => {}}
         settings={null}
         onSettings={async () => {}}
       />
@@ -249,7 +250,8 @@ describe("the Projects dashboard", () => {
     const html = renderToStaticMarkup(
       <TooltipProvider>
       <ProjectsDashboard
-        onTeamFilter={() => {}}
+        filter={{}}
+        onFilter={() => {}}
         settings={null}
         onSettings={async () => {}}
         page={{
@@ -322,8 +324,61 @@ describe("the Projects dashboard", () => {
     expect(html).toContain(`aria-label="Pin Website"`)
     // Each row's actions end with a cog that opens the project's settings.
     expect(html).toContain(`aria-label="Website settings"`)
-    // The Category filter, beside Client, once any project has one.
-    expect(html).toContain(`aria-label="Category: All categories"`)
+    // Team, Client and Category sit in one Filter button, not three dropdowns (Tyler, 16 Nov 2026).
+    expect(html).toContain(`aria-label="Filter"`)
+    expect(html).not.toContain(`aria-label="Category: All categories"`)
+  })
+})
+
+describe("the Projects dashboard's remembered filter", () => {
+  const project: ProjectsPage["projects"][number] = {
+    id: "p1",
+    name: "Website",
+    color: "blue",
+    archived: false,
+    personal: false,
+    starred: false,
+    counts: { todo: 1, doing: 0, done: 0, stuck: 0, archived: 0 },
+    dated: [],
+    slowingAt: 1,
+    behindAt: 3,
+    lead: null,
+    client: "Hart Dental",
+    category: "Marketing",
+    team: { id: "team", name: "Acme" },
+    dueDate: null,
+  }
+  function render(filter: React.ComponentProps<typeof ProjectsDashboard>["filter"]) {
+    return renderToStaticMarkup(
+      <TooltipProvider>
+        <ProjectsDashboard
+          filter={filter}
+          onFilter={() => {}}
+          settings={null}
+          onSettings={async () => {}}
+          page={{ team: null, siteAdmin: true, teams: [{ id: "team", name: "Acme" }], teamFilter: null, projects: [project] }}
+        />
+      </TooltipProvider>
+    )
+  }
+
+  it("narrows the table by the filter in the address and counts it on the button", () => {
+    const html = render({ category: "Marketing", group: "client" })
+    expect(html).toContain(`aria-label="Filter, 1 set"`)
+    expect(html).toContain("Website")
+  })
+
+  it("matches a client from a link whatever its capitals", () => {
+    const html = render({ client: "hart dental" })
+    expect(html).toContain(">Website<")
+    expect(html).toContain(`aria-label="Filter, 1 set"`)
+  })
+
+  it("says a filter hides everything, rather than that there are no projects", () => {
+    const html = render({ client: "Gone Client" })
+    expect(html).not.toContain(">Website<")
+    expect(html).toContain("No projects match that search or filter.")
+    expect(html).not.toContain("No projects yet")
   })
 })
 

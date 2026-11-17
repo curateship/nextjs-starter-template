@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate, useRouter } from "@tanstack/react-router"
-import { ArchiveIcon, ArchiveRestoreIcon, ChevronDownIcon, CopyIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
+import { ArchiveIcon, ArchiveRestoreIcon, CopyIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react"
 
 import { CopyProjectDialog } from "@/components/project/copy-project-dialog"
 import { NewProjectDialog } from "@/components/project/new-project-dialog"
@@ -9,12 +9,13 @@ import { ProjectProgress } from "@/components/project/project-progress"
 import { ProjectSettingsDialog } from "@/components/project/project-settings-dialog"
 import { PinButton } from "@/components/project/pin-button"
 import { PersonAvatar, ProjectDot } from "@/components/project/task-bits"
+import { FilterRow } from "@/components/project/task-filter-popover"
 import { TeamStart } from "@/components/project/team-start"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { FilterPopover } from "@/components/shared/filter-popover"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
-  DashboardToolbarSelectTrigger,
 } from "@/components/shared/dashboard-toolbar"
 import {
   SelectAllTableHead,
@@ -24,14 +25,8 @@ import {
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { TableCell, TableGroupRow, TableHead, TableRow } from "@/components/ui/table"
 import { Tabs, TabsCount, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -47,8 +42,9 @@ import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { pageGutter } from "@/lib/layout/shell-gutter"
-import { clientChoices, matchesClient } from "@/lib/project/clients"
+import { clientChoices, matchesClient, NO_CLIENT_FILTER } from "@/lib/project/clients"
 import { getProjectErrorMessage } from "@/lib/project/errors"
+import { type ProjectsFilter, useRememberedProjectsFilter } from "@/lib/project/projects-filter"
 import { countLate, projectPace } from "@/lib/project/project-pace"
 import { runsTheTeam } from "@/lib/project/rules"
 import { TeamScope } from "@/lib/project/team-scope"
@@ -92,10 +88,23 @@ function paceRank(row: ProjectListRow) {
 
 const ALL_TEAMS = "all"
 const ALL_CLIENTS = "all"
-const NO_CLIENT = "none"
+// "-" as in the address, so the choice and the address read the same.
+const NO_CLIENT = NO_CLIENT_FILTER
 const NO_CLIENT_LABEL = "No client"
 const ALL_CATEGORIES = "all"
-const NO_CATEGORY = "none"
+const NO_CATEGORY = NO_CLIENT_FILTER
+
+/**
+ * The names offered and the one to show as picked. A pick spelled with other
+ * capitals shows as the name in the list; one no project has any more (a
+ * remembered filter or a pasted link) is added, so the choice never reads
+ * blank and can still be cleared.
+ */
+function choicesWith(names: readonly string[], picked: string, all: string) {
+  if (picked === all || picked === NO_CLIENT_FILTER) return { names, value: picked }
+  const known = names.find((name) => matchesClient(name, picked))
+  return known ? { names, value: known } : { names: [...names, picked], value: picked }
+}
 
 /** Clients A to Z, then "No client" last. */
 function compareClients(a: string | null, b: string | null) {
@@ -108,14 +117,17 @@ function compareClients(a: string | null, b: string | null) {
 export function ProjectsDashboard({
   page,
   settings,
-  onTeamFilter,
+  filter,
+  onFilter,
   onSettings,
 }: {
   page: ProjectsPage
   /** The project whose settings window is open (`?settings=<id>`), loaded by the route. */
   settings: ProjectPage | null
-  /** The site admin's team filter, kept in the address; null is every team. */
-  onTeamFilter: (teamId: string | null) => void
+  /** Filter's choices, kept in the address and remembered by this browser. */
+  filter: ProjectsFilter
+  /** Changes some of them; an undefined value clears that one. */
+  onFilter: (patch: ProjectsFilter) => void
   /** Opens a project's settings window, or shuts it with null; done once it has loaded. */
   onSettings: (projectId: string | null) => Promise<void>
 }) {
@@ -127,7 +139,8 @@ export function ProjectsDashboard({
         siteAdmin={page.siteAdmin || (page.team ? runsTheTeam(page.team.myRole) : false)}
         teams={page.siteAdmin ? page.teams : []}
         teamFilter={page.teamFilter}
-        onTeamFilter={onTeamFilter}
+        filter={filter}
+        onFilter={onFilter}
         onSettings={onSettings}
       />
       {settings ? (
@@ -150,7 +163,8 @@ function ProjectsTable({
   siteAdmin,
   teams,
   teamFilter,
-  onTeamFilter,
+  filter,
+  onFilter,
   onSettings,
 }: {
   projects: ProjectListRow[]
@@ -158,7 +172,8 @@ function ProjectsTable({
   /** Every team, for the site admin; empty for an employee, who has one. */
   teams: { id: string; name: string }[]
   teamFilter: string | null
-  onTeamFilter: (teamId: string | null) => void
+  filter: ProjectsFilter
+  onFilter: (patch: ProjectsFilter) => void
   onSettings: (projectId: string) => Promise<void>
 }) {
   const columns = [NAME_COLUMN, ...(teams.length ? [TEAM_COLUMN] : []), ...OTHER_COLUMNS]
@@ -171,12 +186,16 @@ function ProjectsTable({
   const [copyingRow, setCopyingRow] = React.useState<ProjectListRow | null>(null)
   // The cog spins until the project's settings have loaded and their window opens.
   const [opening, setOpening] = React.useState<string | null>(null)
-  const [client, setClient] = React.useState<string>(ALL_CLIENTS)
-  const clientLabel = client === ALL_CLIENTS ? "All clients" : client === NO_CLIENT ? NO_CLIENT_LABEL : client
-  const [byClient, setByClient] = React.useState(false)
-  const [category, setCategory] = React.useState<string>(ALL_CATEGORIES)
-  const categoryLabel =
-    category === ALL_CATEGORIES ? "All categories" : category === NO_CATEGORY ? "No category" : category
+  const client = filter.client ?? ALL_CLIENTS
+  const category = filter.category ?? ALL_CATEGORIES
+  const byClient = filter.group === "client"
+  const onTeamFilter = (team: string | null) => onFilter({ team: team ?? undefined })
+  const setClient = (value: string) => onFilter({ client: value === ALL_CLIENTS ? undefined : value })
+  const setCategory = (value: string) => onFilter({ category: value === ALL_CATEGORIES ? undefined : value })
+  const setByClient = (on: boolean) => onFilter({ group: on ? "client" : undefined })
+  useRememberedProjectsFilter(filter, onFilter)
+  // Grouping is not a filter, so it adds nothing to the count.
+  const filterCount = [teamFilter !== null, client !== ALL_CLIENTS, category !== ALL_CATEGORIES].filter(Boolean).length
   const { sort, direction, toggleSort } = useTableSort<Column>("name")
   const selection = useSelection()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
@@ -196,6 +215,8 @@ function ProjectsTable({
 
   // One list for the whole site, matched as client names are.
   const categories = React.useMemo(() => clientChoices(projects.map((row) => row.category)), [projects])
+  const clientChoice = choicesWith(clients, client, ALL_CLIENTS)
+  const categoryChoice = choicesWith(categories, category, ALL_CATEGORIES)
 
   const rows = React.useMemo(() => {
     const sign = direction === "asc" ? 1 : -1
@@ -210,14 +231,10 @@ function ProjectsTable({
       .filter((row) => row.archived === (group === "archived"))
       .filter((row) => !needle || row.name.toLowerCase().includes(needle))
       .filter((row) =>
-        client === ALL_CLIENTS ? true : client === NO_CLIENT ? !row.client : row.client === client
+        client === ALL_CLIENTS ? true : matchesClient(row.client, client)
       )
       .filter((row) =>
-        category === ALL_CATEGORIES
-          ? true
-          : category === NO_CATEGORY
-            ? !row.category?.trim()
-            : matchesClient(row.category, category)
+        category === ALL_CATEGORIES ? true : matchesClient(row.category, category)
       )
       .sort((a, b) => {
         // Grouped by client, the groups come first, then pinned projects inside each.
@@ -310,78 +327,97 @@ function ProjectsTable({
                 {group === "active" ? "Archive" : "Bring back"} ({selectedIds.length})
               </DashboardToolbarButton>
             ) : null}
-            {teams.length ? (
-              <Select
-                value={teamFilter ?? ALL_TEAMS}
-                onValueChange={(value) => onTeamFilter(value === ALL_TEAMS ? null : value)}
+            {/* Team, Client and Category sit in one Filter, as on the other dashboards (Tyler, 16 Nov 2026:
+                "change the 2 dropdown into a filter instead"). Shown while there is something to pick or
+                something is still set, so it can be turned off. */}
+            {teams.length || clients.length || categories.length || filterCount || byClient ? (
+              <FilterPopover
+                contentClassName="w-72"
+                count={filterCount}
+                onClear={() =>
+                  onFilter({ team: undefined, client: undefined, category: undefined, group: undefined })
+                }
+                save={null}
               >
-                <DashboardToolbarSelectTrigger aria-label="Team">
-                  <SelectValue />
-                </DashboardToolbarSelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_TEAMS}>All teams</SelectItem>
-                  {teams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-            {/* Group by client sits in the client dropdown, under the clients (Tyler, 19 Oct 2026). */}
-            {/* Kept while a client or grouping is on, so either can still be turned off. */}
-            {clients.length || client !== ALL_CLIENTS || byClient ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <DashboardToolbarButton type="button" variant="outline" aria-label={`Client: ${clientLabel}`}>
-                    {clientLabel}
-                    <ChevronDownIcon className="size-4 text-muted-foreground" />
-                  </DashboardToolbarButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  {[ALL_CLIENTS, ...clients, NO_CLIENT].map((value) => (
-                    <DropdownMenuCheckboxItem
-                      key={value}
-                      checked={client === value}
-                      onCheckedChange={() => setClient(value)}
-                    >
-                      {value === ALL_CLIENTS ? "All clients" : value === NO_CLIENT ? NO_CLIENT_LABEL : value}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuCheckboxItem
-                    checked={byClient}
-                    // A setting, not a choice, so the menu stays open to show it changed.
-                    onSelect={(event) => event.preventDefault()}
-                    onCheckedChange={(checked) => setByClient(checked === true)}
-                  >
-                    Group by client
-                  </DropdownMenuCheckboxItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-            {/* Tyler, 2 Nov 2026: "Add category selection and creation for projects and add the filter dropdown". */}
-            {/* Kept while a category is picked, so it can still be turned off. */}
-            {categories.length || category !== ALL_CATEGORIES ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <DashboardToolbarButton type="button" variant="outline" aria-label={`Category: ${categoryLabel}`}>
-                    {categoryLabel}
-                    <ChevronDownIcon className="size-4 text-muted-foreground" />
-                  </DashboardToolbarButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  {[ALL_CATEGORIES, ...categories, NO_CATEGORY].map((value) => (
-                    <DropdownMenuCheckboxItem
-                      key={value}
-                      checked={category === value}
-                      onCheckedChange={() => setCategory(value)}
-                    >
-                      {value === ALL_CATEGORIES ? "All categories" : value === NO_CATEGORY ? "No category" : value}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+                  {teams.length ? (
+                    <FilterRow id="projects-filter-team" label="Team">
+                      <Select
+                        value={teamFilter ?? ALL_TEAMS}
+                        onValueChange={(value) => onTeamFilter(value === ALL_TEAMS ? null : value)}
+                      >
+                        <SelectTrigger id="projects-filter-team" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={ALL_TEAMS}>All teams</SelectItem>
+                          {teams.map((team) => (
+                            <SelectItem key={team.id} value={team.id}>
+                              {team.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FilterRow>
+                  ) : null}
+                  {clients.length || client !== ALL_CLIENTS ? (
+                    <FilterRow id="projects-filter-client" label="Client">
+                      <Select value={clientChoice.value} onValueChange={setClient}>
+                        <SelectTrigger id="projects-filter-client" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[ALL_CLIENTS, ...clientChoice.names, NO_CLIENT].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value === ALL_CLIENTS ? "All clients" : value === NO_CLIENT ? NO_CLIENT_LABEL : value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FilterRow>
+                  ) : null}
+                  {/* Tyler, 2 Nov 2026: "Add category selection and creation for projects and add the filter dropdown". */}
+                  {categories.length || category !== ALL_CATEGORIES ? (
+                    <FilterRow id="projects-filter-category" label="Category">
+                      <Select value={categoryChoice.value} onValueChange={setCategory}>
+                        <SelectTrigger id="projects-filter-category" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[ALL_CATEGORIES, ...categoryChoice.names, NO_CATEGORY].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value === ALL_CATEGORIES ? "All categories" : value === NO_CATEGORY ? "No category" : value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FilterRow>
+                  ) : null}
+                </div>
+                {/* Group by client was the last row of the client dropdown (Tyler, 19 Oct 2026); it is
+                    Filter's Group row now, as on the task dashboards. */}
+                {clients.length || byClient ? (
+                  <>
+                    <Separator className="-mx-3 w-auto" />
+                    <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3">
+                      <FilterRow id="projects-filter-group" label="Group">
+                        <Select
+                          value={byClient ? "client" : "none"}
+                          onValueChange={(value) => setByClient(value === "client")}
+                        >
+                          <SelectTrigger id="projects-filter-group" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No grouping</SelectItem>
+                            <SelectItem value="client">By client</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FilterRow>
+                    </div>
+                  </>
+                ) : null}
+              </FilterPopover>
             ) : null}
             {siteAdmin ? (
               <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
@@ -410,8 +446,8 @@ function ProjectsTable({
         }
         isEmpty={rows.length === 0}
         emptyText={
-          query
-            ? "No projects match that search."
+          query || filterCount
+            ? "No projects match that search or filter."
             : group === "archived"
               ? "No archived projects."
               : siteAdmin
