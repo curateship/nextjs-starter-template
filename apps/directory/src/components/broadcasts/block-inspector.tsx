@@ -349,6 +349,12 @@ function ButtonFields({
 
       <InspectorCard icon={<PaletteIcon />} title="Appearance">
         <ColorField
+          label="Background"
+          value={content.blockBackgroundColor}
+          disabled={disabled}
+          onChange={(value) => onContentChange("blockBackgroundColor", value)}
+        />
+        <ColorField
           label="Button colour"
           value={content.backgroundColor}
           disabled={disabled}

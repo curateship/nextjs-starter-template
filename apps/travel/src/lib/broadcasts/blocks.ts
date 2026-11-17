@@ -75,8 +75,14 @@ const buttonContentSchema = z.object({
   label: z.string().trim().max(120).default("Open"),
   /** Blank means "the link the app makes" — see ACTION_URL_TOKEN. */
   url: z.string().trim().max(2000).default(""),
+  /** The button's own colour. */
   backgroundColor: hexColorSchema.default("#18181b"),
   textColor: hexColorSchema.default("#fafafa"),
+  /**
+   * The strip the button sits on, edge to edge, like a text block's
+   * background. White, as every email's page already was behind a button.
+   */
+  blockBackgroundColor: hexColorSchema.default("#ffffff"),
   alignment: alignmentSchema.default("left"),
   borderRadius: z.number().int().min(0).max(40).default(8),
   padding: z.number().int().min(0).max(120).default(20),

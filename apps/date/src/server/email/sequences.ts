@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { automationGraphSchema } from "@/lib/automations/graph"
 import { readSendSequence, sendSequenceNode } from "@/lib/automations/nodes/send-sequence"
 import { automationEntryNodeId } from "@/lib/automations/run"
+import { personalizeEmail, renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
 import {
   sequenceFromGraph,
   sequenceToGraph,
@@ -19,6 +20,11 @@ import {
   saveWorkspaceAutomation,
 } from "@/server/automations/flows"
 import { db, type CustomShellDb } from "@/server/db"
+import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
+import { getEmailProvider } from "@/server/email/provider"
+import { composeFromAddress } from "@/server/email/send"
+import { getSendableEmailConfig } from "@/server/email/settings"
+import { buildUnsubscribeUrl, canBuildUnsubscribeLinks } from "@/server/email/unsubscribe"
 import {
   customShellAutomationRuns,
   customShellAutomations,
@@ -209,6 +215,47 @@ export async function deleteSequences(workspaceId: string, ids: string[], databa
     owned.map((row) => row.id),
     database
   )
+}
+
+/**
+ * One email of a sequence, as last saved, sent once to the admin who pressed
+ * Send myself a test. Built like a newsletter's test copy: "[TEST]" before
+ * the subject, "Test" as the first name, and an unsubscribe link that leads
+ * nowhere real. Nobody is started on the sequence and nothing is counted.
+ */
+export async function sendSequenceTestEmail(
+  workspaceId: string,
+  input: { sequenceId: string; emailId: string; toEmail: string },
+  database: CustomShellDb = db
+): Promise<{ ok: boolean; error?: string }> {
+  const row = await requireSequence(workspaceId, input.sequenceId, database)
+  const graph = automationGraphSchema.safeParse(row.graph)
+  const steps = graph.success ? sequenceFromGraph(graph.data) : null
+  const email = steps?.emails.find((candidate) => candidate.id === input.emailId)
+  if (!email) throw new Error("EMAIL_GONE")
+  if (email.blocks.length === 0) throw new Error("BLOCKS_REQUIRED")
+
+  const config = await getSendableEmailConfig(workspaceId, database)
+  if (!config) throw new Error("EMAIL_NOT_CONFIGURED")
+  if (!canBuildUnsubscribeLinks()) throw new Error("UNSUBSCRIBE_NOT_CONFIGURED")
+
+  const sampleContact = { email: input.toEmail, firstName: "Test", lastName: "Contact" }
+  const html = renderBroadcastEmailHtml(email.blocks, {
+    preheader: email.preheader,
+    appName: await emailBrandName(workspaceId, database),
+  })
+  await protectSentEmailLogos(workspaceId, email.blocks, database)
+  const subject = personalizeEmail(email.subject || row.name, sampleContact, { html: false })
+  const result = await getEmailProvider(config.apiKey).send({
+    from: composeFromAddress(email.fromName, config.from),
+    to: input.toEmail,
+    subject: `[TEST] ${subject}`.replace(/[\r\n]+/g, " "),
+    html: personalizeEmail(html, sampleContact, {
+      html: true,
+      unsubscribeUrl: buildUnsubscribeUrl("test-contact"),
+    }),
+  })
+  return result.success ? { ok: true } : { ok: false, error: result.error ?? "The test send did not go through" }
 }
 
 /**

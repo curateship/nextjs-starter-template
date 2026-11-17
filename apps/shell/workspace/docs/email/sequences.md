@@ -52,6 +52,16 @@ shell's own pieces, as the newsletter panel is (Tyler, 16 Nov 2026:
 - **The footer** says Ready, with how many people are partway through and how
   many got every email, or Not ready with the first thing to fix, such as
   "Email 2 needs a subject." Test runs are not counted.
+- **Send myself a test**, at the footer's right, sends one email of the
+  sequence to the signed-in admin's own address (Tyler, 17 Nov 2026: "Add a
+  test email button here to test one of the email sequence"). With an email
+  open, that email goes. On the list of emails, the button opens a list of
+  them to pick from. It saves first, so the copy is what is on screen. The
+  copy is built like a newsletter's test: "[TEST]" before the subject, "Test"
+  as the first name, the email's own From name. Nobody is started on the
+  sequence and nothing is counted. A good send shows nothing, the same as a
+  system email's test; a failure says why. With no email set up in Settings →
+  Email, nothing goes and it says so.
 - **It saves** 700ms after the last change, the name and every email together.
 
 ## The Send sequence step

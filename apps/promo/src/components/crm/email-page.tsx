@@ -244,8 +244,13 @@ export function EmailPage({
           // scroll inside their own scroller, so the box only caps the height.
           // As tall as its options, up to 70% of the screen (Tyler, 7 Nov 2026:
           // "The dropdown is a fixed height thats too tall"). The options'
-          // own scroller sizes to them and scrolls past the cap.
-          className="flex max-h-[min(70vh,40rem)] w-[min(22rem,calc(100vw-2rem))] flex-col gap-0 overflow-hidden p-0 [&>div]:h-auto [&_[data-slot=scroll-area]]:flex-auto"
+          // own scroller sizes to them and scrolls past the cap. The scroller
+          // is a column and its viewport a shrinking item in it: the viewport's
+          // own `h-full` resolves to nothing under an auto-height box, so
+          // without this it grew to the options' full height, the cap cut off
+          // the bottom (Appearance) and nothing scrolled (Tyler, 17 Nov 2026:
+          // "the email block dropdown got cut off").
+          className="flex max-h-[min(70vh,40rem)] w-[min(22rem,calc(100vw-2rem))] flex-col gap-0 overflow-hidden p-0 [&>div]:h-auto [&_[data-slot=scroll-area]]:flex [&_[data-slot=scroll-area]]:flex-auto [&_[data-slot=scroll-area]]:flex-col [&_[data-slot=scroll-area-viewport]]:min-h-0 [&_[data-slot=scroll-area-viewport]]:flex-auto"
         >
           {selected ? (
             // The options' own heading names the block and holds its bin.

@@ -5,10 +5,12 @@ import {
   ArrowUpIcon,
   CopyIcon,
   ListOrderedIcon,
+  Loader2Icon,
   MailIcon,
   MoreHorizontalIcon,
   ChevronRightIcon,
   PlusIcon,
+  SendIcon,
   Trash2Icon,
   UsersIcon,
   ZapIcon,
@@ -34,7 +36,12 @@ import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getSequenceErrorMessage, saveSequence, type SequenceItem } from "@/lib/api/email/sequences"
+import {
+  getSequenceErrorMessage,
+  saveSequence,
+  sendSequenceTestEmail,
+  type SequenceItem,
+} from "@/lib/api/email/sequences"
 import { WAIT_MAX_DAYS } from "@/lib/automations/nodes/wait"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
 import {
@@ -83,6 +90,7 @@ export function SequenceRecord({
   const [sequence, setSequence] = React.useState(initial)
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [openEmailId, setOpenEmailId] = React.useState<string | null>(null)
+  const [testing, setTesting] = React.useState(false)
 
   const listChangedRef = React.useRef(onListChanged)
   React.useEffect(() => {
@@ -172,16 +180,66 @@ export function SequenceRecord({
   // What would stop the Send sequence step, first problem first. An
   // automation that reaches a sequence with one stops there and says so.
   const problems = sequenceProblems(steps)
+
+  // One email, as on screen, to the admin's own address. Saves first, so the
+  // test is what was just typed. Like a system email's test, a good send says
+  // nothing; only a failure does.
+  const sendTest = async (emailId: string) => {
+    setTesting(true)
+    try {
+      if (!(await saveNow())) return
+      const result = await sendSequenceTestEmail(initial.id, emailId)
+      if (!result.ok) showErrorToast(result.error ?? "The test send did not go through.")
+    } catch (error) {
+      showErrorToast(getSequenceErrorMessage(error))
+    } finally {
+      setTesting(false)
+    }
+  }
+  const testButtonInner = (
+    <>
+      {testing ? <Loader2Icon className="size-4 animate-spin" /> : <SendIcon className="size-4" />}
+      {testing ? "Sending…" : "Send myself a test"}
+    </>
+  )
   const footer = (
-    <FooterState>
-      <UsersIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <Badge variant={problems.length ? "destructive" : "secondary"}>{problems.length ? "Not ready" : "Ready"}</Badge>
-      <span className="truncate text-muted-foreground">
-        {problems.length
-          ? problems[0]
-          : `${sequence.in_progress} in progress, ${sequence.finished} finished`}
-      </span>
-    </FooterState>
+    <>
+      <FooterState>
+        <UsersIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Badge variant={problems.length ? "destructive" : "secondary"}>{problems.length ? "Not ready" : "Ready"}</Badge>
+        <span className="truncate text-muted-foreground">
+          {problems.length
+            ? problems[0]
+            : `${sequence.in_progress} in progress, ${sequence.finished} finished`}
+        </span>
+      </FooterState>
+      {openEmail ? (
+        // An open email is the one tested.
+        <Button type="button" size="sm" variant="outline" disabled={testing} onClick={() => void sendTest(openEmail.id)}>
+          {testButtonInner}
+        </Button>
+      ) : (
+        // On the list, the admin picks which email.
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="sm" variant="outline" disabled={testing}>
+              {testButtonInner}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64">
+            {steps.emails.map((email, index) => (
+              <DropdownMenuItem key={email.id} onSelect={() => void sendTest(email.id)}>
+                <MailIcon className="size-4 text-muted-foreground" />
+                <span className="truncate">
+                  Email {index + 1}
+                  {email.subject.trim() ? `: ${email.subject.trim()}` : ""}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </>
   )
 
   if (openEmail) {

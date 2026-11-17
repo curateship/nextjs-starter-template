@@ -47,8 +47,14 @@ apart that an automation starts for a person, is in [Sequences](sequences.md).
   the full editor with links, pictures and the name tags.
 - **A block's options** open only from the cog in its bar, beside the drag
   handle, copy and bin (Tyler: "only clicking it opens the dropdown"). The box
-  is as tall as the options, up to 70% of the screen. Pressing a block picks
+  is as tall as the options, up to 70% of the screen. Options taller than that
+  scroll inside the box, under its fixed heading. Pressing a block picks
   it; pressing anywhere outside the email's blocks lets it go.
+- **A Button block's Appearance** has three colours. Background paints the
+  strip the button sits on, edge to edge, the same as a Rich text block's
+  Background, and is white unless changed. Button colour and Text colour are
+  the button itself. Buttons saved before Background existed read as white,
+  which is how they already looked in the inbox.
 - **Spacing:** the email sits 24px from the panel's top and sides alike.
 - **Block lists** show each block's icon beside its name, from one map
   (`src/lib/broadcasts/block-icons.ts`).

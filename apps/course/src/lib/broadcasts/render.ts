@@ -217,6 +217,7 @@ export function renderBroadcastBlockHtml(
         alignment,
         borderRadius,
         padding,
+        blockBackgroundColor,
       } = block.content
       // A nested table, not a styled <a>. Outlook throws away padding and
       // background on a link, so the only shape that arrives looking like a
@@ -232,7 +233,7 @@ export function renderBroadcastBlockHtml(
         renderStyle === "system"
           ? `0 ${padding}px 24px ${padding}px`
           : `${padding}px`
-      return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:${cellPadding};text-align:${alignment};">${inner}</td></tr></table>`
+      return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(blockBackgroundColor)};"><tr><td style="padding:${cellPadding};text-align:${alignment};">${inner}</td></tr></table>`
     }
 
     case "divider": {
