@@ -116,6 +116,17 @@ On 6 Nov 2026:
 
 - **Delete doesn't ask,** from the menus or a row's bin. The note goes to the project's Bin, where Bring
   back puts it back where it was. Nothing pops up.
+- **Right-click a note for Mass select too**, first in the menu, as on the
+  task List (Tyler, 16 Nov 2026: "right clicking does not show mass
+  select"). It turns the tick boxes on with this note ticked, and reads
+  "Hide select" while they are on. The open note's ⋮ doesn't have it.
+- **Mass select deletes many at once** (Tyler, 16 Nov 2026: "Add mass
+  selection delete fucntion for both milestone and notes"). Select in the
+  middle's header, after the search, shows a tick box on each note and a
+  tick-all box in the heading. Ticked notes make the "N selected" button left
+  of the search, whose menu has Delete. They go to the Bin without asking,
+  as one note's Delete does. Ticks on notes the search hides are left out.
+  If the open note goes, the right panel moves to another.
 - **The Bin,** under the tasks panel's More menu, lists deleted notes beside
   deleted tasks, newest first. Each note says "Note, deleted by Ben" and when.
   Bring back works for everyone who can see the project.

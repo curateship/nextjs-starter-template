@@ -28,6 +28,7 @@ export type ProjectNotesState = {
   /** Makes a note and hands back its id, once the list holds it. */
   create: () => Promise<string | null>
   remove: (note: ProjectNote) => Promise<boolean>
+  removeMany: (notes: ProjectNote[]) => Promise<string[]>
   change: (work: () => Promise<unknown>) => Promise<void>
   /**
    * Move up or Move down, within the pinned notes or the rest, the same for
@@ -97,6 +98,22 @@ export function useProjectNotes(projectId: string, enabled = true): ProjectNotes
     return true
   }
 
+  /**
+   * Mass select's Delete: each to the Bin in turn, then the list once. A
+   * refusal stops there; the answer is the ids that went.
+   */
+  async function removeMany(notes: ProjectNote[]) {
+    const gone: string[] = []
+    await run(async () => {
+      for (const note of notes) {
+        await deleteNote(note.id)
+        gone.push(note.id)
+      }
+    })
+    if (gone.length) reload()
+    return gone
+  }
+
   async function change(work: () => Promise<unknown>) {
     if (await run(work)) reload()
   }
@@ -120,6 +137,6 @@ export function useProjectNotes(projectId: string, enabled = true): ProjectNotes
     }
   }
 
-  return { loaded, busy, justMade, reload, create, remove, change, moveOf, keep }
+  return { loaded, busy, justMade, reload, create, remove, removeMany, change, moveOf, keep }
 }
 

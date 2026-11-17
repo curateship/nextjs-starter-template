@@ -1,10 +1,13 @@
 import * as React from "react"
 import { Link, useRouter } from "@tanstack/react-router"
-import { FlagIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
+import { CopyIcon, FlagIcon, ListChecksIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { Chip, CrmTable, CrmTableRow, Dot, MainCell } from "@/components/crm/crm-table"
 import { PickDayRow, PickGroup, PickRow } from "@/components/project/pick-rows"
+import { PointAnchor } from "@/components/project/project-notes-panel"
 import { SideRecord, SideRecordMenu } from "@/components/project/side-record"
+import { TaskSelectButton } from "@/components/project/task-header-controls"
+import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelCard, PanelCardFooter } from "@/components/shared/panel-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRingInset } from "@/lib/layout/focus-ring"
@@ -15,12 +18,19 @@ import { TaskSearchBox } from "@/components/project/task-header-controls"
 import { StatusDot } from "@/components/project/task-bits"
 import { StatusCellMenu } from "@/components/project/task-cell-menus"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { MiddleHeading } from "@/components/shared/three-panels"
+import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Meter } from "@/components/ui/meter"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { TableCell, type TableSortDirection } from "@/components/ui/table"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
@@ -28,6 +38,8 @@ import { addMilestone, removeMilestone, saveMilestone, saveTaskMilestone, type M
 import { createProjectTask } from "@/lib/api/project/tasks"
 import type { TaskCard } from "@/lib/api/project/tasks"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
 import { todayKey } from "@/lib/project/dates"
 import { dayLabel } from "@/lib/project/days"
 import { getProjectErrorMessage } from "@/lib/project/errors"
@@ -108,13 +120,20 @@ export function ProjectMilestonesMiddle({
   const [query, setQuery] = React.useState("")
   const [sort, setSort] = React.useState<MilestoneSort>("date")
   const [direction, setDirection] = React.useState<TableSortDirection>("asc")
-  const [deleting, setDeleting] = React.useState<Milestone | null>(null)
+  const [deleting, setDeleting] = React.useState<Milestone[]>([])
+  const [menu, setMenu] = React.useState<{ milestone: Milestone; at: { x: number; y: number } } | null>(null)
+  const [massSelect, setMassSelect] = React.useState(false)
+  const selection = useSelection()
+  const duplicate = useDuplicateMilestone(projectId, onOpen)
   const today = todayKey()
   const words = query.trim().toLowerCase()
   const sign = direction === "asc" ? 1 : -1
   const shown = (words ? milestones.filter((milestone) => milestone.name.toLowerCase().includes(words)) : milestones)
     .slice()
     .sort((a, b) => sign * compareMilestones(sort, a, b))
+  const shownIds = shown.map((milestone) => milestone.id)
+  // Ticks on rows the search has hidden stay out of a delete.
+  const ticked = shown.filter((milestone) => selection.selected.has(milestone.id))
 
   function toggleSort(column: MilestoneSort) {
     if (sort === column) setDirection(direction === "asc" ? "desc" : "asc")
@@ -130,16 +149,55 @@ export function ProjectMilestonesMiddle({
       <DashboardCardHeader className="@container">
         <MiddleHeading icon={FlagIcon} label="Milestones" />
         <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
+          {ticked.length ? (
+            <SelectedMenu
+              count={ticked.length}
+              onClear={selection.clear}
+              pages={{}}
+              main={(controls) => (
+                <SelectedMenuRow
+                  className="text-destructive"
+                  onClick={() => {
+                    controls.close()
+                    setDeleting(ticked)
+                  }}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </SelectedMenuRow>
+              )}
+            />
+          ) : null}
           {/* The header has room for "Search milestones" whole: only New milestone's word drops. */}
           <TaskSearchBox value={query} onChange={setQuery} what="milestones" boxClassName="sm:w-44 lg:w-48" />
+          {readOnly ? null : (
+            <TaskSelectButton
+              on={massSelect}
+              onToggle={() => {
+                if (massSelect) selection.clear()
+                setMassSelect(!massSelect)
+              }}
+            />
+          )}
           {readOnly ? null : <NewMilestoneButton projectId={projectId} onAdded={onOpen} />}
         </div>
+        <PanelReopenButton side="right" label="Show the milestone" />
       </DashboardCardHeader>
       <CrmTable<MilestoneSort>
         columns={MILESTONE_COLUMNS}
         sort={sort}
         direction={direction}
         onSort={toggleSort}
+        select={
+          massSelect
+            ? {
+                noun: "milestones",
+                checked: selection.selectAllState(shownIds),
+                disabled: shownIds.length === 0,
+                onToggle: () => selection.toggleVisible(shownIds),
+              }
+            : null
+        }
         empty={
           shown.length > 0 ? null : words ? (
             <span className="grid justify-items-center gap-2">
@@ -162,7 +220,13 @@ export function ProjectMilestonesMiddle({
               open={milestone.id === openId}
               label={milestone.name}
               onOpen={() => onOpen(milestone.id)}
-              onDelete={readOnly ? undefined : () => setDeleting(milestone)}
+              tick={{
+                shown: massSelect,
+                ticked: selection.selected.has(milestone.id),
+                onToggle: () => selection.toggle(milestone.id),
+              }}
+              onDelete={readOnly ? undefined : () => setDeleting([milestone])}
+              onRightClick={readOnly ? undefined : (x, y) => setMenu({ milestone, at: { x, y } })}
             >
               <MainCell name={milestone.name} lead={<Dot className={state.dot} label={state.label} />} />
               <TableCell column="preview">
@@ -188,29 +252,103 @@ export function ProjectMilestonesMiddle({
           )
         })}
       </CrmTable>
-      <DeleteMilestoneDialog milestone={deleting} onDone={() => setDeleting(null)} />
+      {menu ? (
+        // Not modal, so a right-click on another milestone moves the menu there in one go, as on Notes.
+        <DropdownMenu open onOpenChange={(next) => (next ? undefined : setMenu(null))} modal={false}>
+          <DropdownMenuTrigger asChild>
+            <PointAnchor x={menu.at.x} y={menu.at.y} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-44" onCloseAutoFocus={(event) => event.preventDefault()}>
+            {/* Mass select at the top, as the task List's right-click has it; turning it on ticks this milestone. */}
+            <DropdownMenuItem
+              onSelect={() => {
+                if (massSelect) selection.clear()
+                else if (!selection.selected.has(menu.milestone.id)) selection.toggle(menu.milestone.id)
+                setMassSelect(!massSelect)
+              }}
+            >
+              <ListChecksIcon className="size-4" />
+              {massSelect ? "Hide select" : "Mass select"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => duplicate(menu.milestone)}>
+              <CopyIcon className="size-4" />
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => setDeleting([menu.milestone])}>
+              <Trash2Icon className="size-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      <DeleteMilestoneDialog
+        milestones={deleting}
+        onDone={(deleted) => {
+          setDeleting([])
+          if (deleted) selection.clear()
+        }}
+      />
     </div>
   )
 }
 
-/** Delete milestone, asked first, from a row's bin or the open milestone's button. */
-function DeleteMilestoneDialog({ milestone, onDone }: { milestone: Milestone | null; onDone: () => void }) {
+/**
+ * Duplicate: a new milestone named "<name> (copy)" on the same date, then
+ * opened. Its tasks stay with the first, since a task counts toward one
+ * milestone at most.
+ */
+function useDuplicateMilestone(projectId: string, onOpen: (milestoneId: string) => void) {
+  const router = useRouter()
+  const [run] = useAsyncAction(getProjectErrorMessage)
+  return (milestone: Milestone) =>
+    void (async () => {
+      const suffix = " (copy)"
+      const name = milestone.name.slice(0, LIMITS.milestoneName - suffix.length) + suffix
+      let id = ""
+      const ok = await run(async () => {
+        id = (await addMilestone({ projectId, name, dueDate: milestone.dueDate })).id
+      })
+      if (!ok) return
+      await router.invalidate()
+      onOpen(id)
+    })()
+}
+
+/**
+ * Delete milestone, asked first, from a row's bin, its right-click menu, the
+ * open milestone's ⋮, or the ticked rows' "N selected" menu. `onDone` hears
+ * whether any went.
+ */
+function DeleteMilestoneDialog({
+  milestones,
+  onDone,
+}: {
+  milestones: Milestone[]
+  onDone: (deleted: boolean) => void
+}) {
   const router = useRouter()
   const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const one = milestones.length === 1 ? milestones[0] : null
   return (
     <ConfirmDialog
-      open={milestone !== null}
-      onOpenChange={(open) => (open ? undefined : onDone())}
-      title={milestone ? `Delete "${milestone.name}"?` : "Delete milestone?"}
-      description="Its tasks stay where they are and count toward no milestone."
-      confirmLabel="Delete milestone"
+      open={milestones.length > 0}
+      onOpenChange={(open) => (open ? undefined : onDone(false))}
+      title={one ? `Delete "${one.name}"?` : `Delete ${milestones.length} milestones?`}
+      description={
+        one
+          ? "Its tasks stay where they are and count toward no milestone."
+          : "Their tasks stay where they are and count toward no milestone."
+      }
+      confirmLabel={one ? "Delete milestone" : `Delete ${milestones.length} milestones`}
       destructive
       loading={busy}
       onConfirm={async () => {
-        if (!milestone) return
-        const ok = await run(() => removeMilestone(milestone.id))
-        if (!ok) return
-        onDone()
+        // One at a time; a refusal stops there, and the list shows what went.
+        const ok = await run(async () => {
+          for (const milestone of milestones) await removeMilestone(milestone.id)
+        })
+        if (ok) onDone(true)
         await router.invalidate()
       }}
     />
@@ -349,6 +487,8 @@ export function ProjectMilestoneSide({
   /** Who a task made here is handed to: me when I'm on the project, as New task does. */
   newTaskAssignee: string | null
 }) {
+  const router = useRouter()
+  const [, track] = useSaveLine()
   if (!milestone) {
     return (
       <SideRecord icon={<FlagIcon className="size-4" />} title="Milestone" hideLabel="Hide the milestone">
@@ -367,6 +507,19 @@ export function ProjectMilestoneSide({
       key={milestone.id}
       icon={<FlagIcon className="size-4" />}
       title={milestone.name}
+      rename={
+        readOnly
+          ? undefined
+          : {
+              label: "Milestone name",
+              maxLength: LIMITS.milestoneName,
+              empty: "Give the milestone a name.",
+              onSave: (name) =>
+                void track(() => saveMilestone({ milestoneId: milestone.id, name, dueDate: milestone.dueDate })).then(
+                  (saved) => (saved ? router.invalidate() : undefined)
+                ),
+            }
+      }
       menu={readOnly ? null : <MilestoneMenu milestone={milestone} />}
       hideLabel="Hide the milestone"
     >
@@ -426,7 +579,8 @@ const TASK_ROW = "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 
 function MilestoneMenu({ milestone }: { milestone: Milestone }) {
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState(milestone.name)
+  // Follows the saved name, so a rename in the header never gets saved back over.
+  const [name, setName] = useSyncedDraft(milestone.name)
   const [invalid, setInvalid] = React.useState(false)
   const [saveState, track] = useSaveLine()
   const [deleting, setDeleting] = React.useState(false)
@@ -492,7 +646,7 @@ function MilestoneMenu({ milestone }: { milestone: Milestone }) {
           },
         }}
       />
-      <DeleteMilestoneDialog milestone={deleting ? milestone : null} onDone={() => setDeleting(false)} />
+      <DeleteMilestoneDialog milestones={deleting ? [milestone] : []} onDone={() => setDeleting(false)} />
     </>
   )
 }

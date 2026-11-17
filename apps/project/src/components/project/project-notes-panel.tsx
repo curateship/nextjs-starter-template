@@ -9,17 +9,19 @@ import {
   PinIcon,
   PinOffIcon,
   PlusIcon,
+  ListChecksIcon,
   Trash2Icon,
 } from "lucide-react"
 
 import { CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
 import { SideRecord, SideRecordAction, SideRecordMenu } from "@/components/project/side-record"
 import { PageNoteEditor } from "@/components/project/project-page-notes"
-import { TaskSearchBox } from "@/components/project/task-header-controls"
+import { TaskSearchBox, TaskSelectButton } from "@/components/project/task-header-controls"
 import { PersonAvatar } from "@/components/project/task-bits"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
-import { MiddleHeading } from "@/components/shared/three-panels"
+import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
+import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -35,11 +37,12 @@ import { duplicateNote, pinNote, saveNote, type ProjectNote } from "@/lib/api/pr
 import { formatDate } from "@/lib/format/format-time"
 import type { NoteNode } from "@/lib/project/note-blocks"
 import { TASK_HEADER_BUTTONS } from "@/lib/project/task-header-look"
+import { useSelection } from "@/lib/hooks/use-selection"
 import type { ProjectNotesState } from "@/lib/project/use-project-notes"
 import { cn } from "@/lib/utils"
 
 /** A point on the page for a menu to open from, in the page's body so no scroller shifts it off the mouse. */
-const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(function PointAnchor(
+export const PointAnchor = React.forwardRef<HTMLSpanElement, { x: number; y: number }>(function PointAnchor(
   { x, y, ...props },
   ref
 ) {
@@ -147,6 +150,8 @@ export function ProjectNotesMiddle({
   const [direction, setDirection] = React.useState<TableSortDirection>("asc")
   const folds = useFolds()
   const [menu, setMenu] = React.useState<{ note: ProjectNote; at: { x: number; y: number } } | null>(null)
+  const [massSelect, setMassSelect] = React.useState(false)
+  const selection = useSelection()
   const ready = state.loaded.state === "ready" ? state.loaded.list : null
   const canWrite = ready?.canWrite ?? false
 
@@ -167,11 +172,50 @@ export function ProjectNotesMiddle({
     }
   }
 
+  const words = query.trim().toLowerCase()
+  const shown = !ready ? [] : words ? ready.notes.filter((note) => note.title.toLowerCase().includes(words)) : ready.notes
+  const shownIds = shown.map((note) => note.id)
+  // Ticks on notes the search has hidden stay out of a delete.
+  const tickedNotes = shown.filter((note) => selection.selected.has(note.id))
+
   const header = (
     <DashboardCardHeader className="@container">
       <MiddleHeading icon={NotebookPenIcon} label="Notes" />
       <div className={cn("ml-auto", TASK_HEADER_BUTTONS)}>
+        {tickedNotes.length ? (
+          <SelectedMenu
+            count={tickedNotes.length}
+            busy={state.busy}
+            onClear={selection.clear}
+            pages={{}}
+            main={(controls) => (
+              <SelectedMenuRow
+                className="text-destructive"
+                onClick={() => {
+                  controls.close()
+                  // To the Bin without asking, as one note's Delete does.
+                  void state.removeMany(tickedNotes).then((gone) => {
+                    selection.clear()
+                    if (openId && gone.includes(openId)) onDeleted(openId)
+                  })
+                }}
+              >
+                <Trash2Icon className="size-4" />
+                Delete
+              </SelectedMenuRow>
+            )}
+          />
+        ) : null}
         <TaskSearchBox value={query} onChange={setQuery} what="notes" />
+        {canWrite ? (
+          <TaskSelectButton
+            on={massSelect}
+            onToggle={() => {
+              if (massSelect) selection.clear()
+              setMassSelect(!massSelect)
+            }}
+          />
+        ) : null}
         {canWrite ? (
           <Button type="button" aria-label="New note" disabled={state.busy} onClick={() => void create()} className="@max-2xl:size-8 @max-2xl:px-0">
             {state.busy ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
@@ -179,6 +223,7 @@ export function ProjectNotesMiddle({
           </Button>
         ) : null}
       </div>
+      <PanelReopenButton side="right" label="Show the note" />
     </DashboardCardHeader>
   )
 
@@ -197,8 +242,6 @@ export function ProjectNotesMiddle({
     )
   }
 
-  const words = query.trim().toLowerCase()
-  const shown = words ? ready.notes.filter((note) => note.title.toLowerCase().includes(words)) : ready.notes
   const sorted = (items: ProjectNote[]) => {
     if (sort === "order") return items
     const sign = direction === "asc" ? 1 : -1
@@ -214,6 +257,7 @@ export function ProjectNotesMiddle({
         open={note.id === openId}
         label={note.title}
         onOpen={() => onOpen(note.id)}
+        tick={{ shown: massSelect, ticked: selection.selected.has(note.id), onToggle: () => selection.toggle(note.id) }}
         onDelete={canWrite ? () => void state.remove(note).then((gone) => (gone ? onDeleted(note.id) : undefined)) : undefined}
         onRightClick={canWrite ? (x, y) => setMenu({ note, at: { x, y } }) : undefined}
       >
@@ -249,6 +293,16 @@ export function ProjectNotesMiddle({
         sort={sort}
         direction={direction}
         onSort={toggleSort}
+        select={
+          massSelect
+            ? {
+                noun: "notes",
+                checked: selection.selectAllState(shownIds),
+                disabled: shownIds.length === 0,
+                onToggle: () => selection.toggleVisible(shownIds),
+              }
+            : null
+        }
         empty={
           shown.length > 0 ? null : words ? (
             <span className="grid justify-items-center gap-2">
@@ -272,6 +326,17 @@ export function ProjectNotesMiddle({
             <PointAnchor x={menu.at.x} y={menu.at.y} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-44" onCloseAutoFocus={(event) => event.preventDefault()}>
+            {/* Mass select at the top, as the task List's right-click has it; turning it on ticks this note. */}
+            <DropdownMenuItem
+              onSelect={() => {
+                if (massSelect) selection.clear()
+                else if (!selection.selected.has(menu.note.id)) selection.toggle(menu.note.id)
+                setMassSelect(!massSelect)
+              }}
+            >
+              <ListChecksIcon className="size-4" />
+              {massSelect ? "Hide select" : "Mass select"}
+            </DropdownMenuItem>
             <NoteMenuItems state={state} note={menu.note} onDeleted={() => onDeleted(menu.note.id)} />
           </DropdownMenuContent>
         </DropdownMenu>

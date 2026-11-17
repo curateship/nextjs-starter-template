@@ -13,12 +13,34 @@
   create. That way no project can be left with nobody able to open it.
 - **Every team's projects on one page.** Tyler, 19 Oct 2026: "Admin sees all
   project. The project dashboard can have a filter by team dropdown." The
-  site admin's Projects table has a Team column and a team filter, "All
-  teams" then each team by name, kept in the address (`?team=<id>`) so a
+  site admin's Projects table has a Team column and a Team row in Filter,
+  "All teams" then each team by name, kept in the address (`?team=<id>`) so a
   reload or a pasted link keeps it. Employees are on one team and see
   neither. New project asks which team, starting on the filter's team.
 - **The toolbar's order:** the search first (Tyler, 19 Oct 2026), then
-  Archive for ticked rows, the team filter, the client menu and New project.
+  Archive for ticked rows, Filter and New project.
+- **One Filter button, not a dropdown per filter.** Tyler, 16 Nov 2026:
+  "change the 2 dropdown into a filter instead". Team, Client and Category
+  are rows in Filter's dropdown, each a label and its choice, with Group
+  under a line and Clear at the foot, the same frame the other dashboards
+  use (`FilterPopover`). A row shows only when there is something to pick
+  in it or it is still set. The button counts the filters set ("Filter 1");
+  grouping is not counted. Clear resets all four. There is no save button,
+  as this table has no saved views.
+- **Filter is remembered.** Tyler, 16 Nov 2026: "can you make it remember
+  my filter?". Team, Client, Category and Group are kept in the address
+  (`?team=`, `?client=`, `?category=`, `?group=client`, with `-` for "No
+  client" and "No category"), and this browser remembers the last ones,
+  once per person and per site. Arriving at a bare `/projects`, from the
+  left menu or a bookmark, goes straight back to them before the list
+  loads. A link that sets any of them wins and becomes the new memory.
+  Clear forgets them. A remembered client or category no project has any
+  more still shows as picked, so it can be cleared, and an empty table then
+  says "No projects match that search or filter." The search box, the
+  Active/Archived tab and the sort are not remembered. The code is
+  `src/lib/project/projects-filter.ts`, the same shape as the shell's
+  `dashboard-place.ts`, which also opens a first record that a table has
+  none of.
 - **A project's settings are the site admin's alone** (Tyler, 16 Oct 2026:
   "Employees dont even see the settings cog or page. Only admin see it"):
   the name, colour, due date, Doing limit, client, members,
@@ -176,7 +198,12 @@ So a long project shows whether it's on time well before its end date.
   panels are, Travel's open activity and Promo's open item (Tyler, 16 Nov
   2026: "not following ui standard", then "look at the other apps right panel
   and do it again"). The header is the flag in its square, the name, the ⋮
-  and the button that hides the panel. The ⋮ is the task's own menu look
+  and the button that hides the panel. The name is a box to rename it in,
+  as the open task's title is (Tyler, 16 Nov 2026: "clicking on the title
+  for note and milestone i should able to edit it too like this tasks"):
+  Enter or leaving it saves, and an emptied one goes back with "Give the
+  milestone a name." The ⋮'s Name box follows it, so neither saves an old
+  name over the other. An archived project's name reads only. The ⋮ is the task's own menu look
   ("there needs to be a 3 dotted dropdown for these options to go in there"):
   a General tab, a Milestone group with Name (a box that saves as it's left,
   with Saving… then Saved under the group) and Date (a calendar that saves on
@@ -213,6 +240,22 @@ So a long project shows whether it's on time well before its end date.
   another project takes it off; Duplicate keeps it; a repeating task's next
   copy keeps it, unless the milestone's date has already passed (see
   [Repeating tasks](repeating-tasks.md)).
+- **Right-click a milestone** (Tyler, 16 Nov 2026: "Milestone is missing
+  right click to delete and duplicates as well") for Mass select, Duplicate
+  and Delete. Mass select comes first, as on the task List's right-click
+  (Tyler, 16 Nov 2026: "right clicking does not show mass select"). It
+  turns the tick boxes on with this milestone ticked, and reads "Hide
+  select" while they are on.
+  Duplicate makes "Launch (copy)" on the same date and opens it. Its tasks
+  stay with the first, since a task counts toward one milestone at most.
+  Delete asks first, as the bin does.
+- **Mass select** (Tyler, 16 Nov 2026: "Add mass selection delete fucntion
+  for both milestone and notes"): Select in the header, after the search,
+  shows a tick box on each row and a tick-all box in the heading, as the
+  task List's does. Ticked rows make the "N selected" button left of the
+  search, whose menu has Delete, asking "Delete 3 milestones?" first.
+  Ticks on rows the search hides are left out. Turning Select off clears
+  the ticks.
 - **Deleting a milestone** leaves its tasks where they are, counting toward
   none.
 - **The Calendar tab marks milestone days** with a flag and the name.
@@ -242,11 +285,10 @@ So an agency with many projects for a few clients finds things fast.
   used on projects I can see, or typed new ("Use "Hart Dental""). A name
   differing only in capitals picks the one already used, so a client never
   splits into two groups. It is a name, not a client record with contacts.
-- **The Projects table** shows the client under each project's name, and has
-  a client menu once any project has one: All clients, each client, No
-  client, then "Group by client" under a line, ticked while it is on (Tyler
-  moved the switch into the menu on 19 Oct 2026). The menu stays open when
-  grouping is switched, so the tick shows the change. Grouped, clients run A to Z with "No
+- **The Projects table** shows the client under each project's name, and
+  Filter has a Client row once any project has one: All clients, each
+  client, No client. Filter's Group row, under a line, picks "No grouping"
+  or "By client". Grouped, clients run A to Z with "No
   client" last, each under its own heading row, and starred projects still
   come first inside each group.
 - **Narrowing to one client** (Features 16 Oct). A Client choice in My
@@ -278,9 +320,9 @@ the whole site and the filter on the Projects page.
   (`siteCategories` in `src/server/project/clients.ts`). A category no
   project uses any more drops off the list by itself, so there is nothing to
   delete.
-- **The Projects page's Category menu** sits beside the Client menu once any
+- **The Projects page's Category row** sits in Filter under Client once any
   project has a category: All categories, each category, No category. It
-  narrows the table like the Client menu and is kept until the page is left.
+  narrows the table like Client and is kept until the page is left.
 - **Saved** in `project_projects.category`
   (`drizzle/0142_project_category_links_pins.sql`).
 
@@ -332,6 +374,11 @@ link dashboards. The currant link now is Tasks, Notes, Milestone."
   notes and the open note ([Project notes](project-notes.md)); Milestones is
   the milestones and the open one (see Milestones). On a phone the tabs take
   the dashboard's names.
+- **A shut side panel comes back from the middle's header** on all three:
+  the left one from the button at the header's start, the right one from
+  the button at its end ("Show the task", "Show the note", "Show the
+  milestone"). Tyler, 16 Nov 2026: "the uncollapsible icon is missing in
+  project page"; Notes and Milestones had only the left one.
 - **The block is fixed.** It is never in the "/" list, the editor refuses to
   delete it (Backspace, cut, select all and delete), and a page saved without
   it, or an empty one, gets it back at the top (`cleanNoteBody` with
