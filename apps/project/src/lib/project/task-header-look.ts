@@ -12,9 +12,14 @@
  * 8px corners beside the square New task). Filter and Views drop
  * their words under 896px of header, so they turn square there. The search
  * box's × sits inside the box, so it keeps its own size.
+ *
+ * "Only its icon" means no tag but icons inside, which CSS can see; bare
+ * words are not tags. So a button of words ending in a dropdown arrow, as
+ * mass select's "3 selected" is, is left at its own width: it was squeezed
+ * to 32px and read "ected" (Tyler, 16 Nov 2026: "just fix the mass select").
  */
 export const TASK_HEADER_BUTTONS =
-  "flex min-w-0 shrink items-center gap-1.5 [&_button:not(.absolute)]:rounded-lg [&_button:not(.absolute):not(:has(>:not(svg)))]:w-8 [&_button:not(.absolute):not(:has(>:not(svg)))]:px-0 @max-4xl:[&_button[aria-label=Filter]]:w-8 @max-4xl:[&_button[aria-label=Filter]]:px-0 @max-4xl:[&_button:has(>.lucide-bookmark)]:w-8 @max-4xl:[&_button:has(>.lucide-bookmark)]:px-0 [&_[data-variant=ghost]]:border [&_[data-variant=ghost]]:bg-background [&_[data-variant=ghost]:hover]:bg-muted [&_[data-variant=ghost]]:border-zinc-200/60 [&_[data-variant=outline]]:border-zinc-200/60 [&_input]:border-zinc-200/60 dark:[&_[data-variant=ghost]]:border-zinc-700/60 dark:[&_[data-variant=outline]]:border-zinc-700/60 dark:[&_input]:border-zinc-700/60"
+  "flex min-w-0 shrink items-center gap-1.5 [&_button:not(.absolute)]:rounded-lg [&_button:not(.absolute):not(:has(>:not(svg))):not(:has(>.lucide-chevron-down))]:w-8 [&_button:not(.absolute):not(:has(>:not(svg))):not(:has(>.lucide-chevron-down))]:px-0 @max-4xl:[&_button[aria-label=Filter]]:w-8 @max-4xl:[&_button[aria-label=Filter]]:px-0 @max-4xl:[&_button:has(>.lucide-bookmark)]:w-8 @max-4xl:[&_button:has(>.lucide-bookmark)]:px-0 [&_[data-variant=ghost]]:border [&_[data-variant=ghost]]:bg-background [&_[data-variant=ghost]:hover]:bg-muted [&_[data-variant=ghost]]:border-zinc-200/60 [&_[data-variant=outline]]:border-zinc-200/60 [&_input]:border-zinc-200/60 dark:[&_[data-variant=ghost]]:border-zinc-700/60 dark:[&_[data-variant=outline]]:border-zinc-700/60 dark:[&_input]:border-zinc-700/60"
 
 /**
  * Where a task header starts saving room: the search box narrows and the

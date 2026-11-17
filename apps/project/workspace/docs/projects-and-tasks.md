@@ -198,7 +198,12 @@ So a long project shows whether it's on time well before its end date.
   panels are, Travel's open activity and Promo's open item (Tyler, 16 Nov
   2026: "not following ui standard", then "look at the other apps right panel
   and do it again"). The header is the flag in its square, the name, the ⋮
-  and the button that hides the panel. The ⋮ is the task's own menu look
+  and the button that hides the panel. The name is a box to rename it in,
+  as the open task's title is (Tyler, 16 Nov 2026: "clicking on the title
+  for note and milestone i should able to edit it too like this tasks"):
+  Enter or leaving it saves, and an emptied one goes back with "Give the
+  milestone a name." The ⋮'s Name box follows it, so neither saves an old
+  name over the other. An archived project's name reads only. The ⋮ is the task's own menu look
   ("there needs to be a 3 dotted dropdown for these options to go in there"):
   a General tab, a Milestone group with Name (a box that saves as it's left,
   with Saving… then Saved under the group) and Date (a calendar that saves on
@@ -235,6 +240,22 @@ So a long project shows whether it's on time well before its end date.
   another project takes it off; Duplicate keeps it; a repeating task's next
   copy keeps it, unless the milestone's date has already passed (see
   [Repeating tasks](repeating-tasks.md)).
+- **Right-click a milestone** (Tyler, 16 Nov 2026: "Milestone is missing
+  right click to delete and duplicates as well") for Mass select, Duplicate
+  and Delete. Mass select comes first, as on the task List's right-click
+  (Tyler, 16 Nov 2026: "right clicking does not show mass select"). It
+  turns the tick boxes on with this milestone ticked, and reads "Hide
+  select" while they are on.
+  Duplicate makes "Launch (copy)" on the same date and opens it. Its tasks
+  stay with the first, since a task counts toward one milestone at most.
+  Delete asks first, as the bin does.
+- **Mass select** (Tyler, 16 Nov 2026: "Add mass selection delete fucntion
+  for both milestone and notes"): Select in the header, after the search,
+  shows a tick box on each row and a tick-all box in the heading, as the
+  task List's does. Ticked rows make the "N selected" button left of the
+  search, whose menu has Delete, asking "Delete 3 milestones?" first.
+  Ticks on rows the search hides are left out. Turning Select off clears
+  the ticks.
 - **Deleting a milestone** leaves its tasks where they are, counting toward
   none.
 - **The Calendar tab marks milestone days** with a flag and the name.
@@ -353,6 +374,11 @@ link dashboards. The currant link now is Tasks, Notes, Milestone."
   notes and the open note ([Project notes](project-notes.md)); Milestones is
   the milestones and the open one (see Milestones). On a phone the tabs take
   the dashboard's names.
+- **A shut side panel comes back from the middle's header** on all three:
+  the left one from the button at the header's start, the right one from
+  the button at its end ("Show the task", "Show the note", "Show the
+  milestone"). Tyler, 16 Nov 2026: "the uncollapsible icon is missing in
+  project page"; Notes and Milestones had only the left one.
 - **The block is fixed.** It is never in the "/" list, the editor refuses to
   delete it (Backspace, cut, select all and delete), and a page saved without
   it, or an empty one, gets it back at the top (`cleanNoteBody` with
