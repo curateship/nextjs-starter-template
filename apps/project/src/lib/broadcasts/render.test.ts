@@ -183,6 +183,18 @@ describe("renderBroadcastBlockHtml", () => {
     expect(html).toContain("border-radius:4px")
   })
 
+  it("paints the strip behind a button in its own background, white by default", () => {
+    expect(renderBroadcastBlockHtml(block("button"))).toMatch(
+      /^<table width="100%"[^>]*style="background-color:#ffffff;"/
+    )
+    const html = renderBroadcastBlockHtml(
+      block("button", { blockBackgroundColor: "#fef3c7", backgroundColor: "#111111" })
+    )
+    expect(html).toMatch(/^<table width="100%"[^>]*style="background-color:#fef3c7;"/)
+    // The button keeps its own colour.
+    expect(html).toContain("background-color:#111111;border-radius")
+  })
+
   /**
    * The whole reason the app's own emails can use this block: with no address
    * of its own it holds the placeholder, and the send puts the one-use link in.

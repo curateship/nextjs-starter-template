@@ -9,6 +9,7 @@ import {
   duplicateSequence as duplicateSequenceRow,
   listSequences,
   saveSequence as saveSequenceRow,
+  sendSequenceTestEmail as sendSequenceTestEmailRow,
   type SequenceRow,
 } from "@/server/email/sequences"
 import { adminGet, adminPost } from "@/server/guards"
@@ -48,6 +49,11 @@ export const getSequenceErrorMessage = createErrorMessage(
     NAME_REQUIRED: "Name the sequence first.",
     NAME_TAKEN: "Another sequence already has that name.",
     COPY_LIMIT: "Could not find a free name for the copy.",
+    EMAIL_GONE: "That email is no longer in the sequence.",
+    BLOCKS_REQUIRED: "Add something to the email before sending a test.",
+    EMAIL_NOT_CONFIGURED: "Email is not set up yet. Add a from-address in settings first.",
+    UNSUBSCRIBE_NOT_CONFIGURED:
+      "This server cannot sign unsubscribe links, so nothing can go out. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY and try again.",
   },
   "We could not save that change to the sequence. Please try again."
 )
@@ -86,6 +92,17 @@ const deleteSequencesFn = createServerFn({ method: "POST" })
     count: await deleteSequenceRows(await workspaceIdForRequest(context.user.id), data.ids),
   }))
 
+/** One saved email of the sequence, sent once to the admin who asked. */
+const sendSequenceTestFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ sequenceId: idSchema, emailId: z.string().min(1).max(100) }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> =>
+    sendSequenceTestEmailRow(await workspaceIdForRequest(context.user.id), {
+      ...data,
+      toEmail: context.user.email,
+    })
+  )
+
 export function loadSequences() {
   return loadSequencesFn()
 }
@@ -104,4 +121,8 @@ export function duplicateSequence(id: string) {
 
 export function deleteSequences(ids: string[]) {
   return deleteSequencesFn({ data: { ids } })
+}
+
+export function sendSequenceTestEmail(sequenceId: string, emailId: string) {
+  return sendSequenceTestFn({ data: { sequenceId, emailId } })
 }

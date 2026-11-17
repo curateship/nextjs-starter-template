@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { newSequenceEmail, type SequenceSteps } from "@/lib/broadcasts/sequence-graph"
 import { sendSequenceNode } from "@/lib/automations/nodes/send-sequence"
@@ -20,6 +20,7 @@ import {
   duplicateSequence,
   listSequences,
   saveSequence,
+  sendSequenceTestEmail,
   startSequenceForRun,
 } from "@/server/email/sequences"
 import {
@@ -29,6 +30,15 @@ import {
   type CustomShellAutomationRun,
 } from "@/server/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
+import { setEmailProviderFactoryForTests } from "@/server/email/provider"
+
+const emailSettings = vi.hoisted(() => ({
+  getSendableEmailConfig: vi.fn<() => Promise<{ apiKey: string; from: string; fromEmail: string } | null>>(),
+}))
+vi.mock("@/server/email/settings", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getSendableEmailConfig: emailSettings.getSendableEmailConfig,
+}))
 
 let client: PGlite
 let database: CustomShellDb
@@ -271,5 +281,61 @@ describe("the Send sequence step", () => {
     })
     expect(result.type).toBe("next")
     expect(await sequenceRuns(sequence.id)).toEqual([])
+  })
+})
+
+describe("Send myself a test", () => {
+  const sent: Array<{ from: string; to: string; subject: string; html: string }> = []
+  beforeEach(() => {
+    sent.length = 0
+    vi.stubEnv("CUSTOM_SHELL_SECRET_ENCRYPTION_KEY", "test-key-for-unsubscribe-links")
+    emailSettings.getSendableEmailConfig.mockResolvedValue({
+      apiKey: "re_test",
+      from: "Flowfly <hello@flowfly.test>",
+      fromEmail: "hello@flowfly.test",
+    })
+    setEmailProviderFactoryForTests(() => ({
+      send: async (params: { from: string; to: string; subject: string; html: string }) => {
+        sent.push(params)
+        return { success: true, messageId: "m1" }
+      },
+    }))
+  })
+  afterEach(() => {
+    setEmailProviderFactoryForTests(null)
+    vi.unstubAllEnvs()
+  })
+
+  it("sends the chosen email, as saved, to the address given and nobody else", async () => {
+    const sequence = await makeReadySequence()
+    const result = await sendSequenceTestEmail(
+      workspaceId,
+      { sequenceId: sequence.id, emailId: "two", toEmail: "admin@example.test" },
+      database
+    )
+    expect(result).toEqual({ ok: true })
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.to).toBe("admin@example.test")
+    expect(sent[0]!.subject).toBe("[TEST] Three days in")
+    expect(sent[0]!.from).toBe("Flowfly <hello@flowfly.test>")
+    // Nobody is started on the sequence.
+    expect(await database.select().from(customShellAutomationRuns)).toHaveLength(0)
+  })
+
+  it("refuses an email that is not in the sequence", async () => {
+    const sequence = await makeReadySequence()
+    await expect(
+      sendSequenceTestEmail(workspaceId, { sequenceId: sequence.id, emailId: "nope", toEmail: "a@example.test" }, database)
+    ).rejects.toThrow("EMAIL_GONE")
+    expect(sent).toHaveLength(0)
+  })
+
+  it("sends nothing when email is not set up", async () => {
+    emailSettings.getSendableEmailConfig.mockResolvedValue(null)
+    const sequence = await makeReadySequence()
+    await expect(
+      sendSequenceTestEmail(workspaceId, { sequenceId: sequence.id, emailId: "one", toEmail: "a@example.test" }, database)
+    ).rejects.toThrow("EMAIL_NOT_CONFIGURED")
+    expect(sent).toHaveLength(0)
   })
 })

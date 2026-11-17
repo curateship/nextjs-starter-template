@@ -173,6 +173,7 @@ describe("what a saved string cannot do", () => {
         url: "javascript:alert(1)",
         backgroundColor: "#000000",
         textColor: "#ffffff",
+        blockBackgroundColor: "#ffffff",
         alignment: "left" as const,
         borderRadius: 8,
         padding: 20,
