@@ -309,15 +309,12 @@ describe("the admin list", () => {
     expect(narrowed.listings[0].id).toBe(ramen.id)
   })
 
-  it("puts Published before Draft before Closed and counts every listing under each", async () => {
-    const draft = await createListing(site, { title: "A draft" }, database)
+  it("counts every listing under each status heading, for the words in view", async () => {
+    await createListing(site, { title: "A draft" }, database)
     const live = await createListing(site, { title: "Z live" }, database)
     const shut = await createListing(site, { title: "M shut" }, database)
     await updateListing(site, live.id, { status: "published" }, database)
     await updateListing(site, shut.id, { status: "closed" }, database)
-
-    const grouped = await listListings(site, { groupByStatus: true, sort: "title", direction: "asc", limit: 2 }, database)
-    expect(grouped.listings.map((row) => row.id)).toEqual([live.id, draft.id])
 
     expect(await listingStatusCounts(site, {}, database)).toEqual({ published: 1, draft: 1, closed: 1 })
     expect(await listingStatusCounts(site, { search: "shut" }, database)).toEqual({ published: 0, draft: 0, closed: 1 })

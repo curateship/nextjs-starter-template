@@ -117,10 +117,19 @@ Every row has the same header and table, the shell's `CrmListHeader` and
 - **Waiting time:** Submissions, Claims, Owner changes and Reports show how
   long each record has waited. From three days the chip turns amber (Tyler,
   18 Nov 2026, picked 3 days).
-- **Listings** fall under folding Published, Draft and Closed headings, and
-  each heading counts every listing under it rather than the page in view.
-  Closed starts folded. The search also finds the street address and any
-  category's name.
+- **Listings** show one status at a time behind the header's Published,
+  Draft and Closed tabs, Published first, each tab with its count for the
+  words and category in view (Tyler, 18 Nov 2026: "Add tabs to the listing in
+  the header seperated by Published, Draft and Closed"). Each tab pages on
+  its own, and the tab picked is in the address as `status`. Folding status
+  headings came first and were dropped: one page was shared by all three, so
+  Draft and Closed opened empty ("draft and close does not show when
+  untoggled"), and a Show all that narrowed to one status left no way back
+  ("now I cant go back to published or closed").
+- **Each listing's row starts with its featured photo**, 28px with rounded
+  corners, or the shop icon on a grey square when it has none (Tyler: "Add a
+  thumbnail for the listing"). The search also finds the street address and
+  any category's name.
 - **Categories** fold by family. A top-level category with subcategories is
   a heading over itself and every category under it. Categories with no
   parent and no children sit last under "On their own". Pressing a count opens
@@ -147,9 +156,9 @@ and one line, its ⋮, and the collapse button. There is no ×. A first visit
 opens the first row, and after that the dashboard remembers the record.
 
 - **A listing or guide stays open** when it is not on the page in view: one
-  opened from a link in another row, one past the first page or under the
-  folded Closed heading, and one an edit has just moved out of the list (set
-  to Closed, or renamed away from the search). A new search, filter, sort or
+  opened from a link in another row, one past the first page or under
+  another tab, and one an edit has just moved out of the list (set to Closed,
+  or renamed away from the search). A new search, filter, sort, tab or
   page that leaves it out opens the first row; deleting it does too. The
   queue rows draw their record from the list, so there the first row opens
   whenever the open one is not in it.

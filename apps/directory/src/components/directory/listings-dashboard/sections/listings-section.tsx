@@ -2,7 +2,7 @@ import * as React from "react"
 import { CopyIcon, StoreIcon, TagIcon, Trash2Icon } from "lucide-react"
 
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
-import { Chip, CrmGroupRow, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
+import { CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import type { ListingsLoaded } from "@/components/directory/listings-dashboard/load-section"
 import { NewListingDropdown } from "@/components/directory/listings-dashboard/new-listing-dropdown"
@@ -16,9 +16,10 @@ import {
   type SectionProps,
 } from "@/components/directory/listings-dashboard/section-parts"
 import { useBulkChangeAsk } from "@/components/shared/bulk-change-menu"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { SelectedMenu, SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
-import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { FilterRow } from "@/components/admin-dashboard/list-parts"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -33,6 +34,7 @@ import {
 } from "@/lib/api/directory/listings"
 import { forgetListings, prefetchListing } from "@/lib/directory/listing-cache"
 import {
+  LISTING_SORT_COLUMNS,
   LISTING_VIEW_RANGES,
   LISTING_VIEW_RANGE_LABELS,
   listingSortDirection,
@@ -56,19 +58,22 @@ type Data = Extract<ListingsLoaded, { section: "listings" }>
 
 type DeleteImpact = Awaited<ReturnType<typeof loadListingDeleteImpact>> & { ids: string[]; title: string | null }
 
-/** Published first, then Draft, then Closed: the headings the rows fall under (Tyler's polish pick, 18 Nov 2026). */
-const GROUPS: ListingStatus[] = ["published", "draft", "closed"]
+/** The tabs in the header, Published first, the one the row opens on. */
+const TABS: ListingStatus[] = ["published", "draft", "closed"]
 
 /**
  * The Listings row: every listing on the site, searched, filtered, sorted and
- * paged on the server, under folding Published, Draft and Closed headings
- * with every listing counted, Closed folded at first. It was the Listings
- * page, a table whose rows opened a window.
+ * paged on the server, one status at a time behind the header's Published,
+ * Draft and Closed tabs, each with its count (Tyler, 18 Nov 2026: "Add tabs
+ * to the listing in the header seperated by Published, Draft and Closed").
+ * It was the Listings page, a table whose rows opened a window; folding
+ * status headings came between, and were dropped for the tabs.
  *
- * - **Header:** the "N selected" menu (Set a category, Publish, Unpublish,
- *   Delete), the search box (names, address parts, street addresses and
- *   category names), Select, Filter (Status and the range the Views column
- *   counts), and New listing.
+ * - **Header:** the tabs, the "N selected" menu (Set a category, Publish,
+ *   Unpublish, Delete), the search box (names, address parts, street
+ *   addresses and category names), Select, Filter (the range the Views
+ *   column counts, and a category picked in the Categories block), and New
+ *   listing.
  * - **Rows:** Duplicate, the cog and the bin; a right-click menu of Mass
  *   select, Duplicate and Delete (Tyler, 18 Nov 2026: "Make sure right click
  *   is enabled for mass select, duplicates and delete").
@@ -79,14 +84,13 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
   const setOpen = useOpenRecord()
   const page = data.page
   const q = search.q ?? ""
-  const status = statusIn(search.status, DIRECTORY_LISTING_STATUSES)
+  const status = statusIn(search.status, DIRECTORY_LISTING_STATUSES) ?? "published"
   const viewDays = search.days ?? "all"
-  const sort = statusIn(search.sort, ["title", "status", "views", "created", "updated"] as const) ?? "created"
+  const sort = statusIn(search.sort, LISTING_SORT_COLUMNS) ?? "created"
   const direction = search.direction ?? "desc"
   const toggleSort = useListSort<ListingSortColumn>({ sort, direction }, listingSortDirection)
   const categoryName = search.category ? data.categories.find((category) => category.id === search.category)?.name : undefined
 
-  const [folded, setFolded] = React.useState<Set<ListingStatus>>(() => new Set(["closed"]))
   const [massSelect, setMassSelect] = React.useState(false)
   const selection = useSelection()
   const [rightClick, setRightClick] = React.useState<{ id: string; x: number; y: number } | null>(null)
@@ -101,22 +105,18 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
     await onChanged()
   }, [onChanged])
 
-  const listKey = `${q}|${status ?? ""}|${search.category ?? ""}|${sort}|${direction}|${page.page}|${page.pageSize}`
+  const listKey = `${q}|${status}|${search.category ?? ""}|${sort}|${direction}|${page.page}|${page.pageSize}`
   useClearSelectionOnListChange(selection.setSelected, listKey)
 
-  const grouped = GROUPS.map((group) => ({
-    status: group,
-    rows: page.listings.filter((listing) => listing.status === group),
-  })).filter((group) => (status ? group.status === status : page.statusCounts[group.status] > 0 || group.rows.length > 0))
-  const shownRows = grouped.flatMap((group) => (folded.has(group.status) ? [] : group.rows))
-  const ids = shownRows.map((listing) => listing.id)
+  const rows = page.listings
+  const ids = rows.map((listing) => listing.id)
   const openId = search.open
   useOpenFirstRow(ids, openId, listKey)
-  const openRow = page.listings.find((listing) => listing.id === openId) ?? null
+  const openRow = rows.find((listing) => listing.id === openId) ?? null
 
   const bulk = useBulkChange({
     one: "listing",
-    rows: page.listings,
+    rows,
     send: changeListings,
     describeError: getListingErrorMessage,
     onChanged: refresh,
@@ -164,15 +164,30 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
     if (tickId) selection.setSelected(new Set([tickId]))
   }
 
-  const filterCount = (status ? 1 : 0) + (viewDays !== "all" ? 1 : 0) + (search.category ? 1 : 0)
+  const filterCount = (viewDays !== "all" ? 1 : 0) + (search.category ? 1 : 0)
   const viewsLabel = viewDays === "all" ? "Views" : viewDays === 365 ? "Year views" : `${viewDays}-day views`
 
-  const rightClicked = rightClick ? page.listings.find((listing) => listing.id === rightClick.id) : undefined
+  const rightClicked = rightClick ? rows.find((listing) => listing.id === rightClick.id) : undefined
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card" {...prefetchHandlers(prefetchListing)}>
       <CrmListHeader
-        tabs={<MiddleHeading icon={StoreIcon} label="Listings" />}
+        tabs={
+          <>
+            <PanelReopenButton side="left" label="Show the page" />
+            {/* Straight in the header, as the CRM's Broadcasts and Sequences
+                tabs are, so their line sits on its bottom line. */}
+            <DashboardTabs
+              value={status}
+              onValueChange={(value) => setListSearch({ status: value === "published" ? undefined : value, page: undefined })}
+              tabs={TABS.map((each) => ({
+                value: each,
+                label: DIRECTORY_LISTING_STATUS_LABELS[each],
+                count: page.statusCounts[each],
+              }))}
+            />
+          </>
+        }
         end={<PanelReopenButton side="right" label="Show the listing" />}
         selected={
           massSelect && ticked.length ? (
@@ -237,27 +252,9 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
           <FilterPopover
             contentClassName="w-60"
             count={filterCount}
-            onClear={() => setListSearch({ status: undefined, days: undefined, category: undefined, page: undefined })}
+            onClear={() => setListSearch({ days: undefined, category: undefined, page: undefined })}
             save={null}
           >
-            <FilterRow id="listings-status" label="Status">
-              <Select
-                value={status ?? "all"}
-                onValueChange={(value) => setListSearch({ status: value === "all" ? undefined : value, page: undefined })}
-              >
-                <SelectTrigger id="listings-status" className="h-8 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  {DIRECTORY_LISTING_STATUSES.map((each) => (
-                    <SelectItem key={each} value={each}>
-                      {DIRECTORY_LISTING_STATUS_LABELS[each]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterRow>
             <FilterRow id="listings-views" label="Views counted over">
               <Select
                 value={String(viewDays)}
@@ -285,7 +282,6 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
       <CrmTable<ListingSortColumn>
         columns={[
           { key: "title", label: "Listing", column: "main", className: "min-w-40" },
-          { key: "status", label: "Status", column: "meta", className: "hidden md:hidden @lg:table-cell" },
           { key: "views", label: viewsLabel, column: "meta", className: "hidden md:hidden @xl:table-cell" },
           { key: "created", label: "Created", column: "meta", className: "hidden md:hidden @4xl:table-cell" },
           { key: "updated", label: "Updated", column: "meta", className: "hidden md:hidden @2xl:table-cell" },
@@ -308,62 +304,46 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
             <NoMatches
               words={q}
               noun="listings"
-              onClear={() => setListSearch({ q: undefined, status: undefined, days: undefined, category: undefined, page: undefined })}
+              onClear={() => setListSearch({ q: undefined, days: undefined, category: undefined, page: undefined })}
             />
+          ) : page.statusCounts.published + page.statusCounts.draft + page.statusCounts.closed > 0 ? (
+            `No ${DIRECTORY_LISTING_STATUS_LABELS[status].toLowerCase()} listings.`
           ) : (
             "No listings yet. Make the first one with New listing."
           )
         }
       >
-        {grouped.map((group) => (
-          <React.Fragment key={group.status}>
-            <CrmGroupRow
-              label={DIRECTORY_LISTING_STATUS_LABELS[group.status]}
-              count={page.statusCounts[group.status]}
-              folded={folded.has(group.status)}
-              onToggle={() =>
-                setFolded((current) => {
-                  const next = new Set(current)
-                  if (next.has(group.status)) next.delete(group.status)
-                  else next.add(group.status)
-                  return next
-                })
-              }
-            />
-            {folded.has(group.status)
-              ? null
-              : group.rows.map((listing) => (
-                  <CrmTableRow
-                    key={listing.id}
-                    open={listing.id === openId}
-                    label={listing.title}
-                    tick={{ shown: massSelect, ticked: selection.selected.has(listing.id), onToggle: () => selection.toggle(listing.id) }}
-                    onOpen={() => {
-                      setPressedId(listing.id)
-                      setOpen(listing.id)
-                    }}
-                    buttons={[{ label: `Duplicate ${listing.title}`, icon: <CopyIcon className="size-4" />, onPress: () => duplicate(listing) }]}
-                    onDelete={() => askToDelete([listing.id], listing.title)}
-                    onRightClick={(x, y) => setRightClick({ id: listing.id, x, y })}
-                  >
-                    <MainCell name={listing.title} line={listing.categories.length ? listing.categories.join(", ") : `/${listing.slug}`}>
-                      <PrefetchMark id={listing.id} />
-                    </MainCell>
-                    <TableCell column="meta" className="hidden md:hidden @lg:table-cell">
-                      <Chip muted>{DIRECTORY_LISTING_STATUS_LABELS[listing.status]}</Chip>
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @xl:table-cell">
-                      {listing.views.toLocaleString()}
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden md:hidden @4xl:table-cell">
-                      {formatDate(listing.createdAt)}
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
-                      {formatDate(listing.updatedAt)}
-                    </TableCell>
-                  </CrmTableRow>
-                ))}
-          </React.Fragment>
+        {rows.map((listing) => (
+          <CrmTableRow
+            key={listing.id}
+            open={listing.id === openId}
+            label={listing.title}
+            tick={{ shown: massSelect, ticked: selection.selected.has(listing.id), onToggle: () => selection.toggle(listing.id) }}
+            onOpen={() => {
+              setPressedId(listing.id)
+              setOpen(listing.id)
+            }}
+            buttons={[{ label: `Duplicate ${listing.title}`, icon: <CopyIcon className="size-4" />, onPress: () => duplicate(listing) }]}
+            onDelete={() => askToDelete([listing.id], listing.title)}
+            onRightClick={(x, y) => setRightClick({ id: listing.id, x, y })}
+          >
+            <MainCell
+              lead={<ListingThumbnail url={listing.featuredImage} />}
+              name={listing.title}
+              line={listing.categories.length ? listing.categories.join(", ") : `/${listing.slug}`}
+            >
+              <PrefetchMark id={listing.id} />
+            </MainCell>
+            <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @xl:table-cell">
+              {listing.views.toLocaleString()}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden md:hidden @4xl:table-cell">
+              {formatDate(listing.createdAt)}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
+              {formatDate(listing.updatedAt)}
+            </TableCell>
+          </CrmTableRow>
         ))}
       </CrmTable>
       <ListPager page={page.page} pageSize={page.pageSize} total={page.total} />
@@ -451,6 +431,30 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
       </>
     ),
   })
+}
+
+/**
+ * The listing's featured photo before its name, 28px with rounded corners,
+ * the size of a person's avatar in the CRM's rows (Tyler, 18 Nov 2026: "Add a
+ * thumbnail for the listing"). One with no photo shows the shop icon on the
+ * same grey square, so every name starts at the same place.
+ */
+function ListingThumbnail({ url }: { url: string }) {
+  const [broken, setBroken] = React.useState(false)
+  return url && !broken ? (
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setBroken(true)}
+      className="size-7 shrink-0 rounded-md bg-muted object-cover"
+    />
+  ) : (
+    <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <StoreIcon className="size-3.5" />
+    </span>
+  )
 }
 
 /** What deleting takes with it, said before anything goes. */

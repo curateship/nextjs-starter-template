@@ -6,7 +6,6 @@
 
 export const LISTING_SORT_COLUMNS = [
   "title",
-  "status",
   "views",
   "created",
   "updated",
