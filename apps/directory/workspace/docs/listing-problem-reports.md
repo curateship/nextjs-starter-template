@@ -83,7 +83,8 @@ for the rest of it.
 
 ## The queue
 
-Admin → Reported problems, at `/admin/listing-reports`.
+The Reports row of the Listings dashboard, at
+`/admin/listings?section=reports`.
 
 The screen opens on the reports still waiting, because the only question an
 admin has here is what is left to do. Choosing All in the status filter is what

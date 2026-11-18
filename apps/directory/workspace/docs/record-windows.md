@@ -1,9 +1,11 @@
 # The four record windows
 
-Listings, events, posts and deals each open as a window over their list. They
-are four separate files, but three things in them are the same thing and are
-kept the same on purpose: the link to the public page, the categories field, and
-the cover image. A listing's window is the one the other three follow.
+Events, posts and deals each open as a window over their list. A listing has
+opened on the right of the Listings dashboard since 18 Nov 2026, as a record
+that saves itself (`listings-dashboard.md`), rather than as a window. The four
+are separate files, but three things in them are the same thing and are kept
+the same on purpose: the link to the public page, the categories field, and
+the cover image. A listing's record is the one the other three follow.
 
 ## The link to the public page
 
@@ -47,8 +49,8 @@ column of checkboxes on 25 Sep 2026.
 - **Closing the box clears the search**, so the next open is the whole list
   rather than the last search still narrowing it.
 - **Nothing about the saved data changed.** The same `category_relationships`
-  rows are written, and the listing window's Primary category still has to be
-  one of the chosen ones.
+  rows are written, and the listing's Primary category, now in its ⋮, still
+  has to be one of the chosen ones.
 - **The wheel works in here because the shell makes it work.** A window cancels
   every wheel turn outside its own content, and this list is a popover, so
   `PopoverContent` scrolls its own lists. It is the shell's behaviour, for every
@@ -73,7 +75,7 @@ A weekday is off, or has one start and one end. Nothing else.
 There used to be an "Add a second time on Monday" button under each open day,
 for a restaurant that serves lunch, shuts, and opens again for dinner. Tyler
 removed it on 25 Sep 2026. `src/components/shared/weekday-hours-fields.tsx`
-draws the days for both the listing window and the deal window, so both lost it
+draws the days for both the listing's record and the deal window, so both lost it
 at once.
 
 **A second stretch saved before then is ignored, not deleted.**

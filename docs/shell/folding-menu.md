@@ -47,3 +47,10 @@ whole row, and only while it shows does the name give it 32px. Before 9 Nov
 2026 the hidden arrow still held its 32px, so "Admin Dashboard" was cut to
 "Admin…" with empty room beside it (Tyler: "theres still too much space here
 for the text to truncate").
+
+The pages under a link (Events' Submissions, Admin's CRM) sit indented behind
+their line on the left but keep no gap on the right, so a name runs to the
+same edge as the links above it before it is cut short. Until 18 Nov 2026 the
+list kept 24px empty on its right, so "Submissions" was cut to "Submis…"
+beside empty room (Tyler: "this sub-link has more room should it shouldnt
+truncate so early").

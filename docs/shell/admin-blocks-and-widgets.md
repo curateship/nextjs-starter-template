@@ -63,7 +63,10 @@ export default function BookingsWidget({ days }: AdminAdditionProps) {
   widget's ⋮ on the heading, and scrolls inside the card. Draw only what goes
   on the white tile.
 - **A block** sits in the shell's `BlockCard`, which folds by its title and
-  has Delete block in its ⋮.
+  has Delete block in its ⋮. The card stops at 28rem tall, except while a
+  `SideRows` list in it is opened by "Show all": then the block grows down to
+  the list's last row and the panel scrolls (Tyler, 18 Nov 2026: "this here
+  doesnt extend down and show all"). "Show fewer" brings the cap back.
 - **One that throws** says "This widget could not be drawn." or "This block
   could not be drawn." in its own card, and the rest of the dashboard
   carries on.

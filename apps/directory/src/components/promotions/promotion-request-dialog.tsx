@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
-import { SubmissionDetail as Detail } from "@/components/directory/submission-dialog"
+import { SubmissionDetail as Detail } from "@/components/directory/submission-parts"
 import { CharacterCount } from "@/components/shared/character-count"
 import { Button } from "@/components/ui/button"
 import {

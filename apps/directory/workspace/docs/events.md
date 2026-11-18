@@ -713,8 +713,8 @@ quiz for those two weeks.
   owner's event, or one an admin wrote, is refused with "That event is not
   one you sent in." A paid spot stops counting if the owner stops looking
   after the listing, the same as a featured listing.
-- **The plans:** Featured plans (`/admin/listing-featured`) has a "For" choice
-  on a new plan, Listings or Events. It is fixed once the plan is made, so a
+- **The plans:** the Featured plans row of the Listings dashboard
+  (`/admin/listings?section=plans`) has a "For" choice on a new plan, Listings or Events. It is fixed once the plan is made, so a
   plan never changes what somebody already paid for. An event plan has a price
   and no days or priority, and the table's Period column says "Until the event
   ends". An event is only ever offered event plans.
@@ -1247,13 +1247,14 @@ share: the queue, the admin email, and two admins closing the same report.
 
 ### In the queue
 
-Admin → Reported problems, at `/admin/listing-reports`.
+The Reports row of the Listings dashboard, at
+`/admin/listings?section=reports`.
 
 - **The Kind column** says Listing or Event on every row.
 - **The Kind filter** picks between "Listings and events", which it opens on,
   "Listings" and "Events". It lives in the address as `?kind=event`.
 - **The search** matches the event's title as well as the note.
-- **The window** links to "Edit the event", which opens it in Admin → Events,
+- **The report on the right** links to "Edit the event", which opens it in Admin → Events,
   and "See the page", which opens the event's public page.
 - **Mark fixed and Dismiss** only close the report. The event is corrected in
   its own editor.

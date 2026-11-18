@@ -3,7 +3,8 @@
 ## Completed behavior
 
 - Admin → Listings shows each listing's views for all time, 7 days, 30 days,
-  or the latest year.
+  or the latest year, picked in Filter. An open listing's Views card on the
+  right shows all four at once.
 - The Views column sorts the complete filtered result on the server before it
   is split into pages.
 - Counts use each listing's current `/directory/<slug>` address and the site's

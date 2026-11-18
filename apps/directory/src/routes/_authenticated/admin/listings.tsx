@@ -1,102 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { ListingsDashboard } from "@/components/directory/listings-dashboard"
+import { ListingsDashboard } from "@/components/directory/listings-dashboard/listings-dashboard"
+import { loadListingsSection } from "@/components/directory/listings-dashboard/load-section"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { loadCategories } from "@/lib/api/directory/categories"
-import { loadCustomSections } from "@/lib/api/directory/custom-sections"
-import {
-  getListingErrorMessage,
-  loadListingsPage,
-} from "@/lib/api/directory/listings"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import {
-  LISTING_SORT_COLUMNS,
-  readListingViewRange,
-  type ListingSortColumn,
-  type ListingViewRange,
-} from "@/lib/directory/listing-sort"
-import {
-  DIRECTORY_LISTING_STATUSES,
-  type ListingStatus,
-} from "@/lib/directory/listing-status"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
-
-type ListingsSearch = {
-  q?: string
-  status?: ListingStatus
-  sort?: ListingSortColumn
-  direction?: "asc" | "desc"
-  days?: ListingViewRange
-  page?: number
-  size?: number
-  /** Which listing's edit window is open, so a listing can be linked to. */
-  open?: string
-}
+import { getListingsDashboardErrorMessage } from "@/lib/api/directory/listings-dashboard"
+import { readListingsSearch } from "@/lib/directory/listings-dashboard-search"
+import { LISTINGS_PLACE_KEY } from "@/lib/directory/listings-panel-keys"
+import { restoreDashboardPlace } from "@/lib/layout/dashboard-place"
 
 /**
- * The list's state lives in the address, so a reload keeps it and a filtered
- * link can be handed to somebody else. Every value is checked against a fixed
- * list or a range; a hand-edited address only ever falls back to the default.
+ * The Listings dashboard (Tyler, 18 Nov 2026: "Cosolidate listings into one
+ * 3 panel dashboard. Match design pattern of the shell 1 to 1"). Every page
+ * that stood on its own under Listings is a row of its Dashboards block now,
+ * and its old address forwards here: `listing-fields`, `listing-submissions`,
+ * `listing-claims`, `listing-reports`, `listing-featured`, `listing-guides`,
+ * `listing-saves`, `listing-outreach` and `categories`.
+ * `src/lib/directory/listings-dashboard-search.ts` says what the address
+ * holds.
  */
-function readListingsSearch(search: Record<string, unknown>): ListingsSearch {
-  return {
-    q: readSearchText(search.q),
-    status: readOneOf(search.status, DIRECTORY_LISTING_STATUSES),
-    sort: readOneOf(search.sort, LISTING_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    days: readListingViewRange(search.days),
-    page: readPage(search.page),
-    size: readOneOf(String(search.size), DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String))
-      ? Number(search.size)
-      : undefined,
-    ...readOpenSearch(search),
-  }
-}
-
 export const Route = createFileRoute("/_authenticated/admin/listings")({
+  // Drawn in the browser only. On the server the shell's three-panel frame
+  // has no Settings → Styling to read, so it drew the side panels at other
+  // widths than the browser then did, and React refused to patch the
+  // difference (found by the browser check, 18 Nov 2026). A bare address
+  // still goes back to where the dashboard was before anything loads
+  // (`src/lib/layout/dashboard-place.ts`), which needs no server draw.
+  ssr: false,
+  beforeLoad: ({ search, location, matches, cause }): void =>
+    restoreDashboardPlace(LISTINGS_PLACE_KEY, { search, location, matches, cause }),
   validateSearch: readListingsSearch,
-  // Everything except `open`: the edit window loads its own record, so
-  // opening and closing it must not refetch the list underneath.
+  // Everything except `open`: a record loads itself, so opening one never
+  // reads the list underneath again.
   loaderDeps: ({ search: { open: _open, ...rest } }) => rest,
-  // The list, the category tree and the site's own invented fields together:
-  // the edit window needs all three the moment it opens, and fetching them
-  // then is what made opening feel slow. A new listing has no record to load
-  // them from at all, so this is the only place they can come from.
-  loader: async ({ deps }) => {
-    const [page, categories, customSections] = await Promise.all([
-      loadListingsPage({
-        search: deps.q,
-        status: deps.status,
-        sort: deps.sort,
-        direction: deps.direction,
-        days: deps.days,
-        page: deps.page,
-        limit: deps.size,
-      }),
-      loadCategories(),
-      loadCustomSections(),
-    ])
-    return { page, categories, customSections }
-  },
+  loader: ({ deps }) => loadListingsSection(deps),
   component: AdminListingsRoute,
-  errorComponent: routeErrorComponent(getListingErrorMessage),
+  errorComponent: routeErrorComponent(getListingsDashboardErrorMessage),
 })
 
 function AdminListingsRoute() {
-  const search = Route.useSearch()
-  const { page, categories, customSections } = Route.useLoaderData()
-  return (
-    <ListingsDashboard
-      data={page}
-      categories={categories}
-      customSections={customSections}
-      search={search}
-    />
-  )
+  return <ListingsDashboard loaded={Route.useLoaderData()} search={Route.useSearch()} />
 }

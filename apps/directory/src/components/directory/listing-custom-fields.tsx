@@ -1,10 +1,10 @@
 import * as React from "react"
-import { PlusIcon, XIcon } from "lucide-react"
+import { ListPlusIcon, PlusIcon, XIcon } from "lucide-react"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { CharacterCount } from "@/components/shared/character-count"
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -71,20 +71,23 @@ export function ListingCustomFields({
   return (
     <>
       {sections.map((section) => (
-        <CollapsibleSettingsCard
+        <PanelCard
           key={section.id}
-          size="sm"
           // Keyed on the section's own slug, which never changes, so which
           // sections somebody keeps folded away survives renaming them.
           storageId={`listing-section-${section.slug}`}
+          icon={<ListPlusIcon />}
           title={section.name}
-          description="Only what is filled in shows on the listing's page."
-          contentClassName={
-            section.layout === "two-column"
-              ? "grid gap-4 sm:grid-cols-2"
-              : "grid gap-4"
-          }
         >
+          <p className="text-sm text-muted-foreground">Only what is filled in shows on the listing's page.</p>
+          {/* Two columns only where the panel itself is wide enough, never the screen. */}
+          <div
+            className={
+              section.layout === "two-column"
+                ? "@container grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4"
+                : "grid gap-4"
+            }
+          >
           {section.fields.length ? (
             section.fields.map((field) => (
               <CustomFieldControl
@@ -98,11 +101,12 @@ export function ListingCustomFields({
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              This section has no fields yet. Add them on the Listing fields
-              screen.
+              This section has no fields yet. Add them in the Custom fields
+              row.
             </p>
           )}
-        </CollapsibleSettingsCard>
+          </div>
+        </PanelCard>
       ))}
     </>
   )

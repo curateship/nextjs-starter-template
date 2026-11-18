@@ -59,13 +59,19 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * menu is absent altogether while no row is ticked.
  */
 
-export function BulkChangeMenu({
+/**
+ * The Change actions' questions and the category window, without the
+ * button that opens them, for a screen whose "N selected" menu lists the
+ * actions itself: the Listings dashboard's (Tyler, 18 Nov 2026: "Match
+ * design pattern of the shell 1 to 1"). `BulkChangeMenu` below is the same
+ * questions behind its own Change button.
+ */
+export function useBulkChangeAsk({
   count,
   one,
   many,
   busy,
   categories,
-  canFeature = false,
   onRun,
 }: {
   /** How many rows are ticked. Nothing renders at zero. */
@@ -105,8 +111,6 @@ export function BulkChangeMenu({
   const chosenName =
     rows.find((row) => row.category.id === categoryId)?.category.name ?? ""
 
-  if (count === 0) return null
-
   const these = `${count} ${plural(count, one, many)}`
 
   const askStatus = (status: "draft" | "published") =>
@@ -131,54 +135,18 @@ export function BulkChangeMenu({
       change: { kind: "featured", featured },
     })
 
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <DashboardToolbarButton
-            type="button"
-            variant="outline"
-            disabled={busy}
-          >
-            Change ({count})
-            <ChevronDownIcon className="size-4" />
-          </DashboardToolbarButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {categories ? (
-            <>
-              <DropdownMenuItem
-                onSelect={() => {
-                  setCategoryId(null)
-                  setMode("add")
-                  setCategoryOpen(true)
-                }}
-              >
-                Set a category…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          ) : null}
-          <DropdownMenuItem onSelect={() => askStatus("published")}>
-            Publish
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => askStatus("draft")}>
-            Unpublish
-          </DropdownMenuItem>
-          {canFeature ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => askFeatured(true)}>
-                Feature
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => askFeatured(false)}>
-                Stop featuring
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
+  return {
+    ask: {
+      status: askStatus,
+      featured: askFeatured,
+      category: () => {
+        setCategoryId(null)
+        setMode("add")
+        setCategoryOpen(true)
+      },
+    },
+    windows: (
+      <>
       <ConfirmDialog
         open={confirm !== null}
         onOpenChange={(open) => {
@@ -307,6 +275,57 @@ export function BulkChangeMenu({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>
+    ),
+  }
+}
+
+export function BulkChangeMenu(props: Parameters<typeof useBulkChangeAsk>[0]) {
+  const { count, busy, categories, canFeature = false } = props
+  const { ask, windows } = useBulkChangeAsk(props)
+  if (count === 0) return null
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <DashboardToolbarButton
+            type="button"
+            variant="outline"
+            disabled={busy}
+          >
+            Change ({count})
+            <ChevronDownIcon className="size-4" />
+          </DashboardToolbarButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {categories ? (
+            <>
+              <DropdownMenuItem onSelect={ask.category}>
+                Set a category…
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          <DropdownMenuItem onSelect={() => ask.status("published")}>
+            Publish
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => ask.status("draft")}>
+            Unpublish
+          </DropdownMenuItem>
+          {canFeature ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => ask.featured(true)}>
+                Feature
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => ask.featured(false)}>
+                Stop featuring
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {windows}
     </>
   )
 }

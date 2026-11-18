@@ -157,7 +157,11 @@ function SidebarCollapsibleItem({
         </div>
         {hasChildren ? (
           <CollapsibleContent data-collapse-key={noFlashKey}>
-            <SidebarMenuSub>
+            {/* No gap on the right: a sub-link's name runs to the same edge
+                as the links above it before it is cut short (Tyler, 18 Nov
+                2026: "this sub-link has more room should it shouldnt
+                truncate so early"). */}
+            <SidebarMenuSub className="mr-0 pr-0">
               {entry.children?.map((child) => (
                 <SidebarMenuSubItem key={child.id}>
                   <SidebarMenuSubButton

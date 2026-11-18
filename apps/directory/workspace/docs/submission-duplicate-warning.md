@@ -89,5 +89,7 @@ was worked out again for every name.
   under a match.
 - `src/server/directory/submissions.ts`: `possibleDuplicatesFor`, the one
   query, and the pointer a rejection carries.
-- `src/components/directory/submission-dialog.tsx`: the warning card.
-- `src/components/directory/submissions-dashboard.tsx`: the row marker.
+- `src/components/directory/submission-parts.tsx`: the warning card
+  (`DuplicateWarning`).
+- `src/components/directory/listings-dashboard/sections/submissions-section.tsx`:
+  the row marker, on the Listings dashboard's Submissions row.

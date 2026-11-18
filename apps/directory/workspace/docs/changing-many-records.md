@@ -10,11 +10,13 @@ and saved.
 
 ## Where it is
 
-The **Change** button sits in each dashboard's toolbar, to the left of Delete.
-It appears the moment one row is ticked and is gone again when none are. It is
-never on screen greyed out. The component is
-`src/components/shared/bulk-change-menu.tsx`, and all four dashboards use that
-one copy of it.
+On Events, Posts and Promotions the **Change** button sits in the toolbar,
+to the left of Delete. On the Listings dashboard the same changes are rows of
+the shell's "N selected" menu (Set a category, Publish, Unpublish, then Delete),
+since 18 Nov 2026 (`listings-dashboard.md`). Either way they appear the moment
+one row is ticked and are gone again when none are, and are never on screen
+greyed out. The questions they ask are `useBulkChangeAsk` in
+`src/components/shared/bulk-change-menu.tsx`, one copy for all four.
 
 ## What each screen offers
 
