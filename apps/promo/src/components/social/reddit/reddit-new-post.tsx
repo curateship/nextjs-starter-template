@@ -3,6 +3,7 @@ import { ArrowLeftIcon, Loader2Icon, SparklesIcon, SquarePenIcon } from "lucide-
 
 import { FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
+import { PostIdeasButton } from "@/components/social/post-ideas-button"
 import { SubredditRules } from "@/components/social/reddit/subreddit-rules"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -11,15 +12,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { ImageUpload } from "@/components/shared/image-upload"
 import type { ProjectAccount } from "@/lib/api/social/projects"
 import {
+  askRedditPostIdeas,
   getOwnPostErrorMessage,
   loadRulesFor,
   readRulesFor,
   sendOwnPost,
   writeOwnPost,
 } from "@/lib/api/social/reddit/own-posts"
-import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS } from "@/lib/social/options"
+import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, type OwnPostKind } from "@/lib/social/options"
 import { postingBlockedReason } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { RulesView } from "@/server/social/reddit/rules"
@@ -32,6 +35,10 @@ export type NewPostStart = {
   subreddit: string
   title: string
   body: string
+  /** Words, a picture or a link, with its picture or link; words when not said. */
+  kind?: OwnPostKind
+  imageUrl?: string
+  linkUrl?: string
   /** A post the Viral app wrote, so the post is reported back to Viral once it lands. */
   viralDraftId?: string | null
 }
@@ -82,6 +89,10 @@ export function RedditNewPostPanel({
   const [idea, setIdea] = React.useState("")
   const [title, setTitle] = React.useState(start?.title ?? "")
   const [body, setBody] = React.useState(start?.body ?? "")
+  // A guest can't open the media library, so a guest's post is words or a link.
+  const [kind, setKind] = React.useState<OwnPostKind>(start?.kind === "picture" && guest ? "text" : (start?.kind ?? "text"))
+  const [imageUrl, setImageUrl] = React.useState(start?.imageUrl ?? "")
+  const [linkUrl, setLinkUrl] = React.useState(start?.linkUrl ?? "")
   const [rules, setRules] = React.useState<{ subreddit: string; view: RulesView } | null>(null)
   const [drafting, setDrafting] = React.useState(false)
   const [posting, setPosting] = React.useState(false)
@@ -123,7 +134,23 @@ export function RedditNewPostPanel({
       ? "Name the subreddit it goes to."
       : !title.trim()
         ? "Give the post a title."
-        : null
+        : kind === "picture" && !imageUrl
+          ? "Pick the picture the post shows."
+          : kind === "link" && !linkUrl.trim()
+            ? "Paste the link the post points to."
+            : null
+
+  /** Write with AI: a title and words for a person to read and change, never sent by itself. */
+  async function writeWithAi(where: string, about: string) {
+    setDrafting(true)
+    try {
+      const draft = await writeOwnPost({ projectId, accountId: account?.id ?? null, subreddit: where, idea: about })
+      setTitle(draft.title)
+      setBody(draft.body)
+    } finally {
+      setDrafting(false)
+    }
+  }
 
   async function post(event: React.FormEvent) {
     event.preventDefault()
@@ -140,7 +167,10 @@ export function RedditNewPostPanel({
         accountId: account.id,
         subreddit: cleaned,
         title: title.trim(),
-        body: body.trim(),
+        body: kind === "text" ? body.trim() : "",
+        kind,
+        imageUrl: kind === "picture" ? imageUrl : "",
+        linkUrl: kind === "link" ? linkUrl.trim() : "",
         viralDraftId: start?.viralDraftId ?? null,
       })
       onSent()
@@ -233,32 +263,34 @@ export function RedditNewPostPanel({
                 placeholder="What I learned getting my first 100 users from Reddit"
                 onChange={(event) => setIdea(event.target.value)}
               />
-              <Button
-                type="button"
-                variant="outline"
-                className="justify-self-start"
-                disabled={drafting}
-                onClick={async () => {
-                  setDrafting(true)
-                  try {
-                    const draft = await writeOwnPost({
-                      projectId,
-                      accountId: account?.id ?? null,
-                      subreddit: cleaned,
-                      idea,
-                    })
-                    setTitle(draft.title)
-                    setBody(draft.body)
-                  } catch (error) {
-                    showErrorToast(getOwnPostErrorMessage(error))
-                  } finally {
-                    setDrafting(false)
-                  }
-                }}
-              >
-                {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                Write with AI
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={drafting}
+                  onClick={() => void writeWithAi(cleaned, idea).catch((error) => showErrorToast(getOwnPostErrorMessage(error)))}
+                >
+                  {drafting ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                  Write with AI
+                </Button>
+                {/* Questions people asked in the project's Reddit posts. Picking one fills the box above,
+                    and the subreddit it was asked in when none is named yet, and writes the post. */}
+                <PostIdeasButton
+                  label="Ideas"
+                  ask={() => askRedditPostIdeas(projectId)}
+                  errorText={getOwnPostErrorMessage}
+                  onPick={async (picked) => {
+                    const about = `${picked.question} ${picked.about}`
+                    const where = cleaned || picked.subreddit
+                    setIdea(about)
+                    if (!cleaned && picked.subreddit) {
+                      setSubreddit(picked.subreddit)
+                      void lookUpRules(picked.subreddit)
+                    }
+                    await writeWithAi(where, about)
+                  }}
+                />
+              </div>
             </div>
           )}
           <div className="grid gap-2">
@@ -272,15 +304,51 @@ export function RedditNewPostPanel({
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="new-post-body">The words</Label>
-            <Textarea
-              id="new-post-body"
-              rows={1}
-              value={body}
-              maxLength={MAX_POST_BODY_CHARS}
-              onChange={(event) => setBody(event.target.value)}
-            />
+            <Label htmlFor="new-post-kind">What it is</Label>
+            <Select value={kind} onValueChange={(value) => setKind(value as OwnPostKind)}>
+              <SelectTrigger id="new-post-kind">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">Words</SelectItem>
+                {guest ? null : <SelectItem value="picture">A picture</SelectItem>}
+                <SelectItem value="link">A link</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          {kind === "text" ? (
+            <div className="grid gap-2">
+              <Label htmlFor="new-post-body">The words</Label>
+              <Textarea
+                id="new-post-body"
+                rows={1}
+                value={body}
+                maxLength={MAX_POST_BODY_CHARS}
+                onChange={(event) => setBody(event.target.value)}
+              />
+            </div>
+          ) : kind === "picture" ? (
+            <ImageUpload
+              label="Picture"
+              value={imageUrl}
+              onChange={(value) => setImageUrl(value)}
+              invalid={(tried && !imageUrl) || undefined}
+              hint="One of your own uploads. Reddit takes a JPEG, PNG, GIF or WebP up to 20 MB."
+            />
+          ) : (
+            <div className="grid gap-2">
+              <Label htmlFor="new-post-link">Link</Label>
+              <Input
+                id="new-post-link"
+                type="url"
+                inputMode="url"
+                value={linkUrl}
+                placeholder="https://"
+                aria-invalid={(tried && !linkUrl.trim()) || undefined}
+                onChange={(event) => setLinkUrl(event.target.value)}
+              />
+            </div>
+          )}
         </div>
         }
         footer={

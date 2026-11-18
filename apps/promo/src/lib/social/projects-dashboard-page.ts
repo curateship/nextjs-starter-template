@@ -1,4 +1,4 @@
-import { BanIcon, FolderArchiveIcon, ListTodoIcon, MessageSquareIcon, UsersIcon, type LucideIcon } from "lucide-react"
+import { BanIcon, ChartColumnIcon, FolderArchiveIcon, ListTodoIcon, MessageSquareIcon, UsersIcon, type LucideIcon } from "lucide-react"
 
 import type { WidgetLayout, WidgetOffer } from "@/lib/admin-dashboard/overview-widgets"
 import { withFixedBlock } from "@/lib/notes/fixed-block"
@@ -47,7 +47,8 @@ export function withProjectsSectionsBlock(body: NoteNode): NoteNode {
 /**
  * Overview's widgets, Tyler's picks of 12 Nov 2026: Posts that need you,
  * Messages waiting, Accounts by status, and "Bans and archive room" as two
- * widgets of their own.
+ * widgets of their own; and Results, picked on 18 Nov 2026, which a person
+ * adds from Manage widgets.
  */
 const PROJECTS_WIDGETS = [
   { id: "posts-need-you", label: "Posts that need you", icon: ListTodoIcon },
@@ -55,6 +56,8 @@ const PROJECTS_WIDGETS = [
   { id: "accounts-by-status", label: "Accounts by status", icon: UsersIcon },
   { id: "bans", label: "Bans in the last 30 days", icon: BanIcon },
   { id: "archive-room", label: "Archive room", icon: FolderArchiveIcon },
+  // Tyler picked it on 18 Nov 2026 (part 4 of workspace/tasks/New features/new-features-18-nov.md).
+  { id: "results", label: "Results", icon: ChartColumnIcon },
 ] as const satisfies readonly { id: string; label: string; icon: LucideIcon }[]
 
 export type ProjectsWidgetId = (typeof PROJECTS_WIDGETS)[number]["id"]

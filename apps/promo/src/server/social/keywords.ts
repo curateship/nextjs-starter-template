@@ -60,6 +60,8 @@ export type KeywordRow = {
   sort: RedditSort
   timeWindow: RedditWindow
   enabled: boolean
+  /** "you" when the words are the product's own name, which rings the bell on new posts. */
+  mark: "" | "you"
   lastRunAt: Date | null
   /**
    * Every post this keyword lists, however it has been dealt with. Posts from a
@@ -156,6 +158,7 @@ export async function listKeywords(
       sort: keyword.sort,
       timeWindow: keyword.timeWindow,
       enabled: keyword.enabled,
+      mark: keyword.mark,
       lastRunAt: keyword.lastRunAt,
       postCount: totals.get(keyword.id) ?? 0,
       newCount: newCounts.get(keyword.id) ?? 0,
@@ -268,6 +271,28 @@ export async function setKeywordEnabled(
     .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
     .returning({ id: promoKeywords.id })
   if (!updated.length) throw new Error("That keyword is no longer saved.")
+}
+
+/**
+ * Marks a keyword's words as the product's own name ("you"), or as ordinary
+ * words (""). A marked keyword rings the bell when a search finds new posts
+ * under it (`named-you.ts`). A watch names a subreddit, not words, so it
+ * can't be marked.
+ */
+export async function setKeywordMark(
+  userId: string,
+  keywordId: string,
+  mark: "" | "you",
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const [keyword] = await db
+    .select({ term: promoKeywords.term })
+    .from(promoKeywords)
+    .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
+    .limit(1)
+  if (!keyword) throw new Error("That keyword is no longer saved.")
+  if (mark && !keyword.term) throw new Error("A watch names a subreddit, so it can't be marked as your name.")
+  await db.update(promoKeywords).set({ mark, updatedAt: new Date() }).where(eq(promoKeywords.id, keywordId))
 }
 
 /** Removes a keyword and every post found under it. */

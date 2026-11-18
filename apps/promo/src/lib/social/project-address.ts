@@ -108,6 +108,8 @@ export type CommentingParams = {
   tab?: MediumView | XView | LinkedinView
   open?: string
   list?: "failed"
+  /** The keyword whose posts are listed. */
+  keyword?: string
 }
 
 /**
@@ -117,7 +119,7 @@ export type CommentingParams = {
 export function commentingHref(projectId: string | null, params: CommentingParams): string {
   if (!projectId) return "/admin/projects"
   const query = new URLSearchParams({ network: params.network, side: "commenting" })
-  for (const key of ["view", "tab", "open", "list"] as const) {
+  for (const key of ["view", "tab", "open", "list", "keyword"] as const) {
     const value = params[key]
     if (value) query.set(key, value)
   }

@@ -98,17 +98,20 @@ export function AppProfileCard({ accountId, network }: { accountId: string; netw
           <LoadingRow label="Reading the profile Promo last set" />
         ) : (
           <>
-            <div className="grid gap-2">
-              <FieldLabel htmlFor={`profile-name-${accountId}`} hint={`Up to ${DISPLAY_NAME_MAX} characters.`}>
-                Name
-              </FieldLabel>
-              <Input
-                id={`profile-name-${accountId}`}
-                value={displayName}
-                maxLength={DISPLAY_NAME_MAX}
-                onChange={(event) => setDisplayName(event.target.value)}
-              />
-            </div>
+            {/* Threads shows the Instagram account's name and has no box for one of its own. */}
+            {network === "threads" ? null : (
+              <div className="grid gap-2">
+                <FieldLabel htmlFor={`profile-name-${accountId}`} hint={`Up to ${DISPLAY_NAME_MAX} characters.`}>
+                  Name
+                </FieldLabel>
+                <Input
+                  id={`profile-name-${accountId}`}
+                  value={displayName}
+                  maxLength={DISPLAY_NAME_MAX}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
+              </div>
+            )}
             <div className="grid gap-2">
               <FieldLabel htmlFor={`profile-bio-${accountId}`} hint={`Up to ${BIO_MAX[network]} characters on ${NETWORK_NAMES[network]}.`}>
                 Bio

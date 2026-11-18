@@ -42,6 +42,15 @@ to the project"). Every account in the project sees the same keywords and posts.
 The same words may be saved in two projects; inside one project they are saved
 once. [The Projects dashboard](../projects-dashboard.md) has the rest.
 
+**Names you.** A keyword's ⋮ in the keywords dropdown marks its words as the
+product's own name, or back to Ordinary search words, as Medium's, X's and
+LinkedIn's can. A marked keyword shows a green tag in the dropdown and rings
+the bell when a search finds new posts under it ([bell notices](../notices.md)).
+On Reddit the mark does not change the order, which stays the measured one
+below. A watch names a subreddit, not words, so it can't be marked, and a
+guest from Project doesn't see the choice. Stored in `promo_keywords.mark`,
+added by `drizzle/0165_promo_reddit_keyword_mark.sql`.
+
 ## Searching again by itself
 
 Every keyword and every watch searches Reddit again on its own, a few times a

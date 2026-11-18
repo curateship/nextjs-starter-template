@@ -233,7 +233,7 @@ export async function writeXDrafts(
     count: X_DRAFTS_PER_PRESS,
   })
   const drafts = await askModel(
-    { userId, ...picked, feature: "x-reply", metadata: { projectId: find.projectId, findId: find.id, postId: find.postId, kind }, prompt },
+    { userId, ...picked, feature: "x-reply", projectId: find.projectId, metadata: { findId: find.id, postId: find.postId, kind }, prompt },
     (answer) => {
       const split = splitXDrafts(answer, X_DRAFTS_PER_PRESS, limit)
       if (!split.length) throw new Error(`${picked.provider} answered, but nothing in the answer looked like a reply.`)
@@ -279,7 +279,7 @@ export async function writeXAnswer(
     limit,
     count: 1,
   })
-  return askModel({ userId, ...picked, feature: "x-answer", metadata: { projectId: input.projectId }, prompt }, (answer) => {
+  return askModel({ userId, ...picked, feature: "x-answer", projectId: input.projectId, metadata: {}, prompt }, (answer) => {
     const [first] = splitXDrafts(answer, 1, limit)
     if (!first) throw new Error(`${picked.provider} answered, but nothing in the answer looked like an answer.`)
     return first
@@ -322,7 +322,7 @@ export async function rewriteXReply(
       userId,
       ...picked,
       feature: "x-rewrite",
-      metadata: { projectId: find.projectId, findId: find.id, how: input.how },
+      projectId: find.projectId, metadata: { findId: find.id, how: input.how },
       prompt: buildXRewritePrompt(text, input.how, limit),
     },
     (answer) => {
@@ -378,7 +378,7 @@ export async function checkXRules(
       userId,
       ...picked,
       feature: "x-rules-check",
-      metadata: { projectId: input.projectId },
+      projectId: input.projectId, metadata: {},
       prompt: buildXRulesPrompt(text, input.communityRules ?? "", input.isReply),
     },
     readXRulesAnswer
@@ -427,7 +427,7 @@ export async function xKeywordIdeas(
   if (!product.trim()) throw new Refusal("Describe the project first, in its left column, so the AI knows what to look for.")
   const picked = await pickProvider()
   return askModel(
-    { userId, ...picked, feature: "x-keyword-ideas", metadata: { projectId: input.projectId }, prompt: buildXKeywordIdeasPrompt(product, input.existing) },
+    { userId, ...picked, feature: "x-keyword-ideas", projectId: input.projectId, metadata: {}, prompt: buildXKeywordIdeasPrompt(product, input.existing) },
     (answer) => {
       const ideas = readXKeywordIdeas(answer)
       if (!ideas.length) throw new Error(`${picked.provider} answered, but with no search words, hashtags or accounts.`)
@@ -466,7 +466,7 @@ export async function xTrendIdeas(
   if (!product.trim()) throw new Refusal("Describe the project first, in its left column, so the AI knows which trends fit.")
   const picked = await pickProvider()
   const picks = await askModel(
-    { userId, ...picked, feature: "x-trends", metadata: { projectId: input.projectId }, prompt: buildXTrendsPrompt(product, input.trends) },
+    { userId, ...picked, feature: "x-trends", projectId: input.projectId, metadata: {}, prompt: buildXTrendsPrompt(product, input.trends) },
     (answer) => readXTrendPicks(answer, input.trends)
   )
   return picks.map((trend) =>
@@ -568,7 +568,7 @@ export async function writeXPost(
       userId,
       ...picked,
       feature: "x-post",
-      metadata: { projectId: input.projectId, pieces },
+      projectId: input.projectId, metadata: { pieces },
       prompt: buildXPostPrompt({ about, product, ...words, source: input.source, endLink: input.endLink, pieces, limit, communityRules: input.communityRules, poll: input.poll }),
       maxTokens: 2_000,
     },

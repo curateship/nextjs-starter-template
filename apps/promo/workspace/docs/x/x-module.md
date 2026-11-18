@@ -67,7 +67,8 @@ same posts. There are three kinds:
 
 - **Search words**, read from X's Latest tab. Search words can be marked
   **Names you** or **Names a rival** (part 13): their posts carry that chip
-  and rank above the rest.
+  and rank above the rest. New posts under a Names you keyword ring the bell,
+  once per keyword and never on its first search ([bell notices](../notices.md)).
 - **A hashtag**, stored without its #, also read from the Latest tab.
 - **A watched account** (part 11), read from its own page for its newest
   posts, not its replies. Its posts are listed above every searched post on

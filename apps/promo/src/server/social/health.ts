@@ -10,6 +10,7 @@ import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import type { ProfileCheck } from "@/lib/social/options"
+import { PHONE_ONLY_NETWORKS } from "@/lib/social/networks"
 
 import { queueJob } from "./jobs"
 import { ringBell } from "./notices"
@@ -344,9 +345,10 @@ export async function queueDueHealthChecks(
             eq(promoAccounts.platform, "reddit"),
             or(isNotNull(promoAccounts.profileId), isNotNull(promoAccounts.phoneId))
           ),
-          // Instagram and TikTok on their phone, since file 06. Medium has no
-          // health reading: who is signed in is read after every Medium job.
-          and(inArray(promoAccounts.platform, ["instagram", "tiktok"]), isNotNull(promoAccounts.phoneId))
+          // Instagram and TikTok on their phone, since file 06, and Threads since
+          // 18 Nov 2026. Medium has no health reading: who is signed in is read
+          // after every Medium job.
+          and(inArray(promoAccounts.platform, [...PHONE_ONLY_NETWORKS]), isNotNull(promoAccounts.phoneId))
         ),
         ne(promoAccounts.handle, ""),
         isNull(promoAccounts.retiredAt)

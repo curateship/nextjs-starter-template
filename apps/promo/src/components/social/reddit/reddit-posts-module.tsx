@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { AlertTriangleIcon, ExternalLinkIcon, Loader2Icon, PauseIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react"
+import { AlertTriangleIcon, ExternalLinkIcon, Loader2Icon, MessageSquareIcon, PauseIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
 import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
@@ -16,13 +16,20 @@ import { formatTimeAgo } from "@/lib/format/format-time"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { postedDateText } from "@/lib/social/wording"
 import type { ProjectView } from "@/lib/api/social/projects"
-import { loadFailedPost, loadOwnPosts, type OwnPostRow } from "@/lib/api/social/reddit/own-posts"
+import { checkOwnPosts, getOwnPostErrorMessage, loadFailedPost, loadOwnPosts, type OwnPostRow } from "@/lib/api/social/reddit/own-posts"
 import { loadViralRedditDraft } from "@/lib/api/social/viral-link"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 import { NEW_POST_FIRST_FIELD, RedditNewPostPanel, type NewPostStart } from "./reddit-new-post"
+import { RedditPostCommentsDialog } from "./reddit-post-comments"
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
+import { Button } from "@/components/ui/button"
+import { Hint } from "@/components/social/hint"
 import { ProjectBackButton } from "@/components/social/projects/project-back"
+
+/** How often the lists are read again while a post's check is on its way. */
+const CHECK_POLL_MS = 2_000
 
 /** What Reddit's posts keep in the address: `?list=failed` is Failed, none is Posts. */
 export type RedditPostsSearch = { list?: "failed" }
@@ -91,6 +98,15 @@ export function RedditPostsModule({
   React.useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // A check takes the reader browser a minute, so the lists are read again
+  // every two seconds while one is waiting or running, from the timer's own callback.
+  const checking = lists?.posts.some((row) => row.checking) ?? false
+  React.useEffect(() => {
+    if (!checking) return
+    const timer = setInterval(() => void refresh(), CHECK_POLL_MS)
+    return () => clearInterval(timer)
+  }, [checking, refresh])
 
   /** After a send or a failure cleared: the lists, and the card's count. */
   const changed = React.useCallback(async () => {
@@ -213,8 +229,10 @@ function RedditPostsMiddle({
   onNewPost: () => void
 }) {
   const navigate = useNavigate()
+  const guest = Boolean(usePromoGuest())
+  const [commentsFor, setCommentsFor] = React.useState<string | null>(null)
   const [q, setQ] = React.useState("")
-  const [sort, setSort] = React.useState<"what" | "account" | "where" | "when">("when")
+  const [sort, setSort] = React.useState<"what" | "account" | "where" | "upvotes" | "comments" | "when">("when")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const toggleSort = (column: typeof sort) => {
     if (column === sort) setDirection(direction === "asc" ? "desc" : "asc")
@@ -238,6 +256,8 @@ function RedditPostsMiddle({
           if (sort === "account") return (a.account.handle || "~").localeCompare(b.account.handle || "~") * sign
           if (sort === "where") return a.subreddit.localeCompare(b.subreddit) * sign
           if (sort === "what") return a.title.localeCompare(b.title) * sign
+          if (sort === "upvotes") return ((a.upvotes ?? -1) - (b.upvotes ?? -1)) * sign
+          if (sort === "comments") return ((a.commentCount ?? -1) - (b.commentCount ?? -1)) * sign
           return (new Date(a.postedAt).getTime() - new Date(b.postedAt).getTime()) * sign
         }),
     [lists, needle, sign, sort]
@@ -255,6 +275,25 @@ function RedditPostsMiddle({
     [lists, needle, sign, sort]
   )
   const ids = list === "failed" ? failures.map((row) => row.id) : []
+
+  /** Check: reads the posts' upvotes and comments again in the reader browser. Never posts. */
+  async function check(postIds: string[]) {
+    if (!postIds.length) return
+    setBusy(true)
+    try {
+      await checkOwnPosts(postIds.slice(0, 50))
+      await onChanged()
+    } catch (failure) {
+      showErrorToast(getOwnPostErrorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const postActions = (row: OwnPostRow): RowMenuItem[] => [
+    { label: "Comments", icon: <MessageSquareIcon className="size-4" />, onSelect: () => setCommentsFor(row.id) },
+    ...(guest ? [] : [{ label: "Check again", icon: <RefreshCwIcon className="size-4" />, onSelect: () => void check([row.id]) }]),
+    { label: "Open on Reddit", icon: <ExternalLinkIcon className="size-4" />, onSelect: () => openOnReddit(row.postUrl) },
+  ]
 
   async function dismiss(dismissed: string[]) {
     setBusy(true)
@@ -349,6 +388,16 @@ function RedditPostsMiddle({
           onChange: setQ,
         }}
         massSelect={list === "failed" ? { on: massSelect, onToggle: () => toggleMassSelect() } : null}
+        view={
+          list === "posts" && posts.length && !guest ? (
+            <Hint label="Read the upvotes and comments of the 50 newest again now">
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void check(posts.map((row) => row.id))}>
+                {busy || posts.some((row) => row.checking) ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
+                <span className="@max-3xl:sr-only">Check</span>
+              </Button>
+            </Hint>
+          ) : null
+        }
         primary={
           <DashboardToolbarButton type="button" onClick={onNewPost}>
             <PlusIcon className="size-4" />
@@ -374,17 +423,19 @@ function RedditPostsMiddle({
           </p>
         )
       ) : list === "posts" ? (
-        <CrmTable<"what" | "account" | "where" | "when">
+        <CrmTable<"what" | "account" | "where" | "upvotes" | "comments" | "when">
           columns={[
             { key: "what", label: "Post", column: "main", className: "min-w-40" },
             { key: "account", label: "Account", column: "preview", className: "hidden md:hidden @2xl:table-cell" },
             { key: "where", label: "Subreddit", column: "preview", className: "hidden md:hidden @lg:table-cell" },
+            { key: "upvotes", label: "Upvotes", column: "meta", className: "hidden md:hidden @3xl:table-cell" },
+            { key: "comments", label: "Comments", column: "meta", className: "hidden md:hidden @3xl:table-cell" },
             { key: "when", label: "Sent", column: "meta", className: "hidden md:hidden @xl:table-cell" },
           ]}
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          actions={false}
+          actions
           empty={posts.length ? null : needle ? "No posts match that search." : "No posts of your own yet. Press New post to write one."}
         >
           {posts.map((row) => (
@@ -393,6 +444,8 @@ function RedditPostsMiddle({
               open={false}
               label={row.title}
               onOpen={() => openOnReddit(row.postUrl)}
+              cog={false}
+              buttons={[{ label: `Comments on ${row.title}`, icon: <MessageSquareIcon className="size-4" />, onPress: () => setCommentsFor(row.id) }]}
               onRightClick={(x, y) => setRightClick({ id: row.id, x, y })}
             >
               <MainCell name={row.title}>
@@ -404,6 +457,13 @@ function RedditPostsMiddle({
               </TableCell>
               <TableCell column="preview" className="hidden md:hidden @lg:table-cell">
                 <span className="block truncate">r/{row.subreddit}</span>
+              </TableCell>
+              {/* A dash until a check has read it, never 0, as the Sent tab does. */}
+              <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @3xl:table-cell">
+                {row.checking ? "Reading" : (row.upvotes ?? "–")}
+              </TableCell>
+              <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @3xl:table-cell">
+                {row.checking ? "" : (row.commentCount ?? "–")}
               </TableCell>
               <TableCell column="mutedMeta" className="hidden md:hidden @xl:table-cell">
                 {postedDateText(new Date(row.postedAt))}
@@ -419,7 +479,8 @@ function RedditPostsMiddle({
             { key: "where", label: "Why", column: "preview", className: "hidden md:hidden @lg:table-cell" },
             { key: "when", label: "Failed", column: "meta", className: "hidden md:hidden @xl:table-cell" },
           ]}
-          sort={sort}
+          // Upvotes and Comments are the Posts list's own; sorted by one of them, Failed stays by date.
+          sort={sort === "upvotes" || sort === "comments" ? "when" : sort}
           direction={direction}
           onSort={toggleSort}
           actions={false}
@@ -472,11 +533,17 @@ function RedditPostsMiddle({
               return row ? failureActions(row) : []
             }
             const row = posts.find((each) => each.id === rightClick.id)
-            return row ? [{ label: "Open on Reddit", icon: <ExternalLinkIcon className="size-4" />, onSelect: () => openOnReddit(row.postUrl) }] : []
+            return row ? postActions(row) : []
           })()}
           onClose={() => setRightClick(null)}
         />
       ) : null}
+      <RedditPostCommentsDialog
+        post={posts.find((row) => row.id === commentsFor) ?? null}
+        guest={guest}
+        onClose={() => setCommentsFor(null)}
+        onChanged={onChanged}
+      />
     </div>
   )
 }

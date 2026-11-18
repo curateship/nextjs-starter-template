@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { adminPost } from "@/server/guards"
+import { redditPostIdeas, type RedditPostIdea } from "@/server/social/reddit/post-ideas"
+import { queuePostAnswer, queuePostChecks } from "@/server/social/reddit/post-numbers"
 import { editorGet, editorPost } from "@/server/social/editor-guards"
 import {
   actorFor,
@@ -18,7 +20,7 @@ import {
   type OwnPostRow,
 } from "@/server/social/reddit/own-posts"
 import { queueRulesRead, rulesForSubreddit, type RulesView } from "@/server/social/reddit/rules"
-import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_READER_MESSAGE } from "@/lib/social/options"
+import { MAX_COMMENT_CHARS, MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_READER_MESSAGE, OWN_POST_KINDS } from "@/lib/social/options"
 import { readerWrittenRefusal } from "@/lib/social/refusal-words"
 
 import { createErrorMessage, describeAuthError } from "../../error-message"
@@ -35,6 +37,18 @@ export type { OwnPostRow }
 /** A post's refusals are written for the reader and pass through as they are. */
 const REFUSALS = [
   "Name the subreddit",
+  // Post ideas: none of the project's finds asks a question, or the AI tied no idea to one.
+  "asks a question yet",
+  "no ideas tied to a post",
+  "Pick the picture",
+  "Pick a picture you uploaded",
+  "The link has to be",
+  "Write the answer first",
+  "already answered",
+  "among the comments last read",
+  "your own, so there is nothing to answer",
+  "never reached Reddit",
+  "no longer saved",
   "needs a title",
   "characters",
   "never see",
@@ -72,6 +86,9 @@ const postInput = z.object({
   subreddit: z.string().trim().min(1).max(120),
   title: z.string().trim().min(1).max(MAX_POST_TITLE_CHARS),
   body: z.string().max(MAX_POST_BODY_CHARS).default(""),
+  kind: z.enum(OWN_POST_KINDS).default("text"),
+  imageUrl: z.string().max(2048).default(""),
+  linkUrl: z.string().max(2048).default(""),
   /** The Viral post New post opened with, checked against the person's own drafts on the server. */
   viralDraftId: z.string().min(1).max(36).nullable().default(null),
 })
@@ -105,6 +122,16 @@ const draftFn = createServerFn({ method: "POST" })
 /** A title and words written by the AI, for a person to read and change. Never sent by itself. */
 export function writeOwnPost(data: { projectId: string; accountId: string | null; subreddit: string; idea: string }) {
   return draftFn({ data })
+}
+
+const ideasFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<RedditPostIdea[]> => redditPostIdeas(context.user.id, data.projectId))
+
+/** Ideas for a post of your own from the questions people asked in the project's Reddit posts. */
+export function askRedditPostIdeas(projectId: string) {
+  return ideasFn({ data: { projectId } })
 }
 
 // The project the New post window is open in, so a guest's rules are read
@@ -154,6 +181,28 @@ export function loadOwnPosts(projectId: string | null = null) {
   return listFn({ data: { projectId } })
 }
 
+const checkPostsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ postIds: z.array(z.string().min(1)).min(1).max(50) }))
+  .handler(async ({ context, data }) => queuePostChecks(context.user.id, data.postIds))
+
+/** Check on your Reddit posts: reads each post's upvotes and comments again in the reader browser. Never posts. */
+export function checkOwnPosts(postIds: string[]) {
+  return checkPostsFn({ data: { postIds } })
+}
+
+const answerPostFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({ postId: z.string().min(1), commentUrl: z.string().min(1).max(600), text: z.string().max(MAX_COMMENT_CHARS * 2) })
+  )
+  .handler(async ({ context, data }) => queuePostAnswer(context.user.id, data))
+
+/** Answer under one of your posts, from the account that posted it, under every rule a comment follows. */
+export function answerOnOwnPost(data: { postId: string; commentUrl: string; text: string }) {
+  return answerPostFn({ data })
+}
+
 const failedFn = createServerFn({ method: "GET" })
   .middleware([editorGet])
   .inputValidator(z.object({ jobId: z.string().min(1) }))
@@ -165,3 +214,5 @@ const failedFn = createServerFn({ method: "GET" })
 export function loadFailedPost(jobId: string) {
   return failedFn({ data: { jobId } })
 }
+
+export type { RedditPostIdea }

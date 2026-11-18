@@ -30,6 +30,7 @@ import { accountTimeZone, readBehaviour, readerProfile } from "./behaviour"
 import { ringForFailure } from "./failures"
 import { commentingPaused, pausedBy } from "./pause"
 import { accountFigures, recordAccountHealth, recordStrangerCheck } from "./health"
+import { recordPostCheck, sendPostAnswer } from "./reddit/post-numbers"
 import { deleteSentComment, editSentComment } from "./reddit/change-comment"
 import { recordCommentCheck } from "./reddit/comment-check"
 import { findCommentLink } from "./reddit/comment-link"
@@ -394,7 +395,7 @@ async function runBanLook(job: QueuedJob, account: Account, db: CustomShellDb): 
 }
 
 /** Jobs only a Reddit account does, in its browser or the Reddit app. */
-const REDDIT_ONLY_KINDS: readonly JobKind[] = ["comment", "reply", "submit", "delete_comment", "edit_comment", "warm_up"]
+const REDDIT_ONLY_KINDS: readonly JobKind[] = ["comment", "reply", "post_answer", "submit", "delete_comment", "edit_comment", "warm_up"]
 
 /** The Medium jobs the Medium app on a phone does. The rest need a browser profile. */
 const MEDIUM_PHONE_KINDS: readonly JobKind[] = ["medium_respond", "medium_warm_up"]
@@ -535,6 +536,8 @@ async function runAccountJob(
         target,
         db
       )
+    } else if (job.kind === "post_answer") {
+      await sendPostAnswer(job.userId, account.id, job.payload, target, db)
     } else if (job.kind === "submit") {
       await submitOwnPost(job.userId, account.id, job.payload, target, db)
     } else if (job.kind === "delete_comment" || job.kind === "edit_comment") {
@@ -626,6 +629,10 @@ async function runReaderJob(job: QueuedJob, db: CustomShellDb): Promise<void> {
       const commentId = String(job.payload.commentId ?? "")
       if (!commentId) throw new Error("That check names no comment.")
       await recordCommentCheck(job.userId, commentId, session.target, db)
+    } else if (job.kind === "post_check") {
+      const postId = String(job.payload.postId ?? "")
+      if (!postId) throw new Error("That check names no post.")
+      await recordPostCheck(job.userId, postId, session.target, db)
     } else if (job.kind === "profile_check") {
       await recordStrangerCheck(job.userId, job.payload, session.target, db)
     } else if (job.kind === "help_read") {

@@ -7,6 +7,7 @@ import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { X_TOP_REPLIES, xPostUrl } from "@/lib/social/x/options"
 import { commentingHref } from "@/lib/social/project-address"
 
+import { ringNamedYou } from "../named-you"
 import { noticeRung, ringBell } from "../notices"
 import { xReadPost, xSearch, xTrends, type XPost } from "./calls"
 import { hiddenHandles } from "./finds"
@@ -153,6 +154,14 @@ export async function runXSearch(
     .update(promoXKeywords)
     .set({ lastRunAt: now, lastError: "", updatedAt: now })
     .where(eq(promoXKeywords.id, keywordId))
+  if (keyword.mark === "you") {
+    await ringNamedYou(
+      userId,
+      { network: "x", projectId: keyword.projectId, keywordId, words: keyword.value, added, searchedBefore: !firstSearch },
+      db,
+      now
+    )
+  }
   return { seen: answer.posts.length, added }
 }
 

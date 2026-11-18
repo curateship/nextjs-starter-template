@@ -13,6 +13,7 @@ import {
 } from "@/server/social/voices"
 
 import { createErrorMessage } from "../error-message"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 export type { VoiceView }
 
@@ -21,7 +22,7 @@ export type { VoiceView }
  * signed-in person.
  */
 
-export const getVoiceErrorMessage = createErrorMessage(
+export const getVoiceErrorMessage = passReaderWritten(createErrorMessage(
   {
     "needs a name": "Give the voice a name first.",
     "does not exist": "That voice is not there any more. Refresh the list.",
@@ -30,7 +31,7 @@ export const getVoiceErrorMessage = createErrorMessage(
     AI_LIMIT_REACHED: "This month's AI allowance is used up.",
   },
   "That did not work. Please try again."
-)
+))
 
 const voiceInput = z.object({
   name: z.string().max(120),

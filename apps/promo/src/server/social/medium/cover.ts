@@ -10,6 +10,7 @@ import { deleteFromR2, getPublicMediaUrl, uploadToR2 } from "@/server/media/stor
 import { customShellMedia } from "@/server/schema"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
+import { refuseOverProjectCap } from "../spend-cap"
 import { promoMediumArticles } from "./schema"
 
 /**
@@ -79,6 +80,7 @@ export async function makeMediumCover(
   if (article.status !== "draft" && article.status !== "failed") throw new Refusal("This article has gone to Medium already.")
   const key = await getAiKey("gemini")
   if (!key) throw new Refusal("Add a Google Gemini key in Settings, under AI provider keys, to make a cover.")
+  await refuseOverProjectCap(userId, article.projectId, db)
 
   const picture = await runAiCall(
     {

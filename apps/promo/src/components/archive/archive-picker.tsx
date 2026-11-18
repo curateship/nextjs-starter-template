@@ -13,7 +13,7 @@ import { NETWORK_NAMES } from "@/lib/social/networks"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-export type PickNetwork = "instagram" | "tiktok" | "linkedin" | "x"
+export type PickNetwork = "instagram" | "tiktok" | "linkedin" | "x" | "threads"
 
 /** What a post writer gets back from the Archive. */
 export type ArchivePick = {
@@ -99,7 +99,7 @@ function ArchivePicker({
         item,
         mediaUrl: mediaUrls[0] ?? "",
         mediaUrls,
-        caption: network === "instagram" || network === "tiktok" ? (item.captions[network] ?? item.caption) : item.caption,
+        caption: network === "instagram" || network === "tiktok" || network === "threads" ? (item.captions[network] ?? item.caption) : item.caption,
         warnings: fitWarnings(network, item),
       })
       onClose()

@@ -224,6 +224,7 @@ export const X_AI_FEATURES = {
   "x-post": "posts",
   "x-keyword-ideas": "ideas",
   "x-trends": "ideas",
+  "x-post-ideas": "ideas",
 } as const
 export type XAiFeature = keyof typeof X_AI_FEATURES
 export type XSpendPart = (typeof X_AI_FEATURES)[XAiFeature]

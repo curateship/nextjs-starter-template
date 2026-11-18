@@ -150,6 +150,48 @@ describe("the 12 Oct 2026 features against the database", () => {
       expect(posts[0]).toMatchObject({ title: "What I learned", subreddit: "SaaS", project: { id: projectId } })
     })
 
+    it("sends a link post with its link and no words, and refuses a picture that is not your own upload or a link that is not https", async () => {
+      await expect(
+        queueOwnPost(userId, projectId, { accountId, subreddit: "SaaS", title: "Look", body: "", kind: "picture", imageUrl: "https://elsewhere.test/a.png" }, db, now)
+      ).rejects.toThrow("Pick a picture you uploaded yourself.")
+      await expect(
+        queueOwnPost(userId, projectId, { accountId, subreddit: "SaaS", title: "Look", body: "", kind: "picture" }, db, now)
+      ).rejects.toThrow("Pick the picture the post shows.")
+      await expect(
+        queueOwnPost(userId, projectId, { accountId, subreddit: "SaaS", title: "Look", body: "", kind: "link", linkUrl: "http://taskly.test" }, db, now)
+      ).rejects.toThrow("starting with https://")
+
+      await queueOwnPost(
+        userId,
+        projectId,
+        { accountId, subreddit: "SaaS", title: "Our launch", body: "Dropped", kind: "link", linkUrl: "https://taskly.example/launch" },
+        db,
+        now
+      )
+      const [job] = await db.select().from(promoJobs).where(eq(promoJobs.kind, "submit"))
+      expect(job.payload).toMatchObject({ kind: "link", linkUrl: "https://taskly.example/launch", imageUrl: "", body: "" })
+
+      submit.mockResolvedValue({ postUrl: "https://www.reddit.com/r/SaaS/comments/new/launch/", visit: null })
+      await submitOwnPost(userId, accountId, job.payload, target, db)
+      expect(submit.mock.calls.at(-1)?.[1]).toMatchObject({ kind: "link", linkUrl: "https://taskly.example/launch", body: "" })
+      const [post] = await db.select().from(promoPosts)
+      expect(post).toMatchObject({ kind: "link", linkUrl: "https://taskly.example/launch", status: "posted" })
+    })
+
+    it("refuses a throwaway's link post that links an important account's profile", async () => {
+      await db.update(promoAccounts).set({ importance: "throwaway" }).where(eq(promoAccounts.id, accountId))
+      await db.insert(promoAccounts).values({ id: uuid(), userId, handle: "main_brand", importance: "important" })
+      await expect(
+        queueOwnPost(
+          userId,
+          projectId,
+          { accountId, subreddit: "SaaS", title: "Look", body: "", kind: "link", linkUrl: "https://www.reddit.com/user/main_brand/" },
+          db,
+          now
+        )
+      ).rejects.toThrow("the words name your important account u/main_brand")
+    })
+
     it("refuses an account from another project, a blocked subreddit's rules aside, and a second one on its way", async () => {
       const other = await createProject(userId, "Other", db)
       await expect(

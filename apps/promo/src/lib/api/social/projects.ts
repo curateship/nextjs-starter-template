@@ -11,6 +11,7 @@ import {
   createProject,
   deleteProject,
   deleteProjects,
+  duplicateProject,
   listProjectRows,
   projectForOldComments,
   readProjectView,
@@ -24,6 +25,7 @@ import {
   type ProjectView,
 } from "@/server/social/projects"
 import { setProjectCommentingPaused, setProjectNetworkPaused, setProjectPaused } from "@/server/social/pause"
+import { setProjectAiCap } from "@/server/social/spend-cap"
 import { readPostCounts } from "@/server/social/post-counts"
 import { readToday } from "@/server/social/today"
 import { readMediumCounts } from "@/server/social/medium/module"
@@ -32,6 +34,7 @@ import { readXCounts } from "@/server/social/x/module"
 import { PAGE_MAX_LENGTH } from "@/lib/notes/page-body"
 import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
 import { PROJECT_DESCRIPTION_MOVED } from "@/lib/social/project-description"
+import { AI_CAP_MAX_DOLLARS } from "@/lib/social/spend-cap"
 import {
   listPromoThreads,
   queuePromoThreadReads,
@@ -155,6 +158,18 @@ export function makeProject(name: string, networks: Network[]) {
   return createFn({ data: { name, networks } })
 }
 
+const duplicateFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<{ id: string }> => ({
+    id: await duplicateProject(context.user.id, data.projectId),
+  }))
+
+/** Duplicate in a project's ⋮: a copy of its page, networks and keywords, never its accounts. */
+export function copyProject(projectId: string) {
+  return duplicateFn({ data: { projectId } })
+}
+
 const networkFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ projectId: z.string().min(1), network: z.enum(NETWORKS), use: z.boolean() }))
@@ -244,6 +259,18 @@ const lockFn = createServerFn({ method: "POST" })
 /** Lock description, or with `locked` false Unlock description. The owner's alone. */
 export function lockProjectDescription(projectId: string, locked: boolean) {
   return lockFn({ data: { projectId, locked } })
+}
+
+const aiCapFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({ projectId: z.string().min(1), capCents: z.number().int().min(0).max(AI_CAP_MAX_DOLLARS * 100).nullable() })
+  )
+  .handler(async ({ context, data }): Promise<void> => setProjectAiCap(context.user.id, data.projectId, data.capCents))
+
+/** AI spend cap in the project's ⋮: the most its AI may cost a month, in whole cents, or null for none. */
+export function saveProjectAiCap(projectId: string, capCents: number | null) {
+  return aiCapFn({ data: { projectId, capCents } })
 }
 
 const deleteFn = createServerFn({ method: "POST" })

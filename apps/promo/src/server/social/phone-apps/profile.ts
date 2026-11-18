@@ -43,8 +43,12 @@ type ProfileEditInput = {
 
 /** The fields cleaned, each null when left as it is, or a refusal saying what is wrong. */
 export function cleanProfileEdit(platform: string, input: ProfileEditInput): ProfileEditInput {
-  if (!isPhoneAppNetwork(platform)) throw new Error("Only an Instagram or TikTok profile is changed from here.")
+  if (!isPhoneAppNetwork(platform)) throw new Error("Only an Instagram, TikTok or Threads profile is changed from here.")
   const displayName = input.displayName === null ? null : input.displayName.trim()
+  // Threads shows the name of the Instagram account it signed in with, and has no box of its own for it.
+  if (platform === "threads" && displayName !== null) {
+    throw new Error("Threads takes its name from the Instagram account it signed in with. Change the name on Instagram.")
+  }
   const bio = input.bio === null ? null : input.bio.trim()
   const link = input.link === null ? null : input.link.trim()
   const pictureUrl = input.pictureUrl === null || input.pictureUrl === "" ? null : input.pictureUrl

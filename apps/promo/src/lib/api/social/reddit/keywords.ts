@@ -16,6 +16,7 @@ import {
   listKeywords,
   loadFindDetail,
   setKeywordEnabled,
+  setKeywordMark,
   type FindRow,
   type KeywordRow,
 } from "@/server/social/keywords"
@@ -33,6 +34,7 @@ import {
 } from "@/lib/social/reddit/options"
 
 import { createErrorMessage } from "../../error-message"
+import { passReaderWritten } from "@/lib/social/refusal-words"
 
 /**
  * The keywords and posts endpoints, for the Projects dashboard's middle
@@ -47,7 +49,7 @@ import { createErrorMessage } from "../../error-message"
  * waited for one would time out in front of the person.
  */
 
-export const getRedditErrorMessage = createErrorMessage(
+export const getRedditErrorMessage = passReaderWritten(createErrorMessage(
   {
     "already saved": "That keyword is already saved.",
     "already watched": "You already watch that subreddit.",
@@ -56,13 +58,14 @@ export const getRedditErrorMessage = createErrorMessage(
     "no longer saved": "That keyword has been removed. Reload the page.",
     "project does not exist": "That project is not there any more. Reload the page.",
     "There is no reader browser": NO_READER_MESSAGE,
+    "can't be marked": "A watch names a subreddit, so it can't be marked as your name.",
     "now holds an account": "The reader browser now holds an account, so nothing is read in it. Pick another reader in Settings → Behaviour.",
     "description first": "Write what the project makes in its description first. The ideas come from it.",
     "key saved": "Add an AI provider key in Settings before asking for ideas.",
     AI_LIMIT_REACHED: "This month's AI allowance is used up.",
   },
   "That did not work. Please try again."
-)
+))
 
 /** Words, or none with one subreddit for a watch. `addKeyword` holds that rule. */
 const keywordInput = z.object({
@@ -130,6 +133,16 @@ const enableKeywordFn = createServerFn({ method: "POST" })
 
 export function switchKeyword(id: string, enabled: boolean) {
   return enableKeywordFn({ data: { id, enabled } })
+}
+
+/** Names you, or ordinary words: a marked keyword rings the bell when a search finds new posts under it. */
+const markKeywordFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: z.string().min(1), mark: z.enum(["", "you"]) }))
+  .handler(async ({ context, data }): Promise<void> => setKeywordMark(context.user.id, data.id, data.mark))
+
+export function markKeyword(id: string, mark: "" | "you") {
+  return markKeywordFn({ data: { id, mark } })
 }
 
 /**

@@ -73,7 +73,8 @@ sees the same posts. There are four kinds:
 - **A watched company page**, pasted as its address (`/company/...`).
 
 Search words can be marked as naming the product or a rival. A post found by
-them goes to the top of the list with "Names you" or "Names a rival".
+them goes to the top of the list with "Names you" or "Names a rival". Since 18 Nov 2026 new posts under a Names you keyword ring the bell, once
+per keyword and never on its first search ([bell notices](../notices.md)).
 Search words and hashtags are searched again by themselves every 3 hours;
 watched people and pages every 30 minutes. Each new post from someone
 watched rings the bell once and lists first, but the posts their first read

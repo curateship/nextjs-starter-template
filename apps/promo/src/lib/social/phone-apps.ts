@@ -55,23 +55,26 @@ export type InboxLine = {
 
 /**
  * The longest a caption may be. Instagram cuts a caption at 2,200
- * characters; TikTok allows 4,000.
+ * characters; TikTok allows 4,000; a Threads post is 500.
  */
 export const CAPTION_MAX: Record<PhoneAppNetwork, number> = {
   instagram: 2_200,
   tiktok: 4_000,
+  threads: 500,
 }
 
-/** Instagram refuses a caption with more than 30 hashtags. TikTok sets no number. */
+/** Instagram refuses a caption with more than 30 hashtags. TikTok sets no number. Threads takes one topic tag. */
 export const HASHTAG_MAX: Record<PhoneAppNetwork, number | null> = {
   instagram: 30,
   tiktok: null,
+  threads: 1,
 }
 
-/** The profile's bio: 150 characters on Instagram, 80 on TikTok. */
+/** The profile's bio: 150 characters on Instagram and Threads, 80 on TikTok. */
 export const BIO_MAX: Record<PhoneAppNetwork, number> = {
   instagram: 150,
   tiktok: 80,
+  threads: 150,
 }
 
 /** The name shown above the bio: 30 characters on both. */
@@ -87,6 +90,7 @@ export const LINK_MAX = 300
 const COMMENT_REPLY_MAX: Record<PhoneAppNetwork, number> = {
   instagram: 2_200,
   tiktok: 150,
+  threads: 500,
 }
 
 /** A reply to a direct message, on any of the three. */

@@ -1,5 +1,7 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
+  CopyIcon,
   Loader2Icon,
   LockIcon,
   LockOpenIcon,
@@ -24,18 +26,22 @@ import { usePromoGuest, usePromoSaveStatus } from "@/components/social/guest/gue
 import { NetworkIcon } from "@/components/social/network-icon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
+  copyProject,
   getProjectErrorMessage,
   lockProjectDescription,
   pinProject,
   saveProject,
+  saveProjectAiCap,
   type ProjectView,
 } from "@/lib/api/social/projects"
 import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { storedProjectPage } from "@/lib/social/project-description"
 import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
+import { dollarsText, parseCapDollars } from "@/lib/social/spend-cap"
 import type { Side } from "@/lib/social/sides"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -56,7 +62,7 @@ type Project = ProjectView["project"]
  *   (Tyler, 12 Nov 2026: "actually just remove it"); Projects in the left
  *   menu leads back.
  * - **The ⋮** is the tabbed menu: General (Name, Cover photo, Pin, Pause
- *   this project, Lock description, New project, Delete project) and Networks
+ *   this project, Lock description, New project, Duplicate, Delete project) and Networks
  *   (pause or take off each one, and add the others). The pin and the + that
  *   sat in the header live there now.
  * - **The page** is the description, written in place in the "/" editor
@@ -282,8 +288,8 @@ function FullNameOnHover({ name }: { name: string }) {
  * back, name, bans, ⋮"), opening to the right over the middle.
  *
  * - **General:** Name and Picture as rows that open their field, each saving
- *   itself; then Pin, Pause this project, Lock description and New project;
- *   then Delete project in red under a line.
+ *   itself; then Pin, Pause this project, Lock description, New project and
+ *   Duplicate, which opens the copy; then Delete project in red under a line.
  * - **Networks:** each network the project uses with Pause or Resume (that
  *   network alone, its posts and comments) and Take off, which the server
  *   refuses while the project still holds that network's accounts or
@@ -308,6 +314,7 @@ function ProjectMenu({
   onRemoveNetwork: (network: Network) => Promise<void>
   onToggleNetworkPause: (network: Network, paused: boolean) => Promise<void>
 }) {
+  const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
   const [busy, setBusy] = React.useState<string | null>(null)
   async function run(kind: string, action: () => Promise<void>) {
@@ -343,6 +350,16 @@ function ProjectMenu({
               <PickGroup title="Project">
                 <PickRow label="Name" value={project.name}>
                   <ProjectNameField project={project} onSaved={onSaved} />
+                </PickRow>
+                <PickRow
+                  label="AI spend cap"
+                  value={
+                    project.aiCapCents === null
+                      ? "None"
+                      : `${dollarsText(project.aiSpentCents)} of ${dollarsText(project.aiCapCents)}`
+                  }
+                >
+                  <ProjectAiCapField project={project} onSaved={onSaved} />
                 </PickRow>
                 {/* The shell's Cover photo row, as every page's (Tyler, 12 Nov 2026: "the
                     picture is missing the 3 selection standard"): None, Sky, each
@@ -394,6 +411,19 @@ function ProjectMenu({
                 </ActionRow>
                 <ActionRow icon={<PlusIcon className="size-4" />} onClick={then(onNewProject)}>
                   New project
+                </ActionRow>
+                <ActionRow
+                  icon={busy === "duplicate" ? <Loader2Icon className="size-4 animate-spin" /> : <CopyIcon className="size-4" />}
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run("duplicate", async () => {
+                      const { id } = await copyProject(project.id)
+                      setOpen(false)
+                      await navigate({ to: "/admin/projects/$projectId", params: { projectId: id } })
+                    })
+                  }
+                >
+                  Duplicate
                 </ActionRow>
                 <div aria-hidden className="-mx-3 my-1.5 border-t" />
                 <ActionRow destructive icon={<Trash2Icon className="size-4" />} onClick={then(onDeleteProject)}>
@@ -475,6 +505,75 @@ function ProjectMenu({
         },
       ]}
     />
+  )
+}
+
+/**
+ * AI spend cap: the most the project's AI may cost in a calendar month, in
+ * dollars, saving itself like the name. Empty is no cap. Once this month's
+ * spend reaches it, every AI button for the project is refused with why.
+ */
+function ProjectAiCapField({ project, onSaved }: { project: Project; onSaved: () => void }) {
+  const shown = project.aiCapCents === null ? "" : String(project.aiCapCents / 100)
+  const [typed, setTyped] = React.useState(shown)
+  const [invalid, setInvalid] = React.useState(false)
+  const setSaveStatus = usePromoSaveStatus()
+  const saved = React.useRef(project.aiCapCents)
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const id = React.useId()
+
+  const save = React.useCallback(
+    async (next: string) => {
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
+      const parsed = parseCapDollars(next)
+      if ("error" in parsed) {
+        setInvalid(true)
+        showErrorToast(parsed.error)
+        return
+      }
+      setInvalid(false)
+      if (parsed.cents === saved.current) return
+      setSaveStatus("saving")
+      dismissErrorToast()
+      try {
+        await saveProjectAiCap(project.id, parsed.cents)
+        saved.current = parsed.cents
+        setSaveStatus("saved")
+        onSaved()
+      } catch (error) {
+        setSaveStatus("idle")
+        showErrorToast(getProjectErrorMessage(error))
+      }
+    },
+    [onSaved, project.id, setSaveStatus]
+  )
+
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>Dollars a month</Label>
+      <Input
+        id={id}
+        inputMode="decimal"
+        placeholder="No cap"
+        value={typed}
+        aria-invalid={invalid || undefined}
+        aria-describedby={`${id}-spent`}
+        onChange={(event) => {
+          const next = event.target.value
+          setTyped(next)
+          if (timer.current) clearTimeout(timer.current)
+          timer.current = setTimeout(() => void save(next), SAVE_AFTER_MS)
+        }}
+        onBlur={() => void save(typed)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void save(typed)
+        }}
+      />
+      <p id={`${id}-spent`} className="text-xs text-muted-foreground">
+        {dollarsText(project.aiSpentCents)} spent this month. Leave it empty for no cap.
+      </p>
+    </div>
   )
 }
 

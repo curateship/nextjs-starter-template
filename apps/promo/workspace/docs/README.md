@@ -58,6 +58,13 @@ the repo's `docs/`, and is never copied here.
 - [What differs on TikTok](tiktok/what-differs-on-tiktok.md): no post count,
   longer captions, shorter bios and answers, Post rather than Share.
 
+## Threads
+
+- [Threads on the rack's phones](threads/threads-on-phones.md): a network of
+  its own beside the phone's Instagram account, the daily reading, a post of
+  one picture or video with its words, comments answered on a press, the
+  name that stays Instagram's, and what waits for a phone.
+
 ## Medium
 
 - [The Medium module](medium/medium-module.md): Tyler's answers of 21 Oct 2026,

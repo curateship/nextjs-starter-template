@@ -11,7 +11,7 @@ import { setDbForTests } from "@/server/db"
 import { customShellAiUsageEvents, customShellNotifications } from "@/server/schema"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
 
-import { promoAccounts, promoInbox, promoJobs } from "../schema"
+import { promoAccounts, promoInbox, promoJobs, promoNotices } from "../schema"
 import { promoXFinds, promoXFollows, promoXKeywords, promoXPosts, promoXReplies, promoXSearchers } from "./schema"
 
 vi.mock("@/server/browser/session", async (importOriginal) => {
@@ -358,6 +358,29 @@ describe("X", () => {
       await setXKeyword(userId, id, { notify: false }, db)
       await searchWith(id, [post({ postId: "1800000000000000052", authorHandle: "levelsio" })])
       expect(await db.select().from(customShellNotifications)).toHaveLength(1)
+    })
+
+    it("rings one Names you bell per keyword for new posts, never on its first search, and never for a rival", async () => {
+      const id = await keyword("search", "pomoder")
+      const rival = await keyword("search", "todoist")
+      await setXKeyword(userId, id, { mark: "you" }, db)
+      await setXKeyword(userId, rival, { mark: "rival" }, db)
+      await searchWith(id, [post({ postId: "1800000000000000060" })])
+      await searchWith(rival, [post({ postId: "1800000000000000070" })])
+      expect(await db.select().from(customShellNotifications)).toHaveLength(0)
+
+      await searchWith(id, [post({ postId: "1800000000000000061" }), post({ postId: "1800000000000000062" }), post({ postId: "1800000000000000060" })])
+      await searchWith(rival, [post({ postId: "1800000000000000071" })])
+      let notices = await db.select().from(customShellNotifications)
+      expect(notices).toHaveLength(1)
+      expect(notices[0].message).toBe('Someone named you: 2 new posts on X say "pomoder"')
+      expect((await db.select().from(promoNotices))[0].href).toContain(`keyword=${id}`)
+
+      // A later search with one more new post brings the same notice back with the new count.
+      await searchWith(id, [post({ postId: "1800000000000000063" })])
+      notices = await db.select().from(customShellNotifications)
+      expect(notices).toHaveLength(1)
+      expect(notices[0].message).toBe('Someone named you: 1 new post on X says "pomoder"')
     })
 
     it("puts a post that names you above the same post found otherwise", async () => {

@@ -24,7 +24,7 @@ import { queueJob } from "../jobs"
 import { readBehaviour } from "../behaviour"
 import { pausedBy } from "../pause"
 import { promoAccounts, promoAppPosts, promoJobs } from "../schema"
-import { appCarousel, appPost } from "./calls"
+import { appCarousel, appPost, appStory } from "./calls"
 
 /**
  * Photos and videos posted on Instagram and TikTok from the media library
@@ -52,6 +52,10 @@ const TAKES: Record<PhoneAppNetwork, Record<OneFileKind, ReadonlySet<string>>> =
   tiktok: {
     photo: new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]),
     video: new Set(["video/mp4", "video/quicktime", "video/webm"]),
+  },
+  threads: {
+    photo: new Set(["image/jpeg", "image/jpg", "image/png"]),
+    video: new Set(["video/mp4", "video/quicktime"]),
   },
 }
 
@@ -241,8 +245,9 @@ export async function lockAccountWrites(tx: Pick<CustomShellDb, "execute">, acco
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`promo-app-write:${accountId}`}))`)
 }
 
-/** The rack's routine for a post: one file, or several pictures in one post (part 40). */
-export function appPostRoutine(platform: string, kind: PhoneAppMediaKind): string {
+/** The rack's routine for a post: one file, several pictures in one post (part 40), or an Instagram Story. */
+export function appPostRoutine(platform: string, kind: PhoneAppMediaKind, placement: "feed" | "story" = "feed"): string {
+  if (placement === "story") return `${platform}/post_story`
   return kind === "carousel" ? `${platform}/post_carousel` : `${platform}/post`
 }
 
@@ -260,17 +265,28 @@ export function appPostRoutine(platform: string, kind: PhoneAppMediaKind): strin
  */
 export async function queueAppPost(
   userId: string,
-  input: { accountId: string; mediaUrl: string; mediaUrls?: string[]; caption: string; draftCaption: string },
+  input: {
+    accountId: string
+    mediaUrl: string
+    mediaUrls?: string[]
+    caption: string
+    draftCaption: string
+    /** An Instagram Story: one picture or video, no caption (part 8 of the 18 Nov 2026 features task). */
+    placement?: "feed" | "story"
+  },
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<{ id: string }> {
+  const placement = input.placement ?? "feed"
   const mediaUrls = input.mediaUrls?.length ? input.mediaUrls : []
   const carousel = mediaUrls.length > 0
   const mediaUrl = carousel ? mediaUrls[0] : input.mediaUrl
   const account = await ownAccount(userId, input.accountId, db)
-  const network = await refuseAppAccount(userId, account, appPostRoutine(account.platform, carousel ? "carousel" : "photo"), db)
+  if (placement === "story") await refuseStory(account, carousel, db)
+  const network = await refuseAppAccount(userId, account, appPostRoutine(account.platform, carousel ? "carousel" : "photo", placement), db)
   await refuseAppPostNow(userId, account, db, now)
-  const caption = input.caption.trim()
+  // A Story has no caption, so none is kept or sent.
+  const caption = placement === "story" ? "" : input.caption.trim()
   const problem = captionProblem(network, caption)
   if (problem) throw new Error(problem)
   const media: { kind: PhoneAppMediaKind; name: string; archiveItemId: string | null } = carousel
@@ -311,9 +327,10 @@ export async function queueAppPost(
       mediaUrl,
       mediaUrls,
       mediaKind: media.kind,
+      placement,
       mediaName: media.name.slice(0, 255),
       caption,
-      draftCaption: input.draftCaption.trim().slice(0, 10_000),
+      draftCaption: placement === "story" ? "" : input.draftCaption.trim().slice(0, 10_000),
       jobId,
       createdAt: now,
       archiveItemId: media.archiveItemId,
@@ -321,6 +338,20 @@ export async function queueAppPost(
     await queueJob(userId, "app_post", { accountId: account.id, postId: id }, tx, null, jobId)
   })
   return { id }
+}
+
+/**
+ * A Story is Instagram's, one picture or video, and walked on an Android
+ * phone only so far: the rack refuses one on an iPhone, so it is refused here
+ * before it is written.
+ */
+async function refuseStory(account: AccountRow, carousel: boolean, db: CustomShellDb): Promise<void> {
+  if (account.platform !== "instagram") throw new Refusal("A Story is Instagram's. Post it from an Instagram account.")
+  if (carousel) throw new Refusal("A Story is one picture or video. Pick one, not a carousel.")
+  const [phone] = account.phoneId
+    ? await db.select({ kind: promoPhones.kind }).from(promoPhones).where(eq(promoPhones.id, account.phoneId)).limit(1)
+    : []
+  if (phone?.kind === "iphone") throw new Refusal("A Story is not done on an iPhone yet. Post it from an account on an Android phone.")
 }
 
 /** Runs an `app_post` job on the account's phone, and records how it went. */
@@ -348,7 +379,9 @@ export async function runAppPost(
   }
   try {
     const answer =
-      post.mediaKind === "carousel"
+      post.placement === "story"
+        ? await appStory(target, await mediaArgs(userId, account.phoneId, post.mediaUrl, db, now))
+        : post.mediaKind === "carousel"
         ? await appCarousel(target, account.platform, { ...(await carouselArgs(userId, account.phoneId, post.mediaUrls, db, now)), caption: post.caption })
         : await appPost(target, account.platform, {
             ...(await mediaArgs(userId, account.phoneId, post.mediaUrl, db, now)),
@@ -436,6 +469,7 @@ export function postLink(network: PhoneAppNetwork, url: string): string {
   const shapes: Record<PhoneAppNetwork, RegExp> = {
     instagram: /^https:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+\/?(\?[^\s"<>]*)?$/,
     tiktok: /^https:\/\/((www|vm|vt)\.)?tiktok\.com\/[^\s"<>]+$/,
+    threads: /^https:\/\/(www\.)?threads\.(net|com)\/@[A-Za-z0-9._]+\/post\/[A-Za-z0-9_-]+\/?(\?[^\s"<>]*)?$/,
   }
   const link = url.trim()
   return link.length <= 600 && shapes[network].test(link) ? link : ""
@@ -446,6 +480,8 @@ export type AppPostRow = {
   account: { id: string; handle: string }
   mediaUrl: string
   mediaKind: PhoneAppMediaKind
+  /** "story" for an Instagram Story, which has no caption and no link. */
+  placement: "feed" | "story"
   mediaName: string
   caption: string
   /** A post whose job failed or was dropped by a ban screen reads as failed, with why. */
@@ -490,6 +526,7 @@ export async function listAppPosts(
       account: { id: post.accountId, handle },
       mediaUrl: post.mediaUrl,
       mediaKind: post.mediaKind,
+      placement: post.placement,
       mediaName: post.mediaName,
       caption: post.caption,
       status: lost ? "failed" : post.status,

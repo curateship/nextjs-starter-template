@@ -27,9 +27,15 @@ posts, and the post it comments on.
 """
 
 import html
+import http.client
+import ipaddress
 import json
+import os
 import random
 import re
+import socket
+import ssl
+import tempfile
 import time
 import urllib.parse
 
@@ -1580,6 +1586,107 @@ def reddit_edit_comment(page, args):
     return {"done": False}
 
 
+# A picture post's picture (part 7 of the 18 Nov 2026 features task): one of
+# the person's own media library files, which the app has already checked.
+# Reddit takes these kinds, up to 20 MB.
+PICTURE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/gif": ".gif", "image/webp": ".webp"}
+PICTURE_MAX_BYTES = 20 * 1024 * 1024
+PICTURE_SECONDS = 60
+PICTURE_CHUNK_BYTES = 64 * 1024
+
+
+class _PinnedHTTPS(http.client.HTTPSConnection):
+    """An https connection to an address already checked, with the name still checked on the certificate.
+
+    The address is looked up once and that one is used, so a name cannot
+    point somewhere else between the check and the download. X's and
+    LinkedIn's routines each keep the same guard.
+    """
+
+    def __init__(self, host, address, port, timeout):
+        self._checked_tls = ssl.create_default_context()
+        http.client.HTTPSConnection.__init__(self, host, port, timeout=timeout, context=self._checked_tls)
+        self._address = address
+        self.pinned = None
+
+    def connect(self):
+        sock = socket.create_connection((self._address, self.port), self.timeout)
+        self.sock = self.pinned = self._checked_tls.wrap_socket(sock, server_hostname=self.host)
+
+
+def _public_address(host, port, step):
+    """The first address a host names, after checking every one is out on the internet."""
+    try:
+        found = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except Exception as error:  # noqa: BLE001
+        raise CommandError("%s: the picture's address would not resolve: %s" % (step, _short(error)))
+    addresses = [item[4][0] for item in found]
+    if not addresses:
+        raise CommandError("%s: the picture's address would not resolve" % step)
+    for address in addresses:
+        ip = ipaddress.ip_address(address.split("%")[0])
+        if not ip.is_global or ip.is_multicast:
+            raise CommandError("%s: the picture's address is not out on the internet, so it was not downloaded" % step)
+    return addresses[0]
+
+
+def _picture_file(url, step):
+    """Downloads a picture post's picture to a file of its own for Reddit's file box, and returns its path.
+
+    Only https, only to a public address, with no redirect followed, only a
+    picture Reddit takes, no bigger than 20 MB, and within a minute.
+    """
+    parsed = urllib.parse.urlparse(url or "")
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise CommandError("%s: the picture's address must start with https://" % step)
+    try:
+        port = parsed.port or 443
+    except ValueError:
+        raise CommandError("%s: the picture's address has a port that is not a number" % step) from None
+    deadline = time.monotonic() + PICTURE_SECONDS
+    address = _public_address(parsed.hostname, port, step)
+    path = (parsed.path or "/") + ("?" + parsed.query if parsed.query else "")
+    connection = _PinnedHTTPS(parsed.hostname, address, port, timeout=20)
+    file_path = None
+    try:
+        connection.request("GET", path, headers={"user-agent": "Promo/1"})
+        answer = connection.getresponse()
+        if 300 <= answer.status < 400:
+            raise CommandError("%s: the picture's address sends the download somewhere else, which Promo does not follow" % step)
+        if answer.status != 200:
+            raise CommandError("%s: the picture would not download: the address answered %d" % (step, answer.status))
+        kind = answer.headers.get_content_type()
+        if kind not in PICTURE_TYPES:
+            raise CommandError("%s: the picture is %s, which Reddit does not take" % (step, kind))
+        handle, file_path = tempfile.mkstemp(prefix="promo-reddit-", suffix=PICTURE_TYPES[kind])
+        size = 0
+        with os.fdopen(handle, "wb") as out:
+            while True:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise CommandError("%s: the picture took longer than %d seconds to download" % (step, PICTURE_SECONDS))
+                if connection.pinned is not None:
+                    connection.pinned.settimeout(left)
+                chunk = answer.read(PICTURE_CHUNK_BYTES)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > PICTURE_MAX_BYTES:
+                    raise CommandError("%s: the picture is bigger than the 20 MB Reddit takes" % step)
+                out.write(chunk)
+    except CommandError:
+        if file_path:
+            os.unlink(file_path)
+        raise
+    except Exception as error:  # noqa: BLE001
+        if file_path:
+            os.unlink(file_path)
+        raise CommandError("%s: the picture would not download: %s" % (step, _short(error)))
+    finally:
+        connection.close()
+    return file_path
+
+
 def reddit_submit(page, args):
     """Sends a post of your own to a subreddit, inside an ordinary visit.
 
@@ -1592,10 +1699,22 @@ def reddit_submit(page, args):
     subreddit = (args.get("subreddit") or "").strip()
     title = (args.get("title") or "").strip()
     body = (args.get("body") or "").strip()
+    # A text post, a picture post or a link post. The words go with a text post only.
+    kind = args.get("kind") or "text"
+    picture_url = (args.get("imageUrl") or "").strip() if isinstance(args.get("imageUrl"), str) else ""
+    link = (args.get("linkUrl") or "").strip() if isinstance(args.get("linkUrl"), str) else ""
     if not re.fullmatch(r"[A-Za-z0-9_]{1,60}", subreddit):
         raise CommandError("submit: that is not a subreddit name")
     if not title:
         raise CommandError("submit: a post needs a title")
+    if kind not in ("text", "picture", "link"):
+        raise CommandError("submit: a post is text, a picture or a link")
+    if kind == "picture" and not picture_url:
+        raise CommandError("submit: a picture post needs its picture")
+    if kind == "link" and not link.startswith("https://"):
+        raise CommandError("submit: a link post needs an address starting with https://")
+    if kind != "text":
+        body = ""
 
     started = time.monotonic()
     deadline = started + VISIT_BUDGET_SECONDS
@@ -1614,7 +1733,7 @@ def reddit_submit(page, args):
         visit["_sizes"].extend(human.browse(page, random.uniform(6, 15), deadline))
     except Exception as error:  # noqa: BLE001 - the submit page still works
         visit["problems"].append("the subreddit before: %s" % _short(error))
-    _goto(page, "https://www.reddit.com/r/%s/submit/?type=TEXT" % subreddit)
+    _goto(page, "https://www.reddit.com/r/%s/submit/?type=%s" % (subreddit, {"text": "TEXT", "picture": "IMAGE", "link": "LINK"}[kind]))
     visit["reachedBy"] = "subreddit"
 
     state = reddit_state_quick(page)
@@ -1631,54 +1750,91 @@ def reddit_submit(page, args):
         15_000,
     )
     if title_box is None:
-        raise CommandError("submit: no title box on the subreddit's submit page; it may not take text posts")
+        raise CommandError("submit: no title box on the subreddit's submit page; it may not take %s posts" % kind)
     human.click(title_box)
     human.type_text(title_box, title)
 
-    if body:
-        body_box = _first_visible(
+    # Downloaded only now, so a step that fails before it leaves no file behind. It is
+    # kept until Post has been pressed and answered, because Reddit may still be
+    # reading it after its preview shows.
+    picture_path = _picture_file(picture_url, "submit") if kind == "picture" else None
+    try:
+        if kind == "picture":
+            # Reddit's own media box. Shown once the file is in, and the post waits for that.
+            try:
+                page.locator("input[type='file']").first.set_input_files(picture_path)
+            except Exception as error:  # noqa: BLE001
+                raise CommandError("submit: the picture could not be added on Reddit's submit page: %s. Nothing was sent." % _short(error))
+            shown = _first_visible(
+                page,
+                ["shreddit-composer img", "r-post-composer-form img", "img[src^='blob:']"],
+                60_000,
+            )
+            if shown is None:
+                raise CommandError("submit: the picture did not show on Reddit's submit page. Nothing was sent.")
+        elif kind == "link":
+            link_box = _first_visible(
+                page,
+                [
+                    "faceplate-textarea-input[name='link'] textarea",
+                    "textarea[name='link']",
+                    "input[name='link']",
+                    "input[name='url']",
+                ],
+                15_000,
+            )
+            if link_box is None:
+                raise CommandError("submit: the title was typed but there is no box for the link. Nothing was sent.")
+            human.click(link_box)
+            human.type_text(link_box, link)
+
+        if body:
+            body_box = _first_visible(
+                page,
+                [
+                    "shreddit-composer div[contenteditable='true']",
+                    "div[contenteditable='true'][role='textbox']",
+                    "div[name='body'] div[contenteditable='true']",
+                ],
+                8_000,
+            )
+            if body_box is None:
+                raise CommandError("submit: the title was typed but there is no box for the words")
+            human.click(body_box)
+            gaps = human.type_text(body_box, body)
+            print("post typed: %d characters; %s" % (len(title) + len(body), human.describe_gaps(gaps)), flush=True)
+        human.pause_before_submit(page)
+
+        button = _first_visible(
             page,
             [
-                "shreddit-composer div[contenteditable='true']",
-                "div[contenteditable='true'][role='textbox']",
-                "div[name='body'] div[contenteditable='true']",
+                "#inner-post-submit-button",
+                "button[type='submit']:has-text('Post')",
+                "r-post-form-submit-button button",
             ],
             8_000,
         )
-        if body_box is None:
-            raise CommandError("submit: the title was typed but there is no box for the words")
-        human.click(body_box)
-        gaps = human.type_text(body_box, body)
-        print("post typed: %d characters; %s" % (len(title) + len(body), human.describe_gaps(gaps)), flush=True)
-    human.pause_before_submit(page)
+        if button is None:
+            raise CommandError("submit: the post was typed but no Post button could be pressed")
+        # Pressed once, never again: a press that raised may still have posted.
+        human.click(button)
 
-    button = _first_visible(
-        page,
-        [
-            "#inner-post-submit-button",
-            "button[type='submit']:has-text('Post')",
-            "r-post-form-submit-button button",
-        ],
-        8_000,
-    )
-    if button is None:
-        raise CommandError("submit: the post was typed but no Post button could be pressed")
-    # Pressed once, never again: a press that raised may still have posted.
-    human.click(button)
-
-    landed = None
-    waiting_until = time.time() + 30
-    while time.time() < waiting_until:
-        page.wait_for_timeout(1_000)
-        address = page.url or ""
-        if "/comments/" in address and "/r/%s/" % subreddit.lower() in address.lower():
-            landed = address.split("?")[0]
-            break
-    if not landed:
-        signs = _page_signs(page)
-        if signs["blocked"]:
-            raise CommandError("submit: pressed Post and %s" % signs["reason"])
-        raise CommandError("submit: pressed Post but the new post's page did not open within 30 seconds")
+        landed = None
+        waiting_until = time.time() + 30
+        while time.time() < waiting_until:
+            page.wait_for_timeout(1_000)
+            address = page.url or ""
+            if "/comments/" in address and "/r/%s/" % subreddit.lower() in address.lower():
+                landed = address.split("?")[0]
+                break
+        if not landed:
+            signs = _page_signs(page)
+            if signs["blocked"]:
+                raise CommandError("submit: pressed Post and %s" % signs["reason"])
+            raise CommandError("submit: pressed Post but the new post's page did not open within 30 seconds")
+    finally:
+        if picture_path:
+            os.unlink(picture_path)
 
     after_started = time.monotonic()
     try:
@@ -1723,4 +1879,8 @@ ROUTINES = {
     "delete_comment": reddit_delete_comment,
     "edit_comment": reddit_edit_comment,
     "submit": reddit_submit,
+    # A picture or link post (part 7 of the 18 Nov 2026 features task), under a
+    # name of its own: an image built before it refuses the name at once, rather
+    # than ignoring the picture and posting the title alone as a text post.
+    "submit_media": reddit_submit,
 }

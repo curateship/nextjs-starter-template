@@ -29,6 +29,8 @@ export const JOB_KIND_WORDS: Record<JobKind, string> = {
   health: "Read karma and age",
   rules: "Read a subreddit's rules",
   comment_check: "Check a sent comment",
+  post_check: "Check a post of yours",
+  post_answer: "Answer a comment on your post",
   profile_check: "Look at the profile as a stranger",
   warm_up: "Warm-up visit",
   submit: "Post of your own",

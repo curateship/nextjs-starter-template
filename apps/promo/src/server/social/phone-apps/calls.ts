@@ -140,6 +140,15 @@ export function appCarousel(
   return call(target, `${network}/post_carousel`, { ...args }, postShape, CAROUSEL_TIMEOUT_MS)
 }
 
+/**
+ * Posts one picture or video as an Instagram Story (part 8 of
+ * `workspace/tasks/New features/new-features-18-nov.md`). No caption: a Story
+ * has none. Only ever after a person pressed Post.
+ */
+export function appStory(target: CommandTarget, args: { mediaUrl: string }) {
+  return call(target, "instagram/post_story", { ...args }, postShape, POST_TIMEOUT_MS)
+}
+
 const warmUpShape = z.object({ liked: z.number().int().min(0).default(0) })
 
 /**

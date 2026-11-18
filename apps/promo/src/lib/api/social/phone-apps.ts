@@ -36,6 +36,10 @@ export type { AppAccount, AppModuleView, AppPostRow, InboxRow, ProfileEditView }
  * limit or the time, so they pass through as they are.
  */
 const WRITTEN_HERE = [
+  // An Instagram Story refused before it is written (part 8 of the 18 Nov 2026 features task).
+  "A Story is",
+  // Threads' name is Instagram's (part 9).
+  "Threads takes its name",
   "Pick a photo or video",
   "cannot post that file",
   "is retired",

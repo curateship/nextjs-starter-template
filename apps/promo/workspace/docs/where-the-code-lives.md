@@ -208,7 +208,8 @@ never a route or a left menu entry of its own: add it to `NETWORKS` in
 
 ### One that runs on a phone only
 
-How Instagram and TikTok were added (phone farm file 06).
+How Instagram and TikTok were added (phone farm file 06), and Threads on 18 Nov
+2026 ([Threads on the rack's phones](threads/threads-on-phones.md)).
 
 1. Add it to `PHONE_ONLY_NETWORKS` in `src/lib/social/networks.ts`. Adding an
    account to it then offers phones only, and a browser profile is refused

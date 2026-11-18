@@ -63,7 +63,9 @@ LinkedIn rather than copying it.
 
 **Post ideas** reads the questions people asked in the project's LinkedIn
 posts and their comments, and suggests posts that answer them. Each idea
-names the post it came from.
+names the post it came from. Reddit and X have the same dropdown since
+18 Nov 2026; the asking is one step for all three
+(`src/server/social/post-ideas.ts`, `src/components/social/post-ideas-button.tsx`).
 
 ## A newsletter issue
 

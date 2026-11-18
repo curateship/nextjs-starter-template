@@ -1,4 +1,4 @@
-import { AtSignIcon, BookOpenTextIcon, BriefcaseBusinessIcon, CameraIcon, MessagesSquareIcon, Music2Icon } from "lucide-react"
+import { AtSignIcon, BookOpenTextIcon, BriefcaseBusinessIcon, CameraIcon, MessageCircleIcon, MessagesSquareIcon, Music2Icon } from "lucide-react"
 
 import type { Network } from "@/lib/social/networks"
 
@@ -17,5 +17,7 @@ export function NetworkIcon({ network }: { network: Network }) {
       return <CameraIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     case "tiktok":
       return <Music2Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    case "threads":
+      return <MessageCircleIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
   }
 }

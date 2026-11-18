@@ -340,7 +340,7 @@ export async function writeMediumOutline(
       userId,
       ...picked,
       feature: "medium-outline",
-      metadata: { projectId: article.projectId, articleId: article.id },
+      projectId: article.projectId, metadata: { articleId: article.id },
       prompt: buildOutlinePrompt({
         about: about || source?.title || "",
         product: await projectDescription(userId, article.projectId, db),
@@ -413,7 +413,7 @@ export async function writeMediumArticle(
       userId,
       ...picked,
       feature: "medium-article",
-      metadata: { projectId: article.projectId, articleId: article.id },
+      projectId: article.projectId, metadata: { articleId: article.id },
       // 1,200 words is about 1,700 tokens before its headings and the shape around it.
       maxTokens: 4_000,
       prompt: buildArticlePrompt({
@@ -474,7 +474,7 @@ export async function mediumArticleIdeas(
       userId,
       ...picked,
       feature: "medium-ideas",
-      metadata: { projectId },
+      projectId, metadata: {},
       prompt: buildArticleIdeasPrompt(await projectDescription(userId, projectId, db), titles),
     },
     (answer) => {

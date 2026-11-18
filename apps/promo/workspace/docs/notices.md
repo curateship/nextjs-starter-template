@@ -103,6 +103,15 @@ acts on a bad reading". Tyler picked this the same day.
   8a in slot 4", with the address apps saw. Every job on it is refused until
   a check finds its proxy's address, and the notice goes then. Opens the phone.
   [Making each phone look like one person's](phones/looking-like-a-real-person.md).
+- **Someone naming your product**: "Someone named you: 3 new posts on Reddit
+  say "Taskly"", when a search finds new posts under a keyword marked Names
+  you, on Reddit, Medium, X or LinkedIn. One notice per keyword: a later
+  search with new posts brings it back unread with the newest count. A
+  keyword's first search rings nothing, so adding one never rings for posts
+  already there. Names a rival never rings, since Tyler declined a competitor
+  watch on 12 Oct 2026. Opens that keyword's posts on the network's Commenting
+  (`src/server/social/named-you.ts`). Tyler picked it on 18 Nov 2026, part 5 of
+  `workspace/tasks/New features/new-features-18-nov.md`.
 
 ## The limit to know
 
