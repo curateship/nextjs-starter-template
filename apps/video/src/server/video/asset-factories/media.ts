@@ -17,6 +17,10 @@ function extensionFor(mimeType: string) {
   if (mimeType === "image/jpeg") return "jpg"
   if (mimeType === "image/webp") return "webp"
   if (mimeType === "video/mp4") return "mp4"
+  // A video fetched from a link can arrive in any of the library's video types.
+  if (mimeType === "video/webm") return "webm"
+  if (mimeType === "video/quicktime") return "mov"
+  if (mimeType === "video/x-matroska") return "mkv"
   return "png"
 }
 

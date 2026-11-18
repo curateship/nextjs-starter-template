@@ -146,6 +146,14 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorForMedia finds whose each file is, and readOwnedBeats only reads rows of files that person owns.",
   "video/project-guests.ts:uploadFn":
     "editorGet/editorPost let in a signed-in person or a guest sent from Project, then actorFor checks the guest's project, and attachMediaToScope checks the project's owner again.",
+  "video/link-imports.ts:startFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, startLinkImports checks the project with getOwnedProject and the collection with requireOwnedCollection, and parseVideoLink lets only YouTube, TikTok and Instagram video addresses reach yt-dlp.",
+  "video/link-imports.ts:listFn":
+    "editorGet lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and listLinkImports checks the project with getOwnedProject and reads only rows whose user_id is the signed-in person.",
+  "video/link-imports.ts:retryFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and retryLinkImport only changes a row whose user_id is the signed-in person.",
+  "video/link-imports.ts:removeFn":
+    "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and removeLinkImport only deletes a row whose user_id is the signed-in person.",
   "video/phone-uploads.ts:makeLinkFn":
     "editorPost lets in a signed-in person or a guest sent from Project, then signedInActor refuses a guest, and createPhoneLink checks the project is the signed-in person's own with getOwnedProject.",
   "video/phone-uploads.ts:endLinkFn":

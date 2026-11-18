@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CheckIcon, ChevronRightIcon, FolderIcon, Trash2Icon } from "lucide-react"
+import { AtSignIcon, CheckIcon, ChevronRightIcon, ExternalLinkIcon, FolderIcon, Trash2Icon } from "lucide-react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -12,6 +12,7 @@ import {
   type MediaScope,
 } from "@/lib/api/video/media"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import type { LinkImportSource } from "@/lib/video/link-imports"
 
 export const CONTEXT_MENU_ITEM_CLASS =
   "relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
@@ -38,6 +39,7 @@ export function EditorMediaContextMenu({
   scope,
   mediaId,
   mediaName,
+  source,
   onDeleted,
   collections,
   children,
@@ -45,6 +47,8 @@ export function EditorMediaContextMenu({
   scope: MediaScope
   mediaId: string
   mediaName: string
+  /** Where a file imported from a link came from (import-from-a-link.md). */
+  source?: LinkImportSource
   onDeleted: (mediaId: string) => void
   collections?: EditorMediaCollections
   children: React.ReactElement
@@ -143,6 +147,24 @@ export function EditorMediaContextMenu({
             ) : null}
             {collections ? (
               <ContextMenuPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
+            ) : null}
+            {source ? (
+              <>
+                {source.handle ? (
+                  <ContextMenuPrimitive.Label className="flex items-center gap-1.5 px-1.5 py-1 text-sm text-muted-foreground [&_svg]:size-4">
+                    <AtSignIcon />
+                    <span className="truncate">From {source.handle}</span>
+                  </ContextMenuPrimitive.Label>
+                ) : null}
+                <ContextMenuPrimitive.Item
+                  className={CONTEXT_MENU_ITEM_CLASS}
+                  onSelect={() => window.open(source.url, "_blank", "noopener,noreferrer")}
+                >
+                  <ExternalLinkIcon />
+                  Open the original
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Separator className="-mx-1 my-1 h-px bg-border" />
+              </>
             ) : null}
             <ContextMenuPrimitive.Item
               className={CONTEXT_MENU_DESTRUCTIVE_ITEM_CLASS}

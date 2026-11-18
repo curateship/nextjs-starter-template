@@ -11,7 +11,9 @@ import {
   type MediaItem,
 } from "@/server/media/library"
 import { customShellMedia } from "@/server/schema"
+import type { LinkImportSource } from "@/lib/video/link-imports"
 import { collectionIdsByMedia } from "@/server/video/media-collections"
+import { linkSourcesByMedia } from "@/server/video/link-imports"
 import { requeueFailedPlaybackJobs } from "@/server/video/media-workers"
 import { videoPlaybackUrl } from "@/server/video/media-urls"
 import {
@@ -43,6 +45,8 @@ export type VideoMediaItem = MediaItem & {
   proxy_note: string | null
   filmstrip_status: string | null
   collection_ids: string[]
+  /** Where a file imported from a link came from; absent for any other file. */
+  link_source?: LinkImportSource
 }
 
 export type VideoMediaListResponse = {
@@ -218,10 +222,11 @@ export async function serializeVideoMedia(
   database: CustomShellDb = db
 ): Promise<VideoMediaItem[]> {
   const mediaIds = rows.map((row) => row.id)
-  const [collections, proxies, filmstrips] = await Promise.all([
+  const [collections, proxies, filmstrips, linkSources] = await Promise.all([
     collectionIdsByMedia(mediaIds, database),
     videoStateByMedia(videoMediaProxies, mediaIds, database),
     videoStateByMedia(videoMediaFilmstrips, mediaIds, database),
+    linkSourcesByMedia(mediaIds, database),
   ])
   return Promise.all(
     rows.map(async (row) => {
@@ -234,6 +239,7 @@ export async function serializeVideoMedia(
         proxy_note: proxy?.status === "queued" ? (proxy.error ?? null) : null,
         filmstrip_status: filmstrips.get(row.id)?.status ?? null,
         collection_ids: collections.get(row.id) ?? [],
+        ...(linkSources.has(row.id) ? { link_source: linkSources.get(row.id) } : {}),
       }
     })
   )

@@ -116,6 +116,16 @@ export const appServerOptions: AppServerOptions = {
             saved.viralVideoTick()
           ),
       },
+      {
+        // Downloads the TikTok, Instagram and YouTube links pasted into a
+        // project's Media panel, a few at a time, without holding up the
+        // pass (workspace/docs/import-from-a-link.md).
+        name: "video-link-imports",
+        tick: () =>
+          import("@/server/video/link-imports").then((imports) =>
+            imports.linkImportTick()
+          ),
+      },
     ],
   },
   // Views on the video editor's Media panel and the carousel editor's Image

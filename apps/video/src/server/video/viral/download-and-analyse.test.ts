@@ -130,6 +130,7 @@ beforeEach(async () => {
   vi.spyOn(download, "downloadViralVideo").mockResolvedValue({
     bytes: FILE_BYTES,
     mimeType: "video/mp4",
+    platformVideoId: "7312345678901234567",
     title: "A dare that went viral",
     channelName: "creator",
     channelId: "@creator",

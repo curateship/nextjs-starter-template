@@ -2416,3 +2416,64 @@ export const videoFlowPages = pgTable("video_flow_pages", {
   sectionOrder: jsonb("section_order").$type<string[]>().notNull().default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * A TikTok, Instagram or YouTube link pasted into a project's Media panel
+ * (`workspace/docs/import-from-a-link.md`, drizzle/0182). The status is the
+ * job: the worker in `link-imports.ts` downloads a `waiting` row, stores the
+ * file as the person's own upload and puts it on the project's shelf. One row
+ * per video per project, so the same post is never imported twice; deleting
+ * the file deletes the row with it.
+ */
+export const videoLinkImports = pgTable(
+  "video_link_imports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    projectId: varchar("project_id", { length: 36 })
+      .notNull()
+      .references(() => videoProjects.id, { onDelete: "cascade" }),
+    sourceUrl: text("source_url").notNull(),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    /**
+     * The platform's own id. A short TikTok link holds only a short code
+     * until the download reports the real id, which then replaces it.
+     */
+    platformVideoId: varchar("platform_video_id", { length: 100 }).notNull(),
+    /** The collection picked in the window, or null for none. */
+    collectionId: varchar("collection_id", { length: 36 }).references(
+      () => videoMediaCollections.id,
+      { onDelete: "set null" }
+    ),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "cascade" }
+    ),
+    title: text("title"),
+    /** The creator, as @handle, from yt-dlp. */
+    handle: varchar("handle", { length: 100 }),
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_video_link_imports_project_video").on(
+      table.projectId,
+      table.platform,
+      table.platformVideoId
+    ),
+    index("ix_video_link_imports_status").on(table.status, table.createdAt),
+    index("ix_video_link_imports_media_id").on(table.mediaId),
+    check(
+      "ck_video_link_imports_status",
+      sql`${table.status} in ('waiting', 'downloading', 'done', 'failed')`
+    ),
+  ]
+)
+
+export type VideoLinkImportRow = typeof videoLinkImports.$inferSelect
