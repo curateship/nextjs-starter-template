@@ -110,12 +110,27 @@ right, and its right-click menu holds Mass select and the row's actions. The
 right panel is never empty: a section opens its first row on arrival, and the
 dashboard goes back to the section and row it was on.
 
-- **Overview:** the five widgets in the shell's grid, laid out per person.
+- **Overview:** the widgets in the shell's grid, laid out per person.
   Posts that need you lists failed posts and unsent drafts by project and
   network, each opening that network on the project's page. Messages waiting
   opens the conversation in Messages. Accounts by status opens Accounts
   filtered to that status. Bans opens the Anti Detect dashboard's Bans for the project and
   the last 30 days. Archive room opens the project's Archive.
+- **Results**, a sixth widget Tyler picked on 18 Nov 2026 (part 4 of
+  `workspace/tasks/New features/new-features-18-nov.md`), is added from
+  Manage widgets; a layout saved before it keeps its five. One row per project
+  and network: what went out in the period ("12 sent"), then its upvotes,
+  claps, likes or reactions and its replies, as each network's last daily read
+  counted them. Comments on other people's posts and posts of your own count
+  together; failed, waiting and deleted ones never count. The period is Last 7
+  days or Last 30 days, picked in the widget's ⋮, 7 on every new visit. A row
+  opens that network on the project's page. It is per project and network,
+  never per keyword (Tyler declined "which keywords pay off" on 12 Oct 2026)
+  and never per account (the Reddit accounts dashboard's own task). A Reddit
+  comment belongs to the project whose keyword or thread found its post, so a
+  help-only post's comment is left out. Reddit posts of your own count as sent
+  with their upvotes and comments once Promo reads them
+  (`src/server/social/results.ts`).
 - **Projects:** each project's name, accounts, Posts and Last post, pinned
   first, with "3 banned" when a counted ban hit its accounts in the last 30
   days. Posts counts its own posts that went out on every network and Last
@@ -213,8 +228,8 @@ in the right panel".
   (Tyler, 12 Nov 2026: "the picture is missing the 3 selection standard"):
   None, Sky, each picture the project has had (up to 8, each with an ×), and +
   to add one from the media library, saving the moment one is picked; Pin; Pause this project (or Resume);
-  Lock description (or Unlock); New project; and Delete project in red under
-  a line. **Networks:** each network the project uses with Pause (or Resume)
+  Lock description (or Unlock); New project; Duplicate; and Delete project
+  in red under a line. Under Name sits **AI spend cap** (below). **Networks:** each network the project uses with Pause (or Resume)
   for that network alone and Take off, which the server refuses while the
   project still holds that network's accounts or keywords; then the networks
   it does not use yet, each a row to add it.
@@ -359,10 +374,50 @@ relevant" (`projectDescriptionText` in `src/lib/social/project-description.ts`).
 - **An account in no project drafts with no product text,** the same as an empty
   product box did before. It is never refused.
 
+## The AI spend cap
+
+The most a project's AI may cost in a calendar month, in dollars, from AI
+spend cap in the project's ⋮, under Name. Tyler picked it on 18 Nov 2026
+(part 2 of `workspace/tasks/New features/new-features-18-nov.md`).
+
+- **The row says** "None", or what was spent against the cap: "$12.40 of
+  $20". Opened, it is one box, Dollars a month, saving itself 700ms after
+  typing stops, with this month's spend under it. Empty is no cap; the most is
+  $10,000.
+- **At the cap, every AI button for the project is refused** before anything
+  is sent or counted, with "Taskly has used its $20 of AI this month. Raise
+  the cap in the project's ⋮, under AI spend cap." That covers every network's
+  drafts, rewrites, rules checks, answers, ideas, articles, newsletter issues,
+  connection notes, captions, Messages' suggested answers, Voices' try-out and
+  Medium's AI cover. Raising the cap lets it go on at once.
+- **What counts** is this calendar month's spend (UTC), read off the shell's
+  own AI meter, where every Promo call names its project. The check is
+  `refuseOverProjectCap` in `src/server/social/spend-cap.ts`, called by
+  `askModel` in `src/server/social/drafts.ts`, which every call goes through,
+  and by the Medium cover. `askModel` will not take a call that does not say
+  which project it is for, so a new AI button can't skip the cap.
+- **Reddit's calls named no project before 18 Nov 2026**, so Reddit spend from
+  before then is not counted in a project's month.
+- **A help-only Reddit post belongs to an account, not a project**, so its
+  drafts are never capped.
+- **The shell's own monthly allowance per person still applies.** The cap only
+  ever stops a project sooner. The shell's meter is only read, never changed.
+
 ## Making and deleting
 
 - **New project**, on the dashboard's Projects section or in a project's ⋮, asks for a name and
   the networks it uses, and opens the new project.
+- **Duplicate**, in a project's ⋮ and in a project row's right-click and ⋮
+  on the dashboard, makes "<name> (copy)" and opens it. The copy has the
+  first one's page, cover, networks and their order, every network's keywords
+  with their kinds and marks, LinkedIn's buyer titles, and the Medium
+  publications, X communities and LinkedIn groups picked for it. It never
+  copies accounts, since an account belongs to one project only, and nothing
+  that happened: finds, comments, posts, archive items and messages stay with
+  the first project. The copy starts with no pin and not paused. A keyword
+  keeps its own on or off switch, so one that searches by itself starts on the
+  next timed run. Everything is written at once, so a failure leaves no
+  half-made project (`duplicateProject` in `src/server/social/projects.ts`).
 - **Deleting is refused** while the project holds accounts in use or keywords,
   and the message says how many of each, such as "Second product still holds 1
   keyword. Remove its keywords first, then delete it." Nothing is deleted along

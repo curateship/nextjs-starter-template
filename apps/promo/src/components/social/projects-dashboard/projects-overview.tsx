@@ -1,19 +1,21 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 
-import { WidgetCard } from "@/components/shared/widgets/widget-card"
+import { WidgetCard, WidgetMenuOptions } from "@/components/shared/widgets/widget-card"
 import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
 import { WidgetMenu } from "@/components/shared/widgets/widget-menus"
 import type { ProjectsDashboardData } from "@/components/social/projects-dashboard/projects-dashboard"
 import { ErrorRow } from "@/components/ui/error-row"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
-import { getProjectsDashboardErrorMessage, loadPostsNeedingYou } from "@/lib/api/social/projects-dashboard"
+import { getProjectsDashboardErrorMessage, loadPostsNeedingYou, loadResults, type ResultsDays } from "@/lib/api/social/projects-dashboard"
 import { storageLine } from "@/lib/archive/items"
 import { plural } from "@/lib/format/plural"
 import { useLoad } from "@/lib/hooks/use-load"
 import { ACCOUNT_STATUSES, ACCOUNT_STATUS_LABELS } from "@/lib/social/account-status"
-import { isNetwork, NETWORK_NAMES } from "@/lib/social/networks"
+import { isNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 import { findProjectsWidget, PROJECTS_WIDGET_OFFER, type ProjectsWidgetId } from "@/lib/social/projects-dashboard-page"
 import { postedDateText } from "@/lib/social/wording"
 import { cn } from "@/lib/utils"
@@ -59,6 +61,8 @@ export function ProjectsOverview({
         return <BansWidget data={data} inProject={inProject} />
       case "archive-room":
         return <ArchiveWidget data={data} inProject={inProject} />
+      case "results":
+        return <ResultsWidget inProject={inProject} />
     }
   }
 
@@ -243,5 +247,77 @@ function ArchiveWidget({ data, inProject }: { data: ProjectsDashboardData; inPro
         />
       ))}
     </Scroll>
+  )
+}
+
+const PERIOD_LABELS: Record<ResultsDays, string> = { 7: "Last 7 days", 30: "Last 30 days" }
+
+/** What each network calls a like: upvotes on Reddit, claps on Medium, reactions on LinkedIn. */
+const LIKE_WORDS: Record<Network, [string, string]> = {
+  reddit: ["upvote", "upvotes"],
+  medium: ["clap", "claps"],
+  x: ["like", "likes"],
+  linkedin: ["reaction", "reactions"],
+  instagram: ["like", "likes"],
+  tiktok: ["like", "likes"],
+  threads: ["like", "likes"],
+}
+
+/**
+ * Results: what went out on each project and network in the last 7 or 30
+ * days (the ⋮ picks which), with its likes and replies as each network's last
+ * daily read counted them, opening that network on the project's page. Per
+ * project and network, never per keyword or account.
+ */
+function ResultsWidget({ inProject }: { inProject: InProject }) {
+  const navigate = useNavigate()
+  const [days, setDays] = React.useState<ResultsDays>(7)
+  const read = useLoad(() => loadResults(days), getProjectsDashboardErrorMessage, {
+    keys: [days],
+    remember: `promo-projects-results-${days}`,
+  })
+  const menu = (
+    <WidgetMenuOptions>
+      <div className="grid gap-2 p-3">
+        <Label htmlFor="promo-results-period">Period</Label>
+        <Select value={String(days)} onValueChange={(value) => setDays(Number(value) as ResultsDays)}>
+          <SelectTrigger id="promo-results-period" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {([7, 30] as const).map((each) => (
+              <SelectItem key={each} value={String(each)}>
+                {PERIOD_LABELS[each]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </WidgetMenuOptions>
+  )
+  if (read.error) return <>{menu}<ErrorRow message={read.error} onRetry={read.retry} className="p-3" /></>
+  if (!read.data) return <>{menu}<Quiet>Reading…</Quiet></>
+  const rows = read.data.filter((row) => inProject(row.projectId))
+  if (!rows.length) return <>{menu}<Quiet>Nothing went out in the {PERIOD_LABELS[days].toLowerCase()}.</Quiet></>
+  return (
+    <>
+      {menu}
+      <Scroll>
+        {rows.map((row) => {
+          const [one, many] = LIKE_WORDS[row.network]
+          return (
+            <Row
+              key={`${row.projectId}-${row.network}`}
+              title={row.projectName}
+              line={`${NETWORK_NAMES[row.network]} · ${row.likes.toLocaleString()} ${plural(row.likes, one, many)} · ${row.replies.toLocaleString()} ${plural(row.replies, "reply", "replies")}`}
+              value={`${row.sent} sent`}
+              onPress={() =>
+                void navigate({ to: "/admin/projects/$projectId", params: { projectId: row.projectId }, search: { network: row.network } })
+              }
+            />
+          )
+        })}
+      </Scroll>
+    </>
   )
 }

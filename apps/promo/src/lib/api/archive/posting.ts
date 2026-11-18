@@ -30,7 +30,7 @@ export function writeArchiveCaptions(itemId: string): Promise<{ captions: Archiv
 
 const picksFn = createServerFn({ method: "GET" })
   .middleware([editorGet])
-  .inputValidator(z.object({ projectId: z.string().min(1).max(36), network: z.enum(["instagram", "tiktok", "linkedin", "x"]) }))
+  .inputValidator(z.object({ projectId: z.string().min(1).max(36), network: z.enum(["instagram", "tiktok", "linkedin", "x", "threads"]) }))
   .handler(async ({ context, data }) => {
     const actor = await actorFor(context.caller, data.projectId)
     const posting = await import("@/server/archive/posting")
@@ -38,7 +38,7 @@ const picksFn = createServerFn({ method: "GET" })
   })
 
 /** What the From archive window lists for one network's post writer (parts 34 and 35). */
-export function loadArchivePicks(projectId: string, network: "instagram" | "tiktok" | "linkedin" | "x"): Promise<{ items: ArchiveCard[]; draftIds: string[] }> {
+export function loadArchivePicks(projectId: string, network: "instagram" | "tiktok" | "linkedin" | "x" | "threads"): Promise<{ items: ArchiveCard[]; draftIds: string[] }> {
   return picksFn({ data: { projectId, network } })
 }
 
@@ -51,6 +51,7 @@ const postsFn = createServerFn({ method: "POST" })
       mediaUrls: z.array(z.string().min(1).max(2048)).max(20).optional(),
       caption: z.string().max(10_000),
       draftCaption: z.string().max(10_000),
+      placement: z.enum(["feed", "story"]).default("feed"),
     })
   )
   .handler(async ({ context, data: { accountIds, ...post } }) => {
@@ -70,6 +71,8 @@ export function sendAppPosts(data: {
   mediaUrls?: string[]
   caption: string
   draftCaption: string
+  /** "story" posts one picture or video as an Instagram Story, with no caption. */
+  placement?: "feed" | "story"
 }): Promise<{ sent: number; refused: { accountId: string; reason: string }[] }> {
   return postsFn({ data })
 }

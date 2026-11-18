@@ -43,6 +43,8 @@ export type PromoNoticeKind =
   | "ban_unknown"
   | "looks_back"
   | "archive_arrived"
+  | "named_you"
+  | "post_comment"
 
 /** Each heading starts with words no other kind's does, because the bell tells them apart by these. */
 export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
@@ -86,4 +88,7 @@ export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
   ban_unknown: "Promo doesn't know this screen.",
   archive_arrived: "Arrived in the archive:",
   looks_back: "Looks back:",
+  // Part 5 of workspace/tasks/New features/new-features-18-nov.md.
+  named_you: "Someone named you:",
+  post_comment: "New comment on your Reddit post:",
 }

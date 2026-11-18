@@ -11,7 +11,8 @@ import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import { projectDescriptionText } from "@/lib/social/project-description"
 
 vi.mock("@/server/ai/keys", () => ({ getAiKey: vi.fn(async () => "test-key") }))
-vi.mock("@/server/ai/usage", () => ({
+vi.mock("@/server/ai/usage", async (original) => ({
+  ...(await original<typeof import("@/server/ai/usage")>()),
   runAiCall: vi.fn(async (_meta: unknown, call: () => Promise<{ result: unknown }>) => (await call()).result),
 }))
 
@@ -26,6 +27,7 @@ const {
   createProject,
   deleteProject,
   deleteProjects,
+  duplicateProject,
   listProjectRows,
   projectForOldComments,
   readProjectView,
@@ -36,8 +38,10 @@ const {
   updateProject,
 } = await import("./projects")
 const { promoAccounts, promoComments, promoFinds, promoJobs, promoKeywords, promoPosts, promoProjects } = await import("./schema")
-const { promoXPosts } = await import("./x/schema")
+const { promoXCommunities, promoXPosts } = await import("./x/schema")
+const { promoMediumKeywords } = await import("./medium/schema")
 const { readPostCounts } = await import("./post-counts")
+const { readResults } = await import("./results")
 const { queueJob } = await import("./jobs")
 
 const DAY_MS = 86_400_000
@@ -265,6 +269,34 @@ describe("projects", () => {
     expect(await db.select().from(promoProjects)).toHaveLength(0)
   })
 
+  it("duplicates a project's page, networks and keywords with new ids, never its accounts, and refuses another person's", async () => {
+    const projectId = await createProject(userId, "Taskly", db, ["reddit", "medium", "x"])
+    await updateProject(userId, projectId, { page: JSON.stringify(doc("A kanban board for small teams.")) }, db)
+    await account({ projectId })
+    await db.insert(promoKeywords).values({ id: uuid(), userId, projectId, term: "kanban tool", subreddits: ["SaaS"], lastRunAt: NOW })
+    await db.insert(promoMediumKeywords).values({ id: uuid(), userId, projectId, kind: "search", value: "Taskly", mark: "you" })
+    await db.insert(promoXCommunities).values({ id: uuid(), userId, projectId, communityId: "123", name: "Indie makers" })
+
+    const stranger = (await insertUser(db, { role: "admin" })).id
+    await expect(duplicateProject(stranger, projectId, db)).rejects.toThrow("does not exist")
+
+    const copyId = await duplicateProject(userId, projectId, db)
+    const [copy] = await db.select().from(promoProjects).where(eq(promoProjects.id, copyId))
+    expect(copy.name).toBe("Taskly (copy)")
+    expect(copy.networks).toEqual(["reddit", "medium", "x"])
+    expect(projectDescriptionText(copy.description)).toBe("A kanban board for small teams.")
+    expect(copy.pinnedAt).toBeNull()
+
+    const [reddit] = await db.select().from(promoKeywords).where(eq(promoKeywords.projectId, copyId))
+    expect(reddit).toMatchObject({ term: "kanban tool", subreddits: ["SaaS"], lastRunAt: null })
+    const [medium] = await db.select().from(promoMediumKeywords).where(eq(promoMediumKeywords.projectId, copyId))
+    expect(medium).toMatchObject({ kind: "search", value: "Taskly", mark: "you" })
+    expect(await db.select().from(promoXCommunities).where(eq(promoXCommunities.projectId, copyId))).toHaveLength(1)
+    // The first project keeps its own, and no account moved.
+    expect(await db.select().from(promoKeywords).where(eq(promoKeywords.projectId, projectId))).toHaveLength(1)
+    expect(await db.select().from(promoAccounts).where(eq(promoAccounts.projectId, copyId))).toHaveLength(0)
+  })
+
   it("counts each project's accounts and its own posts on every network for the table, leaving out failed and deleted ones", async () => {
     const a = await createProject(userId, "A", db)
     const b = await createProject(userId, "B", db)
@@ -319,6 +351,33 @@ describe("projects", () => {
     const answer = await deleteProjects(userId, [busy, empty], db)
     expect(answer.deleted).toEqual([empty])
     expect(answer.kept).toEqual([{ id: busy, reason: "Busy still holds 1 keyword. Remove its keywords first, then delete it." }])
+  })
+
+  it("adds up each project's sent comments and posts per network for Results, leaving out failed, deleted, older and other people's", async () => {
+    const projectId = await createProject(userId, "Taskly", db, ["reddit", "x"])
+    const { id: accountId } = await account({ projectId })
+    const findId = await find(projectId)
+    const old = new Date(NOW.getTime() - 10 * DAY_MS)
+    await db.insert(promoComments).values([
+      { id: uuid(), userId, findId, accountId, text: "a", status: "posted", postedAt: NOW, upvotes: 5, replyCount: 2 },
+      { id: uuid(), userId, findId, accountId, text: "b", status: "posted", postedAt: NOW, upvotes: 3, replyCount: 0 },
+      { id: uuid(), userId, findId, accountId, text: "c", status: "failed", postedAt: NOW, upvotes: 99 },
+      { id: uuid(), userId, findId, accountId, text: "d", status: "posted", postedAt: old, upvotes: 99 },
+      { id: uuid(), userId, findId, accountId, text: "e", status: "posted", postedAt: NOW, upvotes: 99, deletedAt: NOW },
+    ])
+    await db.insert(promoXPosts).values([
+      { id: uuid(), userId, projectId, status: "posted", postedAt: NOW, likes: 4, replyCount: 1 },
+      { id: uuid(), userId, projectId, status: "draft", likes: 50 },
+    ])
+    const stranger = (await insertUser(db, { role: "admin" })).id
+    await db.insert(promoXPosts).values({ id: uuid(), userId: stranger, projectId, status: "posted", postedAt: NOW, likes: 70 })
+
+    expect(await readResults(userId, 7, db, NOW)).toEqual([
+      { projectId, projectName: "Taskly", network: "reddit", sent: 2, likes: 8, replies: 2 },
+      { projectId, projectName: "Taskly", network: "x", sent: 1, likes: 4, replies: 1 },
+    ])
+    // The comment from 10 days ago counts over 30 days.
+    expect((await readResults(userId, 30, db, NOW)).find((row) => row.network === "reddit")).toMatchObject({ sent: 3, likes: 107 })
   })
 
   it("keeps an account to one project", async () => {

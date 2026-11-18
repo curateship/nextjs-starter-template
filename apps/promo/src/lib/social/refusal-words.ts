@@ -18,6 +18,8 @@
  *   in a ban, a throwaway going first, the Instagram and TikTok warm-up,
  *   half pace, the app-wide brake, the appeal, an unknown screen already
  *   answered, Clean up and a retire with no reason.
+ * - "of AI this month. Raise the cap": a project at its monthly AI spend cap
+ *   (`src/server/social/spend-cap.ts`).
  */
 const WRITTEN_FOR_THE_READER = [
   "kept apart",
@@ -47,6 +49,7 @@ const WRITTEN_FOR_THE_READER = [
   "already retired, so there is nothing to clean up",
   "Pick why the account is retired",
   "That ban is not there any more",
+  "of AI this month. Raise the cap",
 ]
 
 /** The refusal's own words when it is one of these, or null. */

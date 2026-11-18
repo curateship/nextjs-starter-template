@@ -19,6 +19,7 @@ import {
 } from "@/lib/social/linkedin/options"
 
 import { askModel, pickProvider } from "../drafts"
+import { askPostIdeas, type PostIdea } from "../post-ideas"
 import { projectDescription } from "../projects"
 import { promoAccounts } from "../schema"
 import { NO_WORDS, wordsForAccount, type VoiceWords } from "../voices"
@@ -230,7 +231,7 @@ export async function writeLinkedinDrafts(
     count: LINKEDIN_DRAFTS_PER_PRESS,
   })
   const drafts = await askModel(
-    { userId, ...picked, feature: "linkedin-comment", metadata: { projectId: find.projectId, findId: find.id, postId: find.postId }, prompt },
+    { userId, ...picked, feature: "linkedin-comment", projectId: find.projectId, metadata: { findId: find.id, postId: find.postId }, prompt },
     (answer) => {
       const split = splitLinkedinDrafts(answer, LINKEDIN_DRAFTS_PER_PRESS)
       if (!split.length) throw new Error(`${picked.provider} answered, but nothing in the answer looked like a comment.`)
@@ -274,7 +275,7 @@ export async function writeLinkedinAnswer(
     asPage: "",
     count: 1,
   })
-  return askModel({ userId, ...picked, feature: "linkedin-answer", metadata: { projectId: input.projectId }, prompt }, (answer) => {
+  return askModel({ userId, ...picked, feature: "linkedin-answer", projectId: input.projectId, metadata: {}, prompt }, (answer) => {
     const [first] = splitLinkedinDrafts(answer, 1)
     if (!first) throw new Error(`${picked.provider} answered, but nothing in the answer looked like an answer.`)
     return first
@@ -308,7 +309,7 @@ export async function rewriteLinkedinComment(
     `The comment:\n"""${text}"""`,
   ].join("\n\n")
   const rewritten = await askModel(
-    { userId, ...picked, feature: "linkedin-rewrite", metadata: { projectId: find.projectId, findId: find.id, how: input.how }, prompt },
+    { userId, ...picked, feature: "linkedin-rewrite", projectId: find.projectId, metadata: { findId: find.id, how: input.how }, prompt },
     (answer) => {
       const clean = answer.trim().replace(/^["“]|["”]$/g, "").slice(0, LINKEDIN_COMMENT_CHARS)
       if (!clean) throw new Error(`${picked.provider} answered with nothing.`)
@@ -353,7 +354,7 @@ export async function checkLinkedinRules(
   ]
     .filter(Boolean)
     .join("\n\n")
-  return askModel({ userId, ...picked, feature: "linkedin-rules-check", metadata: { projectId: input.projectId }, prompt }, readLinkedinRulesAnswer)
+  return askModel({ userId, ...picked, feature: "linkedin-rules-check", projectId: input.projectId, metadata: {}, prompt }, readLinkedinRulesAnswer)
 }
 
 export type LinkedinKeywordIdea = { kind: LinkedinKeywordKind; value: string }
@@ -394,7 +395,7 @@ export async function linkedinKeywordIdeas(
   ]
     .filter(Boolean)
     .join("\n\n")
-  return askModel({ userId, ...picked, feature: "linkedin-keyword-ideas", metadata: { projectId: input.projectId }, prompt }, (answer) => {
+  return askModel({ userId, ...picked, feature: "linkedin-keyword-ideas", projectId: input.projectId, metadata: {}, prompt }, (answer) => {
     const ideas = readLinkedinKeywordIdeas(answer)
     if (!ideas.length) throw new Error(`${picked.provider} answered, but with no search words, hashtags, people or pages.`)
     return ideas
@@ -486,7 +487,7 @@ export async function writeLinkedinPost(
       userId,
       ...picked,
       feature: "linkedin-post",
-      metadata: { projectId: input.projectId },
+      projectId: input.projectId, metadata: {},
       prompt: buildLinkedinPostPrompt({ ...input, about, product, ...words }),
       maxTokens: 2_000,
     },
@@ -533,7 +534,7 @@ export async function writeLinkedinNewsletter(
     .filter(Boolean)
     .join("\n\n")
   return askModel(
-    { userId, ...picked, feature: "linkedin-newsletter", metadata: { projectId: input.projectId, step: input.step }, prompt, maxTokens: input.step === "issue" ? 6_000 : 1_200 },
+    { userId, ...picked, feature: "linkedin-newsletter", projectId: input.projectId, metadata: { step: input.step }, prompt, maxTokens: input.step === "issue" ? 6_000 : 1_200 },
     (answer) => {
       const lines = answer.trim().split("\n")
       const titleLine = lines.findIndex((line) => /^TITLE:/i.test(line.trim()))
@@ -566,46 +567,29 @@ export async function writeConnectNote(
   ]
     .filter(Boolean)
     .join("\n\n")
-  return askModel({ userId, ...picked, feature: "linkedin-connect-note", metadata: { projectId: input.projectId }, prompt }, (answer) => {
+  return askModel({ userId, ...picked, feature: "linkedin-connect-note", projectId: input.projectId, metadata: {}, prompt }, (answer) => {
     const clean = answer.trim().replace(/^["“]|["”]$/g, "").slice(0, CONNECT_NOTE_CHARS)
     if (!clean) throw new Error(`${picked.provider} answered with nothing.`)
     return clean
   })
 }
 
-export type LinkedinPostIdea = { question: string; findId: string; about: string }
+export type LinkedinPostIdea = PostIdea
 
 /**
  * Ideas for posts of your own from the questions people asked in the
  * project's LinkedIn finds and their comments (part 35). Each idea names the
- * find it came from.
+ * find it came from. The asking is shared with Reddit and X (`post-ideas.ts`).
  */
 export async function linkedinPostIdeas(userId: string, projectId: string, db: CustomShellDb = defaultDb): Promise<LinkedinPostIdea[]> {
   const finds = await questionFinds(userId, projectId, db)
   if (!finds.length) throw new Refusal("No LinkedIn post found for this project asks a question yet. Add keywords and let them search first.")
-  const product = await projectDescription(userId, projectId, db)
-  const numbered = finds.map((find, index) => {
-    const asked = [find.text, ...(find.topComments ?? []).map((comment) => comment.text)].join("\n").slice(0, 1_200)
-    return `[${index + 1}]\n${asked}`
-  })
-  const picked = await pickProvider()
-  const prompt = [
-    "These are LinkedIn posts and their comments. Find the questions people really ask in them that would make a good LinkedIn post of its own.",
-    product.trim() ? `The writer makes:\n${product.trim()}` : "",
-    numbered.join("\n\n"),
-    "Answer with up to 6 lines, each IDEA: then the number in brackets of the piece it came from, then the question, then | and a line on what the post would say. For example: IDEA: [3] How do you price a first SaaS? | Three pricing mistakes and what to do instead. Nothing else.",
-  ]
-    .filter(Boolean)
-    .join("\n\n")
-  return askModel({ userId, ...picked, feature: "linkedin-post-ideas", metadata: { projectId }, prompt }, (answer) => {
-    const ideas: LinkedinPostIdea[] = []
-    for (const line of answer.split("\n")) {
-      const found = line.trim().match(/^IDEA:\s*\[(\d+)\]\s*(.+?)\s*\|\s*(.+)$/i)
-      const find = found ? finds[Number(found[1]) - 1] : undefined
-      if (!found || !find) continue
-      ideas.push({ question: (found[2] ?? "").slice(0, 300), findId: find.id, about: (found[3] ?? "").slice(0, 300) })
-    }
-    if (!ideas.length) throw new Error(`${picked.provider} answered, but with no ideas tied to a post.`)
-    return ideas
-  })
+  const pieces = finds.map((find) => ({
+    findId: find.id,
+    text: [find.text, ...(find.topComments ?? []).map((comment) => comment.text)].join("\n"),
+  }))
+  return askPostIdeas(
+    { userId, projectId, network: "LinkedIn", pieceWords: "posts and their comments", feature: "linkedin-post-ideas", pieces },
+    db
+  )
 }

@@ -500,6 +500,7 @@ export async function draftInboxReply(
       provider,
       model,
       feature: item.kind === "message" ? "phone-message-reply" : "phone-comment-reply",
+      projectId: account.projectId,
       metadata: { inboxId, platform: item.platform },
       prompt,
       key,

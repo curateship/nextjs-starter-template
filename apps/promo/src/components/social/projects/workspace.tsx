@@ -21,7 +21,7 @@ import {
   type ProjectView,
 } from "@/lib/api/social/projects"
 import { MEDIUM_COMMENT_VIEWS, MEDIUM_POST_VIEWS } from "@/lib/social/medium/options"
-import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
+import { isPhoneAppNetwork, NETWORK_NAMES, type Network } from "@/lib/social/networks"
 import { LINKEDIN_COMMENT_VIEWS, LINKEDIN_POST_VIEWS } from "@/lib/social/linkedin/options"
 import { COMMENT_TABS, sideOf, type ProjectRouteSearch, type ProjectSearch } from "@/lib/social/project-address"
 import type { Side } from "@/lib/social/sides"
@@ -255,7 +255,7 @@ export function ProjectsWorkspace({
     )
   }
 
-  if (network === "instagram" || network === "tiktok") {
+  if (network && isPhoneAppNetwork(network)) {
     return framed(
       <AppModule
         // Keyed by the network, so moving between Instagram and TikTok starts

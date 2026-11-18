@@ -25,9 +25,10 @@ import { refuseMixedProject } from "./apart"
 import { jobCounts, type JobCounts } from "./jobs"
 import { readProjectPosts } from "./post-counts"
 import { readPostingState, type PostingState } from "./posting"
-import { promoMediumKeywords } from "./medium/schema"
-import { promoLinkedinKeywords } from "./linkedin/schema"
-import { promoXKeywords } from "./x/schema"
+import { projectMonthSpendCents } from "./spend-cap"
+import { promoMediumKeywords, promoMediumPublications } from "./medium/schema"
+import { promoLinkedinGroups, promoLinkedinKeywords, promoLinkedinProjects } from "./linkedin/schema"
+import { promoXCommunities, promoXKeywords } from "./x/schema"
 import {
   promoAccounts,
   promoComments,
@@ -133,6 +134,93 @@ export async function createProject(
 ): Promise<string> {
   const id = uuid()
   await db.insert(promoProjects).values({ id, userId, name: cleanName(name), networks: [...new Set(networks)] })
+  return id
+}
+
+/**
+ * Duplicate in a project's ⋮: a new project named "<name> (copy)" holding the
+ * first one's page, cover, networks and their order, and what each network
+ * was set up with: Reddit's, Medium's, X's and LinkedIn's keywords with
+ * their kinds and marks, LinkedIn's buyer titles, and the Medium
+ * publications, X communities and LinkedIn groups picked for it.
+ *
+ * Never copied: accounts, since an account belongs to one project only, and
+ * anything that happened (finds, comments, posts, archive items, messages).
+ * The copy is not paused and has no pin. A keyword keeps its own switch, so
+ * one that searches by itself starts on the next timed run. Everything goes
+ * in one transaction, so a failure leaves no half-made project.
+ */
+export async function duplicateProject(
+  userId: string,
+  projectId: string,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<string> {
+  const project = await ownedProject(userId, projectId, db)
+  const id = uuid()
+  const name = `${project.name.slice(0, NAME_MAX - " (copy)".length)} (copy)`
+  const fresh = { id: "", projectId: id, createdAt: now }
+
+  await db.transaction(async (tx) => {
+    await tx.insert(promoProjects).values({
+      id,
+      userId,
+      name,
+      description: project.description,
+      imageUrl: project.imageUrl,
+      coverImages: project.coverImages,
+      networks: project.networks,
+      hiddenNetworks: project.hiddenNetworks,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const reddit = await tx.select().from(promoKeywords).where(eq(promoKeywords.projectId, projectId))
+    if (reddit.length) {
+      await tx.insert(promoKeywords).values(
+        reddit.map((row) => ({ ...row, ...fresh, id: uuid(), lastRunAt: null, updatedAt: now }))
+      )
+    }
+    const medium = await tx.select().from(promoMediumKeywords).where(eq(promoMediumKeywords.projectId, projectId))
+    if (medium.length) {
+      await tx.insert(promoMediumKeywords).values(
+        medium.map((row) => ({ ...row, ...fresh, id: uuid(), lastRunAt: null, lastError: "", updatedAt: now }))
+      )
+    }
+    const x = await tx.select().from(promoXKeywords).where(eq(promoXKeywords.projectId, projectId))
+    if (x.length) {
+      await tx.insert(promoXKeywords).values(
+        x.map((row) => ({ ...row, ...fresh, id: uuid(), lastRunAt: null, lastError: "", updatedAt: now }))
+      )
+    }
+    const linkedin = await tx.select().from(promoLinkedinKeywords).where(eq(promoLinkedinKeywords.projectId, projectId))
+    if (linkedin.length) {
+      await tx.insert(promoLinkedinKeywords).values(
+        linkedin.map((row) => ({ ...row, ...fresh, id: uuid(), lastRunAt: null, lastError: "", updatedAt: now }))
+      )
+    }
+
+    const [buyers] = await tx.select().from(promoLinkedinProjects).where(eq(promoLinkedinProjects.projectId, projectId))
+    if (buyers) await tx.insert(promoLinkedinProjects).values({ ...buyers, projectId: id, updatedAt: now })
+    const publications = await tx
+      .select()
+      .from(promoMediumPublications)
+      .where(eq(promoMediumPublications.projectId, projectId))
+    if (publications.length) {
+      // Which of the first project's accounts write for one belongs to those accounts, so it starts empty.
+      await tx
+        .insert(promoMediumPublications)
+        .values(publications.map((row) => ({ ...row, ...fresh, id: uuid(), writers: [], writersReadAt: null })))
+    }
+    const communities = await tx.select().from(promoXCommunities).where(eq(promoXCommunities.projectId, projectId))
+    if (communities.length) {
+      await tx.insert(promoXCommunities).values(communities.map((row) => ({ ...row, ...fresh, id: uuid() })))
+    }
+    const groups = await tx.select().from(promoLinkedinGroups).where(eq(promoLinkedinGroups.projectId, projectId))
+    if (groups.length) {
+      await tx.insert(promoLinkedinGroups).values(groups.map((row) => ({ ...row, ...fresh, id: uuid() })))
+    }
+  })
   return id
 }
 
@@ -502,6 +590,10 @@ export type ProjectView = {
     bannedRecently: number
     /** Items in its Archive, not counting the Bin, on the Archive card's title. */
     archiveCount: number
+    /** The monthly AI spend cap in whole cents, or null for none (`spend-cap.ts`). */
+    aiCapCents: number | null
+    /** What the project's AI calls cost this calendar month, in whole cents. */
+    aiSpentCents: number
   }
   /**
    * What waits on each network's row of a network's Commenting: strong posts
@@ -596,6 +688,8 @@ export async function readProjectView(
       pausedCommenting: project.pausedCommenting.filter(isNetwork),
       bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,
       archiveCount: await archiveCount(userId, project.id, db),
+      aiCapCents: project.aiCapCents,
+      aiSpentCents: await projectMonthSpendCents(userId, project.id, db),
     },
     accounts: accounts.map(({ rank: _rank, ...account }) => account),
     freeAccounts: rows

@@ -1,6 +1,6 @@
 import { and, count, eq, inArray, isNull, max, sql } from "drizzle-orm"
 
-import type { Network } from "@/lib/social/networks"
+import { PHONE_ONLY_NETWORKS, type Network } from "@/lib/social/networks"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 
 import { promoLinkedinPosts } from "./linkedin/schema"
@@ -59,7 +59,7 @@ export async function readPostCounts(
       )
     counts.medium = row?.n ?? 0
   }
-  for (const network of ["instagram", "tiktok"] as const) {
+  for (const network of PHONE_ONLY_NETWORKS) {
     if (!networks.includes(network)) continue
     const [row] = await db
       .select({ n: count() })

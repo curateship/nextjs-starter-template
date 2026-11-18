@@ -111,6 +111,8 @@ export type JobKind =
   | "health"
   | "rules"
   | "comment_check"
+  | "post_check"
+  | "post_answer"
   | "profile_check"
   | "warm_up"
   | "submit"
@@ -184,6 +186,7 @@ export const READER_JOB_KINDS: readonly JobKind[] = [
   "thread",
   "rules",
   "comment_check",
+  "post_check",
   "profile_check",
   "help_read",
   "promo_threads",
@@ -234,6 +237,7 @@ export const LINKEDIN_SEARCHER_JOB_KINDS: readonly JobKind[] = [
 export const WRITE_JOB_KINDS: readonly JobKind[] = [
   "comment",
   "reply",
+  "post_answer",
   "submit",
   "delete_comment",
   "edit_comment",
@@ -269,6 +273,7 @@ export const WRITE_JOB_KINDS: readonly JobKind[] = [
 export const COMMENTING_JOB_KINDS: readonly JobKind[] = [
   "comment",
   "reply",
+  "post_answer",
   "medium_respond",
   "x_reply",
   "linkedin_comment",
@@ -525,3 +530,11 @@ export const TIDY_DEFAULT_DAYS = 30
  */
 export const MAX_CHECKS_PER_PRESS = 50
 export const TIDY_DAYS_RANGE = { min: 0, max: 365 } as const
+
+/**
+ * What a Reddit post of your own is: words, a picture from the person's own
+ * media library, or a link (part 7 of
+ * `workspace/tasks/New features/new-features-18-nov.md`).
+ */
+export const OWN_POST_KINDS = ["text", "picture", "link"] as const
+export type OwnPostKind = (typeof OWN_POST_KINDS)[number]

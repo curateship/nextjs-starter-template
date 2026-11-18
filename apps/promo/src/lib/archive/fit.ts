@@ -15,6 +15,7 @@ export const VIDEO_LIMITS: Partial<Record<Network, { seconds: number; bytes: num
   instagram: { seconds: 15 * 60, bytes: 4 * 1024 ** 3 },
   tiktok: { seconds: 10 * 60, bytes: 4 * 1024 ** 3 },
   linkedin: { seconds: 15 * 60, bytes: 5 * 1024 ** 3 },
+  threads: { seconds: 5 * 60, bytes: 1024 ** 3 },
 }
 
 /** The networks whose videos are watched tall, full screen. */

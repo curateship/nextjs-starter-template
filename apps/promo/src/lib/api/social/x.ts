@@ -64,6 +64,8 @@ import {
   type XReplyView,
 } from "@/server/social/x/replies"
 import { lastXTrends } from "@/server/social/x/search"
+import { xPostIdeas } from "@/server/social/x/post-ideas"
+import type { PostIdea } from "@/server/social/post-ideas"
 import {
   addSearcher,
   listSearchers,
@@ -777,3 +779,15 @@ const settingsFn = createServerFn({ method: "POST" })
 export function saveXBehaviour(input: XSettings) {
   return settingsFn({ data: input })
 }
+
+const postIdeasFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: z.string().min(1) }))
+  .handler(async ({ context, data }): Promise<PostIdea[]> => xPostIdeas(context.user.id, data.projectId))
+
+/** Post ideas from the questions people asked in the project's X posts and their replies. */
+export function askXPostIdeas(projectId: string) {
+  return postIdeasFn({ data: { projectId } })
+}
+
+export type { PostIdea }

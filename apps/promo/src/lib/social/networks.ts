@@ -10,10 +10,12 @@
  * (`workspace/tasks/Phone farm/06-instagram-and-tiktok.md`), and Medium with
  * `workspace/tasks/Medium/01-medium-features.md`, and X with
  * `workspace/tasks/X/01-x-features.md`, and LinkedIn with
- * `workspace/tasks/LinkedIn/01-linkedin-features.md`. The server reads this
- * same list to refuse anything else.
+ * `workspace/tasks/LinkedIn/01-linkedin-features.md`, and Threads, on phones
+ * like Instagram, with part 9 of
+ * `workspace/tasks/New features/new-features-18-nov.md`. The server reads
+ * this same list to refuse anything else.
  */
-export const NETWORKS = ["reddit", "instagram", "tiktok", "medium", "x", "linkedin"] as const
+export const NETWORKS = ["reddit", "instagram", "tiktok", "medium", "x", "linkedin", "threads"] as const
 
 export type Network = (typeof NETWORKS)[number]
 
@@ -24,6 +26,7 @@ export const NETWORK_NAMES: Record<Network, string> = {
   medium: "Medium",
   x: "X",
   linkedin: "LinkedIn",
+  threads: "Threads",
 }
 
 export function isNetwork(value: unknown): value is Network {
@@ -35,7 +38,7 @@ export function isNetwork(value: unknown): value is Network {
  * built for the phone, and a desktop browser stands out there; setting one of
  * their accounts onto a browser profile is refused.
  */
-export const PHONE_ONLY_NETWORKS = ["instagram", "tiktok"] as const
+export const PHONE_ONLY_NETWORKS = ["instagram", "tiktok", "threads"] as const
 
 export type PhoneAppNetwork = (typeof PHONE_ONLY_NETWORKS)[number]
 

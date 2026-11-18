@@ -7,6 +7,7 @@ import { coverImagesSchema, coverSchema } from "@/lib/notes/page-cover"
 import { PROJECTS_PAGE_ERRORS } from "@/lib/social/projects-dashboard-page"
 import { PROJECTS_LIST_SECTIONS } from "@/lib/social/projects-dashboard-search"
 import { adminGet, adminPost } from "@/server/guards"
+import { readResults, type ResultsDays, type ResultsRow } from "@/server/social/results"
 import {
   getProjectsPageAndSections,
   getProjectsWidgets,
@@ -78,6 +79,16 @@ const saveWidgetsFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ top: rowSchema, bottom: rowSchema }))
   .handler(async ({ data, context }): Promise<WidgetLayout> => saveProjectsWidgets(context.user.id, data))
 
+const resultsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ days: z.union([z.literal(7), z.literal(30)]) }))
+  .handler(async ({ context, data }): Promise<ResultsRow[]> => readResults(context.user.id, data.days))
+
+/** What went out on each project and network in the last 7 or 30 days, with its likes and replies, for Overview's Results. */
+export function loadResults(days: ResultsDays) {
+  return resultsFn({ data: { days } })
+}
+
 const postsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }): Promise<PostsNeedingYou[]> => listPostsNeedingYou(context.user.id))
@@ -108,3 +119,5 @@ export function saveProjectsWidgetLayout(layout: WidgetLayout) {
 export function loadPostsNeedingYou() {
   return postsFn()
 }
+
+export type { ResultsDays, ResultsRow }

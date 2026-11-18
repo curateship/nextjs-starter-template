@@ -396,6 +396,70 @@ describe("Instagram and TikTok on phones", () => {
     })
   })
 
+  describe("Threads (part 9 of the 18 Nov 2026 features task)", () => {
+    it("puts a Threads account on a phone beside Instagram, posts a picture through Threads' own step, and keeps its name Instagram's", async () => {
+      const { A1 } = await plugIn("A1")
+      await instagramOn(A1)
+      const id = await addAccount(userId, { profileId: null, phoneId: A1, voiceId: null, platform: "threads" }, db)
+      await db.update(promoAccounts).set({ handle: "quiet.maple", signedInAt: new Date(Date.now() - 7 * 86_400_000) }).where(eq(promoAccounts.id, id))
+      await addAccountToProject(userId, projectId, id, db)
+      await expect(addAccount(userId, { profileId: "a-profile", phoneId: null, voiceId: null, platform: "threads" }, db)).rejects.toThrow()
+
+      await passSelfTest("threads/post")
+      const picture = await mediaFile("thread.jpg", "image/jpeg", "image")
+      await expect(queueAppPost(userId, { accountId: id, mediaUrl: picture, caption: "x".repeat(501), draftCaption: "" }, db)).rejects.toThrow()
+      const { id: postId } = await queueAppPost(userId, { accountId: id, mediaUrl: picture, caption: "How we plan a week", draftCaption: "" }, db)
+      const { turn, seen } = await runPhoneJob((action) =>
+        action.action === "threads/post"
+          ? { ok: true, result: { postUrl: "https://www.threads.net/@quiet.maple/post/C0abc" } }
+          : signedIn("quiet.maple")
+      )
+      expect(turn).toMatchObject({ did: "job", ok: true })
+      expect(seen.filter((action) => action.action === "threads/post")).toEqual([
+        { action: "threads/post", args: { mediaUrl: picture, mediaKind: "photo", caption: "How we plan a week" } },
+      ])
+      const [post] = await db.select().from(promoAppPosts).where(eq(promoAppPosts.id, postId))
+      expect([post.status, post.postUrl]).toEqual(["posted", "https://www.threads.net/@quiet.maple/post/C0abc"])
+
+      expect(() => cleanProfileEdit("threads", { displayName: "New", bio: null, link: null, pictureUrl: null })).toThrow(
+        "Threads takes its name from the Instagram account it signed in with."
+      )
+      expect(cleanProfileEdit("threads", { displayName: null, bio: "Plans weeks", link: null, pictureUrl: null })).toMatchObject({ bio: "Plans weeks" })
+    })
+  })
+
+  describe("Instagram Stories (part 8 of the 18 Nov 2026 features task)", () => {
+    it("queues one picture as a Story with no caption, and the phone posts it through its own step", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await instagramOn(A1)
+      await passSelfTest("instagram/post_story")
+      const picture = await mediaFile("story.jpg", "image/jpeg", "image")
+      const { id } = await queueAppPost(userId, { accountId, mediaUrl: picture, caption: "Not sent", draftCaption: "x", placement: "story" }, db)
+      const [queued] = await db.select().from(promoAppPosts).where(eq(promoAppPosts.id, id))
+      expect([queued.placement, queued.caption, queued.mediaKind]).toEqual(["story", "", "photo"])
+
+      const { turn, seen } = await runPhoneJob((action) =>
+        action.action === "instagram/post_story" ? { ok: true, result: { postUrl: "" } } : signedIn("quiet.maple")
+      )
+      expect(turn).toMatchObject({ did: "job", ok: true })
+      expect(seen.filter((action) => action.action.startsWith("instagram/post"))).toEqual([
+        { action: "instagram/post_story", args: { mediaUrl: picture } },
+      ])
+      const [post] = await db.select().from(promoAppPosts).where(eq(promoAppPosts.id, id))
+      expect(post.status).toBe("posted")
+    })
+
+    it("refuses a Story of several pictures, and one the self-test has not walked", async () => {
+      const { A1 } = await plugIn("A1")
+      const accountId = await instagramOn(A1)
+      const picture = await mediaFile("walk.jpg", "image/jpeg", "image")
+      await expect(
+        queueAppPost(userId, { accountId, mediaUrl: "", mediaUrls: [picture, picture], caption: "", draftCaption: "", placement: "story" }, db)
+      ).rejects.toThrow("A Story is one picture or video.")
+      await expect(queueAppPost(userId, { accountId, mediaUrl: picture, caption: "", draftCaption: "", placement: "story" }, db)).rejects.toThrow()
+    })
+  })
+
   describe("carousels (Video's task promo/01, part 40)", () => {
     let batch = 0
     /** Pictures in the media library, named so each call's are its own. */

@@ -34,7 +34,7 @@ const checkInShape = z.object({
          * app, and whether it was a message or a comment. Never their words.
          */
         alerts: z
-          .array(z.object({ app: z.enum(["reddit", "instagram", "tiktok"]), kind: z.enum(["message", "comment"]) }))
+          .array(z.object({ app: z.enum(["reddit", "instagram", "tiktok", "threads"]), kind: z.enum(["message", "comment"]) }))
           .max(20)
           .default([]),
       })

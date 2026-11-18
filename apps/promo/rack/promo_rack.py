@@ -92,7 +92,7 @@ except Exception as _failure:  # A missing file, or one its own imports break.
     iphone = None
     _IPHONE_IMPORT_ERROR = _failure
 
-VERSION = "2026.11.04.1"
+VERSION = "2026.11.18.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -1039,8 +1039,11 @@ APP_PACKAGES = {
     "medium": "com.medium.reader",
     "x": "com.twitter.android",
     "linkedin": "com.linkedin.android",
+    # Threads, Meta's (part 9 of the 18 Nov 2026 features task), signed in
+    # through the Instagram account on the same phone.
+    "threads": "com.instagram.barcelona",
 }
-APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium", "x": "X", "linkedin": "LinkedIn"}
+APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium", "x": "X", "linkedin": "LinkedIn", "threads": "Threads"}
 PLAY_STORE = "com.android.vending"
 
 # The same apps on an iPhone, by App Store bundle id, and Apple's own apps
@@ -1057,6 +1060,9 @@ APP_BUNDLES = {
     "x": "com.atebits.Tweetie2",
     # LinkedIn's App Store bundle id. Not yet read off a real iPhone either.
     "linkedin": "com.linkedin.LinkedIn",
+    # Threads' App Store bundle id. Its steps are not written for an iPhone
+    # yet, so `app_screens` refuses one there.
+    "threads": "com.burbn.barcelona",
 }
 IOS_SETTINGS = "com.apple.Preferences"
 IOS_MESSAGES = "com.apple.MobileSMS"
@@ -1152,7 +1158,7 @@ UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": PLAY_STORE}
 # The same apps in the App Store (phone farm part 53): each app's page by
 # Apple's own number, opened through the itms-apps address the store owns.
 APP_STORE = "com.apple.AppStore"
-APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236", "x": "333903271", "linkedin": "288429040"}
+APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236", "x": "333903271", "linkedin": "288429040", "threads": "6446901002"}
 IOS_UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": APP_STORE}
 IOS_OPEN_BUTTON = {"textMatches": "(?i)^open$", "packageName": APP_STORE}
 # The page's What's New says "Version 2025.40.0" under the newest notes.
@@ -2339,6 +2345,7 @@ def action_reddit_comment(serial, args, walk):
 
 INSTAGRAM = APP_PACKAGES["instagram"]
 TIKTOK = APP_PACKAGES["tiktok"]
+THREADS = APP_PACKAGES["threads"]
 
 
 def shapes(package, *patterns):
@@ -2387,6 +2394,12 @@ APP_SCREENS = {
         "save": shapes(INSTAGRAM, "(?i)^(done|save)$"),
         "next": shapes(INSTAGRAM, "(?i)^next$"),
         "share_to": shapes(INSTAGRAM, "(?i)^(feed|reel|reels)$"),
+        # A Story (part 8 of the 18 Nov 2026 features task): Story on the share
+        # screen, then Your story in the editor. Words from Instagram's share
+        # sheet and story editor as they are known, unproven on a phone.
+        "story_to": shapes(INSTAGRAM, "(?i)^(story|stories|your story)$"),
+        "story_share": shapes(INSTAGRAM, "(?i)^(your story|share to your story|your stories)$"),
+        "story_posted": ("added to your story", "shared to your story", "your story is shared", "story shared"),
         "caption": shapes(INSTAGRAM, "(?i)^(write a caption|add a caption)( ?(…|\\.\\.\\.))?$"),
         "share": shapes(INSTAGRAM, "(?i)^share$"),
         "posted": ("your post has been shared", "your reel has been shared", "post shared", "reel shared", "your post is live"),
@@ -2469,6 +2482,52 @@ APP_SCREENS = {
         ),
         "clear": ("eligible for the for you feed", "good standing", "no violations", "your account is in good standing"),
         "link_shape": re.compile(r"^https://((www|vm|vt)\.)?tiktok\.com/\S+$"),
+    },
+    # Threads (part 9 of the 18 Nov 2026 features task): TikTok's keys, with
+    # Threads' own words as they are known, unproven on a phone until the
+    # first self-test. A post is handed to Threads' share screen, which opens
+    # its composer with the file in; there is no Next. The name comes from
+    # Instagram, so only the bio, the link and the picture are its own.
+    # Threads has no Account status page, so no shadowban reading.
+    "threads": {
+        "package": THREADS,
+        "profile_tab": shapes(THREADS, "(?i)^(profile)$") + [{"resourceIdMatches": "(?i).*profile.?tab.*", "packageName": THREADS}],
+        "settings": shapes(THREADS, "(?i)^(menu|settings|more options)$"),
+        "account_status": [],
+        "status_detail": [],
+        "edit_profile": shapes(THREADS, "(?i)^edit profile$"),
+        "rows": {
+            "displayName": [],
+            "bio": shapes(THREADS, "(?i)^bio$"),
+            "link": shapes(THREADS, "(?i)^(link|links|add link)$"),
+        },
+        "link_add": [],
+        "picture_row": shapes(THREADS, "(?i)^(edit picture|change profile picture|edit profile picture)$"),
+        "picture_library": shapes(THREADS, "(?i)^(choose from library|new profile picture|choose from gallery)$"),
+        "gallery_first": [{"resourceIdMatches": "(?i).*(gallery_grid_item|media_picker_item|thumbnail).*", "packageName": THREADS}],
+        "save": shapes(THREADS, "(?i)^(done|save)$"),
+        "next": [],
+        "share_to": [],
+        "caption": shapes(THREADS, "(?i)^(start a thread|what's new|what.s new\\?|say more)( ?(…|\\.\\.\\.))?$") + field_in(THREADS),
+        "share": shapes(THREADS, "(?i)^post$"),
+        "posted": ("posted", "your thread was posted", "thread posted", "post shared"),
+        "post_failed": ("couldn't post", "post failed", "upload failed", "couldn't upload"),
+        "grid_first": [{"resourceIdMatches": "(?i).*(thread_item|feed_item|post_container).*", "packageName": THREADS}],
+        "more": shapes(THREADS, "(?i)^(more|more options|share)$"),
+        "copy_link": shapes(THREADS, "(?i)^copy link$"),
+        "inbox": shapes(THREADS, "(?i)^(messages|inbox)$"),
+        "activity": shapes(THREADS, "(?i)^(activity|notifications)$"),
+        "message_box": shapes(THREADS, "(?i)^message( ?(…|\\.\\.\\.))?$") + field_in(THREADS),
+        "send": shapes(THREADS, "(?i)^send$"),
+        "reply": shapes(THREADS, "(?i)^reply$"),
+        "comment_box": field_in(THREADS),
+        "comment_send": shapes(THREADS, "(?i)^(post|reply)$"),
+        "field": field_in(THREADS),
+        "handle_id": "(?i).*(username|profile_header).*",
+        "figures": {"posts": "", "followers": "followers", "following": ""},
+        "hidden": (),
+        "clear": (),
+        "link_shape": re.compile(r"^https://(www\.)?threads\.(net|com)/@[A-Za-z0-9._]+/post/[A-Za-z0-9_-]+/?(\?\S*)?$"),
     },
 }
 
@@ -2767,8 +2826,12 @@ APP_SCREENS[IOS_LINKEDIN] = linkedin_screens(IOS_LINKEDIN, ios_field_in(IOS_LINK
 
 def app_screens(serial, app):
     """The app's buttons on this phone: the iPhone app's, keyed by its bundle
-    id, on an iPhone; the Android app's, keyed by its name, otherwise."""
-    return APP_SCREENS[package_for(serial, app)] if is_iphone(serial) else APP_SCREENS[app]
+    id, on an iPhone; the Android app's, keyed by its name, otherwise. An app
+    whose steps are not written for this kind of phone is refused."""
+    key = package_for(serial, app) if is_iphone(serial) else app
+    if key not in APP_SCREENS:
+        raise RuntimeError("%s's steps are not written for this kind of phone yet. Put the account on an Android phone." % APP_NAMES[app])
+    return APP_SCREENS[key]
 
 # Words a signed-out app's first screen shows.
 LOG_IN_WORDS = ("log in", "log into another account", "sign up", "create new account", "use phone or email")
@@ -2907,6 +2970,9 @@ def read_account_status(serial, walk, app):
     read without pressing anything else. A step that is not found leaves it
     unread rather than failing the reading."""
     screens = app_screens(serial, app)
+    # An app with no Account status page, such as Threads, has nothing to read.
+    if not screens["account_status"]:
+        return {"read": False, "hidden": False, "words": ""}
     try:
         walk.tap_first("Open the menu", selectors=screens["settings"])
         time.sleep(1.5)
@@ -3584,6 +3650,73 @@ def action_app_post(app):
     return action
 
 
+
+def action_instagram_story(serial, args, walk):
+    """Posts one picture or video from the Archive as an Instagram Story, once.
+
+    The same way in as a feed post: the file is downloaded from Promo's own
+    address, put in the camera folder and handed to Instagram's share
+    screen. Story is picked there, the story editor opens, and Your story is
+    pressed once. It counts as posted when Instagram says the story was
+    shared within three minutes. A Story has no caption and no link to read.
+
+    A rehearsal walks a plain picture up to Your story, which is found and
+    not pressed, then the draft is discarded and the picture deleted. An
+    iPhone is refused for now: its share sheet has not been walked.
+    """
+    if is_iphone(serial):
+        raise RuntimeError("story: an Instagram Story is not done on an iPhone yet. Post it from an Android phone.")
+    screens = app_screens(serial, "instagram")
+    device = walk.screen()
+    device.screen_on()
+    if walk.rehearse:
+        data, extension = rehearsal_picture()
+    else:
+        data, extension = download_media(str(args.get("mediaUrl") or ""))
+    remote = put_in_gallery(serial, data, extension)
+    walk.shot("Put the file in the gallery")
+    try:
+        share_into(serial, "instagram", media_uri(serial, remote, extension), extension)
+        walk.shot("Opened Instagram's share screen")
+        if signed_out(device.dump_hierarchy(), "instagram"):
+            raise RuntimeError("story: the app is not signed in to Instagram")
+        walk.tap_first("Pick Story", selectors=screens["story_to"])
+        pressed = walk.final_first("Press Your story", selectors=screens["story_share"])
+    except Cancelled:
+        raise
+    except Exception:
+        # Stopped before the last button: the draft is discarded and nothing was posted.
+        if not walk.rehearse:
+            leave_app_screen(serial, walk, "instagram")
+        raise
+    finally:
+        if walk.rehearse:
+            leave_app_screen(serial, walk, "instagram")
+            quietly(serial, "rm -f '%s'" % remote)
+            quietly(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote)
+    if not pressed:
+        walk.home()
+        return {"postUrl": ""}
+    landed = False
+    waiting_until = time.time() + POST_LANDED_APP_SECONDS
+    while time.time() < waiting_until:
+        time.sleep(3)
+        try:
+            hierarchy = device.dump_hierarchy()
+        except Exception:  # A screen caught mid-change; look again.
+            continue
+        if screen_says(hierarchy, "instagram", screens["post_failed"]):
+            walk.shot("The app said it failed")
+            raise RuntimeError("story: the app said it could not post: %s" % screen_says(hierarchy, "instagram", screens["post_failed"]))
+        if screen_says(hierarchy, "instagram", screens["story_posted"]):
+            landed = True
+            break
+    walk.shot("Looked for the story")
+    walk.home()
+    if not landed:
+        raise RuntimeError("story: pressed Your story but Instagram did not say it was shared within %d seconds. It may still be uploading; check the app before posting again." % POST_LANDED_APP_SECONDS)
+    return {"postUrl": ""}
+
 def clear_and_type(serial, walk, element, text):
     """Empties a text box and types into it with a person's rhythm."""
     walk.press(element)
@@ -3724,7 +3857,7 @@ def alert_kind(item):
     channel. Likes, reactions, follows and invitations are nothing."""
     words = plain("%s %s" % (item["title"], item["text"]))
     meta = plain(item["meta"])
-    if item["app"] in ("instagram", "tiktok") and COMMENT_ALERT.search(words):
+    if item["app"] in ("instagram", "tiktok", "threads") and COMMENT_ALERT.search(words):
         return "comment"
     if MESSAGE_ALERT.search(words) or re.search(r"(direct|messag(e|ing)|chat|\bmsg\b|\bim\b|(?<![a-z])dms?(?![a-z]))", meta):
         return "message"
@@ -4228,6 +4361,17 @@ for _app in ("instagram", "tiktok"):
         # Opens the feed and stops: nothing is liked in a rehearsal.
         "%s/warm_up" % _app: {"likes": 0},
     })
+# A plain picture walked up to Your story, never pressed (part 8 of the 18 Nov 2026 features task).
+REHEARSALS["instagram/post_story"] = {"mediaUrl": "", "mediaKind": "photo"}
+# Threads' steps (part 9), Instagram's walks without the carousel or a Story.
+REHEARSALS.update({
+    "threads/health": {"postUrls": []},
+    "threads/profile": {},
+    "threads/post": {"mediaUrl": "", "mediaKind": "photo", "caption": ""},
+    "threads/inbox": {"kind": "comment", "via": "activity", "handle": ""},
+    "threads/reply": {"kind": "comment", "thread": "", "author": "", "quote": "", "text": ""},
+    "threads/warm_up": {"likes": 0},
+})
 
 
 def rehearsal_args(rehearsals, overrides):
@@ -4240,6 +4384,31 @@ def rehearsal_args(rehearsals, overrides):
     return merged
 
 
+# Steps the self-test walks only where they can run (18 Nov 2026 features
+# task, parts 8 and 9): neither Threads nor an Instagram Story is written for
+# an iPhone yet, and Threads' steps need its app on the phone. One left out is
+# neither passed nor broken, so its jobs stay refused and no bell rings for it.
+ANDROID_ONLY_REHEARSALS = ("threads/", "instagram/post_story")
+
+
+def rehearsals_not_here(serial, names):
+    """The rehearsals this phone cannot walk, by name."""
+    wanted = [name for name in names if name.startswith(ANDROID_ONLY_REHEARSALS)]
+    if not wanted:
+        return set()
+    if is_iphone(serial):
+        return set(wanted)
+    threads = [name for name in wanted if name.startswith("threads/")]
+    if not threads:
+        return set()
+    try:
+        installed = parse_app_versions(shell(serial, APPS_COMMAND, timeout=30))
+    except Exception as failure:  # Not known: walk them, and a broken one says why.
+        log("Could not read which apps are on %s: %s" % (serial, short_words(failure)))
+        return set()
+    return set() if "threads" in installed else set(threads)
+
+
 def action_self_test(serial, args, walk, rehearsals=None):
     """Walks every action in REHEARSALS up to just before its last button.
 
@@ -4249,8 +4418,11 @@ def action_self_test(serial, args, walk, rehearsals=None):
     {"rehearsals": {name: args}}, such as a post to rehearse a comment on.
     """
     rehearsals = rehearsal_args(rehearsals or REHEARSALS, (args or {}).get("rehearsals"))
+    not_here = rehearsals_not_here(serial, rehearsals)
     lines = []
     for name in sorted(rehearsals):
+        if name in not_here:
+            continue
         walk.check()
         rehearsal = Walk(serial, rehearse=True, cancelled=walk.cancelled, connect=walk.connect)
         rehearsal.device = walk.device
@@ -6009,7 +6181,17 @@ ACTIONS.update({
     "x/inbox": action_app_inbox("x"),
     "x/reply_message": action_app_reply("x"),
 })
-for _app in ("reddit", "instagram", "tiktok", "medium", "x", "linkedin"):
+ACTIONS["instagram/post_story"] = action_instagram_story
+ACTIONS.update({
+    "threads/warm_up": action_app_warm_up("threads"),
+    "threads/quick_state": action_app_quick_state("threads"),
+    "threads/health": action_app_health("threads"),
+    "threads/profile": action_app_profile("threads"),
+    "threads/post": action_app_post("threads"),
+    "threads/inbox": action_app_inbox("threads"),
+    "threads/reply": action_app_reply("threads"),
+})
+for _app in ("reddit", "instagram", "tiktok", "medium", "x", "linkedin", "threads"):
     ACTIONS["%s/ban_look" % _app] = action_ban_look(_app)
 ACTIONS.update({
     "linkedin/state": action_linkedin_state,
@@ -6094,6 +6276,14 @@ X_BAN_PHRASES = [
     ]),
 ]
 BAN_SCREENS += [("x", kind, [form for phrase in phrases for form in (phrase, phrase + ".")]) for kind, phrases in X_BAN_PHRASES]
+
+# Threads' (18 Nov 2026 features task, part 9): Meta's words, as Instagram's
+# are, unproven on a phone. Anything else short and ban-like is still caught
+# as unknown.
+BAN_SCREENS += [
+    ("threads", "suspended", ["we suspended your account", "your account has been suspended", "your profile has been suspended"]),
+    ("threads", "confirm", ["confirm it's you", "help us confirm it's you", "we detected unusual activity"]),
+]
 
 # LinkedIn's (LinkedIn task, part 5), each with and without a full stop.
 # "Restricted" is LinkedIn's word for an account it stopped; its identity

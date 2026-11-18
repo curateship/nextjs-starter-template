@@ -24,6 +24,7 @@ import { answerableReply } from "./replies"
 import { projectDescription, projectOfFind } from "./projects"
 import { promptRules } from "./reddit/rules"
 import { promoAccounts, promoDrafts, promoFinds } from "./schema"
+import { refuseOverProjectCap } from "./spend-cap"
 import { NO_WORDS, wordsForAccount } from "./voices"
 
 /**
@@ -558,6 +559,7 @@ async function writeDrafts(
       model,
       // Answers to replies are their own line on the AI usage screen.
       feature: answering ? "reddit-reply" : "reddit-comment",
+      projectId: await projectOfFind(userId, find.id, db),
       metadata: answering
         ? { findId: find.id, subreddit: find.subreddit, replyId: input.replyToId }
         : { findId: find.id, subreddit: find.subreddit },
@@ -598,6 +600,12 @@ export type ModelCall = {
   model: string
   /** The line it is counted under on the AI usage screen. */
   feature: string
+  /**
+   * The project the call is for, or null for none (an account in no
+   * project). Written into the meter's row, where the project's spend is
+   * read from, and checked against the project's monthly cap first.
+   */
+  projectId: string | null
   metadata: Record<string, unknown>
   prompt: string
   /** The provider's key, already looked up, so a missing one is refused before anything is sent. */
@@ -618,17 +626,19 @@ export type ModelCall = {
  *
  * Every feature that asks the AI something goes through here: drafts,
  * answers to replies, the rules check, rewrites, keyword ideas, help-only
- * drafts and posts of your own.
+ * drafts and posts of your own. A project that has reached its monthly AI
+ * spend cap is refused here, before anything is sent or counted.
  */
 export async function askModel<T>(call: ModelCall, read: (answer: string) => T): Promise<T> {
   const shape = PROVIDERS[call.provider]
+  await refuseOverProjectCap(call.userId, call.projectId)
   return runAiCall<T>(
     {
       userId: call.userId,
       provider: call.provider,
       model: call.model,
       feature: call.feature,
-      metadata: call.metadata,
+      metadata: call.projectId ? { ...call.metadata, projectId: call.projectId } : call.metadata,
     },
     async () => {
       const response = await fetch(shape.url(call.model), {

@@ -842,6 +842,37 @@ class RedditCommentTest(unittest.TestCase):
             del promo_rack.ACTIONS["test/comment"]
         self.assertEqual(seen, {"permalink": "/r/x/comments/abc/t/", "text": ""})
 
+    def test_threads_and_a_story_are_walked_only_where_they_can_run(self):
+        walked = []
+        originals = {name: promo_rack.ACTIONS.get(name) for name in ("threads/post", "instagram/post_story", "test/comment")}
+        for name in originals:
+            promo_rack.ACTIONS[name] = lambda serial, args, walk, name=name: walked.append(name) or {}
+        rehearsals = {"threads/post": {}, "instagram/post_story": {}, "test/comment": {}}
+        try:
+            with mock.patch.object(promo_rack, "go_home", lambda serial: None):
+                # An Android phone without Threads: its step is left out, the Story walked.
+                with mock.patch.object(promo_rack, "is_iphone", lambda serial: False), mock.patch.object(
+                    promo_rack, "shell", lambda serial, command, timeout=30: "com.instagram.android versionName=400.0"
+                ):
+                    result = promo_rack.action_self_test("A1", {}, promo_rack.Walk("A1", connect=lambda serial: FakeDevice([])), rehearsals=rehearsals)
+                self.assertEqual([line["action"] for line in result["actions"]], ["instagram/post_story", "test/comment"])
+                # With Threads installed, it is walked too.
+                walked.clear()
+                with mock.patch.object(promo_rack, "is_iphone", lambda serial: False), mock.patch.object(
+                    promo_rack, "shell", lambda serial, command, timeout=30: "com.instagram.barcelona versionName=380.0"
+                ):
+                    promo_rack.action_self_test("A1", {}, promo_rack.Walk("A1", connect=lambda serial: FakeDevice([])), rehearsals=rehearsals)
+                self.assertEqual(sorted(walked), ["instagram/post_story", "test/comment", "threads/post"])
+                # An iPhone walks neither.
+                with mock.patch.object(promo_rack, "is_iphone", lambda serial: True):
+                    self.assertEqual(promo_rack.rehearsals_not_here("A1", rehearsals), {"threads/post", "instagram/post_story"})
+        finally:
+            for name, action in originals.items():
+                if action is None:
+                    promo_rack.ACTIONS.pop(name, None)
+                else:
+                    promo_rack.ACTIONS[name] = action
+
     def test_reddit_actions_are_rehearsed(self):
         for name in ("reddit/state", "reddit/health", "reddit/comment"):
             self.assertIn(name, promo_rack.REHEARSALS)
@@ -3236,6 +3267,8 @@ class IphoneAppsTest(unittest.TestCase):
             "itms-apps://apps.apple.com/app/id333903271": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 11.0")),
             # And LinkedIn (LinkedIn task, part 2), not on this phone either.
             "itms-apps://apps.apple.com/app/id288429040": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 9.0")),
+            # And Threads (18 Nov 2026 features task, part 9), not on this phone either.
+            "itms-apps://apps.apple.com/app/id6446901002": ios_tree(promo_rack.APP_STORE, ("Button", "Get"), ("StaticText", "Version 380.0")),
         }
         screen = self.phone(dict(store, start=ios_tree(IOS_SETTINGS)), "start")
         with mock.patch.object(iphone, "app_versions", lambda udid: {"reddit": "2025.40.0", "instagram": "400.0"}):

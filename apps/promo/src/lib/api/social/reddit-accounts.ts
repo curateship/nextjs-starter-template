@@ -119,6 +119,7 @@ const loadFn = createServerFn({ method: "GET" })
         medium: await phonesFreeFor(userId, null, undefined, "medium"),
         x: await phonesFreeFor(userId, null, undefined, "x"),
         linkedin: await phonesFreeFor(userId, null, undefined, "linkedin"),
+        threads: await phonesFreeFor(userId, null, undefined, "threads"),
       },
     }
   })

@@ -5,7 +5,8 @@ import { redditSubmit, type CommandTarget } from "@/server/browser/command"
 import { phoneStepRefusal } from "@/lib/phones/options"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_PROFILE_MESSAGE } from "@/lib/social/options"
+import { MAX_POST_BODY_CHARS, MAX_POST_TITLE_CHARS, NO_PROFILE_MESSAGE, OWN_POST_KINDS, type OwnPostKind } from "@/lib/social/options"
+import { isOwnedImageUrl } from "@/server/media/library"
 import { postingRefusalText } from "@/lib/social/wording"
 import { promoViralDrafts } from "@/server/viral-link/schema"
 
@@ -13,7 +14,8 @@ import { refuseInteraction } from "../apart"
 import { queueJob } from "../jobs"
 import { readPostingState } from "../posting"
 import { cleanSubreddit } from "../keywords"
-import { promoAccounts, promoJobs, promoPosts, promoProjects } from "../schema"
+import { promoAccounts, promoJobs, promoPosts, promoProjects, type OwnPostComment } from "../schema"
+import { postAnswers, postChecksOnTheirWay, type PostAnswerState } from "./post-numbers"
 
 import { blockedNames } from "./blocked"
 
@@ -35,6 +37,12 @@ export type OwnPostInput = {
   subreddit: string
   title: string
   body: string
+  /** Words, a picture or a link; words when not said. */
+  kind?: OwnPostKind
+  /** A picture post's picture: one of the person's own media library uploads. */
+  imageUrl?: string
+  /** A link post's link: an https address. */
+  linkUrl?: string
   /** "Sam via Project" when a guest sent from Project pressed Post; null for the owner. */
   sentBy?: string | null
   /**
@@ -76,6 +84,39 @@ async function viralSourceOf(
 }
 
 /**
+ * What a post is: words, or a picture that is one of the person's own media
+ * library uploads, never any address the browser sent, or an https link.
+ * Refused with what to fix.
+ */
+async function ownPostMedia(
+  userId: string,
+  input: OwnPostInput,
+  db: CustomShellDb
+): Promise<{ kind: OwnPostKind; imageUrl: string; linkUrl: string }> {
+  const kind = input.kind ?? "text"
+  if (kind === "picture") {
+    const imageUrl = (input.imageUrl ?? "").trim()
+    if (!imageUrl) throw new Refusal("Pick the picture the post shows.")
+    if (!(await isOwnedImageUrl(userId, imageUrl, db))) throw new Refusal("Pick a picture you uploaded yourself.")
+    return { kind, imageUrl, linkUrl: "" }
+  }
+  if (kind === "link") {
+    const linkUrl = (input.linkUrl ?? "").trim()
+    let parsed: URL | null = null
+    try {
+      parsed = new URL(linkUrl)
+    } catch {
+      parsed = null
+    }
+    if (!parsed || parsed.protocol !== "https:" || !parsed.hostname.includes(".")) {
+      throw new Refusal("The link has to be a whole address starting with https://")
+    }
+    return { kind, imageUrl: "", linkUrl: parsed.toString() }
+  }
+  return { kind: "text", imageUrl: "", linkUrl: "" }
+}
+
+/**
  * Queues a post a person pressed Post for, or refuses it with why. Returns
  * when it goes: now, or the account's next morning.
  */
@@ -97,6 +138,7 @@ export async function queueOwnPost(
   if (body.length > MAX_POST_BODY_CHARS) {
     throw new Refusal(`That post is ${body.length} characters, and a post here stops at ${MAX_POST_BODY_CHARS}.`)
   }
+  const media = await ownPostMedia(userId, input, db)
   if ((await blockedNames(userId, db)).has(subreddit.toLowerCase())) {
     throw new Refusal(`r/${subreddit} is on your list of subreddits you never see. Unblock it in Settings first.`)
   }
@@ -132,7 +174,8 @@ export async function queueOwnPost(
   const state = await readPostingState(userId, account, db, now)
   const refusal = postingRefusalText(state, now, state.timeZone)
   if (refusal) throw new Refusal(refusal)
-  await refuseInteraction(userId, account, { words: [title, body] }, db)
+  // A link post's link is checked too, so a throwaway never links an important account's profile or post.
+  await refuseInteraction(userId, account, { words: [title, media.kind === "text" ? body : media.linkUrl] }, db)
 
   const runAfter = state.nextWakeAt
   const source = await viralSourceOf(userId, projectId, input.viralDraftId, db)
@@ -144,7 +187,9 @@ export async function queueOwnPost(
       projectId,
       subreddit,
       title,
-      body,
+      // A picture or a link post has no words of its own on Reddit, so none are sent.
+      body: media.kind === "text" ? body : "",
+      ...media,
       ...(input.sentBy ? { sentBy: input.sentBy } : {}),
       // Kept so Try again opens New post with the same draft, and the post keeps where it came from.
       ...(source ? { source, viralDraftId: input.viralDraftId } : {}),
@@ -173,20 +218,24 @@ export async function submitOwnPost(
   const sentBy = typeof payload.sentBy === "string" && payload.sentBy ? payload.sentBy : null
   const source = typeof payload.source === "string" && VIRAL_SOURCE.test(payload.source) ? payload.source : ""
   if (!subreddit || !title) throw new Error("That post job is missing its subreddit or its title.")
+  const kind: OwnPostKind = OWN_POST_KINDS.includes(payload.kind as OwnPostKind) ? (payload.kind as OwnPostKind) : "text"
+  const imageUrl = kind === "picture" && typeof payload.imageUrl === "string" ? payload.imageUrl : ""
+  const linkUrl = kind === "link" && typeof payload.linkUrl === "string" ? payload.linkUrl : ""
+  const what = { kind, imageUrl, linkUrl }
 
   const id = uuid()
   try {
-    const { postUrl, visit } = await redditSubmit(target, { subreddit, title, body })
+    const { postUrl, visit } = await redditSubmit(target, { subreddit, title, body, ...what })
     if (!postUrl.startsWith("https://www.reddit.com/")) {
       throw new Error("Reddit answered with an address that is not Reddit's.")
     }
-    await db.insert(promoPosts).values({ id, userId, accountId, projectId, subreddit, title, body, status: "posted", postUrl, visit, sentBy, source })
+    await db.insert(promoPosts).values({ id, userId, accountId, projectId, subreddit, title, body, ...what, status: "posted", postUrl, visit, sentBy, source })
     await db.update(promoAccounts).set({ lastPostedAt: new Date() }).where(eq(promoAccounts.id, accountId))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await db
       .insert(promoPosts)
-      .values({ id, userId, accountId, projectId, subreddit, title, body, status: "failed", lastError: message, sentBy, source })
+      .values({ id, userId, accountId, projectId, subreddit, title, body, ...what, status: "failed", lastError: message, sentBy, source })
     throw error
   }
 }
@@ -202,6 +251,16 @@ export type OwnPostRow = {
   project: { id: string; name: string } | null
   /** "Sam via Project" when a guest sent from Project posted it; null for the owner. */
   sentBy: string | null
+  /** As the last Check read them; null until one has (`post-numbers.ts`). */
+  upvotes: number | null
+  commentCount: number | null
+  checkedAt: Date | null
+  /** Why the last check read nothing, or "". */
+  checkError: string
+  /** A check is waiting or running. */
+  checking: boolean
+  /** Up to 20 comments directly under it, each with the answer sent or on its way. Null until a check. */
+  comments: Array<OwnPostComment & { answer: PostAnswerState | null; own: boolean }> | null
 }
 
 /** Every post of your own that landed, newest first, for the Comments screen's Posts tab. */
@@ -217,6 +276,8 @@ export async function listOwnPosts(userId: string, db: CustomShellDb = defaultDb
     .leftJoin(promoProjects, eq(promoProjects.id, promoPosts.projectId))
     .where(and(eq(promoPosts.userId, userId), eq(promoPosts.status, "posted")))
     .orderBy(desc(promoPosts.postedAt))
+  const checking = await postChecksOnTheirWay(userId, db)
+  const answers = await postAnswers(userId, rows.map((row) => row.post.id), db)
   return rows.map(({ post, handle, projectName }) => ({
     id: post.id,
     title: post.title,
@@ -227,6 +288,17 @@ export async function listOwnPosts(userId: string, db: CustomShellDb = defaultDb
     account: { id: post.accountId, handle },
     project: post.projectId && projectName !== null ? { id: post.projectId, name: projectName } : null,
     sentBy: post.sentBy,
+    upvotes: post.upvotes,
+    commentCount: post.commentCount,
+    checkedAt: post.checkedAt,
+    checkError: post.checkError,
+    checking: checking.has(post.id),
+    comments:
+      post.comments?.map((comment) => ({
+        ...comment,
+        answer: answers.get(comment.url) ?? null,
+        own: Boolean(handle) && comment.author.toLowerCase() === handle.toLowerCase(),
+      })) ?? null,
   }))
 }
 
@@ -253,6 +325,9 @@ export async function failedPost(
     subreddit: text(job.payload.subreddit),
     title: text(job.payload.title),
     body: text(job.payload.body),
+    kind: OWN_POST_KINDS.includes(job.payload.kind as OwnPostKind) ? (job.payload.kind as OwnPostKind) : "text",
+    imageUrl: text(job.payload.imageUrl),
+    linkUrl: text(job.payload.linkUrl),
     viralDraftId: text(job.payload.viralDraftId) || null,
   }
 }

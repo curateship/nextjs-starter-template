@@ -13,6 +13,7 @@ import {
   matchedTitle,
 } from "@/lib/social/linkedin/options"
 
+import { ringNamedYou } from "../named-you"
 import { noticeRung, ringBell } from "../notices"
 import { promoAccounts } from "../schema"
 import { linkedinFeed, linkedinReadPost, linkedinSearch, type LinkedinPost } from "./calls"
@@ -172,6 +173,14 @@ export async function runLinkedinSearch(
     .update(promoLinkedinKeywords)
     .set({ lastRunAt: now, lastError: "", updatedAt: now })
     .where(eq(promoLinkedinKeywords.id, keywordId))
+  if (keyword.mark === "you") {
+    await ringNamedYou(
+      userId,
+      { network: "linkedin", projectId: keyword.projectId, keywordId, words: keyword.value, added, searchedBefore: !firstSearch },
+      db,
+      now
+    )
+  }
   return { seen: answer.posts.length, added }
 }
 

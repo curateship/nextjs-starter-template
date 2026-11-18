@@ -6,6 +6,7 @@ import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ArchivePickButton, type ArchivePick } from "@/components/archive/archive-picker"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -64,7 +65,10 @@ export function PostComposer({
   const [drafted, setDrafted] = React.useState("")
   const [drafting, setDrafting] = React.useState(false)
   const [posting, setPosting] = React.useState(false)
-  const problem = captionProblem(network, caption)
+  /** Instagram only: the feed, or a Story of one picture or video with no caption (part 8 of the 18 Nov 2026 features task). */
+  const [placement, setPlacement] = React.useState<"feed" | "story">("feed")
+  const story = network === "instagram" && placement === "story"
+  const problem = story ? null : captionProblem(network, caption)
   const tags = hashtagCount(caption)
   const most = HASHTAG_MAX[network]
   const kind = pick ? (pick.item.kind === "video" ? "video" : "photo") : VIDEO_ENDINGS.test(mediaUrl) ? "video" : "photo"
@@ -140,6 +144,10 @@ export function PostComposer({
       showErrorToast(problem)
       return
     }
+    if (story && carousel) {
+      showErrorToast("A Story is one picture or video. Pick one, not a carousel.")
+      return
+    }
     if (stopped) {
       showErrorToast(`${stopped} Nothing was sent.`)
       return
@@ -147,7 +155,11 @@ export function PostComposer({
     setPosting(true)
     try {
       const accountIds = [account.id, ...others.filter((row) => alsoFrom.has(row.id)).map((row) => row.id)]
-      const result = await sendAppPosts({ accountIds, mediaUrl, mediaUrls: carousel ?? undefined, caption, draftCaption: drafted })
+      const result = await sendAppPosts(
+        story
+          ? { accountIds, mediaUrl, caption: "", draftCaption: "", placement: "story" }
+          : { accountIds, mediaUrl, mediaUrls: carousel ?? undefined, caption, draftCaption: drafted }
+      )
       if (!result.sent) {
         showErrorToast(result.refused[0] ? getPhoneAppErrorMessage(new Error(result.refused[0].reason)) : "Nothing was sent.")
         return
@@ -216,6 +228,25 @@ export function PostComposer({
       <div>
         <ArchivePickButton projectId={projectId} network={network} onPick={applyPick} label={pick ? "Pick another from the archive" : "From archive"} />
       </div>
+      {network === "instagram" ? (
+        <div className="grid gap-2">
+          <Label htmlFor="instagram-placement">Where it goes</Label>
+          <Select value={placement} onValueChange={(value) => setPlacement(value === "story" ? "story" : "feed")}>
+            <SelectTrigger id="instagram-placement">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="feed">The feed</SelectItem>
+              <SelectItem value="story">A Story</SelectItem>
+            </SelectContent>
+          </Select>
+          {story ? (
+            <p className="text-xs text-muted-foreground">One picture or video, with no caption. Android phones only for now.</p>
+          ) : null}
+        </div>
+      ) : null}
+      {story ? null : (
+      <>
       <div className="grid gap-2">
         <FieldLabel htmlFor={`about-${network}`} hint="A line or two for the AI. It is never posted.">
           What the post is about
@@ -248,6 +279,8 @@ export function PostComposer({
             `${caption.length.toLocaleString("en-US")} of ${CAPTION_MAX[network].toLocaleString("en-US")} characters · ${tags} ${tags === 1 ? "hashtag" : "hashtags"}${most === null ? "" : ` of ${most}`}`}
         </p>
       </div>
+      </>
+      )}
       <div className="grid gap-2">
         <Label>Post as</Label>
         <div className="flex min-w-0 items-center gap-2">{accountPicker}</div>

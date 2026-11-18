@@ -162,6 +162,13 @@ menus. The runner records each file by its
 whole name, so a shell file that happens to share a number does not collide
 with a promo one.
 
+The 18 Nov 2026 features (`workspace/tasks/New features/new-features-18-nov.md`)
+add `promo_post_answers`, the answers sent under your own Reddit posts, and
+columns on tables Promo already owns: `promo_projects.ai_cap_cents`,
+`promo_keywords.mark`, the numbers, comments and kind of `promo_posts`, and
+`promo_app_posts.placement`, in `drizzle/0164` to `drizzle/0168`. No shell
+table changes; the shell's `ai_usage_events` is only read.
+
 ## Two things that look like shell edits and are not
 
 - **A second worker build script.** The Reddit browser is its own program, and

@@ -1,7 +1,8 @@
 import * as React from "react"
-import { ListChecksIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, XIcon } from "lucide-react"
+import { ListChecksIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, TagIcon, XIcon } from "lucide-react"
 
-import { MenuAction } from "@/components/shared/folding-menu"
+import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
+import { Hint } from "@/components/social/hint"
 import { CrmListHeader } from "@/components/crm/crm-row"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
@@ -24,6 +25,7 @@ import {
 } from "@/lib/social/reddit/options"
 import { keywordChipTimeText, keywordScopeText, keywordTitle } from "@/lib/social/wording"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import type { KeywordRow } from "@/server/social/keywords"
 
 import { KeywordPicker, type KeywordPickerItem } from "../keyword-picker"
@@ -79,6 +81,7 @@ export function KeywordsBar({
   onAdd,
   onRun,
   onSwitch,
+  onMark,
   onDelete,
   onAddIdea,
 }: {
@@ -124,6 +127,8 @@ export function KeywordsBar({
   onRun: (id: string) => Promise<void>
   /** Switches the keyword's timed searches on or off. */
   onSwitch: (id: string, enabled: boolean) => Promise<void>
+  /** Names you, or ordinary words; a marked keyword rings the bell on new posts. */
+  onMark: (id: string, mark: "" | "you") => Promise<void>
   onDelete: (id: string) => Promise<void>
   /** Saves and searches one idea from the ideas window. Throws with why when refused. */
   onAddIdea: (idea: { term: string } | { subreddit: string }) => Promise<void>
@@ -139,6 +144,12 @@ export function KeywordsBar({
       id: keyword.id,
       label: keywordTitle(keyword),
       count: keyword.postCount,
+      badge:
+        keyword.mark === "you" ? (
+          <Hint label="Names you: rings the bell on new posts">
+            <TagIcon className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-label="Names you" />
+          </Hint>
+        ) : undefined,
       status: running
         ? stalled
           ? "waiting"
@@ -192,18 +203,43 @@ export function KeywordsBar({
             onSelect={onSelect}
             onRun={onRun}
             onSwitch={onSwitch}
-            menu={(item, close) => (
-              <MenuAction
-                destructive
-                icon={<XIcon className="size-4" />}
-                onClick={() => {
-                  close()
-                  void onDelete(item.id)
-                }}
-              >
-                Remove {item.label} and everything it found
-              </MenuAction>
-            )}
+            menu={(item, close) => {
+              const keyword = keywords.find((row) => row.id === item.id)
+              return (
+                <>
+                  {/* Words only: a watch names a subreddit, not your name. The AI is off for a guest, and so is this. */}
+                  {keyword?.term && !guest ? (
+                    <>
+                      <p className="px-2.5 py-1.5 text-xs text-muted-foreground">What these words are</p>
+                      {(["", "you"] as const).map((mark) => (
+                        <MenuAction
+                          key={mark || "plain"}
+                          icon={<TagIcon className={cn("size-4", !mark && "opacity-0")} />}
+                          onClick={() => {
+                            close()
+                            void onMark(item.id, mark)
+                          }}
+                        >
+                          {mark ? "Names you, rings the bell on new posts" : "Ordinary search words"}
+                          {keyword.mark === mark ? <span className="ml-auto pl-3 text-xs text-muted-foreground">Picked</span> : null}
+                        </MenuAction>
+                      ))}
+                      <MenuLine />
+                    </>
+                  ) : null}
+                  <MenuAction
+                    destructive
+                    icon={<XIcon className="size-4" />}
+                    onClick={() => {
+                      close()
+                      void onDelete(item.id)
+                    }}
+                  >
+                    Remove {item.label} and everything it found
+                  </MenuAction>
+                </>
+              )
+            }}
             addForm={(close) => (
               <AddKeywordForm
                 onAdd={async (input) => {

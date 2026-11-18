@@ -11,7 +11,7 @@ import {
 } from "@/lib/social/options"
 import { knownTimeZone } from "@/lib/social/waking"
 
-import { promoAccounts, promoBehaviourSettings, promoComments, promoJobs, promoPosts } from "./schema"
+import { promoAccounts, promoBehaviourSettings, promoComments, promoJobs, promoPostAnswers, promoPosts } from "./schema"
 import { promoLinkedinSearchers } from "./linkedin/schema"
 import { promoXSearchers } from "./x/schema"
 
@@ -264,6 +264,17 @@ export async function recentComments(
         gte(promoPosts.postedAt, since)
       )
     )
+  // An answer under one of your own posts is a comment too.
+  const answers = await db
+    .select({ postedAt: promoPostAnswers.postedAt })
+    .from(promoPostAnswers)
+    .where(
+      and(
+        eq(promoPostAnswers.userId, userId),
+        eq(promoPostAnswers.accountId, accountId),
+        gte(promoPostAnswers.postedAt, since)
+      )
+    )
   const [pending] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(promoJobs)
@@ -272,12 +283,12 @@ export async function recentComments(
         eq(promoJobs.userId, userId),
         // An answer to a reply is a comment too, and a post of your own is
         // writing too, so both count against the pace.
-        inArray(promoJobs.kind, ["comment", "reply", "submit"]),
+        inArray(promoJobs.kind, ["comment", "reply", "post_answer", "submit"]),
         inArray(promoJobs.status, ["queued", "running"]),
         sql`${promoJobs.payload}->>'accountId' = ${accountId}`
       )
     )
-  const posted = [...rows, ...posts].map((row) => row.postedAt).sort((a, b) => a.getTime() - b.getTime())
+  const posted = [...rows, ...posts, ...answers].map((row) => row.postedAt).sort((a, b) => a.getTime() - b.getTime())
   return { posted, waiting: pending?.count ?? 0 }
 }
 

@@ -4,6 +4,7 @@ import { SKY_COVER } from "@/lib/notes/page-cover"
 import {
   ArrowUpRightIcon,
   BanIcon,
+  CopyIcon,
   EyeIcon,
   FileTextIcon,
   FolderArchiveIcon,
@@ -35,6 +36,7 @@ import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { TableCell } from "@/components/ui/table"
 import {
+  copyProject,
   getProjectErrorMessage,
   loadProject,
   pauseProject,
@@ -174,6 +176,15 @@ export function ProjectsSectionList({
       label: project.pinned ? "Unpin" : "Pin",
       icon: project.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />,
       onSelect: () => pin(project),
+    },
+    {
+      label: "Duplicate",
+      icon: <CopyIcon className="size-4" />,
+      onSelect: () =>
+        void run(async () => {
+          const { id } = await copyProject(project.id)
+          goToProject(id)
+        }),
     },
     { label: "Delete", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleting([project]) },
   ]

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { HeaderActions } from "@/components/social/header-actions"
+import { PostIdeasButton } from "@/components/social/post-ideas-button"
 import { ExternalLinkIcon, FileTextIcon, Loader2Icon, PlusIcon, QuoteIcon, RefreshCwIcon, Trash2Icon } from "lucide-react"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -15,6 +16,7 @@ import {
   changeOnX,
   checkXNow,
   getXErrorMessage,
+  askXPostIdeas,
   saveXPostDraft,
   writeXPostWords,
   type XModuleView,
@@ -121,6 +123,13 @@ export function XPostsList({
             </Button>
           </Hint>
         ) : null}
+        <XPostIdeas
+          projectId={projectId}
+          onCreated={async (id) => {
+            await onChanged()
+            onSelect(id)
+          }}
+        />
         <NewPostButton
           projectId={projectId}
           accounts={accounts}
@@ -222,6 +231,42 @@ export function XPostsList({
         )}
       </ScrollArea>
     </div>
+  )
+}
+
+/**
+ * Post ideas from the questions people asked in the project's X posts and
+ * their top replies, the dropdown LinkedIn has (part 3 of
+ * `workspace/tasks/New features/new-features-18-nov.md`). Picking one makes a
+ * draft the AI writes from that question, and opens it. Nothing is posted.
+ */
+function XPostIdeas({ projectId, onCreated }: { projectId: string; onCreated: (id: string) => Promise<void> }) {
+  return (
+    <PostIdeasButton
+      ask={() => askXPostIdeas(projectId)}
+      errorText={getXErrorMessage}
+      onPick={async (idea) => {
+        const draft = { accountId: null, poll: null, communityId: "", source: "", scheduledFor: null }
+        const { id } = await saveXPostDraft({ projectId, postRowId: null, post: { ...draft, pieces: [{ text: "", pictureUrl: "" }] } })
+        try {
+          const written = await writeXPostWords({
+            projectId,
+            accountId: null,
+            about: `${idea.question} ${idea.about}`,
+            pieces: 1,
+            source: "",
+            communityId: "",
+            poll: false,
+          })
+          if (written.pieces.length) {
+            await saveXPostDraft({ projectId, postRowId: id, post: { ...draft, pieces: written.pieces.map((text) => ({ text, pictureUrl: "" })) } })
+          }
+        } catch (failure) {
+          showErrorToast(`The draft is made, but the AI did not write it. ${getXErrorMessage(failure)}`)
+        }
+        await onCreated(id)
+      }}
+    />
   )
 }
 

@@ -239,7 +239,7 @@ export async function writeMediumDrafts(
       userId,
       ...picked,
       feature: "medium-response",
-      metadata: { projectId: find.projectId, findId: find.id, storyId: find.storyId },
+      projectId: find.projectId, metadata: { findId: find.id, storyId: find.storyId },
       prompt,
     },
     (answer) => {
@@ -288,7 +288,7 @@ export async function writeMediumAnswer(
     count: 1,
   })
   return askModel(
-    { userId, ...picked, feature: "medium-answer", metadata: { projectId: input.projectId }, prompt },
+    { userId, ...picked, feature: "medium-answer", projectId: input.projectId, metadata: {}, prompt },
     (answer) => {
       const [first] = splitMediumDrafts(answer, 1)
       if (!first) throw new Error(`${picked.provider} answered, but nothing in the answer looked like an answer.`)
@@ -330,7 +330,7 @@ export async function rewriteMediumResponse(
       userId,
       ...picked,
       feature: "medium-rewrite",
-      metadata: { projectId: find.projectId, findId: find.id, how: input.how },
+      projectId: find.projectId, metadata: { findId: find.id, how: input.how },
       prompt: buildMediumRewritePrompt(text, input.how),
     },
     (answer) => {
@@ -394,7 +394,7 @@ export async function checkMediumRules(
       userId,
       ...picked,
       feature: "medium-rules-check",
-      metadata: { projectId: input.projectId },
+      projectId: input.projectId, metadata: {},
       prompt: buildMediumRulesPrompt(text, input.publicationRules ?? ""),
     },
     readMediumRulesAnswer
@@ -442,7 +442,7 @@ export async function mediumKeywordIdeas(
       userId,
       ...picked,
       feature: "medium-keyword-ideas",
-      metadata: { projectId: input.projectId },
+      projectId: input.projectId, metadata: {},
       prompt: buildMediumKeywordIdeasPrompt(product, input.existing),
     },
     (answer) => {

@@ -19,6 +19,14 @@ New post on the Posts tab opens the writer in the right column:
   Reddit comments still up.
 - **Write with AI** fills the boxes in the account's voice from a line on what
   it is about.
+- **Post ideas**, beside New post, lists up to six posts worth writing, from
+  the questions people asked in the project's X finds and their top replies
+  (the 30 newest with a question mark), as LinkedIn's Post ideas does. Picking
+  one makes a draft the AI writes from that question and opens it. Nothing is
+  posted. Counted under Ideas in X's AI spend, as "x-post-ideas"
+  (`src/server/social/x/post-ideas.ts`). Tyler picked it on 18 Nov 2026, part 3
+  of `workspace/tasks/New features/new-features-18-nov.md`. X's own Ideas and
+  Trending on the keywords are still about keywords, not posts.
 - **A poll** (part 33) on the first post: two to four choices of up to 25
   characters, open for 1 hour, 1 day, 3 days or 7 days. Its votes are read
   back with the post's daily check.

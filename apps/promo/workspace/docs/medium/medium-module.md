@@ -73,7 +73,8 @@ the same stories. There are four kinds:
 
 Search words can be marked as **Names you** (the product's own name) or **Names a
 rival**. Stories found by a marked keyword carry a chip and score twice as high,
-since that conversation is already about you.
+since that conversation is already about you. Since 18 Nov 2026 new posts under a Names you keyword ring the bell, once
+per keyword and never on its first search ([bell notices](../notices.md)).
 
 The keywords are the same list as Reddit's
 ([The keywords](../commenting.md#the-keywords)). All

@@ -147,6 +147,7 @@ export async function checkCommentRules(
       provider,
       model,
       feature: "reddit-rules-check",
+      projectId: await projectOfFind(userId, find.id, db),
       metadata: { findId: find.id, subreddit: find.subreddit },
       prompt,
       key,
@@ -205,6 +206,7 @@ export async function rewriteComment(
       provider,
       model,
       feature: "reddit-rewrite",
+      projectId: await projectOfFind(userId, find.id, db),
       metadata: { findId: find.id, subreddit: find.subreddit, how: input.how },
       prompt,
       key,
@@ -303,7 +305,7 @@ export async function keywordIdeas(
       provider,
       model,
       feature: "reddit-keyword-ideas",
-      metadata: { projectId },
+      projectId, metadata: {},
       prompt,
       key,
     },
@@ -376,7 +378,7 @@ export async function draftOwnPost(
       provider,
       model,
       feature: "reddit-post",
-      metadata: { projectId: input.projectId, subreddit },
+      projectId: input.projectId, metadata: { subreddit },
       prompt,
       key,
     },
@@ -404,7 +406,8 @@ export async function tryVoice(
     .limit(1)
   if (!voice) throw new Error("That voice does not exist.")
   const find = await ownFind(userId, input.findId, db)
-  const product = find.helpAccountId ? "" : await projectDescription(userId, await projectOfFind(userId, find.id, db), db)
+  const projectId = await projectOfFind(userId, find.id, db)
+  const product = find.helpAccountId ? "" : await projectDescription(userId, projectId, db)
   const subredditRules = await promptRules(userId, find.subreddit, db)
   const { provider, model, key } = await pickProvider()
 
@@ -429,6 +432,7 @@ export async function tryVoice(
       provider,
       model,
       feature: "reddit-comment",
+      projectId,
       metadata: { findId: find.id, subreddit: find.subreddit, voiceId: voice.id, tryingVoice: true },
       prompt,
       key,

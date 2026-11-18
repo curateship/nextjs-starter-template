@@ -1,5 +1,5 @@
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
-import { NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
+import { isPhoneAppNetwork, NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
 import { ABOUT_MAX, CAPTION_MAX, HASHTAG_MAX } from "@/lib/social/phone-apps"
 
 import { askModel, pickProvider } from "../drafts"
@@ -48,8 +48,8 @@ export async function draftCaption(
   db: CustomShellDb = defaultDb
 ): Promise<string> {
   const account = await ownAccount(userId, input.accountId, db)
-  if (account.platform !== "instagram" && account.platform !== "tiktok") {
-    throw new Error("Only an Instagram or TikTok account gets a caption.")
+  if (!isPhoneAppNetwork(account.platform)) {
+    throw new Error("Only an Instagram, TikTok or Threads account gets a caption.")
   }
   const network: PhoneAppNetwork = account.platform
   const about = input.about.trim().slice(0, ABOUT_MAX)
@@ -65,7 +65,7 @@ export async function draftCaption(
     kind: input.kind,
   })
   return askModel(
-    { userId, provider, model, feature: "phone-caption", metadata: { accountId: account.id, platform: network }, prompt, key },
+    { userId, provider, model, feature: "phone-caption", projectId: account.projectId, metadata: { accountId: account.id, platform: network }, prompt, key },
     (answer) => {
       const caption = answer.trim().replace(/^["“]|["”]$/g, "").trim()
       if (!caption) throw new Error(`${provider} answered, but nothing in the answer looked like a caption.`)

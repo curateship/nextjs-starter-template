@@ -10,6 +10,7 @@ import {
   type CommandTarget,
 } from "@/server/browser/command"
 
+import { ringNamedYou } from "../named-you"
 import { queueJob } from "../jobs"
 import { cleanLinkUrl } from "../link-page"
 
@@ -121,6 +122,8 @@ export async function runKeywordSearch(
       )
     }
 
+    // Nothing stored under it yet means this is its first search that worked, which never rings Names you.
+    const [before] = await db.select({ id: promoFinds.id }).from(promoFinds).where(eq(promoFinds.keywordId, keyword.id)).limit(1)
     const stored = await storeFinds(keyword, searchId, posts, db, now)
 
     await db
@@ -137,6 +140,22 @@ export async function runKeywordSearch(
       .update(promoKeywords)
       .set({ lastRunAt: new Date() })
       .where(eq(promoKeywords.id, keyword.id))
+
+    if (keyword.mark === "you") {
+      await ringNamedYou(
+        keyword.userId,
+        {
+          network: "reddit",
+          projectId: keyword.projectId,
+          keywordId: keyword.id,
+          words: keyword.term || `r/${keyword.subreddits[0] ?? ""}`,
+          added: stored.new,
+          searchedBefore: Boolean(before),
+        },
+        db,
+        now
+      )
+    }
 
     // The replies of the best posts, read ahead so they are there when a
     // post is opened. Queued before the rules, because Post waits on the

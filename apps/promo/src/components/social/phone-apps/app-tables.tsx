@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ExternalLinkIcon, GalleryHorizontalIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
+import { CircleDashedIcon, ExternalLinkIcon, GalleryHorizontalIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -182,7 +182,9 @@ export function AppPostsTable({
             </TableCell>
             <TableCell column="main" className="max-w-0">
               <span className="flex min-w-0 items-center gap-2">
-                {row.mediaKind === "video" ? (
+                {row.placement === "story" ? (
+                  <CircleDashedIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Story" />
+                ) : row.mediaKind === "video" ? (
                   <PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Video" />
                 ) : row.mediaKind === "carousel" ? (
                   <GalleryHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Carousel" />

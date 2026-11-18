@@ -36,6 +36,7 @@ import {
   type LinkPage,
   type JobKind,
   type JobStatus,
+  type OwnPostKind,
   type SearchStatus,
   type SubredditRule,
   type SubredditRulesStatus,
@@ -165,6 +166,12 @@ export const promoProjects = pgTable(
      * Added by `drizzle/0161_promo_hidden_networks.sql`.
      */
     hiddenNetworks: jsonb("hidden_networks").$type<Network[]>().notNull().default([]),
+    /**
+     * The most the project may spend on AI in a calendar month, in whole
+     * cents, from AI spend cap in its ⋮; null is no cap (`spend-cap.ts`).
+     * Added by `drizzle/0164_promo_project_ai_cap.sql`.
+     */
+    aiCapCents: integer("ai_cap_cents"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -437,6 +444,12 @@ export const promoKeywords = pgTable(
       .notNull()
       .default("week"),
     enabled: boolean("enabled").notNull().default(true),
+    /**
+     * "you" when the words are the product's own name, which rings the bell
+     * when a search finds new posts under it (`named-you.ts`); "" for
+     * ordinary words. Added by `drizzle/0165_promo_reddit_keyword_mark.sql`.
+     */
+    mark: varchar("mark", { length: 10 }).$type<"" | "you">().notNull().default(""),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -973,9 +986,73 @@ export const promoPosts = pgTable(
      * `drizzle/0139_promo_reddit_post_source.sql`.
      */
     source: varchar("source", { length: 80 }).notNull().default(""),
+    /**
+     * "text", "picture" or "link" (`OWN_POST_KINDS`). A picture post's picture
+     * is one of the person's own media library uploads, and a link post's
+     * link an https address; both "" for a text post. Added by
+     * `drizzle/0167_promo_post_kinds.sql`.
+     */
+    kind: varchar("kind", { length: 10 }).$type<OwnPostKind>().notNull().default("text"),
+    imageUrl: varchar("image_url", { length: 2048 }).notNull().default(""),
+    linkUrl: varchar("link_url", { length: 2048 }).notNull().default(""),
     postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * The post as a stranger last saw it on a press of Check: its upvotes, how
+     * many comments, and up to 20 comments directly under it. Null until a
+     * check has read them, which is not the same as none
+     * (`reddit/post-numbers.ts`). Added by `drizzle/0166_promo_post_numbers.sql`.
+     */
+    upvotes: integer("upvotes"),
+    commentCount: integer("comment_count"),
+    comments: jsonb("comments").$type<OwnPostComment[] | null>(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    /** Why the last check could not read the numbers. Empty after one that did. */
+    checkError: text("check_error").notNull().default(""),
   },
   (table) => [index("ix_promo_posts_user").on(table.userId, table.postedAt.desc())]
+)
+
+/** A comment directly under one of your own posts, as a check read it. */
+export type OwnPostComment = {
+  author: string
+  text: string
+  score: number
+  /** Its own address on Reddit, which an answer is sent to. */
+  url: string
+}
+
+/**
+ * An answer the app sent to a comment under one of your own posts, from the
+ * account that posted it (part 6 of
+ * `workspace/tasks/New features/new-features-18-nov.md`). A row of its own so
+ * it counts toward the account's pace. Added by `drizzle/0166`.
+ */
+export const promoPostAnswers = pgTable(
+  "promo_post_answers",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    postId: varchar("post_id", { length: 36 })
+      .notNull()
+      .references(() => promoPosts.id, { onDelete: "cascade" }),
+    accountId: varchar("account_id", { length: 36 })
+      .notNull()
+      .references(() => promoAccounts.id, { onDelete: "cascade" }),
+    /** The comment it answers. */
+    commentUrl: varchar("comment_url", { length: 600 }).notNull(),
+    text: text("text").notNull(),
+    /** Where the answer landed. */
+    answerUrl: varchar("answer_url", { length: 600 }).notNull().default(""),
+    /** "Sam via Project" when a guest sent from Project answered; null for the owner. */
+    sentBy: text("sent_by"),
+    postedAt: timestamp("posted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("ix_promo_post_answers_post").on(table.postId),
+    uniqueIndex("ux_promo_post_answers_comment").on(table.postId, table.commentUrl),
+  ]
 )
 
 /**
@@ -1019,6 +1096,12 @@ export const promoAppPosts = pgTable(
     /** The media library file, by its address, as it was when Post was pressed. */
     mediaUrl: varchar("media_url", { length: 2048 }).notNull(),
     mediaKind: varchar("media_kind", { length: 10 }).$type<PhoneAppMediaKind>().notNull(),
+    /**
+     * "feed", or "story" for an Instagram Story of one picture or video, which
+     * has no caption and no link. Added by
+     * `drizzle/0168_promo_app_post_placement.sql`.
+     */
+    placement: varchar("placement", { length: 10 }).$type<"feed" | "story">().notNull().default("feed"),
     /** The file's own name, so the list says which one it was. */
     mediaName: varchar("media_name", { length: 255 }).notNull().default(""),
     /** Exactly what was posted, which may differ from the AI's draft after an edit. */

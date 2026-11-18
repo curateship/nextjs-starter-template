@@ -68,11 +68,13 @@ export async function writeArchiveCaptions(
 }
 
 /** What each network's post writer may take from the Archive (part 34). X takes pictures only. */
-export const PICKABLE: Record<"instagram" | "tiktok" | "linkedin" | "x", ArchiveCard["kind"][]> = {
+export const PICKABLE: Record<"instagram" | "tiktok" | "linkedin" | "x" | "threads", ArchiveCard["kind"][]> = {
   instagram: ["video", "picture", "carousel"],
   tiktok: ["video", "picture", "carousel"],
   linkedin: ["video", "picture", "carousel"],
   x: ["picture"],
+  // One picture or video a post: the phone has no Threads carousel step yet.
+  threads: ["video", "picture"],
 }
 
 /**

@@ -5,7 +5,6 @@ import {
   ClockIcon,
   ExternalLinkIcon,
   FileTextIcon,
-  LightbulbIcon,
   Loader2Icon,
   NewspaperIcon,
   PlusIcon,
@@ -24,6 +23,7 @@ import { ArchivePickButton, type ArchivePick } from "@/components/archive/archiv
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Hint } from "@/components/social/hint"
+import { PostIdeasButton } from "@/components/social/post-ideas-button"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -203,7 +203,7 @@ export function LinkedinPostsList({
             </Button>
           </Hint>
         ) : null}
-        <PostIdeasButton projectId={projectId} onCreated={created} />
+        <LinkedinPostIdeas projectId={projectId} onCreated={created} />
         <NewPostButton projectId={projectId} accounts={accounts} sources={data?.sources ?? []} onCreated={created} />
       </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
@@ -386,112 +386,35 @@ function NewPostButton({
 
 /**
  * Post ideas from the questions people asked in the project's LinkedIn
- * posts and their comments (part 35). The AI is asked when the dropdown
- * opens; picking one makes a draft that starts from that question, written
- * by the AI, and opens it.
+ * posts and their comments (part 35), the shared dropdown. Picking one makes
+ * a draft that starts from that question, written by the AI, and opens it.
  */
-function PostIdeasButton({ projectId, onCreated }: { projectId: string; onCreated: (id: string) => Promise<void> }) {
-  const [open, setOpen] = React.useState(false)
-  const [ideas, setIdeas] = React.useState<LinkedinPostIdea[] | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-  const [busy, setBusy] = React.useState<string | null>(null)
-
-  async function ask() {
-    setIdeas(null)
-    setError(null)
-    try {
-      setIdeas(await askLinkedinPostIdeas(projectId))
-    } catch (failure) {
-      setError(getLinkedinErrorMessage(failure))
-    }
-  }
-
-  async function pick(idea: LinkedinPostIdea) {
-    // One idea at a time, so two quick presses never make two drafts.
-    if (busy) return
-    setBusy(idea.findId + idea.question)
-    try {
-      const draft = emptyDraft(projectId, "post", null, `question:${idea.findId}`)
-      const { postRowId } = await saveLinkedinPostDraft(draft)
-      try {
-        const written = await writeLinkedinPostWords({
-          projectId,
-          accountId: null,
-          about: `${idea.question} ${idea.about}`,
-          source: "",
-          repostFindId: null,
-          groupId: "",
-          poll: false,
-          asPage: "",
-        })
-        await saveLinkedinPostDraft({ ...draft, postRowId, text: written.text })
-      } catch (failure) {
-        showErrorToast(`The draft is made, but the AI did not write it. ${getLinkedinErrorMessage(failure)}`)
-      }
-      setOpen(false)
-      await onCreated(postRowId)
-    } catch (failure) {
-      showErrorToast(getLinkedinErrorMessage(failure))
-    } finally {
-      setBusy(null)
-    }
-  }
-
+function LinkedinPostIdeas({ projectId, onCreated }: { projectId: string; onCreated: (id: string) => Promise<void> }) {
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next && !ideas) void ask()
+    <PostIdeasButton
+      ask={() => askLinkedinPostIdeas(projectId)}
+      errorText={getLinkedinErrorMessage}
+      onPick={async (idea: LinkedinPostIdea) => {
+        const draft = emptyDraft(projectId, "post", null, `question:${idea.findId}`)
+        const { postRowId } = await saveLinkedinPostDraft(draft)
+        try {
+          const written = await writeLinkedinPostWords({
+            projectId,
+            accountId: null,
+            about: `${idea.question} ${idea.about}`,
+            source: "",
+            repostFindId: null,
+            groupId: "",
+            poll: false,
+            asPage: "",
+          })
+          await saveLinkedinPostDraft({ ...draft, postRowId, text: written.text })
+        } catch (failure) {
+          showErrorToast(`The draft is made, but the AI did not write it. ${getLinkedinErrorMessage(failure)}`)
+        }
+        await onCreated(postRowId)
       }}
-    >
-      <PopoverTrigger asChild>
-        <Button type="button" size="sm" variant="ghost">
-          <LightbulbIcon />
-          Post ideas
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 p-0">
-        <div className="flex items-center gap-2 border-b px-3 py-2">
-          <p className="flex-1 text-sm font-medium">Questions people ask</p>
-          <Hint label="Ask the AI again">
-            <Button type="button" size="icon" variant="ghost" aria-label="Ask the AI again" onClick={() => void ask()}>
-              <RefreshCwIcon />
-            </Button>
-          </Hint>
-        </div>
-        <ScrollArea className="max-h-80">
-          {error ? (
-            <p className="p-3 text-sm text-muted-foreground">{error}</p>
-          ) : ideas === null ? (
-            <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
-              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
-              Reading the questions in the project&apos;s posts
-            </p>
-          ) : ideas.length ? (
-            <ul className="grid">
-              {ideas.map((idea) => (
-                <li key={idea.findId + idea.question}>
-                  <button
-                    type="button"
-                    className="grid w-full gap-0.5 px-3 py-2 text-left hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    onClick={() => void pick(idea)}
-                  >
-                    <span className="flex items-center gap-1.5 text-sm">
-                      {busy === idea.findId + idea.question ? <Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" /> : null}
-                      {idea.question}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{idea.about}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="p-3 text-sm text-muted-foreground">No questions found in the project&apos;s posts yet.</p>
-          )}
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+    />
   )
 }
 

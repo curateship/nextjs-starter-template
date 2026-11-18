@@ -123,6 +123,37 @@ the Posts tab shows, with a carousel mark.
   is still open. A carousel longer than one screen of the library has never
   been tried; the phone stops and names the picture it could not see.
 
+## A Story
+
+Tyler picked this on 18 Nov 2026 (part 8 of
+`workspace/tasks/New features/new-features-18-nov.md`).
+
+- **Where it goes**, under the picture on Instagram's post writer, is The feed
+  or A Story. TikTok's writer has no such choice.
+- **A Story is one picture or video**, from the media library or From archive,
+  with no caption: the about box, Draft caption and the caption box go while A
+  Story is picked. A carousel is refused with "A Story is one picture or
+  video."
+- **The phone** downloads the file the way a post does, hands it to
+  Instagram's share screen, picks Story, and presses Your story once
+  (`instagram/post_story` in `rack/promo_rack.py`). It counts as posted when
+  Instagram says the story was shared within three minutes. A Story has no
+  link to read, so the Posts tab shows it with a dashed-circle mark and no
+  Open.
+- **Android only for now.** An account on an iPhone is refused before
+  anything is written, because the iPhone's share sheet has not been walked.
+- **Its own step.** The daily self-test walks it to Your story without
+  pressing it, and a Story is refused until a self-test has passed it, so a
+  broken Story step stops Stories only. An iPhone test phone leaves the walk
+  out (`rehearsals_not_here` in `rack/promo_rack.py`), so it neither passes
+  nor rings "Self-test failed". The rack program's version went to
+  `2026.11.18.1` so racks take the new step.
+- **Unproven on a phone.** The words it looks for (Story, Your story, "added
+  to your story") are Instagram's as they are known; the first self-test on
+  the rack is the proof.
+- **Stored** as `promo_app_posts.placement` "story"
+  (`drizzle/0168_promo_app_post_placement.sql`).
+
 ## Afterwards
 
 - **The Posts tab** lists the project's posts on the network, newest first:

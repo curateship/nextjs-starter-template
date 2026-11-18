@@ -13,7 +13,7 @@ export type ArchiveSource = "video" | "upload"
 export type ArchiveSlideKind = "photo" | "video"
 
 /** The networks Write captions writes for, each within its own limits. */
-export const CAPTION_NETWORKS = ["instagram", "tiktok"] as const
+export const CAPTION_NETWORKS = ["instagram", "tiktok", "threads"] as const
 export type CaptionNetwork = (typeof CAPTION_NETWORKS)[number]
 export type ArchiveCaptions = Partial<Record<CaptionNetwork, string>>
 

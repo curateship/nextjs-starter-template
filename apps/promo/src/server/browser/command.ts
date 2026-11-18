@@ -552,7 +552,10 @@ const submitShape = z.object({
  */
 export function redditSubmit(
   target: CommandTarget,
-  args: { subreddit: string; title: string; body: string }
+  args: { subreddit: string; title: string; body: string; kind?: "text" | "picture" | "link"; imageUrl?: string; linkUrl?: string }
 ) {
-  return call(target, "reddit/submit", { ...args }, submitShape, VISIT_TIMEOUT_MS)
+  // A picture or link post goes to a routine of its own name, so a browser image
+  // built before them refuses it outright instead of sending a title-only text post.
+  const routine = args.kind === "picture" || args.kind === "link" ? "reddit/submit_media" : "reddit/submit"
+  return call(target, routine, { ...args }, submitShape, VISIT_TIMEOUT_MS)
 }

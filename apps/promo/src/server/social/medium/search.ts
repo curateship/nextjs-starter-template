@@ -5,6 +5,7 @@ import type { CommandTarget } from "@/server/browser/command"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { mediumStoryUrl } from "@/lib/social/medium/options"
 
+import { ringNamedYou } from "../named-you"
 import { mediumSearch, mediumStory, type MediumStory } from "./calls"
 import { rankMediumFind } from "./rank"
 import { promoMediumFinds, promoMediumKeywords } from "./schema"
@@ -75,6 +76,8 @@ export async function runMediumSearch(
   }
 
   const named = keyword.mark !== ""
+  // Nothing stored under it yet means this is its first read that worked, which never rings Names you.
+  const [stored] = await db.select({ id: promoMediumFinds.id }).from(promoMediumFinds).where(eq(promoMediumFinds.keywordId, keywordId)).limit(1)
   let added = 0
   for (const story of answer.stories) {
     // A response is a story of its own on Medium, and one can turn up in a
@@ -116,6 +119,14 @@ export async function runMediumSearch(
     .update(promoMediumKeywords)
     .set({ lastRunAt: now, lastError: "", updatedAt: now })
     .where(eq(promoMediumKeywords.id, keywordId))
+  if (keyword.mark === "you") {
+    await ringNamedYou(
+      userId,
+      { network: "medium", projectId: keyword.projectId, keywordId, words: keyword.value, added, searchedBefore: Boolean(stored) },
+      db,
+      now
+    )
+  }
   return { seen: answer.stories.length, added, unread: answer.unread }
 }
 

@@ -64,6 +64,8 @@ ROUTINE_TIMEOUT_SECONDS = {
     "reddit.reply": 900,
     "reddit.warm_up": 900,
     "reddit.submit": 900,
+    # A picture or link post: the same visit, plus a picture of up to 20 MB downloaded first.
+    "reddit.submit_media": 900,
     # An edit types the new words at a person's pace, which 90 seconds does not cover.
     "reddit.edit_comment": 600,
     # Medium's response is the same kind of visit; an article is typed and

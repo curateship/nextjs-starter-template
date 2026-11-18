@@ -36,6 +36,7 @@ import {
   runKeyword,
   saveNewKeyword,
   setFindsStatus,
+  markKeyword,
   switchKeyword,
 } from "@/lib/api/social/reddit/keywords"
 import { useWideScreen } from "@/lib/layout/wide-screen"
@@ -440,6 +441,14 @@ export function RedditModule({
       onSwitch={async (id, enabled) => {
         try {
           await switchKeyword(id, enabled)
+          await refreshKeywords()
+        } catch (error) {
+          showErrorToast(getRedditErrorMessage(error))
+        }
+      }}
+      onMark={async (id, mark) => {
+        try {
+          await markKeyword(id, mark)
           await refreshKeywords()
         } catch (error) {
           showErrorToast(getRedditErrorMessage(error))
