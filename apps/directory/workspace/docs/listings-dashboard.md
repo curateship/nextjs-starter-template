@@ -27,9 +27,11 @@ queues:
 | Categories | The category tree | Every category |
 | Custom fields | The site's own sections of fields | Every section |
 | Guides | The guides the editor writes | Every guide |
+| Promotions | The site's deals, each at one listing | Every deal |
 | Submissions | Listings the public asked for | Waiting ones |
 | Claims | People asking to look after a listing | Waiting ones |
 | Owner changes | Changes owners asked for | Waiting ones |
+| Deals from owners | Deals and changes owners sent | Waiting ones |
 | Reports | Problems visitors reported | Open ones |
 | Featured plans | What the site sells the top of its pages for | Every plan |
 | Placements | Featured spots sold | Running ones |
@@ -38,14 +40,21 @@ queues:
 
 - **Hiding and moving rows:** the block's ⋮ hides any row but Overview and
   drags the rows into order. The choice is the site's, saved with its page.
+  A row added after a site dragged its rows goes in its own place, after the
+  row it follows above, not at the end.
+- **Promotions and Deals from owners moved in on 18 Nov 2026** (Tyler: "we
+  have to move promotions in the new dashboard too"), since every deal
+  belongs to one listing. `workspace/docs/promotions.md` says what is
+  particular to them.
 - **Owner changes has a row of its own.** It was the second table on the old
   Claims page, and a row has one header only.
 - **Old addresses forward.** `/admin/listing-fields`, `listing-submissions`,
   `listing-claims`, `listing-reports`, `listing-featured`, `listing-guides`,
-  `listing-saves`, `listing-outreach` and `/admin/categories` each go to their
+  `listing-saves`, `listing-outreach`, `/admin/categories`,
+  `/admin/promotions` and `/admin/promotion-requests` each go to their
   row with the same search, filters and open record. `listing-claims?request=`
-  goes to Owner changes. A link to one submission, claim, owner change or
-  report shows every status, so one already decided is still in the list
+  goes to Owner changes. A link to one submission, claim, owner change, deal
+  request or report shows every status, so one already decided is still in the list
   rather than left out by the Waiting filter. The admin emails in `src/server/directory/notify.ts`
   link straight to the rows.
 - **Event submissions stays where it was,** at `/admin/event-submissions`.
@@ -57,8 +66,8 @@ cover photo when one is set. Every admin of the site shares it.
 
 - **Dashboards block:** fixed. The editor refuses to delete it, and the
   server puts it back at the top of a page saved without it.
-- **Needs you block:** the oldest waiting submissions, claims, owner changes
-  and reports, all kinds together, five rows and then Show all. Each row says
+- **Needs you block:** the oldest waiting submissions, claims, owner changes,
+  deals from owners and reports, all kinds together, five rows and then Show all. Each row says
   how long it has waited, with an amber dot from three days. A row opens its
   record.
 - **Categories block:** every one of the site's categories, biggest first, with empty ones last at 0, so "Show all" lists the same number as the Categories row.

@@ -23,6 +23,7 @@ import { adminGet, adminPost } from "@/server/guards"
 import {
   createPromotion,
   deletePromotions,
+  duplicatePromotion,
   findPromotion,
   listingHoursForDeal,
   listPromotions,
@@ -178,6 +179,18 @@ const updatePromotionFn = createServerFn({ method: "POST" })
 
 export function savePromotion(input: PromotionInput & { id: string; slug: string }) {
   return updatePromotionFn({ data: input })
+}
+
+const duplicatePromotionFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ id: idInput }))
+  .handler(async ({ data, context }): Promise<SitePromotion> =>
+    duplicatePromotion(await workspaceIdForRequest(context.user.id), context.user.id, data.id)
+  )
+
+/** A draft copy of a deal, for the Promotions row's Duplicate. */
+export function copyPromotion(id: string) {
+  return duplicatePromotionFn({ data: { id } })
 }
 
 const deletePromotionsFn = createServerFn({ method: "POST" })

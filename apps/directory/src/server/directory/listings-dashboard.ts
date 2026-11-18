@@ -36,7 +36,7 @@ import {
   directorySubmissions,
 } from "@/server/directory/schema"
 import { siteEvents } from "@/server/events/schema"
-import { sitePromotions } from "@/server/promotions/schema"
+import { promotionRequests, sitePromotions } from "@/server/promotions/schema"
 
 /**
  * The Listings dashboard's own records (Tyler, 18 Nov 2026: "Cosolidate
@@ -180,9 +180,11 @@ export async function listingsSectionCounts(
     categoryCount,
     fields,
     guides,
+    promotions,
     submissions,
     claims,
     changes,
+    dealRequests,
     reports,
     plans,
     placements,
@@ -195,6 +197,7 @@ export async function listingsSectionCounts(
       database.select({ total }).from(directoryCustomSections).where(eq(directoryCustomSections.workspaceId, workspaceId))
     ),
     countOf(database.select({ total }).from(directoryGuides).where(eq(directoryGuides.workspaceId, workspaceId))),
+    countOf(database.select({ total }).from(sitePromotions).where(eq(sitePromotions.workspaceId, workspaceId))),
     countOf(
       database
         .select({ total })
@@ -212,6 +215,12 @@ export async function listingsSectionCounts(
         .select({ total })
         .from(directoryOwnerEditRequests)
         .where(and(eq(directoryOwnerEditRequests.workspaceId, workspaceId), eq(directoryOwnerEditRequests.status, "pending")))
+    ),
+    countOf(
+      database
+        .select({ total })
+        .from(promotionRequests)
+        .where(and(eq(promotionRequests.workspaceId, workspaceId), eq(promotionRequests.status, "pending")))
     ),
     countOf(
       database
@@ -242,9 +251,11 @@ export async function listingsSectionCounts(
     categories: categoryCount,
     fields,
     guides,
+    promotions,
     submissions,
     claims,
     changes,
+    dealRequests,
     reports,
     plans,
     placements,
@@ -256,7 +267,7 @@ export async function listingsSectionCounts(
 /** One record waiting on an admin, for the Needs you block. */
 export type NeedsYouRow = {
   id: string
-  section: "submissions" | "claims" | "changes" | "reports"
+  section: "submissions" | "claims" | "changes" | "dealRequests" | "reports"
   name: string
   waitingSince: Date
 }
@@ -268,7 +279,8 @@ const NEEDS_EACH = 10
  * The oldest records waiting on an admin, every kind together, oldest
  * first (Tyler's polish pick, 18 Nov 2026: "A \"/\" block on the left page
  * lists the oldest waiting submissions, claims and reports, each opening its
- * row"). Owner changes wait as claims do, so they are in it too.
+ * row"). Owner changes and deals from owners wait as claims do, so they
+ * are in it too.
  */
 export async function needsYou(
   workspaceId: string,
@@ -276,7 +288,7 @@ export async function needsYou(
   /** The counts, when the caller already read them. */
   known?: ListingsSectionCounts
 ): Promise<{ rows: NeedsYouRow[]; total: number }> {
-  const [submissions, claims, changes, reports] = await Promise.all([
+  const [submissions, claims, changes, dealRequests, reports] = await Promise.all([
     database
       .select({ id: directorySubmissions.id, name: directorySubmissions.businessName, at: directorySubmissions.createdAt })
       .from(directorySubmissions)
@@ -298,6 +310,12 @@ export async function needsYou(
       .orderBy(asc(directoryOwnerEditRequests.createdAt), asc(directoryOwnerEditRequests.id))
       .limit(NEEDS_EACH),
     database
+      .select({ id: promotionRequests.id, name: promotionRequests.title, at: promotionRequests.createdAt })
+      .from(promotionRequests)
+      .where(and(eq(promotionRequests.workspaceId, workspaceId), eq(promotionRequests.status, "pending")))
+      .orderBy(asc(promotionRequests.createdAt), asc(promotionRequests.id))
+      .limit(NEEDS_EACH),
+    database
       .select({
         id: directoryListingReports.id,
         name: sql<string>`coalesce(${directoryListings.title}, ${siteEvents.title}, ${sitePromotions.title}, '')`,
@@ -315,12 +333,13 @@ export async function needsYou(
     ...submissions.map((row) => ({ id: row.id, section: "submissions" as const, name: row.name, waitingSince: row.at })),
     ...claims.map((row) => ({ id: row.id, section: "claims" as const, name: row.name, waitingSince: row.at })),
     ...changes.map((row) => ({ id: row.id, section: "changes" as const, name: row.name, waitingSince: row.at })),
+    ...dealRequests.map((row) => ({ id: row.id, section: "dealRequests" as const, name: row.name, waitingSince: row.at })),
     ...reports.map((row) => ({ id: row.id, section: "reports" as const, name: row.name, waitingSince: row.at })),
   ].sort((a, b) => a.waitingSince.getTime() - b.waitingSince.getTime() || a.id.localeCompare(b.id))
   const counts = known ?? (await listingsSectionCounts(workspaceId, database))
   return {
     rows: rows.slice(0, NEEDS_EACH),
-    total: counts.submissions + counts.claims + counts.changes + counts.reports,
+    total: counts.submissions + counts.claims + counts.changes + counts.dealRequests + counts.reports,
   }
 }
 

@@ -17,12 +17,14 @@ import { useRememberedFilters } from "@/components/directory/listings-dashboard/
 import { CategoriesSection } from "@/components/directory/listings-dashboard/sections/categories-section"
 import { ChangesSection } from "@/components/directory/listings-dashboard/sections/changes-section"
 import { ClaimsSection } from "@/components/directory/listings-dashboard/sections/claims-section"
+import { DealRequestsSection } from "@/components/directory/listings-dashboard/sections/deal-requests-section"
 import { FieldsSection } from "@/components/directory/listings-dashboard/sections/fields-section"
 import { GuidesSection } from "@/components/directory/listings-dashboard/sections/guides-section"
 import { ListingsSection as ListingsRow } from "@/components/directory/listings-dashboard/sections/listings-section"
 import { OutreachSection } from "@/components/directory/listings-dashboard/sections/outreach-section"
 import { PlacementsSection } from "@/components/directory/listings-dashboard/sections/placements-section"
 import { PlansSection } from "@/components/directory/listings-dashboard/sections/plans-section"
+import { PromotionsSection } from "@/components/directory/listings-dashboard/sections/promotions-section"
 import { ReportsSection } from "@/components/directory/listings-dashboard/sections/reports-section"
 import { SavedSection } from "@/components/directory/listings-dashboard/sections/saved-section"
 import { SubmissionsSection } from "@/components/directory/listings-dashboard/sections/submissions-section"
@@ -52,6 +54,7 @@ import {
   LISTINGS_SECTION_LABELS,
   sectionOf,
   sectionSearch,
+  withNewRows,
   type ListingsSearch,
   type ListingsSection,
 } from "@/lib/directory/listings-dashboard-search"
@@ -171,7 +174,8 @@ export function ListingsDashboard({ loaded, search }: { loaded: ListingsLoaded; 
     section,
     onPickSection: (next: ListingsSection) => goTo(sectionSearch(next, next === "overview" ? {} : filters.recall(next))),
     hiddenSections: sections.hidden,
-    sectionOrder: sections.order,
+    // A row added since the site dragged its rows goes in its own place, not last.
+    sectionOrder: withNewRows(sections.order),
     onSectionsChange: changeSections,
     counts: {
       overview: widgets.layout ? widgetsShown(widgets.layout) : null,
@@ -179,9 +183,11 @@ export function ListingsDashboard({ loaded, search }: { loaded: ListingsLoaded; 
       categories: counts?.categories ?? null,
       fields: counts?.fields ?? null,
       guides: counts?.guides ?? null,
+      promotions: counts?.promotions ?? null,
       submissions: counts?.submissions ?? null,
       claims: counts?.claims ?? null,
       changes: counts?.changes ?? null,
+      dealRequests: counts?.dealRequests ?? null,
       reports: counts?.reports ?? null,
       plans: counts?.plans ?? null,
       placements: counts?.placements ?? null,
@@ -218,6 +224,10 @@ export function ListingsDashboard({ loaded, search }: { loaded: ListingsLoaded; 
     middle = <FieldsSection key="fields" {...props} data={loaded.sections} />
   } else if (loaded.section === "guides") {
     middle = <GuidesSection key="guides" {...props} data={loaded.page} />
+  } else if (loaded.section === "promotions") {
+    middle = <PromotionsSection key="promotions" {...props} data={loaded.page} />
+  } else if (loaded.section === "dealRequests") {
+    middle = <DealRequestsSection key="dealRequests" {...props} data={loaded.page} />
   } else if (loaded.section === "submissions") {
     middle = <SubmissionsSection key="submissions" {...props} data={loaded.page} />
   } else if (loaded.section === "claims") {

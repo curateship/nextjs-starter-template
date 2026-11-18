@@ -539,6 +539,67 @@ export async function createPromotion(
   return toPromotion(row)
 }
 
+/**
+ * A copy to start from (Tyler, 18 Nov 2026, his right-click rule: "Make sure
+ * right click is enabled for mass select, duplicates and delete"): the same
+ * listing, words, days, times and code, a free address from "Copy of …", and
+ * always a draft. It is the admin's own, so an owner who sent the original
+ * cannot change or end the copy, and it has not been ended.
+ */
+export async function duplicatePromotion(
+  workspaceId: string,
+  userId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<SitePromotion> {
+  const [source] = await database
+    .select()
+    .from(sitePromotions)
+    .where(and(eq(sitePromotions.id, id), eq(sitePromotions.workspaceId, workspaceId)))
+    .limit(1)
+  if (!source) throw new Error("That deal no longer exists.")
+
+  const title = `Copy of ${source.title}`.slice(0, 200)
+  const slug = await firstFreeSlugRule(
+    slugFromTitle(title),
+    (candidate) => slugIsTaken(workspaceId, candidate, null, database),
+    PROMOTION_NOUN
+  )
+  const at = now()
+  const [row] = await database
+    .insert(sitePromotions)
+    .values({
+      id: uuid(),
+      workspaceId,
+      listingId: source.listingId,
+      title,
+      slug,
+      description: source.description,
+      coverImage: source.coverImage,
+      startDate: source.startDate,
+      endDate: source.endDate,
+      code: source.code,
+      smallPrint: source.smallPrint,
+      dealType: source.dealType,
+      amount: source.amount,
+      headline: source.headline,
+      times: source.times,
+      takesClaims: source.takesClaims,
+      claimLimit: source.claimLimit,
+      status: "draft",
+      publishedAt: null,
+      ownerUserId: null,
+      endedAt: null,
+      createdByUserId: userId,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .returning()
+  if (!row) throw new Error("The deal was not copied.")
+  await releaseAddress(database, workspaceId, "promotion", [row.slug])
+  return toPromotion(row)
+}
+
 export async function updatePromotion(
   workspaceId: string,
   id: string,

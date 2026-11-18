@@ -123,6 +123,7 @@ const NEED_KIND: Record<NeedsYouRow["section"], string> = {
   submissions: "Submission",
   claims: "Claim",
   changes: "Owner change",
+  dealRequests: "Deal from an owner",
   reports: "Report",
 }
 

@@ -536,6 +536,8 @@ export type PromotionRequest = {
   id: string
   kind: "new" | "change"
   status: "pending" | "approved" | "rejected"
+  /** The owner's listing, for the request's "Open the listing". */
+  listingId: string
   listingTitle: string
   /** Empty once the owner's account is gone. */
   ownerName: string
@@ -596,11 +598,12 @@ function asInput(
   }
 }
 
-/** One tab of the queue, newest first, with the listing and the owner named. */
+/** One status of the queue, or every one, newest first, with the listing and the owner named. */
 export async function listPromotionRequests(
   workspaceId: string,
   options: {
-    status: RequestStatus
+    /** None is every status: the dashboard row's All filter. */
+    status?: RequestStatus
     search?: string
     limit?: number
     offset?: number
@@ -613,7 +616,7 @@ export async function listPromotionRequests(
   const pattern = search ? `%${search}%` : null
   const where = and(
     eq(promotionRequests.workspaceId, workspaceId),
-    eq(promotionRequests.status, options.status),
+    options.status ? eq(promotionRequests.status, options.status) : undefined,
     pattern
       ? or(
           ilike(promotionRequests.title, pattern),
@@ -684,6 +687,7 @@ export async function listPromotionRequests(
         id: row.id,
         kind: row.kind === "change" ? "change" : "new",
         status: row.status as RequestStatus,
+        listingId: row.listingId,
         listingTitle,
         ownerName: ownerName ?? "",
         ownerEmail: ownerEmail ?? "",

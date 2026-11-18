@@ -14,7 +14,7 @@ export function ReportLinks({ report }: { report: ProblemReportSummary }) {
     return (
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline">
-          <Link to="/admin/promotions" search={{ open: report.subjectId }}>
+          <Link to="/admin/listings" search={{ section: "promotions", open: report.subjectId }}>
             Edit the deal
           </Link>
         </Button>

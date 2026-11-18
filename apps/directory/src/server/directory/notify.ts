@@ -177,7 +177,7 @@ export async function tellAdminsAboutDealRequest(
             : `The owner of ${listingTitle} sent new wording for ${dealTitle}. The live deal stays as it is until you approve it.`,
           "It is waiting in the deals from owners queue.",
         ],
-        url: appUrlFor("/admin/promotion-requests"),
+        url: appUrlFor("/admin/listings?section=dealRequests"),
       },
       await adminEmails(database),
       database

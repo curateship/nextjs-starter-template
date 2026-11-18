@@ -609,7 +609,7 @@ function DealRow({ title, id }: { title: string; id: string }) {
     <button
       type="button"
       className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-      onClick={() => void navigate({ to: "/admin/promotions", search: { open: id } })}
+      onClick={() => void navigate({ to: "/admin/listings", search: { section: "promotions", open: id } })}
     >
       <span className="min-w-0 flex-1 truncate">{title}</span>
       <span className="shrink-0 text-xs text-muted-foreground">Deal</span>

@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import {
+  PROMOTION_REQUEST_STATUSES,
+  type PromotionRequestStatus,
+} from "@/lib/promotions/request-status"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   decidePromotionRequest,
@@ -20,13 +24,6 @@ export type { PromotionRequest }
  */
 export const getPromotionRequestErrorMessage = getListingErrorMessage
 
-const PROMOTION_REQUEST_STATUSES = [
-  "pending",
-  "approved",
-  "rejected",
-] as const
-
-export type PromotionRequestStatus = (typeof PROMOTION_REQUEST_STATUSES)[number]
 
 export type PromotionRequestsPage = {
   requests: PromotionRequest[]
@@ -41,7 +38,8 @@ const loadPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(
     z.object({
-      status: z.enum(PROMOTION_REQUEST_STATUSES).optional(),
+      // "all" is every status; none is the pending ones, as the queue opens.
+      status: z.enum([...PROMOTION_REQUEST_STATUSES, "all"]).optional(),
       search: z.string().max(120).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
@@ -53,7 +51,7 @@ const loadPageFn = createServerFn({ method: "GET" })
     const page = data.page ?? 1
     const [{ requests, total }, waiting] = await Promise.all([
       listPromotionRequests(site, {
-        status: data.status ?? "pending",
+        status: data.status === "all" ? undefined : (data.status ?? "pending"),
         search: data.search,
         limit: pageSize,
         offset: (page - 1) * pageSize,
@@ -64,7 +62,7 @@ const loadPageFn = createServerFn({ method: "GET" })
   })
 
 export function loadPromotionRequestsPage(input: {
-  status?: PromotionRequestStatus
+  status?: PromotionRequestStatus | "all"
   search?: string
   page?: number
   limit?: number

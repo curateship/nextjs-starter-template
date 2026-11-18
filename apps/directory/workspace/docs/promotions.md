@@ -245,18 +245,38 @@ directly.
 
 ## Admin → Promotions
 
-- A table with search (title, listing name, address part and code), a status
-  filter, sorting and paging, built like Admin → Events.
-- **New deal** opens a window with five cards: the deal (title, address part,
-  listing, status, cover photo), the headline (type, then the number or the
-  words), its days, its times, and what the page says (description, code,
-  small print). Publishing and unpublishing is the Status box.
-- The Status column adds "Ended" when a published deal is over, and "Listing
-  is a draft" when the deal can't be seen for that reason.
-- Deleting asks first and takes one request for the whole selection.
-- A new deal's address comes from its title unless one is typed. A title with
-  no letters or numbers, like "🍝🍝", gives no address, so the save asks for
-  one to be typed.
+Since 18 Nov 2026 the admin's deals are the Promotions row of the Listings
+dashboard (`/admin/listings?section=promotions`), and the owners' queue is its
+Deals from owners row (Tyler: "we have to move promotions in the new dashboard
+too"). `workspace/docs/listings-dashboard.md` describes the dashboard; what is
+particular to deals is here. `/admin/promotions` and
+`/admin/promotion-requests` forward to the rows.
+
+- **The list:** search (title, listing name, address part and code), Select,
+  a Status filter, sorting and paging. Each row shows one chip: Draft, or for
+  a published deal Ended, "Listing is a draft" or "Listing is closed" when
+  that keeps it off the Deals page, else Published. A deal an owner sent
+  says "From the owner" under its title.
+- **New deal** is a dropdown with what a deal cannot exist without: its
+  title, its listing, its type and the number or words of its headline. It
+  starts today, as a draft, and opens on the right for everything else.
+- **The deal on the right saves itself**, 700ms after the last change, in
+  the cards an owner writes a deal in: the deal (title, address part,
+  listing, cover photo, who wrote it), Ended early with Start it again when
+  someone pressed End now, the headline, days, times, claims, the counter and
+  who claimed it when it takes claims, and what the page says. Status is in
+  its ⋮, and the footer publishes or unpublishes it. A save the server
+  refuses says why and marks the boxes it named.
+- **Duplicate** (the ⋮ or right-click) makes "Copy of …" as a draft at a free
+  address, with the same listing, words, days, times and code. The copy is
+  the admin's own: an owner who sent the original cannot change or end it,
+  and it has not been ended.
+- **Many at once:** ticked deals can be published, unpublished or deleted
+  together. Deleting asks first and takes one request for the whole
+  selection.
+- A deal's address comes from its title unless one is typed. A title with no
+  letters or numbers, like "🍝🍝", gives no address, so the save asks for one
+  to be typed.
 
 ## Deals on a listing's page and its card
 
@@ -547,11 +567,13 @@ listing, the address part and the status.
 
 - **The listing comes from the owner's approved claim**, never from the form.
   An id from somebody else's claim is simply not found.
-- **Everything waits in one queue**, Admin → Deals from owners
-  (`/admin/promotion-requests`), reached from the "From owners" button on
-  Admin → Promotions, which shows how many are waiting. Each row says "New
-  deal" or "Change". There is no selection column, the same as the event
-  suggestions queue, so nothing is approved in bulk unread.
+- **Everything waits in one queue**, the Listings dashboard's Deals from
+  owners row, whose pill counts what is waiting and whose waiting requests
+  are in the Needs you block. It opens on the waiting ones; its Filter also
+  shows Approved, Rejected or All. Each row says how long it has waited,
+  amber from three days, and whether it is a new deal or a change. Approving
+  is one at a time, so nothing is published in bulk unread. Ticked requests
+  can only be rejected together, each owner getting the email.
 - **Approving a new deal publishes it** at the owner's listing and remembers
   the owner (`promotions.owner_user_id`). Approving a change swaps the new
   wording into the live deal and leaves its address, status and listing alone.
@@ -615,7 +637,11 @@ listing, the address part and the status.
   is never sent.
 - `src/routes/deals.tsx`, `src/routes/deals_.$slug.tsx` and
   `src/routes/deals_.code.$code.tsx` are the public pages;
-  `src/routes/_authenticated/admin/promotions.tsx` is the admin screen.
+  the admin's rows are
+  `src/components/directory/listings-dashboard/sections/promotions-section.tsx`
+  and `deal-requests-section.tsx`. `deal-fields.tsx` and `counter-panel.tsx`
+  draw the same cards for the owner's window and, as panel cards inside
+  `DealCardsAsPanels`, for the admin's right panel.
 
 ## Not built yet
 

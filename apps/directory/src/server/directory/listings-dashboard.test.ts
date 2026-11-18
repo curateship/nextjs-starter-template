@@ -16,6 +16,7 @@ import {
   setListingsPageLock,
 } from "@/server/directory/listings-dashboard"
 import { directoryListingReports, directorySubmissions } from "@/server/directory/schema"
+import { promotionRequests } from "@/server/promotions/schema"
 import { createTestDatabase, insertWorkspace, type TestDatabase } from "@/server/test-support"
 
 /**
@@ -142,6 +143,37 @@ describe("the counts and Needs you", () => {
       ["submissions", "Newer Cafe"],
     ])
     expect(needs.total).toBe(3)
+  })
+})
+
+describe("the deal rows", () => {
+  it("counts every deal, only the owners' requests waiting, and puts those in Needs you", async () => {
+    const listing = await createListing(site, { title: "Café Luna" }, database)
+    const request = (status: string, daysAgo: number) => {
+      const at = new Date(Date.now() - daysAgo * DAY)
+      return database.insert(promotionRequests).values({
+        id: uuid(),
+        workspaceId: site,
+        listingId: listing.id,
+        kind: "new",
+        status,
+        title: `Deal ${status}`,
+        startDate: "2026-11-01",
+        dealType: "other",
+        headline: "Free cookie",
+        createdAt: at,
+        updatedAt: at,
+      })
+    }
+    await request("pending", 5)
+    await request("rejected", 6)
+
+    const counts = await listingsSectionCounts(site, database)
+    expect(counts.dealRequests).toBe(1)
+    expect(counts.promotions).toBe(0)
+    const needs = await needsYou(site, database)
+    expect(needs.rows.map((row) => [row.section, row.name])).toEqual([["dealRequests", "Deal pending"]])
+    expect(needs.total).toBe(1)
   })
 })
 

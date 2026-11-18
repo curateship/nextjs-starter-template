@@ -1,70 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { PromotionRequestsDashboard } from "@/components/promotions/promotion-requests-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getPromotionRequestErrorMessage,
-  loadPromotionRequestsPage,
-} from "@/lib/api/promotions/requests"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
-
-const TABS = ["approved", "rejected"] as const
-
-type PromotionRequestsSearch = {
-  /** Absent is the Pending tab, which is what the queue opens on. */
-  status?: (typeof TABS)[number]
-  /** Matched against the deal, the listing and the owner's email. */
-  q?: string
-  page?: number
-  size?: number
-  /** Which request is open, so one can be linked to. */
-  open?: string
-}
-
-function readPromotionRequestsSearch(
-  search: Record<string, unknown>
-): PromotionRequestsSearch {
-  return {
-    status: readOneOf(search.status, TABS),
-    q: readSearchText(search.q),
-    page: readPage(search.page),
-    size: readOneOf(
-      String(search.size),
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String)
-    )
-      ? Number(search.size)
-      : undefined,
-    ...readOpenSearch(search),
-  }
-}
+import { forwardedSearch } from "@/lib/directory/listings-dashboard-search"
 
 /**
- * The queue of deals and changes that listing owners sent from My listings.
- * It reads the site the admin is in, so a request sent to alpha is only ever
- * reviewed by somebody looking at alpha.
+ * An old address of Admin → Promotions. Since 18 Nov 2026 it is the Listings
+ * dashboard's dealRequests row (Tyler: "we have to move promotions in the new
+ * dashboard too"), and this forwards there with the same search, filters and
+ * open record, so a bookmark or an emailed link still lands on the right
+ * record (`src/server/directory/notify.ts`).
  */
-export const Route = createFileRoute("/_authenticated/admin/promotion-requests")(
-  {
-    validateSearch: readPromotionRequestsSearch,
-    // Everything except `open`: the review window reads from the page already
-    // loaded, so opening and closing it must not fetch the list again.
-    loaderDeps: ({ search: { open: _open, ...rest } }) => rest,
-    loader: ({ deps }) =>
-      loadPromotionRequestsPage({
-        status: deps.status ?? "pending",
-        search: deps.q,
-        page: deps.page,
-        limit: deps.size,
-      }),
-    component: AdminPromotionRequestsRoute,
-    errorComponent: routeErrorComponent(getPromotionRequestErrorMessage),
-  }
-)
-
-function AdminPromotionRequestsRoute() {
-  const search = Route.useSearch()
-  const data = Route.useLoaderData()
-  return <PromotionRequestsDashboard data={data} search={search} />
-}
+export const Route = createFileRoute("/_authenticated/admin/promotion-requests")({
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/listings", search: forwardedSearch("dealRequests", search), replace: true })
+  },
+})

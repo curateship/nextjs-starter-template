@@ -9,6 +9,7 @@ import { DIRECTORY_LISTING_STATUSES } from "@/lib/directory/listing-status"
 import { LISTING_REPORT_STATUSES, REPORT_KINDS, type ReportKind } from "@/lib/directory/report-reasons"
 import { EDIT_REQUEST_STATUSES, REVIEW_STATUSES } from "@/lib/directory/review-status"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
+import { PROMOTION_SORT_COLUMNS, type PromotionSortColumn } from "@/lib/promotions/promotion-sort"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
 import { readDirection, readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
@@ -21,8 +22,11 @@ import { readDirection, readOneOf, readPage, readSearchText } from "@/lib/nav/li
  * lands on it.
  *
  * The rows, in Tyler's order (records first, then the queues): Overview,
- * Listings, Categories, Custom fields, Guides, Submissions, Claims, Owner
- * changes, Reports, Featured plans, Placements, Saved lists, Outreach.
+ * Listings, Categories, Custom fields, Guides, Promotions, Submissions,
+ * Claims, Owner changes, Deals from owners, Reports, Featured plans,
+ * Placements, Saved lists, Outreach. Promotions and Deals from owners moved
+ * in on 18 Nov 2026 too (Tyler: "we have to move promotions in the new
+ * dashboard too").
  */
 
 export const LISTINGS_SECTIONS = [
@@ -31,9 +35,11 @@ export const LISTINGS_SECTIONS = [
   "categories",
   "fields",
   "guides",
+  "promotions",
   "submissions",
   "claims",
   "changes",
+  "dealRequests",
   "reports",
   "plans",
   "placements",
@@ -54,9 +60,11 @@ export const LISTINGS_SECTION_LABELS: Record<ListingsSection, string> = {
   categories: "Categories",
   fields: "Custom fields",
   guides: "Guides",
+  promotions: "Promotions",
   submissions: "Submissions",
   claims: "Claims",
   changes: "Owner changes",
+  dealRequests: "Deals from owners",
   reports: "Reports",
   plans: "Featured plans",
   placements: "Placements",
@@ -77,7 +85,9 @@ const STATUSES = [
   ]),
 ] as [string, ...string[]]
 
-const SORTS = [...new Set<string>([...LISTING_SORT_COLUMNS, ...GUIDE_SORT_COLUMNS, "name", "owner", "visibility", "listings"])] as [
+const SORTS = [
+  ...new Set<string>([...LISTING_SORT_COLUMNS, ...GUIDE_SORT_COLUMNS, ...PROMOTION_SORT_COLUMNS, "name", "owner", "visibility", "listings"]),
+] as [
   string,
   ...string[],
 ]
@@ -92,7 +102,7 @@ export type ListingsSearch = {
   status?: string
   /** Reports: listing, event or deal. */
   kind?: ReportKind
-  sort?: ListingSortColumn | GuideSortColumn | "name" | "owner" | "visibility" | "listings"
+  sort?: ListingSortColumn | GuideSortColumn | PromotionSortColumn | "name" | "owner" | "visibility" | "listings"
   direction?: "asc" | "desc"
   /** Listings: the range the Views column counts. */
   days?: ListingViewRange
@@ -165,5 +175,22 @@ export const WAITING_STATUS: Partial<Record<ListingsSection, string>> = {
   submissions: "pending_review",
   claims: "pending_review",
   changes: "pending",
+  dealRequests: "pending",
   reports: "open",
+}
+
+/**
+ * A site's dragged row order with any row it has never seen put back in its
+ * own place, after the row it follows in `LISTINGS_SECTIONS`, rather than at
+ * the end: Promotions after Guides, Deals from owners after Owner changes.
+ */
+export function withNewRows(saved: readonly ListingsListSection[]): ListingsListSection[] {
+  if (saved.length === 0) return []
+  const order = [...saved]
+  LISTINGS_LIST_SECTIONS.forEach((section, index) => {
+    if (order.includes(section)) return
+    const before = LISTINGS_LIST_SECTIONS.slice(0, index).reverse().find((earlier) => order.includes(earlier))
+    order.splice(before ? order.indexOf(before) + 1 : 0, 0, section)
+  })
+  return order
 }

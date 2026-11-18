@@ -1,14 +1,8 @@
 import * as React from "react"
-import { CheckCircle2Icon, Loader2Icon } from "lucide-react"
+import { CheckCircle2Icon, Loader2Icon, ScanLineIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { DealCard } from "@/components/promotions/deal-fields"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
@@ -74,18 +68,21 @@ export function CounterPanel({
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>At the counter</CardTitle>
-        <CardDescription>
+    <DealCard
+      storageId="deal-counter"
+      icon={<ScanLineIcon />}
+      title="At the counter"
+      description={
+        <>
           Point a phone camera at the customer&rsquo;s QR and it opens their
           code with a Mark used button on it. Their code can be typed in here
           instead, which is the way that always works.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+        </>
+      }
+      className="grid gap-4"
+    >
         <form
-          className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"
+          className="grid gap-4 @md:grid-cols-[1fr_auto] @md:items-end"
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
@@ -123,8 +120,7 @@ export function CounterPanel({
             onUse={() => void run("use")}
           />
         ) : null}
-      </CardContent>
-    </Card>
+    </DealCard>
   )
 }
 

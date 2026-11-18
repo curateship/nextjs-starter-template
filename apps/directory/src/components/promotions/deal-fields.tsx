@@ -1,6 +1,15 @@
-import { Loader2Icon } from "lucide-react"
+import * as React from "react"
+import {
+  BadgePercentIcon,
+  CalendarDaysIcon,
+  ClockIcon,
+  FileTextIcon,
+  Loader2Icon,
+  TicketIcon,
+} from "lucide-react"
 
 import { CharacterCount } from "@/components/shared/character-count"
+import { PanelCard } from "@/components/shared/panel-card"
 import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Button } from "@/components/ui/button"
 import {
@@ -48,6 +57,60 @@ import { dealTimesLines, hasDealTimes } from "@/lib/promotions/deal-times"
  * Each window keeps its own first card, because only the admin picks the
  * listing, the address and the status.
  */
+
+/** How the cards are drawn: plain cards in the owner's window, panel cards on the admin's right panel. */
+const DealCardLook = React.createContext<"card" | "panel">("card")
+
+/**
+ * Draws the deal cards inside it as the shell's panel cards, with an icon and
+ * a remembered fold, for the Listings dashboard's deal record (Tyler, 18 Nov
+ * 2026: "we have to move promotions in the new dashboard too"). The owner's
+ * window on My listings keeps its plain cards.
+ */
+export function DealCardsAsPanels({ children }: { children: React.ReactNode }) {
+  return <DealCardLook.Provider value="panel">{children}</DealCardLook.Provider>
+}
+
+/**
+ * One deal card in either look. Its boxes sit side by side once the card is
+ * wide enough (`@md`), which a narrow right panel never is.
+ */
+export function DealCard({
+  storageId,
+  icon,
+  title,
+  description,
+  className,
+  children,
+}: {
+  storageId: string
+  icon: React.ReactNode
+  title: string
+  description?: React.ReactNode
+  className: string
+  children: React.ReactNode
+}) {
+  const look = React.useContext(DealCardLook)
+  if (look === "panel") {
+    return (
+      <PanelCard storageId={storageId} icon={icon} title={title}>
+        <div className="@container grid gap-4">
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <div className={className}>{children}</div>
+        </div>
+      </PanelCard>
+    )
+  }
+  return (
+    <Card size="sm" className="@container">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {description ? <CardDescription>{description}</CardDescription> : null}
+      </CardHeader>
+      <CardContent className={className}>{children}</CardContent>
+    </Card>
+  )
+}
 
 /** Longest words a deal may hold, matching the columns. */
 const DESCRIPTION_MAX = 2000
@@ -146,16 +209,18 @@ export function DealHeadlineCard({
   oldDeal: boolean
 }) {
   return (
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Headline</CardTitle>
-          <CardDescription>
-            The few words a card shows in big type, like 20% off or
-            Free dessert.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <DealCard
+        storageId="deal-headline"
+        icon={<BadgePercentIcon />}
+        title="Headline"
+        description={
+          <>
+            The few words a card shows in big type, like 20% off or Free dessert.
+          </>
+        }
+        className="grid gap-4"
+      >
+          <div className="flex flex-col gap-4 @md:flex-row @md:items-start">
             <div className="grid gap-2">
               <FieldLabel htmlFor={`${idPrefix}-type`}>Type</FieldLabel>
               <Select
@@ -167,7 +232,7 @@ export function DealHeadlineCard({
               >
                 <SelectTrigger
                   id={`${idPrefix}-type`}
-                  className="w-full sm:w-fit"
+                  className="w-full @md:w-fit"
                   aria-invalid={tried && !fields.dealType}
                 >
                   <SelectValue placeholder="Pick a type" />
@@ -183,7 +248,7 @@ export function DealHeadlineCard({
             </div>
             {fields.dealType === "money_off" ||
             fields.dealType === "percent_off" ? (
-              <div className="grid gap-2 sm:flex-1">
+              <div className="grid gap-2 @md:flex-1">
                 <FieldLabel
                   htmlFor={`${idPrefix}-amount`}
                   hint={
@@ -218,7 +283,7 @@ export function DealHeadlineCard({
                 />
               </div>
             ) : fields.dealType ? (
-              <div className="grid gap-2 sm:flex-1">
+              <div className="grid gap-2 @md:flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <FieldLabel htmlFor={`${idPrefix}-headline`}>
                     Headline
@@ -246,25 +311,25 @@ export function DealHeadlineCard({
             fields={fields}
             oldDeal={oldDeal}
           />
-        </CardContent>
-      </Card>
+        </DealCard>
   )
 }
 
 /** The first day and the optional last day. */
 export function DealDaysCard({ idPrefix, fields, update, disabled }: CardProps) {
   return (
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Days</CardTitle>
-          <CardDescription>
-            Days on the site's calendar, in the time zone set in
-            Settings → Directory. The deal leaves the Deals page the
-            morning after its end day.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <div className="grid gap-2 sm:flex-1">
+      <DealCard
+        storageId="deal-days"
+        icon={<CalendarDaysIcon />}
+        title="Days"
+        description={
+          <>
+            Days on the site's calendar, in the time zone set in Settings → Directory. The deal leaves the Deals page the morning after its end day.
+          </>
+        }
+        className="flex flex-col gap-4 @md:flex-row @md:items-start"
+      >
+          <div className="grid gap-2 @md:flex-1">
             <FieldLabel htmlFor={`${idPrefix}-start`}>Start day</FieldLabel>
             <DatePicker
               id={`${idPrefix}-start`}
@@ -275,7 +340,7 @@ export function DealDaysCard({ idPrefix, fields, update, disabled }: CardProps) 
               }
             />
           </div>
-          <div className="grid gap-2 sm:flex-1">
+          <div className="grid gap-2 @md:flex-1">
             <FieldLabel
               htmlFor={`${idPrefix}-end`}
               hint="The last day the deal is on. Leave it empty for a deal that runs until you end it."
@@ -307,8 +372,7 @@ export function DealDaysCard({ idPrefix, fields, update, disabled }: CardProps) 
               ) : null}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </DealCard>
   )
 }
 
@@ -328,17 +392,17 @@ export function DealTimesCard({
   onCopyHours: () => void
 }) {
   return (
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Times</CardTitle>
-          <CardDescription>
-            The weekdays and hours it runs, on the site's clock.
-            Leave every day off for a deal that runs all day, every
-            day. An end earlier than the start runs past midnight
-            and counts as the night it started.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <DealCard
+        storageId="deal-times"
+        icon={<ClockIcon />}
+        title="Times"
+        description={
+          <>
+            The weekdays and hours it runs, on the site's clock. Leave every day off for a deal that runs all day, every day. An end earlier than the start runs past midnight and counts as the night it started.
+          </>
+        }
+        className="grid gap-4"
+      >
           <WeekdayHoursFields
             idPrefix={`${idPrefix}-times`}
             words={{ start: "Starts", end: "Ends" }}
@@ -380,19 +444,19 @@ export function DealTimesCard({
               ? `The page says: ${dealTimesLines(fields.times).join(" · ")}`
               : "Runs all day, every day of its days."}
           </p>
-        </CardContent>
-      </Card>
+        </DealCard>
   )
 }
 
 /** The description, the code and the small print. */
 export function DealWordsCard({ idPrefix, fields, update, disabled }: CardProps) {
   return (
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>What the page says</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+      <DealCard
+        storageId="deal-words"
+        icon={<FileTextIcon />}
+        title="What the page says"
+        className="grid gap-4"
+      >
           <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
               <FieldLabel htmlFor={`${idPrefix}-description`}>
@@ -452,8 +516,7 @@ export function DealWordsCard({ idPrefix, fields, update, disabled }: CardProps)
               }
             />
           </div>
-        </CardContent>
-      </Card>
+        </DealCard>
   )
 }
 
@@ -480,16 +543,17 @@ export function DealClaimsCard({
     }
   })()
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Claims</CardTitle>
-        <CardDescription>
-          Visitors claim the deal with a name and an email, and each gets their
-          own code, shown once and sent by email. The code in What the page
-          says is then never shown.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+    <DealCard
+        storageId="deal-claims"
+        icon={<TicketIcon />}
+        title="Claims"
+        description={
+          <>
+            Visitors claim the deal with a name and an email, and each gets their own code, shown once and sent by email. The code in What the page says is then never shown.
+          </>
+        }
+        className="grid gap-4"
+      >
         <div className="flex items-center gap-2">
           <Switch
             id={`${idPrefix}-takes-claims`}
@@ -521,7 +585,6 @@ export function DealClaimsCard({
             />
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </DealCard>
   )
 }

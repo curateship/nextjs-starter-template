@@ -133,6 +133,22 @@ afterEach(async () => {
   await client.close()
 })
 
+describe("the admin's list of requests", () => {
+  it("shows one status, or every status when none is asked for", async () => {
+    await sendAndApprove()
+    const sent = await sendOwnerDeal(ownerId, claimId, cookie({ title: "Second deal" }), database, at)
+    expect(sent.outcome).toBe("sent")
+
+    const pending = await listPromotionRequests(site.id, { status: "pending" }, database)
+    const approved = await listPromotionRequests(site.id, { status: "approved" }, database)
+    const every = await listPromotionRequests(site.id, {}, database)
+    expect(pending.total).toBe(1)
+    expect(approved.total).toBe(1)
+    expect(every.total).toBe(2)
+    expect(every.requests.map((request) => request.status).sort()).toEqual(["approved", "pending"])
+  })
+})
+
 describe("sending a deal", () => {
   it("queues it at the owner's listing, marked new, nothing public yet", async () => {
     expect(
@@ -146,6 +162,7 @@ describe("sending a deal", () => {
     expect(requests).toHaveLength(1)
     expect(requests[0]).toMatchObject({
       kind: "new",
+      listingId,
       listingTitle: "Café Luna",
       ownerEmail: "cafe@example.com",
       content: { title: "Free cookie with any coffee", headline: "Free cookie" },

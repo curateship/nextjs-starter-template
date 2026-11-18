@@ -13,6 +13,7 @@ import {
   createPromotion,
   dealImpactForListings,
   deletePromotions,
+  duplicatePromotion,
   findPromotion,
   listingHoursForDeal,
   listPromotions,
@@ -296,6 +297,27 @@ describe("the times", () => {
     const hours = await listingHoursForDeal(siteId, listingId, database)
     expect(hours?.friday).toEqual({ open: "12:00", close: "14:30" })
     expect(await listingHoursForDeal(otherSiteId, listingId, database)).toBeNull()
+  })
+})
+
+describe("duplicating a deal", () => {
+  it("copies it as the admin's own draft at a free address, and never across sites", async () => {
+    const source = await createPromotion(siteId, userId, input({ status: "published", code: "PASTA" }), database)
+    await database.update(sitePromotions).set({ ownerUserId: userId, endedAt: new Date() }).where(eq(sitePromotions.id, source.id))
+
+    const copy = await duplicatePromotion(siteId, userId, source.id, database)
+    expect(copy.id).not.toBe(source.id)
+    expect(copy.title).toBe("Copy of Two-for-one pasta Tuesdays")
+    expect(copy.slug).toBe("copy-of-two-for-one-pasta-tuesdays")
+    expect(copy.status).toBe("draft")
+    expect(copy.listingId).toBe(listingId)
+    expect(copy.code).toBe("PASTA")
+    expect(copy.headline).toBe("2 for 1")
+    // Not the owner's, so they cannot change or end it, and not ended.
+    expect(copy.ownerUserId).toBeNull()
+    expect(copy.endedAt).toBeNull()
+
+    await expect(duplicatePromotion(otherSiteId, userId, source.id, database)).rejects.toThrow("That deal no longer exists.")
   })
 })
 

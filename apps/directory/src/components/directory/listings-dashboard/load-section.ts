@@ -8,10 +8,14 @@ import { loadOutreach } from "@/lib/api/directory/outreach"
 import { loadListingReportsPage } from "@/lib/api/directory/reports"
 import { loadSavesAdmin, SAVED_COLLECTION_SORT_COLUMNS } from "@/lib/api/directory/saves"
 import { loadSubmissionsPage } from "@/lib/api/directory/submissions"
+import { loadPromotionsPage, type PromotionsPage } from "@/lib/api/promotions/promotions"
+import { loadPromotionRequestsPage, type PromotionRequestsPage } from "@/lib/api/promotions/requests"
 import type { CustomSection } from "@/lib/directory/custom-fields"
 import { GUIDE_SORT_COLUMNS } from "@/lib/directory/guides"
 import { LISTING_SORT_COLUMNS } from "@/lib/directory/listing-sort"
 import { DIRECTORY_LISTING_STATUSES } from "@/lib/directory/listing-status"
+import { PROMOTION_SORT_COLUMNS } from "@/lib/promotions/promotion-sort"
+import { PROMOTION_REQUEST_STATUSES } from "@/lib/promotions/request-status"
 import {
   sectionOf,
   statusIn,
@@ -32,9 +36,11 @@ export type ListingsLoaded =
   | { section: "categories"; categories: Category[] }
   | { section: "fields"; sections: Awaited<ReturnType<typeof loadCustomSectionRows>> }
   | { section: "guides"; page: Awaited<ReturnType<typeof loadGuidesPage>> }
+  | { section: "promotions"; page: PromotionsPage }
   | { section: "submissions"; page: Awaited<ReturnType<typeof loadSubmissionsPage>> }
   | { section: "claims"; screen: ClaimsScreen }
   | { section: "changes"; screen: ClaimsScreen }
+  | { section: "dealRequests"; page: PromotionRequestsPage }
   | { section: "reports"; page: Awaited<ReturnType<typeof loadListingReportsPage>> }
   | { section: "plans"; featured: Awaited<ReturnType<typeof loadFeaturedAdmin>>; categories: Category[] }
   | { section: "placements"; featured: Awaited<ReturnType<typeof loadFeaturedAdmin>> }
@@ -82,6 +88,24 @@ export async function loadListingsSection(search: ListingsSearch): Promise<Listi
           status: pick(search.status, ["draft", "published"] as const),
           sort: pick(search.sort, GUIDE_SORT_COLUMNS),
           direction: search.direction,
+        }),
+      }
+    case "promotions":
+      return {
+        section,
+        page: await loadPromotionsPage({
+          ...paging,
+          status: pick(search.status, ["draft", "published"] as const),
+          sort: pick(search.sort, PROMOTION_SORT_COLUMNS),
+          direction: search.direction,
+        }),
+      }
+    case "dealRequests":
+      return {
+        section,
+        page: await loadPromotionRequestsPage({
+          ...paging,
+          status: search.status === "all" ? "all" : queueStatus(search, "dealRequests", PROMOTION_REQUEST_STATUSES),
         }),
       }
     case "submissions":

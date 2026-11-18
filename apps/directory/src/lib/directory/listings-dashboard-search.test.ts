@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { forwardedSearch } from "@/lib/directory/listings-dashboard-search"
+import { forwardedSearch, withNewRows } from "@/lib/directory/listings-dashboard-search"
 
 /**
  * Old Listings addresses, and the email links that still carry them, land on
@@ -23,5 +23,30 @@ describe("an old address forwarded", () => {
     expect(forwardedSearch("claims", { open: ID, status: "approved" })).toEqual({ section: "claims", open: ID, status: "approved" })
     expect(forwardedSearch("submissions", {})).toEqual({ section: "submissions" })
     expect(forwardedSearch("guides", { open: ID })).toEqual({ section: "guides", open: ID })
+  })
+})
+
+describe("a site's dragged row order", () => {
+  it("gets a row it has never seen in that row's own place, not last", () => {
+    expect(withNewRows(["outreach", "listings", "guides", "claims", "changes", "reports"])).toEqual([
+      "outreach",
+      "listings",
+      "categories",
+      "fields",
+      "guides",
+      "promotions",
+      "submissions",
+      "claims",
+      "changes",
+      "dealRequests",
+      "reports",
+      "plans",
+      "placements",
+      "saved",
+    ])
+  })
+
+  it("leaves a site that never dragged its rows on the standard order", () => {
+    expect(withNewRows([])).toEqual([])
   })
 })
