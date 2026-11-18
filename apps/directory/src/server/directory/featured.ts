@@ -9,6 +9,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   or,
   sql,
   type SQL,
@@ -163,6 +164,10 @@ export type FeaturedPlanOffer = FeaturedPlan & {
 export type FeaturedEntitlement = {
   id: string
   kind: FeaturedPlanKind
+  /** The listing it features, or null for an event's. */
+  listingId: string | null
+  eventId: string | null
+  planId: string
   /** The listing's or the event's title. */
   title: string
   buyerEmail: string
@@ -448,6 +453,9 @@ export async function featuredAdminOverview(
       .select({
         id: directoryFeaturedEntitlements.id,
         kind: sql<FeaturedPlanKind>`case when ${directoryFeaturedEntitlements.eventId} is null then 'listing' else 'event' end`,
+        listingId: directoryFeaturedEntitlements.listingId,
+        eventId: directoryFeaturedEntitlements.eventId,
+        planId: directoryFeaturedEntitlements.planId,
         title: sql<string>`coalesce(${directoryListings.title}, ${siteEvents.title}, '')`,
         buyerEmail: customShellUsers.email,
         planName: directoryFeaturedPlans.name,
@@ -500,12 +508,46 @@ export async function featuredAdminOverview(
       .where(eq(directoryFeaturedEntitlements.workspaceId, workspaceId))
       .groupBy(directoryFeaturedEntitlements.currency),
   ])
+  // Each plan's spots taken, for "2 of 3 spots taken" on its row (Tyler's
+  // polish pick, 18 Nov 2026). A category plan counts the spots its category
+  // has sold or is holding for a checkout, the same count that greys a sold
+  // out plan; a plan with no spot limit counts the placements running on it.
+  const [categoryTaken, runningRows] = await Promise.all([
+    categorySpotsTaken(
+      workspaceId,
+      plans.flatMap((plan) => (plan.categoryId ? [plan.categoryId] : [])),
+      database
+    ),
+    database
+      .select({
+        planId: directoryFeaturedEntitlements.planId,
+        running: sql<number>`count(*)::int`,
+      })
+      .from(directoryFeaturedEntitlements)
+      .where(
+        and(
+          eq(directoryFeaturedEntitlements.workspaceId, workspaceId),
+          ne(directoryFeaturedEntitlements.status, "revoked"),
+          sql`${directoryFeaturedEntitlements.endsAt} > now()`
+        )
+      )
+      .groupBy(directoryFeaturedEntitlements.planId),
+  ])
+  const running = new Map(runningRows.map((row) => [row.planId, row.running]))
+  const spotsTaken: Record<string, number> = {}
+  for (const plan of plans) {
+    spotsTaken[plan.id] = plan.categoryId
+      ? (categoryTaken.get(plan.categoryId) ?? 0)
+      : (running.get(plan.id) ?? 0)
+  }
   return {
     plans,
     entitlements: rows as FeaturedEntitlement[],
     entitlementsTotal: countRow?.total ?? 0,
     activeCount: activeRow?.active ?? 0,
     revenue: revenueRows,
+    /** Per plan id: the spots its category has taken, or the placements running on a plan with no limit. */
+    spotsTaken,
   }
 }
 

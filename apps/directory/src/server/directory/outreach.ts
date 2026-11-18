@@ -30,6 +30,8 @@ export type OutreachListing = {
 
 export type OutreachHistoryItem = {
   id: string
+  /** The listing written about, so a history row can open its outreach record. */
+  listingId: string
   listingTitle: string
   email: string
   status: "sending" | "sent" | "failed"
@@ -265,6 +267,7 @@ export async function outreachHistory(
     database
       .select({
         id: directoryClaimOutreach.id,
+        listingId: directoryClaimOutreach.listingId,
         listingTitle: directoryListings.title,
         email: directoryClaimOutreach.toEmail,
         status: directoryClaimOutreach.status,

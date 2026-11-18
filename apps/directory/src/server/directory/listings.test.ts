@@ -16,6 +16,7 @@ import {
   duplicateListing,
   findListing,
   listingDeleteImpact,
+  listingStatusCounts,
   listListings,
   setListingCategories,
   updateListing,
@@ -287,6 +288,39 @@ describe("the admin list", () => {
     )
     expect(pageTwo.total).toBe(4)
     expect(pageTwo.listings).toHaveLength(2)
+  })
+
+  it("finds a listing by its street address or a category's name, and narrows to one category", async () => {
+    const corner = await createListing(site, { title: "Corner Cafe" }, database)
+    await updateListing(site, corner.id, { contactLinks: { address: "12 Queen Street West", menuLinks: [], socialLinks: [] } }, database)
+    const ramen = await createListing(site, { title: "Noodle Bar" }, database)
+    await createListing(site, { title: "Bike Shop" }, database)
+    const japanese = await createCategory(site, { name: "Japanese" }, database)
+    await setListingCategories(site, ramen.id, [japanese.id], japanese.id, database)
+
+    const byAddress = await listListings(site, { search: "queen street" }, database)
+    expect(byAddress.listings.map((row) => row.title)).toEqual(["Corner Cafe"])
+
+    const byCategory = await listListings(site, { search: "japan" }, database)
+    expect(byCategory.listings.map((row) => row.title)).toEqual(["Noodle Bar"])
+
+    const narrowed = await listListings(site, { categoryId: japanese.id }, database)
+    expect(narrowed.total).toBe(1)
+    expect(narrowed.listings[0].id).toBe(ramen.id)
+  })
+
+  it("puts Published before Draft before Closed and counts every listing under each", async () => {
+    const draft = await createListing(site, { title: "A draft" }, database)
+    const live = await createListing(site, { title: "Z live" }, database)
+    const shut = await createListing(site, { title: "M shut" }, database)
+    await updateListing(site, live.id, { status: "published" }, database)
+    await updateListing(site, shut.id, { status: "closed" }, database)
+
+    const grouped = await listListings(site, { groupByStatus: true, sort: "title", direction: "asc", limit: 2 }, database)
+    expect(grouped.listings.map((row) => row.id)).toEqual([live.id, draft.id])
+
+    expect(await listingStatusCounts(site, {}, database)).toEqual({ published: 1, draft: 1, closed: 1 })
+    expect(await listingStatusCounts(site, { search: "shut" }, database)).toEqual({ published: 0, draft: 0, closed: 1 })
   })
 
   it("sorts the full result by views and shows zero for an unviewed listing", async () => {

@@ -100,5 +100,5 @@ own rather than a change to the shell's email step.
 2. Open the palette's "All nodes" tab. The four triggers are under Triggers and
    the email step is under Actions, each with its one-line description.
 3. Switch the flow on, then approve a claim at
-   http://localhost:3015/admin/listing-claims. The run appears under Runs within a
+   http://localhost:3015/admin/listings?section=claims. The run appears under Runs within a
    minute, and the new owner gets the email with the listing filled in.

@@ -1,31 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { CategoriesDashboard } from "@/components/directory/categories-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getCategoryErrorMessage,
-  loadCategories,
-} from "@/lib/api/directory/categories"
-import { readSearchText } from "@/lib/nav/list-search"
+import { forwardedSearch } from "@/lib/directory/listings-dashboard-search"
 
+/**
+ * An old address of the Listings pages. Since 18 Nov 2026 it is the
+ * Listings dashboard's categories row, and this forwards there with the same
+ * search, filters and open record, so a bookmark or an emailed link still
+ * lands on the right record (`src/server/directory/notify.ts`).
+ */
 export const Route = createFileRoute("/_authenticated/admin/categories")({
-  // The search lives in the address, so the page can be linked and reloaded.
-  // It filters the rows already in hand — nothing refetches.
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: readSearchText(search.q),
-  }),
-  loader: () => loadCategories(),
-  component: AdminCategoriesRoute,
-  errorComponent: routeErrorComponent(getCategoryErrorMessage),
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/listings", search: forwardedSearch("categories", search), replace: true })
+  },
 })
-
-function AdminCategoriesRoute() {
-  const search = Route.useSearch()
-
-  return (
-    <CategoriesDashboard
-      categories={Route.useLoaderData()}
-      searchText={search.q ?? ""}
-    />
-  )
-}

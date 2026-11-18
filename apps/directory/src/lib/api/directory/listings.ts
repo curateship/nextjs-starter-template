@@ -40,6 +40,7 @@ import {
   findListing,
   listingDeleteImpact,
   listListings,
+  listingStatusCounts,
   MAX_LISTING_TITLE,
   saveListingAsAdmin,
   setListingCategories,
@@ -83,6 +84,8 @@ export type ListingsPage = {
   total: number
   page: number
   pageSize: number
+  /** Every listing under each status heading, for the search and category in view. */
+  statusCounts: Record<ListingStatus, number>
 }
 
 const loadListingsPageFn = createServerFn({ method: "GET" })
@@ -98,26 +101,34 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
         .optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
+      categoryId: z.string().min(1).max(36).optional(),
     })
   )
   .handler(async ({ data, context }): Promise<ListingsPage> => {
     const pageSize = data.limit ?? 50
     const page = data.page ?? 1
     const site = await workspaceIdForRequest(context.user.id)
-    const { listings, total } = await listListings(site, {
-      search: data.search,
-      status: data.status,
-      sort: data.sort,
-      direction: data.direction,
-      viewDays: data.days,
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    })
+    // Both at once: the headings' counts do not wait on the page of rows.
+    const [{ listings, total }, statusCounts] = await Promise.all([
+      listListings(site, {
+        search: data.search,
+        status: data.status,
+        sort: data.sort,
+        direction: data.direction,
+        viewDays: data.days,
+        categoryId: data.categoryId,
+        groupByStatus: true,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+      listingStatusCounts(site, { search: data.search, categoryId: data.categoryId }),
+    ])
     return {
       listings,
       total,
       page,
       pageSize,
+      statusCounts,
     }
   })
 
@@ -129,6 +140,7 @@ export function loadListingsPage(input: {
   days?: ListingViewRange
   page?: number
   limit?: number
+  categoryId?: string
 }) {
   return loadListingsPageFn({ data: input })
 }

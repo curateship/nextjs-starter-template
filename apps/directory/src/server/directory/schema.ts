@@ -8,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   varchar,
@@ -1193,3 +1194,27 @@ export const directoryGuideItems = pgTable(
     check("directory_guide_items_position_check", sql`${table.position} >= 0`),
   ]
 )
+
+/**
+ * The Listings dashboard's left page, one per site (Tyler, 18 Nov 2026:
+ * "Cosolidate listings into one 3 panel dashboard"): what is written there,
+ * its cover and its lock, the layout of Overview's widgets, and the
+ * Dashboards block's hidden rows and their order. Shaped as the shell's
+ * `automation_pages`, since every admin of the site shares it. The SQL is
+ * `drizzle/0155_cms_listing_pages.sql`.
+ */
+export const directoryListingPages = pgTable("directory_listing_pages", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's rows left out and their dragged order (`ListingsSections`). */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

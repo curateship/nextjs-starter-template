@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   FilmIcon,
   FolderPlusIcon,
+  LinkIcon,
   Loader2,
   PauseIcon,
   PlayIcon,
@@ -81,6 +82,11 @@ import {
   SelectTileOverlay,
 } from "@/components/video-editor/studio-media-collections"
 import { useMediaCollections } from "@/components/video-editor/use-media-collections"
+import {
+  LinkImportDialog,
+  LinkImportTile,
+} from "@/components/video-editor/studio-link-import"
+import { useLinkImports } from "@/components/video-editor/use-link-imports"
 import { MediaFilterMenu } from "@/components/video-editor/studio-media-filter"
 import {
   EDITOR_MEDIA_FILTER,
@@ -297,7 +303,7 @@ function MediaPanel() {
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [items, setItems] = React.useState<VideoMediaItem[]>([])
   const [counts, setCounts] = React.useState<MediaCollectionCounts>()
-  const [previewingAudioId, setPreviewingAudioId] = React.useState<string | null>(
+  const [previewingId, setPreviewingId] = React.useState<string | null>(
     null
   )
   const [refresh, setRefresh] = React.useState(0)
@@ -308,6 +314,21 @@ function MediaPanel() {
   const [uploading, setUploading] = React.useState(false)
   const [creatingCollection, setCreatingCollection] = React.useState(false)
   const [fromPhone, setFromPhone] = React.useState(false)
+  const [importingLinks, setImportingLinks] = React.useState(false)
+  // Links being downloaded into this project; a guest has none to import.
+  const { imports, reload: reloadImports } = useLinkImports({
+    projectId,
+    enabled: !guest,
+    onLanded: () => setRefresh((count) => count + 1),
+  })
+  // An import is a video in no collection yet with no name to search, so
+  // the tiles show only under All media, with videos showing and no search.
+  const shownImports =
+    (types.length === 0 || types.includes("video")) &&
+    collectionFilter === "all" &&
+    !debounced
+      ? imports
+      : []
   const fileRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -344,7 +365,7 @@ function MediaPanel() {
                   .filter((id) => current.has(id))
               )
           )
-          setPreviewingAudioId((current) =>
+          setPreviewingId((current) =>
             current && data.media.some((item) => item.id === current)
               ? current
               : null
@@ -410,7 +431,7 @@ function MediaPanel() {
 
   function handleMediaDeleted(mediaId: string) {
     setItems((current) => current.filter((item) => item.id !== mediaId))
-    setPreviewingAudioId((current) => (current === mediaId ? null : current))
+    setPreviewingId((current) => (current === mediaId ? null : current))
     reloadCollections()
   }
 
@@ -441,6 +462,7 @@ function MediaPanel() {
       scope: { type: "project", id: projectId } as const,
       mediaId: item.id,
       mediaName: item.original_name,
+      source: item.link_source,
       onDeleted: handleMediaDeleted,
       collections: {
         all: collections,
@@ -581,6 +603,10 @@ function MediaPanel() {
                   <SmartphoneIcon />
                   From your phone
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setImportingLinks(true)}>
+                  <LinkIcon />
+                  Import from a link
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setCreatingCollection(true)}>
                   <FolderPlusIcon />
                   New collection
@@ -623,7 +649,7 @@ function MediaPanel() {
               and add them here.
             </div>
           </div>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && shownImports.length === 0 ? (
           <div
             className="st-hovcard"
             onClick={() => fileRef.current?.click()}
@@ -701,6 +727,9 @@ function MediaPanel() {
                   : { columnCount: 2, columnGap: 12 }
               }
             >
+              {shownImports.map((item) => (
+                <LinkImportTile key={item.id} item={item} onChanged={reloadImports} />
+              ))}
               {items.map((item) => (
                 <GuestOrMenu key={item.id} guest={guest} menu={mediaMenuProps(item)}>
                   <div
@@ -713,8 +742,15 @@ function MediaPanel() {
                     {item.file_type === "audio" ? (
                       <AudioMediaCard
                         item={item}
-                        active={previewingAudioId === item.id}
-                        onActiveChange={setPreviewingAudioId}
+                        active={previewingId === item.id}
+                        onActiveChange={setPreviewingId}
+                        {...dragHandlers(item)}
+                      />
+                    ) : item.file_type === "video" ? (
+                      <VideoMediaTile
+                        item={item}
+                        active={previewingId === item.id}
+                        onActiveChange={setPreviewingId}
                         {...dragHandlers(item)}
                       />
                     ) : (
@@ -736,23 +772,13 @@ function MediaPanel() {
                           touchAction: "none",
                         }}
                       >
-                        {item.file_type === "image" ? (
-                          <img
-                            src={item.url}
-                            alt=""
-                            loading="lazy"
-                            draggable={false}
-                            style={{ display: "block", width: "100%" }}
-                          />
-                        ) : (
-                          <video
-                            src={item.playback_url}
-                            muted
-                            playsInline
-                            preload="metadata"
-                            style={{ display: "block", width: "100%" }}
-                          />
-                        )}
+                        <img
+                          src={item.url}
+                          alt=""
+                          loading="lazy"
+                          draggable={false}
+                          style={{ display: "block", width: "100%" }}
+                        />
                         <div
                           style={{
                             position: "absolute",
@@ -768,7 +794,7 @@ function MediaPanel() {
                             fontSize: 11,
                           }}
                         >
-                          {item.file_type === "image" ? "▣" : "▶"}
+                          ▣
                         </div>
                       </button>
                     )}
@@ -819,6 +845,16 @@ function MediaPanel() {
       />
 
       {fromPhone ? <PhoneUploadDialog onClose={() => setFromPhone(false)} /> : null}
+
+      {guest ? null : (
+        <LinkImportDialog
+          open={importingLinks}
+          onOpenChange={setImportingLinks}
+          projectId={projectId}
+          collections={collections}
+          onStarted={reloadImports}
+        />
+      )}
 
       {ghost}
     </div>
@@ -1035,6 +1071,103 @@ function AudioMediaCard({
         }}
       />
     </Card>
+  )
+}
+
+/**
+ * A video in the Media panel. The round play button in its corner is the
+ * sound card's own, and plays the video in the tile with its sound; pressing
+ * it again pauses. One preview plays at a time across the panel, sounds
+ * included. The rest of the tile is still only for dragging.
+ */
+function VideoMediaTile({
+  item,
+  active,
+  onActiveChange,
+  ...pointerProps
+}: {
+  item: VideoMediaItem
+  active: boolean
+  onActiveChange: (mediaId: string | null) => void
+} & Pick<
+  React.ComponentProps<"button">,
+  "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel"
+>) {
+  const videoRef = React.useRef<HTMLVideoElement>(null)
+
+  React.useEffect(() => {
+    if (!active) videoRef.current?.pause()
+  }, [active])
+
+  async function togglePreview() {
+    const video = videoRef.current
+    if (!video) return
+    if (active) {
+      video.pause()
+      onActiveChange(null)
+      return
+    }
+    onActiveChange(item.id)
+    video.muted = false
+    try {
+      await video.play()
+    } catch {
+      onActiveChange(null)
+      showErrorToast("Video preview could not be played.")
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="st-hovlift"
+        {...pointerProps}
+        title={`${item.original_name} - drag onto a track, or right-click for collections and delete`}
+        style={{
+          position: "relative",
+          display: "block",
+          width: "100%",
+          borderRadius: 11,
+          overflow: "hidden",
+          border: "1px solid var(--line)",
+          cursor: "grab",
+          background: "var(--panel)",
+          padding: 0,
+          touchAction: "none",
+        }}
+      >
+        <video
+          ref={videoRef}
+          src={item.playback_url}
+          muted
+          playsInline
+          preload="metadata"
+          onEnded={(event) => {
+            event.currentTarget.currentTime = 0
+            onActiveChange(null)
+          }}
+          style={{ display: "block", width: "100%" }}
+        />
+      </button>
+      {/* Beside the tile rather than inside it: a button inside a button is
+          not allowed, and a press here must not start a drag. */}
+      <Button
+        type="button"
+        size="icon-lg"
+        // Frosted: the dark circle at half strength with the picture behind it
+        // blurred. Fading the whole button instead would fade the blur too.
+        className="absolute top-1.5 left-1.5 z-10 rounded-full bg-primary/50 backdrop-blur-md hover:bg-primary/60"
+        aria-label={active ? `Pause ${item.original_name}` : `Play ${item.original_name}`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          void togglePreview()
+        }}
+      >
+        {active ? <PauseIcon /> : <PlayIcon />}
+      </Button>
+    </>
   )
 }
 

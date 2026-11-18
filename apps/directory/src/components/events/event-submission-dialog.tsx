@@ -21,7 +21,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { SubmissionDetail as Detail } from "@/components/directory/submission-dialog"
+import { SubmissionDetail as Detail } from "@/components/directory/submission-parts"
 import { getAdminSubmissionErrorMessage } from "@/lib/api/directory/submissions"
 import {
   decideSuggestedEvent,

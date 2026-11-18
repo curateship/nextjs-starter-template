@@ -239,8 +239,8 @@ row of buttons wrapped onto three lines on a phone.
   has no Hours block.
 - **Rating is Any, 4.0+ or 4.5+.** A listing nobody has scored is out when a
   minimum is asked for: a place with no rating is not a place rated 4 and over.
-- **A field the site invented can be a filter too.** In Admin → Listings →
-  Custom fields, a "Yes or no" field and a "Choice" field each carry a "Use as
+- **A field the site invented can be a filter too.** In the Custom fields
+  row of the Listings dashboard, a "Yes or no" field and a "Choice" field each carry a "Use as
   a filter" box. Ticked, the field joins the panel. No other kind gets the box:
   free text, numbers, tags and pictures have no short list of answers to tick,
   and a field inside a repeating row holds a list of answers rather than one.

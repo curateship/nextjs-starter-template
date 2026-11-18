@@ -49,6 +49,12 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
 export type DownloadedVideo = {
   bytes: Uint8Array
   mimeType: string
+  /**
+   * The platform's own id for the video, as yt-dlp reports it. A short
+   * TikTok link (vm.tiktok.com) carries a short code instead, so this is the
+   * only place the real id comes from.
+   */
+  platformVideoId: string | null
   title: string | null
   channelName: string | null
   /** YouTube's channel id, or @handle on TikTok and Instagram. */
@@ -209,6 +215,7 @@ export async function downloadViralVideo(
     return {
       bytes,
       mimeType,
+      platformVideoId: readPlatformId(info.id),
       title: readString(info.title, 500),
       // The two platforms disagree about which field is the handle, so both
       // are tried: Instagram puts the handle in `channel`, TikTok in `uploader`.
@@ -240,6 +247,11 @@ function readChannelId(url: string, info: Record<string, unknown>): string | nul
   const handle =
     readString(info.uploader, 99) ?? readString(info.channel, 99)
   return handle ? `@${handle.replace(/^@/, "").toLowerCase()}` : null
+}
+
+function readPlatformId(value: unknown): string | null {
+  const id = readString(value, 100)
+  return id && /^[A-Za-z0-9_-]+$/.test(id) ? id : null
 }
 
 function readString(value: unknown, max: number): string | null {

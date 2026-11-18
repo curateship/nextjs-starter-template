@@ -251,6 +251,83 @@ async function categoryNamesFor(
   return names
 }
 
+/**
+ * Which listings a list shows: the site's own, always, then the words typed,
+ * the status and the category.
+ *
+ * The words match the title, the address part, the street address and the
+ * name of any category the listing is in (Tyler's polish pick, 18 Nov 2026:
+ * "Listing search also matches the street address and category names").
+ */
+function listingListWhere(
+  workspaceId: string,
+  options: { search?: string; status?: ListingStatus; categoryId?: string }
+) {
+  // The site's own listings, always. This is the whole boundary for the list:
+  // take it out and every site's listings appear on every other's screen.
+  const filters = [eq(directoryListings.workspaceId, workspaceId)]
+  const search = options.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(directoryListings.title, pattern),
+      ilike(directoryListings.slug, pattern),
+      sql`${directoryListings.contactLinks} ->> 'address' ilike ${pattern}`,
+      sql`exists (
+        select 1 from ${categoryRelationships}
+        inner join ${categories} on ${categories.id} = ${categoryRelationships.categoryId}
+        where ${categoryRelationships.workspaceId} = ${workspaceId}
+          and ${categoryRelationships.contentType} = ${LISTING_CONTENT_TYPE}
+          and ${categoryRelationships.contentId} = ${directoryListings.id}
+          and ${categories.name} ilike ${pattern}
+      )`
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+  if (options.status) {
+    filters.push(eq(directoryListings.status, options.status))
+  }
+  if (options.categoryId) {
+    filters.push(sql`exists (
+      select 1 from ${categoryRelationships}
+      where ${categoryRelationships.workspaceId} = ${workspaceId}
+        and ${categoryRelationships.contentType} = ${LISTING_CONTENT_TYPE}
+        and ${categoryRelationships.contentId} = ${directoryListings.id}
+        and ${categoryRelationships.categoryId} = ${options.categoryId}
+    )`)
+  }
+  return and(...filters)
+}
+
+/** Published first, then Draft, then Closed, the dashboard's heading order. */
+const LISTING_STATUS_ORDER = sql`case ${directoryListings.status} when 'published' then 0 when 'draft' then 1 else 2 end`
+
+/**
+ * How many listings each status heading holds, for the words, status-free
+ * filters and category the list is showing, so a heading counts every
+ * listing under it and not only the page in view.
+ */
+export async function listingStatusCounts(
+  workspaceId: string,
+  options: { search?: string; categoryId?: string } = {},
+  database: CustomShellDb = db
+): Promise<Record<ListingStatus, number>> {
+  const rows = await database
+    .select({
+      status: directoryListings.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(directoryListings)
+    .where(listingListWhere(workspaceId, options))
+    .groupBy(directoryListings.status)
+  const counts: Record<ListingStatus, number> = { published: 0, draft: 0, closed: 0 }
+  for (const row of rows) {
+    const status = readListingStatus(row.status)
+    counts[status] += row.count
+  }
+  return counts
+}
+
 export async function listListings(
   workspaceId: string,
   options: {
@@ -259,6 +336,13 @@ export async function listListings(
     sort?: ListingSortColumn
     direction?: "asc" | "desc"
     viewDays?: ListingViewRange
+    /** Only listings in this category, picked in the dashboard's Categories block. */
+    categoryId?: string
+    /**
+     * Published, then Draft, then Closed, each in the asked order, so a page
+     * of the list falls under the dashboard's status headings.
+     */
+    groupByStatus?: boolean
     limit?: number
     offset?: number
   } = {},
@@ -266,23 +350,7 @@ export async function listListings(
 ): Promise<{ listings: ListingSummary[]; total: number }> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
-  const search = options.search?.trim()
-
-  // The site's own listings, always. This is the whole boundary for the list:
-  // take it out and every site's listings appear on every other's screen.
-  const filters = [eq(directoryListings.workspaceId, workspaceId)]
-  if (search) {
-    const pattern = `%${search}%`
-    const searchFilter = or(
-      ilike(directoryListings.title, pattern),
-      ilike(directoryListings.slug, pattern)
-    )
-    if (searchFilter) filters.push(searchFilter)
-  }
-  if (options.status) {
-    filters.push(eq(directoryListings.status, options.status))
-  }
-  const where = and(...filters)
+  const where = listingListWhere(workspaceId, options)
   const sortsByViews = options.sort === "views"
   const views = listingViewTotal()
 
@@ -297,6 +365,7 @@ export async function listListings(
     created: directoryListings.createdAt,
     updated: directoryListings.updatedAt,
   }[options.sort ?? "created"]
+  const statusFirst = options.groupByStatus ? [LISTING_STATUS_ORDER] : []
 
   const rowsQuery = sortsByViews
     ? database
@@ -310,7 +379,7 @@ export async function listListings(
         .groupBy(directoryListings.id)
         // The id breaks ties, so a page boundary cannot land mid-tie and show
         // the same listing twice or skip one.
-        .orderBy(order(views), asc(directoryListings.id))
+        .orderBy(...statusFirst, order(views), asc(directoryListings.id))
         .limit(limit)
         .offset(offset)
     : database
@@ -320,7 +389,7 @@ export async function listListings(
         })
         .from(directoryListings)
         .where(where)
-        .orderBy(order(column), asc(directoryListings.id))
+        .orderBy(...statusFirst, order(column), asc(directoryListings.id))
         .limit(limit)
         .offset(offset)
 

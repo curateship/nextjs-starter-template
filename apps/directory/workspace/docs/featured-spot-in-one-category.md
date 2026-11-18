@@ -10,8 +10,9 @@ already did. This file covers only what a category adds.
 
 ## What an admin sets
 
-The featured plans live under Admin → Listings → Featured, not at the top of
-the menu. The plan window there has two fields for this.
+The featured plans are the Featured plans row of the Listings dashboard. A
+plan's ⋮ picks what it sells the top of, and its record holds the Spots
+field.
 
 - **Puts the listing at the top of.** The whole directory, or one category.
   Blank is the whole directory, which is what every plan sold before, so a
@@ -109,14 +110,15 @@ silently become a whole-directory plan at the bakery price.
   the lock, and which spots a page counts.
 - `src/server/directory/public.ts` — the ordering and the badge on a category
   page.
-- `src/components/directory/featured-dashboard.tsx` — the admin's plan window.
+- `src/components/directory/listings-dashboard/sections/plans-section.tsx` — the
+  admin's plan record, on the Listings dashboard's Featured plans row.
 - `src/components/directory/featured-plans-popover.tsx` — the owner's list of
   plans.
 
 ## How to check it
 
-1. Admin → Listings → Featured → New plan. Pick a category under "Puts the
-   listing at the top of". The Spots field should appear, starting at 3.
+1. Listings dashboard, Featured plans, New plan. Make it, then pick a category
+   under "Top of" in its ⋮. The Spots field should appear, starting at 3.
    Create the plan and check the table row reads the category name with
    "3 spots" under it.
 2. Edit the plan and switch it back to the whole directory. The Spots field

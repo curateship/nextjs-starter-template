@@ -1,57 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { SavesDashboard } from "@/components/directory/saves-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getSaveErrorMessage,
-  loadSavesAdmin,
-  SAVED_COLLECTION_SORT_COLUMNS,
-  type SavedListsSearch,
-} from "@/lib/api/directory/saves"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
+import { forwardedSearch } from "@/lib/directory/listings-dashboard-search"
 
-function readSavedListsSearch(
-  search: Record<string, unknown>
-): SavedListsSearch {
-  return {
-    q: readSearchText(search.q),
-    sort: readOneOf(search.sort, SAVED_COLLECTION_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    page: readPage(search.page),
-    size: readOneOf(
-      String(search.size),
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String)
-    )
-      ? Number(search.size)
-      : undefined,
-    ...readOpenSearch(search),
-  }
-}
-
+/**
+ * An old address of the Listings pages. Since 18 Nov 2026 it is the
+ * Listings dashboard's saved row, and this forwards there with the same
+ * search, filters and open record, so a bookmark or an emailed link still
+ * lands on the right record (`src/server/directory/notify.ts`).
+ */
 export const Route = createFileRoute("/_authenticated/admin/listing-saves")({
-  validateSearch: readSavedListsSearch,
-  loaderDeps: ({ search: { open: _open, ...rest } }) => rest,
-  loader: ({ deps }) =>
-    loadSavesAdmin({
-      search: deps.q,
-      sort: deps.sort,
-      direction: deps.direction,
-      page: deps.page,
-      limit: deps.size,
-    }),
-  component: ListingSavesRoute,
-  errorComponent: routeErrorComponent(getSaveErrorMessage),
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/listings", search: forwardedSearch("saved", search), replace: true })
+  },
 })
-
-function ListingSavesRoute() {
-  return (
-    <SavesDashboard data={Route.useLoaderData()} search={Route.useSearch()} />
-  )
-}

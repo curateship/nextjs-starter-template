@@ -1,18 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { CustomSectionsDashboard } from "@/components/directory/custom-sections-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import {
-  getCustomSectionErrorMessage,
-  loadCustomSectionRows,
-} from "@/lib/api/directory/custom-sections"
+import { forwardedSearch } from "@/lib/directory/listings-dashboard-search"
 
+/**
+ * An old address of the Listings pages. Since 18 Nov 2026 it is the
+ * Listings dashboard's fields row, and this forwards there with the same
+ * search, filters and open record, so a bookmark or an emailed link still
+ * lands on the right record (`src/server/directory/notify.ts`).
+ */
 export const Route = createFileRoute("/_authenticated/admin/listing-fields")({
-  loader: () => loadCustomSectionRows(),
-  component: AdminListingFieldsRoute,
-  errorComponent: routeErrorComponent(getCustomSectionErrorMessage),
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/listings", search: forwardedSearch("fields", search), replace: true })
+  },
 })
-
-function AdminListingFieldsRoute() {
-  return <CustomSectionsDashboard sections={Route.useLoaderData()} />
-}

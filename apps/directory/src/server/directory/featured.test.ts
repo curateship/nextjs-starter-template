@@ -18,6 +18,7 @@ import {
   featuredPurchaseState,
   createFeaturedCheckout,
   deleteFeaturedPlan,
+  featuredAdminOverview,
   featuredImpactForListings,
   pendingFeaturedImpactForListings,
   prepareFeaturedListingsForDeletion,
@@ -780,6 +781,32 @@ describe("a featured spot in one category", () => {
     expect(
       stillOffered.plans.map((row) => [row.name, row.spotsLeft])
     ).toContainEqual(["Top of Bakeries", 0])
+  })
+
+  it("counts each plan's spots taken for the admin's list", async () => {
+    const { site, user, listing, plan: wholeDirectory } = await ownedListing()
+    const bakeries = await createCategory(site.id, { name: "Bakeries" }, database)
+    const onBakeries = await categoryPlan(site, {
+      name: "Top of Bakeries",
+      categoryId: bakeries.id,
+      spots: 3,
+    })
+    const bakery = await ownerOn(site, "Rye and Co")
+    await setListingCategories(site.id, bakery.listing.id, [bakeries.id], bakeries.id, database)
+
+    // One fake Stripe for both, so the two checkouts get different sessions.
+    const fakeStripe = checkoutStripe()
+    await createFeaturedCheckout(bakery.user, { listingId: bakery.listing.id, planId: onBakeries.id }, database, fakeStripe.client)
+    await createFeaturedCheckout(user, { listingId: listing.id, planId: wholeDirectory.id }, database, fakeStripe.client)
+    const sessions = await Promise.all(fakeStripe.sessions.values())
+    await activateFeaturedSession(bakery.user.id, { ...sessions[0], payment_status: "paid", payment_intent: "pi_bakeries" }, database)
+    await activateFeaturedSession(user.id, { ...sessions[1], payment_status: "paid", payment_intent: "pi_whole" }, database)
+
+    // A category plan counts its category's spots; a plan with no limit
+    // counts the placements running on it.
+    const { spotsTaken } = await featuredAdminOverview(site.id, {}, database)
+    expect(spotsTaken[onBakeries.id]).toBe(1)
+    expect(spotsTaken[wholeDirectory.id]).toBe(1)
   })
 
   it("leads the category's own page and sorts normally everywhere else", async () => {

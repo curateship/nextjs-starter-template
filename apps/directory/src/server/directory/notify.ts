@@ -32,7 +32,7 @@ export async function tellAdminsAboutSubmission(
         `${businessName} has been submitted, and the sender has confirmed their email address.`,
         "It is waiting in the submissions queue.",
       ],
-      url: appUrlFor("/admin/listing-submissions"),
+      url: appUrlFor("/admin/listings?section=submissions"),
     },
     await adminEmails(database),
     database
@@ -51,7 +51,7 @@ export async function tellAdminsAboutClaim(
       lines: [
         `A claim on ${listingTitle} has been confirmed by email and is waiting for review.`,
       ],
-      url: appUrlFor("/admin/listing-claims"),
+      url: appUrlFor("/admin/listings?section=claims"),
     },
     await adminEmails(database),
     database
@@ -71,7 +71,7 @@ export async function tellAdminsAboutEditRequest(
         `The owner of ${listingTitle} has asked for a change.`,
         "Nothing is live until it is approved.",
       ],
-      url: appUrlFor("/admin/listing-claims"),
+      url: appUrlFor("/admin/listings?section=changes"),
     },
     await adminEmails(database),
     database
@@ -103,7 +103,7 @@ export async function tellAdminsAboutReport(
           `A visitor says something is wrong with ${subjectTitle}: ${reasonLabel}.`,
           "Nothing on the page has changed. It is waiting in the reports queue.",
         ],
-        url: appUrlFor("/admin/listing-reports"),
+        url: appUrlFor("/admin/listings?section=reports"),
       },
       await adminEmails(database),
       database

@@ -1,6 +1,7 @@
 import * as React from "react"
+import { ClockIcon, ImagesIcon, MapPinIcon } from "lucide-react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Button } from "@/components/ui/button"
@@ -14,16 +15,6 @@ import {
 } from "@/lib/directory/listing-details"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-/**
- * A card's folded state when the form holds it rather than the card. Built
- * with `useRememberedCollapse` on the card's own storage key, so the choice is
- * still remembered — the form just needs to be able to open it.
- */
-export type CollapseControl = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  noFlashKey: string | undefined
-}
 
 export function ListingDetailsFields({
   gallery,
@@ -35,7 +26,7 @@ export function ListingDetailsFields({
   onHoursChange,
   onLatitudeChange,
   onLongitudeChange,
-  locationCollapse,
+  locationOpenWhen,
 }: {
   gallery: string[]
   hours: ListingHours
@@ -47,13 +38,11 @@ export function ListingDetailsFields({
   onLatitudeChange: (latitude: string) => void
   onLongitudeChange: (longitude: string) => void
   /**
-   * The map card's folded state, held by the form instead of the card.
-   *
-   * The coordinates are checked when Save is pressed, and the message about
-   * them is no use at all if this card is folded away — the form would be
-   * pointing at a box nobody can see. The form opens it before it complains.
+   * Opens the map card each time it turns true. The coordinates are checked
+   * before a save, and the message about them is no use at all if this card
+   * is folded away, pointing at a box nobody can see.
    */
-  locationCollapse?: CollapseControl
+  locationOpenWhen?: boolean
 }) {
   return (
     <>
@@ -67,7 +56,7 @@ export function ListingDetailsFields({
         latitude={latitude}
         longitude={longitude}
         disabled={disabled}
-        collapse={locationCollapse}
+        openWhen={locationOpenWhen}
         onLatitudeChange={onLatitudeChange}
         onLongitudeChange={onLongitudeChange}
       />
@@ -102,13 +91,10 @@ function GalleryFields({
   }
 
   return (
-    <CollapsibleSettingsCard
-      size="sm"
-      storageId="listing-gallery"
-      title="Photo gallery"
-      description="Up to twelve extra photos, shown below the featured photo in this order."
-      contentClassName="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-    >
+    <PanelCard storageId="listing-gallery" icon={<ImagesIcon />} title="Photo gallery" meta={gallery.length || undefined}>
+      <p className="text-sm text-muted-foreground">Up to twelve extra photos, shown below the featured photo in this order.</p>
+      {/* Columns from the panel's own width, never the screen's: the panel opens narrow. */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-4">
       {gallery.map((url, index) => (
         <div key={`${url}-${index}`} className="grid gap-2">
           <ImageUpload
@@ -152,7 +138,8 @@ function GalleryFields({
           }}
         />
       ) : null}
-    </CollapsibleSettingsCard>
+      </div>
+    </PanelCard>
   )
 }
 
@@ -166,13 +153,8 @@ function HoursFields({
   onChange: (hours: ListingHours) => void
 }) {
   return (
-    <CollapsibleSettingsCard
-      size="sm"
-      storageId="listing-hours"
-      title="Opening hours"
-      description="Turn on each open day. Closed days stay off and show as closed publicly."
-      contentClassName="grid gap-4"
-    >
+    <PanelCard storageId="listing-hours" icon={<ClockIcon />} title="Opening hours">
+      <p className="text-sm text-muted-foreground">Turn on each open day. Closed days stay off and show as closed publicly.</p>
       <WeekdayHoursFields
         idPrefix="listing-hours"
         words={{ start: "Opens", end: "Closes" }}
@@ -181,7 +163,7 @@ function HoursFields({
         disabled={disabled}
         onChange={onChange}
       />
-    </CollapsibleSettingsCard>
+    </PanelCard>
   )
 }
 
@@ -189,11 +171,11 @@ function LocationFields({
   latitude,
   longitude,
   disabled,
-  collapse,
+  openWhen,
   onLatitudeChange,
   onLongitudeChange,
 }: {
-  collapse?: CollapseControl
+  openWhen?: boolean
   latitude: string
   longitude: string
   disabled: boolean
@@ -205,14 +187,8 @@ function LocationFields({
   const invalid = coordinatesAreInvalid(latitude, longitude)
 
   return (
-    <CollapsibleSettingsCard
-      size="sm"
-      storageId="listing-map"
-      collapse={collapse}
-      title="Map pin"
-      description="Paste a full Google Maps link to fill the exact point. No map appears without both coordinates."
-      contentClassName="grid gap-4"
-    >
+    <PanelCard storageId="listing-map" icon={<MapPinIcon />} title="Map pin" openWhen={openWhen}>
+      <p className="text-sm text-muted-foreground">Paste a full Google Maps link to fill the exact point. No map appears without both coordinates.</p>
       <div className="grid gap-2">
         <FieldLabel htmlFor="listing-google-maps-url">
           Google Maps link
@@ -293,7 +269,7 @@ function LocationFields({
           </Button>
         </div>
       ) : null}
-    </CollapsibleSettingsCard>
+    </PanelCard>
   )
 }
 

@@ -187,6 +187,10 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   menu and its saved views, the + menu
   that uploads files or makes a collection, and why only dragging, never a
   click, puts a file on the timeline.
+- [import-from-a-link.md](import-from-a-link.md) — pasting TikTok, Instagram
+  and YouTube links into the Media panel: which links work, the Downloading
+  tile, the name and creator kept with each file, the 100MB cap, Try again
+  and Remove, and the worker's limits.
 - [phone-uploads.md](phone-uploads.md) — sending videos and photos from a
   phone's camera roll by scanning a code: how long the code and the phone's
   sign-in last, how the secret is kept out of logs, and how the editor hears

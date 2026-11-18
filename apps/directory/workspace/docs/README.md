@@ -10,6 +10,11 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
+- `listings-dashboard.md` — the one three-panel Listings dashboard: its rows
+  (Listings, Categories, Custom fields, Guides, the four queues, Featured
+  plans, Placements, Saved lists, Outreach), the left page and its blocks, the
+  right-click and Select menus, records that save themselves, and where the
+  old Listings pages' addresses go.
 - `shell-integration.md` — shell updates, storage settings, CMS extensions, site branding
   and the database and worker commands needed after an update.
 - `directory-saves-featured-outreach.md` — saved collections, featured
@@ -36,7 +41,7 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   the site's own fields as filters, the Open now chip and the clock it reads, what ticking two boxes means, what a
   day with two services stores, where neighbourhood labels come from, and how the "Also nearby" row
   at the foot of a listing page is filled.
-- `guides.md` — the guides an editor writes in Admin → Listings → Guides: the
+- `guides.md` — the guides an editor writes in the Guides row of the Listings dashboard: the
   window and its drag-to-order list, what happens to a listing that is
   deleted or unpublished, the Guides page and a guide's own page, and where
   guides appear in the sitemap, the feed, search and a shared link.

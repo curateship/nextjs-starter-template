@@ -10,12 +10,12 @@ working and tells the truth. Hiding a listing is what draft is for.
 
 ## Marking a listing closed
 
-- **Where:** Admin → Listings, open the listing, The listing card, Status →
-  Closed, then Save changes.
+- **Where:** Admin → Listings, open the listing on the right, its ⋮, Status →
+  Closed. The listing saves itself (`listings-dashboard.md`).
 - **Reopening:** set Status back to Published. The listing returns to every
   list at once.
-- **The filter:** the status filter on Admin → Listings has Closed, and its
-  count is the number of closed listings on the site.
+- **The filter:** Filter on the Listings row has Closed, and the Closed
+  heading counts every closed listing on the site. It starts folded.
 - **The bulk Change button** only publishes and unpublishes. Closing is done
   one listing at a time, because it ends a paid spot. Publishing a closed
   listing from it reopens the listing, and unpublishing one makes it a draft,
@@ -32,8 +32,8 @@ with no refund, and the admin is told before the save.
   picked, not when it opens, because the Listings table fetches a row's copy
   when the pointer crosses it and a spot bought after that would be missed.
 - **On save:** every spot the listing holds, including one bought to start
-  later, is marked revoked in the same database write as the status. Admin →
-  Listings → Featured keeps the row, with the note "Ended because the listing
+  later, is marked revoked in the same database write as the status. The
+  Placements row of the Listings dashboard keeps it, with the note "Ended because the listing
   was marked permanently closed. No refund."
 - **Reopening does not bring the spot back.** The owner buys a new one.
 - **A closed listing cannot be bought a spot**, because buying needs a

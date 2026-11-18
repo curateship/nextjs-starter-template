@@ -69,7 +69,7 @@ export async function listOwnedCollections(
   return rows.map(serializeCollection)
 }
 
-async function requireOwnedCollection(
+export async function requireOwnedCollection(
   userId: string,
   collectionId: string,
   database: CustomShellDb

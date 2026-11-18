@@ -1,55 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, redirect } from "@tanstack/react-router"
 
-import { FeaturedDashboard } from "@/components/directory/featured-dashboard"
-import { routeErrorComponent } from "@/components/shell/route-error"
-import { loadCategories } from "@/lib/api/directory/categories"
-import { getFeaturedErrorMessage, loadFeaturedAdmin } from "@/lib/api/directory/featured"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
+import { forwardedSearch } from "@/lib/directory/listings-dashboard-search"
 
-type FeaturedSearch = {
-  /** The search box, matched against listing title and buyer email. */
-  q?: string
-  page?: number
-  size?: number
-}
-
-function readFeaturedSearch(search: Record<string, unknown>): FeaturedSearch {
-  return {
-    q: readSearchText(search.q),
-    page: readPage(search.page),
-    size: readOneOf(
-      String(search.size),
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String)
-    )
-      ? Number(search.size)
-      : undefined,
-  }
-}
-
+/**
+ * An old address of the Listings pages. Since 18 Nov 2026 it is the
+ * Listings dashboard's plans row, and this forwards there with the same
+ * search, filters and open record, so a bookmark or an emailed link still
+ * lands on the right record (`src/server/directory/notify.ts`).
+ */
 export const Route = createFileRoute("/_authenticated/admin/listing-featured")({
-  validateSearch: readFeaturedSearch,
-  loaderDeps: ({ search }) => search,
-  // The categories come with the page rather than when the plan window opens,
-  // so the Category select is already filled the moment it is on screen.
-  loader: async ({ deps }) => {
-    const [data, categories] = await Promise.all([
-      loadFeaturedAdmin({ search: deps.q, page: deps.page, limit: deps.size }),
-      loadCategories(),
-    ])
-    return { data, categories }
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/admin/listings", search: forwardedSearch("plans", search), replace: true })
   },
-  component: ListingFeaturedRoute,
-  errorComponent: routeErrorComponent(getFeaturedErrorMessage),
 })
-
-function ListingFeaturedRoute() {
-  const { data, categories } = Route.useLoaderData()
-  return (
-    <FeaturedDashboard
-      data={data}
-      categories={categories}
-      search={Route.useSearch()}
-    />
-  )
-}

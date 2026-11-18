@@ -161,7 +161,8 @@ const loadClaimsScreenFn = createServerFn({ method: "GET" })
         }),
         pendingClaimCount(site),
         pendingEditRequestCount(site),
-        listEditRequests(site, { status: data.requestStatus ?? "pending" }),
+        // No status is every change: the Owner changes row's All filter.
+        listEditRequests(site, { status: data.requestStatus }),
         savedDirectorySettings(site),
       ])
 

@@ -10,9 +10,9 @@ lives in `directory_save_collections`, and is left exactly as it was.
 
 ## Writing one
 
-- **Where:** Admin → Listings → Guides, the line after Saves in the left menu.
-  The screen is a table like Listings and Posts, and a row opens the guide's
-  window over it, with `?open=<id>` in the address.
+- **Where:** the Guides row of the Listings dashboard
+  (`listings-dashboard.md`). A row opens the guide on the right, with
+  `?open=<id>` in the address, and the guide saves itself.
 - **The guide card:** title, address part, intro, status and cover. A new guide
   starts as a draft, and its address follows the title until it is typed in.
 - **The Listings card:** "Add a listing" searches the site's listings by name.
@@ -31,7 +31,7 @@ lives in `directory_save_collections`, and is left exactly as it was.
 
 - **Deleted:** the listing leaves every guide. The database deletes its row.
 - **Draft or closed:** the listing stays in the guide and the public page
-  leaves it out. The window marks the row "Draft, so the page leaves it out" or
+  leaves it out. The guide's Listings card marks the row "Draft, so the page leaves it out" or
   "Closed, so the page leaves it out", and a line under the list counts them.
   Publishing the listing again puts it back where it was.
 - **Nothing left to show:** the guide's page still opens, with its band, and
@@ -81,12 +81,13 @@ lives in `directory_save_collections`, and is left exactly as it was.
   public read.
 - `src/lib/api/directory/guides.ts`: the admin's doors.
   `src/lib/api/directory/public.ts`: the two public ones.
-- `src/components/directory/guides-dashboard.tsx` and `guide-dialog.tsx`: the
-  screen and the window. `src/components/directory/public/guide-grid.tsx`: the
+- `src/components/directory/listings-dashboard/sections/guides-section.tsx`
+  and `guide-listings.tsx`: the Guides row, its record and the dragged list. `src/components/directory/public/guide-grid.tsx`: the
   Guides page's cards.
 - `src/routes/guides.tsx`, `guides_.$slug.tsx`,
   `guides_.share-image.$slug.ts` and `guides.page.ts`; the admin route is
-  `_authenticated/admin/listing-guides.tsx`.
+  `_authenticated/admin/listings.tsx`, and `listing-guides.tsx` forwards
+  there.
 - `src/server/directory/guides.test.ts`: addresses, order after a reload,
   another site's listing, deleted and unpublished listings, the empty guide,
   and a draft guide in none of the places a published one is.

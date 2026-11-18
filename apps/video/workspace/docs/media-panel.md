@@ -66,12 +66,14 @@ again.
 
 ## Getting a file in
 
-The **+** at the top of the panel opens a menu with three choices:
+The **+** at the top of the panel opens a menu with four choices:
 
 - **Upload media** opens the file picker. Several files can be picked at once,
   and each is attached to the project as it finishes.
 - **From your phone** shows a QR code that opens a page on a phone for sending
   videos and photos from its camera roll ([phone-uploads.md](phone-uploads.md)).
+- **Import from a link** downloads TikTok, Instagram and YouTube videos from
+  pasted links into this project ([import-from-a-link.md](import-from-a-link.md)).
 - **New collection** makes an empty collection. Filling it is the grid's
   Select flow, described in the collections doc.
 
@@ -104,4 +106,13 @@ the playhead.
   waiting forever with nothing on screen.
 - **Sound files too:** a sound card's play button previews it, and its name is
   just a name. Getting the sound into the edit is the same drag.
+- **Videos preview the same way.** A video tile has the sound card's round
+  play button in its top-left corner, frosted: the dark circle at half
+  strength with the picture behind it blurred (Tyler, 18 Nov 2026: "change the play
+  icon in video to the same icon in audio and make the play icon playable so
+  I can preview video", then "lower the opacity of the icon to 50%" and "make it gaussian blur"). It plays the video in the tile with its sound, and
+  pressing it again pauses. One preview plays at a time across the panel,
+  sounds included, and a finished video goes back to its start. Pressing the
+  button never starts a drag. Pictures keep their small ▣ mark.
+  `VideoMediaTile` in `src/components/video-editor/studio-panels.tsx`.
 - **Right-click** on any tile still opens Collections and Delete.
