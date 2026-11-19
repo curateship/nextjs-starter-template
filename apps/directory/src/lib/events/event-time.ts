@@ -118,6 +118,39 @@ export function eventHasStarted(
   )
 }
 
+/**
+ * The wall-clock moment sign-ups close, as "2026-11-20T14:00": the start, or
+ * that many hours before it (task events/37, Part 8). Worked on the clock as
+ * written, so "2 days before" a 2:00 PM class is 2:00 PM two days earlier,
+ * whatever the clocks do in between.
+ */
+export function signUpsCloseAt(
+  when: Pick<EventWhen, "startDate" | "startTime">,
+  closeHours: number | null
+): string {
+  const start = `${when.startDate}T${toClock(when.startTime)}`
+  if (!closeHours) return start
+  const shifted = new Date(asPrintable(when.startDate, toClock(when.startTime)))
+  shifted.setUTCHours(shifted.getUTCHours() - closeHours)
+  return shifted.toISOString().slice(0, 16)
+}
+
+/** Whether sign-ups for the event have closed, by the site's clock. */
+export function signUpsHaveClosed(
+  when: Pick<EventWhen, "startDate" | "startTime">,
+  closeHours: number | null,
+  timeZone: string,
+  now: Date
+): boolean {
+  return wallClockAt(timeZone, now) >= signUpsCloseAt(when, closeHours)
+}
+
+/** "Thu, Nov 20, 7:00 PM" from a wall-clock moment, "2026-11-20T19:00". */
+export function formatWallClock(moment: string): string {
+  const [day = "", clock = ""] = moment.split("T")
+  return `${formatEventShortDay(day)}, ${formatEventClock(clock)}`
+}
+
 /** "18:00:00" from the database, or "18:00" from a form, as "18:00". */
 export function toClock(value: string): string {
   return value.slice(0, 5)

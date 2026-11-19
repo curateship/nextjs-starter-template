@@ -36,6 +36,7 @@ const base: ListedEvent = {
   endTime: "20:00",
   takesSignUps: true,
   going: 212,
+  full: false,
   category: { name: "Festival", slug: "festival" },
   ended: false,
 }

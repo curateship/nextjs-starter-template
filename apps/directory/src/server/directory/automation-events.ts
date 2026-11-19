@@ -9,6 +9,7 @@ import {
 import {
   CLAIM_APPROVED_KIND,
   DIRECTORY_TRIGGER_LABELS,
+  EVENT_SUGGESTED_KIND,
   FEATURED_ENDING_DAYS,
   FEATURED_ENDING_KIND,
   readDirectoryEmailSettings,
@@ -399,6 +400,43 @@ export function fireClaimApproved(
   )
 }
 
+/**
+ * An event reached the review queue: suggested on the Suggest an event page,
+ * or sent by a listing's owner from My listings (Tyler, 19 Nov 2026: "Event
+ * suggested"). Keyed to the suggestion, so it starts each flow once. An
+ * owner's change to an event already on the site is not a new suggestion and
+ * never fires it.
+ */
+export function fireEventSuggested(
+  suggestion: {
+    id: string
+    workspaceId: string
+    title: string
+    when: string
+    placeName: string
+    submitterEmail: string
+    submitterName: string
+    listingId: string | null
+  },
+  database: CustomShellDb = db
+) {
+  return fireDirectoryEvent(
+    {
+      siteId: suggestion.workspaceId,
+      kind: EVENT_SUGGESTED_KIND,
+      key: suggestion.id,
+      person: {
+        email: suggestion.submitterEmail,
+        name: suggestion.submitterName,
+      },
+      listingId: suggestion.listingId,
+      listingTitle: suggestion.placeName,
+      extraFacts: { eventTitle: suggestion.title, eventWhen: suggestion.when },
+    },
+    database
+  )
+}
+
 /** The whole days between now and then, rounded up: "3 days left". */
 function daysUntil(target: Date, from: Date): number {
   return Math.ceil((target.getTime() - from.getTime()) / DAY_MS)
@@ -542,6 +580,9 @@ export const directoryTriggerExecutor: AutomationExecutor = async ({
   }
 }
 
+/** Words only one trigger fills, which read as nothing on the others. */
+const ONE_TRIGGER_WORDS = new Set(["featuredEndsOn", "eventTitle", "eventWhen"])
+
 /** `{{word}}` filled from the run's facts. Unknown words are left as written. */
 export function fillDirectoryEmail(
   template: string,
@@ -549,7 +590,7 @@ export function fillDirectoryEmail(
 ): string {
   return template.replace(/\{\{(\w+)\}\}/g, (whole, word: string) => {
     if (!(word in facts)) {
-      return word === "featuredEndsOn" ? "" : whole
+      return ONE_TRIGGER_WORDS.has(word) ? "" : whole
     }
     const value = facts[word]
     return value === null || value === undefined ? "" : String(value)

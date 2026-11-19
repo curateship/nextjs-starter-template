@@ -125,19 +125,25 @@ export async function tellAdminsAboutEventSubmission(
   eventTitle: string,
   /** The listing, when its owner sent it from My listings. */
   ownerOf?: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /** An owner asking to change an event already on the site. */
+  change = false
 ) {
   try {
     await notifyAdmins(
       {
         workspaceId,
-        subject: ownerOf
-          ? `New event from the owner of ${ownerOf}: ${eventTitle}`
-          : `New event suggested: ${eventTitle}`,
+        subject: change
+          ? `Change asked by the owner of ${ownerOf}: ${eventTitle}`
+          : ownerOf
+            ? `New event from the owner of ${ownerOf}: ${eventTitle}`
+            : `New event suggested: ${eventTitle}`,
         lines: [
-          ownerOf
-            ? `The owner of ${ownerOf} sent ${eventTitle} from My listings. Approving it publishes it.`
-            : `Somebody suggested ${eventTitle} on the Suggest an event page.`,
+          change
+            ? `The owner of ${ownerOf} asked to change ${eventTitle} from My listings. The event stays as it is until the change is approved.`
+            : ownerOf
+              ? `The owner of ${ownerOf} sent ${eventTitle} from My listings. Approving it publishes it.`
+              : `Somebody suggested ${eventTitle} on the Suggest an event page.`,
           "It is waiting in the event suggestions queue.",
         ],
         url: appUrlFor("/admin/event-submissions"),

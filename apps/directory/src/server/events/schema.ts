@@ -9,6 +9,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  text,
   time,
   timestamp,
   uniqueIndex,
@@ -123,6 +124,21 @@ export const siteEvents = pgTable(
     takesSignUps: boolean("takes_sign_ups").notNull().default(false),
     /** How many can sign up, or null for no limit. */
     seats: integer("seats"),
+    /**
+     * How many hours before the start sign-ups close, from 0156. Null closes
+     * them when the event starts.
+     */
+    signUpsCloseHours: integer("sign_ups_close_hours"),
+    /** One question under Email on the sign-up box. Empty asks none. */
+    signUpQuestion: varchar("sign_up_question", { length: 200 })
+      .notNull()
+      .default(""),
+    /** Whether the question must be answered before Sign up works. */
+    signUpQuestionRequired: boolean("sign_up_question_required")
+      .notNull()
+      .default(false),
+    /** Where tickets are sold, drawn as "Get tickets". Empty for none. */
+    ticketsUrl: varchar("tickets_url", { length: 600 }).notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -150,6 +166,10 @@ export const siteEvents = pgTable(
     check(
       "events_seats_check",
       sql`${table.seats} IS NULL OR ${table.seats} BETWEEN 1 AND 100000`
+    ),
+    check(
+      "events_sign_ups_close_hours_check",
+      sql`${table.signUpsCloseHours} IS NULL OR ${table.signUpsCloseHours} BETWEEN 1 AND 720`
     ),
     check(
       "events_status_check",
@@ -234,6 +254,14 @@ export const eventSubmissions = pgTable(
     ),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     reviewNote: varchar("review_note", { length: 500 }).notNull().default(""),
+    /**
+     * An owner's change to an event they sent, from 0156: approving writes
+     * these fields onto that event instead of making a new one.
+     */
+    changesEventId: varchar("changes_event_id", { length: 36 }).references(
+      (): AnyPgColumn => siteEvents.id,
+      { onDelete: "cascade" }
+    ),
     /** The draft it became. Set once, so approving twice makes no twin. */
     eventId: varchar("event_id", { length: 36 }).references(
       () => siteEvents.id,
@@ -299,6 +327,13 @@ export const eventSignUps = pgTable(
     offerTokenHash: varchar("offer_token_hash", { length: 64 }),
     /** When the held seat passes to the next person. Set with the token. */
     offerExpiresAt: timestamp("offer_expires_at", { withTimezone: true }),
+    /** The answer to the event's own sign-up question, from 0156. */
+    answer: varchar("answer", { length: 500 }).notNull().default(""),
+    /**
+     * Whether the box told this person the host sees their name and email,
+     * from 0157. A listing's owner sees only the sign-ups that were told.
+     */
+    hostTold: boolean("host_told").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   },
@@ -331,3 +366,24 @@ export const eventSignUps = pgTable(
     ),
   ]
 )
+
+/**
+ * The Events dashboard's left page, one per site, from
+ * `drizzle/0157_cms_event_pages.sql`: the same shape as the Listings
+ * dashboard's `directory_listing_pages`.
+ */
+export const directoryEventPages = pgTable("directory_event_pages", {
+  workspaceId: varchar("workspace_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's rows left out and their dragged order. */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

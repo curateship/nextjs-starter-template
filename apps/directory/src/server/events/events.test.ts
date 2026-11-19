@@ -300,7 +300,7 @@ describe("one site's events", () => {
       )
     ).toEqual([late.id])
     expect(
-      (await listEvents(alpha, { status: "draft" }, database)).events.map(
+      (await listEvents(alpha, { tab: "draft" }, database)).events.map(
         (event) => event.id
       )
     ).toEqual([early.id])

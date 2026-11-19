@@ -6,6 +6,7 @@ import {
   readDraftEventsSettings,
 } from "@/lib/events/draft-events-step"
 import { submissionWhen } from "@/lib/events/event-submission-fields"
+import { sameEventKey } from "@/lib/events/same-event"
 import { wallClockAt } from "@/lib/events/event-time"
 import { plural } from "@/lib/format/plural"
 import { now, uuid } from "@/server/auth/security"
@@ -345,11 +346,6 @@ async function existingKeys(
     database
   )
   return new Set(rows.map((row) => sameEventKey(row.title, row.startDate)))
-}
-
-/** Same title, ignoring capitals and spacing, on the same start day. */
-function sameEventKey(title: string, startDate: string): string {
-  return `${title.trim().toLowerCase().replace(/\s+/g, " ")}|${startDate}`
 }
 
 function emptyOutput(sourceUrl: string): DraftEventsOutput {

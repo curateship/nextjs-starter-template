@@ -94,3 +94,53 @@ export function readSeats(typed: string): number | null {
   }
   return seats
 }
+
+/** The event's own question, and the answer a person gives to it. */
+export const SIGN_UP_QUESTION_MAX = 200
+export const SIGN_UP_ANSWER_MAX = 500
+
+/** The question as it is kept: one line, as long as the column at most. */
+export function cleanSignUpQuestion(raw: string): string {
+  return oneLine(raw).slice(0, SIGN_UP_QUESTION_MAX)
+}
+
+/** An answer as it is kept: one line, as long as the column at most. */
+export function cleanSignUpAnswer(raw: string): string {
+  return oneLine(raw).slice(0, SIGN_UP_ANSWER_MAX)
+}
+
+function oneLine(raw: string): string {
+  return raw.split(CONTROL_CHARACTERS).join(" ").replace(/\s+/g, " ").trim()
+}
+
+/**
+ * When sign-ups close, as the Sign-ups card offers it (Tyler, 19 Nov 2026:
+ * "On each event"). Null is the start of the event, which is where they
+ * closed before this choice existed.
+ */
+export const SIGN_UPS_CLOSE_CHOICES: { hours: number | null; label: string }[] =
+  [
+    { hours: null, label: "When it starts" },
+    { hours: 1, label: "1 hour before" },
+    { hours: 3, label: "3 hours before" },
+    { hours: 24, label: "1 day before" },
+    { hours: 48, label: "2 days before" },
+    { hours: 72, label: "3 days before" },
+    { hours: 168, label: "1 week before" },
+  ]
+
+/** The most hours a cut-off may be, the same as the database's check. */
+export const MAX_SIGN_UPS_CLOSE_HOURS = 720
+
+/** A cut-off as it is kept: a whole number of hours from 1 to 720, or null. */
+export function cleanCloseHours(hours: number | null): number | null {
+  if (hours === null) return null
+  if (
+    !Number.isInteger(hours) ||
+    hours < 1 ||
+    hours > MAX_SIGN_UPS_CLOSE_HOURS
+  ) {
+    throw new Error("Sign-ups close a whole number of hours before, up to 30 days.")
+  }
+  return hours
+}

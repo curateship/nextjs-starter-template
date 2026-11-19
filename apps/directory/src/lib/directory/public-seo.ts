@@ -366,6 +366,10 @@ export function postJsonLd(input: {
  * name nor a street address gets no block at all rather than one Google
  * reports as broken. A place name with no street address is sent as the
  * address too, because it is the only address the admin gave.
+ *
+ * A tickets link goes out as the offer's address, so Google can send people
+ * to where tickets are sold. There is no price, because the site does not
+ * know one.
  */
 export function eventJsonLd(
   input: EventWhen & {
@@ -378,6 +382,8 @@ export function eventJsonLd(
     image: string
     placeName: string
     placeAddress: string
+    /** Where tickets are sold, or empty. */
+    ticketsUrl?: string
   }
 ): JsonLdNode | null {
   const placeName = input.placeName.trim()
@@ -410,6 +416,10 @@ export function eventJsonLd(
   }
   if (input.summary) page.description = input.summary
   if (input.image) page.image = input.image
+
+  if (input.ticketsUrl) {
+    page.offers = { "@type": "Offer", url: input.ticketsUrl }
+  }
 
   return graph([organisation, page])
 }

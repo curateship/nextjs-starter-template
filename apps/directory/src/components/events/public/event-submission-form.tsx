@@ -29,6 +29,11 @@ import {
   eventPhotoProblem,
   type EventSubmissionField,
 } from "@/lib/events/event-submission-fields"
+import { loadDirectorySuggestions } from "@/lib/api/directory/public"
+import {
+  DIRECTORY_SUGGESTION_DELAY_MS,
+  DIRECTORY_SUGGESTION_MIN_LENGTH,
+} from "@/lib/directory/public-search"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -133,11 +138,7 @@ export function EventSubmissionFields({
               {...field("endTime")}
             />
           </div>
-          <TextField label="Place (optional)" {...field("placeName")} />
-          <TextField
-            label="Street address (optional)"
-            {...field("placeAddress")}
-          />
+          <PlaceFields box={box} listingsOpen={form.listingsOpen} />
         </CardContent>
       </Card>
 
@@ -398,5 +399,117 @@ function PhotoField({
         ) : null}
       </div>
     </div>
+  )
+}
+
+/**
+ * The place and its street address (task events/37, Part 13). While the
+ * directory is open to everyone, typing in the place box offers the site's
+ * own listings under it, from the same lookup the directory's search box
+ * uses. Picking one makes the event's place that listing: the street address
+ * box goes, because the listing has one, and the approved event links to the
+ * listing's page and uses its pin. Typing a place that is not in the
+ * directory still works, and "Type a place instead" lets go of a pick.
+ */
+function PlaceFields({
+  box,
+  listingsOpen,
+}: {
+  box: EventSubmissionBox
+  listingsOpen: boolean
+}) {
+  const place = box.field("placeName")
+  const picked = box.values.placeListing
+  const [offers, setOffers] = React.useState<{
+    query: string
+    listings: { title: string; slug: string }[]
+  } | null>(null)
+  const query = place.value.trim()
+  const asking =
+    listingsOpen && !picked && query.length >= DIRECTORY_SUGGESTION_MIN_LENGTH
+
+  React.useEffect(() => {
+    if (!asking) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      loadDirectorySuggestions(query).then(
+        (answer) => {
+          if (!cancelled) setOffers({ query, listings: answer.listings })
+        },
+        // A failed lookup leaves a plain box, which still takes a typed place.
+        () => undefined
+      )
+    }, DIRECTORY_SUGGESTION_DELAY_MS)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [asking, query])
+
+  // Only the answer for what is in the box now, so a slow reply to an
+  // earlier word never shows under a later one.
+  const listings = asking && offers?.query === query ? offers.listings : []
+
+  const pick = (listing: { title: string; slug: string }) => {
+    place.onChange(listing.title)
+    box.field("placeListing").onChange(listing.slug)
+    box.field("placeAddress").onChange("")
+  }
+
+  return (
+    <>
+      <div className="grid gap-2">
+        <TextField
+          label="Place (optional)"
+          hint={
+            listingsOpen
+              ? "Start typing to pick the place from this site's listings, or type any place."
+              : undefined
+          }
+          {...place}
+          disabled={place.disabled || Boolean(picked)}
+        />
+        {listings.length ? (
+          <ul
+            aria-label="Places on this site"
+            className="grid overflow-hidden rounded-md border"
+          >
+            {listings.map((listing) => (
+              <li key={listing.slug} className="border-b last:border-b-0">
+                <button
+                  type="button"
+                  className="flex h-8 w-full items-center px-3 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                  onClick={() => pick(listing)}
+                >
+                  {listing.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {picked ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Picked from this site's listings, so its address and map come
+              with it.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={place.disabled}
+              onClick={() => box.field("placeListing").onChange("")}
+            >
+              Type a place instead
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      {picked ? null : (
+        <TextField
+          label="Street address (optional)"
+          {...box.field("placeAddress")}
+        />
+      )}
+    </>
   )
 }

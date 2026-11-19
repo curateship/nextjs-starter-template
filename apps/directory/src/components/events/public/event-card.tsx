@@ -174,15 +174,21 @@ export function EventCard({ event }: { event: ListedEvent }) {
                 ? "1 going"
                 : `${event.going} going`}
           </p>
-          {/* Above the card-wide click layer, so the button is the thing the
-              pointer lands on. It goes to the same page either way; the button
-              is there to say sign-ups are open. */}
-          <Button asChild className="relative z-10">
-            <Link to="/events/$slug" params={{ slug: event.slug }}>
-              <CalendarPlusIcon aria-hidden="true" />
-              RSVP
-            </Link>
-          </Button>
+          {/* A full event says so in place of the button (task events/37,
+              Part 12). The card still opens the page, where the waiting list
+              is. Otherwise the button sits above the card-wide click layer,
+              so it is the thing the pointer lands on. It goes to the same
+              page either way; it is there to say sign-ups are open. */}
+          {event.full ? (
+            <span className="flex h-8 items-center text-sm font-medium">Full</span>
+          ) : (
+            <Button asChild className="relative z-10">
+              <Link to="/events/$slug" params={{ slug: event.slug }}>
+                <CalendarPlusIcon aria-hidden="true" />
+                RSVP
+              </Link>
+            </Button>
+          )}
         </CardFooter>
       ) : null}
     </Card>

@@ -76,6 +76,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   how a post's own page is laid out with its contents list, the "More to read"
   cards under a post, featured posts, the Views column on Admin → Posts, and
   where posts appear once published.
+- `events-dashboard.md` — Admin → Events as one three-panel dashboard: its
+  Overview, Events, Sign-ups and Featured events rows, the left page and its
+  blocks, and the event record that saves itself.
 - `events.md` — each site's events: writing them, the Events page's list and
   month and its category, date and distance filters, featured events, the site's time zone and why times are stored as a day and a clock
   time, when an event counts as over, the event page, where events appear in

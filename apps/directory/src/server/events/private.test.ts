@@ -2,15 +2,17 @@ import { readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
+import { createListing } from "@/server/directory/listings"
 import { setContentCategories } from "@/server/directory/content-categories"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { createEvent, updateEvent } from "@/server/events/events"
 import * as publicReads from "@/server/events/public"
-import { EVENT_CONTENT_TYPE } from "@/server/events/schema"
+import { EVENT_CONTENT_TYPE, siteEvents } from "@/server/events/schema"
 import {
   createTestDatabase,
   insertWorkspace,
@@ -28,6 +30,7 @@ let client: PGlite
 let database: TestDatabase
 let site: VisitorSite
 let listed: string
+let listedId: string
 let unlisted: { id: string; slug: string }
 
 // 3:00pm on Saturday 26 September 2026 in Toronto, the site's zone.
@@ -56,7 +59,9 @@ beforeEach(async () => {
   database = testDb.db
   const alpha = await insertWorkspace(database, { name: "Alpha" })
   site = { id: alpha.id, name: alpha.name, url: "https://alpha.example.com" }
-  listed = (await publishedEvent("Open market", "public")).slug
+  const open = await publishedEvent("Open market", "public")
+  listed = open.slug
+  listedId = open.id
   unlisted = await publishedEvent("Members market", "private")
 })
 
@@ -133,6 +138,33 @@ const everyPublicRead: Record<
   readEventDateCounts: {
     notAList: "Counts events rather than naming them. Proven on its own below.",
   },
+  readEventPins: async () => {
+    // Both events on the map, so the read has a private pin to leave out.
+    for (const id of [listedId, unlisted.id]) {
+      await database
+        .update(siteEvents)
+        .set({ latitude: 43.65, longitude: -79.38 })
+        .where(eq(siteEvents.id, id))
+    }
+    resetPublicDirectoryCacheForTests()
+    const shown = await publicReads.readEventPins(site, siteNow, database)
+    return shown.pins.map((pin) => pin.slug)
+  },
+  readEventNeighbours: async () => {
+    // Both events at one listing, read from a third that is not either.
+    const listing = await createListing(site.id, { title: "The Rex" }, database)
+    for (const slug of [listed, unlisted.slug]) {
+      const id = slug === listed ? listedId : unlisted.id
+      await updateEvent(site.id, id, { listingId: listing.id }, database)
+    }
+    const shown = await publicReads.readEventNeighbours(
+      site,
+      { id: "someone-else", seriesKey: "someone-else", listingId: listing.id },
+      siteNow,
+      database
+    )
+    return [...shown.dates, ...shown.atPlace].map((row) => row.slug)
+  },
 }
 
 describe("private events", () => {
@@ -173,7 +205,7 @@ describe("private events", () => {
       database
     )
     // One public event on that day, and the private one beside it uncounted.
-    expect(counts).toEqual({ anyTime: 1, windows: [1] })
+    expect(counts).toEqual({ anyTime: 1, windows: [1], past: 0 })
   })
 
   it("never make a category a filter on the Events page", async () => {
@@ -214,7 +246,9 @@ describe("the events table", () => {
    */
   const allowed = [
     "server/directory/featured.ts", // Featured spots: an owner's own events and the admin's placements.
+    "server/directory/listings-dashboard.ts", // Admin: a listing's events and the reports queue on the Listings dashboard.
     "server/directory/reports.ts", // Admin: the reports queue names each event.
+    "server/events/events-dashboard.ts", // Admin: the Events dashboard's rows, counts and Overview.
     "server/events/events.ts", // Admin → Events, which shows everything.
     "server/events/place.ts", // Column rules for a listing as the place.
     "server/events/public.ts", // Every public read, through the one filter.

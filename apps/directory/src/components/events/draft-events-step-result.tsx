@@ -55,7 +55,7 @@ export default function DraftEventsRunResult({
               </span>
               <Link
                 to="/admin/events"
-                search={{ status: "draft", open: item.id }}
+                search={{ tab: "draft", open: item.id }}
                 className="min-w-0 truncate underline underline-offset-2"
               >
                 {item.title}

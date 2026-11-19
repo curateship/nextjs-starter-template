@@ -45,6 +45,8 @@ export function EventDateFilters({
   counts: EventDateCounts
 }) {
   const kept = {
+    // The map has the same chips, and a chip keeps the map showing.
+    view: current.view === "map" ? ("map" as const) : undefined,
     place: current.place,
     category: current.category,
     q: current.q,
@@ -127,5 +129,47 @@ function DateChip({
         {count}
       </span>
     </Link>
+  )
+}
+
+/**
+ * Upcoming or Past, beside the date chips (Tyler, 19 Nov 2026: "Upcoming |
+ * Past chips"; task events/37, Part 14). Past lists the events that are over,
+ * newest first. Each carries its number like the date chips do. Both keep
+ * the place, the category and the typed words; the dates and the distance
+ * belong to the upcoming list, so Past drops them.
+ */
+export function EventTimeChips({
+  current,
+  counts,
+}: {
+  current: EventsPageSearch
+  counts: EventDateCounts
+}) {
+  const kept = {
+    place: current.place,
+    category: current.category,
+    q: current.q,
+  }
+  const past = current.list === "past"
+  return (
+    <div
+      role="group"
+      aria-label="Upcoming or past"
+      className="flex h-8 w-fit items-center gap-0.5 rounded-lg bg-muted p-0.5 text-muted-foreground"
+    >
+      <DateChip
+        search={kept}
+        active={!past}
+        label="Upcoming"
+        count={counts.anyTime}
+      />
+      <DateChip
+        search={{ ...kept, list: "past" }}
+        active={past}
+        label="Past"
+        count={counts.past}
+      />
+    </div>
   )
 }

@@ -1,6 +1,11 @@
 import * as React from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { CalendarIcon, MapPinIcon, NavigationIcon } from "lucide-react"
+import {
+  CalendarIcon,
+  MapPinIcon,
+  NavigationIcon,
+  TicketIcon,
+} from "lucide-react"
 
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
@@ -9,6 +14,7 @@ import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
 import { AddToCalendarMenu } from "@/components/events/public/calendar-menus"
+import { EventNeighbours } from "@/components/events/public/event-neighbours"
 import { EventPlaceMap } from "@/components/events/public/event-place-map"
 import { SignUpBox } from "@/components/events/public/sign-up-box"
 import { PostBody } from "@/components/posts/public/post-body"
@@ -82,6 +88,8 @@ function EventRoute() {
     shareImageVersion,
     mapKey,
     signUps,
+    otherDates,
+    atPlace,
   } = Route.useLoaderData()
   const directions = ended ? null : eventDirectionsUrl(event)
   const shareImage = eventPageShareImage({
@@ -204,6 +212,18 @@ function EventRoute() {
 
           {ended ? null : (
             <div className="flex flex-wrap gap-2">
+              {event.ticketsUrl ? (
+                <Button asChild className="w-fit">
+                  <a
+                    href={event.ticketsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <TicketIcon aria-hidden="true" />
+                    Get tickets
+                  </a>
+                </Button>
+              ) : null}
               <AddToCalendarMenu
                 event={{ ...event, url: `${site.url}/events/${event.slug}` }}
                 timeZone={timeZone}
@@ -224,6 +244,13 @@ function EventRoute() {
           {event.body.content?.length ? (
             <PostBody body={event.body} listingCards={listingCards} />
           ) : null}
+
+          <EventNeighbours
+            otherDates={otherDates}
+            atPlace={atPlace}
+            placeName={event.placeName}
+            placeListingSlug={event.placeListingSlug}
+          />
 
           {/* Last, and shown after the event is over too: an event that says
               it ended yesterday when it is really next week is exactly what

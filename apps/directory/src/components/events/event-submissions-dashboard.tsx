@@ -153,7 +153,12 @@ export function EventSubmissionsDashboard({
                 </button>
                 {submission.fromOwner ? (
                   <Badge variant="outline" className="shrink-0">
-                    From the owner
+                    {submission.changes ? "Change from the owner" : "From the owner"}
+                  </Badge>
+                ) : null}
+                {submission.duplicateOf ? (
+                  <Badge variant="outline" className="shrink-0">
+                    Already on the site?
                   </Badge>
                 ) : null}
               </div>

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gte, ilike, isNull, or, sql } from "drizzle-orm"
 
 import {
   EVENT_SUBMISSIONS_PER_HOUR,
@@ -7,11 +7,19 @@ import {
   submissionWhen,
   type EventSubmissionValues,
 } from "@/lib/events/event-submission-fields"
+import { sameEventKey } from "@/lib/events/same-event"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
-import { createEvent, updateEvent } from "@/server/events/events"
+import {
+  createEvent,
+  eventsBeforeChange,
+  eventTitlesOnDays,
+  updateEvent,
+} from "@/server/events/events"
+import { saveEventAndDates } from "@/server/events/repeats"
+import { findEventPlace } from "@/server/events/public"
 import {
   eventSubmissions,
   type EventSubmissionRow,
@@ -74,6 +82,28 @@ export type EventSubmission = {
   reviewedAt: Date | null
   reviewNote: string
   eventId: string | null
+  /**
+   * An owner's change to an event already on the site (task events/37,
+   * Part 3): the event as it is now, so the window can show what the owner
+   * asked for beside it. Null for a new event.
+   */
+  changes: {
+    eventId: string
+    current: {
+      title: string
+      slug: string
+      startDate: string
+      startTime: string
+      endTime: string | null
+      summary: string
+      coverImage: string
+    } | null
+  } | null
+  /**
+   * An event already on the site with the same title on the same day, while
+   * this one waits (task events/37, Part 4). A warning, never a block.
+   */
+  duplicateOf: { id: string; title: string; slug: string } | null
   createdAt: Date
 }
 
@@ -109,8 +139,59 @@ export async function toSubmission(
     reviewedAt: row.reviewedAt,
     reviewNote: row.reviewNote,
     eventId: row.eventId,
+    changes: row.changesEventId
+      ? { eventId: row.changesEventId, current: null }
+      : null,
+    duplicateOf: null,
     createdAt: row.createdAt,
   }
+}
+
+/**
+ * The queue's rows with what the window needs beside them: a change's event
+ * as it is now, and, for a waiting new event, an event already on the site
+ * with the same title on the same day. Two queries for a whole page.
+ */
+async function withChangesAndTwins(
+  workspaceId: string,
+  submissions: EventSubmission[],
+  database: CustomShellDb
+): Promise<EventSubmission[]> {
+  const changed = submissions.flatMap((row) =>
+    row.changes ? [row.changes.eventId] : []
+  )
+  const waitingNew = submissions.filter(
+    (row) => row.status === "pending" && !row.changes
+  )
+  const [before, sameDay] = await Promise.all([
+    eventsBeforeChange(workspaceId, changed, database),
+    eventTitlesOnDays(
+      workspaceId,
+      [...new Set(waitingNew.map((row) => row.startDate))],
+      database
+    ),
+  ])
+  const twins = new Map(
+    sameDay.map((row) => [sameEventKey(row.title, row.startDate), row])
+  )
+  return submissions.map((row) => {
+    if (row.changes) {
+      return {
+        ...row,
+        changes: {
+          eventId: row.changes.eventId,
+          current: before.get(row.changes.eventId) ?? null,
+        },
+      }
+    }
+    const twin =
+      row.status === "pending"
+        ? twins.get(sameEventKey(row.title, row.startDate))
+        : undefined
+    return twin
+      ? { ...row, duplicateOf: { id: twin.id, title: twin.title, slug: twin.slug } }
+      : row
+  })
 }
 
 /** A photo as it arrived, before anything is stored. */
@@ -184,6 +265,11 @@ export async function createEventSubmission(
   const title = input.title.replace(/\s+/g, " ").trim()
   const submitterEmail = input.submitterEmail.trim().toLowerCase()
   const at = now()
+  // A place picked from the directory is that listing, if it is still a
+  // published one here. Anything else keeps the place as typed.
+  const placeListing = input.placeListing?.trim()
+    ? await findEventPlace(workspaceId, input.placeListing.trim(), database)
+    : null
 
   if (await hasPendingTwin(workspaceId, submitterEmail, title, at, database)) {
     return { outcome: "merged" }
@@ -218,8 +304,9 @@ export async function createEventSubmission(
         startDate: input.startDate.trim(),
         startTime: input.startTime.trim(),
         endTime: input.endTime.trim() || null,
-        placeName: input.placeName.trim(),
-        placeAddress: input.placeAddress.trim(),
+        placeName: placeListing?.title ?? input.placeName.trim(),
+        placeAddress: placeListing ? "" : input.placeAddress.trim(),
+        listingId: placeListing?.id ?? null,
         description: input.description.trim(),
         photoPath,
         photoName,
@@ -327,7 +414,11 @@ export async function listEventSubmissions(
       .where(where),
   ])
   return {
-    submissions: await Promise.all(rows.map(toSubmission)),
+    submissions: await withChangesAndTwins(
+      workspaceId,
+      await Promise.all(rows.map(toSubmission)),
+      database
+    ),
     total: countRow?.total ?? 0,
   }
 }
@@ -451,6 +542,62 @@ export async function reviewEventSubmission(
       ? await getPublicMediaUrl(row.photoPath).catch(() => "")
       : "")
 
+  // An owner's change writes what they asked onto the event they sent, which
+  // stays published, rather than making a new one. A photo left empty keeps
+  // the event's own.
+  const changesEventId = row.changesEventId
+  if (changesEventId) {
+    const changed = await database.transaction(async (tx) => {
+      // Through the repeat's own save, so the dates of an event an admin has
+      // since made repeat follow the change like any other edit.
+      await saveEventAndDates(
+        workspaceId,
+        changesEventId,
+        {
+          title: row.title,
+          when: submissionWhen({
+            startDate: row.startDate,
+            startTime: clock(row.startTime) ?? "",
+            endTime: clock(row.endTime),
+          }),
+          summary: summaryFromDescription(row.description),
+          body: bodyFromDescription(row.description),
+          ...(coverImage ? { coverImage } : {}),
+        },
+        tx
+      )
+      const [updated] = await tx
+        .update(eventSubmissions)
+        .set({ ...decided, status: "approved", eventId: changesEventId })
+        .where(stillPending)
+        .returning()
+      if (!updated) throw new Error("Somebody has already dealt with this one.")
+      // The owner's own record takes the change too, so My listings shows the
+      // event as it is now and its Change opens with what is live.
+      await tx
+        .update(eventSubmissions)
+        .set({
+          title: row.title,
+          startDate: row.startDate,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          description: row.description,
+          ...(row.coverImage ? { coverImage: row.coverImage } : {}),
+          updatedAt: at,
+        })
+        .where(
+          and(
+            eq(eventSubmissions.eventId, changesEventId),
+            eq(eventSubmissions.fromOwner, true),
+            isNull(eventSubmissions.changesEventId)
+          )
+        )
+      return { submission: await toSubmission(updated), eventId: changesEventId }
+    })
+    clearPublicDirectoryCache(workspaceId)
+    return changed
+  }
+
   const result = await database.transaction(async (tx) => {
     const event = await createEvent(
       workspaceId,
@@ -533,7 +680,11 @@ export async function decideEventSubmission(
   },
   database: CustomShellDb = db,
   send: typeof sendDirectoryEmail = sendDirectoryEmail
-): Promise<{ eventId: string | null; emailed: boolean }> {
+): Promise<{
+  eventId: string | null
+  emailed: boolean
+  submission: EventSubmission
+}> {
   const { submission, eventId } = await reviewEventSubmission(
     workspaceId,
     id,
@@ -549,20 +700,28 @@ export async function decideEventSubmission(
         to: submission.submitterEmail,
         subject:
           input.decision === "approve"
-            ? submission.fromOwner
-              ? `${submission.title} is on the Events page`
-              : `${submission.title} has been accepted`
-            : `About your event, ${submission.title}`,
+            ? submission.changes
+              ? `Your change to ${submission.title} is live`
+              : submission.fromOwner
+                ? `${submission.title} is on the Events page`
+                : `${submission.title} has been accepted`
+            : submission.changes
+              ? `About your change to ${submission.title}`
+              : `About your event, ${submission.title}`,
         lines:
           input.decision === "approve"
             ? [
-                submission.fromOwner
-                  ? `${submission.title} has been approved and is on the site's Events page now.`
-                  : `Thank you for suggesting ${submission.title}. It has been accepted, and it will be on the site's Events page once it is published.`,
+                submission.changes
+                  ? `Your change to ${submission.title} has been approved, and the event's page shows it now.`
+                  : submission.fromOwner
+                    ? `${submission.title} has been approved and is on the site's Events page now.`
+                    : `Thank you for suggesting ${submission.title}. It has been accepted, and it will be on the site's Events page once it is published.`,
                 submission.reviewNote,
               ].filter(Boolean)
             : [
-                `We are not adding ${submission.title} to the site at the moment.`,
+                submission.changes
+                  ? `We are keeping ${submission.title} as it is for now, without your change.`
+                  : `We are not adding ${submission.title} to the site at the moment.`,
                 submission.reviewNote ||
                   "If you think this is a mistake, reply to this email.",
               ],
@@ -573,5 +732,5 @@ export async function decideEventSubmission(
   } catch {
     // The decision stands. `emailed` stays false, and the screen says so.
   }
-  return { eventId, emailed }
+  return { eventId, emailed, submission }
 }

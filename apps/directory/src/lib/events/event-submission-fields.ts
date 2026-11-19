@@ -26,6 +26,11 @@ export type EventSubmissionValues = {
   endTime: string
   placeName: string
   placeAddress: string
+  /**
+   * A published listing's address, like "the-rex", when the place was picked
+   * from the directory (task events/37, Part 13). Empty for a typed place.
+   */
+  placeListing: string
   description: string
   submitterName: string
   submitterEmail: string
@@ -42,6 +47,7 @@ export const EVENT_SUBMISSION_MAX_LENGTH: Record<EventSubmissionField, number> =
     endTime: 5,
     placeName: 200,
     placeAddress: 300,
+    placeListing: 160,
     description: 2000,
     submitterName: 120,
     submitterEmail: 255,
@@ -69,6 +75,7 @@ export function emptyEventSubmission(): EventSubmissionValues {
     endTime: "",
     placeName: "",
     placeAddress: "",
+    placeListing: "",
     description: "",
     submitterName: "",
     submitterEmail: "",

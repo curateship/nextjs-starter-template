@@ -1,7 +1,23 @@
-import { and, asc, count, eq, exists, inArray, lt, or, sql } from "drizzle-orm"
-
-import { eventHasStarted } from "@/lib/events/event-time"
 import {
+  and,
+  asc,
+  count,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm"
+
+import {
+  eventHasStarted,
+  signUpsCloseAt,
+  signUpsHaveClosed,
+} from "@/lib/events/event-time"
+import {
+  cleanSignUpAnswer,
   cleanSignUpName,
   SIGN_UP_EMAIL_MAX,
   SIGN_UPS_PER_HOUR,
@@ -11,7 +27,11 @@ import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { siteTimeZone } from "@/server/directory/settings"
-import { eventSignUps, siteEvents } from "@/server/events/schema"
+import {
+  eventSignUps,
+  eventSubmissions,
+  siteEvents,
+} from "@/server/events/schema"
 
 /**
  * Free sign-ups for an event: a name and an email, no account, and an
@@ -25,7 +45,8 @@ import { eventSignUps, siteEvents } from "@/server/events/schema"
  *   the same "You're on the list" as the first time, so the box cannot be
  *   used to find out whether somebody is going. Tyler chose that on
  *   24 Sep 2026.
- * - **Sign-ups close when the event starts**, by the site's clock.
+ * - **Sign-ups close when the event starts**, by the site's clock, or the
+ *   number of hours before it the admin chose on the event.
  * - **Removing someone** marks their row cancelled. That frees the seat, and
  *   the same email can sign up again while a seat is free. Tyler chose that
  *   on 24 Sep 2026.
@@ -44,10 +65,23 @@ export type SignUpBox = {
   /** Seats still free, or null for no limit. */
   left: number | null
   full: boolean
-  /** The event has started, so nobody new can sign up. */
+  /** Sign-ups have closed, so nobody new can sign up. */
   closed: boolean
   /** Full, but the box takes names for the waiting list. */
   waitingList: boolean
+  /**
+   * When sign-ups close, as the site's wall clock ("2026-11-20T14:00"), when
+   * that is earlier than the start and still to come. Null otherwise.
+   */
+  closesAt: string | null
+  /** The event's own question under Email. Empty asks none. */
+  question: string
+  questionRequired: boolean
+  /**
+   * The listing's owner sent this event, so they see who signed up, names and
+   * emails (task events/37, Part 7). The box says so.
+   */
+  hostSees: boolean
 }
 
 /**
@@ -72,6 +106,34 @@ const onTheList = inArray(eventSignUps.status, [
   "waiting",
   "offered",
 ])
+
+/**
+ * Whether a listing's owner sent this event from My listings, or the main
+ * event of this date: an approved owner's submission names it. That owner
+ * sees who is coming, so the sign-up box tells visitors.
+ *
+ * Its own query rather than a subquery in the box's select, because Drizzle
+ * leaves the table off a column inside raw SQL in a one-table select, and the
+ * subquery would then compare its own columns with each other.
+ */
+async function sentByOwner(
+  eventIds: string[],
+  database: CustomShellDb
+): Promise<boolean> {
+  const [row] = await database
+    .select({ id: eventSubmissions.id })
+    .from(eventSubmissions)
+    .where(
+      and(
+        inArray(eventSubmissions.eventId, eventIds),
+        eq(eventSubmissions.fromOwner, true),
+        eq(eventSubmissions.status, "approved"),
+        isNull(eventSubmissions.changesEventId)
+      )
+    )
+    .limit(1)
+  return Boolean(row)
+}
 
 async function seatsTaken(
   eventId: string,
@@ -101,6 +163,10 @@ export async function signUpBoxFor(
       seats: siteEvents.seats,
       startDate: siteEvents.startDate,
       startTime: siteEvents.startTime,
+      signUpsCloseHours: siteEvents.signUpsCloseHours,
+      signUpQuestion: siteEvents.signUpQuestion,
+      signUpQuestionRequired: siteEvents.signUpQuestionRequired,
+      seriesId: siteEvents.seriesId,
     })
     .from(siteEvents)
     .where(
@@ -115,8 +181,24 @@ export async function signUpBoxFor(
 
   const taken = await seatsTaken(eventId, database)
   const left = event.seats === null ? null : Math.max(0, event.seats - taken)
-  const closed = eventHasStarted(event, timeZone, at)
+  const closed = signUpsHaveClosed(
+    event,
+    event.signUpsCloseHours,
+    timeZone,
+    at
+  )
   return {
+    closesAt:
+      event.signUpsCloseHours && !closed
+        ? signUpsCloseAt(event, event.signUpsCloseHours)
+        : null,
+    question: event.signUpQuestion,
+    questionRequired:
+      Boolean(event.signUpQuestion) && event.signUpQuestionRequired,
+    hostSees: await sentByOwner(
+      event.seriesId ? [eventId, event.seriesId] : [eventId],
+      database
+    ),
     seats: event.seats,
     left,
     full: left === 0,
@@ -168,6 +250,7 @@ type SignUpOutcome =
   | { outcome: "refused"; problem: string }
 
 export const SIGN_UPS_CLOSED = "Sign-ups have closed. The event has started."
+export const SIGN_UPS_CLOSED_EARLY = "Sign-ups for this event have closed."
 const NOT_TAKING = "This event is not taking sign-ups."
 
 /**
@@ -179,7 +262,7 @@ const NOT_TAKING = "This event is not taking sign-ups."
 export async function signUpForEvent(
   siteId: string,
   eventId: string,
-  input: { name: string; email: string },
+  input: { name: string; email: string; answer?: string },
   context: { ip: string; at?: Date },
   database: CustomShellDb = db
 ): Promise<SignUpOutcome> {
@@ -216,6 +299,10 @@ export async function signUpForEvent(
         seats: siteEvents.seats,
         startDate: siteEvents.startDate,
         startTime: siteEvents.startTime,
+        signUpsCloseHours: siteEvents.signUpsCloseHours,
+        signUpQuestion: siteEvents.signUpQuestion,
+        signUpQuestionRequired: siteEvents.signUpQuestionRequired,
+        seriesId: siteEvents.seriesId,
       })
       .from(siteEvents)
       .where(
@@ -231,6 +318,18 @@ export async function signUpForEvent(
     }
     if (eventHasStarted(event, timeZone, at)) {
       return { outcome: "refused" as const, problem: SIGN_UPS_CLOSED }
+    }
+    if (signUpsHaveClosed(event, event.signUpsCloseHours, timeZone, at)) {
+      return { outcome: "refused" as const, problem: SIGN_UPS_CLOSED_EARLY }
+    }
+    const answer = event.signUpQuestion
+      ? cleanSignUpAnswer(input.answer ?? "")
+      : ""
+    if (event.signUpQuestion && event.signUpQuestionRequired && !answer) {
+      return {
+        outcome: "refused" as const,
+        problem: `Answer "${event.signUpQuestion}" to sign up.`,
+      }
     }
 
     const [already] = await tx
@@ -277,6 +376,13 @@ export async function signUpForEvent(
       eventId,
       name,
       email,
+      answer,
+      // The box said "The host sees your name and email" on this event, so
+      // the listing's owner may see this sign-up.
+      hostTold: await sentByOwner(
+        event.seriesId ? [eventId, event.seriesId] : [eventId],
+        tx
+      ),
       status: full ? "waiting" : "confirmed",
       createdAt: at,
     })
@@ -296,6 +402,8 @@ export type EventSignUp = {
   id: string
   name: string
   email: string
+  /** Their answer to the event's question, or empty. */
+  answer: string
   createdAt: Date
 }
 
@@ -310,6 +418,7 @@ export async function listSignUps(
       id: eventSignUps.id,
       name: eventSignUps.name,
       email: eventSignUps.email,
+      answer: eventSignUps.answer,
       createdAt: eventSignUps.createdAt,
     })
     .from(eventSignUps)
@@ -343,6 +452,7 @@ export async function listWaitingList(
       id: eventSignUps.id,
       name: eventSignUps.name,
       email: eventSignUps.email,
+      answer: eventSignUps.answer,
       createdAt: eventSignUps.createdAt,
       offerExpiresAt: eventSignUps.offerExpiresAt,
     })
@@ -355,6 +465,100 @@ export async function listWaitingList(
       )
     )
     .orderBy(asc(eventSignUps.createdAt), asc(eventSignUps.id))
+}
+
+/** What adding somebody by hand did. */
+export type AddByHandOutcome =
+  | { outcome: "added" }
+  /** Put on the waiting list, at `place`, counting from 1. */
+  | { outcome: "waiting"; place: number }
+  /** Every seat is taken and the admin has not said what to do. */
+  | { outcome: "full" }
+  | { outcome: "refused"; problem: string }
+
+/**
+ * An admin adding somebody to an event's list by hand, for a booking taken by
+ * phone (task events/37, Part 6). The name and email are both asked for and
+ * checked the same way the public box checks them, and one email is still
+ * one place on the list.
+ *
+ * It goes through the same lock as a visitor's sign-up, so it counts the same
+ * seats. A full event answers "full" first; the admin then picks `whenFull`:
+ * "over" adds them anyway, over the limit, and "waiting" puts them at the back
+ * of the queue. No hourly limit, no hidden box, and no closing time, because
+ * only the site's own admins can reach it.
+ */
+export async function addSignUpByHand(
+  siteId: string,
+  eventId: string,
+  input: {
+    name: string
+    email: string
+    answer?: string
+    whenFull?: "over" | "waiting"
+  },
+  at: Date = new Date(),
+  database: CustomShellDb = db
+): Promise<AddByHandOutcome> {
+  const problem = signUpProblem(input)
+  if (problem) return { outcome: "refused", problem }
+  const name = cleanSignUpName(input.name)
+  const email = input.email.trim().toLowerCase().slice(0, SIGN_UP_EMAIL_MAX)
+
+  return database.transaction(async (tx) => {
+    const [event] = await tx
+      .select({
+        seats: siteEvents.seats,
+        signUpQuestion: siteEvents.signUpQuestion,
+      })
+      .from(siteEvents)
+      .where(and(eq(siteEvents.id, eventId), eq(siteEvents.workspaceId, siteId)))
+      .for("update")
+    if (!event) {
+      return { outcome: "refused" as const, problem: "That event is not on this site." }
+    }
+
+    const [already] = await tx
+      .select({ id: eventSignUps.id })
+      .from(eventSignUps)
+      .where(
+        and(
+          eq(eventSignUps.eventId, eventId),
+          eq(eventSignUps.email, email),
+          onTheList
+        )
+      )
+      .limit(1)
+    if (already) {
+      return {
+        outcome: "refused" as const,
+        problem: `${email} is already on this event's list.`,
+      }
+    }
+
+    const full =
+      event.seats !== null && (await seatsTaken(eventId, tx)) >= event.seats
+    if (full && !input.whenFull) return { outcome: "full" as const }
+    const waiting = full && input.whenFull === "waiting"
+
+    const id = uuid()
+    await tx.insert(eventSignUps).values({
+      id,
+      workspaceId: siteId,
+      eventId,
+      name,
+      email,
+      answer: event.signUpQuestion ? cleanSignUpAnswer(input.answer ?? "") : "",
+      status: waiting ? "waiting" : "confirmed",
+      createdAt: at,
+    })
+    return waiting
+      ? {
+          outcome: "waiting" as const,
+          place: await queuePlace(eventId, { id, createdAt: at }, tx),
+        }
+      : { outcome: "added" as const }
+  })
 }
 
 /**

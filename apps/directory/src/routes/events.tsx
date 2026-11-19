@@ -9,7 +9,11 @@ import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-br
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
-import { EventDateFilters } from "@/components/events/public/event-filters"
+import {
+  EventDateFilters,
+  EventTimeChips,
+} from "@/components/events/public/event-filters"
+import { EventMap } from "@/components/events/public/event-map"
 import { EventsHero } from "@/components/events/public/events-hero"
 import { SuggestEventButton } from "@/components/events/public/suggest-event-button"
 import { EventCardGrid } from "@/components/events/public/event-card"
@@ -76,21 +80,35 @@ function EventsRoute() {
   // Every key is named in one order, because a link's address is written in
   // its keys' order, and an order taken from the address can differ between
   // the server and the browser, which then disagree about every chip's link.
+  const listOrMap = data.view !== "month" ? data : null
   const current: EventsPageSearch = {
     view: search.view,
+    list: data.view === "list" && data.past ? "past" : undefined,
     month: search.month,
     day: search.day,
     page: search.page,
-    place: data.view === "list" ? data.place?.slug : undefined,
-    q: data.view === "list" ? search.q : undefined,
+    place: listOrMap?.place?.slug,
+    q: listOrMap ? search.q : undefined,
     category: data.category?.slug,
     when: search.when,
     from: search.from,
     to: search.to,
-    near: data.view === "list" ? data.nearby.near : undefined,
-    radius: data.view === "list" ? data.nearby.radius : undefined,
-    area: data.view === "list" ? data.nearby.area : undefined,
+    near: listOrMap?.nearby.near,
+    radius: listOrMap?.nearby.radius,
+    area: listOrMap?.nearby.area,
   }
+  // What the list and the map share, so switching between them keeps it.
+  const shared: EventsPageSearch = {
+    place: current.place,
+    q: current.q,
+    when: current.when,
+    from: current.from,
+    to: current.to,
+    near: current.near,
+    radius: current.radius,
+    area: current.area,
+  }
+  const onMap = data.view === "map"
   const categoryName = data.category?.name
   const navigate = useNavigate()
   // A box in the band writes to the address and starts the list again, because
@@ -110,6 +128,7 @@ function EventsRoute() {
           : undefined
       }
       category={current.category}
+      filters={current.list === "past" ? { place: current.place, q: current.q } : shared}
     />
   )
 
@@ -144,6 +163,8 @@ function EventsRoute() {
             void navigate({
               to: "/events",
               search: {
+                view: onMap ? "map" : undefined,
+                list: current.list,
                 place: current.place,
                 category: current.category,
                 q: value || undefined,
@@ -159,8 +180,16 @@ function EventsRoute() {
           // A category works on every view, so this one keeps the view it is
           // on, the month it is showing and the day it is narrowed to.
           onCategoryChange={(category) => setSearch({ category })}
+          // A distance belongs to the upcoming list, so it leaves Past.
           onNearChange={(near, area, radius) =>
-            setSearch({ near, radius, area, view: undefined, day: undefined })
+            setSearch({
+              near,
+              radius,
+              area,
+              view: onMap ? "map" : undefined,
+              day: undefined,
+              list: undefined,
+            })
           }
           onRadiusChange={(radius) => setSearch({ radius })}
           onNearClear={() =>
@@ -181,6 +210,13 @@ function EventsRoute() {
         style={{ marginBottom: `calc(${pageGutter} - 0.75rem)` }}
       >
         {data.view === "list" && !data.day && data.dateCounts ? (
+          <div className="flex min-w-0 flex-wrap items-start gap-2">
+            <EventTimeChips current={current} counts={data.dateCounts} />
+            {data.past ? null : (
+              <EventDateFilters current={current} counts={data.dateCounts} />
+            )}
+          </div>
+        ) : data.view === "map" ? (
           <EventDateFilters current={current} counts={data.dateCounts} />
         ) : (
           <div />
@@ -188,7 +224,14 @@ function EventsRoute() {
         {switcher}
       </div>
 
-      {data.view === "month" ? (
+      {data.view === "map" ? (
+        <EventMap
+          apiKey={data.mapKey}
+          pins={data.pins}
+          total={data.total}
+          unplaced={data.unplaced}
+        />
+      ) : data.view === "month" ? (
         <EventMonth
           month={data.month}
           events={data.events}
@@ -252,7 +295,9 @@ function EventsRoute() {
               // Past the last page is not the same as nothing coming up.
               data.total
                 ? "There are no events on this page."
-                : nothingComingUp(
+                : data.past
+                  ? "Nothing has happened here yet."
+                  : nothingComingUp(
                     data.dates,
                     categoryName,
                     data.place?.title,
@@ -267,6 +312,7 @@ function EventsRoute() {
             total={data.total}
             hrefForPage={(next) =>
               eventsListHref({
+                list: current.list,
                 place: current.place,
                 category: current.category,
                 q: current.q,

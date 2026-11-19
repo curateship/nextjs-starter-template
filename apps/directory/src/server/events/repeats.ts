@@ -170,6 +170,10 @@ function sharedWithDates(main: EventRow, at: Date) {
     locatedFor: main.locatedFor,
     takesSignUps: main.takesSignUps,
     seats: main.seats,
+    signUpsCloseHours: main.signUpsCloseHours,
+    signUpQuestion: main.signUpQuestion,
+    signUpQuestionRequired: main.signUpQuestionRequired,
+    ticketsUrl: main.ticketsUrl,
   }
 }
 

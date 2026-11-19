@@ -1,14 +1,18 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { LISTING_STATUS_FILTERS } from "@/lib/directory/listing-sort"
 import {
   EVENT_SORT_COLUMNS,
   type EventSortColumn,
   type EventViewRange,
 } from "@/lib/events/event-sort"
 import type { RepeatRule } from "@/lib/events/event-repeat"
-import { MAX_EVENT_SEATS } from "@/lib/events/sign-up-fields"
+import {
+  MAX_EVENT_SEATS,
+  MAX_SIGN_UPS_CLOSE_HOURS,
+  SIGN_UP_QUESTION_MAX,
+} from "@/lib/events/sign-up-fields"
+import { TICKETS_URL_MAX } from "@/lib/events/tickets-url"
 import {
   bulkIdsInput,
   categoryChangeInput,
@@ -35,6 +39,7 @@ import {
   MAX_PLACE_NAME,
   seriesForEdit,
   setEventsFeatured,
+  type EventListTab,
   type EventSeries,
   type EventStatus,
   type EventSummary,
@@ -77,6 +82,8 @@ export type EventsPage = {
   total: number
   page: number
   pageSize: number
+  /** How many each of the Events dashboard's tabs holds. */
+  tabCounts: Record<EventListTab, number>
 }
 
 const idInput = z.string().min(1).max(36)
@@ -94,10 +101,11 @@ const loadEventsPageFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       search: z.string().max(120).optional(),
-      status: z.enum(LISTING_STATUS_FILTERS).optional(),
       sort: z.enum(EVENT_SORT_COLUMNS).optional(),
       direction: z.enum(["asc", "desc"]).optional(),
       days: z.union([z.literal("all"), z.literal(30)]).optional(),
+      tab: z.enum(["upcoming", "past", "draft"]).optional(),
+      categoryId: idInput.optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
     })
@@ -106,24 +114,26 @@ const loadEventsPageFn = createServerFn({ method: "GET" })
     const pageSize = data.limit ?? 50
     const page = data.page ?? 1
     const site = await workspaceIdForRequest(context.user.id)
-    const { events, total } = await listEvents(site, {
+    const { events, total, tabCounts } = await listEvents(site, {
       search: data.search,
-      status: data.status,
+      tab: data.tab,
+      categoryId: data.categoryId,
       sort: data.sort,
       direction: data.direction,
       viewDays: data.days,
       limit: pageSize,
       offset: (page - 1) * pageSize,
     })
-    return { events, total, page, pageSize }
+    return { events, total, page, pageSize, tabCounts }
   })
 
 export function loadEventsPage(input: {
   search?: string
-  status?: EventStatus
   sort?: EventSortColumn
   direction?: "asc" | "desc"
   days?: EventViewRange
+  tab?: EventListTab
+  categoryId?: string
   page?: number
   limit?: number
 }) {
@@ -235,6 +245,16 @@ const updateEventFn = createServerFn({ method: "POST" })
       listingId: idInput.nullable().optional(),
       takesSignUps: z.boolean().optional(),
       seats: z.number().int().min(1).max(MAX_EVENT_SEATS).nullable().optional(),
+      signUpsCloseHours: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_SIGN_UPS_CLOSE_HOURS)
+        .nullable()
+        .optional(),
+      signUpQuestion: z.string().max(SIGN_UP_QUESTION_MAX).optional(),
+      signUpQuestionRequired: z.boolean().optional(),
+      ticketsUrl: z.string().max(TICKETS_URL_MAX).optional(),
       // A tree whose rule is "keep only what is allowed", which the server's
       // cleaner says better than a schema.
       body: z.unknown().optional(),
@@ -281,6 +301,11 @@ export function saveEvent(input: {
   takesSignUps?: boolean
   /** Null for no limit. */
   seats?: number | null
+  /** Null closes sign-ups when the event starts. */
+  signUpsCloseHours?: number | null
+  signUpQuestion?: string
+  signUpQuestionRequired?: boolean
+  ticketsUrl?: string
   body?: unknown
   categoryIds?: string[]
   /** Null stops repeating; left out keeps the repeat as it is. */

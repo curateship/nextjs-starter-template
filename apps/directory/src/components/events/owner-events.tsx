@@ -1,12 +1,19 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { CalendarIcon, MapPinIcon, PlusIcon } from "lucide-react"
+import {
+  CalendarIcon,
+  MapPinIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { FeaturedPlansPopover } from "@/components/directory/featured-plans-popover"
 import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Card,
   CardContent,
@@ -33,8 +40,10 @@ import {
   startEventFeaturedCheckout,
 } from "@/lib/api/directory/featured"
 import {
+  changeMyListingEvent,
   getEventSubmissionErrorMessage,
   sendEventForMyListing,
+  withdrawMyListingEvent,
   type OwnerEvent,
   type OwnerEvents,
 } from "@/lib/api/events/submissions"
@@ -58,6 +67,10 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
  *
  * A published event that has not been and gone has a Feature button, which
  * pays to put it at the top of the Events page until it ends.
+ *
+ * Each event the owner sent can be changed or withdrawn (task events/37,
+ * Part 3), and a published one taking sign-ups lists who is coming, names
+ * and emails (Part 7).
  */
 export function OwnerEventsCard({
   listing,
@@ -66,7 +79,12 @@ export function OwnerEventsCard({
   listing: OwnedListing
   owner: OwnerEvents
 }) {
+  const router = useRouter()
   const [adding, setAdding] = React.useState(false)
+  const [editing, setEditing] = React.useState<OwnerEvent | null>(null)
+  const [withdrawing, setWithdrawing] = React.useState<OwnerEvent | null>(null)
+  const [asking, setAsking] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
   const events = owner.events[listing.listingId] ?? []
   const site = owner.sites[listing.siteId]
   const eventsOn = site?.eventsOn ?? false
@@ -115,6 +133,16 @@ export function OwnerEventsCard({
                     event.eventId !== null &&
                     event.startDate >= (site?.today ?? "")
                   }
+                  canChange={eventsOn && event.status !== "rejected"}
+                  canWithdraw={
+                    event.status === "pending" ||
+                    (event.status === "approved" && !event.withdrawn)
+                  }
+                  onChange={() => setEditing(event)}
+                  onWithdraw={() => {
+                    setWithdrawing(event)
+                    setAsking(true)
+                  }}
                 />
               ))}
             </ul>
@@ -128,12 +156,48 @@ export function OwnerEventsCard({
 
       {site ? (
         <OwnerEventDialog
-          open={adding}
+          open={adding || editing !== null}
           listing={listing}
           today={site.today}
-          onClose={() => setAdding(false)}
+          editing={editing}
+          onClose={() => {
+            setAdding(false)
+            setEditing(null)
+          }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title="Withdraw this event?"
+        description={
+          withdrawing?.status === "pending"
+            ? `${withdrawing.title} is taken out of the queue, and the admin never sees it.`
+            : `${withdrawing?.title} comes off the Events page at once. The admin can put it back.`
+        }
+        confirmLabel="Withdraw"
+        loading={busy}
+        onConfirm={() => {
+          const event = withdrawing
+          if (!event) return
+          dismissErrorToast()
+          setBusy(true)
+          withdrawMyListingEvent(event.id)
+            .then(async (result) => {
+              if (!result.withdrawn) {
+                showErrorToast(result.problem)
+                return
+              }
+              await router.invalidate()
+              setAsking(false)
+            })
+            .catch((error: unknown) =>
+              showErrorToast(getEventSubmissionErrorMessage(error))
+            )
+            .finally(() => setBusy(false))
+        }}
+      />
     </Card>
   )
 }
@@ -148,10 +212,18 @@ function OwnerEventRow({
   event,
   siteUrl,
   canFeature,
+  canChange,
+  canWithdraw,
+  onChange,
+  onWithdraw,
 }: {
   event: OwnerEvent
   siteUrl: string
   canFeature: boolean
+  canChange: boolean
+  canWithdraw: boolean
+  onChange: () => void
+  onWithdraw: () => void
 }) {
   const eventId = event.eventId
   return (
@@ -164,13 +236,16 @@ function OwnerEventRow({
           variant={
             event.status === "pending"
               ? "default"
-              : event.status === "approved"
+              : event.status === "approved" && !event.withdrawn
                 ? "secondary"
                 : "outline"
           }
         >
-          {STATUS_WORDS[event.status]}
+          {event.withdrawn ? "Withdrawn" : STATUS_WORDS[event.status]}
         </Badge>
+        {event.changeWaiting ? (
+          <Badge variant="outline">Change waiting for approval</Badge>
+        ) : null}
         {event.eventSlug ? (
           <a
             href={`${siteUrl}/events/${event.eventSlug}`}
@@ -191,18 +266,66 @@ function OwnerEventRow({
           The admin said: {event.reviewNote}
         </p>
       ) : null}
-      {canFeature && eventId ? (
-        <div className="pt-1">
-          <FeaturedPlansPopover
-            featuredNow={event.featured}
-            noun="event"
-            size="sm"
-            load={() => loadEventFeaturedPurchase(eventId)}
-            start={(planId) => startEventFeaturedCheckout(eventId, planId)}
-          />
+      {event.signUps ? <OwnerWhoIsComing signUps={event.signUps} /> : null}
+      {(canFeature && eventId) || canChange || canWithdraw ? (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {canFeature && eventId ? (
+            <FeaturedPlansPopover
+              featuredNow={event.featured}
+              noun="event"
+              size="sm"
+              load={() => loadEventFeaturedPurchase(eventId)}
+              start={(planId) => startEventFeaturedCheckout(eventId, planId)}
+            />
+          ) : null}
+          {canChange ? (
+            <Button type="button" variant="outline" size="sm" onClick={onChange}>
+              <SettingsIcon />
+              Change
+            </Button>
+          ) : null}
+          {canWithdraw ? (
+            <Button type="button" variant="ghost" size="sm" onClick={onWithdraw}>
+              <Trash2Icon />
+              Withdraw
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </li>
+  )
+}
+
+/**
+ * Who is coming to one of the owner's own events: the count, then each
+ * person's name and email, and their answer to the event's question when they
+ * gave one (Tyler, 19 Nov 2026: "Count, names and emails"). Read only:
+ * taking somebody off stays with the site's admins.
+ */
+function OwnerWhoIsComing({
+  signUps,
+}: {
+  signUps: NonNullable<OwnerEvent["signUps"]>
+}) {
+  const coming = signUps.people.length
+  const count =
+    signUps.seats === null
+      ? `${coming} signed up`
+      : `${coming} of ${signUps.seats} ${signUps.seats === 1 ? "seat" : "seats"} taken`
+  return (
+    <div className="grid gap-1 pt-1">
+      <p className="text-xs font-medium">Who's coming: {count}</p>
+      {coming ? (
+        <ul className="grid gap-0.5 text-xs text-muted-foreground">
+          {signUps.people.map((person) => (
+            <li key={person.email} className="min-w-0 break-words">
+              {person.name}, {person.email}
+              {person.answer ? ` · ${person.answer}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 
@@ -240,11 +363,14 @@ function OwnerEventDialog({
   open,
   listing,
   today,
+  editing,
   onClose,
 }: {
   open: boolean
   listing: OwnedListing
   today: string
+  /** The event being changed, or null to add a new one. */
+  editing: OwnerEvent | null
   onClose: () => void
 }) {
   const router = useRouter()
@@ -253,13 +379,24 @@ function OwnerEventDialog({
   const [tried, setTried] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
-  // Blank each time the window opens, so a second event starts clean.
+  // Blank each time the window opens, so a second event starts clean, or
+  // filled in with what was last sent when an event is being changed.
   const [wasOpen, setWasOpen] = React.useState(open)
   if (wasOpen !== open) {
     setWasOpen(open)
     if (open) {
-      setFields(BLANK)
-      setCoverImage("")
+      setFields(
+        editing
+          ? {
+              title: editing.title,
+              startDate: editing.startDate,
+              startTime: editing.startTime,
+              endTime: editing.endTime ?? "",
+              description: editing.description,
+            }
+          : BLANK
+      )
+      setCoverImage(editing?.coverImage ?? "")
       setTried(false)
     }
   }
@@ -274,8 +411,14 @@ function OwnerEventDialog({
     tried ? (problems[field] ?? null) : null
   const set = (field: keyof Fields, value: string) =>
     setFields((was) => ({ ...was, [field]: value }))
-  const dirty =
-    Object.values(fields).some((value) => value.trim()) || Boolean(coverImage)
+  const dirty = editing
+    ? fields.title !== editing.title ||
+      fields.startDate !== editing.startDate ||
+      fields.startTime !== editing.startTime ||
+      fields.endTime !== (editing.endTime ?? "") ||
+      fields.description !== editing.description ||
+      coverImage !== editing.coverImage
+    : Object.values(fields).some((value) => value.trim()) || Boolean(coverImage)
 
   async function send() {
     dismissErrorToast()
@@ -287,11 +430,13 @@ function OwnerEventDialog({
     }
     setBusy(true)
     try {
-      const result = await sendEventForMyListing({
-        claimId: listing.claimId,
-        ...fields,
-        coverImage,
-      })
+      const result = editing
+        ? await changeMyListingEvent({ id: editing.id, ...fields, coverImage })
+        : await sendEventForMyListing({
+            claimId: listing.claimId,
+            ...fields,
+            coverImage,
+          })
       if (!result.sent) {
         showErrorToast(result.problem)
         return
@@ -312,10 +457,13 @@ function OwnerEventDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add an event</DialogTitle>
+            <DialogTitle>
+              {editing ? `Change ${editing.title}` : "Add an event"}
+            </DialogTitle>
             <DialogDescription>
-              It goes to {listing.siteName}&apos;s admin, and is on the Events
-              page once it is approved.
+              {editing?.status === "approved"
+                ? `The change goes to ${listing.siteName}'s admin. The event stays as it is until the change is approved.`
+                : `It goes to ${listing.siteName}'s admin, and is on the Events page once it is approved.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -418,7 +566,11 @@ function OwnerEventDialog({
               Cancel
             </Button>
             <Button type="button" disabled={busy} onClick={() => void send()}>
-              Send for approval
+              {editing?.status === "approved"
+                ? "Send the change"
+                : editing
+                  ? "Save changes"
+                  : "Send for approval"}
             </Button>
           </DialogFooter>
         </DialogContent>

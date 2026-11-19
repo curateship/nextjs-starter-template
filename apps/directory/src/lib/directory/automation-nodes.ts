@@ -1,6 +1,7 @@
 import {
   BadgeCheckIcon,
   CalendarClockIcon,
+  CalendarPlusIcon,
   InboxIcon,
   MailIcon,
   StoreIcon,
@@ -14,8 +15,9 @@ import { plural } from "@/lib/format/plural"
  * The directory's own starting points on the automation canvas, and the one
  * step that can write about them.
  *
- * Four triggers: a submission arrived, a submission was approved, a claim was
- * approved, and a featured spot ends in some number of days. What starts them
+ * Five triggers: a submission arrived, a submission was approved, a claim was
+ * approved, a featured spot ends in some number of days, and an event was
+ * suggested (task events/37, Part 10). What starts them
  * is `server/directory/automation-events.ts`; this file is how they draw, and
  * the browser reads it.
  *
@@ -36,6 +38,7 @@ export const SUBMISSION_ARRIVED_KIND = "directorySubmissionArrived"
 export const SUBMISSION_APPROVED_KIND = "directorySubmissionApproved"
 export const CLAIM_APPROVED_KIND = "directoryClaimApproved"
 export const FEATURED_ENDING_KIND = "directoryFeaturedEnding"
+export const EVENT_SUGGESTED_KIND = "directoryEventSuggested"
 export const DIRECTORY_EMAIL_KIND = "directoryEmail"
 
 /** How far ahead of a featured spot's end the trigger can look. */
@@ -62,6 +65,7 @@ export const DIRECTORY_TRIGGER_KINDS = [
   SUBMISSION_APPROVED_KIND,
   CLAIM_APPROVED_KIND,
   FEATURED_ENDING_KIND,
+  EVENT_SUGGESTED_KIND,
 ] as const
 
 export type DirectoryTriggerKind = (typeof DIRECTORY_TRIGGER_KINDS)[number]
@@ -72,6 +76,7 @@ export const DIRECTORY_TRIGGER_LABELS: Record<DirectoryTriggerKind, string> = {
   [SUBMISSION_APPROVED_KIND]: "Submission approved",
   [CLAIM_APPROVED_KIND]: "Claim approved",
   [FEATURED_ENDING_KIND]: "Featured spot ending",
+  [EVENT_SUGGESTED_KIND]: "Event suggested",
 }
 
 /**
@@ -88,6 +93,8 @@ export const DIRECTORY_TRIGGER_HINTS: Record<DirectoryTriggerKind, string> = {
     "Starts once when an admin approves somebody's claim on a listing. The person is the new owner, at the address they proved when claiming. The built-in \"you now look after\" email still goes as before.",
   [FEATURED_ENDING_KIND]:
     "Starts once for each featured spot, when it has this many days left. The person is whoever bought the spot. The built-in renewal reminders still go as well, so a flow here can mean the owner gets two emails about the same spot.",
+  [EVENT_SUGGESTED_KIND]:
+    "Starts once for each event that reaches the review queue, from the Suggest an event page or from a listing's owner on My listings. The person is whoever sent it. A change an owner asks for to an event already on the site does not start it. The admins' own email about it still goes as before.",
 }
 
 /** Settings a trigger with nothing to set saves, so its schema is honest. */
@@ -137,6 +144,13 @@ const claimApprovedNode = directoryTrigger(
   BadgeCheckIcon
 )
 
+const eventSuggestedNode = directoryTrigger(
+  EVENT_SUGGESTED_KIND,
+  "trigger-directory-event-suggested",
+  "Starts when somebody suggests an event",
+  CalendarPlusIcon
+)
+
 const featuredEndingNode = defineNode({
   kind: FEATURED_ENDING_KIND,
   palette: {
@@ -179,6 +193,14 @@ export const DIRECTORY_EMAIL_PLACEHOLDERS = [
   {
     token: "{{featuredEndsOn}}",
     meaning: "The day a featured spot ends. Empty for the other triggers",
+  },
+  {
+    token: "{{eventTitle}}",
+    meaning: "The suggested event's name. Empty for the other triggers",
+  },
+  {
+    token: "{{eventWhen}}",
+    meaning: "When the suggested event is on. Empty for the other triggers",
   },
 ] as const
 
@@ -242,5 +264,6 @@ export const DIRECTORY_AUTOMATION_NODES = [
   submissionApprovedNode,
   claimApprovedNode,
   featuredEndingNode,
+  eventSuggestedNode,
   directoryEmailNode,
 ]

@@ -5,6 +5,7 @@ import {
   eventHasStarted,
   eventMomentText,
   isKnownTimeZone,
+  signUpsHaveClosed,
 } from "@/lib/events/event-time"
 import {
   OFFER_ENDS_BEFORE_START_HOURS,
@@ -57,6 +58,7 @@ type OfferContext = {
   seats: number | null
   startDate: string
   startTime: string
+  signUpsCloseHours: number | null
   timeZone: string
   siteUrl: string
 }
@@ -80,6 +82,7 @@ async function offerContext(
       seats: siteEvents.seats,
       startDate: siteEvents.startDate,
       startTime: siteEvents.startTime,
+      signUpsCloseHours: siteEvents.signUpsCloseHours,
       subdomain: customShellWorkspaces.subdomain,
       customDomain: customShellWorkspaces.customDomain,
     })
@@ -106,6 +109,7 @@ async function offerContext(
     seats: row.seats,
     startDate: row.startDate,
     startTime: row.startTime,
+    signUpsCloseHours: row.signUpsCloseHours,
     timeZone: await siteTimeZone(row.siteId, database),
     siteUrl: directorySiteUrl({
       subdomain: row.subdomain,
@@ -301,6 +305,18 @@ async function offerFreeSeats(
 ): Promise<number> {
   const context = await offerContext(eventId, database)
   if (!context) return 0
+  // Once sign-ups have closed nothing new is offered: the host has their
+  // count, and a seat that frees now stays empty rather than moving a person.
+  if (
+    signUpsHaveClosed(
+      context,
+      context.signUpsCloseHours,
+      context.timeZone,
+      at
+    )
+  ) {
+    return 0
+  }
   const expiresAt = holdUntil(context, context.timeZone, at)
   if (!expiresAt) return 0
   // Asked without the lock first. A full event with fifty people waiting is

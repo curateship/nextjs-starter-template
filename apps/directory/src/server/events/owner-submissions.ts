@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 
 import {
   eventSubmissionProblems,
@@ -13,8 +13,9 @@ import { db, type CustomShellDb } from "@/server/db"
 import { featuredEventIds } from "@/server/directory/featured"
 import { directoryClaims, directoryListings } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
-import { eventLinksByIds } from "@/server/events/events"
-import { eventSubmissions } from "@/server/events/schema"
+import { eventLinksByIds, seriesDatesOf } from "@/server/events/events"
+import { saveEventAndDates } from "@/server/events/repeats"
+import { eventSignUps, eventSubmissions } from "@/server/events/schema"
 import {
   hasPendingTwin,
   toSubmission,
@@ -50,10 +51,13 @@ export type OwnerEventInput = Pick<
   coverImage: string
 }
 
-/** The owner's approved claim, with the listing, the site and the account. */
+/**
+ * The owner's approved claim, with the listing, the site and the account,
+ * found by the claim's id or by the listing it is for.
+ */
 async function ownerClaim(
   userId: string,
-  claimId: string,
+  claim: string | { listingId: string },
   database: CustomShellDb
 ) {
   const [row] = await database
@@ -79,13 +83,68 @@ async function ownerClaim(
     )
     .where(
       and(
-        eq(directoryClaims.id, claimId),
+        typeof claim === "string"
+          ? eq(directoryClaims.id, claim)
+          : eq(directoryClaims.listingId, claim.listingId),
         eq(directoryClaims.userId, userId),
         eq(directoryClaims.status, "approved")
       )
     )
     .limit(1)
   return row ?? null
+}
+
+type OwnerClaim = NonNullable<Awaited<ReturnType<typeof ownerClaim>>>
+
+/**
+ * What the owner typed, checked the same way for a new event and for a
+ * change: the Events page's switch, the day and times, and the photo being
+ * one of their own. The answers come back filled in with the place and the
+ * sender from the claim, or a refusal in words.
+ */
+async function checkOwnerInput(
+  userId: string,
+  claim: OwnerClaim,
+  input: OwnerEventInput,
+  database: CustomShellDb,
+  at: Date
+): Promise<
+  | { ok: true; values: EventSubmissionValues; coverImage: string }
+  | { ok: false; problem: string }
+> {
+  if (
+    (await readPageVisibility(claim.workspaceId, "/events", database)) === "off"
+  ) {
+    return {
+      ok: false,
+      problem:
+        "This site has its Events page switched off, so there is nowhere for the event to appear.",
+    }
+  }
+  const today = wallClockAt(
+    await siteTimeZone(claim.workspaceId, database),
+    at
+  ).slice(0, 10)
+  const values: EventSubmissionValues = {
+    ...input,
+    placeName: claim.listingTitle.slice(0, 200),
+    placeAddress: listingAddress(claim.contactLinks),
+    // The owner's place is always their listing, set by its id.
+    placeListing: "",
+    submitterName: claim.name.slice(0, 120),
+    submitterEmail: claim.email,
+  }
+  const first = Object.values(eventSubmissionProblems(values, today))[0]
+  if (first) return { ok: false, problem: first }
+
+  const coverImage = input.coverImage.trim()
+  if (coverImage && !(await isOwnedImageUrl(userId, coverImage, database))) {
+    return {
+      ok: false,
+      problem: "That photo is not one of your uploads. Pick it again.",
+    }
+  }
+  return { ok: true, values, coverImage }
 }
 
 function listingAddress(contactLinks: unknown): string {
@@ -117,37 +176,9 @@ export async function sendOwnerEvent(
       problem: "You do not look after that listing.",
     }
   }
-  if (
-    (await readPageVisibility(claim.workspaceId, "/events", database)) === "off"
-  ) {
-    return {
-      outcome: "refused",
-      problem:
-        "This site has its Events page switched off, so there is nowhere for the event to appear.",
-    }
-  }
-
-  const today = wallClockAt(
-    await siteTimeZone(claim.workspaceId, database),
-    at
-  ).slice(0, 10)
-  const values: EventSubmissionValues = {
-    ...input,
-    placeName: claim.listingTitle.slice(0, 200),
-    placeAddress: listingAddress(claim.contactLinks),
-    submitterName: claim.name.slice(0, 120),
-    submitterEmail: claim.email,
-  }
-  const first = Object.values(eventSubmissionProblems(values, today))[0]
-  if (first) return { outcome: "refused", problem: first }
-
-  const coverImage = input.coverImage.trim()
-  if (coverImage && !(await isOwnedImageUrl(userId, coverImage, database))) {
-    return {
-      outcome: "refused",
-      problem: "That photo is not one of your uploads. Pick it again.",
-    }
-  }
+  const checked = await checkOwnerInput(userId, claim, input, database, at)
+  if (!checked.ok) return { outcome: "refused", problem: checked.problem }
+  const { values, coverImage } = checked
 
   try {
     await enforceRateLimit(
@@ -204,6 +235,236 @@ export async function sendOwnerEvent(
   }
 }
 
+/**
+ * One of this account's own events from My listings, never a change request
+ * and never anybody else's. The claim on its listing has to be approved
+ * still, so a listing that changed hands is out of reach.
+ */
+async function ownersOwnEvent(
+  userId: string,
+  submissionId: string,
+  database: CustomShellDb
+) {
+  const [row] = await database
+    .select()
+    .from(eventSubmissions)
+    .where(
+      and(
+        eq(eventSubmissions.id, submissionId),
+        eq(eventSubmissions.ownerUserId, userId),
+        eq(eventSubmissions.fromOwner, true),
+        isNull(eventSubmissions.changesEventId)
+      )
+    )
+    .limit(1)
+  if (!row?.listingId) return null
+  const claim = await ownerClaim(userId, { listingId: row.listingId }, database)
+  return claim ? { row, claim } : null
+}
+
+const NOT_YOURS = "That is not one of your events any more."
+
+/**
+ * An owner changing an event they sent (task events/37, Part 3).
+ *
+ * - **Still waiting:** the answers are changed where they are, and it keeps
+ *   its place in the queue.
+ * - **Approved:** the change is a request of its own in the same queue,
+ *   because every owner's event is reviewed (`events.md`). The event stays as
+ *   it is until an admin approves the change. A second change while the first
+ *   is waiting replaces it, so the admin reads one.
+ * - **Turned down:** refused. The owner sends it again as a new event.
+ */
+export async function changeOwnerEvent(
+  userId: string,
+  submissionId: string,
+  input: OwnerEventInput,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<EventSubmissionOutcome & { workspaceId?: string; listingTitle?: string }> {
+  const found = await ownersOwnEvent(userId, submissionId, database)
+  if (!found) return { outcome: "refused", problem: NOT_YOURS }
+  const { row, claim } = found
+  if (row.status === "rejected") {
+    return {
+      outcome: "refused",
+      problem: "This one was turned down. Send it again as a new event.",
+    }
+  }
+  const checked = await checkOwnerInput(userId, claim, input, database, at)
+  if (!checked.ok) return { outcome: "refused", problem: checked.problem }
+  const { values, coverImage } = checked
+  const asked = {
+    title: values.title.replace(/\s+/g, " ").trim(),
+    startDate: values.startDate.trim(),
+    startTime: values.startTime.trim(),
+    endTime: values.endTime.trim() || null,
+    description: values.description.trim(),
+    coverImage,
+    updatedAt: now(),
+  }
+
+  if (row.status === "pending") {
+    const [changed] = await database
+      .update(eventSubmissions)
+      .set(asked)
+      .where(
+        and(
+          eq(eventSubmissions.id, row.id),
+          eq(eventSubmissions.status, "pending")
+        )
+      )
+      .returning()
+    if (!changed) {
+      return {
+        outcome: "refused",
+        problem: "An admin has just looked at this one. Open My listings again.",
+      }
+    }
+    return {
+      outcome: "sent",
+      submission: await toSubmission(changed),
+      workspaceId: claim.workspaceId,
+      listingTitle: claim.listingTitle,
+    }
+  }
+
+  if (!row.eventId) return { outcome: "refused", problem: NOT_YOURS }
+  // A withdrawn event is off the site, so there is no live page to change.
+  if ((await eventLinksByIds([row.eventId], database)).get(row.eventId)?.status !== "published") {
+    return {
+      outcome: "refused",
+      problem: "This event is withdrawn, so it is not on the site. Ask the site's admin to publish it again first.",
+    }
+  }
+  try {
+    await enforceRateLimit(
+      `event-owner-submit:${userId}`,
+      { maxAttempts: OWNER_EVENTS_PER_HOUR, windowSeconds: 60 * 60 },
+      database
+    )
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return {
+        outcome: "refused",
+        problem: `You have sent ${OWNER_EVENTS_PER_HOUR} events and changes in the last hour. Please send the rest in an hour.`,
+      }
+    }
+    throw error
+  }
+  const [waiting] = await database
+    .select({ id: eventSubmissions.id })
+    .from(eventSubmissions)
+    .where(
+      and(
+        eq(eventSubmissions.changesEventId, row.eventId),
+        eq(eventSubmissions.status, "pending")
+      )
+    )
+    .limit(1)
+  // Still pending in the same write, so a change an admin approves between
+  // the look above and this one is never rewritten; a new request is made
+  // instead.
+  const [replaced] = waiting
+    ? await database
+        .update(eventSubmissions)
+        .set(asked)
+        .where(and(eq(eventSubmissions.id, waiting.id), eq(eventSubmissions.status, "pending")))
+        .returning()
+    : []
+  const [saved] = replaced
+    ? [replaced]
+    : await database
+        .insert(eventSubmissions)
+        .values({
+          ...asked,
+          id: uuid(),
+          workspaceId: row.workspaceId,
+          placeName: values.placeName,
+          placeAddress: values.placeAddress,
+          submitterName: values.submitterName,
+          submitterEmail: values.submitterEmail.trim().toLowerCase(),
+          fromOwner: true,
+          ownerUserId: userId,
+          listingId: row.listingId,
+          changesEventId: row.eventId,
+          createdAt: asked.updatedAt,
+        })
+        .returning()
+  if (!saved) throw new Error("The change was not saved.")
+  return {
+    outcome: "sent",
+    submission: await toSubmission(saved),
+    workspaceId: claim.workspaceId,
+    listingTitle: claim.listingTitle,
+  }
+}
+
+/**
+ * An owner taking back an event they sent (task events/37, Part 3). A
+ * waiting one leaves the queue. A published one goes back to Draft at once,
+ * because all it does is take the owner's own event down, and any change
+ * still waiting for it goes too. An admin can publish it again. A repeat's
+ * dates still to come go down with it; ones already past stay as a record,
+ * the same rule as any edit to a repeating event.
+ */
+export async function withdrawOwnerEvent(
+  userId: string,
+  submissionId: string,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<{ withdrawn: true } | { withdrawn: false; problem: string }> {
+  const found = await ownersOwnEvent(userId, submissionId, database)
+  if (!found) return { withdrawn: false, problem: NOT_YOURS }
+  const { row } = found
+  if (row.status === "pending") {
+    await database
+      .delete(eventSubmissions)
+      .where(
+        and(
+          eq(eventSubmissions.id, row.id),
+          eq(eventSubmissions.status, "pending")
+        )
+      )
+    return { withdrawn: true }
+  }
+  if (row.status !== "approved" || !row.eventId) {
+    return {
+      withdrawn: false,
+      problem: "This one was turned down, so it is not on the site.",
+    }
+  }
+  const eventId = row.eventId
+  await database.transaction(async (tx) => {
+    // Through the repeat's own save, so an event an admin has since made
+    // repeat takes its dates down with it.
+    await saveEventAndDates(
+      row.workspaceId,
+      eventId,
+      { status: "draft" },
+      tx,
+      at
+    )
+    await tx
+      .delete(eventSubmissions)
+      .where(
+        and(
+          eq(eventSubmissions.changesEventId, eventId),
+          eq(eventSubmissions.status, "pending")
+        )
+      )
+  })
+  return { withdrawn: true }
+}
+
+/** Somebody coming to an owner's event, as My listings lists them. */
+export type OwnerEventPerson = {
+  name: string
+  email: string
+  /** Their answer to the event's question, or empty. */
+  answer: string
+}
+
 /** One of the owner's events as My listings shows it. */
 export type OwnerEvent = {
   id: string
@@ -212,6 +473,9 @@ export type OwnerEvent = {
   startDate: string
   startTime: string
   endTime: string | null
+  /** What the owner last sent, so Change opens filled in. */
+  description: string
+  coverImage: string
   /** The admin's note, shown on a rejected one. */
   reviewNote: string
   /** The event's address once it is published, for a link to its page. */
@@ -222,6 +486,18 @@ export type OwnerEvent = {
   featured: boolean
   /** Views of its page, or null while it has no page. */
   views: EventViews | null
+  /** A change the owner asked for is waiting for an admin. */
+  changeWaiting: boolean
+  /** Approved, then taken back to Draft, so it is not on the site. */
+  withdrawn: boolean
+  /**
+   * Who is coming, for a published event that takes sign-ups (Tyler, 19 Nov
+   * 2026: "Count, names and emails"). Null otherwise.
+   */
+  signUps: {
+    seats: number | null
+    people: OwnerEventPerson[]
+  } | null
   createdAt: Date
 }
 
@@ -254,7 +530,10 @@ export async function ownerEventsFor(
   at: Date = new Date()
 ): Promise<OwnerEvents> {
   const claims = await database
-    .selectDistinct({ workspaceId: directoryClaims.workspaceId })
+    .selectDistinct({
+      workspaceId: directoryClaims.workspaceId,
+      listingId: directoryClaims.listingId,
+    })
     .from(directoryClaims)
     .where(
       and(
@@ -262,9 +541,13 @@ export async function ownerEventsFor(
         eq(directoryClaims.status, "approved")
       )
     )
+  // Who is coming is only for a listing this account still looks after, so
+  // an owner whose listing changed hands stops seeing the people's emails.
+  const stillOwned = new Set(claims.map((claim) => claim.listingId))
   const sites: Record<string, OwnerSite> = {}
+  const siteIds = [...new Set(claims.map((claim) => claim.workspaceId))]
   await Promise.all(
-    claims.map(async ({ workspaceId }) => {
+    siteIds.map(async (workspaceId) => {
       const [visibility, timeZone] = await Promise.all([
         readPageVisibility(workspaceId, "/events", database),
         siteTimeZone(workspaceId, database),
@@ -282,17 +565,70 @@ export async function ownerEventsFor(
     .where(
       and(
         eq(eventSubmissions.ownerUserId, userId),
-        eq(eventSubmissions.fromOwner, true)
+        eq(eventSubmissions.fromOwner, true),
+        isNull(eventSubmissions.changesEventId)
       )
     )
     .orderBy(desc(eventSubmissions.createdAt))
     .limit(500)
 
   const eventIds = rows.map((row) => row.eventId ?? "")
-  const [links, featured] = await Promise.all([
+  const [links, featured, waitingChanges] = await Promise.all([
     eventLinksByIds(eventIds, database),
     featuredEventIds(eventIds, database),
+    database
+      .select({ eventId: eventSubmissions.changesEventId })
+      .from(eventSubmissions)
+      .where(
+        and(
+          eq(eventSubmissions.ownerUserId, userId),
+          eq(eventSubmissions.status, "pending"),
+          isNotNull(eventSubmissions.changesEventId)
+        )
+      ),
   ])
+  const changeWaiting = new Set(waitingChanges.map((row) => row.eventId))
+  // Who is coming, read for this account's own published events only, so an
+  // owner never sees the list of an event somebody else sent.
+  const withSignUps = rows.flatMap((row) => {
+    const link = row.eventId ? links.get(row.eventId) : undefined
+    return row.eventId &&
+      row.listingId &&
+      stillOwned.has(row.listingId) &&
+      link?.status === "published" &&
+      link.takesSignUps
+      ? [row.eventId]
+      : []
+  })
+  const people = new Map<string, OwnerEventPerson[]>()
+  // A repeat's later dates take their own sign-ups, so they count under the
+  // owner's event too.
+  const dateToMain = await seriesDatesOf(withSignUps, database)
+  if (withSignUps.length) {
+    const coming = await database
+      .select({
+        eventId: eventSignUps.eventId,
+        name: eventSignUps.name,
+        email: eventSignUps.email,
+        answer: eventSignUps.answer,
+      })
+      .from(eventSignUps)
+      .where(
+        and(
+          inArray(eventSignUps.eventId, [...withSignUps, ...dateToMain.keys()]),
+          eq(eventSignUps.status, "confirmed"),
+          // Only people the box told the host would see them.
+          eq(eventSignUps.hostTold, true)
+        )
+      )
+      .orderBy(asc(eventSignUps.createdAt), asc(eventSignUps.id))
+    for (const { eventId, ...person } of coming) {
+      const main = dateToMain.get(eventId) ?? eventId
+      const list = people.get(main) ?? []
+      list.push(person)
+      people.set(main, list)
+    }
+  }
   // Only this account's own events reach this point, so the counts are only
   // ever for pages the owner sent. Nobody else's event is counted here.
   const views = await eventViewsForPages(
@@ -319,10 +655,26 @@ export async function ownerEventsFor(
       startDate: row.startDate,
       startTime: row.startTime.slice(0, 5),
       endTime: row.endTime ? row.endTime.slice(0, 5) : null,
+      description: row.description,
+      coverImage: row.coverImage,
       reviewNote: row.status === "rejected" ? row.reviewNote : "",
       eventSlug: published ? link.slug : null,
       eventId: published ? row.eventId : null,
       featured: published && featured.has(row.eventId ?? ""),
+      changeWaiting: changeWaiting.has(row.eventId),
+      withdrawn: row.status === "approved" && link?.status === "draft",
+      signUps:
+        published &&
+        link.takesSignUps &&
+        row.eventId &&
+        stillOwned.has(row.listingId)
+          ? {
+              // Each date of a repeat has its own seats, so one count
+              // against them all would mislead; it reads "N signed up".
+              seats: [...dateToMain.values()].includes(row.eventId) ? null : link.seats,
+              people: people.get(row.eventId) ?? [],
+            }
+          : null,
       // A published page with no traffic yet reads as 0, not as nothing.
       views: published
         ? (views.get(eventViewsKey(row.workspaceId, link.slug)) ?? {

@@ -12,8 +12,10 @@ import {
   type SignUpAnswer,
 } from "@/lib/api/events/sign-ups"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
+import { formatWallClock } from "@/lib/events/event-time"
 import {
   placeInQueue,
+  SIGN_UP_ANSWER_MAX,
   SIGN_UP_EMAIL_MAX,
   SIGN_UP_NAME_MAX,
   SIGN_UP_TRAP,
@@ -25,6 +27,11 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 function seatsLine(box: SignUpBoxState): string | null {
   if (box.seats === null || box.left === null) return null
   return `${box.left} of ${box.seats} ${box.seats === 1 ? "seat" : "seats"} left`
+}
+
+/** "Sign-ups close Thu, Nov 20, 2:00 PM." from the site's wall clock. */
+function closesLine(closesAt: string): string {
+  return `Sign-ups close ${formatWallClock(closesAt)}.`
 }
 
 /** What the box says once the server has answered, or null before it has. */
@@ -56,26 +63,41 @@ export function SignUpBox({
   const router = useRouter()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
+  const [answerText, setAnswerText] = React.useState("")
   const [trap, setTrap] = React.useState("")
-  const [touched, setTouched] = React.useState({ name: false, email: false })
+  const [touched, setTouched] = React.useState({
+    name: false,
+    email: false,
+    answer: false,
+  })
   const [sending, setSending] = React.useState(false)
   /** The server's answer, kept so the box can say what it did. */
   const [answer, setAnswer] = React.useState<SignUpAnswer | null>(null)
 
   const nameWrong = touched.name && !name.trim()
   const emailWrong = touched.email && !looksLikeEmail(email)
+  const answerMissing = box.questionRequired && !answerText.trim()
+  const answerWrong = touched.answer && answerMissing
 
   async function send() {
     dismissErrorToast()
-    setTouched({ name: true, email: true })
-    const problem = signUpProblem({ name, email })
+    setTouched({ name: true, email: true, answer: true })
+    const problem =
+      signUpProblem({ name, email }) ??
+      (answerMissing ? `Answer "${box.question}" to sign up.` : null)
     if (problem) {
       showErrorToast(problem)
       return
     }
     setSending(true)
     try {
-      const result = await signUp({ eventId, name, email, trap })
+      const result = await signUp({
+        eventId,
+        name,
+        email,
+        answer: box.question ? answerText : undefined,
+        trap,
+      })
       if (result.done === false) showErrorToast(result.problem)
       else setAnswer(result)
       // The seats left, read again: one has just gone, or a refusal such as
@@ -114,6 +136,11 @@ export function SignUpBox({
         <p role="status" className="text-sm text-muted-foreground">
           {status}
         </p>
+        {asking && box.closesAt ? (
+          <p className="text-sm text-muted-foreground">
+            {closesLine(box.closesAt)}
+          </p>
+        ) : null}
       </div>
 
       {!asking ? null : (
@@ -170,10 +197,37 @@ export function SignUpBox({
               onChange={(event) => setEmail(event.target.value)}
             />
           </div>
-          <Button type="submit" disabled={sending} className="w-fit">
+          {box.question ? (
+            <div className="grid gap-2 sm:col-span-2">
+              <FieldLabel htmlFor="sign-up-answer">
+                {box.questionRequired
+                  ? box.question
+                  : `${box.question} (optional)`}
+              </FieldLabel>
+              <Input
+                id="sign-up-answer"
+                maxLength={SIGN_UP_ANSWER_MAX}
+                value={answerText}
+                disabled={sending}
+                aria-invalid={answerWrong}
+                onBlur={() => setTouched((was) => ({ ...was, answer: true }))}
+                onChange={(event) => setAnswerText(event.target.value)}
+              />
+            </div>
+          ) : null}
+          <Button
+            type="submit"
+            disabled={sending}
+            className="w-fit sm:col-start-3 sm:row-start-1"
+          >
             {sending ? <Loader2Icon className="size-4 animate-spin" /> : null}
             {box.waitingList ? "Join the waiting list" : "Sign up"}
           </Button>
+          {box.hostSees ? (
+            <p className="text-sm text-muted-foreground sm:col-span-3">
+              The host sees your name and email.
+            </p>
+          ) : null}
         </form>
       )}
     </section>

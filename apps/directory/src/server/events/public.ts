@@ -9,6 +9,8 @@ import {
   inArray,
   isNull,
   lte,
+  ne,
+  not,
   or,
   sql,
   type SQL,
@@ -127,6 +129,12 @@ export type PublicEventCard = EventWhen & {
    */
   going: number
   /**
+   * Every seat is taken, a seat held for somebody on the waiting list
+   * included, so the card says "Full" instead of offering RSVP. Up to two
+   * minutes behind, like `going`.
+   */
+  full: boolean
+  /**
    * The category the card names, the event's primary one if it has one and
    * otherwise the first by name. Null when the event is in none.
    */
@@ -145,6 +153,7 @@ const eventCardColumns = {
   endDate: siteEvents.endDate,
   endTime: siteEvents.endTime,
   takesSignUps: siteEvents.takesSignUps,
+  seats: siteEvents.seats,
 }
 
 function toEventCard(row: {
@@ -159,9 +168,10 @@ function toEventCard(row: {
   endDate: string | null
   endTime: string | null
   takesSignUps: boolean
+  seats: number | null
   distanceKm?: number | null
   featured?: boolean
-}): PublicEventCard {
+}): PublicEventCard & { seats: number | null } {
   const { distanceKm, featured, ...event } = row
   return {
     ...event,
@@ -170,10 +180,20 @@ function toEventCard(row: {
     // Filled in by `withCategoriesAndGoing`, which every list of cards runs
     // before handing them out.
     going: 0,
+    full: false,
     category: null,
     ...(distanceKm == null ? {} : { distanceKm }),
     ...(featured === undefined ? {} : { featured }),
   }
+}
+
+/** A card as it leaves the server: the seat count is only read for `full`. */
+function withoutSeats(
+  card: PublicEventCard & { seats: number | null }
+): PublicEventCard {
+  const { seats, ...rest } = card
+  void seats
+  return rest
 }
 
 /**
@@ -183,10 +203,10 @@ function toEventCard(row: {
  */
 async function withCategoriesAndGoing(
   siteId: string,
-  cards: PublicEventCard[],
+  cards: (PublicEventCard & { seats: number | null })[],
   database: CustomShellDb
 ): Promise<PublicEventCard[]> {
-  if (cards.length === 0) return cards
+  if (cards.length === 0) return []
   const ids = cards.map((card) => card.id)
   const signUpIds = cards
     .filter((card) => card.takesSignUps)
@@ -219,13 +239,14 @@ async function withCategoriesAndGoing(
       : database
           .select({
             eventId: eventSignUps.eventId,
-            going: sql<number>`count(*)::int`,
+            going: sql<number>`count(*) filter (where ${eventSignUps.status} = 'confirmed')::int`,
+            held: sql<number>`count(*)::int`,
           })
           .from(eventSignUps)
           .where(
             and(
               inArray(eventSignUps.eventId, signUpIds),
-              eq(eventSignUps.status, "confirmed")
+              inArray(eventSignUps.status, ["confirmed", "offered"])
             )
           )
           .groupBy(eventSignUps.eventId),
@@ -237,13 +258,18 @@ async function withCategoriesAndGoing(
       category.set(row.contentId, { name: row.name, slug: row.slug })
     }
   }
-  const going = new Map(goingRows.map((row) => [row.eventId, row.going]))
+  const counts = new Map(goingRows.map((row) => [row.eventId, row]))
 
-  return cards.map((card) => ({
-    ...card,
-    category: category.get(card.id) ?? null,
-    going: going.get(card.id) ?? 0,
-  }))
+  return cards.map(({ seats, ...card }) => {
+    const count = counts.get(card.id)
+    return {
+      ...card,
+      category: category.get(card.id) ?? null,
+      going: count?.going ?? 0,
+      full:
+        card.takesSignUps && seats !== null && (count?.held ?? 0) >= seats,
+    }
+  })
 }
 
 /** Soonest first, with the id breaking ties so pages never overlap. */
@@ -251,6 +277,13 @@ const soonestFirst = [
   asc(siteEvents.startDate),
   asc(siteEvents.startTime),
   asc(siteEvents.id),
+]
+
+/** The Past list's order: the one that ended last first. */
+const newestFirst = [
+  desc(siteEvents.startDate),
+  desc(siteEvents.startTime),
+  desc(siteEvents.id),
 ]
 
 export type PublicEvent = EventWhen & {
@@ -275,6 +308,15 @@ export type PublicEvent = EventWhen & {
    * listing, or the typed address as looked up. Null draws no map.
    */
   position: { latitude: number; longitude: number } | null
+  /** Where tickets are sold, drawn as "Get tickets". Empty for none. */
+  ticketsUrl: string
+  /**
+   * The repeat this date belongs to: its main event's id, or its own when it
+   * is the main event or does not repeat. Read for "Also on".
+   */
+  seriesKey: string
+  /** The listing the place is, published or not, for "Also at". */
+  listingId: string | null
 }
 
 export type PublicEventPage = {
@@ -443,6 +485,9 @@ async function readPublicEventUncached(
         found.latitude !== null && found.longitude !== null
           ? { latitude: found.latitude, longitude: found.longitude }
           : null,
+      ticketsUrl: event.ticketsUrl,
+      seriesKey: event.seriesId ?? event.id,
+      listingId: event.listingId,
     },
     timeZone,
     listingCards,
@@ -579,9 +624,16 @@ export function readUpcomingEvents(
     radius?: number
     featured?: boolean
     q?: string
+    /**
+     * Events that are over, newest first, for the Events page's Past list.
+     * The dates and the distance are the upcoming list's own, so they are
+     * left out with it.
+     */
+    past?: boolean
   } = {}
 ): Promise<UpcomingEvents> {
   const [nowDay = "", nowTime = ""] = now.split("T")
+  const past = only.past ?? false
   const placeId = only.placeId ?? null
   const categoryId = only.categoryId ?? null
   const from = only.from ?? null
@@ -605,6 +657,7 @@ export function readUpcomingEvents(
       radius,
       featured,
       q: query,
+      past,
     },
     async () => {
       const distanceKm = near
@@ -617,7 +670,7 @@ export function readUpcomingEvents(
           site.id,
           nowDay,
           nowTime,
-          { placeId, categoryId, distanceKm, radius, query },
+          { placeId, categoryId, distanceKm, radius, query, past },
           database
         ),
         to ? lte(siteEvents.startDate, to) : undefined,
@@ -634,8 +687,12 @@ export function readUpcomingEvents(
           .leftJoin(directoryListings, listingOfEvent)
           .where(where)
           .orderBy(
-            ...(featured ? [desc(pinnedToTop(nowDay, nowTime))] : []),
-            ...soonestFirst
+            ...(past
+              ? newestFirst
+              : [
+                  ...(featured ? [desc(pinnedToTop(nowDay, nowTime))] : []),
+                  ...soonestFirst,
+                ])
           )
           .limit(EVENTS_PAGE_SIZE)
           .offset((page - 1) * EVENTS_PAGE_SIZE),
@@ -657,6 +714,203 @@ export function readUpcomingEvents(
         page,
         pageSize: EVENTS_PAGE_SIZE,
       }
+    }
+  )
+}
+
+/** One upcoming event as a pin on the Events page's map. */
+export type EventMapPin = EventWhen & {
+  id: string
+  title: string
+  slug: string
+  placeName: string
+  latitude: number
+  longitude: number
+}
+
+/** The most pins one map draws; the rest are said out loud. */
+const MAX_EVENT_PINS = 200
+
+/**
+ * The upcoming list's events as pins, for the Events page's map (task
+ * events/37, Part 11): the same filters as the list, soonest first, up to
+ * 200. `total` is how many of them have a place on the map, and `unplaced`
+ * how many match but have none, so the page can say they are missing.
+ */
+export function readEventPins(
+  site: VisitorSite,
+  now: string,
+  database: CustomShellDb = db,
+  only: {
+    placeId?: string
+    categoryId?: string
+    from?: string
+    to?: string
+    near?: DirectoryNearPoint
+    radius?: number
+    q?: string
+  } = {}
+): Promise<{ pins: EventMapPin[]; total: number; unplaced: number }> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  const placeId = only.placeId ?? null
+  const categoryId = only.categoryId ?? null
+  const from = only.from ?? null
+  const to = only.to ?? null
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
+  const query = only.q?.trim() || null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event-pins",
+    {
+      now,
+      placeId,
+      categoryId,
+      from,
+      to,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
+      q: query,
+    },
+    async () => {
+      const distanceKm = near
+        ? distanceKmFrom(near, livePlaceLatitude, livePlaceLongitude).mapWith(
+            Number
+          )
+        : null
+      const where = and(
+        eventsNarrowedBy(
+          site.id,
+          nowDay,
+          nowTime,
+          { placeId, categoryId, distanceKm, radius, query },
+          database
+        ),
+        to ? lte(siteEvents.startDate, to) : undefined,
+        from ? gte(lastDayOfEvent, from) : undefined
+      )
+      const placed = sql`${livePlaceLatitude} is not null`
+      const [rows, [countRow]] = await Promise.all([
+        database
+          .select({
+            id: siteEvents.id,
+            title: siteEvents.title,
+            slug: siteEvents.slug,
+            placeName: livePlaceName,
+            startDate: siteEvents.startDate,
+            startTime: siteEvents.startTime,
+            endDate: siteEvents.endDate,
+            endTime: siteEvents.endTime,
+            latitude: livePlaceLatitude,
+            longitude: livePlaceLongitude,
+          })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(and(where, placed))
+          .orderBy(...soonestFirst)
+          .limit(MAX_EVENT_PINS),
+        database
+          .select({
+            total: sql<number>`count(*) filter (where ${placed})::int`,
+            unplaced: sql<number>`count(*) filter (where not (${placed}))::int`,
+          })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(where),
+      ])
+      return {
+        pins: rows.flatMap((row) =>
+          row.latitude === null || row.longitude === null
+            ? []
+            : [
+                {
+                  ...row,
+                  latitude: Number(row.latitude),
+                  longitude: Number(row.longitude),
+                  startTime: toClock(row.startTime),
+                  endTime: row.endTime ? toClock(row.endTime) : null,
+                },
+              ]
+        ),
+        total: countRow?.total ?? 0,
+        unplaced: countRow?.unplaced ?? 0,
+      }
+    }
+  )
+}
+
+/** A short row under an event's page: "Also on" or "Also at". */
+export type EventNeighbour = EventWhen & {
+  id: string
+  title: string
+  slug: string
+}
+
+/** How many rows "Also on" and "Also at" each show. */
+const EVENT_NEIGHBOURS = { dates: 5, atPlace: 3 }
+
+/**
+ * The rows under an event's page (task events/37, Parts 5 and 9): the next
+ * dates of the same repeat, and the next events at the same listing, leaving
+ * out the event itself and its own dates. Only listed events that are not
+ * over yet, soonest first. `now` is the site's wall clock, so an answer is
+ * cached for a minute at most, the same as the Events page's list.
+ */
+export function readEventNeighbours(
+  site: VisitorSite,
+  event: { id: string; seriesKey: string; listingId: string | null },
+  now: string,
+  database: CustomShellDb = db
+): Promise<{ dates: EventNeighbour[]; atPlace: EventNeighbour[] }> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event-neighbours",
+    { now, ...event },
+    async () => {
+      const columns = {
+        id: siteEvents.id,
+        title: siteEvents.title,
+        slug: siteEvents.slug,
+        startDate: siteEvents.startDate,
+        startTime: siteEvents.startTime,
+        endDate: siteEvents.endDate,
+        endTime: siteEvents.endTime,
+      }
+      const sameSeries = sql`coalesce(${siteEvents.seriesId}, ${siteEvents.id}) = ${event.seriesKey}`
+      const listed = and(
+        listedEventsOnSite(site.id),
+        notOverAt(nowDay, nowTime),
+        ne(siteEvents.id, event.id)
+      )
+      const [dates, atPlace] = await Promise.all([
+        database
+          .select(columns)
+          .from(siteEvents)
+          .where(and(listed, sameSeries))
+          .orderBy(...soonestFirst)
+          .limit(EVENT_NEIGHBOURS.dates),
+        event.listingId
+          ? database
+              .select(columns)
+              .from(siteEvents)
+              .where(
+                and(
+                  listed,
+                  eq(siteEvents.listingId, event.listingId),
+                  not(sameSeries)
+                )
+              )
+              .orderBy(...soonestFirst)
+              .limit(EVENT_NEIGHBOURS.atPlace)
+          : [],
+      ])
+      const asRow = (row: (typeof dates)[number]): EventNeighbour => ({
+        ...row,
+        startTime: toClock(row.startTime),
+        endTime: row.endTime ? toClock(row.endTime) : null,
+      })
+      return { dates: dates.map(asRow), atPlace: atPlace.map(asRow) }
     }
   )
 }
@@ -696,12 +950,14 @@ function eventsNarrowedBy(
     distanceKm: SQL<number> | null
     radius: number | null
     query: string | null
+    /** Events that are over instead, for the Past list (task events/37). */
+    past?: boolean
   },
   database: CustomShellDb
 ) {
   return and(
     listedEventsOnSite(siteId),
-    notOverAt(nowDay, nowTime),
+    only.past ? not(notOverAt(nowDay, nowTime)!) : notOverAt(nowDay, nowTime),
     only.placeId ? eq(siteEvents.listingId, only.placeId) : undefined,
     only.categoryId ? inCategory(siteId, only.categoryId, database) : undefined,
     // No position measures as null, and null is never within the radius.
@@ -717,7 +973,15 @@ export type EventDayWindow = { from?: string; to?: string }
  * How many events each date chip would show, in the chips' own order.
  * `anyTime` is every event that is not over, with the dates left out.
  */
-export type EventWindowCounts = { anyTime: number; windows: number[] }
+export type EventWindowCounts = {
+  anyTime: number
+  windows: number[]
+  /**
+   * Events that are over, with the place, category and typed words, for the
+   * Past chip. The distance belongs to the upcoming list, so it is left out.
+   */
+  past: number
+}
 
 /**
  * The number beside each date chip on the Events page: how many events that
@@ -780,15 +1044,38 @@ export function readEventDateCounts(
           )})::int`,
         ])
       )
-      const [row] = await database
-        .select({ total: sql<number>`count(*)::int`, ...counted })
-        .from(siteEvents)
-        .leftJoin(directoryListings, listingOfEvent)
-        .where(where)
+      const [[row], [pastRow]] = await Promise.all([
+        database
+          .select({ total: sql<number>`count(*)::int`, ...counted })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(where),
+        database
+          .select({ total: sql<number>`count(*)::int` })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(
+            eventsNarrowedBy(
+              site.id,
+              nowDay,
+              nowTime,
+              {
+                placeId,
+                categoryId,
+                distanceKm: null,
+                radius: null,
+                query,
+                past: true,
+              },
+              database
+            )
+          ),
+      ])
       const read = (key: string) => Number(row?.[key as "total"] ?? 0)
       return {
         anyTime: read("total"),
         windows: windows.map((_, index) => read(`w${index}`)),
+        past: pastRow?.total ?? 0,
       }
     }
   )
@@ -982,7 +1269,7 @@ export function readEventsBetween(
       // would be two large queries for two fields nothing draws.
       return from === to
         ? withCategoriesAndGoing(site.id, cards, database)
-        : cards
+        : cards.map(withoutSeats)
     }
   )
 }

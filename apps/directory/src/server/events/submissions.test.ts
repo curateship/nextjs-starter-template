@@ -26,6 +26,7 @@ import {
   type EventSubmissionValues,
 } from "@/lib/events/event-submission-fields"
 import { postBodyText } from "@/lib/posts/post-body"
+import { createListing, updateListing } from "@/server/directory/listings"
 import { findEvent } from "@/server/events/events"
 import { eventSubmissions } from "@/server/events/schema"
 import {
@@ -471,5 +472,43 @@ describe("the queue", () => {
         )
       ).total
     ).toBe(0)
+  })
+})
+
+describe("a place picked from the directory", () => {
+  it("makes the listing the place, and the approved event keeps it", async () => {
+    const rex = await createListing(siteId, { title: "The Rex Hotel" }, database)
+    await updateListing(siteId, rex.id, { status: "published" }, database)
+    const submission = await sent({
+      placeName: "rex",
+      placeAddress: "typed, but not kept",
+      placeListing: rex.slug,
+    })
+    expect(submission).toMatchObject({
+      listingId: rex.id,
+      placeName: "The Rex Hotel",
+      placeAddress: "",
+    })
+    const { eventId } = await reviewEventSubmission(
+      siteId,
+      submission.id,
+      { decision: "approve", reviewerId },
+      database
+    )
+    expect((await findEvent(siteId, eventId!, database))?.listingId).toBe(rex.id)
+  })
+
+  it("keeps the typed place when the listing is a draft or another site's", async () => {
+    const draft = await createListing(siteId, { title: "Not yet" }, database)
+    const elsewhere = await createListing(otherSiteId, { title: "Far away" }, database)
+    await updateListing(otherSiteId, elsewhere.id, { status: "published" }, database)
+    for (const slug of [draft.slug, elsewhere.slug]) {
+      const submission = await sent({ title: `Gig at ${slug}`, placeListing: slug })
+      expect(submission).toMatchObject({
+        listingId: null,
+        placeName: "The Rex",
+        placeAddress: "194 Queen St W, Toronto",
+      })
+    }
   })
 })

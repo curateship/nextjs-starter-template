@@ -148,6 +148,8 @@ export type DirectoryFrontPageEvent = EventWhen & {
   placeName: string
   takesSignUps: boolean
   going: number
+  /** Every seat is taken, so the card says "Full" in place of RSVP. */
+  full: boolean
   category: { name: string; slug: string } | null
 }
 

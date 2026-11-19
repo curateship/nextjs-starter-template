@@ -17,6 +17,7 @@ import { automationPaletteItems } from "@/lib/automations/node-registry"
 import {
   CLAIM_APPROVED_KIND,
   DIRECTORY_EMAIL_KIND,
+  EVENT_SUGGESTED_KIND,
   FEATURED_ENDING_KIND,
   SUBMISSION_APPROVED_KIND,
   SUBMISSION_ARRIVED_KIND,
@@ -27,6 +28,7 @@ import { runAutomationTick } from "@/server/automations/engine"
 import {
   fillDirectoryEmail,
   fireDirectoryEvent,
+  fireEventSuggested,
   scanFeaturedEndingTriggers,
 } from "@/server/directory/automation-events"
 import { reviewClaim } from "@/server/directory/claims"
@@ -165,13 +167,14 @@ async function pendingClaim(siteId: string, listingId: string) {
 }
 
 describe("the canvas", () => {
-  it("offers all four starting points, each with a one-line description", () => {
+  it("offers all five starting points, each with a one-line description", () => {
     const items = automationPaletteItems()
     for (const key of [
       "trigger-directory-submission-arrived",
       "trigger-directory-submission-approved",
       "trigger-directory-claim-approved",
       "trigger-directory-featured-ending",
+      "trigger-directory-event-suggested",
     ]) {
       const item = items.find((candidate) => candidate.key === key)
       expect(item?.group).toBe("Triggers")
@@ -312,6 +315,39 @@ describe("a submission", () => {
       /\/directory\/corner-bakery$/
     )
     expect(listingId).toBeTruthy()
+  })
+})
+
+describe("an event suggested", () => {
+  it("starts this site's flow once, with the event and the sender", async () => {
+    const flow = await insertFlow(alpha, EVENT_SUGGESTED_KIND)
+    const suggestion = {
+      id: uuid(),
+      workspaceId: alpha,
+      title: "Night market",
+      when: "Sat, Oct 3 · 6:00 PM",
+      placeName: "The Square",
+      submitterEmail: "Organiser@Example.test",
+      submitterName: "Kim Lee",
+      listingId: null,
+    }
+    expect(await fireEventSuggested(suggestion, database)).toBe(1)
+    expect(await fireEventSuggested(suggestion, database)).toBe(0)
+    const [run] = await runsOf(flow.id)
+    expect(run.triggerFacts).toMatchObject({
+      name: "Kim Lee",
+      email: "organiser@example.test",
+      listingTitle: "The Square",
+      eventTitle: "Night market",
+      eventWhen: "Sat, Oct 3 · 6:00 PM",
+    })
+    expect(
+      await fireEventSuggested({ ...suggestion, id: uuid(), workspaceId: beta }, database)
+    ).toBe(0)
+  })
+
+  it("leaves the event words empty in another trigger's email", () => {
+    expect(fillDirectoryEmail("{{eventTitle}}|{{eventWhen}}", { name: "A" })).toBe("|")
   })
 })
 

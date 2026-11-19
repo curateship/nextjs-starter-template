@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  SIGN_UP_ANSWER_MAX,
   SIGN_UP_EMAIL_MAX,
   SIGN_UP_NAME_MAX,
 } from "@/lib/events/sign-up-fields"
@@ -10,6 +11,7 @@ import { findCurrentUser } from "@/server/auth/security"
 import { visitorSite } from "@/server/directory/public"
 import { eventsAccessFor } from "@/server/events/public"
 import {
+  addSignUpByHand,
   listSignUps,
   listWaitingList,
   removeSignUp,
@@ -46,6 +48,7 @@ const signUpFn = createServerFn({ method: "POST" })
       // refused with a message about a schema.
       name: z.string().max(SIGN_UP_NAME_MAX * 2),
       email: z.string().max(SIGN_UP_EMAIL_MAX * 2),
+      answer: z.string().max(SIGN_UP_ANSWER_MAX * 2).optional(),
       trap: z.string().max(500),
     })
   )
@@ -69,7 +72,7 @@ const signUpFn = createServerFn({ method: "POST" })
     const result = await signUpForEvent(
       site.id,
       data.eventId,
-      { name: data.name, email: data.email },
+      { name: data.name, email: data.email, answer: data.answer },
       { ip: requestIp() }
     )
     switch (result.outcome) {
@@ -103,9 +106,63 @@ export function signUp(input: {
   eventId: string
   name: string
   email: string
+  /** The answer to the event's own question, when it asks one. */
+  answer?: string
   trap: string
 }) {
   return signUpFn({ data: input })
+}
+
+const addSignUpFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      eventId: z.string().min(1).max(36),
+      name: z.string().max(SIGN_UP_NAME_MAX * 2),
+      email: z.string().max(SIGN_UP_EMAIL_MAX * 2),
+      answer: z.string().max(SIGN_UP_ANSWER_MAX * 2).optional(),
+      whenFull: z.enum(["over", "waiting"]).optional(),
+    })
+  )
+  .handler(async ({ data, context }): Promise<AddByHandAnswer> => {
+    const site = await workspaceIdForRequest(context.user.id)
+    const { eventId, ...person } = data
+    const result = await addSignUpByHand(site, eventId, person)
+    // The refusal is written for the admin, so it comes back as words
+    // rather than as an error the toast would replace with a fallback.
+    if (result.outcome === "refused") {
+      return { state: "refused", problem: result.problem }
+    }
+    if (result.outcome === "full") return { state: "full" }
+    const [signUps, waitingList] = await Promise.all([
+      listSignUps(site, eventId),
+      listWaitingList(site, eventId),
+    ])
+    return { state: "added", lists: { signUps, waitingList } }
+  })
+
+/**
+ * Both lists as they are now, "full" so the admin can choose, or why the
+ * person was not added.
+ */
+export type AddByHandAnswer =
+  | { state: "added"; lists: EventLists }
+  | { state: "full" }
+  | { state: "refused"; problem: string }
+
+/**
+ * Adds somebody to an event's list from Admin → Events, for a phone booking.
+ * A full event answers `full` until `whenFull` says to add them over the
+ * limit or put them on the waiting list.
+ */
+export function addEventSignUp(input: {
+  eventId: string
+  name: string
+  email: string
+  answer?: string
+  whenFull?: "over" | "waiting"
+}) {
+  return addSignUpFn({ data: input })
 }
 
 const removeSignUpFn = createServerFn({ method: "POST" })

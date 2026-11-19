@@ -20,10 +20,12 @@ import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
  * address: `?view=month&month=2026-10`, or `?day=2026-10-03`, or `?page=2`,
  * or `?place=the-rex` for the events held at one listing. `?category=` works
  * on every view. `?when=weekend`, or `?from=` and `?to=`, narrow the list, and
- * so does `?near=43.653,-79.383&radius=5&area=Toronto`.
+ * so does `?near=43.653,-79.383&radius=5&area=Toronto`. `?view=map` draws the
+ * list's events as pins, with the same filters, and `?list=past` swaps the
+ * list for the events that are over (task events/37).
  */
 
-export const EVENT_VIEWS = ["list", "month"] as const
+export const EVENT_VIEWS = ["list", "month", "map"] as const
 
 export type EventView = (typeof EVENT_VIEWS)[number]
 
@@ -47,9 +49,20 @@ export const EVENTS_PER_DAY_CELL = 3
 /** One day's list is never paged; a day with more than this is cut here. */
 export const MAX_EVENTS_ON_A_DAY = 100
 
+/** The list's other half: events that are over, newest first. */
+export const EVENT_LISTS = ["past"] as const
+
+export type EventList = (typeof EVENT_LISTS)[number]
+
 export type EventsPageSearch = {
   /** Absent means the list, which is what the page opens on. */
   view?: EventView
+  /**
+   * List only. "past" lists the events that are over instead of the ones to
+   * come, and then the dates and the distance, which are the upcoming
+   * list's, are left out.
+   */
+  list?: EventList
   /** "2026-10", month view only. Absent means the site's current month. */
   month?: string
   /** "2026-10-03": the list narrowed to that one day. */
@@ -164,6 +177,22 @@ export function readEventsSearch(
     }
   }
   if (isValidDateString(search.day)) return { day: search.day, category }
+  const filters = {
+    place: readSlug(search.place),
+    q: readSearchText(search.q),
+    category,
+  }
+  if (readOneOf(search.view, EVENT_VIEWS) === "map") {
+    return {
+      view: "map",
+      ...filters,
+      ...readEventDateFilter(search),
+      ...readEventNear(search),
+    }
+  }
+  if (readOneOf(search.list, EVENT_LISTS) === "past") {
+    return { list: "past", page: readPage(search.page), ...filters }
+  }
   return {
     page: readPage(search.page),
     place: readSlug(search.place),
@@ -225,6 +254,7 @@ export function eventDateFilterText(search: EventDateSearch): string {
 /** The list's address for a search, leaving out what is the default. */
 export function eventsListHref(search: EventsPageSearch): string {
   const params = new URLSearchParams()
+  if (search.list) params.set("list", search.list)
   if (search.place) params.set("place", search.place)
   if (search.q) params.set("q", search.q)
   if (search.category) params.set("category", search.category)

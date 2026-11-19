@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router"
-import { CalendarDaysIcon, ListIcon } from "lucide-react"
+import { CalendarDaysIcon, ListIcon, MapIcon } from "lucide-react"
 
-import type { EventView } from "@/lib/events/events-page"
+import type { EventView, EventsPageSearch } from "@/lib/events/events-page"
 import { segmentClass } from "@/lib/layout/segmented"
 
 const VIEWS: { view: EventView; label: string; Icon: typeof ListIcon }[] = [
   { view: "list", label: "List", Icon: ListIcon },
   { view: "month", label: "Month", Icon: CalendarDaysIcon },
+  { view: "map", label: "Map", Icon: MapIcon },
 ]
 
 /**
@@ -15,18 +16,23 @@ const VIEWS: { view: EventView; label: string; Icon: typeof ListIcon }[] = [
  * back to with Back.
  *
  * Switching from one day's list to the month opens that day's month. A
- * category filter comes along; a date filter and a place stay with the list.
+ * category filter comes along everywhere. The list and the map share the
+ * rest of their filters (the words, the dates, the place and the distance),
+ * so switching between those two keeps them; the month drops them.
  */
 export function EventViewSwitch({
   current,
   month,
   category,
+  filters,
 }: {
   current: EventView
   /** "2026-10", the month the month view should open on, if not this one. */
   month?: string
-  /** The category the page is narrowed to, kept on both views. */
+  /** The category the page is narrowed to, kept on every view. */
   category?: string
+  /** The list's and the map's own filters, kept between the two. */
+  filters?: EventsPageSearch
 }) {
   return (
     <div
@@ -38,7 +44,13 @@ export function EventViewSwitch({
         <Link
           key={view}
           to="/events"
-          search={view === "month" ? { view, month, category } : { category }}
+          search={
+            view === "month"
+              ? { view, month, category }
+              : view === "map"
+                ? { view, ...filters, category }
+                : { ...filters, category }
+          }
           // Only an exact match is current: "List" is part of every address.
           activeOptions={{ exact: true }}
           aria-current={view === current ? "page" : undefined}

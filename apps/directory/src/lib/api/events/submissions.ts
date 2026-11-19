@@ -5,20 +5,29 @@ import {
   EVENT_SUBMISSION_MAX_LENGTH,
   emptyEventSubmission,
   eventPhotoProblem,
+  submissionWhen,
   type EventSubmissionField,
   type EventSubmissionValues,
 } from "@/lib/events/event-submission-fields"
-import { timeZoneLabel, wallClockAt } from "@/lib/events/event-time"
+import {
+  eventRowText,
+  timeZoneLabel,
+  wallClockAt,
+} from "@/lib/events/event-time"
 import { requestIp, requireAppOrigin } from "@/server/auth/origin"
 import { findCurrentUser } from "@/server/auth/security"
 import { readPageVisibility } from "@/server/content/pages"
+import { fireEventSuggested } from "@/server/directory/automation-events"
 import { tellAdminsAboutEventSubmission } from "@/server/directory/notify"
 import { visitorSite } from "@/server/directory/public"
 import { siteTimeZone } from "@/server/directory/settings"
 import {
+  changeOwnerEvent,
   ownerEventsFor,
   sendOwnerEvent,
+  withdrawOwnerEvent,
   type OwnerEvent,
+  type OwnerEventPerson,
   type OwnerEvents,
 } from "@/server/events/owner-submissions"
 import { eventsAccessFor } from "@/server/events/public"
@@ -91,21 +100,30 @@ export type EventSubmissionForm = {
   zone: string
   /** False while the site has no file storage, and then the form has no photo. */
   photosAllowed: boolean
+  /**
+   * Whether the place box offers the site's listings as somebody types. Only
+   * while the directory is open to everyone, because a picked place links to
+   * its listing's page.
+   */
+  listingsOpen: boolean
 }
 
 const readEventSubmissionFormFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<EventSubmissionForm | null> => {
     const site = await siteTakingSuggestions()
     if (!site) return null
-    const [{ timeZone, today }, storage] = await Promise.all([
-      siteToday(site.id),
-      getStorageSettingsStatus(),
-    ])
+    const [{ timeZone, today }, storage, directoryVisibility] =
+      await Promise.all([
+        siteToday(site.id),
+        getStorageSettingsStatus(),
+        readPageVisibility(site.id, "/directory"),
+      ])
     return {
       siteName: site.name,
       today,
       zone: timeZoneLabel(timeZone),
       photosAllowed: storage.ready,
+      listingsOpen: directoryVisibility === "everyone",
     }
   }
 )
@@ -179,6 +197,10 @@ const submitEventFn = createServerFn({ method: "POST" })
       if (result.outcome === "refused") {
         return { sent: false, problem: result.problem }
       }
+      // "Event suggested" flows start when an admin approves this one, not
+      // here: the address was typed on a public form and nobody has proved
+      // it is theirs, so a flow must never write to it before a person has
+      // read the suggestion.
       if (result.outcome === "sent") {
         await tellAdminsAboutEventSubmission(site.id, result.submission.title)
       }
@@ -201,6 +223,20 @@ export function submitEvent(
   if (photo) data.set("photo", photo)
   data.set(EVENT_SUBMISSION_TRAP, trap)
   return submitEventFn({ data })
+}
+
+/** What the "Event suggested" starting point hands a flow about one event. */
+function suggestedFacts(workspaceId: string, submission: EventSubmission) {
+  return {
+    id: submission.id,
+    workspaceId,
+    title: submission.title,
+    when: eventRowText(submissionWhen(submission)),
+    placeName: submission.placeName,
+    submitterEmail: submission.submitterEmail,
+    submitterName: submission.submitterName,
+    listingId: submission.listingId,
+  }
 }
 
 const sendOwnerEventFn = createServerFn({ method: "POST" })
@@ -232,6 +268,9 @@ const sendOwnerEventFn = createServerFn({ method: "POST" })
           result.submission.title,
           result.listingTitle
         )
+        await fireEventSuggested(
+          suggestedFacts(result.workspaceId, result.submission)
+        )
       }
       return { sent: true }
     }
@@ -253,6 +292,81 @@ export function sendEventForMyListing(input: {
   return sendOwnerEventFn({ data: input })
 }
 
+const ownerEventFields = {
+  title: z.string().max(EVENT_SUBMISSION_MAX_LENGTH.title + 1),
+  startDate: z.string().max(10),
+  startTime: z.string().max(5),
+  endTime: z.string().max(5),
+  description: z.string().max(EVENT_SUBMISSION_MAX_LENGTH.description + 1),
+  coverImage: z.string().max(600),
+}
+
+const changeOwnerEventFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({ id: z.string().min(1).max(36), ...ownerEventFields })
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ sent: true } | { sent: false; problem: string }> => {
+      const { id, ...input } = data
+      const result = await changeOwnerEvent(context.user.id, id, input)
+      if (result.outcome === "refused") {
+        return { sent: false, problem: result.problem }
+      }
+      // A waiting one changed in place is already in the queue; only a
+      // change to a published event is news to the admins.
+      if (
+        result.outcome === "sent" &&
+        result.workspaceId &&
+        result.submission.changes
+      ) {
+        await tellAdminsAboutEventSubmission(
+          result.workspaceId,
+          result.submission.title,
+          result.listingTitle,
+          undefined,
+          true
+        )
+      }
+      return { sent: true }
+    }
+  )
+
+/**
+ * An owner changing one of their own events from My listings. A waiting one
+ * changes in the queue; a published one waits for an admin to approve the
+ * change, and stays as it is until then.
+ */
+export function changeMyListingEvent(input: {
+  id: string
+  title: string
+  startDate: string
+  startTime: string
+  endTime: string
+  description: string
+  coverImage: string
+}) {
+  return changeOwnerEventFn({ data: input })
+}
+
+const withdrawOwnerEventFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ id: z.string().min(1).max(36) }))
+  .handler(async ({ data, context }) =>
+    withdrawOwnerEvent(context.user.id, data.id)
+  )
+
+/**
+ * An owner taking back one of their own events: out of the queue, or off the
+ * site, at once.
+ */
+export function withdrawMyListingEvent(id: string) {
+  return withdrawOwnerEventFn({ data: { id } })
+}
+
 const loadMyListingEventsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<OwnerEvents> =>
@@ -264,7 +378,7 @@ export function loadMyListingEvents() {
   return loadMyListingEventsFn()
 }
 
-export type { OwnerEvent, OwnerEvents }
+export type { OwnerEvent, OwnerEventPerson, OwnerEvents }
 
 export type EventSubmissionsPage = {
   submissions: EventSubmission[]
@@ -319,17 +433,20 @@ const reviewEventSubmissionFn = createServerFn({ method: "POST" })
       note: z.string().max(500).optional(),
     })
   )
-  .handler(async ({ data, context }) =>
-    decideEventSubmission(
-      await workspaceIdForRequest(context.user.id),
-      data.id,
-      {
-        decision: data.decision,
-        note: data.note,
-        reviewerId: context.user.id,
-      }
-    )
-  )
+  .handler(async ({ data, context }) => {
+    const site = await workspaceIdForRequest(context.user.id)
+    const { submission, ...decided } = await decideEventSubmission(site, data.id, {
+      decision: data.decision,
+      note: data.note,
+      reviewerId: context.user.id,
+    })
+    // A public suggestion reaches "Event suggested" flows once an admin has
+    // read and approved it. An owner's already did when it was sent.
+    if (data.decision === "approve" && !submission.fromOwner && !submission.changes) {
+      await fireEventSuggested(suggestedFacts(site, submission))
+    }
+    return decided
+  })
 
 /**
  * Approve, which makes a draft event, or reject with a reason. `emailed` is

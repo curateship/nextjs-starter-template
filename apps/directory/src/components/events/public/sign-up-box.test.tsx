@@ -33,6 +33,10 @@ const openWithSeats: SignUpBoxState = {
   full: false,
   closed: false,
   waitingList: false,
+  closesAt: null,
+  question: "",
+  questionRequired: false,
+  hostSees: false,
 }
 const fullWithQueue: SignUpBoxState = {
   seats: 20,
@@ -40,6 +44,10 @@ const fullWithQueue: SignUpBoxState = {
   full: true,
   closed: false,
   waitingList: true,
+  closesAt: null,
+  question: "",
+  questionRequired: false,
+  hostSees: false,
 }
 const closed: SignUpBoxState = {
   seats: 20,
@@ -47,6 +55,10 @@ const closed: SignUpBoxState = {
   full: true,
   closed: true,
   waitingList: false,
+  closesAt: null,
+  question: "",
+  questionRequired: false,
+  hostSees: false,
 }
 
 beforeEach(() => {

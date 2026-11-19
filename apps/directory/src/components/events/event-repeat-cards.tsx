@@ -1,14 +1,8 @@
+import { CalendarDaysIcon, RepeatIcon } from "lucide-react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -66,13 +60,12 @@ export function EventRepeatCard({
   const problem = repeat && hasStart ? repeatProblem(repeat, startDate) : null
 
   return (
-    <CollapsibleSettingsCard
-      size="sm"
-      storageId="event-repeat"
-      title="Repeat"
-      description="Each date gets its own page. Saving this event changes every future date that was not changed on its own."
-      contentClassName="grid gap-4"
-    >
+    <PanelCard storageId="event-repeat" icon={<RepeatIcon />} title="Repeat">
+      <div className="grid gap-4">
+      <p className="text-sm text-muted-foreground">
+        Each date gets its own page. A change here reaches every future date
+        that was not changed on its own.
+      </p>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div className="grid gap-2">
           <FieldLabel htmlFor="event-repeat">Repeats</FieldLabel>
@@ -219,7 +212,8 @@ export function EventRepeatCard({
       {repeat ? (
         <RepeatSummary repeat={repeat} startDate={startDate} problem={problem} />
       ) : null}
-    </CollapsibleSettingsCard>
+      </div>
+    </PanelCard>
   )
 }
 
@@ -277,15 +271,17 @@ export function EventDatesCard({
   onOpenDate: (id: string) => void
 }) {
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Later dates ({series.dates.length})</CardTitle>
-        <CardDescription>
+    <PanelCard
+      storageId="event-dates"
+      icon={<CalendarDaysIcon />}
+      title="Later dates"
+      meta={series.dates.length}
+    >
+      <div className="grid gap-4">
+        <p className="text-sm text-muted-foreground">
           This event is the first date. Open a later one to change it on its
           own.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
+        </p>
         <ScrollArea className="max-h-72 rounded-md border">
           <ul className="divide-y">
             {series.dates.map((date) => {
@@ -320,8 +316,8 @@ export function EventDatesCard({
             })}
           </ul>
         </ScrollArea>
-      </CardContent>
-    </Card>
+      </div>
+    </PanelCard>
   )
 }
 
@@ -338,16 +334,13 @@ export function SeriesDateCard({
   onOpenMain: () => void
 }) {
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>Repeat</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <PanelCard storageId="event-series-date" icon={<RepeatIcon />} title="Repeat">
+      <div className="grid gap-3">
         <p className="text-sm text-muted-foreground">
           One date of {main.title}.{" "}
           {editedAlone
             ? "It was changed on its own, so changes to the main event skip it."
-            : "Saving here changes this date only, and changes to the main event skip it after that."}
+            : "A change here reaches this date only, and changes to the main event skip it after that."}
         </p>
         <Button
           type="button"
@@ -358,7 +351,7 @@ export function SeriesDateCard({
         >
           Open main event
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </PanelCard>
   )
 }

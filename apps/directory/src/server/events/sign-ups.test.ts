@@ -14,7 +14,10 @@ import { saveEventAndDates } from "@/server/events/repeats"
 import { eventSignUps, siteEvents } from "@/server/events/schema"
 import {
   SIGN_UPS_CLOSED,
+  SIGN_UPS_CLOSED_EARLY,
+  addSignUpByHand,
   listSignUps,
+  listWaitingList,
   removeSignUp,
   signUpBoxFor,
   signUpForEvent,
@@ -198,7 +201,7 @@ describe("seats", () => {
     for (let i = 1; i <= 30; i += 1) {
       await signUp(event.id, `guest${i}@example.com`)
     }
-    expect(await box(event.id)).toEqual({
+    expect(await box(event.id)).toMatchObject({
       seats: null,
       left: null,
       full: false,
@@ -227,6 +230,10 @@ describe("the sign-up box", () => {
       full: false,
       closed: false,
       waitingList: false,
+      closesAt: null,
+      question: "",
+      questionRequired: false,
+      hostSees: false,
     })
 
     await signUp(event.id, "a@example.com")
@@ -422,5 +429,176 @@ describe("copies and repeats", () => {
       .where(and(eq(siteEvents.seriesId, made.id)))
     expect(left.map((row) => row.id)).toEqual([october15.id])
     expect(await listSignUps(siteId, october15.id, database)).toHaveLength(1)
+  })
+})
+
+describe("closing sign-ups early", () => {
+  /** Two days before 6pm on 1 October is 6pm on 29 September, Toronto time. */
+  const twoDaysBefore = new Date("2026-09-29T22:00:00Z")
+
+  it("closes the box at the chosen time, not at the start", async () => {
+    const event = await cookingClass(20)
+    await updateEvent(siteId, event.id, { signUpsCloseHours: 48 }, database)
+    expect(await box(event.id)).toMatchObject({
+      closed: false,
+      closesAt: "2026-09-29T18:00",
+    })
+    expect(
+      await box(event.id, new Date(twoDaysBefore.getTime() - 60_000))
+    ).toMatchObject({ closed: false })
+    expect(await box(event.id, twoDaysBefore)).toMatchObject({
+      closed: true,
+      closesAt: null,
+    })
+    expect(
+      await signUp(event.id, "late@example.com", { at: twoDaysBefore })
+    ).toEqual({ outcome: "refused", problem: SIGN_UPS_CLOSED_EARLY })
+  })
+
+  it("is copied by a duplicate and refuses a number out of range", async () => {
+    const event = await cookingClass(20)
+    await updateEvent(siteId, event.id, { signUpsCloseHours: 24 }, database)
+    const copy = await duplicateEvent(siteId, event.id, database)
+    expect(copy.signUpsCloseHours).toBe(24)
+    await expect(
+      updateEvent(siteId, event.id, { signUpsCloseHours: 0 }, database)
+    ).rejects.toThrow("hours before")
+  })
+})
+
+describe("the event's own question", () => {
+  async function withQuestion(required: boolean) {
+    const event = await cookingClass(20)
+    return updateEvent(
+      siteId,
+      event.id,
+      { signUpQuestion: "Any allergies?", signUpQuestionRequired: required },
+      database
+    )
+  }
+
+  function signUpAnswering(eventId: string, email: string, answer?: string) {
+    visitor += 1
+    return signUpForEvent(
+      siteId,
+      eventId,
+      { name: "Sam", email, answer },
+      { ip: `10.1.0.${visitor}`, at: september23 },
+      database
+    )
+  }
+
+  it("refuses a sign-up without the answer when it is required", async () => {
+    const event = await withQuestion(true)
+    expect(await box(event.id)).toMatchObject({
+      question: "Any allergies?",
+      questionRequired: true,
+    })
+    expect(await signUpAnswering(event.id, "a@example.com", "  ")).toEqual({
+      outcome: "refused",
+      problem: 'Answer "Any allergies?" to sign up.',
+    })
+    expect(
+      await signUpAnswering(event.id, "a@example.com", "Nuts\nand shellfish")
+    ).toEqual({ outcome: "signed-up" })
+    const [person] = await listSignUps(siteId, event.id, database)
+    expect(person?.answer).toBe("Nuts and shellfish")
+  })
+
+  it("takes a sign-up with no answer when it is optional", async () => {
+    const event = await withQuestion(false)
+    expect(await signUpAnswering(event.id, "a@example.com")).toEqual({
+      outcome: "signed-up",
+    })
+  })
+
+  it("keeps no answer for an event that asks no question", async () => {
+    const event = await cookingClass(20)
+    await signUpAnswering(event.id, "a@example.com", "sneaked in")
+    const [person] = await listSignUps(siteId, event.id, database)
+    expect(person?.answer).toBe("")
+  })
+})
+
+describe("adding somebody by hand", () => {
+  it("adds them, and refuses the same email twice", async () => {
+    const event = await cookingClass(20)
+    expect(
+      await addSignUpByHand(
+        siteId,
+        event.id,
+        { name: "Phone booking", email: "Phone@Example.com" },
+        september23,
+        database
+      )
+    ).toEqual({ outcome: "added" })
+    expect(await listSignUps(siteId, event.id, database)).toMatchObject([
+      { name: "Phone booking", email: "phone@example.com" },
+    ])
+    expect(
+      await addSignUpByHand(
+        siteId,
+        event.id,
+        { name: "Again", email: "phone@example.com" },
+        september23,
+        database
+      )
+    ).toEqual({
+      outcome: "refused",
+      problem: "phone@example.com is already on this event's list.",
+    })
+  })
+
+  it("asks first on a full event, then adds over the limit or to the queue", async () => {
+    const event = await cookingClass(1)
+    await signUp(event.id, "first@example.com")
+    const person = { name: "Lee", email: "lee@example.com" }
+    expect(
+      await addSignUpByHand(siteId, event.id, person, september23, database)
+    ).toEqual({ outcome: "full" })
+    expect(
+      await addSignUpByHand(
+        siteId,
+        event.id,
+        { ...person, whenFull: "waiting" },
+        september23,
+        database
+      )
+    ).toEqual({ outcome: "waiting", place: 1 })
+    expect(
+      await addSignUpByHand(
+        siteId,
+        event.id,
+        { name: "Kim", email: "kim@example.com", whenFull: "over" },
+        september23,
+        database
+      )
+    ).toEqual({ outcome: "added" })
+    expect(await listSignUps(siteId, event.id, database)).toHaveLength(2)
+    expect(await listWaitingList(siteId, event.id, database)).toHaveLength(1)
+  })
+
+  it("works after sign-ups have closed, and never on another site's event", async () => {
+    const event = await cookingClass(20)
+    await updateEvent(siteId, event.id, { signUpsCloseHours: 48 }, database)
+    expect(
+      await addSignUpByHand(
+        siteId,
+        event.id,
+        { name: "Late", email: "late@example.com" },
+        classStarts,
+        database
+      )
+    ).toEqual({ outcome: "added" })
+    const other = (await insertWorkspace(database, { name: "Beta" })).id
+    expect(
+      await addSignUpByHand(
+        other,
+        event.id,
+        { name: "Nope", email: "nope@example.com" },
+        september23,
+        database
+      )
+    ).toMatchObject({ outcome: "refused" })
   })
 })

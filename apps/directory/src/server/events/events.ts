@@ -4,14 +4,19 @@ import {
   count,
   desc,
   eq,
+  exists,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   ne,
+  not,
   or,
   sql,
+  type SQL,
+  type SQLWrapper,
 } from "drizzle-orm"
-import type { PgUpdateSetSource } from "drizzle-orm/pg-core"
+import { alias, type PgUpdateSetSource } from "drizzle-orm/pg-core"
 
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import { isValidDateString } from "@/lib/events/calendar-grid"
@@ -23,6 +28,11 @@ import {
 } from "@/lib/events/event-sort"
 import { parseRepeatRule, type RepeatRule } from "@/lib/events/event-repeat"
 import { toClock, wallClockAt, type EventWhen } from "@/lib/events/event-time"
+import {
+  cleanCloseHours,
+  cleanSignUpQuestion,
+} from "@/lib/events/sign-up-fields"
+import { cleanTicketsUrl } from "@/lib/events/tickets-url"
 import {
   cleanPostBody,
   emptyPostBody,
@@ -127,6 +137,14 @@ export type SiteEvent = EventWhen & {
   takesSignUps: boolean
   /** How many can sign up, or null for no limit. */
   seats: number | null
+  /** Hours before the start that sign-ups close, or null for at the start. */
+  signUpsCloseHours: number | null
+  /** The event's own question on the sign-up box. Empty asks none. */
+  signUpQuestion: string
+  /** Whether the question must be answered. */
+  signUpQuestionRequired: boolean
+  /** Where tickets are sold, an https address, or empty. */
+  ticketsUrl: string
   createdAt: Date
   updatedAt: Date
 }
@@ -182,6 +200,10 @@ export function toEvent(row: EventRow): SiteEvent {
     sourceUrl: row.sourceUrl,
     takesSignUps: row.takesSignUps,
     seats: row.seats,
+    signUpsCloseHours: row.signUpsCloseHours,
+    signUpQuestion: row.signUpQuestion,
+    signUpQuestionRequired: row.signUpQuestionRequired,
+    ticketsUrl: row.ticketsUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -337,10 +359,17 @@ export async function eventTitlesOnDays(
   workspaceId: string,
   days: string[],
   database: CustomShellDb = db
-): Promise<{ title: string; startDate: string }[]> {
+): Promise<
+  { id: string; title: string; slug: string; startDate: string }[]
+> {
   if (!days.length) return []
   return database
-    .select({ title: siteEvents.title, startDate: siteEvents.startDate })
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      startDate: siteEvents.startDate,
+    })
     .from(siteEvents)
     .where(
       and(
@@ -348,6 +377,79 @@ export async function eventTitlesOnDays(
         inArray(siteEvents.startDate, days)
       )
     )
+}
+
+/**
+ * The dates each of these main events has made, as date id to main id, so a
+ * read about a main event can take in its later dates. Only the ids asked
+ * for, which come from the caller's own records.
+ */
+export async function seriesDatesOf(
+  mainIds: string[],
+  database: CustomShellDb = db
+): Promise<Map<string, string>> {
+  const unique = [...new Set(mainIds)].filter(Boolean)
+  if (!unique.length) return new Map()
+  const rows = await database
+    .select({ id: siteEvents.id, mainId: siteEvents.seriesId })
+    .from(siteEvents)
+    .where(inArray(siteEvents.seriesId, unique))
+  return new Map(rows.flatMap((row) => (row.mainId ? [[row.id, row.mainId] as const] : [])))
+}
+
+/**
+ * What an owner's change would replace, for the review window's before and
+ * after (task events/37, Part 3): each event's title, day, times, summary
+ * and cover, by id, on this site only.
+ */
+export async function eventsBeforeChange(
+  workspaceId: string,
+  ids: string[],
+  database: CustomShellDb = db
+): Promise<
+  Map<
+    string,
+    {
+      title: string
+      slug: string
+      startDate: string
+      startTime: string
+      endTime: string | null
+      summary: string
+      coverImage: string
+    }
+  >
+> {
+  const unique = [...new Set(ids)].filter(Boolean)
+  if (!unique.length) return new Map()
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      startDate: siteEvents.startDate,
+      startTime: siteEvents.startTime,
+      endTime: siteEvents.endTime,
+      summary: siteEvents.summary,
+      coverImage: siteEvents.coverImage,
+    })
+    .from(siteEvents)
+    .where(
+      and(
+        eq(siteEvents.workspaceId, workspaceId),
+        inArray(siteEvents.id, unique)
+      )
+    )
+  return new Map(
+    rows.map(({ id, ...row }) => [
+      id,
+      {
+        ...row,
+        startTime: toClock(row.startTime),
+        endTime: row.endTime ? toClock(row.endTime) : null,
+      },
+    ])
+  )
 }
 
 /** A free address on this site, numbered when the one wanted is taken. */
@@ -393,16 +495,27 @@ export async function listEvents(
   workspaceId: string,
   options: {
     search?: string
-    status?: EventStatus
     sort?: EventSortColumn
     direction?: "asc" | "desc"
     /** Which window the Views column counts. All time when left out. */
     viewDays?: EventViewRange
+    /**
+     * The Events dashboard's tabs (task events/37, Part 1): published and not
+     * over, published and over, or drafts. Left out, every event.
+     */
+    tab?: EventListTab
+    /** Only the events filed under this category. */
+    categoryId?: string
     limit?: number
     offset?: number
   } = {},
   database: CustomShellDb = db
-): Promise<{ events: EventSummary[]; total: number }> {
+): Promise<{
+  events: EventSummary[]
+  total: number
+  /** How many each tab holds, with the search and category applied. */
+  tabCounts: Record<EventListTab, number>
+}> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
   const search = options.search?.trim()
@@ -421,7 +534,30 @@ export async function listEvents(
     )
     if (match) filters.push(match)
   }
-  if (options.status) filters.push(eq(siteEvents.status, options.status))
+  if (options.categoryId) {
+    filters.push(
+      exists(
+        database
+          .select({ one: sql`1` })
+          .from(categoryRelationships)
+          .where(
+            and(
+              eq(categoryRelationships.workspaceId, workspaceId),
+              eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+              eq(categoryRelationships.categoryId, options.categoryId),
+              eq(categoryRelationships.contentId, siteEvents.id)
+            )
+          )
+      )
+    )
+  }
+  const siteClock = wallClockAt(
+    await siteTimeZone(workspaceId, database),
+    new Date()
+  )
+  const tabs = eventTabFilters(siteClock, database)
+  const counted = and(...filters)
+  if (options.tab) filters.push(tabs[options.tab])
   const where = and(...filters)
 
   const sort = options.sort ?? DEFAULT_EVENT_SORT
@@ -472,11 +608,24 @@ export async function listEvents(
       .orderBy(...ordering, asc(siteEvents.id))
       .limit(limit)
       .offset(offset),
+    // Joined, as the rows are, so Drizzle names the table on every column:
+    // in a one-table select it leaves it off inside raw SQL, and the
+    // subqueries above would then read their own columns.
     database
       .select({ total: sql<number>`count(*)::int` })
       .from(siteEvents)
+      .leftJoin(directoryListings, listingOfEvent)
       .where(where),
   ])
+  const [tabRow] = await database
+    .select({
+      upcoming: sql<number>`count(*) filter (where ${tabs.upcoming})::int`,
+      past: sql<number>`count(*) filter (where ${tabs.past})::int`,
+      draft: sql<number>`count(*) filter (where ${tabs.draft})::int`,
+    })
+    .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
+    .where(counted)
 
   // The row carries the listing's current name, as the event page does.
   const rows = found.map(({ row, placeName }) => ({ ...row, placeName }))
@@ -501,6 +650,63 @@ export async function listEvents(
       }
     }),
     total: countRow?.total ?? 0,
+    tabCounts: {
+      upcoming: tabRow?.upcoming ?? 0,
+      past: tabRow?.past ?? 0,
+      draft: tabRow?.draft ?? 0,
+    },
+  }
+}
+
+/** The Events dashboard's three tabs. */
+export type EventListTab = "upcoming" | "past" | "draft"
+
+/** The dates of a repeat, looked at from their main event's row. */
+const seriesDates = alias(siteEvents, "series_dates")
+
+/**
+ * Not over by the site's wall clock `now` ("2026-11-19T15:00"): its last day
+ * is after today, or it is today and its end time has not come. The same
+ * rule as the public lists.
+ */
+export function notOverOn(
+  table: { startDate: SQLWrapper; endDate: SQLWrapper; endTime: SQLWrapper },
+  now: string
+): SQL {
+  const [day = "", time = ""] = now.split("T")
+  const lastDay = sql`coalesce(${table.endDate}, ${table.startDate})`
+  return or(
+    sql`${lastDay} > ${day}::date`,
+    and(
+      sql`${lastDay} = ${day}::date`,
+      or(sql`${table.endTime} is null`, sql`${table.endTime} > ${time}::time`)
+    )
+  )!
+}
+
+/**
+ * The tabs as filters on a main event's row. A repeating event is upcoming
+ * while any of its dates is still to come, so a weekly trivia night stays
+ * under Upcoming although its first night has been.
+ */
+export function eventTabFilters(now: string, database: CustomShellDb): Record<EventListTab, SQL> {
+  const published = eq(siteEvents.status, "published")
+  const toCome = or(
+    notOverOn(siteEvents, now),
+    and(
+      isNotNull(siteEvents.repeatRule),
+      exists(
+        database
+          .select({ one: sql`1` })
+          .from(seriesDates)
+          .where(and(eq(seriesDates.seriesId, siteEvents.id), notOverOn(seriesDates, now)))
+      )
+    )
+  )!
+  return {
+    upcoming: and(published, toCome)!,
+    past: and(published, not(toCome))!,
+    draft: eq(siteEvents.status, "draft"),
   }
 }
 
@@ -692,6 +898,11 @@ export async function updateEvent(
     takesSignUps?: boolean
     /** Null for no limit. */
     seats?: number | null
+    /** Null closes sign-ups when the event starts. */
+    signUpsCloseHours?: number | null
+    signUpQuestion?: string
+    signUpQuestionRequired?: boolean
+    ticketsUrl?: string
   },
   database: CustomShellDb = db
 ): Promise<SiteEvent> {
@@ -742,6 +953,18 @@ export async function updateEvent(
   if (input.featured !== undefined) values.featured = input.featured
   if (input.takesSignUps !== undefined) values.takesSignUps = input.takesSignUps
   if (input.seats !== undefined) values.seats = input.seats
+  if (input.signUpsCloseHours !== undefined) {
+    values.signUpsCloseHours = cleanCloseHours(input.signUpsCloseHours)
+  }
+  if (input.signUpQuestion !== undefined) {
+    values.signUpQuestion = cleanSignUpQuestion(input.signUpQuestion)
+  }
+  if (input.signUpQuestionRequired !== undefined) {
+    values.signUpQuestionRequired = input.signUpQuestionRequired
+  }
+  if (input.ticketsUrl !== undefined) {
+    values.ticketsUrl = cleanTicketsUrl(input.ticketsUrl)
+  }
   // A date of a repeating event saved by itself stops following the main one.
   values.editedAlone = sql`${siteEvents.seriesId} IS NOT NULL`
   if (input.status !== undefined) {
@@ -799,7 +1022,17 @@ export async function updateEvent(
 export async function eventLinksByIds(
   ids: string[],
   database: CustomShellDb = db
-): Promise<Map<string, { slug: string; status: EventStatus }>> {
+): Promise<
+  Map<
+    string,
+    {
+      slug: string
+      status: EventStatus
+      takesSignUps: boolean
+      seats: number | null
+    }
+  >
+> {
   const unique = [...new Set(ids)].filter(Boolean)
   if (unique.length === 0) return new Map()
   const rows = await database
@@ -807,6 +1040,8 @@ export async function eventLinksByIds(
       id: siteEvents.id,
       slug: siteEvents.slug,
       status: siteEvents.status,
+      takesSignUps: siteEvents.takesSignUps,
+      seats: siteEvents.seats,
     })
     .from(siteEvents)
     .where(inArray(siteEvents.id, unique))
@@ -816,6 +1051,8 @@ export async function eventLinksByIds(
       {
         slug: row.slug,
         status: row.status === "published" ? "published" : "draft",
+        takesSignUps: row.takesSignUps,
+        seats: row.seats,
       },
     ])
   )
@@ -884,6 +1121,10 @@ export async function duplicateEvent(
         // The settings, never the people.
         takesSignUps: source.takesSignUps,
         seats: source.seats,
+        signUpsCloseHours: source.signUpsCloseHours,
+        signUpQuestion: source.signUpQuestion,
+        signUpQuestionRequired: source.signUpQuestionRequired,
+        ticketsUrl: source.ticketsUrl,
         createdAt: at,
         updatedAt: at,
       })

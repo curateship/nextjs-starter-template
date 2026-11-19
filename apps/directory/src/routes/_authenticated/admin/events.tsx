@@ -1,86 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { EventsDashboard } from "@/components/events/events-dashboard"
+import { EventsDashboard } from "@/components/events/events-dashboard/events-dashboard"
+import { loadEventsSection } from "@/components/events/events-dashboard/load-section"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { loadCategories } from "@/lib/api/directory/categories"
-import { getEventErrorMessage, loadEventsPage } from "@/lib/api/events/events"
-import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
-import {
-  LISTING_STATUS_FILTERS,
-  type ListingStatusFilter,
-} from "@/lib/directory/listing-sort"
-import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import {
-  readDirection,
-  readOneOf,
-  readPage,
-  readSearchText,
-} from "@/lib/nav/list-search"
-import {
-  EVENT_SORT_COLUMNS,
-  readEventViewRange,
-  type EventSortColumn,
-  type EventViewRange,
-} from "@/lib/events/event-sort"
+import { getEventsDashboardErrorMessage } from "@/lib/api/events/events-dashboard"
+import { readEventsDashboardSearch } from "@/lib/events/events-dashboard-search"
+import { EVENTS_PLACE_KEY } from "@/lib/events/events-panel-keys"
+import { restoreDashboardPlace } from "@/lib/layout/dashboard-place"
 
-type EventsSearch = {
-  q?: string
-  status?: ListingStatusFilter
-  sort?: EventSortColumn
-  direction?: "asc" | "desc"
-  days?: EventViewRange
-  page?: number
-  size?: number
-  /** Which event's window is open, so an event can be linked to. */
-  open?: string
-}
-
-/** The list's state lives in the address; anything unexpected falls back. */
-function readEventsSearch(search: Record<string, unknown>): EventsSearch {
-  return {
-    q: readSearchText(search.q),
-    status: readOneOf(search.status, LISTING_STATUS_FILTERS),
-    sort: readOneOf(search.sort, EVENT_SORT_COLUMNS),
-    direction: readDirection(search.direction),
-    days: readEventViewRange(search.days),
-    page: readPage(search.page),
-    size: readOneOf(
-      String(search.size),
-      DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String)
-    )
-      ? Number(search.size)
-      : undefined,
-    ...readOpenSearch(search),
-  }
-}
-
+/**
+ * The Events dashboard (task events/37, Part 1): Admin → Events as one
+ * three-panel dashboard, as Listings is. `?open=<id>` still opens one event,
+ * so every link made to the old Events page keeps working.
+ * `src/lib/events/events-dashboard-search.ts` says what the address holds.
+ */
 export const Route = createFileRoute("/_authenticated/admin/events")({
-  validateSearch: readEventsSearch,
-  // Everything except `open`: opening an event must not refetch the list.
+  // Drawn in the browser only, as the Listings dashboard is: on the server
+  // the shell's three-panel frame has no Settings → Styling to read, and
+  // drew the side panels at other widths than the browser then did.
+  ssr: false,
+  beforeLoad: ({ search, location, matches, cause }): void =>
+    restoreDashboardPlace(EVENTS_PLACE_KEY, { search, location, matches, cause }),
+  validateSearch: readEventsDashboardSearch,
+  // Everything except `open`: a record loads itself, so opening one never
+  // reads the list underneath again.
   loaderDeps: ({ search: { open: _open, ...rest } }) => rest,
-  // The category tree comes with the list, because a new event has no record
-  // to bring it and the window needs it the moment it opens.
-  loader: async ({ deps }) => {
-    const [page, categories] = await Promise.all([
-      loadEventsPage({
-        search: deps.q,
-        status: deps.status,
-        sort: deps.sort,
-        direction: deps.direction,
-        days: deps.days,
-        page: deps.page,
-        limit: deps.size,
-      }),
-      loadCategories(),
-    ])
-    return { page, categories }
-  },
+  loader: ({ deps }) => loadEventsSection(deps),
   component: AdminEventsRoute,
-  errorComponent: routeErrorComponent(getEventErrorMessage),
+  errorComponent: routeErrorComponent(getEventsDashboardErrorMessage),
 })
 
 function AdminEventsRoute() {
-  const search = Route.useSearch()
-  const { page, categories } = Route.useLoaderData()
-  return <EventsDashboard data={page} categories={categories} search={search} />
+  return <EventsDashboard loaded={Route.useLoaderData()} search={Route.useSearch()} />
 }

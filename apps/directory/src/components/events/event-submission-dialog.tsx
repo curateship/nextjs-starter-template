@@ -102,16 +102,45 @@ export function EventSubmissionDialog({
                       ? ` on ${formatDate(submission.reviewedAt)}`
                       : ""
                   }.`
-                : submission?.fromOwner
-                  ? `Sent by the owner of ${submission.placeName}, for their own listing. Approving publishes it on the Events page straight away.`
-                  : "Approving saves it as a draft event with everything below. Nothing is public until you publish it."}
+                : submission?.changes
+                  ? `The owner of ${submission.placeName} asked to change an event they sent. Approving writes the change onto the event, which stays published.`
+                  : submission?.fromOwner
+                    ? `Sent by the owner of ${submission.placeName}, for their own listing. Approving publishes it on the Events page straight away.`
+                    : "Approving saves it as a draft event with everything below. Nothing is public until you publish it."}
             </DialogDescription>
           </DialogHeader>
 
           <DialogBody>
+            {submission?.duplicateOf ? (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Already on the site?</CardTitle>
+                  <CardDescription>
+                    This site already has {submission.duplicateOf.title} on
+                    this day. Approving still works.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Link
+                    to="/admin/events"
+                    search={{ open: submission.duplicateOf.id }}
+                    className="w-fit text-sm underline-offset-4 hover:underline"
+                  >
+                    Open {submission.duplicateOf.title}
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {submission?.changes && !decided ? (
+              <ChangeCard submission={submission} />
+            ) : null}
+
             <Card size="sm">
               <CardHeader>
-                <CardTitle>What was sent</CardTitle>
+                <CardTitle>
+                  {submission?.changes ? "The change, as asked" : "What was sent"}
+                </CardTitle>
                 {submission ? (
                   <CardDescription>
                     Sent on {formatDate(submission.createdAt)}.
@@ -256,9 +285,11 @@ export function EventSubmissionDialog({
                   disabled={busy}
                   onClick={() => void decide("approve")}
                 >
-                  {submission?.fromOwner
-                    ? "Approve and publish"
-                    : "Approve as a draft"}
+                  {submission?.changes
+                    ? "Approve the change"
+                    : submission?.fromOwner
+                      ? "Approve and publish"
+                      : "Approve as a draft"}
                 </Button>
               </>
             )}
@@ -266,5 +297,86 @@ export function EventSubmissionDialog({
         </DialogContent>
       )}
     </FormDialog>
+  )
+}
+
+/**
+ * An owner's change, each field it touches twice: what the event says now,
+ * then what the owner asked for. Only the fields that differ are listed, the
+ * same way an owner's change to a listing is shown on the Listings dashboard.
+ */
+function ChangeCard({ submission }: { submission: EventSubmission }) {
+  const current = submission.changes?.current
+  if (!current) {
+    return (
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Before and after</CardTitle>
+          <CardDescription>
+            The event this change is for is no longer on the site.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+  const asked = submissionWhen(submission)
+  const rows = [
+    {
+      label: "Title",
+      now: current.title,
+      asked: submission.title,
+    },
+    {
+      label: "When",
+      now: eventRowText({
+        startDate: current.startDate,
+        startTime: current.startTime,
+        endDate: current.endTime ? current.startDate : null,
+        endTime: current.endTime,
+      }),
+      asked: eventRowText(asked),
+    },
+    {
+      label: "Summary",
+      now: current.summary,
+      asked: submission.description.split(/\n{2,}/)[0]?.trim() ?? "",
+    },
+    {
+      label: "Photo",
+      now: current.coverImage ? "Set" : "None",
+      asked: submission.photoUrl
+        ? submission.photoUrl === current.coverImage
+          ? "Set"
+          : "A new photo"
+        : "Kept as it is",
+    },
+  ].filter((row) => row.now !== row.asked && row.asked !== "Kept as it is")
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Before and after</CardTitle>
+        <CardDescription>
+          {rows.length
+            ? "What the event says now, then what the owner asked for."
+            : "Nothing the owner sent differs from the event as it is."}
+        </CardDescription>
+      </CardHeader>
+      {rows.length ? (
+        <CardContent className="grid gap-4">
+          {rows.map((row) => (
+            <div key={row.label} className="grid gap-1 text-sm">
+              <span className="text-xs font-medium text-muted-foreground">
+                {row.label}
+              </span>
+              <span className="text-muted-foreground line-through">
+                {row.now || "Empty"}
+              </span>
+              <span>{row.asked || "Empty"}</span>
+            </div>
+          ))}
+        </CardContent>
+      ) : null}
+    </Card>
   )
 }

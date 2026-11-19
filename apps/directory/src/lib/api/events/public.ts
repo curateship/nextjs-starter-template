@@ -9,6 +9,7 @@ import {
 } from "@/lib/events/calendar-grid"
 import {
   EVENT_DATE_FILTERS,
+  EVENT_LISTS,
   EVENT_VIEWS,
   eventDateWindow,
   readEventDateFilter,
@@ -21,8 +22,11 @@ import {
 import { parseDirectoryNearPoint } from "@/lib/directory/public-search"
 import { readSearchText } from "@/lib/nav/list-search"
 import {
+  eventDaysText,
   eventHasEnded,
+  eventRowText,
   eventWhenLines,
+  formatEventClock,
   timeZoneLabel,
   wallClockAt,
 } from "@/lib/events/event-time"
@@ -42,10 +46,13 @@ import {
   findEventPlace,
   readEventCategories,
   readEventDateCounts,
+  readEventNeighbours,
+  readEventPins,
   readEventsBetween,
   readPublicEvent,
   readUpcomingEvents,
   type EventCategory,
+  type EventNeighbour,
   type PublicEventCard,
   type PublicEventPage,
 } from "@/server/events/public"
@@ -79,11 +86,26 @@ async function siteWithOpenEvents(): Promise<{
   return access ? { site, access } : null
 }
 
-/** The number of events behind each date chip, "Any time" included. */
-export type EventDateCounts = { anyTime: number } & Record<
+/**
+ * The number of events behind each date chip, "Any time" included, and
+ * behind the Past chip.
+ */
+export type EventDateCounts = { anyTime: number; past: number } & Record<
   EventDateFilter,
   number
 >
+
+/** One upcoming event as a pin, with its "when" written by the server. */
+export type EventPin = {
+  id: string
+  title: string
+  slug: string
+  latitude: number
+  longitude: number
+  placeName: string
+  /** "Sat, Sep 26 · 6:00 PM to 11:00 PM". */
+  when: string
+}
 
 /** An event in a list, marked when it is already over. */
 export type ListedEvent = PublicEventCard & { ended: boolean }
@@ -118,6 +140,8 @@ export type EventsPageData = EventsPageCommon &
   (
     | {
         view: "list"
+        /** The events that are over, newest first, instead of the ones to come. */
+        past: boolean
         /** Set when the list is narrowed to one day, which is never paged. */
         day: string | null
         /**
@@ -150,12 +174,28 @@ export type EventsPageData = EventsPageCommon &
         /** Every event on any day of the grid's weeks, soonest first. */
         events: PublicEventCard[]
       }
+    | {
+        view: "map"
+        place: { title: string; slug: string; linked: boolean } | null
+        dates: EventDateSearch
+        nearby: EventNearSearch
+        /** The list's events with a place on the map, soonest first, capped. */
+        pins: EventPin[]
+        /** How many of the list's events have a place on the map. */
+        total: number
+        /** How many match but have no place on the map. */
+        unplaced: number
+        /** The site's Google Maps browser key, or null when it has none. */
+        mapKey: string | null
+        dateCounts: EventDateCounts
+      }
   )
 
 const readEventsPageFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       view: z.enum(EVENT_VIEWS).optional(),
+      list: z.enum(EVENT_LISTS).optional(),
       month: z.string().max(7).optional(),
       day: z.string().max(10).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
@@ -245,6 +285,7 @@ const readEventsPageFn = createServerFn({ method: "GET" })
         page: 1,
         pageSize: Math.max(events.length, 1),
         dateCounts: null,
+        past: false,
       }
     }
 
@@ -271,13 +312,16 @@ const readEventsPageFn = createServerFn({ method: "GET" })
       ...(point ? { near: point, radius: nearby.radius } : {}),
       ...(typed ? { q: typed } : {}),
     }
-    const [upcoming, counts] = await Promise.all([
-      readUpcomingEvents(site, page, now, undefined, {
-        featured: true,
-        ...narrowed,
-        ...eventDateWindow(dates, common.today),
-      }),
-      readEventDateCounts(
+    const past = data.view !== "map" && data.list === "past"
+    const placeFound = place
+      ? {
+          title: place.title,
+          slug: place.slug,
+          linked: directoryVisibility === "everyone",
+        }
+      : null
+    const readCounts = async () => {
+      const counts = await readEventDateCounts(
         site,
         now,
         EVENT_DATE_FILTERS.map(
@@ -285,34 +329,83 @@ const readEventsPageFn = createServerFn({ method: "GET" })
         ),
         undefined,
         narrowed
-      ),
-    ])
-    return {
-      ...common,
-      view: "list",
-      day: null,
-      place: place
-        ? {
-            title: place.title,
-            slug: place.slug,
-            linked: directoryVisibility === "everyone",
-          }
-        : null,
-      dates,
-      nearby,
-      events: mark(upcoming.events),
-      total: upcoming.total,
-      page,
-      pageSize: upcoming.pageSize,
-      dateCounts: {
+      )
+      return {
         anyTime: counts.anyTime,
+        past: counts.past,
         ...(Object.fromEntries(
           EVENT_DATE_FILTERS.map((when, index) => [
             when,
             counts.windows[index] ?? 0,
           ])
         ) as Record<EventDateFilter, number>),
-      },
+      }
+    }
+
+    if (data.view === "map") {
+      const [found, dateCounts, mapKey] = await Promise.all([
+        readEventPins(site, now, undefined, {
+          ...narrowed,
+          ...eventDateWindow(dates, common.today),
+        }),
+        readCounts(),
+        directoryMapDisplayKey(site.id),
+      ])
+      return {
+        ...common,
+        view: "map",
+        place: placeFound,
+        dates,
+        nearby,
+        pins: found.pins.map((pin) => ({
+          id: pin.id,
+          title: pin.title,
+          slug: pin.slug,
+          latitude: pin.latitude,
+          longitude: pin.longitude,
+          placeName: pin.placeName,
+          when: eventRowText(pin),
+        })),
+        total: found.total,
+        unplaced: found.unplaced,
+        mapKey,
+        dateCounts,
+      }
+    }
+
+    // The Past list keeps the place, the category and the typed words. The
+    // dates and the distance belong to the upcoming list.
+    const pastNarrowed = {
+      ...onlyCategory,
+      ...(place ? { placeId: place.id } : {}),
+      ...(typed ? { q: typed } : {}),
+    }
+    const [listed, dateCounts] = await Promise.all([
+      past
+        ? readUpcomingEvents(site, page, now, undefined, {
+            past: true,
+            ...pastNarrowed,
+          })
+        : readUpcomingEvents(site, page, now, undefined, {
+            featured: true,
+            ...narrowed,
+            ...eventDateWindow(dates, common.today),
+          }),
+      readCounts(),
+    ])
+    return {
+      ...common,
+      view: "list",
+      past,
+      day: null,
+      place: placeFound,
+      dates: past ? {} : dates,
+      nearby: past ? {} : nearby,
+      events: mark(listed.events),
+      total: listed.total,
+      page,
+      pageSize: listed.pageSize,
+      dateCounts,
     }
   })
 
@@ -336,6 +429,21 @@ type PublicEventView = PublicEventPage & {
   mapKey: string | null
   /** The sign-up box, or null when the event takes no sign-ups. */
   signUps: SignUpBox | null
+  /** "Also on": the repeat's next dates, this one left out. */
+  otherDates: EventNeighbourRow[]
+  /** "Also at": the place's next events, when the place is a listing. */
+  atPlace: EventNeighbourRow[]
+}
+
+/** One row of "Also on" or "Also at", its words written by the server. */
+export type EventNeighbourRow = {
+  id: string
+  title: string
+  slug: string
+  /** "Fri, Nov 28", or "Fri, Nov 28 to Sun, Nov 30" for several days. */
+  day: string
+  /** "7:00 PM". */
+  time: string
 }
 
 const readEventFn = createServerFn({ method: "GET" })
@@ -348,16 +456,30 @@ const readEventFn = createServerFn({ method: "GET" })
     if (!page) return null
     // Worked out on every request, after the cache, by the site's clock.
     const at = new Date()
-    const [mapKey, signUps] = await Promise.all([
+    const [mapKey, signUps, neighbours] = await Promise.all([
       page.event.position ? directoryMapDisplayKey(open.site.id) : null,
       signUpBoxFor(open.site.id, page.event.id, page.timeZone, at),
+      readEventNeighbours(
+        open.site,
+        page.event,
+        wallClockAt(page.timeZone, at)
+      ),
     ])
+    const asRow = (row: EventNeighbour): EventNeighbourRow => ({
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      day: eventDaysText(row),
+      time: formatEventClock(row.startTime),
+    })
     return {
       ...page,
       ended: eventHasEnded(page.event, page.timeZone, at),
       when: eventWhenLines(page.event, page.timeZone),
       mapKey,
       signUps,
+      otherDates: neighbours.dates.map(asRow),
+      atPlace: neighbours.atPlace.map(asRow),
     }
   })
 

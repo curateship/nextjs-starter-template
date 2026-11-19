@@ -272,6 +272,20 @@ describe("offering a freed seat", () => {
     ])
   })
 
+  it("offers nothing once sign-ups have closed early", async () => {
+    const event = await fullClassWithQueue(["one@example.com"])
+    await updateEvent(siteId, event.id, { signUpsCloseHours: 168 }, database)
+    const [seated] = await listSignUps(siteId, event.id, database)
+    await removeSignUp(siteId, seated!.id, database)
+    // A week before 6pm on 1 October is 6pm on 24 September; this is later.
+    await runWaitingListPass(new Date("2026-09-25T16:00:00Z"), database)
+
+    expect(await states(event.id)).toMatchObject([
+      { status: "cancelled" },
+      { email: "one@example.com", status: "waiting" },
+    ])
+  })
+
   it("puts somebody back at their place when the email fails", async () => {
     const event = await fullClassWithQueue([
       "one@example.com",
