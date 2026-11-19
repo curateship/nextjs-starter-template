@@ -299,12 +299,9 @@ function listingListWhere(
   return and(...filters)
 }
 
-/** Published first, then Draft, then Closed, the dashboard's heading order. */
-const LISTING_STATUS_ORDER = sql`case ${directoryListings.status} when 'published' then 0 when 'draft' then 1 else 2 end`
-
 /**
- * How many listings each status heading holds, for the words, status-free
- * filters and category the list is showing, so a heading counts every
+ * How many listings each status tab holds, for the words, status-free
+ * filters and category the list is showing, so a tab counts every
  * listing under it and not only the page in view.
  */
 export async function listingStatusCounts(
@@ -338,11 +335,6 @@ export async function listListings(
     viewDays?: ListingViewRange
     /** Only listings in this category, picked in the dashboard's Categories block. */
     categoryId?: string
-    /**
-     * Published, then Draft, then Closed, each in the asked order, so a page
-     * of the list falls under the dashboard's status headings.
-     */
-    groupByStatus?: boolean
     limit?: number
     offset?: number
   } = {},
@@ -360,12 +352,10 @@ export async function listListings(
   const order = options.direction === "asc" ? asc : desc
   const column = {
     title: directoryListings.title,
-    status: directoryListings.status,
     views,
     created: directoryListings.createdAt,
     updated: directoryListings.updatedAt,
   }[options.sort ?? "created"]
-  const statusFirst = options.groupByStatus ? [LISTING_STATUS_ORDER] : []
 
   const rowsQuery = sortsByViews
     ? database
@@ -379,7 +369,7 @@ export async function listListings(
         .groupBy(directoryListings.id)
         // The id breaks ties, so a page boundary cannot land mid-tie and show
         // the same listing twice or skip one.
-        .orderBy(...statusFirst, order(views), asc(directoryListings.id))
+        .orderBy(order(views), asc(directoryListings.id))
         .limit(limit)
         .offset(offset)
     : database
@@ -389,7 +379,7 @@ export async function listListings(
         })
         .from(directoryListings)
         .where(where)
-        .orderBy(...statusFirst, order(column), asc(directoryListings.id))
+        .orderBy(order(column), asc(directoryListings.id))
         .limit(limit)
         .offset(offset)
 

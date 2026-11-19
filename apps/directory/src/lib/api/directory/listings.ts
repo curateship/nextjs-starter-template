@@ -84,7 +84,7 @@ export type ListingsPage = {
   total: number
   page: number
   pageSize: number
-  /** Every listing under each status heading, for the search and category in view. */
+  /** How many listings each status tab holds, for the search and category in view. */
   statusCounts: Record<ListingStatus, number>
 }
 
@@ -106,30 +106,27 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }): Promise<ListingsPage> => {
     const pageSize = data.limit ?? 50
-    const page = data.page ?? 1
     const site = await workspaceIdForRequest(context.user.id)
-    // Both at once: the headings' counts do not wait on the page of rows.
+    // One tab at a time, Published unless another is asked for (Tyler, 18
+    // Nov 2026: "Add tabs to the listing in the header seperated by
+    // Published, Draft and Closed"). The counts are every tab's, for their
+    // labels.
+    const status = data.status ?? "published"
+    const page = data.page ?? 1
     const [{ listings, total }, statusCounts] = await Promise.all([
       listListings(site, {
         search: data.search,
-        status: data.status,
+        status,
         sort: data.sort,
         direction: data.direction,
         viewDays: data.days,
         categoryId: data.categoryId,
-        groupByStatus: true,
         limit: pageSize,
         offset: (page - 1) * pageSize,
       }),
       listingStatusCounts(site, { search: data.search, categoryId: data.categoryId }),
     ])
-    return {
-      listings,
-      total,
-      page,
-      pageSize,
-      statusCounts,
-    }
+    return { listings, total, page, pageSize, statusCounts }
   })
 
 export function loadListingsPage(input: {
