@@ -13,10 +13,10 @@ What Date does and why, one file per part. Tyler's decisions of 17 Oct 2026 are 
 - [ai/spend.md](ai/spend.md): what the AI costs and the monthly cap.
 - [your-profile.md](your-profile.md): the AI's suggestions for your own profile with before and after, Apply and Undo on the phone, new prompt answers from About me only, and the first-photo test.
 - [launch.md](launch.md): the live site at date.barelycompany.com, where it runs, every live value and the release record.
-- [settings.md](settings.md): the Dating settings, in the window the dashboard's cog opens.
-- [profiles.md](profiles.md): several dating profiles for one member, each one app's account with its own phone, settings, leads, spend and swipe loop; two profiles sharing one phone; the picker, New profile, Pause and Delete.
-- [dating-dashboard.md](dating-dashboard.md): the one three-column dashboard and Tyler's rules for it: leads and their status, the summary with the stats, the phone and My profile in the right panel, the Dates calendar, the cog's settings window, and the sample data.
+- [settings.md](settings.md): the Dating settings, as tabs of the ⋮ in the dashboard's left header.
+- [profiles.md](profiles.md): several dating profiles for one member, each one app's account with its own phone, settings, leads, spend and swipe loop; two profiles sharing one phone; switching in the ⋮, New profile, Pause and Delete.
+- [dating-dashboard.md](dating-dashboard.md): the one dashboard in the Admin 3 panel design and Tyler's rules for it: the left page of blocks with its Dashboards rows (Overview, Leads, Matches, Dates) and its ⋮, Overview's widgets, the list of leads under status headings, the person on the right with the chat below, the phone and My profile, and the sample data.
 - [chats/chats-and-replies.md](chats/chats-and-replies.md): openers, the one follow-up, what they told you, chats that are over or scams, they unmatched, Show 3, tone, Tidy, the member's voice, warming or cooling, Ask Date, dead matches and the Openers card.
-- [chats/dates-and-calendar.md](chats/dates-and-calendar.md): a yes to a date, the Dates tab, Before your date, the Dates tab's month and Google Calendar.
+- [chats/dates-and-calendar.md](chats/dates-and-calendar.md): a yes to a date, the Dates row, Before your date, its month and Google Calendar.
 - [Shell integration](shell-integration.md) — each shell merge into Date: what arrived, what stayed Date's own.
 - [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

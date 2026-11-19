@@ -36,7 +36,7 @@ function monthGrid(month: string) {
 }
 
 /**
- * The Dates tab's month, across the middle panel's full width (Tyler, 21 Oct
+ * The month on Dates, across the middle panel's full width (Tyler, 21 Oct
  * 2026, picking "a full-width month like Google Calendar" over a stretched
  * date picker): one square per day, each date with a time written in its
  * day as "7:00 PM Sofia", opening on the month of the next one. Pressing a
@@ -143,20 +143,22 @@ export function DatesMonth({ leads, onOpen }: { leads: LeadListItem[]; onOpen: (
 }
 
 /**
- * The Dates tab's month over the list of dates, with a handle between them to
+ * Dates' month over the list of dates, with a handle between them to
  * drag (Tyler, 21 Oct 2026: "make the bottom panel draggable"). The split is
  * remembered in this browser. The handle is the line between the two. Any
  * other tab is the list alone.
  */
+/** The month over the list, out of 100, until the handle is dragged. */
+const DATES_SPLIT = { month: 62, list: 38 }
+
 export function DatesSplit({ month, children }: { month: React.ReactNode; children: React.ReactNode }) {
-  const layout = useRememberedPanelLayout("date-dates-split")
+  const layout = useRememberedPanelLayout("date-dates-split", DATES_SPLIT)
   if (!month) return children
   return (
     <ResizablePanelGroup
-      key={layout.layoutKey}
+      groupRef={layout.groupRef}
       orientation="vertical"
       className="min-h-0 flex-1"
-      defaultLayout={layout.defaultLayout}
       onLayoutChanged={layout.onLayoutChanged}
     >
       <ResizablePanel id="month" defaultSize="62%" minSize="15%">

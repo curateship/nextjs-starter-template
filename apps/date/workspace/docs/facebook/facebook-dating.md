@@ -40,7 +40,7 @@ These outrank the code. In his picks' words:
 - **Stop screens.** Facebook asking to confirm it's you, the account restricted, disabled or under review, a Dating profile that is not available, an update Facebook insists on, signed out, out of likes, Facebook not installed, a step that left Dating, and buttons missing after an update. Each stops the Facebook profile until Resume; the Tinder profile on the same phone carries on.
 - **A frozen Facebook** is closed and opened again once before a walk gives up, never after something was typed.
 - **After an update** a read-only check finds every button before the profile swipes again.
-- **Compare apps** in the left panel puts the profiles side by side, and suggests moving swiping hours when one does clearly better.
+- **Compare apps**, a widget on the dashboard's Overview, puts the profiles side by side, and suggests moving swiping hours when one does clearly better.
 - **Sample data** on a Facebook profile shows each of these (`../dating-dashboard.md`).
 
 ## Where it lives

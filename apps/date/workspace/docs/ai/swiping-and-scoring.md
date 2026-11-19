@@ -53,7 +53,7 @@ One window every day, set in the Dating settings as "Swipe every day from" and "
 
 ## What's working
 
-- **What's working, a section of the dashboard's left panel**: every liked card the AI scored, in bands of 10 points, with how many became a match and how many of those matches sent a message. For example, "80 to 89: 9 matches out of 40 likes, 5 replied".
+- **What's working, a widget on the dashboard's Overview**: every liked card the AI scored, in bands of 10 points, with how many became a match and how many of those matches sent a message. For example, "80 to 89: 9 matches out of 40 likes, 5 replied".
 - **A band with fewer than 20 likes** says "not enough yet". It needs a few weeks before the numbers mean anything.
 - **A match is tied to its card** when the like came back "It's a Match!", or later by name on the chat list, to the newest like of that name not already tied to a match.
 

@@ -67,7 +67,7 @@ Through mass select: tick chats in the lead list, then Clear dead in the "N sele
 
 ## Which openers work
 
-The Openers section of the dashboard's left panel counts the AI's first messages by kind, and how many got an answer within 3 days, such as "A joke: 6 of 10 replied". It needs a few dozen openers before the numbers mean much, and says how many it is based on. Sample chats are left out.
+The Openers widget on the dashboard's Overview counts the AI's first messages by kind, and how many got an answer within 3 days, such as "A joke: 6 of 10 replied". It needs a few dozen openers before the numbers mean much, and says how many it is based on. Sample chats are left out.
 
 ## Where it lives
 

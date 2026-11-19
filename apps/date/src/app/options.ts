@@ -15,8 +15,8 @@ import type { AppOptions } from "@/lib/app-options"
  * The type is written as an annotation rather than `satisfies` so that an empty
  * object still reads as the full shape. Both catch a misspelled option.
  *
- * Date has no settings tab of its own: the Dating settings open from the cog
- * on the Dating dashboard, because they will differ per profile once there is
- * a Profiles dashboard (Tyler, 20 Oct 2026).
+ * Date has no settings tab of its own: the Dating settings are tabs of the ⋮
+ * in the Dating dashboard's left header, because they differ per profile
+ * (Tyler, 20 Oct 2026; the ⋮ took the cog's place on 18 Nov 2026).
  */
 export const appOptions: AppOptions = {}

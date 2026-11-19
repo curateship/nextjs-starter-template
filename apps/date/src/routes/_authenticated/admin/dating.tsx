@@ -21,7 +21,7 @@ function id(value: unknown): string | undefined {
  * lead's profile with the chat under it. In the address: the list's view
  * (`readLeadView`: the tab, the search, the filters and the sort),
  * `?open=<id>`, what is open on the right, and `?google=`, how coming back
- * from Google Calendar's screen went, which opens the settings window.
+ * from Google Calendar's screen went, which opens the left ⋮ at General.
  */
 export const Route = createFileRoute("/_authenticated/admin/dating")({
   validateSearch: (search: Record<string, unknown>): DatingSearch => ({

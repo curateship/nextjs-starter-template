@@ -48,7 +48,7 @@ export async function scheduleClash(owner: SettingsOwner, settings: DatingSettin
 }
 
 /**
- * Saves the whole set at once, as the settings window sends it. Refused with
+ * Saves the whole set at once, as the settings ⋮ sends it. Refused with
  * the reason when a value fails its check, two values disagree, or the
  * swiping hours overlap another profile's on the same phone.
  */

@@ -3,8 +3,8 @@ import { z } from "zod"
 /**
  * The member's Dating settings: what the AI is told about them and what they
  * want, how it decides, and the limits that keep the account looking like a
- * person. Shown in the Dating settings window, which saves each change
- * by itself. Tyler's choices, 17 Oct 2026, are the defaults here.
+ * person. Shown as rows of the Dating dashboard's left ⋮, which save each
+ * change by themselves. Tyler's choices, 17 Oct 2026, are the defaults here.
  */
 
 /**

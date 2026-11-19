@@ -13,7 +13,7 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
  * match it, so a link somebody else built cannot connect their calendar to
  * this account. The member must still be signed in and own the profile that
  * asked, and the calendar is kept against that profile. Every exit goes back to the Dating
- * dashboard, with a word that opens its settings window and says how it went.
+ * dashboard, with a word that opens its settings ⋮ and says how it went.
  */
 export const Route = createFileRoute("/api/dating/google-calendar_/callback")({
   server: {

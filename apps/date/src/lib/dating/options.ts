@@ -273,8 +273,15 @@ export const CARD_FLAG_WORDS: Record<CardFlag, string> = {
 /** On What's working, a band of scores with fewer likes than this says "not enough yet" instead of its numbers. */
 export const BAND_NEEDS_LIKES = 20
 
-/** The three columns' remembered widths. Not in the shell's `panelLayoutKey`, which is a shell file. */
-export const DATING_PANEL_LAYOUT_KEY = "date-dating-panels-2"
+/**
+ * The three panels' remembered widths. Not in the shell's `panelLayoutKey`,
+ * which is a shell file. Bumped to 3 for the Admin 3 panel design (task
+ * "features/07-three-panel-design"), so side panels open at their narrowest.
+ */
+export const DATING_PANEL_LAYOUT_KEY = "date-dating-panels-3"
+
+/** Overview's two panels, the left page and the widgets, kept apart from the three. */
+export const DATING_TWO_PANEL_LAYOUT_KEY = "date-dating-panels-two-1"
 
 /** Where the Dating dashboard was, for the shell's `useDashboardPlace`, kept beside the layout for the same reason. */
 export const DATING_PLACE_KEY = "date-dating-place"

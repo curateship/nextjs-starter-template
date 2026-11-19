@@ -1,22 +1,23 @@
 import * as React from "react"
-import { CalendarPlusIcon } from "lucide-react"
+import { CalendarPlusIcon, CalendarX2Icon } from "lucide-react"
 
-import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
-import { SettingsSwitchRow } from "@/components/settings/settings-switch-row"
+import { ProfileOption } from "./profiles"
+
 import { useReportedSaveStatus } from "@/components/settings/use-reported-save-status"
-import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
+import { PickGroup, PickMenuRow, PickRow, RowButton } from "@/components/shared/notes/pick-rows"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { NumberField } from "@/components/ui/number-field"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
-import { renameProfile } from "@/lib/api/dating/profiles"
 import { disconnectGoogleCalendar, loadGoogleCalendar, type CalendarConnection } from "@/lib/api/dating/chats"
+import { renameProfile } from "@/lib/api/dating/profiles"
 import { loadDatingSettings, saveDatingSettingsNow } from "@/lib/api/dating/settings"
 import { datingErrorMessage } from "@/lib/dating/errors"
 import { DATING_APP_WORDS, FACEBOOK_PACE, PROFILE_NAME_MAX } from "@/lib/dating/options"
@@ -31,20 +32,25 @@ import {
   type DatingStyle,
   type KnownPerson,
 } from "@/lib/dating/settings"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
- * The Dating settings, shown in the window the cog on the Dating dashboard
- * opens (`dating-settings-dialog.tsx`); they left Settings → App settings on
- * 20 Oct 2026, because they differ per profile (task "features/06-profiles"):
- * these are the open profile's. What the AI is told about the member and what they want, how it
- * decides, the limits on the phone, and Google Calendar. Every change saves
- * by itself: typing 700ms after the last key or when the field is left, a
- * switch or a pick at once. The page header says Saving…, Saved or Not saved.
+ * The open profile's Dating settings, as tabs of the left page's ⋮ (task
+ * "features/07-three-panel-design", Tyler, 18 Nov 2026: "THe left panel cog
+ * needs to be changed to a 3 dot dropdown and the modal needs to be a
+ * dropdown with the new dropdown ui"). They differ per profile (task
+ * "features/06-profiles"), which is why they are here and not in Settings.
  *
- * Read once per page and held for the profile they belong to, so opening
- * the window again draws at once.
- * Tyler's choices of 17 Oct 2026 are the defaults.
+ * Every field is a grouped row, as every settings ⋮ in the design is: a short
+ * list of choices drops from its row, and a typed value opens a small box.
+ * Every change saves by itself: typing 700ms after the last key or when the
+ * box closes, a switch or a pick at once. The page header says Saving…, Saved
+ * or Not saved. Tyler's choices of 17 Oct 2026 are the defaults.
+ *
+ * Read once per page and held for the profile they belong to, so moving
+ * between the ⋮'s tabs draws at once.
  */
 
 /** Typing waits this long after the last key, the same as the shell's own Settings. */
@@ -54,9 +60,10 @@ const SAVE_DELAY_MS = 700
 let held: { accountId: string; values: DatingSettings } | null = null
 const inBrowser = () => typeof window !== "undefined"
 
-function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["profile"]; onRenamed: () => void }) {
-  const accountId = profile.id
-  const facebook = profile.app === "facebook"
+const HOURS = Array.from({ length: 24 }, (_, hour) => ({ value: String(hour), label: `${hour}:00` }))
+
+/** The open profile's settings, read once and saved as they change; a save still waiting when the tab closes goes then. */
+function useDatingSettings(accountId: string) {
   const [values, setValues] = React.useState<DatingSettings | null>(() => (inBrowser() && held?.accountId === accountId ? held.values : null))
   const [error, setError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
@@ -83,7 +90,6 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
     }
   }, [reloads, accountId])
 
-  // A save still waiting when the tab closes goes now, so nothing typed is lost.
   React.useEffect(
     () => () => {
       if (timer.current && held) {
@@ -123,201 +129,241 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
     else timer.current = setTimeout(() => void save(next), SAVE_DELAY_MS)
   }
 
-  if (!values) {
-    return error ? <ErrorRow message={error} onRetry={() => setReloads((count) => count + 1)} /> : <LoadingRow label="Reading your Dating settings" />
+  const set = <K extends keyof DatingSettings>(key: K, value: DatingSettings[K], at: "now" | "soon" = "soon") => {
+    if (values) change({ ...values, [key]: value }, at)
   }
-
-  const set = <K extends keyof DatingSettings>(key: K, value: DatingSettings[K], at: "now" | "soon" = "soon") => change({ ...values, [key]: value }, at)
   const commit = () => {
-    if (timer.current) void save(values)
+    if (timer.current && values) void save(values)
   }
-  const examples = Array.from({ length: MAX_EXAMPLES }, (_, index) => values.examples[index] ?? "")
+  return { values, error, retry: () => setReloads((count) => count + 1), change, set, commit }
+}
 
+/** What a tab shows while the settings are read, or when they could not be. */
+function Waiting({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  return error ? <ErrorRow message={error} onRetry={onRetry} /> : <LoadingRow label="Reading your Dating settings" />
+}
+
+/** A switch as a row of a grouped list: its name on the left, muted, the switch on the right. */
+function SwitchRow({ id, label, checked, onCheckedChange }: { id: string; label: string; checked: boolean; onCheckedChange: (on: boolean) => void }) {
   return (
-    <CardGroup>
-      <ProfileCard profile={profile} onRenamed={onRenamed} />
-      <CollapsibleSettingsCard
-        storageId="date-settings-you"
-        title="About you"
-        description="The AI uses only these facts about you, and writes in the voice of your examples. It never makes a fact up."
-        contentClassName="grid gap-4"
-      >
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="date-about-me" hint="Your job, where you live, what you like doing. Answers to the AI's questions are added here too.">
-            About me
-          </FieldLabel>
-          <Textarea id="date-about-me" rows={1} value={values.aboutMe} onChange={(event) => set("aboutMe", event.target.value)} onBlur={commit} />
-        </div>
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="date-example-0" hint="Three to five messages you have sent, as you wrote them. The AI matches their length, capitals and emoji.">
-            Your example messages
-          </FieldLabel>
-          {examples.map((example, index) => (
-            <Textarea
-              key={index}
-              id={`date-example-${index}`}
-              rows={1}
-              aria-label={`Example message ${index + 1}`}
-              value={example}
-              onChange={(event) => {
-                const next = [...examples]
-                next[index] = event.target.value
-                set("examples", next)
-              }}
-              onBlur={commit}
-            />
-          ))}
-        </div>
-        <SettingsSwitchRow
+    <div className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+      <Label htmlFor={id} className="min-w-0 flex-1 font-normal text-muted-foreground">
+        {label}
+      </Label>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  )
+}
+
+/** A short line under a group's list, for what a field needs said. */
+function GroupNote({ children }: { children: React.ReactNode }) {
+  return <p className="px-0.5 text-xs text-muted-foreground">{children}</p>
+}
+
+/** The first words of a typed value, or None. */
+function shortWords(text: string): { value: string; empty: boolean } {
+  const trimmed = text.trim()
+  return trimmed ? { value: trimmed, empty: false } : { value: "None", empty: true }
+}
+
+/**
+ * The You tab: what the AI is told about the member, the voice it writes in,
+ * and who they are looking for.
+ */
+export function DatingYouTab({ profile }: { profile: DatingDashboard["profile"] }) {
+  const { values, error, retry, set, commit } = useDatingSettings(profile.id)
+  if (!values) return <Waiting error={error} onRetry={retry} />
+  const examples = Array.from({ length: MAX_EXAMPLES }, (_, index) => values.examples[index] ?? "")
+  const written = examples.filter((example) => example.trim()).length
+  const appName = DATING_APP_WORDS[profile.app].name
+  return (
+    <div className="grid gap-3 p-3">
+      <PickGroup title="About you" after={<GroupNote>The AI uses only these facts about you, and never makes one up.</GroupNote>}>
+        <PickRow label="About me" {...shortWords(values.aboutMe)}>
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="date-about-me" hint="Your job, where you live, what you like doing. Answers to the AI's questions are added here too.">
+              About me
+            </FieldLabel>
+            <Textarea id="date-about-me" rows={4} value={values.aboutMe} onChange={(event) => set("aboutMe", event.target.value)} onBlur={commit} />
+          </div>
+        </PickRow>
+        <PickRow label="Example messages" value={written ? `${written} of ${MAX_EXAMPLES}` : "None"} empty={!written}>
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="date-example-0" hint="Three to five messages you have sent, as you wrote them. The AI matches their length, capitals and emoji.">
+              Your example messages
+            </FieldLabel>
+            {examples.map((example, index) => (
+              <Textarea
+                key={index}
+                id={`date-example-${index}`}
+                rows={1}
+                aria-label={`Example message ${index + 1}`}
+                value={example}
+                onChange={(event) => {
+                  const next = [...examples]
+                  next[index] = event.target.value
+                  set("examples", next)
+                }}
+                onBlur={commit}
+              />
+            ))}
+          </div>
+        </PickRow>
+        <SwitchRow
           id="date-learn-from-sends"
+          label="Learn from my last 10 sends"
           checked={values.learnFromSends}
           onCheckedChange={(on) => set("learnFromSends", on, "now")}
-          label="Also learn from my last 10 sent messages"
-          hint="Messages you write yourself, or change before sending, become extra examples of your voice. The AI's own messages, drafts sent unchanged and anything with a phone number are left out."
         />
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="date-style">Style</FieldLabel>
-          <Select value={values.style} onValueChange={(style) => set("style", style as DatingStyle, "now")}>
-            <SelectTrigger id="date-style" className="w-full sm:w-fit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DATING_STYLES.map((style) => (
-                <SelectItem key={style} value={style}>
-                  {DATING_STYLE_WORDS[style]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="date-settings-looking-for"
+        <PickMenuRow
+          label="Style"
+          value={DATING_STYLE_WORDS[values.style]}
+          options={DATING_STYLES.map((style) => ({ value: style, label: DATING_STYLE_WORDS[style] }))}
+          selected={values.style}
+          onPick={(style) => set("style", style as DatingStyle, "now")}
+        />
+      </PickGroup>
+      <PickGroup
         title="Who you are looking for"
-        description="The AI scores each card out of 100 against this, from the photos and the words."
-        contentClassName="grid gap-4"
+        after={<GroupNote>The AI scores each card out of 100 against this. The phone copies the ages and distance into {appName}'s own settings.</GroupNote>}
       >
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="date-looking-for">Looking for</FieldLabel>
-          <Textarea id="date-looking-for" rows={1} value={values.lookingFor} onChange={(event) => set("lookingFor", event.target.value)} onBlur={commit} />
-        </div>
-        <div className="grid gap-2">
-          <FieldLabel htmlFor="date-dealbreakers" hint="A card that clearly hits one of these is always passed, whatever its score.">
-            Dealbreakers
-          </FieldLabel>
-          <Textarea id="date-dealbreakers" rows={1} value={values.dealbreakers} onChange={(event) => set("dealbreakers", event.target.value)} onBlur={commit} />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <PickRow label="Looking for" {...shortWords(values.lookingFor)}>
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="date-looking-for">Looking for</FieldLabel>
+            <Textarea id="date-looking-for" rows={4} value={values.lookingFor} onChange={(event) => set("lookingFor", event.target.value)} onBlur={commit} />
+          </div>
+        </PickRow>
+        <PickRow label="Dealbreakers" {...shortWords(values.dealbreakers)}>
+          <div className="grid gap-2">
+            <FieldLabel htmlFor="date-dealbreakers" hint="A card that clearly hits one of these is always passed, whatever its score.">
+              Dealbreakers
+            </FieldLabel>
+            <Textarea id="date-dealbreakers" rows={4} value={values.dealbreakers} onChange={(event) => set("dealbreakers", event.target.value)} onBlur={commit} />
+          </div>
+        </PickRow>
+        <PickRow label="Ages" value={`${values.ageMin} to ${values.ageMax}`}>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField id="date-age-min" label="Youngest" value={values.ageMin} min={18} max={99} onChange={(value) => set("ageMin", value)} onCommit={commit} />
+            <NumberField id="date-age-max" label="Oldest" value={values.ageMax} min={18} max={99} onChange={(value) => set("ageMax", value)} onCommit={commit} />
+          </div>
+        </PickRow>
+        <PickRow label="Furthest away" value={`${values.maxDistanceKm} km`}>
           <NumberField
-            id="date-age-min"
-            label="Youngest"
-            value={values.ageMin}
-            min={18}
-            max={99}
-            onChange={(value) => set("ageMin", value)}
+            id="date-max-distance"
+            label="Furthest away, in km"
+            value={values.maxDistanceKm}
+            min={2}
+            max={160}
+            onChange={(value) => set("maxDistanceKm", value)}
             onCommit={commit}
           />
-          <NumberField id="date-age-max" label="Oldest" value={values.ageMax} min={18} max={99} onChange={(value) => set("ageMax", value)} onCommit={commit} />
-        </div>
-        <NumberField
-          id="date-max-distance"
-          label="Furthest away, in km"
-          hint={`The phone copies this and your ages into ${DATING_APP_WORDS[profile.app].name}'s own settings, so it stops showing cards Date would pass anyway.`}
-          value={values.maxDistanceKm}
-          min={2}
-          max={160}
-          inputClassName="w-full sm:w-32"
-          onChange={(value) => set("maxDistanceKm", value)}
-          onCommit={commit}
-        />
-        <KnownPeopleField people={values.knownPeople} onChange={(people) => set("knownPeople", people)} onCommit={commit} />
-      </CollapsibleSettingsCard>
+        </PickRow>
+        <PickRow
+          label="People I know"
+          value={values.knownPeople.length ? `${values.knownPeople.length} ${values.knownPeople.length === 1 ? "person" : "people"}` : "None"}
+          empty={!values.knownPeople.length}
+        >
+          <KnownPeopleField people={values.knownPeople} onChange={(people) => set("knownPeople", people)} onCommit={commit} />
+        </PickRow>
+      </PickGroup>
+    </div>
+  )
+}
 
-      <CollapsibleSettingsCard
-        storageId="date-settings-swiping"
+/**
+ * The Rules tab: how the AI swipes and replies, the limits that keep the
+ * account looking like one person with a phone, and the monthly AI cap.
+ */
+export function DatingRulesTab({ profile }: { profile: DatingDashboard["profile"] }) {
+  const { values, error, retry, change, set, commit } = useDatingSettings(profile.id)
+  if (!values) return <Waiting error={error} onRetry={retry} />
+  const facebook = profile.app === "facebook"
+  const scheduleOptions = [{ value: "none", label: "No schedule" }, ...HOURS]
+  const pickSchedule = (side: "start" | "end", picked: string) => {
+    if (picked === "none") return change({ ...values, scheduleStart: null, scheduleEnd: null }, "now")
+    const hour = Number(picked)
+    // Picking one hour when neither is set fills the other three hours away.
+    change(
+      side === "start"
+        ? { ...values, scheduleStart: hour, scheduleEnd: values.scheduleEnd ?? (hour + 3) % 24 }
+        : { ...values, scheduleEnd: hour, scheduleStart: values.scheduleStart ?? (hour + 21) % 24 },
+      "now"
+    )
+  }
+  const noSchedule = values.scheduleStart === null || values.scheduleEnd === null
+  return (
+    <div className="grid gap-3 p-3">
+      <PickGroup
         title="Swiping"
-        description="A card the AI scores at this number or more is liked; below it, passed. Swiping can start and stop by itself each day."
-        contentClassName="grid gap-4"
+        after={
+          <GroupNote>
+            {noSchedule
+              ? "No schedule: swiping runs when you press Start."
+              : `Swiping starts by itself at ${values.scheduleStart}:00 and stops at ${values.scheduleEnd}:00, on the phone's own clock. Stop inside those hours holds it until the next day.`}
+          </GroupNote>
+        }
       >
-        <NumberField
-          id="date-like-above"
-          label="Like when the score is this or more"
-          hint="A card scoring 95 or more gets a Super Like instead, at most one a day."
-          value={values.likeAbove}
-          min={0}
-          max={100}
-          inputClassName="w-full sm:w-32"
-          onChange={(value) => set("likeAbove", value)}
-          onCommit={commit}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ScheduleHourPick
-            id="date-schedule-start"
-            label="Swipe every day from"
-            value={values.scheduleStart}
-            onChange={(hour) =>
-              change(
-                hour === null
-                  ? { ...values, scheduleStart: null, scheduleEnd: null }
-                  : { ...values, scheduleStart: hour, scheduleEnd: values.scheduleEnd ?? (hour + 3) % 24 },
-                "now"
-              )
-            }
-          />
-          <ScheduleHourPick
-            id="date-schedule-end"
-            label="Until"
-            value={values.scheduleEnd}
-            onChange={(hour) =>
-              change(
-                hour === null
-                  ? { ...values, scheduleStart: null, scheduleEnd: null }
-                  : { ...values, scheduleEnd: hour, scheduleStart: values.scheduleStart ?? (hour + 21) % 24 },
-                "now"
-              )
-            }
-          />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {values.scheduleStart === null || values.scheduleEnd === null
-            ? "No schedule: swiping runs when you press Start."
-            : `Swiping starts by itself at ${values.scheduleStart}:00 and stops at ${values.scheduleEnd}:00, on the phone's own clock. Stop inside those hours holds it until the next day.`}
-        </p>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="date-settings-replies"
-        title="Replies"
-        description={`On: the AI sends its replies without waiting for you, ${values.replyDelayMin} to ${values.replyDelayMax} minutes after theirs. Off: you press Send.`}
-        contentClassName="grid gap-4"
-      >
-        <SettingsSwitchRow id="date-automate" checked={values.automate} onCheckedChange={(on) => set("automate", on, "now")} label="The AI sends its replies by itself" />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <PickRow label="Like at" value={`${values.likeAbove} or more`}>
           <NumberField
-            id="date-delay-min"
-            label="Soonest, in minutes"
-            value={values.replyDelayMin}
+            id="date-like-above"
+            label="Like when the score is this or more"
+            hint="A card scoring 95 or more gets a Super Like instead, at most one a day."
+            value={values.likeAbove}
             min={0}
-            max={1_440}
-            onChange={(value) => set("replyDelayMin", value)}
+            max={100}
+            onChange={(value) => set("likeAbove", value)}
             onCommit={commit}
           />
-          <NumberField id="date-delay-max" label="Latest, in minutes" value={values.replyDelayMax} min={0} max={1_440} onChange={(value) => set("replyDelayMax", value)} onCommit={commit} />
-        </div>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="date-settings-limits"
-        title="Limits"
-        description={
-          facebook
-            ? `What keeps the account looking like one person with a phone. On Facebook Dating at most ${FACEBOOK_PACE.swipesPerDay} swipes a day and ${FACEBOOK_PACE.swipesPerHour} an hour, ${FACEBOOK_PACE.gapMs.min / 1000} to ${FACEBOOK_PACE.gapMs.max / 1000} seconds apart, because a ban there loses the whole Facebook account.`
-            : "What keeps the account looking like one person with a phone. Swipes are also kept 4 to 9 seconds apart."
+        </PickRow>
+        <PickMenuRow
+          label="Swipe every day from"
+          value={values.scheduleStart === null ? "No schedule" : `${values.scheduleStart}:00`}
+          empty={values.scheduleStart === null}
+          options={scheduleOptions}
+          selected={values.scheduleStart === null ? "none" : String(values.scheduleStart)}
+          onPick={(picked) => pickSchedule("start", picked)}
+        />
+        <PickMenuRow
+          label="Until"
+          value={values.scheduleEnd === null ? "No schedule" : `${values.scheduleEnd}:00`}
+          empty={values.scheduleEnd === null}
+          options={scheduleOptions}
+          selected={values.scheduleEnd === null ? "none" : String(values.scheduleEnd)}
+          onPick={(picked) => pickSchedule("end", picked)}
+        />
+      </PickGroup>
+      <PickGroup
+        title="Replies"
+        after={
+          <GroupNote>
+            {values.automate
+              ? `The AI sends its replies without waiting for you, ${values.replyDelayMin} to ${values.replyDelayMax} minutes after theirs.`
+              : "You press Send on each reply."}
+          </GroupNote>
         }
-        contentClassName="grid gap-4"
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <SwitchRow id="date-automate" label="The AI sends replies by itself" checked={values.automate} onCheckedChange={(on) => set("automate", on, "now")} />
+        <PickRow label="Reply after" value={`${values.replyDelayMin} to ${values.replyDelayMax} min`}>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField id="date-delay-min" label="Soonest, in minutes" value={values.replyDelayMin} min={0} max={1_440} onChange={(value) => set("replyDelayMin", value)} onCommit={commit} />
+            <NumberField id="date-delay-max" label="Latest, in minutes" value={values.replyDelayMax} min={0} max={1_440} onChange={(value) => set("replyDelayMax", value)} onCommit={commit} />
+          </div>
+        </PickRow>
+      </PickGroup>
+      <PickGroup
+        title="Limits"
+        after={
+          <GroupNote>
+            {values.quietStart === values.quietEnd
+              ? "No quiet hours: the phone may work at any hour."
+              : `Nothing happens on the phone from ${values.quietStart}:00 to ${values.quietEnd}:00, on the phone's own clock.`}{" "}
+            {facebook
+              ? `On Facebook Dating never more than ${FACEBOOK_PACE.swipesPerDay} swipes a day and ${FACEBOOK_PACE.swipesPerHour} an hour, because a ban there loses the whole Facebook account.`
+              : "Swipes are kept 4 to 9 seconds apart."}
+          </GroupNote>
+        }
+      >
+        <PickRow label="Swipes an hour" value={String(values.swipesPerHour)}>
           <NumberField
             id="date-swipes-hour"
             label="Swipes an hour"
@@ -327,6 +373,8 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
             onChange={(value) => set("swipesPerHour", value)}
             onCommit={commit}
           />
+        </PickRow>
+        <PickRow label="Swipes a day" value={String(values.swipesPerDay)}>
           <NumberField
             id="date-swipes-day"
             label="Swipes a day"
@@ -337,6 +385,8 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
             onChange={(value) => set("swipesPerDay", value)}
             onCommit={commit}
           />
+        </PickRow>
+        <PickRow label="Messages an hour" value={String(values.messagesPerHour)}>
           <NumberField
             id="date-messages-hour"
             label="Messages an hour"
@@ -346,206 +396,78 @@ function DatingSettingsTab({ profile, onRenamed }: { profile: DatingDashboard["p
             onChange={(value) => set("messagesPerHour", value)}
             onCommit={commit}
           />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <HourPick id="date-quiet-start" label="Quiet from" value={values.quietStart} onChange={(hour) => set("quietStart", hour, "now")} />
-          <HourPick id="date-quiet-end" label="Quiet until" value={values.quietEnd} onChange={(hour) => set("quietEnd", hour, "now")} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {values.quietStart === values.quietEnd
-            ? "No quiet hours: the phone may work at any hour."
-            : `Nothing happens on the phone from ${values.quietStart}:00 to ${values.quietEnd}:00, on the phone's own clock.`}
-        </p>
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="date-settings-spend"
-        title="AI spend"
-        description="Once this month's AI spend reaches the cap, the AI stops calling and swiping stops, until the 1st or until the cap is raised."
-        contentClassName="grid gap-4"
-      >
-        <NumberField
-          id="date-spend-cap"
-          label="Monthly cap, in dollars"
-          value={values.spendCapDollars}
-          min={0}
-          max={1_000}
-          inputClassName="w-full sm:w-32"
-          onChange={(value) => set("spendCapDollars", value)}
-          onCommit={commit}
+        </PickRow>
+        <PickMenuRow
+          label="Quiet from"
+          value={`${values.quietStart}:00`}
+          options={HOURS}
+          selected={String(values.quietStart)}
+          onPick={(hour) => set("quietStart", Number(hour), "now")}
         />
-      </CollapsibleSettingsCard>
-
-      <GoogleCalendarCard />
-    </CardGroup>
-  )
-}
-
-/**
- * Google Calendar, one way (part 15 of "features/01-chats-and-replies"):
- * Date adds, moves and removes its own event for each date with a time, and
- * never reads the calendar. Connect goes to Google and back; Disconnect asks
- * first.
- */
-function GoogleCalendarCard() {
-  const [google, setGoogle] = React.useState<CalendarConnection | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-  const [confirming, setConfirming] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
-  const [reloads, setReloads] = React.useState(0)
-
-  React.useEffect(() => {
-    let live = true
-    loadGoogleCalendar().then(
-      (next) => live && setGoogle(next),
-      (failure: unknown) => live && setError(datingErrorMessage(failure))
-    )
-    return () => {
-      live = false
-    }
-  }, [reloads])
-
-  return (
-    <CollapsibleSettingsCard
-      storageId="date-settings-google"
-      title="Google Calendar"
-      description="Each date you give a time goes into your Google Calendar too, and moves or goes with it. Date only writes its own events and never reads your calendar."
-      contentClassName="grid gap-4"
-    >
-      {!google ? (
-        error ? (
-          <ErrorRow message={error} onRetry={() => setReloads((count) => count + 1)} />
-        ) : (
-          <LoadingRow label="Checking Google Calendar" />
-        )
-      ) : google.connected ? (
-        <>
-          <p className="text-sm">Connected{google.email ? ` as ${google.email}` : ""}.</p>
-          {google.lastError ? <p className="text-sm text-destructive">Last time Google refused: {google.lastError}</p> : null}
-          <Button type="button" variant="outline" className="justify-self-start" onClick={() => setConfirming(true)}>
-            Disconnect
-          </Button>
-        </>
-      ) : google.available ? (
-        <Button asChild className="justify-self-start">
-          <a href="/api/dating/google-calendar">
-            <CalendarPlusIcon /> Connect Google Calendar
-          </a>
-        </Button>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Not set up on this server yet. It needs the Google app's two keys, the same ones Continue with Google uses, with the Calendar API switched on and
-          /api/dating/google-calendar/callback listed as a redirect address.
-        </p>
-      )}
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title="Disconnect Google Calendar?"
-        description="Date stops adding dates to it. Events already there stay in your calendar."
-        confirmLabel="Disconnect"
-        loading={busy}
-        onConfirm={() => {
-          setBusy(true)
-          dismissErrorToast()
-          disconnectGoogleCalendar()
-            .then(async () => {
-              setConfirming(false)
-              setGoogle(await loadGoogleCalendar())
-            })
-            .catch((failure: unknown) => showErrorToast(datingErrorMessage(failure)))
-            .finally(() => setBusy(false))
-        }}
-      />
-    </CollapsibleSettingsCard>
-  )
-}
-
-/**
- * People I know: one person a line, a name and an age, such as "Sarah, 31".
- * A card with that name and age is passed without an AI call. The box keeps
- * what is typed; only a list that reads cleanly is saved, and a line that does
- * not read is marked and named in a toast when the box is left.
- */
-function KnownPeopleField({ people, onChange, onCommit }: { people: KnownPerson[]; onChange: (people: KnownPerson[]) => void; onCommit: () => void }) {
-  const [text, setText] = React.useState(() => knownPeopleText(people))
-  const parsed = parseKnownPeople(text)
-  const problem = "problem" in parsed ? parsed.problem : null
-  return (
-    <div className="grid gap-2">
-      <FieldLabel
-        htmlFor="date-known-people"
-        hint="One a line, a name and an age, such as Sarah, 31. A card with that name and age is passed without the AI reading it. Names match whatever their capitals or accents."
+        <PickMenuRow
+          label="Quiet until"
+          value={`${values.quietEnd}:00`}
+          options={HOURS}
+          selected={String(values.quietEnd)}
+          onPick={(hour) => set("quietEnd", Number(hour), "now")}
+        />
+      </PickGroup>
+      <PickGroup
+        title="AI spend"
+        after={<GroupNote>Once this month's AI spend reaches the cap, the AI stops and swiping stops, until the 1st or until the cap is raised.</GroupNote>}
       >
-        People I know
-      </FieldLabel>
-      <Textarea
-        id="date-known-people"
-        rows={1}
-        value={text}
-        aria-invalid={problem ? true : undefined}
-        placeholder="Sarah, 31"
-        onChange={(event) => {
-          setText(event.target.value)
-          const next = parseKnownPeople(event.target.value)
-          if ("people" in next) onChange(next.people)
-        }}
-        onBlur={() => {
-          if (problem) showErrorToast(problem)
-          else onCommit()
-        }}
-      />
-    </div>
-  )
-}
-
-/** An hour of the swiping schedule, or none. Picking one hour when neither is set fills the other three hours away. */
-function ScheduleHourPick({ id, label, value, onChange }: { id: string; label: string; value: number | null; onChange: (hour: number | null) => void }) {
-  return (
-    <div className="grid gap-2">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select value={value === null ? "none" : String(value)} onValueChange={(hour) => onChange(hour === "none" ? null : Number(hour))}>
-        <SelectTrigger id={id} className="w-full sm:w-fit">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">No schedule</SelectItem>
-          {Array.from({ length: 24 }, (_, hour) => (
-            <SelectItem key={hour} value={String(hour)}>
-              {hour}:00
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
-
-function HourPick({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (hour: number) => void }) {
-  return (
-    <div className="grid gap-2">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select value={String(value)} onValueChange={(hour) => onChange(Number(hour))}>
-        <SelectTrigger id={id} className="w-full sm:w-fit">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {Array.from({ length: 24 }, (_, hour) => (
-            <SelectItem key={hour} value={String(hour)}>
-              {hour}:00
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        <PickRow label="Monthly cap" value={`$${values.spendCapDollars}`}>
+          <NumberField
+            id="date-spend-cap"
+            label="Monthly cap, in dollars"
+            value={values.spendCapDollars}
+            min={0}
+            max={1_000}
+            onChange={(value) => set("spendCapDollars", value)}
+            onCommit={commit}
+          />
+        </PickRow>
+      </PickGroup>
     </div>
   )
 }
 
 /**
- * Which profile these settings are, and its name, which saves the way every
- * setting here does: 700ms after the last key, or when the field is left.
+ * The General tab's own groups, after the shell's Page group: the open
+ * profile, picked here to switch (Tyler, 18 Nov 2026: "move the profile
+ * swicher inside the 3 dotted dropdown"), its name, which saves as every
+ * setting here does, and Google Calendar.
  */
-function ProfileCard({ profile, onRenamed }: { profile: DatingDashboard["profile"]; onRenamed: () => void }) {
+export function DatingGeneralGroups({
+  data,
+  onPickProfile,
+  onRenamed,
+}: {
+  data: DatingDashboard
+  onPickProfile: (accountId: string) => void
+  onRenamed: () => void
+}) {
+  const profile = data.profile
+  return (
+    <>
+      <PickGroup title="Profile" after={<GroupNote>One {DATING_APP_WORDS[profile.app].name} account. Every setting in this menu is this profile's own.</GroupNote>}>
+        <PickMenuRow
+          label="Open profile"
+          value={profile.name}
+          options={data.profiles.map((item) => ({ value: item.id, label: <ProfileOption profile={item} /> }))}
+          selected={profile.id}
+          onPick={onPickProfile}
+        />
+        <PickRow label="Name" value={profile.name}>
+          <ProfileName profile={profile} onRenamed={onRenamed} />
+        </PickRow>
+      </PickGroup>
+      <GoogleCalendarGroup />
+    </>
+  )
+}
+
+function ProfileName({ profile, onRenamed }: { profile: DatingDashboard["profile"]; onRenamed: () => void }) {
   const [name, setName] = React.useState(profile.name)
   const [invalid, setInvalid] = React.useState(false)
   const saved = React.useRef(profile.name)
@@ -578,33 +500,148 @@ function ProfileCard({ profile, onRenamed }: { profile: DatingDashboard["profile
   }
 
   return (
-    <CollapsibleSettingsCard
-      storageId="date-settings-profile"
-      title="Profile"
-      description={`One ${DATING_APP_WORDS[profile.app].name} account. Every setting in this window is this profile's own.`}
-      contentClassName="grid gap-4"
-    >
-      <div className="grid gap-2">
-        <FieldLabel htmlFor="date-profile-name">Name</FieldLabel>
-        <Input
-          id="date-profile-name"
-          value={name}
-          maxLength={PROFILE_NAME_MAX}
-          aria-invalid={invalid || undefined}
-          onChange={(event) => {
-            const next = event.target.value
-            setName(next)
-            clearTimeout(timer.current)
-            timer.current = setTimeout(() => void save(next), SAVE_DELAY_MS)
-          }}
-          onBlur={() => void save(name)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") void save(name)
-          }}
-        />
-      </div>
-    </CollapsibleSettingsCard>
+    <div className="grid gap-2">
+      <FieldLabel htmlFor="date-profile-name">Name</FieldLabel>
+      <Input
+        id="date-profile-name"
+        value={name}
+        maxLength={PROFILE_NAME_MAX}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => {
+          const next = event.target.value
+          setName(next)
+          clearTimeout(timer.current)
+          timer.current = setTimeout(() => void save(next), SAVE_DELAY_MS)
+        }}
+        onBlur={() => void save(name)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void save(name)
+        }}
+      />
+    </div>
   )
 }
 
-export default DatingSettingsTab
+/**
+ * Google Calendar, one way (part 15 of "features/01-chats-and-replies"):
+ * Date adds, moves and removes its own event for each date with a time, and
+ * never reads the calendar. Connect goes to Google and back; Disconnect asks
+ * first.
+ */
+function GoogleCalendarGroup() {
+  const [google, setGoogle] = React.useState<CalendarConnection | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [confirming, setConfirming] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+  const [reloads, setReloads] = React.useState(0)
+
+  React.useEffect(() => {
+    let live = true
+    loadGoogleCalendar().then(
+      (next) => live && setGoogle(next),
+      (failure: unknown) => live && setError(datingErrorMessage(failure))
+    )
+    return () => {
+      live = false
+    }
+  }, [reloads])
+
+  let row: React.ReactNode
+  let note: React.ReactNode = "Each date you give a time goes into your Google Calendar too. Date never reads your calendar."
+  if (!google) {
+    row = error ? (
+      <ErrorRow message={error} onRetry={() => setReloads((count) => count + 1)} />
+    ) : (
+      <RowButton label="Google Calendar" value="Checking…" empty disabled open={false} />
+    )
+  } else if (google.connected) {
+    // Connected: the row's box says as whom and holds Disconnect, which asks first.
+    row = (
+      <PickRow label="Google Calendar" value={google.email || "Connected"}>
+        <p className="text-sm">Connected{google.email ? ` as ${google.email}` : ""}.</p>
+        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setConfirming(true)}>
+          <CalendarX2Icon /> Disconnect
+        </Button>
+      </PickRow>
+    )
+    if (google.lastError) note = <span className="text-destructive">Last time Google refused: {google.lastError}</span>
+  } else if (google.available) {
+    row = (
+      <a href="/api/dating/google-calendar" className={cn("flex min-h-11 items-center gap-3 px-3 py-2 text-sm hover:bg-muted", focusRingInset)}>
+        <span className="shrink-0 text-muted-foreground">Google Calendar</span>
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          <CalendarPlusIcon className="size-4" aria-hidden /> Connect
+        </span>
+      </a>
+    )
+  } else {
+    row = <RowButton label="Google Calendar" value="Not set up" empty disabled open={false} />
+    note =
+      "Not set up on this server yet. It needs the Google app's two keys, the same ones Continue with Google uses, with the Calendar API switched on and /api/dating/google-calendar/callback listed as a redirect address."
+  }
+
+  return (
+    <>
+      <PickGroup title="Calendar" after={<GroupNote>{note}</GroupNote>}>
+        {row}
+      </PickGroup>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Disconnect Google Calendar?"
+        description="Date stops adding dates to it. Events already there stay in your calendar."
+        confirmLabel="Disconnect"
+        loading={busy}
+        onConfirm={() => {
+          setBusy(true)
+          dismissErrorToast()
+          disconnectGoogleCalendar()
+            .then(async () => {
+              setConfirming(false)
+              setGoogle(await loadGoogleCalendar())
+            })
+            .catch((failure: unknown) => showErrorToast(datingErrorMessage(failure)))
+            .finally(() => setBusy(false))
+        }}
+      />
+    </>
+  )
+}
+
+/**
+ * People I know: one person a line, a name and an age, such as "Sarah, 31".
+ * A card with that name and age is passed without an AI call. The box keeps
+ * what is typed; only a list that reads cleanly is saved, and a line that does
+ * not read is marked and named in a toast when the box is left.
+ */
+function KnownPeopleField({ people, onChange, onCommit }: { people: KnownPerson[]; onChange: (people: KnownPerson[]) => void; onCommit: () => void }) {
+  const [text, setText] = React.useState(() => knownPeopleText(people))
+  const parsed = parseKnownPeople(text)
+  const problem = "problem" in parsed ? parsed.problem : null
+  return (
+    <div className="grid gap-2">
+      <FieldLabel
+        htmlFor="date-known-people"
+        hint="One a line, a name and an age, such as Sarah, 31. A card with that name and age is passed without the AI reading it. Names match whatever their capitals or accents."
+      >
+        People I know
+      </FieldLabel>
+      <Textarea
+        id="date-known-people"
+        rows={4}
+        value={text}
+        aria-invalid={problem ? true : undefined}
+        placeholder="Sarah, 31"
+        onChange={(event) => {
+          setText(event.target.value)
+          const next = parseKnownPeople(event.target.value)
+          if ("people" in next) onChange(next.people)
+        }}
+        onBlur={() => {
+          if (problem) showErrorToast(problem)
+          else onCommit()
+        }}
+      />
+    </div>
+  )
+}

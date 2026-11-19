@@ -5,7 +5,7 @@ One member can run several dating profiles. A profile is one dating app's accoun
 Tyler asked for it on 20 Oct 2026: "We need to build a profile dashboard so that users can run multiple profiles". His answers the same day, which outrank the code:
 
 - **A profile is one app account.** He asked "One account one phone means one phone can run one of tinder and one of hinge?" and picked that: one phone carries at most one profile of each app. Facebook Dating joined on 22 Oct 2026 (`facebook/facebook-dating.md`). Hinge is not built yet (`../tasks/features/04-phone-tinder-and-hinge.md`), so New profile makes Tinder and Facebook Dating profiles.
-- **Inside the Dating dashboard**, not a dashboard of its own: a picker at the top of the left panel, and a Profiles section in it.
+- **Inside the Dating dashboard**, not a dashboard of its own: the left panel's header names the open profile, its ⋮ switches, and a Profiles block on the left page lists them.
 - **Everything per profile**: About you, who you're looking for, swiping, replies, limits, the AI spend cap and Google Calendar.
 - **New profile**: a name and the app, then a pair code, starting with a copy of the open profile's settings.
 - **Today's data became the first profile.**
@@ -16,23 +16,23 @@ Tyler asked for it on 20 Oct 2026: "We need to build a profile dashboard so that
 
 ## On the dashboard
 
-- **The picker** is the left panel's title: the open profile's first photo (or its letter) and its name. It lists every profile with its app and phone, then **New profile**.
-- **The Profiles section**, under the phone's line, lists every profile: its name, "Tinder · Pixel 8a here" (or "away", or "no phone yet"), a green dot while its phone checks in, a **Paused** tag, and how many leads wait on you there. The open one is grey. Pressing another switches to it. The last row, under the profiles, is **New profile**.
+- **The title** of the left panel is the open profile's first photo (or its letter), its name, and its app and phone. Switching is the **Open profile** row in the ⋮'s General tab, which lists every profile with its app and phone (Tyler, 18 Nov 2026: "move the profile swicher inside the 3 dotted dropdown").
+- **The Profiles block** on the left page lists every profile: its name, its app, Paused, and how many leads wait on the member there. The open one is picked; pressing another switches. **New profile** is under the rows.
 - **Switching loads the whole page again** (`window.location.assign`), the way the shell's site switcher does, so nothing of the last profile stays on screen. Each profile remembers its own place: the place key is `date-dating-place:<profile id>`.
 - **The pick is kept on the server** (`date_account_picks`), so every device opens the same profile, and every server function acts on it. A switch made on another device or tab reloads this one on its next refresh, because its buttons would otherwise act on a profile it is not showing.
-- **A paused profile** says "Paused. Nothing runs until Resume." at the top of the left panel, with **Resume**.
+- **A paused profile** says "Paused. Nothing runs until Resume." in the Phone block on the left page, with **Resume**.
 
 ## New profile
 
-From the picker or the **New profile** row at the bottom of the Profiles section. A window asks for the name and the app: Tinder, Hinge (shown as coming, and can't be picked) or Facebook Dating. **Create profile** makes it with a copy of the open profile's settings, never its Google Calendar, which each profile connects for itself. A Facebook Dating profile starts at Facebook's pace instead, at most 50 swipes a day and 20 an hour. The same window then shows the pair code and the four steps on the phone. **Done** opens the new profile.
+From **New profile** in the ⋮'s General tab or under the Profiles block's rows. A window asks for the name and the app: Tinder, Hinge (shown as coming, and can't be picked) or Facebook Dating. **Create profile** makes it with a copy of the open profile's settings, never its Google Calendar, which each profile connects for itself. A Facebook Dating profile starts at Facebook's pace instead, at most 50 swipes a day and 20 an hour. The same window then shows the pair code and the four steps on the phone. **Done** opens the new profile.
 
 A profile with no phone yet works like the dashboard before pairing: no phone, **Pair one** on its line, and sample data to look at. Its Phone panel also lists the member's phones already paired for another profile with **Use this phone**, so a Facebook profile can run on the Tinder phone without a new code.
 
-## The settings window
+## The settings ⋮
 
-The cog opens "Dating settings · <name>". Its first card, **Profile**, holds the name, which saves like every other setting there. The foot holds **Delete profile** at the far left, **Pause profile** (or **Resume profile**) and **Done**.
+The ⋮ in the left panel's header holds the open profile's settings (`settings.md`). Its General tab holds the **Name**, which saves like every other setting there, then **Pause profile** (or **Resume profile**) and **Delete profile** in red.
 
-**Delete** closes the window and asks in the shared confirm, naming how many leads and chats go and the phone that is unpaired. It removes, through the database's cascade, the profile's cards, chats and messages, walks, own profile, settings and Google Calendar link, then its saved views and the pictures no other profile of the member's still shows. A picture that can't be removed is logged, never undoing the delete. Its phone's record is deleted too, unless another profile still runs on it, so the phone can be paired for a new profile. The next load opens the member's first profile, or a new "Tinder" profile when it was the last.
+**Delete** closes the ⋮ and asks in the shared confirm, naming how many leads and chats go and the phone that is unpaired. It removes, through the database's cascade, the profile's cards, chats and messages, walks, own profile, settings and Google Calendar link, then its saved views and the pictures no other profile of the member's still shows. A picture that can't be removed is logged, never undoing the delete. Its phone's record is deleted too, unless another profile still runs on it, so the phone can be paired for a new profile. The next load opens the member's first profile, or a new "Tinder" profile when it was the last.
 
 ## Pause
 
@@ -56,4 +56,4 @@ Each profile has its own loop (part 2 of `../tasks/facebook/01-facebook-dating.m
 - **A pair code** names the profile it was made for, and pairing sets that profile's phone.
 - **AI spend** is the shell's usage meter, whose rows have no column of Date's own, so each call writes `accountId` into the row's `metadata`, and the cap and the costs read it back (`ai/spend.md`).
 - **The move**, `drizzle/0108_date_profiles.sql`, made one profile per phone, named after the name on that phone's own profile or "Tinder", and one for a member with Dating records and no phone. Records with no phone (the samples) went to the member's first profile. Settings were copied to each profile of their member, which only matters for a member who had two phones. A Google Calendar stayed with the first profile only, because a copy would share one Google sign-in and disconnecting either profile would cancel it for both. This month's AI calls were tied to the profile whose card, chat or phone they were about, else the first.
-- **The code** is `src/server/dating/accounts.ts` (listing, picking, New, Pause, Delete and the Profiles section's counts), `src/lib/api/dating/profiles.ts` (the server functions) and `src/components/dating/profiles.tsx` (the picker, the section and New profile).
+- **The code** is `src/server/dating/accounts.ts` (listing, picking, New, Pause, Delete and the Profiles block's counts), `src/lib/api/dating/profiles.ts` (the server functions) and `src/components/dating/profiles.tsx` (the header's title, the Open profile choices and New profile), with the Profiles block in `dating-blocks.tsx`.

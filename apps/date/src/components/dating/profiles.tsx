@@ -1,10 +1,9 @@
 import * as React from "react"
-import { CheckIcon, ChevronsUpDownIcon, Loader2Icon, PlusIcon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -13,11 +12,9 @@ import type { DatingDashboard } from "@/lib/api/dating/dashboard"
 import { createProfile } from "@/lib/api/dating/profiles"
 import { datingErrorMessage } from "@/lib/dating/errors"
 import { DATING_APP_WORDS, DATING_APPS, PROFILE_NAME_MAX, type DatingApp } from "@/lib/dating/options"
-import { focusRingInset } from "@/lib/layout/focus-ring"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-import { FlatSection } from "./flat-section"
 import { LeadAvatar } from "./lead-avatar"
 import { PairingSteps } from "./phone-panel"
 import { DatingPicture } from "./picture"
@@ -25,10 +22,10 @@ import { DatingPicture } from "./picture"
 /**
  * Profiles on the Dating dashboard (task "features/06-profiles", Tyler,
  * 20 Oct 2026): one member runs several dating profiles, each one app's
- * account, and the dashboard shows one at a time. The picker at the top of
- * the left panel names the open one and lists the rest; the Profiles section
- * lists them all with their phone and what waits on the member; New profile
- * makes one with a copy of the open profile's settings and its pair code.
+ * account, and the dashboard shows one at a time. The left panel's header
+ * names the open one, and its ⋮ switches to another; the Profiles block lists
+ * them all with what waits on the member; New profile makes one with a copy
+ * of the open profile's settings and its pair code.
  */
 
 type ProfileItem = DatingDashboard["profiles"][number]
@@ -46,106 +43,34 @@ function profileWords(profile: ProfileItem): string {
 }
 
 /**
- * The left panel header's title: the open profile, which opens the list of
- * the others and New profile.
+ * The left panel header's title: the open profile's photo or letter, its
+ * name and one muted line (its app and phone). Switching moved into the ⋮
+ * (Tyler, 18 Nov 2026: "move the profile swicher inside the 3 dotted
+ * dropdown"), so the title is words only.
  */
-export function ProfilePicker({
-  data,
-  onPick,
-  onNew,
-}: {
-  data: DatingDashboard
-  onPick: (accountId: string) => void
-  onNew: () => void
-}) {
+export function ProfileTitle({ data }: { data: DatingDashboard }) {
   const open = data.profiles.find((profile) => profile.id === data.profile.id)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" className="h-8 max-w-full min-w-0 gap-2 px-1.5" aria-label={`Profile: ${data.profile.name}. Switch profile`}>
-          {open ? <ProfileMark profile={open} className="size-6" /> : null}
-          <span className="min-w-0 truncate text-[15px] font-semibold">{data.profile.name}</span>
-          <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
-        {data.profiles.map((profile) => (
-          <DropdownMenuItem key={profile.id} onSelect={() => profile.id !== data.profile.id && onPick(profile.id)}>
-            <ProfileMark profile={profile} />
-            <span className="grid min-w-0 flex-1">
-              <span className="truncate font-medium">{profile.name}</span>
-              <span className="truncate text-xs text-muted-foreground">{profileWords(profile)}</span>
-            </span>
-            {profile.id === data.profile.id ? <CheckIcon className="size-4 shrink-0" aria-label="Open now" /> : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onNew}>
-          <PlusIcon /> New profile
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span className="flex min-w-0 items-center gap-2 px-1">
+      {open ? <ProfileMark profile={open} className="size-7" /> : null}
+      <span className="grid min-w-0 leading-tight">
+        <span className="truncate text-[0.891rem] font-medium">{data.profile.name}</span>
+        {open ? <span className="truncate text-xs text-muted-foreground">{profileWords(open)}</span> : null}
+      </span>
+    </span>
   )
 }
 
-/**
- * The Profiles section of the left panel: every profile with its app, its
- * phone and how many leads wait on the member. The open one is marked;
- * pressing another switches the dashboard to it.
- */
-export function ProfilesSection({ data, onPick, onNew }: { data: DatingDashboard; onPick: (accountId: string) => void; onNew: () => void }) {
+/** One profile as a choice in the ⋮'s Open profile row: its mark, its name and its app and phone. */
+export function ProfileOption({ profile }: { profile: ProfileItem }) {
   return (
-    <FlatSection storageId="date-summary-profiles" title="Profiles" meta={data.profiles.length}>
-      <ul className="-mx-2 grid grid-cols-[minmax(0,1fr)]">
-        {data.profiles.map((profile) => {
-          const open = profile.id === data.profile.id
-          return (
-            <li key={profile.id}>
-              <button
-                type="button"
-                aria-current={open ? "true" : undefined}
-                onClick={() => !open && onPick(profile.id)}
-                className={cn(
-                  "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted/60",
-                  open && "bg-muted",
-                  focusRingInset
-                )}
-              >
-                <ProfileMark profile={profile} />
-                <span className="grid min-w-0 flex-1">
-                  <span className={cn("truncate", open && "font-medium")}>
-                    {profile.name}
-                    {profile.paused ? <span className="font-normal text-muted-foreground"> · Paused</span> : null}
-                  </span>
-                  <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                    <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", profile.phone?.here ? "bg-emerald-500" : "bg-muted-foreground/50")} />
-                    <span className="truncate">{profileWords(profile)}</span>
-                  </span>
-                </span>
-                {profile.waiting ? (
-                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{profile.waiting} waiting</span>
-                ) : null}
-              </button>
-            </li>
-          )
-        })}
-        <li>
-          <button
-            type="button"
-            onClick={onNew}
-            className={cn(
-              "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              focusRingInset
-            )}
-          >
-            <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed">
-              <PlusIcon className="size-3.5" />
-            </span>
-            New profile
-          </button>
-        </li>
-      </ul>
-    </FlatSection>
+    <span className="flex min-w-0 items-center gap-2">
+      <ProfileMark profile={profile} className="size-6" />
+      <span className="grid min-w-0">
+        <span className="truncate">{profile.name}</span>
+        <span className="truncate text-xs text-muted-foreground">{profileWords(profile)}</span>
+      </span>
+    </span>
   )
 }
 
@@ -215,7 +140,7 @@ export function NewProfileDialog({
             <DialogDescription>
               {made
                 ? "The profile is made. Pair its phone now, or later from the Phone panel. Done opens it."
-                : `One dating app's account, with its own phone, leads, chats and settings. It starts with ${copyFrom}'s settings, to change in its own settings window.`}
+                : `One dating app's account, with its own phone, leads, chats and settings. It starts with ${copyFrom}'s settings, to change in its own settings, the ⋮ at the top of the left panel.`}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

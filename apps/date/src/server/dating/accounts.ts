@@ -118,7 +118,7 @@ export async function createAccount(
   return account
 }
 
-/** Renaming a profile, from its settings window. */
+/** Renaming a profile, from the Name row of its settings ⋮. */
 export async function renameAccount(account: DatingAccount, name: string, db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<void> {
   const clean = name.trim().replace(/\s+/g, " ")
   if (!clean) throw new Error("Give the profile a name.")
@@ -235,7 +235,7 @@ async function deleteUnshownPictures(userId: string, ids: string[], db: CustomSh
   )
 }
 
-/** One profile as the picker and the Profiles section show it. */
+/** One profile as the ⋮'s Open profile row and the Profiles block show it. */
 export type ProfileListItem = {
   id: string
   name: string

@@ -35,11 +35,14 @@ export function DatingPicture({
   alt,
   className,
   fit = "cover",
+  fallback,
 }: {
   pictureId: string | null
   alt: string
   className?: string
   fit?: "cover" | "contain"
+  /** Drawn instead of the grey box while the picture loads, or when there is none: a lead's letter. */
+  fallback?: React.ReactNode
 }) {
   const [loaded, setLoaded] = React.useState<{ id: string; src: string } | null>(null)
   const [failedId, setFailedId] = React.useState<string | null>(null)
@@ -58,6 +61,7 @@ export function DatingPicture({
 
   const src = loaded && loaded.id === pictureId ? loaded.src : null
   if (!pictureId || !src) {
+    if (fallback) return <>{fallback}</>
     const failed = !pictureId || failedId === pictureId
     return (
       <span className={cn("flex items-center justify-center bg-muted text-muted-foreground", className)} role="img" aria-label={alt}>

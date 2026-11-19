@@ -1,14 +1,14 @@
 import * as React from "react"
-import { FlaskConicalIcon, Loader2Icon, SparklesIcon, UserRoundIcon } from "lucide-react"
+import { FlaskConicalIcon, Loader2Icon, ScanSearchIcon, SparklesIcon, UserRoundIcon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { RecordFrame } from "@/components/crm/record-frame"
+import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
 import { changeKey, sameWords, type ProfileSuggestion } from "@/lib/dating/own-profile"
 
-import { FlatSection } from "./flat-section"
 import { DatingPicture } from "./picture"
 import { dayWords, whenWords } from "./words"
 
@@ -17,7 +17,7 @@ type PhotoTest = NonNullable<Own["photoTest"]>
 
 /**
  * The member's own Tinder profile, in the Dating dashboard's right panel
- * (`?open=me`), opened from My profile in the left panel. The profile as the
+ * (`?open=me`), opened from the My profile block on the left page. The profile as the
  * phone last read it; the AI's suggested photo order, bio and prompt
  * answers, each with before and after and its own Apply (Tyler, 18 Oct 2026:
  * "nothing changes until you press Apply"), and Undo for the last one; and
@@ -43,6 +43,7 @@ export function MyProfilePanel({
   onStopTest: () => Promise<boolean>
 }) {
   const [stopping, setStopping] = React.useState(false)
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const review = own?.review ?? null
 
   /** Apply, Applying, Applied with Undo, or nothing, on the right of one suggestion's heading. */
@@ -87,12 +88,56 @@ export function MyProfilePanel({
   const failedLine = (what: ProfileSuggestion) =>
     own?.failed?.key === changeKey(what) ? <p className="text-destructive">The phone could not do this: {own.failed.error}</p> : null
 
+  const fromMenu = (work: () => void) => {
+    setMenuOpen(false)
+    work()
+  }
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <DashboardCardTitleHeader icon={<UserRoundIcon className="size-4" />} title="My profile" />
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-        <div className="grid grid-cols-[minmax(0,1fr)] text-sm">
-          <FlatSection storageId="date-me-profile" title="Your Tinder profile" meta={own ? `read ${whenWords(own.readAt)}` : "not read yet"}>
+    <>
+      <RecordFrame
+        avatar={<UserRoundIcon />}
+        title="My profile"
+        line={own ? `Read ${whenWords(own.readAt)}` : "Not read yet"}
+        hideLabel="Hide my profile"
+        actions={
+          // Read it again and Review again, in the design's tabbed ⋮ (task "features/07-three-panel-design").
+          <TabbedMenu
+            label="My profile menu"
+            align="end"
+            width="20.4rem"
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            tabs={[
+              {
+                value: "general",
+                label: "General",
+                content: (
+                  <div className="grid p-1.5">
+                    <MenuFooterButton
+                      icon={busy === "read-own" ? <Loader2Icon className="animate-spin" /> : <ScanSearchIcon />}
+                      disabled={busy === "read-own"}
+                      onClick={() => fromMenu(onReadAgain)}
+                    >
+                      {own ? "Read it again" : "Read my profile"}
+                    </MenuFooterButton>
+                    {own ? (
+                      <MenuFooterButton
+                        icon={busy === "review" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+                        disabled={busy === "review"}
+                        onClick={() => fromMenu(onReviewAgain)}
+                      >
+                        Review again
+                      </MenuFooterButton>
+                    ) : null}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        }
+        body={
+          <>
+          <PanelCard storageId="date-me-profile" title="Your Tinder profile" meta={own ? `read ${whenWords(own.readAt)}` : "not read yet"}>
             <p className="text-muted-foreground">
               {own
                 ? "As the phone last read it. Nothing changes on Tinder until you press Apply on a suggestion."
@@ -109,22 +154,16 @@ export function MyProfilePanel({
                 </Button>
               </p>
             ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={busy === "read-own"} onClick={onReadAgain}>
+            {own ? null : (
+              <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={busy === "read-own"} onClick={onReadAgain}>
                 {busy === "read-own" ? <Loader2Icon className="animate-spin" /> : null}
-                {own ? "Read it again" : "Read my profile"}
+                Read my profile
               </Button>
-              {own ? (
-                <Button type="button" variant="outline" size="sm" disabled={busy === "review"} onClick={onReviewAgain}>
-                  {busy === "review" ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-                  Review again
-                </Button>
-              ) : null}
-            </div>
-          </FlatSection>
+            )}
+          </PanelCard>
 
           {own ? (
-            <FlatSection storageId="date-me-review" title="What the AI suggests" meta={review ? `reviewed ${whenWords(own.reviewMadeAt)}` : undefined}>
+            <PanelCard storageId="date-me-review" title="What the AI suggests" meta={review ? `reviewed ${whenWords(own.reviewMadeAt)}` : undefined}>
               {own.aiError ? <p className="text-destructive">{own.aiError}</p> : null}
               {review ? (
                 <>
@@ -186,11 +225,11 @@ export function MyProfilePanel({
               ) : own.aiError ? null : (
                 <p className="text-muted-foreground">The AI reviews it on its next pass.</p>
               )}
-            </FlatSection>
+            </PanelCard>
           ) : null}
 
           {own ? (
-            <FlatSection storageId="date-me-photo-test" title="First-photo test" meta={testMeta(own.photoTest)}>
+            <PanelCard storageId="date-me-photo-test" title="First-photo test" meta={testMeta(own.photoTest)}>
               <PhotoTestBody test={own.photoTest} />
               <div className="flex flex-wrap gap-2">
                 {own.photoTest && running(own.photoTest) ? (
@@ -206,10 +245,11 @@ export function MyProfilePanel({
                   </Button>
                 )}
               </div>
-            </FlatSection>
+            </PanelCard>
           ) : null}
-        </div>
-      </ScrollArea>
+          </>
+        }
+      />
       <ConfirmDialog
         open={stopping}
         onOpenChange={setStopping}
@@ -223,7 +263,7 @@ export function MyProfilePanel({
           })
         }
       />
-    </div>
+    </>
   )
 }
 

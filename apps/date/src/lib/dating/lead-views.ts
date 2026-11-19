@@ -1,14 +1,13 @@
-import { LEAD_GROUP_WORDS, LEAD_SORT_WORDS, defaultLeadDirection, type LeadView } from "@/lib/dating/leads"
+import { LEAD_GROUP_WORDS, LEAD_SORT_WORDS, LEAD_TAB_WORDS, defaultLeadDirection, type LeadView } from "@/lib/dating/leads"
 
 /** The Dating dashboard's kind in the shell's saved views. Its screen key is `dating:<profile id>`, so each profile keeps its own. */
 export const DATING_SAVED_VIEW_KIND = "dating"
 
-const TAB_WORDS = { matches: "Matches", dates: "Dates" } as const
 
 /** `Matches · "hiking" · Waiting on you · Swiped by the AI · 80 or more · Sort: Score`, what a view shows. */
 export function describeLeadView(view: LeadView): string {
   const parts: string[] = []
-  if (view.tab) parts.push(TAB_WORDS[view.tab])
+  if (view.tab) parts.push(LEAD_TAB_WORDS[view.tab])
   if (view.q) parts.push(`"${view.q}"`)
   if (view.group) parts.push(LEAD_GROUP_WORDS[view.group])
   if (view.by) parts.push(view.by === "ai" ? "Swiped by the AI" : "Swiped by you")

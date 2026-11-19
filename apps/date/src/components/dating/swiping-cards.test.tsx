@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
+  // The shell's three panels, reached through the widgets, read the signed-in route.
+  getRouteApi: () => ({ useLoaderData: () => ({ user: { id: "user" }, workspaces: { workspaces: [] } }) }),
+  useNavigate: () => vi.fn(),
+  redirect: vi.fn(),
 }))
 vi.mock("@/components/settings/use-reported-save-status", () => ({ useReportedSaveStatus: () => vi.fn() }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn(), dismissErrorToast: vi.fn() }))
@@ -33,8 +37,9 @@ vi.mock("@/lib/api/dating/chats", () => ({
 }))
 
 import { DatesMonth } from "@/components/dating/dates-month"
-import DatingSettingsTab from "@/components/dating/dating-settings"
-import { LeadSummary } from "@/components/dating/lead-summary"
+import { DatingBlocksProvider, PhoneBlock, ProfilesBlock, type DatingBlocks } from "@/components/dating/dating-blocks"
+import { DatingOverview } from "@/components/dating/dating-overview"
+import { DatingRulesTab, DatingYouTab } from "@/components/dating/dating-settings"
 import { SwipingDetails } from "@/components/dating/phone-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
@@ -156,21 +161,13 @@ describe("the Phone view's Swiping and the left panel", () => {
 
   it("says what a match costs, and counts liked cards by band, saying a thin band is not enough yet", async () => {
     await mount(
-      <LeadSummary
+      <DatingOverview
         data={dashboard}
-        group={undefined}
+        layout={{ top: { columns: 2, spots: ["spend", "working"] }, bottom: { columns: 0, spots: [] } }}
         busy={null}
-        onGroup={vi.fn()}
-        onStartOrStop={vi.fn()}
+        onChange={vi.fn()}
         onReadCard={vi.fn()}
         onReadChats={vi.fn()}
-        openId={undefined}
-        onOpen={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onPickProfile={vi.fn()}
-        onNewProfile={vi.fn()}
-        onResumeProfile={vi.fn()}
-        onSecondLookLike={vi.fn()}
         onChangeHours={vi.fn()}
       />
     )
@@ -182,6 +179,30 @@ describe("the Phone view's Swiping and the left panel", () => {
   })
 })
 
+/** The blocks' values, as the dashboard hands them down. */
+function blocksFor(data: DatingDashboard, change: Partial<DatingBlocks> = {}): DatingBlocks {
+  return {
+    data,
+    section: "all",
+    onPickSection: vi.fn(),
+    widgetCount: 5,
+    sectionCounts: { all: 0, matches: 0, dates: 0 },
+    sections: { hidden: [], order: [] },
+    onHiddenSectionsChange: vi.fn(),
+    onSectionOrderChange: vi.fn(),
+    group: undefined,
+    onGroup: vi.fn(),
+    openId: undefined,
+    onOpen: vi.fn(),
+    onPickProfile: vi.fn(),
+    onNewProfile: vi.fn(),
+    onResumeProfile: vi.fn(),
+    busy: null,
+    onSecondLookLike: vi.fn(),
+    ...change,
+  }
+}
+
 describe("profiles on the Dating dashboard", () => {
   const two: DatingDashboard = {
     ...dashboard,
@@ -191,95 +212,55 @@ describe("profiles on the Dating dashboard", () => {
     ],
   }
 
-  it("lists every profile with its phone and what waits, marks the open one, and switches on a press", async () => {
+  it("lists every profile with what waits, picks the open one, and switches on a press", async () => {
     const pick = vi.fn()
     await mount(
-      <LeadSummary
-        data={two}
-        group={undefined}
-        busy={null}
-        onGroup={vi.fn()}
-        onStartOrStop={vi.fn()}
-        onReadCard={vi.fn()}
-        onReadChats={vi.fn()}
-        openId={undefined}
-        onOpen={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onPickProfile={pick}
-        onNewProfile={vi.fn()}
-        onResumeProfile={vi.fn()}
-        onSecondLookLike={vi.fn()}
-        onChangeHours={vi.fn()}
-      />
+      <DatingBlocksProvider value={blocksFor(two, { onPickProfile: pick })}>
+        <ProfilesBlock />
+      </DatingBlocksProvider>
     )
     const shown = text()
-    expect(shown).toContain("Profiles · 2")
-    expect(shown).toContain("TylerTinder · Pixel 8a here")
-    expect(shown).toContain("Weekends · PausedTinder · no phone yet3 waiting")
-    const rows = [...host.querySelectorAll("li > button")].filter((button) => /Tinder ·/.test(button.textContent ?? ""))
+    expect(shown).toContain("Weekends")
+    expect(shown).toContain("Tinder, paused")
+    expect(shown).toContain("Tinder, paused3")
+    const rows = [...host.querySelectorAll("button")].filter((button) => /Tinder/.test(button.textContent ?? ""))
     expect(rows[0].getAttribute("aria-current")).toBe("true")
-    await act(async () => (rows[0] as HTMLButtonElement).click())
+    await act(async () => rows[0].click())
     expect(pick).not.toHaveBeenCalled()
-    await act(async () => (rows[1] as HTMLButtonElement).click())
+    await act(async () => rows[1].click())
     expect(pick).toHaveBeenCalledWith("hinge")
   })
 
-  it("says a paused profile is paused at the top, with Resume", async () => {
+  it("says a paused profile is paused in the Phone block, with Resume", async () => {
     const resume = vi.fn()
     await mount(
-      <LeadSummary
-        data={{ ...dashboard, profile: { ...dashboard.profile, paused: true } }}
-        group={undefined}
-        busy={null}
-        onGroup={vi.fn()}
-        onStartOrStop={vi.fn()}
-        onReadCard={vi.fn()}
-        onReadChats={vi.fn()}
-        openId={undefined}
-        onOpen={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onPickProfile={vi.fn()}
-        onNewProfile={vi.fn()}
-        onResumeProfile={resume}
-        onSecondLookLike={vi.fn()}
-        onChangeHours={vi.fn()}
-      />
+      <DatingBlocksProvider value={blocksFor({ ...dashboard, profile: { ...dashboard.profile, paused: true } }, { onResumeProfile: resume })}>
+        <PhoneBlock />
+      </DatingBlocksProvider>
     )
     expect(text()).toContain("Paused. Nothing runs until Resume.")
+    expect(text()).toContain("swiping, 47 of 150")
     const button = [...host.querySelectorAll("button")].find((item) => item.textContent === "Resume") as HTMLButtonElement
     await act(async () => button.click())
     expect(resume).toHaveBeenCalled()
   })
-  it("puts New profile as the last row of the Profiles section", async () => {
+
+  it("puts New profile under the Profiles block's rows", async () => {
     const make = vi.fn()
     await mount(
-      <LeadSummary
-        data={dashboard}
-        group={undefined}
-        busy={null}
-        onGroup={vi.fn()}
-        onStartOrStop={vi.fn()}
-        onReadCard={vi.fn()}
-        onReadChats={vi.fn()}
-        openId={undefined}
-        onOpen={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onPickProfile={vi.fn()}
-        onNewProfile={make}
-        onResumeProfile={vi.fn()}
-        onSecondLookLike={vi.fn()}
-        onChangeHours={vi.fn()}
-      />
+      <DatingBlocksProvider value={blocksFor(dashboard, { onNewProfile: make })}>
+        <ProfilesBlock />
+      </DatingBlocksProvider>
     )
-    const list = [...host.querySelectorAll("ul")].find((ul) => /Tinder ·/.test(ul.textContent ?? "")) as HTMLUListElement
-    const last = list.querySelector("li:last-child > button") as HTMLButtonElement
-    expect(last.textContent).toBe("New profile")
+    const buttons = [...host.querySelectorAll("button")]
+    const last = buttons[buttons.length - 1] as HTMLButtonElement
+    expect(last.textContent?.trim()).toBe("New profile")
     await act(async () => last.click())
     expect(make).toHaveBeenCalled()
   })
 })
 
-describe("the Dates tab's month", () => {
+describe("the month on Dates", () => {
   it("writes each date in its day, opens on the month of the next one, and opens the lead on a press", async () => {
     const open = vi.fn()
     const lead = (id: string, name: string, dateAt: Date | null, dateAccepted = true) =>
@@ -301,12 +282,12 @@ describe("the Dates tab's month", () => {
 
 describe("the Dating settings", () => {
   it("shows Furthest away, swipes a day and no schedule, and saves a People I know line once it reads", async () => {
-    await mount(<DatingSettingsTab profile={dashboard.profile} onRenamed={vi.fn()} />)
-    expect((host.querySelector("#date-max-distance") as HTMLInputElement).value).toBe("25")
-    expect((host.querySelector("#date-swipes-day") as HTMLInputElement).value).toBe("150")
-    expect(text()).toContain("No schedule: swiping runs when you press Start.")
+    await mount(<DatingYouTab profile={dashboard.profile} />)
+    expect(text()).toContain("Furthest away25 km")
+    const row = [...host.querySelectorAll("button")].find((button) => button.textContent?.startsWith("People I know")) as HTMLButtonElement
+    await act(async () => row.click())
 
-    const box = host.querySelector("#date-known-people") as HTMLTextAreaElement
+    const box = document.querySelector("#date-known-people") as HTMLTextAreaElement
     const type = async (value: string) => {
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(box, value)
@@ -323,5 +304,11 @@ describe("the Dating settings", () => {
     expect(box.getAttribute("aria-invalid")).toBeNull()
     await act(async () => box.dispatchEvent(new FocusEvent("focusout", { bubbles: true })))
     expect(saved.at(-1)).toMatchObject({ knownPeople: [{ name: "Sarah", age: 31 }] })
+  })
+
+  it("shows the swipes a day and that there is no schedule on the Rules tab", async () => {
+    await mount(<DatingRulesTab profile={dashboard.profile} />)
+    expect(text()).toContain("Swipes a day150")
+    expect(text()).toContain("No schedule: swiping runs when you press Start.")
   })
 })

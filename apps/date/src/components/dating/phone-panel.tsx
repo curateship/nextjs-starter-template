@@ -1,12 +1,13 @@
 import * as React from "react"
 import { CameraIcon, KeyRoundIcon, Loader2Icon, MonitorSmartphoneIcon, PlayIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { RecordFrame } from "@/components/crm/record-frame"
+import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import type { DatingDashboard } from "@/lib/api/dating/dashboard"
 import {
@@ -28,7 +29,6 @@ import { formatDuration } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-import { FlatSection } from "./flat-section"
 import { DatingPicture } from "./picture"
 import { PictureDialog } from "./picture-dialog"
 import { ScreenWindow } from "./screen-window"
@@ -39,12 +39,13 @@ const EVERY_MS = 4_000
 
 /**
  * The phone, in the Dating dashboard's right panel (`?open=phone`), opened
- * from the phone's line in the left panel. It was the Phone screen until
+ * from the Phone block on the left page. It was the Phone screen until
  * Tyler's "We dont need 4 seperate pages. Condense them all into the 3 col
- * dashboard" (20 Oct 2026). In flat sections: the phone itself (here or
+ * dashboard" (20 Oct 2026). In the shell's record frame since task
+ * "features/07-three-panel-design": its ⋮ holds the screen window, a
+ * picture, a new code and Unpair; its cards are the phone itself (here or
  * away, Resume after a Tinder screen stopped it, the "Date is in control"
- * switch, the screen window, a picture, pairing and unpairing), Swiping,
- * what the phone did, and the sample data.
+ * switch, pairing), Swiping, what the phone did, and the sample data.
  *
  * A profile with no phone can use one already paired for another profile,
  * such as a Facebook profile on the Tinder phone (part 2 of "facebook/01").
@@ -95,18 +96,75 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
     }
   }
 
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const fromMenu = (work: () => void) => {
+    setMenuOpen(false)
+    work()
+  }
+  const where = !phone?.paired ? "Not paired" : phone.here ? "Here" : phone.lastSeenAt ? `Away since ${whenWords(phone.lastSeenAt)}` : "Not heard from yet"
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <DashboardCardTitleHeader
-        icon={<MonitorSmartphoneIcon className="size-4" />}
+    <>
+      <RecordFrame
+        avatar={<MonitorSmartphoneIcon />}
         title={phone ? phone.name : "Phone"}
-      />
-      {!screen ? (
-        <LoadingRow label="Opening the phone" />
-      ) : (
-        <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
-          <div className="grid grid-cols-[minmax(0,1fr)] text-sm">
-            <FlatSection storageId="date-phone-phone" title="Phone" meta={phone?.paired ? (phone.here ? "here" : "away") : "not paired"}>
+        line={where}
+        hideLabel="Hide the phone"
+        actions={
+          phone?.paired ? (
+            // The phone's own actions, in the design's tabbed ⋮ (task "features/07-three-panel-design").
+            <TabbedMenu
+              label="Phone menu"
+              align="end"
+              width="20.4rem"
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
+              tabs={[
+                {
+                  value: "general",
+                  label: "General",
+                  content: (
+                    <div className="grid p-1.5">
+                      <MenuFooterButton icon={<MonitorSmartphoneIcon />} onClick={() => fromMenu(() => setScreenOpen(true))}>
+                        Screen window
+                      </MenuFooterButton>
+                      <MenuFooterButton
+                        icon={busy === "picture" ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
+                        disabled={busy === "picture"}
+                        onClick={() => fromMenu(() => void act("picture", () => takePicture(phone.id)))}
+                      >
+                        Picture
+                      </MenuFooterButton>
+                      <MenuFooterButton
+                        icon={busy === "code" ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
+                        disabled={busy === "code"}
+                        onClick={() => fromMenu(() => void act("code", async () => setCode(await makePairCode())))}
+                      >
+                        New code
+                      </MenuFooterButton>
+                    </div>
+                  ),
+                  footer: (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full justify-start gap-2 px-2 font-normal text-destructive hover:text-destructive [&_svg]:size-4"
+                      onClick={() => fromMenu(() => setConfirm("unpair"))}
+                    >
+                      <Trash2Icon />
+                      Unpair
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          ) : null
+        }
+        body={
+          !screen ? (
+            <LoadingRow label="Opening the phone" />
+          ) : (
+          <>
+            <PanelCard storageId="date-phone-phone" title="Phone" meta={phone?.paired ? (phone.here ? "here" : "away") : "not paired"}>
               <p className="text-muted-foreground">
                 {phone
                   ? `The Android phone the AI runs ${appName} on. It dials out to Date; nothing on the phone is reachable from outside.`
@@ -152,31 +210,12 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                   </div>
                 </div>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                {phone?.paired ? (
-                  <>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setScreenOpen(true)}>
-                      <MonitorSmartphoneIcon /> Screen window
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" disabled={busy === "picture"} onClick={() => void act("picture", () => takePicture(phone.id))}>
-                      {busy === "picture" ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
-                      Picture
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode()))}>
-                      {busy === "code" ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
-                      New code
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setConfirm("unpair")}>
-                      <Trash2Icon /> Unpair
-                    </Button>
-                  </>
-                ) : (
-                  <Button type="button" size="sm" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode()))}>
-                    {busy === "code" ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
-                    {phone ? "Pair it again" : "Pair a phone"}
-                  </Button>
-                )}
-              </div>
+              {phone?.paired ? null : (
+                <Button type="button" size="sm" className="justify-self-start" disabled={busy === "code"} onClick={() => void act("code", async () => setCode(await makePairCode()))}>
+                  {busy === "code" ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
+                  {phone ? "Pair it again" : "Pair a phone"}
+                </Button>
+              )}
               {code ? <PairingSteps code={code} /> : null}
               {!phone && screen.shareable.length ? (
                 <div className="grid gap-2">
@@ -201,16 +240,16 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                 </div>
               ) : null}
               {phone && data.profile.app === "facebook" ? <BreakLine screen={screen} paused={data.profile.paused} /> : null}
-            </FlatSection>
+            </PanelCard>
 
             {phone ? (
-              <FlatSection storageId="date-phone-swiping" title="Swiping" meta={phone.running ? "running" : "stopped"}>
+              <PanelCard storageId="date-phone-swiping" title="Swiping" meta={phone.running ? "running" : "stopped"}>
                 <SwipingDetails data={data} />
-              </FlatSection>
+              </PanelCard>
             ) : null}
 
             {phone ? (
-              <FlatSection storageId="date-phone-log" title="What the phone did" meta={screen.walks.length}>
+              <PanelCard storageId="date-phone-log" title="What the phone did" meta={screen.walks.length}>
                 <p className="text-xs text-muted-foreground">{appName} walks newest first, then each plain step. A step that failed keeps a picture of where it stopped.</p>
                 {screen.walks.length ? (
                   <ul className="grid divide-y rounded-lg border">
@@ -258,10 +297,10 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                     ))}
                   </ul>
                 ) : null}
-              </FlatSection>
+              </PanelCard>
             ) : null}
 
-            <FlatSection storageId="date-phone-samples" title="Sample data">
+            <PanelCard storageId="date-phone-samples" title="Sample data">
               <p className="text-muted-foreground">
                 Twelve sample cards and seven chats, to look around before a phone is paired. The AI never reads them and no button on one reaches a phone.
               </p>
@@ -276,10 +315,11 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
                   </Button>
                 ) : null}
               </div>
-            </FlatSection>
-          </div>
-        </ScrollArea>
-      )}
+            </PanelCard>
+          </>
+          )
+        }
+      />
 
       <ConfirmDialog
         open={confirm === "unpair"}
@@ -304,7 +344,7 @@ export function PhonePanel({ data, onChanged }: { data: DatingDashboard; onChang
       />
       <PictureDialog picture={picture} onClose={() => setPicture(null)} />
       {screenOpen && phone ? <ScreenWindow phone={phone} onClose={() => setScreenOpen(false)} /> : null}
-    </div>
+    </>
   )
 }
 
@@ -421,7 +461,7 @@ export function SwipingDetails({ data }: { data: DatingDashboard }) {
             }.`
           : phone?.stopWhy
             ? `Stopped${phone.stopWhyAt ? ` at ${whenWords(phone.stopWhyAt)}` : ""}: ${phone.stopWhy}`
-            : "Start, in the left panel, lets the AI read cards and like or pass them, at a person's pace, until Stop or a limit."}
+            : "Start swiping, at the top of the list of leads, lets the AI read cards and like or pass them, at a person's pace, until Stop or a limit."}
       </p>
       <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
         <dt className="text-muted-foreground">Swipes today</dt>

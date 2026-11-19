@@ -213,9 +213,17 @@ export function buildLeads(cards: LeadCard[], chats: LeadChat[]): LeadListItem[]
 
 // ------------------------------------------------------------- The view --
 
-/** The middle header's tabs: every lead, those who matched, those who said yes to a date. */
-export const LEAD_TABS = ["all", "matches", "dates"] as const
+/**
+ * The rows of the left page's Dashboards block (task
+ * "features/07-three-panel-design"): Overview's widgets, every lead, those
+ * who matched, and those who said yes to a date. They were the middle
+ * header's tabs until the dashboard moved to the 3 panel design, so the
+ * address still calls one `?tab=`.
+ */
+export const LEAD_TABS = ["overview", "all", "matches", "dates"] as const
 export type LeadTab = (typeof LEAD_TABS)[number]
+
+export const LEAD_TAB_WORDS: Record<LeadTab, string> = { overview: "Overview", all: "Leads", matches: "Matches", dates: "Dates" }
 
 /** A left-panel group, which is also the Filter's Status row: a status, or waiting on the member. */
 export const LEAD_GROUPS = ["waiting", ...LEAD_STATUSES] as const
@@ -298,7 +306,7 @@ export function shownLeads(leads: LeadListItem[], view: LeadView): LeadListItem[
   return shown.sort((a, b) => Number(b.waiting !== null) - Number(a.waiting !== null) || (a.changedAt.getTime() - b.changedAt.getTime()) * up)
 }
 
-/** The counts on the left panel's groups card, over every lead that is not hidden as over. */
+/** The counts on the left page's Leads block, over every lead that is not hidden as over. */
 export function leadGroupCounts(leads: LeadListItem[]): Record<LeadGroup, number> {
   const counts = Object.fromEntries(LEAD_GROUPS.map((group) => [group, 0])) as Record<LeadGroup, number>
   for (const lead of leads) {

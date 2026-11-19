@@ -142,3 +142,28 @@ export const dateGoogleCalendars = pgTable(
     lastError: text("last_error").notNull().default(""),
   }
 )
+
+/**
+ * The Dating dashboard's left page, one per profile (task
+ * "features/07-three-panel-design", Tyler, 18 Nov 2026: "Revamp the dating
+ * dashboard to the new 3 panel design patters"), in the shape of the shell's
+ * `automation_pages`: the editor document as JSON text, its cover photo and
+ * cover pictures, its lock, the Overview's widget layout, and the Dashboards
+ * block's hidden rows and order. "" is a page
+ * nobody has written on, which shows the starting blocks; a null layout is
+ * the starting widgets. The SQL is `drizzle/0143_date_pages.sql`.
+ */
+export const datePages = pgTable("date_pages", {
+  accountId: varchar("account_id", { length: 36 })
+    .primaryKey()
+    .references(() => dateAccounts.id, { onDelete: "cascade" }),
+  body: text("body").notNull().default(""),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+  locked: boolean("locked").notNull().default(false),
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's rows hidden from its ⋮, and their dragged order. */
+  hiddenSections: jsonb("hidden_sections").$type<string[]>().notNull().default([]),
+  sectionOrder: jsonb("section_order").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})

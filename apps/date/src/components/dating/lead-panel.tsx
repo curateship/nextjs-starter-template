@@ -8,7 +8,6 @@ import {
   ImageIcon,
   Loader2Icon,
   MessageSquareShareIcon,
-  MoreHorizontalIcon,
   RefreshCwIcon,
   ScanSearchIcon,
   ShieldAlertIcon,
@@ -17,20 +16,23 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { EmptyRecord, FooterState } from "@/components/crm/record-frame"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
+import { PickGroup, RowButton } from "@/components/shared/notes/pick-rows"
+import { MenuFooterButton, TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
-import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import type { MatchDetail, ProfileDetail } from "@/lib/api/dating/dashboard"
 import { formatClockTime } from "@/lib/format/format-time"
 import { CHAT_TREND_WORDS } from "@/lib/dating/chat-trend"
-import type { LeadListItem } from "@/lib/dating/leads"
+import { LEAD_STATUS_WORDS, type LeadListItem } from "@/lib/dating/leads"
 import { CARD_FLAG_WORDS, DATING_APP_WORDS, MATCH_FLAG_WORDS, MESSAGE_STATUS_WORDS, WALK_WORDS, type DatingApp } from "@/lib/dating/options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
@@ -44,6 +46,8 @@ import { nameAndAge, swipeWords, whenWords } from "./words"
 
 export type LeadActions = ReplyActions & {
   swipe: (decision: "like" | "pass") => void
+  /** Like on a Second Look card, which the AI passed: the phone likes them on Facebook's Second Look. */
+  likeFromSecondLook: () => void
   readCardAgain: () => void
   refresh: () => void
   /** Resolves true when the unmatch was put on the phone's list. */
@@ -61,24 +65,28 @@ export type LeadActions = ReplyActions & {
   report: () => Promise<boolean>
 }
 
+type LeadTab = "profile" | "ai" | "chat"
+
 /**
- * The Dating dashboard's right panel: the open lead, with the profile on top
- * and the chat below it (Tyler, 20 Oct 2026: "right shows the profile and the
- * chatbox is below it"), since split into three tabs in its header: Chat, for
- * a lead with a chat, then Profile and AI analysis (Tyler, the same day: "Put
- * profile and ai into its own tab", "dont need the chat in ai tab", "put
- * profile on its own trab", "chat tab first"). The tabs are drawn the way
- * Settings → Styling → Dashboard tabs says, then comes a "…" menu with the
- * chat's own changes. There is no ×: the right panel always shows something.
+ * The Dating dashboard's right panel: the open lead (Tyler, 20 Oct 2026:
+ * "right shows the profile and the chatbox is below it"), in the Admin 3
+ * panel design (task "features/07-three-panel-design").
  *
- * Under the header: the lead's mini profile on a light grey band (letter,
- * name, age, when the card was read, the status pill, and Like and Pass while
- * the card is not swiped), then the tab picked. Profile holds Before your date
- * once they said yes, their photos, every line Tinder showed and what they
- * told you. AI analysis holds the score, the AI's read and its view of the
- * chat. Chat holds the conversation with the reply area pinned under it. The
- * tab picked stays while other leads are opened; Chat picked on a lead with no
- * chat shows Profile.
+ * - **Header:** the person (Tyler, 18 Nov 2026: "This needs to be in
+ *   header", of the grey band with their photo, name and age, when the card
+ *   was read and the status pill), then the lead's ⋮, then the collapse
+ *   button. The left page's cover carries on behind it.
+ * - **Under it, the tabs** ("and the tabs to be subheader"): Chat, for a lead
+ *   with a chat, then Profile and AI analysis, drawn as Settings → Styling →
+ *   Dashboard tabs says. Chat comes first and opens first (Tyler, 20 Oct
+ *   2026: "chat tab first"); the tab picked stays while other leads open, and
+ *   Chat picked on a lead with no chat shows Profile.
+ * - **The ⋮** is the design's tabbed menu: the lead's facts as grouped rows,
+ *   the actions, then Unmatch in red.
+ * - **Footer:** the status and Pass and Like while the card is not swiped,
+ *   or Like on a Second Look card. A chat's foot is its reply box instead.
+ *
+ * There is no ×: the right panel always shows something.
  */
 export function LeadPanel({
   app,
@@ -89,6 +97,7 @@ export function LeadPanel({
   profile,
   match,
   automate,
+  secondLook,
   busy,
   actions,
 }: {
@@ -102,37 +111,75 @@ export function LeadPanel({
   profile: ProfileDetail | null
   match: MatchDetail | null
   automate: boolean
+  /** The card is on Second Look: the AI passed it by a few points. */
+  secondLook: boolean
   busy: string | null
   actions: LeadActions
 }) {
   const [tab, setTab] = React.useState<LeadTab>("chat")
+  const cover = useRightCover()
   if (!lead) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <DashboardCardTitleHeader icon={<UserRoundIcon className="size-4" />} title={missing ? "This lead is not here" : "Lead"} />
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground">
-          <UserRoundIcon className="size-6" aria-hidden />
-          <p>{missing ? "It may have been cleared. Pick another lead in the list." : "Click a lead to see their profile and chat here."}</p>
-        </div>
-      </div>
+      <EmptyRecord
+        title={missing ? "This lead is not here" : "Lead"}
+        icon={<UserRoundIcon />}
+        line={missing ? "It may have been cleared. Pick another lead in the list." : "Click a lead to see their profile and chat here."}
+        hideLabel="Hide the lead"
+      />
     )
   }
 
   // Chat comes first and opens first (Tyler, 20 Oct 2026: "chat tab first"). It
   // is only there for a lead with a chat; on a card, Profile shows instead.
   const shownTab: LeadTab = tab === "chat" && !match ? "profile" : tab
+  // Facebook's weekly surprise match is a match already, never swiped.
+  const swipeable = Boolean(profile && profile.swipe === "none" && !profile.pendingSwipe && profile.source !== "weekly")
+  const line = profile ? `Read ${whenWords(profile.readAt)}` : `Matched ${whenWords(lead.changedAt)}`
+  const footer = !match && (swipeable || secondLook)
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <LeadHeader app={app} lead={lead} profile={profile} match={match} tab={shownTab} onTab={setTab} busy={busy} actions={actions} />
+    <div className="@container/lead relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <RightPanelCover />
+      {/* Its own div, so the shell's table line under a header never matches it. */}
+      <div>
+        <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
+          <LeadAvatar name={lead.name} photoId={lead.photoId} className="size-8 text-xs" />
+          <span className="grid min-w-0 flex-1 leading-tight">
+            <h2 className="font-heading truncate text-[0.891rem] font-medium">{nameAndAge(lead.name, lead.age ?? profile?.age ?? null)}</h2>
+            <span className="truncate text-xs text-muted-foreground">
+              {/* The status in words once the pill has given way to the name, in a narrow panel. */}
+              <span className="@xs/lead:hidden">{LEAD_STATUS_WORDS[lead.status]}, </span>
+              {line}
+              {lead.sample ? ", sample" : ""}
+            </span>
+          </span>
+          <span className="hidden shrink-0 @xs/lead:inline-flex">
+            <StatusPill status={lead.status} />
+          </span>
+          <LeadMenu app={app} lead={lead} profile={profile} match={match} busy={busy} actions={actions} />
+          <SidePanelCollapseButton side="right" label="Hide the lead" />
+        </DashboardCardHeader>
+      </div>
+      <div className="flex h-12 shrink-0 items-stretch border-b px-4">
+        <DashboardTabs
+          className="my-0"
+          value={shownTab}
+          onValueChange={(next) => setTab(next === "ai" || next === "chat" ? next : "profile")}
+          tabs={[
+            ...(match ? [{ value: "chat", label: "Chat" }] : []),
+            { value: "profile", label: "Profile" },
+            { value: "ai", label: "AI analysis" },
+          ]}
+        />
+      </div>
       {error ? (
         <div className="grid justify-items-start gap-3 p-3 text-sm text-muted-foreground">
           <p>{error}</p>
         </div>
       ) : loading ? (
-        <LoadingRow label={`Opening ${lead.name}`} />
+        // Nothing while a record opens, never a loading circle (the design's right panel).
+        <div className="flex-1" aria-busy="true" aria-label={`Opening ${lead.name}`} />
       ) : (
         <>
-          <OpeningRow lead={lead} profile={profile} busy={busy} actions={actions} />
           <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full">
             {/* A side panel's body, so its first card follows Settings ->
                 Styling -> Panel cards -> Opacity (UI standard, "A side
@@ -162,21 +209,43 @@ export function LeadPanel({
               <ReplyBox key={match.id} match={match} automate={automate} busy={busy} actions={actions} />
             </div>
           ) : null}
+          {footer ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-t p-3.75">
+              <FooterState>
+                <span className="text-muted-foreground">{secondLook && !swipeable ? `Passed by the AI, score ${profile?.score ?? "-"}` : LEAD_STATUS_WORDS[lead.status]}</span>
+              </FooterState>
+              {swipeable ? (
+                <>
+                  <Button type="button" variant="outline" size="sm" disabled={busy === "swipe"} onClick={() => actions.swipe("pass")} aria-keyshortcuts="P">
+                    <XIcon /> Pass
+                  </Button>
+                  <Button type="button" size="sm" disabled={busy === "swipe"} onClick={() => actions.swipe("like")} aria-keyshortcuts="L">
+                    {busy === "swipe" ? <Loader2Icon className="animate-spin" /> : <HeartIcon />} Like
+                  </Button>
+                </>
+              ) : (
+                <Button type="button" size="sm" disabled={busy === `second-look:${lead.id}`} onClick={actions.likeFromSecondLook}>
+                  {busy === `second-look:${lead.id}` ? <Loader2Icon className="animate-spin" /> : <HeartIcon />} Like
+                </Button>
+              )}
+            </div>
+          ) : null}
         </>
       )}
     </div>
   )
 }
 
-type LeadTab = "profile" | "ai" | "chat"
-
-function LeadHeader({
+/**
+ * The lead's ⋮, the design's tabbed menu (20.4rem): the lead's facts as
+ * grouped rows, then the actions, then Unmatch in red at its foot after the
+ * shared confirm. It took the place of the "…" dropdown.
+ */
+function LeadMenu({
   app,
   lead,
   profile,
   match,
-  tab,
-  onTab,
   busy,
   actions,
 }: {
@@ -184,64 +253,81 @@ function LeadHeader({
   lead: LeadListItem
   profile: ProfileDetail | null
   match: MatchDetail | null
-  tab: LeadTab
-  onTab: (tab: LeadTab) => void
   busy: string | null
   actions: LeadActions
 }) {
+  const [open, setOpen] = React.useState(false)
   const [confirming, setConfirming] = React.useState(false)
-  const live = match && !match.unmatchedAt
+  const live = Boolean(match && !match.unmatchedAt)
+  const run = (work: () => void) => {
+    setOpen(false)
+    work()
+  }
   return (
     <>
-      <DashboardCardHeader>
-        <DashboardTabs
-          value={tab}
-          onValueChange={(next) => onTab(next === "ai" || next === "chat" ? next : "profile")}
-          tabs={[
-            ...(match ? [{ value: "chat", label: "Chat" }] : []),
-            { value: "profile", label: "Profile" },
-            { value: "ai", label: "AI analysis" },
-          ]}
-        />
-        <div className="ml-auto flex shrink-0 items-center gap-1">
-          {profile || match ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label={`More for ${lead.name}`}>
-                  <MoreHorizontalIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {profile && !profile.sample ? (
-                  <DropdownMenuItem onSelect={actions.readCardAgain}>
-                    <ScanSearchIcon />
-                    {profile.score === null ? "Have the AI read the card" : "Have the AI read the card again"}
-                  </DropdownMenuItem>
-                ) : null}
-                {match ? (
-                  <DropdownMenuItem onSelect={actions.refresh}>
-                    <RefreshCwIcon /> Read the chat again from the phone
-                  </DropdownMenuItem>
-                ) : null}
-                {live ? (
-                  <DropdownMenuItem onSelect={() => actions.movedToText(!match.movedToTextAt)}>
-                    <MessageSquareShareIcon />
-                    {match.movedToTextAt ? `Back on ${DATING_APP_WORDS[app].name}` : "Moved to text"}
-                  </DropdownMenuItem>
-                ) : null}
-                {live ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onSelect={() => setConfirming(true)}>
-                      <UserRoundXIcon /> Unmatch
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-        </div>
-      </DashboardCardHeader>
+      <TabbedMenu
+        label="Lead menu"
+        align="end"
+        width="20.4rem"
+        open={open}
+        onOpenChange={setOpen}
+        tabs={[
+          {
+            value: "general",
+            label: "General",
+            content: (
+              <div className="grid gap-3 p-3">
+                <PickGroup title="Lead">
+                  <RowButton label="Status" value={LEAD_STATUS_WORDS[lead.status]} disabled open={false} />
+                  <RowButton
+                    label="Score"
+                    value={lead.score === null ? "Not scored" : `${lead.score} out of 100`}
+                    empty={lead.score === null}
+                    disabled
+                    open={false}
+                  />
+                  <RowButton
+                    label="Swiped by"
+                    value={lead.swipedBy === "ai" ? "The AI" : lead.swipedBy === "member" ? "You" : "Nobody yet"}
+                    empty={!lead.swipedBy}
+                    disabled
+                    open={false}
+                  />
+                  <RowButton label="Last change" value={whenWords(lead.changedAt)} disabled open={false} />
+                </PickGroup>
+                <div className="grid">
+                  {profile && !profile.sample ? (
+                    <MenuFooterButton icon={<ScanSearchIcon />} onClick={() => run(actions.readCardAgain)}>
+                      {profile.score === null ? "Have the AI read the card" : "Have the AI read the card again"}
+                    </MenuFooterButton>
+                  ) : null}
+                  {match ? (
+                    <MenuFooterButton icon={<RefreshCwIcon />} onClick={() => run(actions.refresh)}>
+                      Read the chat again from the phone
+                    </MenuFooterButton>
+                  ) : null}
+                  {live && match ? (
+                    <MenuFooterButton icon={<MessageSquareShareIcon />} onClick={() => run(() => actions.movedToText(!match.movedToTextAt))}>
+                      {match.movedToTextAt ? `Back on ${DATING_APP_WORDS[app].name}` : "Moved to text"}
+                    </MenuFooterButton>
+                  ) : null}
+                </div>
+              </div>
+            ),
+            footer: live ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start gap-2 px-2 font-normal text-destructive hover:text-destructive [&_svg]:size-4"
+                onClick={() => run(() => setConfirming(true))}
+              >
+                <UserRoundXIcon />
+                Unmatch
+              </Button>
+            ) : undefined,
+          },
+        ]}
+      />
       {match ? (
         <ConfirmDialog
           open={confirming}
@@ -260,44 +346,6 @@ function LeadHeader({
         />
       ) : null}
     </>
-  )
-}
-
-/**
- * The lead's mini profile under the tabs, as Tyler's mock of 20 Oct 2026 has
- * it, on a light grey band (Tyler, the same day: "the mini profile up top
- * needs to have light gray bg"): their letter, name and age, when the card
- * was read, and the status pill on the right. Like and Pass sit under it while the card is not
- * swiped. It stays put while the tab below scrolls.
- */
-function OpeningRow({ lead, profile, busy, actions }: { lead: LeadListItem; profile: ProfileDetail | null; busy: string | null; actions: LeadActions }) {
-  // Facebook's weekly surprise match is a match already, never swiped.
-  const swipeable = Boolean(profile && profile.swipe === "none" && !profile.pendingSwipe && profile.source !== "weekly")
-  const line = profile ? `Read ${whenWords(profile.readAt)}` : `Matched ${whenWords(lead.changedAt)}`
-  return (
-    <div className="grid gap-3 border-b bg-muted/50 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <LeadAvatar name={lead.name} />
-        <div className="grid min-w-0 flex-1 gap-0.5">
-          <p className="truncate font-semibold">{nameAndAge(lead.name, lead.age ?? profile?.age ?? null)}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {line}
-            {lead.sample ? " · Sample" : ""}
-          </p>
-        </div>
-        <StatusPill status={lead.status} />
-      </div>
-      {swipeable ? (
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="flex-1" disabled={busy === "swipe"} onClick={() => actions.swipe("pass")} aria-keyshortcuts="P">
-            <XIcon /> Pass
-          </Button>
-          <Button type="button" size="sm" className="flex-1" disabled={busy === "swipe"} onClick={() => actions.swipe("like")} aria-keyshortcuts="L">
-            {busy === "swipe" ? <Loader2Icon className="animate-spin" /> : <HeartIcon />} Like
-          </Button>
-        </div>
-      ) : null}
-    </div>
   )
 }
 

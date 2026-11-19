@@ -9,7 +9,7 @@ Tyler's rule from 17 Oct 2026 holds throughout: the AI never agrees a firm time 
 The AI's notes call after new messages (`chats-and-replies.md`) also asks whether the member offered to meet and whether they clearly said yes. The offer counts whether the AI's draft made it or the member did in their own words. A maybe, a question back or a change of subject is not a yes. A yes keeps their line and the time it was noticed.
 
 - **Their number** is kept when they sent one in the chat. A number counts only when its digits are in one of their own messages, so the AI can never make one up or hand back the member's own.
-- **The Dates tab**, beside All and Matches in the dashboard's middle panel, lists every lead who said yes, with the time and place once set.
+- **Dates**, a row of the Dashboards block on the dashboard's left page beside Leads and Matches, lists every lead who said yes, with the time and place once set.
 
 ## Before your date
 
@@ -19,9 +19,9 @@ A card at the top of the dashboard's right panel on a lead with a yes: their lin
 
 A window with the day, the time and the place, typed by the member. Clear the time takes the place with it. A sample says nothing was saved.
 
-## The Dates tab's month
+## The month on Dates
 
-The Calendar screen until 20 Oct 2026, when Tyler folded every Dating page into the dashboard. The Dates tab shows a full-width month with each date that has a time written in its day, "7:00 PM Sofia", opening on the month of the next date (`src/components/dating/dates-month.tsx`). Pressing a date opens that lead. Dates still waiting for a time are the rows under it. Google Calendar's connection is in the cog's settings window.
+The Calendar screen until 20 Oct 2026, when Tyler folded every Dating page into the dashboard. Dates shows a full-width month with each date that has a time written in its day, "7:00 PM Sofia", opening on the month of the next date (`src/components/dating/dates-month.tsx`). Pressing a date opens that lead. Dates still waiting for a time are the rows under it. Google Calendar's connection is in the General tab of the ⋮ in the left panel's header.
 
 ## Google Calendar
 
