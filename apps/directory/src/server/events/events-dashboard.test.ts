@@ -90,7 +90,7 @@ describe("the left page", () => {
     const coming = await comingUp(siteId, 5, database)
     expect(coming.rows.map((row) => row.id)).toEqual([sooner.id, later.id])
     await signUpForEvent(siteId, later.id, { name: "Sam", email: "sam@example.com" }, { ip: "10.0.0.1" }, database)
-    expect(await eventsSectionCounts(siteId, database)).toEqual({ events: 3, signups: 1, featured: 0 })
+    expect(await eventsSectionCounts(siteId, database)).toEqual({ events: 3, signups: 1, featured: 0, fields: 0 })
   })
 })
 

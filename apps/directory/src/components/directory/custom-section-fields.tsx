@@ -43,7 +43,7 @@ import {
  * Somebody defining a section is thinking about all of it at once, and a
  * window per field would put a modal over a modal to change one word.
  *
- * Removing a field that listings have already filled in asks first, and says
+ * Removing a field that listings or events have already filled in asks first, and says
  * how many would lose an answer. That question is the only thing standing
  * between "I renamed a section" and a hundred businesses quietly losing their
  * opening times.
@@ -98,6 +98,7 @@ export function FieldRow({
   field,
   index,
   count,
+  filters,
   disabled,
   onChange,
   onMove,
@@ -106,6 +107,11 @@ export function FieldRow({
   field: CustomField
   index: number
   count: number
+  /**
+   * Whether "Use as a filter" is offered. Only a listing's fields filter the
+   * directory; an event's never do (task events/07 leaves that to task 14).
+   */
+  filters: boolean
   disabled: boolean
   onChange: (patch: Partial<CustomField>) => void
   onMove: (by: -1 | 1) => void
@@ -188,7 +194,7 @@ export function FieldRow({
         </div>
       </div>
 
-      {field.type !== "repeater" && canFilterByType(field.type) ? (
+      {filters && field.type !== "repeater" && canFilterByType(field.type) ? (
         <div className="flex items-center gap-2">
           <Checkbox
             id={filterId}
@@ -265,7 +271,7 @@ function OptionsEditor({
       {field.options.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           A choice field with nothing to choose from saves nothing. Add the
-          answers a listing may pick.
+          answers to pick from.
         </p>
       ) : null}
       {field.options.map((option, index) => (

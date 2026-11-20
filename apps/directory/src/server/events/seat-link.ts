@@ -58,6 +58,15 @@ export async function handleEventSeatRequest(
         410,
         { label: "Open the event", href: result.eventUrl }
       )
+    case "off":
+      return page(
+        result.status === "cancelled" ? "That event is cancelled" : "That event is postponed",
+        result.status === "cancelled"
+          ? `${result.title} will not go ahead, so there is no seat to claim.`
+          : `${result.title} has no new date yet, so there is no seat to claim. You keep your place, and you will be emailed when it has one.`,
+        410,
+        { label: "Open the event", href: result.eventUrl }
+      )
     case "unknown":
       return page(
         "We do not recognise that link",

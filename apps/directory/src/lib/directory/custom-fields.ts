@@ -37,6 +37,18 @@ import {
 
 export const CUSTOM_SECTION_LAYOUTS = ["stack", "card", "two-column"] as const
 
+/**
+ * Whose fields a section holds. Each kind is a list of its own (Tyler, 19 Nov
+ * 2026: "Own row on Events"), so a listing's "Cuisine" never shows on an event.
+ */
+export const CUSTOM_SECTION_KINDS = ["listing", "event"] as const
+
+export type CustomSectionKind = (typeof CUSTOM_SECTION_KINDS)[number]
+
+export function isCustomSectionKind(value: unknown): value is CustomSectionKind {
+  return (CUSTOM_SECTION_KINDS as readonly unknown[]).includes(value)
+}
+
 export type CustomSectionLayout = (typeof CUSTOM_SECTION_LAYOUTS)[number]
 
 export const CUSTOM_SECTION_LAYOUT_LABELS: Record<CustomSectionLayout, string> =
@@ -135,6 +147,7 @@ export type CustomField = CustomSimpleField | CustomRepeaterField
 
 export type CustomSection = {
   id: string
+  kind: CustomSectionKind
   name: string
   /** Fixed at creation, which is what lets a rename keep every saved value. */
   slug: string
@@ -156,7 +169,7 @@ export type CustomSimpleValue =
 
 export type CustomFieldValue = CustomSimpleValue | CustomRepeaterRow[]
 
-/** One listing's answers: section slug → field key → value. */
+/** One listing's or event's answers: section slug → field key → value. */
 export type CustomValues = Record<string, Record<string, CustomFieldValue>>
 
 export function isCustomSectionLayout(
@@ -305,7 +318,14 @@ function cleanSimpleField(
  * hand-edited in the database can only ever describe fields this app knows how
  * to draw and clean.
  */
-export function cleanCustomFields(value: unknown): CustomField[] {
+export function cleanCustomFields(
+  value: unknown,
+  /**
+   * False for an event's fields: only the directory pages filter on fields,
+   * and filters on the Events page are task events/14's to decide.
+   */
+  { filterable = true }: { filterable?: boolean } = {}
+): CustomField[] {
   if (!Array.isArray(value)) return []
   const taken = new Set<string>()
   const reserved = reservedKeys(value)
@@ -339,7 +359,7 @@ export function cleanCustomFields(value: unknown): CustomField[] {
         fields: rowFields,
       })
     } else {
-      const field = cleanSimpleField(raw, taken, reserved, true)
+      const field = cleanSimpleField(raw, taken, reserved, filterable)
       if (field) fields.push(field)
     }
 

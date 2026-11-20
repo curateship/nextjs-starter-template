@@ -1,3 +1,4 @@
+import type { RescheduledFrom, ScheduleStatus } from "@/lib/events/schedule-status"
 import {
   LISTING_SHARE_IMAGE_HEIGHT,
   LISTING_SHARE_IMAGE_TYPE,
@@ -370,6 +371,10 @@ export function postJsonLd(input: {
  * A tickets link goes out as the offer's address, so Google can send people
  * to where tickets are sold. There is no price, because the site does not
  * know one.
+ *
+ * The status says whether it is going ahead (task events/27): cancelled,
+ * postponed (keeping the date it had, as Google asks while no new one is
+ * known), or rescheduled with the date it moved from as `previousStartDate`.
  */
 export function eventJsonLd(
   input: EventWhen & {
@@ -384,6 +389,8 @@ export function eventJsonLd(
     placeAddress: string
     /** Where tickets are sold, or empty. */
     ticketsUrl?: string
+    scheduleStatus?: ScheduleStatus
+    rescheduledFrom?: RescheduledFrom | null
   }
 ): JsonLdNode | null {
   const placeName = input.placeName.trim()
@@ -400,7 +407,15 @@ export function eventJsonLd(
       input.startTime,
       input.timeZone
     ),
-    eventStatus: "https://schema.org/EventScheduled",
+    eventStatus: `https://schema.org/${
+      input.scheduleStatus === "cancelled"
+        ? "EventCancelled"
+        : input.scheduleStatus === "postponed"
+          ? "EventPostponed"
+          : input.rescheduledFrom
+            ? "EventRescheduled"
+            : "EventScheduled"
+    }`,
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     location: {
       "@type": "Place",
@@ -419,6 +434,13 @@ export function eventJsonLd(
 
   if (input.ticketsUrl) {
     page.offers = { "@type": "Offer", url: input.ticketsUrl }
+  }
+  if (input.scheduleStatus === "scheduled" && input.rescheduledFrom) {
+    page.previousStartDate = eventMomentText(
+      input.rescheduledFrom.date,
+      input.rescheduledFrom.time,
+      input.timeZone
+    )
   }
 
   return graph([organisation, page])

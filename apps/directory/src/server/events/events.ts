@@ -34,6 +34,12 @@ import {
 } from "@/lib/events/sign-up-fields"
 import { cleanTicketsUrl } from "@/lib/events/tickets-url"
 import {
+  readScheduleStatus,
+  type RescheduledFrom,
+  type ScheduleStatus,
+} from "@/lib/events/schedule-status"
+import { cleanCustomValues } from "@/lib/directory/custom-fields"
+import {
   cleanPostBody,
   emptyPostBody,
   type PostBody,
@@ -54,6 +60,7 @@ import {
 import { locateAddress } from "@/server/directory/geocode"
 import { eventIsFeatured, moveEventSpotEnd } from "@/server/directory/featured"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
+import { listCustomSections } from "@/server/directory/custom-sections"
 import {
   categoryRelationships,
   directoryListings,
@@ -145,6 +152,10 @@ export type SiteEvent = EventWhen & {
   signUpQuestionRequired: boolean
   /** Where tickets are sold, an https address, or empty. */
   ticketsUrl: string
+  /** Whether it is going ahead. See `server/events/schedule.ts`. */
+  scheduleStatus: ScheduleStatus
+  /** Where it was before a new date was set, for the "Rescheduled from" note. */
+  rescheduledFrom: RescheduledFrom | null
   createdAt: Date
   updatedAt: Date
 }
@@ -204,6 +215,11 @@ export function toEvent(row: EventRow): SiteEvent {
     signUpQuestion: row.signUpQuestion,
     signUpQuestionRequired: row.signUpQuestionRequired,
     ticketsUrl: row.ticketsUrl,
+    scheduleStatus: readScheduleStatus(row.scheduleStatus),
+    rescheduledFrom:
+      row.rescheduledFromDate && row.rescheduledFromTime
+        ? { date: row.rescheduledFromDate, time: toClock(row.rescheduledFromTime) }
+        : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -759,6 +775,24 @@ export async function findEvent(
   return row ? toEvent(row) : null
 }
 
+/**
+ * What one event filled in for the site's own event fields, as stored. The
+ * caller cleans it against the site's event sections, so a field that was
+ * deleted since has no answer.
+ */
+export async function eventCustomValues(
+  workspaceId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<unknown> {
+  const [row] = await database
+    .select({ customValues: siteEvents.customValues })
+    .from(siteEvents)
+    .where(and(eq(siteEvents.id, id), eq(siteEvents.workspaceId, workspaceId)))
+    .limit(1)
+  return row?.customValues ?? {}
+}
+
 /** One date of a repeating event, as its main event's window lists it. */
 export type EventSeriesDate = {
   id: string
@@ -903,6 +937,8 @@ export async function updateEvent(
     signUpQuestion?: string
     signUpQuestionRequired?: boolean
     ticketsUrl?: string
+    /** Answers to the site's own event fields, cleaned against them here. */
+    customValues?: unknown
   },
   database: CustomShellDb = db
 ): Promise<SiteEvent> {
@@ -964,6 +1000,12 @@ export async function updateEvent(
   }
   if (input.ticketsUrl !== undefined) {
     values.ticketsUrl = cleanTicketsUrl(input.ticketsUrl)
+  }
+  if (input.customValues !== undefined) {
+    values.customValues = cleanCustomValues(
+      await listCustomSections(workspaceId, database, "event"),
+      input.customValues
+    )
   }
   // A date of a repeating event saved by itself stops following the main one.
   values.editedAlone = sql`${siteEvents.seriesId} IS NOT NULL`
@@ -1125,6 +1167,7 @@ export async function duplicateEvent(
         signUpQuestion: source.signUpQuestion,
         signUpQuestionRequired: source.signUpQuestionRequired,
         ticketsUrl: source.ticketsUrl,
+        customValues: source.customValues,
         createdAt: at,
         updatedAt: at,
       })

@@ -42,7 +42,13 @@ export async function eventCalendarFileResponse(input: {
 
   const { event } = page
   const file = eventCalendarFile(
-    [{ ...event, url: `${site.url}/events/${event.slug}` }],
+    [
+      {
+        ...event,
+        url: `${site.url}/events/${event.slug}`,
+        cancelled: event.scheduleStatus === "cancelled",
+      },
+    ],
     {
       siteName: site.name,
       timeZone: page.timeZone,

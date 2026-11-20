@@ -10,6 +10,7 @@ import {
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
@@ -24,6 +25,7 @@ import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadEvent } from "@/lib/api/events/public"
 import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
 import { eventDirectionsUrl } from "@/lib/events/directions"
+import { scheduleBannerText } from "@/lib/events/schedule-status"
 import {
   directoryDescription,
   directoryHead,
@@ -91,7 +93,11 @@ function EventRoute() {
     otherDates,
     atPlace,
   } = Route.useLoaderData()
-  const directions = ended ? null : eventDirectionsUrl(event)
+  // A cancelled or postponed event offers no way to go: no tickets, no
+  // calendar entry and no directions (task events/27).
+  const off = event.scheduleStatus !== "scheduled"
+  const banner = scheduleBannerText(event.scheduleStatus, event.rescheduledFrom)
+  const directions = ended || off ? null : eventDirectionsUrl(event)
   const shareImage = eventPageShareImage({
     coverImage: event.coverImage,
     siteUrl: site.url,
@@ -117,7 +123,19 @@ function EventRoute() {
         ]}
       />
 
-      {ended ? (
+      {/* Cancelled or postponed says so first, over "has ended": a visitor
+          on a cancelled event's page needs that more than whether its day
+          has passed. A rescheduled event says where it moved from until it
+          is over. */}
+      {banner && (off || !ended) ? (
+        <Card>
+          <CardContent>
+            <p role="status" className="text-sm font-medium">
+              {banner}
+            </p>
+          </CardContent>
+        </Card>
+      ) : ended ? (
         <Card>
           <CardContent>
             <p role="status" className="text-sm font-medium">
@@ -210,7 +228,7 @@ function EventRoute() {
             />
           ) : null}
 
-          {ended ? null : (
+          {ended || off ? null : (
             <div className="flex flex-wrap gap-2">
               {event.ticketsUrl ? (
                 <Button asChild className="w-fit">
@@ -265,6 +283,11 @@ function EventRoute() {
           </div>
         </CardContent>
       </Card>
+
+      {/* The site's own event fields, one box per section, the way a listing
+          page shows its own under the write-up. A section with nothing filled
+          in never reaches here (task events/07). */}
+      <ListingCustomSections sections={event.customSections} />
     </DirectoryFrame>
   )
 }

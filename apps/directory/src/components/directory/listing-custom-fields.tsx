@@ -39,7 +39,9 @@ import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 
 /**
  * The fields a site invented, on the listing form: one card per section, in
- * the order the admin arranged them, after everything built in.
+ * the order the admin arranged them, after everything built in. The event
+ * record draws its own as rows in its ⋮ (`events/event-custom-fields.tsx`),
+ * with `CustomFieldControl` from here.
  *
  * The form holds every field whether or not it has an answer — that is what a
  * form is for. Deciding which of them is empty enough to leave off the page is
@@ -112,7 +114,7 @@ export function ListingCustomFields({
   )
 }
 
-function CustomFieldControl({
+export function CustomFieldControl({
   section,
   field,
   value,
@@ -466,8 +468,8 @@ function RepeaterRows({
       <div className="grid gap-2">
         <FieldLabel>{field.label}</FieldLabel>
         <p className="text-xs text-muted-foreground">
-          A row has nothing in it yet. Add what a row holds on the Listing
-          fields screen.
+          A row has nothing in it yet. Add what a row holds in the Custom
+          fields row.
         </p>
       </div>
     )
@@ -519,7 +521,7 @@ function RepeaterRows({
       <div>
         <DisabledReason
           disabled={full}
-          reason={`A listing can hold ${MAX_CUSTOM_REPEATER_ROWS} rows here. Remove one before adding another.`}
+          reason={`This field holds ${MAX_CUSTOM_REPEATER_ROWS} rows. Remove one before adding another.`}
         >
           <Button
             type="button"

@@ -37,6 +37,7 @@ const base: ListedEvent = {
   takesSignUps: true,
   going: 212,
   full: false,
+  scheduleStatus: "scheduled",
   category: { name: "Festival", slug: "festival" },
   ended: false,
 }
@@ -67,6 +68,20 @@ describe("event card", () => {
 
     expect(markup).not.toContain("RSVP")
     expect(markup).not.toContain('data-slot="card-footer"')
+  })
+
+  it("labels a cancelled or postponed event once, with no RSVP", () => {
+    for (const [scheduleStatus, label] of [
+      ["cancelled", "Cancelled"],
+      ["postponed", "Postponed"],
+    ] as const) {
+      const markup = renderToStaticMarkup(
+        <EventCard event={{ ...base, scheduleStatus }} />
+      )
+      expect(markup.split(label).length - 1).toBe(1)
+      expect(markup).not.toContain("RSVP")
+      expect(markup).not.toContain("212 going")
+    }
   })
 
   it("says nothing about numbers until somebody has signed up", () => {

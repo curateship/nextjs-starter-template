@@ -35,13 +35,19 @@ widgets, Sign-ups, Featured events", besides Events itself):
   with the event each is for. Filter shows who is coming (the default and the
   pill's count), who is waiting for a seat, or everyone. A row opens its event
   on the right. The bin, right-click and Select take people off their list,
-  the same as the bin in an event's Sign-ups card.
+  the same as the bin in the Sign-ups tab of an event's ⋮.
 - **Featured events:** every event featured now, by an admin's free switch or
   by a spot a listing's owner paid for, with how, until when and what was
   paid. A repeating event counts as running while any of its dates is still
   to come. Search finds them by title, and Filter shows ended spots too. A row opens its event under a Featured
   spot card. "Stop featuring" switches an admin's off, or revokes a paid spot
   with no refund. Its pill counts the spots running now.
+- **Custom fields:** the site's own event fields, the sections of them in
+  the order they sit on an event's page. It is the Listings dashboard's
+  Custom fields row with the events' own list (task events/07; Tyler, 19 Nov
+  2026: "Own row on Events"). It comes last so the four rows above keep
+  Tyler's order. Its pill counts every event section. `events.md` says what
+  the fields do.
 - **Event submissions stays where it was,** at `/admin/event-submissions`.
   Tyler left "Suggested events" out of the rows.
 - **Hiding and moving rows:** the Dashboards block's ⋮ hides any row but
@@ -67,11 +73,33 @@ in its header is New event.
 
 `event-record.tsx`, in the shell's record frame. It saves itself 700ms after
 the last change, with "Saved" or what is missing in its footer beside
-Publish or Unpublish. Its cards are the old window's: The event, When and
-where, Repeat (or whose date it is), Sign-ups, Later dates, Categories and
-Body. Status and Who can find it are in its ⋮, with Duplicate and Delete on
-the Events row. `events.md` says what each card does.
+Publish or Unpublish. The panel itself shows only Body, under a featured
+spot's card when the Featured events row opened it. Everything else is in its
+header's ⋮ (Tyler, 19 Nov 2026: "Move all these blocks into the right panel
+header 3 dot dropdown"). Body's editor has no box of its own: the text and
+the Listing card button under it run to the card's edges (Tyler, 20 Nov 2026:
+"remove the container so the editor is edge to edge", then "add the listing
+card button below the editor"). The post window keeps its boxed editor, with
+the button above the text. `events.md` says what each field does.
 
+- **General tab:** three grey lists of rows, then Duplicate and Delete when the
+  Events row opened it.
+  - **The event:** Title, Address part, Summary, Cover image, Tickets link and
+    Categories. Each row shows its value and opens a small box with its field.
+  - **When and where:** Start day and End day open the month straight away.
+    Start time, End time, Place (the place, its street address, or a listing
+    picked as the place) and Repeat open a box. On one date of a repeat, the
+    Repeat row says whose date it is and has Open main event.
+  - **The site's own event fields:** one list per section, named after it,
+    between When and where and Publishing. Each row shows the answer and
+    opens the field.
+  - **Publishing:** Status, Schedule (Scheduled, Postponed or Cancelled,
+    each asking first; `events.md` has "Cancelled or postponed"), Who can find
+    it, and the Featured switch on a main event.
+- **Sign-ups tab:** the switch, seats, closing time, question, who is coming
+  and who is waiting.
+- **Later dates tab:** only on a main event that repeats. Pressing a date opens
+  it on the right.
 - **No Save button and no window.** A seat count or tickets link the server
   would refuse holds the save and says why in the footer.
 - **Opening another event saves first.** A later date, its main event, or

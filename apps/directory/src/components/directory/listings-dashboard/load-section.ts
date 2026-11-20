@@ -72,14 +72,14 @@ export async function loadListingsSection(search: ListingsSearch): Promise<Listi
           categoryId: search.category,
         }),
         loadCategories(),
-        loadCustomSections(),
+        loadCustomSections("listing"),
       ])
       return { section, page, categories, customSections }
     }
     case "categories":
       return { section, categories: await loadCategories() }
     case "fields":
-      return { section, sections: await loadCustomSectionRows() }
+      return { section, sections: await loadCustomSectionRows("listing") }
     case "guides":
       return {
         section,

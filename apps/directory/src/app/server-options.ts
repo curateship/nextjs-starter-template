@@ -19,6 +19,7 @@ import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
 import { executeDraftEventsStep } from "@/server/events/ai-drafts"
 import { eventSearchResults, eventSitemapFiles } from "@/server/events/public"
 import { runRepeatTopUps } from "@/server/events/repeats"
+import { runEventNoticePass } from "@/server/events/schedule"
 import { runWaitingListPass } from "@/server/events/waiting-list"
 import { postSearchResults, postSitemapFiles } from "@/server/posts/public"
 import {
@@ -128,6 +129,15 @@ export const appServerOptions: AppServerOptions = {
         // reach the next person in seconds rather than minutes.
         name: "event waiting list",
         tick: runWaitingListPass,
+      },
+      {
+        // Every pass, like the waiting list: one indexed look when no event
+        // has changed, and a storm cancelling a concert should reach the 200
+        // people going within a minute or two (task events/27).
+        name: "event cancelled or postponed emails",
+        tick: async () => {
+          await runEventNoticePass()
+        },
       },
       {
         // Asks at most once a minute: an email waits for an hour of quiet

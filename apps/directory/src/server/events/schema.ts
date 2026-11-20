@@ -139,6 +139,30 @@ export const siteEvents = pgTable(
       .default(false),
     /** Where tickets are sold, drawn as "Get tickets". Empty for none. */
     ticketsUrl: varchar("tickets_url", { length: 600 }).notNull().default(""),
+    /**
+     * Answers to the site's own event fields, from 0158, in the shape of
+     * `directory_listings.custom_values`. Cleaned against the site's event
+     * sections every way in and out, by `lib/directory/custom-fields.ts`.
+     */
+    customValues: jsonb("custom_values").notNull().default({}),
+    /**
+     * Whether it is going ahead, from 0159: 'scheduled', 'cancelled' or
+     * 'postponed'. Apart from `status`: a published event can be cancelled
+     * and stays on the site with a banner. See `server/events/schedule.ts`.
+     */
+    scheduleStatus: varchar("schedule_status", { length: 20 })
+      .notNull()
+      .default("scheduled"),
+    /** Where it was before the admin gave it a new date. Null otherwise. */
+    rescheduledFromDate: date("rescheduled_from_date", { mode: "string" }),
+    rescheduledFromTime: time("rescheduled_from_time"),
+    /**
+     * What everybody on its list must be told about the latest change:
+     * 'cancelled', 'postponed', 'rescheduled' or 'back-on'. Null before any.
+     */
+    notice: varchar("notice", { length: 20 }),
+    /** Goes up by one on each real change; a sign-up behind it is emailed. */
+    noticeNumber: integer("notice_number").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -334,6 +358,11 @@ export const eventSignUps = pgTable(
      * from 0157. A listing's owner sees only the sign-ups that were told.
      */
     hostTold: boolean("host_told").notNull().default(false),
+    /**
+     * The event's `noticeNumber` this person was last emailed about, from
+     * 0159. A new sign-up starts at the event's number, having seen the page.
+     */
+    toldNotice: integer("told_notice").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   },

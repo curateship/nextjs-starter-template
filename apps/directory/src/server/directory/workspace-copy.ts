@@ -68,6 +68,9 @@ export async function copyDirectoryWorkspace({
       sourceSections.map((section) => ({
         id: uuid(),
         workspaceId: newWorkspaceId,
+        // Event sections come across as event sections, though the events
+        // themselves never do.
+        kind: section.kind,
         name: section.name,
         // The slug is copied rather than made afresh: it is the key each
         // listing's answers are filed under, so a new one would arrive at a

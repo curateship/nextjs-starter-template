@@ -11,21 +11,24 @@ import { readDirection, readOneOf, readPage, readSearchText } from "@/lib/nav/li
  * that event.
  *
  * The rows (Tyler, 19 Nov 2026: "Overview widgets, Sign-ups, Featured
- * events", besides Events itself). Event submissions stays a page of its own.
+ * events", besides Events itself). Custom fields came last, the same day, for
+ * the site's own event fields (task events/07: "Own row on Events"). Event
+ * submissions stays a page of its own.
  */
 
-export const EVENTS_SECTIONS = ["overview", "events", "signups", "featured"] as const
+export const EVENTS_SECTIONS = ["overview", "events", "signups", "featured", "fields"] as const
 export type EventsSection = (typeof EVENTS_SECTIONS)[number]
 
 /** A row the Dashboards block can hide or move: every one but Overview. */
 export type EventsListSection = Exclude<EventsSection, "overview">
-export const EVENTS_LIST_SECTIONS: readonly EventsListSection[] = ["events", "signups", "featured"]
+export const EVENTS_LIST_SECTIONS: readonly EventsListSection[] = ["events", "signups", "featured", "fields"]
 
 export const EVENTS_SECTION_LABELS: Record<EventsSection, string> = {
   overview: "Overview",
   events: "Events",
   signups: "Sign-ups",
   featured: "Featured events",
+  fields: "Custom fields",
 }
 
 /** The Events row's header tabs, Upcoming first, the one it opens on. */

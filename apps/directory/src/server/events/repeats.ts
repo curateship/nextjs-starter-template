@@ -174,6 +174,7 @@ function sharedWithDates(main: EventRow, at: Date) {
     signUpQuestion: main.signUpQuestion,
     signUpQuestionRequired: main.signUpQuestionRequired,
     ticketsUrl: main.ticketsUrl,
+    customValues: main.customValues,
   }
 }
 

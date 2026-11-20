@@ -9,6 +9,7 @@
  * different lists.
  */
 
+import type { ScheduleStatus } from "@/lib/events/schedule-status"
 import type { DirectorySort } from "@/lib/directory/public-search"
 import type { EventWhen } from "@/lib/events/event-time"
 
@@ -150,6 +151,8 @@ export type DirectoryFrontPageEvent = EventWhen & {
   going: number
   /** Every seat is taken, so the card says "Full" in place of RSVP. */
   full: boolean
+  /** Cancelled or postponed, labelled in place of RSVP (task events/27). */
+  scheduleStatus: ScheduleStatus
   category: { name: string; slug: string } | null
 }
 

@@ -1,8 +1,7 @@
 import * as React from "react"
-import { Loader2Icon, PlusIcon, Trash2Icon, UsersIcon } from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { CharacterCount } from "@/components/shared/character-count"
-import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -108,7 +107,7 @@ function PersonRow({
 }
 
 /**
- * The Sign-ups card in an event's window: the switch, the seats, when
+ * The Sign-ups tab of an event's ⋮: the switch, the seats, when
  * sign-ups close, the event's own question, who is coming, and who is
  * waiting.
  *
@@ -117,7 +116,7 @@ function PersonRow({
  * freed seat to the front of the queue is the background pass's job, so it
  * happens within fifteen seconds rather than on this click.
  */
-export function EventSignUpsCard({
+export function EventSignUpsFields({
   eventId,
   takesSignUps,
   seats,
@@ -190,12 +189,6 @@ export function EventSignUpsCard({
   }
 
   return (
-    <PanelCard
-      storageId="event-sign-ups"
-      icon={<UsersIcon />}
-      title="Sign-ups"
-      meta={takesSignUps ? signUps.length : undefined}
-    >
       <div className="grid gap-4">
       <p className="text-sm text-muted-foreground">
         Visitors sign up on the event's page with a name and an email. A full
@@ -229,7 +222,7 @@ export function EventSignUpsCard({
             id="event-seats"
             inputMode="numeric"
             placeholder="No limit"
-            className="w-full sm:w-40"
+            className="w-full"
             value={seats}
             disabled={disabled}
             aria-invalid={seatsInvalid}
@@ -253,7 +246,7 @@ export function EventSignUpsCard({
               onCloseHoursChange(value === "start" ? null : Number(value))
             }
           >
-            <SelectTrigger id="event-sign-ups-close" className="w-full sm:w-fit">
+            <SelectTrigger id="event-sign-ups-close" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -400,7 +393,6 @@ export function EventSignUpsCard({
         onConfirm={() => void remove()}
       />
       </div>
-    </PanelCard>
   )
 }
 
@@ -485,8 +477,8 @@ function AddPersonForm({
 
   return (
     <div className="grid gap-4 rounded-md border p-3">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="grid gap-2 sm:flex-1">
+      <div className="grid gap-4">
+        <div className="grid gap-2">
           <FieldLabel htmlFor="event-add-person-name">Name</FieldLabel>
           <Input
             id="event-add-person-name"
@@ -500,7 +492,7 @@ function AddPersonForm({
             }}
           />
         </div>
-        <div className="grid gap-2 sm:flex-1">
+        <div className="grid gap-2">
           <FieldLabel htmlFor="event-add-person-email">Email</FieldLabel>
           <Input
             id="event-add-person-email"

@@ -15,6 +15,7 @@ import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { cn } from "@/lib/utils"
+import { SCHEDULE_STATUS_LABELS } from "@/lib/events/schedule-status"
 
 /**
  * The card grid every public list of events uses: the Events page, a day's
@@ -89,6 +90,8 @@ export function EventCard({ event }: { event: ListedEvent }) {
   // Only while the list is narrowed to a distance, like "2.3 km away".
   const distance = formatDirectoryDistance(event.distanceKm)
   const where = [event.placeName, distance].filter(Boolean).join(" · ")
+  // Cancelled or postponed stays listed with its label (task events/27).
+  const off = event.scheduleStatus === "scheduled" ? null : SCHEDULE_STATUS_LABELS[event.scheduleStatus]
 
   return (
     <Card
@@ -125,14 +128,14 @@ export function EventCard({ event }: { event: ListedEvent }) {
       <CardContent className="grid gap-1">
         {/* A card with no photo has nowhere for the two blocks over it, so the
             date and the category go here instead of vanishing. */}
-        {!event.coverImage || event.featured || event.ended ? (
+        {!event.coverImage || event.featured || event.ended || off ? (
           <div className="flex flex-wrap items-center gap-2">
             {event.coverImage ? null : <DateBlock date={event.startDate} />}
             {!event.coverImage && event.category ? (
               <CategoryPill name={event.category.name} tone="plain" />
             ) : null}
             {event.featured ? <FeaturedBadge /> : null}
-            {event.ended ? <Badge variant="outline">Ended</Badge> : null}
+            {off ? <Badge variant="outline">{off}</Badge> : event.ended ? <Badge variant="outline">Ended</Badge> : null}
           </div>
         ) : null}
         <h2 className="text-lg leading-snug font-semibold">
@@ -163,7 +166,9 @@ export function EventCard({ event }: { event: ListedEvent }) {
       </CardContent>
       {/* `mt-auto` pins the footer to the bottom of a card that was stretched
           to match its row, so the RSVP buttons line up across the row. */}
-      {event.takesSignUps ? (
+      {/* A cancelled or postponed card has no footer: its badge above says
+          so, and RSVP and the going count mean nothing while it is off. */}
+      {event.takesSignUps && !off ? (
         <CardFooter className="mt-auto justify-between gap-2 bg-transparent">
           {/* Nothing where the count goes until somebody has signed up. "0
               going" on an event nobody has found yet argues against itself. */}

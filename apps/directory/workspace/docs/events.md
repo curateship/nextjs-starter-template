@@ -74,7 +74,8 @@ published event has its own page at `/events/<address>`.
   the badge.
 - **Signing up needs no account.** Chosen on 24 Sep 2026. A name and an email
   are enough, the same as the old Directory app.
-- **Who's coming lives in the event's record**, as a card in Admin → Events.
+- **Who's coming lives in the event's record**, in the Sign-ups tab of its ⋮
+  in Admin → Events.
   Chosen on 24 Sep 2026, over a window of its own. The Events dashboard's
   Sign-ups row lists everyone across events too.
 - **Signing up twice says the same thing as signing up once.** Chosen on
@@ -96,6 +97,17 @@ published event has its own page at `/events/<address>`.
   Tyler: "Upcoming | Past chips", 19 Nov 2026.
 - **Only "an event was suggested" starts an automation.** Tyler: "Event
   suggested", 19 Nov 2026. `directory-automations.md` has the rest.
+- **Event fields are a list of their own, on a row of the Events
+  dashboard.** Tyler: "Own row on Events", 19 Nov 2026, over sharing the
+  listing fields, so "Cuisine" never shows on an event.
+- **Postponed means there is no new date yet.** Tyler: "New date unknown",
+  19 Nov 2026. Setting the new date puts the event back to Scheduled with a
+  "Rescheduled from" note, and everyone on its list is emailed the new date.
+- **Everyone on the list hears about a cancel or a postpone**: the people
+  signed up, the people holding an offered seat, and the waiting list.
+  Tyler: "Signed up + waiting", 19 Nov 2026.
+- **The cancel window says nothing about refunds yet.** Tyler: "Nothing
+  yet", 19 Nov 2026. Task 35 adds a line once paid tickets exist.
 
 ## What an event is
 
@@ -114,6 +126,11 @@ published event has its own page at `/events/<address>`.
   `tickets_url`, `sign_ups_close_hours`, `sign_up_question` and
   `sign_up_question_required` on the event, `answer` on a sign-up, and
   `changes_event_id` on a suggestion, for the sections below that name them.
+  `drizzle/0158_cms_event_custom_fields.sql` adds `custom_values`, for "The
+  site's own event fields" below. `drizzle/0159_cms_event_schedule_status.sql`
+  adds `schedule_status`, `rescheduled_from_date`, `rescheduled_from_time`,
+  `notice` and `notice_number`, and `told_notice` on a sign-up, for
+  "Cancelled or postponed" below.
 - **The body:** the same writing box as a post, listing cards included. The
   rules for it live in `src/lib/posts/post-body.ts`.
 - **The address:** unique on its own site. A title typed on a new event writes
@@ -166,11 +183,11 @@ published event has its own page at `/events/<address>`.
   the event's own start, not when it was edited.
 - **The record:** a row opens the event on the right, and every field saves
   itself 700ms after the last change, as the Listings dashboard's records do.
-  Its cards are The event (title, address, summary, tickets link, featured,
-  cover image), When and where (start day, start time, end day, end time,
-  place, street address, or a listing picked as the place), Repeat, Sign-ups,
-  Later dates, Categories and Body. Status and Who can find it are in its ⋮,
-  and Publish or Unpublish is in its footer. An event with no title, day or
+  The panel shows the Body. Every other field is a row in its ⋮: The event
+  (title, address, summary, cover image, tickets link, categories), When and
+  where (start day, start time, end day, end time, place, repeat) and
+  Publishing (status, who can find it, featured), with Sign-ups and Later
+  dates as tabs of their own. Publish or Unpublish is in its footer. An event with no title, day or
   start time says so in the footer and waits to save.
 - **A new event** starts from New event's dropdown: a title, a day and a start
   time. It is made a draft and opens under Draft.
@@ -204,16 +221,16 @@ something like a trivia night every Thursday: the admin sets it up once, and
 the coming Thursdays are always on the calendar.
 
 - **The main event is the first date.** It holds the repeat, in the Repeat
-  card of its window. Every later date is its own event, with its own page and
+  row of its record's ⋮. Every later date is its own event, with its own page and
   its own address, like `/events/trivia-night-2026-10-08`.
-- **The Repeat card:** "Does not repeat", "Every week" with the days ticked, or
+- **The Repeat row:** "Does not repeat", "Every week" with the days ticked, or
   "Every month" with the week and the day, plus an Until day. It starts from
   the event's own weekday. Under it is the plain sentence, like "Every Tuesday
   and Thursday", and the first four dates, worked out by the same code that
   makes them.
 - **The repeat has to fall on the start day.** An event starting on a Thursday
   cannot repeat "Every Tuesday", because the sentence would then describe dates
-  that are not the ones made. The card says so, and saving is refused in the
+  that are not the ones made. The Repeat box says so, and saving is refused in the
   same words.
 - **How far ahead:** the next 8 dates, counting the main event while it is to
   come, and never more than 3 months past today. A weekly event has its next 8
@@ -260,8 +277,8 @@ the coming Thursdays are always on the calendar.
   first, marked "Past", "Draft" or "Changed on its own" where that is true.
   Clicking one opens that date on the right; whatever was typed is saved
   first.
-- **One date's record** has no Repeat card. It says whose date it is and has
-  an "Open main event" button.
+- **One date's record** has no repeat of its own. Its Repeat row says whose
+  date it is and has an "Open main event" button.
 
 ### On the site
 
@@ -494,7 +511,7 @@ own page. A night market with tickets on Eventbrite shows "Get tickets" on its
 page, first in the row with Add to calendar and Directions, and the button
 opens Eventbrite in a new tab.
 
-- **Where:** "Tickets link" in The event card of the event's record. Empty
+- **Where:** the "Tickets link" row in the event's ⋮, under The event. Empty
   means no button.
 - **Only a full `https://` address.** The record marks anything else and
   says so, and the server refuses it the same way, so the button never opens
@@ -528,6 +545,176 @@ nothing in it.
   read with the page in `src/lib/api/events/public.ts`, drawn by
   `src/components/events/public/event-neighbours.tsx`. It is cached like the
   Events page's list, a minute at most.
+
+## The site's own event fields
+
+A site can add fields of its own to every event, like "Age limit", "Dress
+code" or "Wheelchair access". A nightlife site makes "Age limit" a choice of
+"All ages" or "19+", picks 19+ on its late shows, and each of those pages
+shows "Age limit: 19+" in a box of its own.
+
+- **Where they are made:** the Custom fields row of the Events dashboard. It
+  is the Listings dashboard's Custom fields row, the same screen and the same
+  kinds of field, holding the events' own list. A section is a heading, like
+  "Good to know", with up to 20 fields under it, and a site can have 12 event
+  sections besides its 12 listing sections.
+- **Never a filter.** An event field has no "Use as a filter" box, and the
+  server refuses the tick if it is sent. Whether the Events page filters on
+  them is task 14's question, and it is not built.
+- **Where they are filled in:** in the event's ⋮, one grey list per section
+  under When and where, named after the section. Each row shows the answer,
+  or "None", and opens a small box with the field. They save with the rest of
+  the record. A section with no fields yet shows nothing there.
+- **On the page:** one box per section, under the event's card, the way a
+  listing's page shows its own. Only what is filled in shows. An empty field
+  is left out, and a section with nothing filled in has no box at all. A "Yes
+  or no" field shows only when it is a yes, by its name alone.
+- **Copied** by Duplicate and to every date of a repeat, like everything else
+  a repeat's dates share. A date changed on its own keeps its own answers.
+- **Removing a field asks first** when events have filled it in: "Removing
+  Age limit takes away what 9 events typed in for it." A repeat's dates count
+  one each. Deleting a section says how many events lose their answers, then
+  takes them off every event in the same step.
+- **The answers are cleaned against the site's fields** on the way in and
+  out, so a deleted field's old answers never reach a page, and a choice that
+  is not one of the field's choices is not kept.
+- **Names:** an event section is filed under its own key, which the site's
+  listing sections share. One named like a listing section gets a number on
+  the end, like `details-2`. Nobody sees that key.
+- **Where it lives:** the fields are rows of `directory_custom_sections`
+  with `kind` 'event' (listing ones are 'listing'), and each event's answers
+  are `events.custom_values`, both from
+  `drizzle/0158_cms_event_custom_fields.sql`. The rules are
+  `src/server/directory/custom-sections.ts` and
+  `src/lib/directory/custom-fields.ts`, shared with listings. The row is
+  `FieldsSection` in
+  `src/components/directory/listings-dashboard/sections/fields-section.tsx`
+  with `kind="event"`. The ⋮ lists are
+  `src/components/events/event-custom-fields.tsx`. The page reads them in
+  `readPublicEvent` in `src/server/events/public.ts`. The tests are the
+  "event fields" part of `src/server/directory/custom-sections.test.ts` and
+  two in `src/server/events/public.test.ts`.
+
+## Cancelled or postponed
+
+An admin can call an event off. A storm cancels an outdoor concert: the admin
+picks Cancelled, confirms, and within a minute or two the 200 people signed up
+each get an email. The page says "This event is cancelled.", the event stays on
+the Events page and in the month with a Cancelled label, and Google is told.
+
+### The three states
+
+- **Scheduled:** going ahead. Every event starts here, and a duplicate of a
+  cancelled event starts here too.
+- **Cancelled:** it will not go ahead.
+- **Postponed:** it will go ahead, but there is no new date yet.
+- **Separate from Draft and Published.** A published event can be
+  cancelled and stays on the site. A draft can be too, and nobody sees it.
+
+### Changing it
+
+- **Where:** the Schedule row in the event's ⋮, under Publishing. It saves
+  only after a confirm window, never with the rest of the record.
+- **The confirm window** names the event, says what visitors will see, and
+  counts who gets an email: "The 12 people signed up and the 3 on the waiting
+  list get an email within a minute or two.", or "Nobody is signed up, so no
+  email goes out." Cancelling is the red button, "Cancel the event", beside
+  "Keep it". The other two windows close with "Not now", never "Cancel",
+  which beside Postpone would read as cancelling the event.
+- **Going back to Scheduled** asks for the day and start time, filled in with
+  the ones the event has. A new day or time moves the event there and keeps
+  where it was: the page says "Rescheduled from Tue, Dec 15, 7:00 PM." The
+  same day and time just puts it back on. The event keeps its length: a 7 to
+  10 PM concert moved to 8:30 PM ends at 11:30 PM, one moved to 11 PM ends at
+  2 AM the next day, and a three-day festival stays three days.
+- **Picking the status it already has** does nothing, so it never sends a
+  second email.
+- **A repeating event:** each date is its own, the same as its seats and its
+  list, so cancelling the main event cancels that one date. A date changed
+  this way stops following the main event, so a later change to the repeat
+  neither undoes it nor deletes it. The main event goes back on its own day
+  only, because its day is what the repeat counts from; its day changes in
+  When and where.
+
+### What visitors see
+
+- **The banner** at the top of the page: "This event is cancelled.", "This
+  event is postponed. A new date has not been set yet.", or "Rescheduled from
+  …" once it has a new date. A cancelled or postponed page says that rather
+  than "This event has ended".
+- **No buttons to go:** Get tickets, Add to calendar and Directions are gone
+  while it is off.
+- **Sign-ups close.** The box says "Sign-ups have closed.", and the server
+  refuses a sign-up with "This event is cancelled, so it is not taking
+  sign-ups." Everybody already on the list stays on it. The waiting list
+  offers no seats. A seat already being offered goes back to the waiting list,
+  still at the front, so its hold can't run out and take the person off the
+  list; their claim link answers "That event is cancelled" or "That event is
+  postponed". Putting the event back on opens sign-ups again, and the waiting
+  list offers the seat again.
+- **A label, not a disappearance.** The card on the Events page, a home page
+  row and a category page carries a Cancelled or Postponed badge in place of
+  RSVP and the going count. The month shows "Cancelled:" before the time.
+  Admin → Events shows it first in the row's line, and in the record's header
+  line.
+- **Google** is told `EventCancelled` or `EventPostponed`, and after a new
+  date `EventRescheduled` with the old start. A postponed event keeps its old
+  date in the markup, as Google asks while no new one is known. The Rich
+  Results Test can only check this on the live site, because it can't reach a
+  site on this computer.
+
+### The emails
+
+- **Who:** everybody on the list. The people signed up, the people holding a
+  seat offered from the waiting list, and the people waiting. Somebody an
+  admin removed is not told.
+- **Once per change.** Each real change raises the event's `notice_number`
+  by one. Every person whose `told_notice` is behind it gets one email, and
+  their number moves up before the email goes, so two passes at once never
+  send it twice. Saving the same status twice changes nothing, so it sends
+  nothing.
+- **Only the latest news.** Somebody not yet told about a postpone when it
+  becomes a cancel gets the cancel alone.
+- **Somebody who signs up after a change** starts at that change's number, so
+  they are never told about something they already saw on the page.
+- **The four emails**, each with a "See the event" button on a published
+  event:
+  - "Cancelled: Park concert": it has been cancelled, and there is nothing
+    to do.
+  - "Postponed: Park concert": no new date yet, their place is kept, and
+    another email comes with the new date.
+  - "New date: Park concert": the new day and time, the old ones, and that
+    their place is kept.
+  - "Going ahead: Park concert": back on, on the same day.
+  A person on the waiting list reads "You keep your place on the waiting
+  list." where a person with a seat reads "Your place on the list is kept."
+- **When:** the shell's background pass every fifteen seconds, 100 emails a
+  pass, so 200 people are told in under a minute. A failed email puts their
+  number back and the next pass tries again. A local dev server only starts
+  the pass when it is restarted, so a change made locally before then waits.
+- **No refund line** in the confirm window or the email. Task 35 adds one
+  once paid tickets exist.
+
+### Where it lives
+
+- **The rules:** `src/server/events/schedule.ts`. `changeEventSchedule` makes
+  the change, `runEventNoticePass` sends the emails, and `noticeEmail` writes
+  them. The words both sides share, the banner included, are
+  `src/lib/events/schedule-status.ts`.
+- **The door:** `setEventSchedule` in `src/lib/api/events/events.ts`, admin
+  only and the site's own.
+- **The pass is registered** in `src/app/server-options.ts`, beside the
+  waiting list.
+- **The screens:** the Schedule row is
+  `src/components/events/event-schedule-row.tsx`. The page is
+  `src/routes/events_.$slug.tsx`, the card
+  `src/components/events/public/event-card.tsx`, the month
+  `src/components/events/public/event-month.tsx`.
+- **Sign-ups closing:** `signUpBoxFor` and `signUpForEvent` in
+  `src/server/events/sign-ups.ts`, `offerContext` and `claimOfferedSeat` in
+  `src/server/events/waiting-list.ts`.
+- **The tests:** `src/server/events/schedule.test.ts`, and one in
+  `src/components/events/public/event-card.test.tsx`.
 
 ## The Events page
 
@@ -961,8 +1148,10 @@ listings. It is written by `eventJsonLd` in `src/lib/directory/public-seo.ts`.
   an address and that is the only one the admin gave.
 - **No price yet.** Events have no price until paid tickets (task 32) exist.
   A tickets link goes out as the offer's address alone.
-- **It always says "scheduled" and "in person".** Cancelled events (task 27)
-  and online events (task 29) change that later.
+- **Whether it is going ahead:** "scheduled", "cancelled", "postponed", or
+  "rescheduled" with the start it moved from as `previousStartDate`.
+  "Cancelled or postponed" below says when each is sent.
+- **It always says "in person".** Online events (task 29) change that later.
 - **The picture** is the cover photo, or the drawn share card when there is
   none.
 
@@ -990,7 +1179,11 @@ Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
 - **One event:** Google opens its new-event form filled in, in a new tab. The
   other choice downloads `/events/<address>/calendar.ics`, which a phone or a
   computer opens in its own calendar app.
-- **Once an event is over,** the page has no "Add to calendar" button.
+- **Once an event is over,** the page has no "Add to calendar" button, and
+  neither has a cancelled or postponed one.
+- **A cancelled event says so in the file** (`STATUS:CANCELLED`), so a
+  subscribed calendar marks it cancelled at its next check. A postponed one
+  stays as it was, because there is no new date to give it.
 - **Subscribe:** Google opens its "Add calendar" prompt. The other choice is a
   `webcal://` link to `/events.ics`, which hands the address to the phone's or
   computer's calendar app. After that, every event the site publishes shows up
@@ -1466,7 +1659,7 @@ describes. There is no payment and no confirmation email yet. Those are tasks
 
 ### Switching it on
 
-- **Where:** the Sign-ups card in the event's record in Admin → Events. "Take
+- **Where:** the Sign-ups tab of the event's ⋮ in Admin → Events. "Take
   sign-ups" is off on every event until an admin switches it on.
 - **Seats:** a whole number, or empty for no limit. 100,000 is the most.
 - **Lowering the seats** below the number already signed up takes nobody off
@@ -1502,7 +1695,8 @@ buttons and above the body. Its four states:
   and we'll email you if one frees up.", with the same two boxes and a "Join
   the waiting list" button.
 - **Closed:** "Sign-ups have closed." once the event's start time has come by
-  the site's clock. It stays that way after the event is over.
+  the site's clock, and while it is cancelled or postponed. It stays that way
+  after the event is over.
 
 After signing up, the box says "You're on the list, Sam." The seats left are
 read on every visit, after the page cache, so the count is never stale.
@@ -1544,7 +1738,7 @@ read on every visit, after the page cache, so the count is never stale.
 
 ### Who's coming
 
-- **Where:** under the switch and seats in the event's Sign-ups card, as "Who's
+- **Where:** under the switch and seats in the Sign-ups tab of the event's ⋮, as "Who's
   coming" with "3 of 20 seats taken", or "3 signed up" with no limit. A seat
   under offer counts as taken and the line says so: "4 of 20 seats taken,
   1 held".
@@ -1564,8 +1758,10 @@ read on every visit, after the page cache, so the count is never stale.
   event's list." It takes a seat under the same lock as a visitor, so the
   count is right. On a full event it says "Every seat is taken." and offers
   "Add anyway", over the limit, or "Put on the waiting list", at the back of
-  the queue. It works after sign-ups have closed and on a draft, because only
-  the site's admins can reach it.
+  the queue. It works after sign-ups have closed, on a draft, and on a
+  cancelled or postponed event, because only the site's admins can reach it.
+  Somebody added that way is never emailed about a change made before they
+  were added.
 
 ### Repeating events
 
@@ -1654,7 +1850,7 @@ click for.
   raising the seat count, or a hold running out. All three end the same way,
   because the background pass asks "which events have somebody waiting and a
   free seat" rather than being told.
-- **Sign-ups switched off, or the event unpublished or deleted:** no offers.
+- **Sign-ups switched off, or the event unpublished, deleted, cancelled or postponed:** no offers.
   Everybody stays on the list, so switching sign-ups back on picks the queue
   up where it was.
 - **An email that fails** puts the person back at their old place in the
@@ -1696,8 +1892,8 @@ click for.
 
 ### In Admin → Events
 
-- **Where:** a "Waiting list" section under "Who's coming" in the event's
-  Sign-ups card, front of the queue first.
+- **Where:** a "Waiting list" section under "Who's coming" in the Sign-ups
+  tab of the event's ⋮, front of the queue first.
 - **Each person:** their name, their email, and either "2nd in line" or "Seat
   held until Oct 2, 6:00 PM".
 - **Remove:** the bin button asks first. Removing somebody who is holding an
@@ -1783,5 +1979,4 @@ already keeps, so nothing new is recorded and no visitor is identified.
 ## Not built yet
 
 These are later tasks in `workspace/tasks/events/`: confirmation and reminder
-emails for sign-ups, and a free or paid filter once paid tickets exist. Task 07, the site's own extra fields, is not built either. When
-it is, those fields need copying to a repeating event's dates like the rest.
+emails for sign-ups, and a free or paid filter once paid tickets exist.

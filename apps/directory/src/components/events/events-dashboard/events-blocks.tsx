@@ -21,7 +21,8 @@ import { orderSections } from "@/lib/layout/styling-values"
  * The Events dashboard's own "/" blocks on its left page (task events/37,
  * Part 1), drawn the way the Listings dashboard's are:
  *
- * - **Dashboards**, fixed: Overview, Events, Sign-ups and Featured events,
+ * - **Dashboards**, fixed: Overview, Events, Sign-ups, Featured events and
+ *   Custom fields,
  *   the one showing picked, each with its count. Its ⋮ shows and hides every
  *   row but Overview and drags them into order.
  * - **Coming up**: the site's next five events, a repeat's dates each on its

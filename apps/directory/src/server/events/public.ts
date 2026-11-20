@@ -20,6 +20,11 @@ import {
   LISTING_PAGE_STATUSES,
   readListingStatus,
 } from "@/lib/directory/listing-status"
+import {
+  cleanCustomValues,
+  customSectionsForDisplay,
+  type CustomSectionView,
+} from "@/lib/directory/custom-fields"
 import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
 import {
   DIRECTORY_SUGGESTION_EVENT_LIMIT,
@@ -30,6 +35,11 @@ import {
 import { EVENTS_PAGE_SIZE, MAX_EVENTS_ON_A_DAY } from "@/lib/events/events-page"
 import { eventShareImageKicker } from "@/lib/events/event-share-image"
 import { toClock, wallClockAt, type EventWhen } from "@/lib/events/event-time"
+import {
+  readScheduleStatus,
+  type RescheduledFrom,
+  type ScheduleStatus,
+} from "@/lib/events/schedule-status"
 import {
   searchSnippet,
   siteSearchPattern,
@@ -43,6 +53,7 @@ import {
 } from "@/lib/posts/post-body"
 import type { SitemapChunkFile, SitemapEntry } from "@/server/app-options"
 import { readPageVisibility } from "@/server/content/pages"
+import { listCustomSections } from "@/server/directory/custom-sections"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   publicListingCardsByIds,
@@ -135,6 +146,11 @@ export type PublicEventCard = EventWhen & {
    */
   full: boolean
   /**
+   * Cancelled or postponed shows as a label on the card and in the month,
+   * where RSVP would be (task events/27). The event stays listed.
+   */
+  scheduleStatus: ScheduleStatus
+  /**
    * The category the card names, the event's primary one if it has one and
    * otherwise the first by name. Null when the event is in none.
    */
@@ -154,6 +170,7 @@ const eventCardColumns = {
   endTime: siteEvents.endTime,
   takesSignUps: siteEvents.takesSignUps,
   seats: siteEvents.seats,
+  scheduleStatus: siteEvents.scheduleStatus,
 }
 
 function toEventCard(row: {
@@ -169,12 +186,14 @@ function toEventCard(row: {
   endTime: string | null
   takesSignUps: boolean
   seats: number | null
+  scheduleStatus: string
   distanceKm?: number | null
   featured?: boolean
 }): PublicEventCard & { seats: number | null } {
   const { distanceKm, featured, ...event } = row
   return {
     ...event,
+    scheduleStatus: readScheduleStatus(row.scheduleStatus),
     startTime: toClock(row.startTime),
     endTime: row.endTime ? toClock(row.endTime) : null,
     // Filled in by `withCategoriesAndGoing`, which every list of cards runs
@@ -317,6 +336,15 @@ export type PublicEvent = EventWhen & {
   seriesKey: string
   /** The listing the place is, published or not, for "Also at". */
   listingId: string | null
+  /**
+   * The site's own event fields this event filled in, blank ones left out,
+   * drawn as boxes on the page (task events/07). Empty draws none.
+   */
+  customSections: CustomSectionView[]
+  /** Cancelled and postponed draw a banner and close sign-ups (task events/27). */
+  scheduleStatus: ScheduleStatus
+  /** Where it was before its new date, for the "Rescheduled from" note. */
+  rescheduledFrom: RescheduledFrom | null
 }
 
 export type PublicEventPage = {
@@ -425,7 +453,7 @@ async function readPublicEventUncached(
   const { row } = found
 
   const event = toEvent(row)
-  const [categoryRows, timeZone, directoryVisibility] = await Promise.all([
+  const [categoryRows, timeZone, directoryVisibility, customSections] = await Promise.all([
     database
       .select({ name: categories.name, slug: categories.slug })
       .from(categoryRelationships)
@@ -443,6 +471,7 @@ async function readPublicEventUncached(
       .orderBy(asc(categories.name)),
     siteTimeZone(site.id, database),
     readPageVisibility(site.id, "/directory", database),
+    listCustomSections(site.id, database, "event"),
   ])
 
   // A card links to the listing's page, so while the directory is not open to
@@ -488,6 +517,14 @@ async function readPublicEventUncached(
       ticketsUrl: event.ticketsUrl,
       seriesKey: event.seriesId ?? event.id,
       listingId: event.listingId,
+      // Cleaned against the site's event fields on the way out too, so a
+      // field deleted since, or a row edited in the database, shows nothing.
+      customSections: customSectionsForDisplay(
+        customSections,
+        cleanCustomValues(customSections, row.customValues)
+      ),
+      scheduleStatus: event.scheduleStatus,
+      rescheduledFrom: event.rescheduledFrom,
     },
     timeZone,
     listingCards,
@@ -1181,6 +1218,7 @@ type CalendarFeed = {
     summary: string
     placeName: string
     placeAddress: string
+    cancelled: boolean
   })[]
 }
 
@@ -1209,6 +1247,7 @@ export async function readCalendarFeed(
       startTime: siteEvents.startTime,
       endDate: siteEvents.endDate,
       endTime: siteEvents.endTime,
+      scheduleStatus: siteEvents.scheduleStatus,
     })
     .from(siteEvents)
     .leftJoin(directoryListings, listingOfEvent)
@@ -1217,8 +1256,9 @@ export async function readCalendarFeed(
     .limit(CALENDAR_FEED_LIMIT)
   return {
     timeZone,
-    events: rows.map((row) => ({
+    events: rows.map(({ scheduleStatus, ...row }) => ({
       ...row,
+      cancelled: scheduleStatus === "cancelled",
       startTime: toClock(row.startTime),
       endTime: row.endTime ? toClock(row.endTime) : null,
     })),

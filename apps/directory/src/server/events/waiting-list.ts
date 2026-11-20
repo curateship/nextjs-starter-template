@@ -11,6 +11,7 @@ import {
   OFFER_ENDS_BEFORE_START_HOURS,
   OFFER_HOLD_HOURS,
 } from "@/lib/events/sign-up-fields"
+import { readScheduleStatus } from "@/lib/events/schedule-status"
 import { createSecretToken, hashToken, now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendDirectoryEmail } from "@/server/directory/mail"
@@ -65,7 +66,8 @@ type OfferContext = {
 
 /**
  * Everything one offer needs, or null when this event offers nothing: it was
- * deleted, unpublished, or its admin switched sign-ups off. Somebody stays on
+ * deleted, unpublished, cancelled or postponed, or its admin switched
+ * sign-ups off. Somebody stays on
  * the list through all three, so switching sign-ups back on picks the queue up
  * where it was.
  */
@@ -95,7 +97,10 @@ async function offerContext(
       and(
         eq(siteEvents.id, eventId),
         eq(siteEvents.status, "published"),
-        eq(siteEvents.takesSignUps, true)
+        eq(siteEvents.takesSignUps, true),
+        // A cancelled or postponed event offers nobody a seat (task
+        // events/27). The queue stays as it is, for when it goes ahead again.
+        eq(siteEvents.scheduleStatus, "scheduled")
       )
     )
     .limit(1)
@@ -434,6 +439,8 @@ export type ClaimOutcome =
   | { outcome: "already"; title: string; eventUrl: string }
   | { outcome: "ran-out"; title: string; eventUrl: string }
   | { outcome: "started"; title: string; eventUrl: string }
+  /** Cancelled or postponed since the offer went out (task events/27). */
+  | { outcome: "off"; status: "cancelled" | "postponed"; title: string; eventUrl: string }
   | { outcome: "unknown" }
 
 /**
@@ -464,6 +471,7 @@ export async function claimOfferedSeat(
       slug: siteEvents.slug,
       startDate: siteEvents.startDate,
       startTime: siteEvents.startTime,
+      scheduleStatus: siteEvents.scheduleStatus,
       subdomain: customShellWorkspaces.subdomain,
       customDomain: customShellWorkspaces.customDomain,
     })
@@ -484,6 +492,12 @@ export async function claimOfferedSeat(
   const where = { title: row.title, eventUrl }
 
   if (row.status === "confirmed") return { outcome: "already", ...where }
+  // Asked before "ran out": calling an event off puts a seat being offered
+  // back on the waiting list, and that person should hear why.
+  const going = readScheduleStatus(row.scheduleStatus)
+  if (going !== "scheduled" && (row.status === "offered" || row.status === "waiting")) {
+    return { outcome: "off", status: going, ...where }
+  }
   if (row.status !== "offered") return { outcome: "ran-out", ...where }
 
   const timeZone = await siteTimeZone(row.siteId, database)

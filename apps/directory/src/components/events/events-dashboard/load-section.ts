@@ -1,5 +1,6 @@
 import type { CrmFrame } from "@/components/crm/crm-frame"
 import { loadCategories, type Category } from "@/lib/api/directory/categories"
+import { loadCustomSectionRows, type CustomSectionSummary } from "@/lib/api/directory/custom-sections"
 import { loadEventsPage, type EventsPage } from "@/lib/api/events/events"
 import { loadFeaturedEventsPage, loadSignUpsPage } from "@/lib/api/events/events-dashboard"
 import { eventsSectionOf, type EventsSearch } from "@/lib/events/events-dashboard-search"
@@ -14,6 +15,7 @@ export type EventsLoaded =
   | { section: "events"; page: EventsPage; categories: Category[] }
   | { section: "signups"; page: Awaited<ReturnType<typeof loadSignUpsPage>>; categories: Category[] }
   | { section: "featured"; page: Awaited<ReturnType<typeof loadFeaturedEventsPage>>; categories: Category[] }
+  | { section: "fields"; sections: CustomSectionSummary[] }
 
 /** What every row of the dashboard is handed by the frame. */
 export type EventsSectionProps<Data> = {
@@ -27,6 +29,7 @@ export type EventsSectionProps<Data> = {
 export async function loadEventsSection(search: EventsSearch): Promise<EventsLoaded> {
   const section = eventsSectionOf(search)
   if (section === "overview") return { section }
+  if (section === "fields") return { section, sections: await loadCustomSectionRows("event") }
   const paging = { q: search.q, page: search.page, limit: search.size }
   if (section === "signups") {
     const [page, categories] = await Promise.all([loadSignUpsPage({ who: search.who ?? "coming", ...paging }), loadCategories()])

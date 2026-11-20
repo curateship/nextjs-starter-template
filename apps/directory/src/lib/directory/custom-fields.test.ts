@@ -18,9 +18,10 @@ import {
  * cleaned by the cleaners the rest of the app already uses.
  */
 
-function section(fields: unknown, overrides: Partial<CustomSection> = {}) {
+function section(fields: unknown, overrides: Partial<CustomSection> = {}): CustomSection {
   return {
     id: "section-1",
+    kind: "listing",
     name: "The wine",
     slug: "the_wine",
     layout: "stack" as const,

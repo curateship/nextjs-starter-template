@@ -161,6 +161,11 @@ export const directoryCustomSections = pgTable(
      * which is exactly what renaming a section must not do.
      */
     slug: varchar("slug", { length: 80 }).notNull(),
+    /**
+     * Whose fields these are, 'listing' or 'event', from 0158. Each kind is a
+     * list of its own, so a listing's "Cuisine" never shows on an event.
+     */
+    kind: varchar("kind", { length: 20 }).notNull().default("listing"),
     /** 'stack', 'card' or 'two-column' — how this section's fields sit. */
     layout: varchar("layout", { length: 20 }).notNull().default("stack"),
     /** The section's field definitions. Cleaned on the way in and out. */
@@ -181,6 +186,10 @@ export const directoryCustomSections = pgTable(
     check(
       "directory_custom_sections_layout_check",
       sql`${table.layout} IN ('stack', 'card', 'two-column')`
+    ),
+    check(
+      "directory_custom_sections_kind_check",
+      sql`${table.kind} IN ('listing', 'event')`
     ),
   ]
 )

@@ -77,8 +77,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   cards under a post, featured posts, the Views column on Admin → Posts, and
   where posts appear once published.
 - `events-dashboard.md` — Admin → Events as one three-panel dashboard: its
-  Overview, Events, Sign-ups and Featured events rows, the left page and its
-  blocks, and the event record that saves itself.
+  Overview, Events, Sign-ups, Featured events and Custom fields rows, the
+  left page and its blocks, and the event record that saves itself.
 - `events.md` — each site's events: writing them, the Events page's list and
   month and its category, date and distance filters, featured events, the site's time zone and why times are stored as a day and a clock
   time, when an event counts as over, the event page, where events appear in
@@ -89,7 +89,9 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   automation step that reads a page and drafts the events on it,
   reporting a problem on an event, free sign-ups with a seat limit, the
   waiting list that offers a freed seat to the front of the queue by email,
-  and the view counts on Admin → Events and on an owner's own events.
+  the site's own event fields like "Age limit", cancelled and postponed
+  events and the emails they send, and the view counts on Admin → Events and
+  on an owner's own events.
 - `closed-listings.md` — marking a listing permanently closed: what its page
   keeps and hides, the lists it leaves, why it stays in the sitemap, and how
   closing ends a featured spot with no refund.

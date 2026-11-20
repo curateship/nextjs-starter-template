@@ -245,6 +245,7 @@ describe("the events table", () => {
    * skip the private filter in `public.ts`, so it has to live there instead.
    */
   const allowed = [
+    "server/directory/custom-sections.ts", // Admin: counts and clears events' answers to the site's own event fields, never lists events.
     "server/directory/featured.ts", // Featured spots: an owner's own events and the admin's placements.
     "server/directory/listings-dashboard.ts", // Admin: a listing's events and the reports queue on the Listings dashboard.
     "server/directory/reports.ts", // Admin: the reports queue names each event.
@@ -253,6 +254,7 @@ describe("the events table", () => {
     "server/events/place.ts", // Column rules for a listing as the place.
     "server/events/public.ts", // Every public read, through the one filter.
     "server/events/repeats.ts", // Admin: a repeating event's dates.
+    "server/events/schedule.ts", // Admin: one event cancelled or postponed by id, and the pass emailing its own list.
     "server/events/schema.ts",
     "server/events/share-image.ts", // One event's card, found by its address.
     "server/events/sign-ups.ts", // One event's sign-up box, found by its id.

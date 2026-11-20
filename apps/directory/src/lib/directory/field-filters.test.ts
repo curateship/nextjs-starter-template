@@ -11,6 +11,7 @@ import {
 
 const section: CustomSection = {
   id: "s1",
+  kind: "listing",
   name: "Amenities",
   slug: "amenities",
   layout: "stack",

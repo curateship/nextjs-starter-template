@@ -6,7 +6,7 @@ import type { CrmFrame } from "@/components/crm/crm-frame"
 import { ActionRow } from "@/components/crm/crm-record-menu"
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import { PickGroup } from "@/components/shared/notes/pick-rows"
-import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { TabbedMenu, type MySettingsTab } from "@/components/shared/notes/tabbed-menu"
 import { Button } from "@/components/ui/button"
 import type { ListingsSearch } from "@/lib/directory/listings-dashboard-search"
 import { listingsFilterKey } from "@/lib/directory/listings-panel-keys"
@@ -90,12 +90,15 @@ export function RecordMenu({
   label,
   groups,
   actions,
+  tabs = [],
 }: {
   /** "Listing menu". */
   label: string
   /** `PickGroup`s of rows, already drawn. */
   groups?: React.ReactNode
   actions: MenuAction[]
+  /** Tabs after General, such as an event's Sign-ups and Later dates. */
+  tabs?: MySettingsTab[]
 }) {
   const [open, setOpen] = React.useState(false)
   const run = (action: MenuAction) => () => {
@@ -142,6 +145,7 @@ export function RecordMenu({
             </div>
           ),
         },
+        ...tabs,
       ]}
     />
   )

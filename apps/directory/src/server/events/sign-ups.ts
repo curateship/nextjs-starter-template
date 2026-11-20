@@ -23,6 +23,7 @@ import {
   SIGN_UPS_PER_HOUR,
   signUpProblem,
 } from "@/lib/events/sign-up-fields"
+import { readScheduleStatus } from "@/lib/events/schedule-status"
 import { enforceRateLimit, RateLimitError } from "@/server/auth/rate-limit"
 import { uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
@@ -167,6 +168,7 @@ export async function signUpBoxFor(
       signUpQuestion: siteEvents.signUpQuestion,
       signUpQuestionRequired: siteEvents.signUpQuestionRequired,
       seriesId: siteEvents.seriesId,
+      scheduleStatus: siteEvents.scheduleStatus,
     })
     .from(siteEvents)
     .where(
@@ -181,12 +183,11 @@ export async function signUpBoxFor(
 
   const taken = await seatsTaken(eventId, database)
   const left = event.seats === null ? null : Math.max(0, event.seats - taken)
-  const closed = signUpsHaveClosed(
-    event,
-    event.signUpsCloseHours,
-    timeZone,
-    at
-  )
+  // A cancelled or postponed event takes nobody new (task events/27). The
+  // page's banner says why, so the box only says sign-ups have closed.
+  const closed =
+    readScheduleStatus(event.scheduleStatus) !== "scheduled" ||
+    signUpsHaveClosed(event, event.signUpsCloseHours, timeZone, at)
   return {
     closesAt:
       event.signUpsCloseHours && !closed
@@ -251,6 +252,10 @@ type SignUpOutcome =
 
 export const SIGN_UPS_CLOSED = "Sign-ups have closed. The event has started."
 export const SIGN_UPS_CLOSED_EARLY = "Sign-ups for this event have closed."
+const EVENT_IS_OFF: Record<"cancelled" | "postponed", string> = {
+  cancelled: "This event is cancelled, so it is not taking sign-ups.",
+  postponed: "This event is postponed, so it is not taking sign-ups until it has a new date.",
+}
 const NOT_TAKING = "This event is not taking sign-ups."
 
 /**
@@ -303,6 +308,8 @@ export async function signUpForEvent(
         signUpQuestion: siteEvents.signUpQuestion,
         signUpQuestionRequired: siteEvents.signUpQuestionRequired,
         seriesId: siteEvents.seriesId,
+        scheduleStatus: siteEvents.scheduleStatus,
+        noticeNumber: siteEvents.noticeNumber,
       })
       .from(siteEvents)
       .where(
@@ -315,6 +322,10 @@ export async function signUpForEvent(
       .for("update")
     if (!event?.takesSignUps) {
       return { outcome: "refused" as const, problem: NOT_TAKING }
+    }
+    const going = readScheduleStatus(event.scheduleStatus)
+    if (going !== "scheduled") {
+      return { outcome: "refused" as const, problem: EVENT_IS_OFF[going] }
     }
     if (eventHasStarted(event, timeZone, at)) {
       return { outcome: "refused" as const, problem: SIGN_UPS_CLOSED }
@@ -384,6 +395,9 @@ export async function signUpForEvent(
         tx
       ),
       status: full ? "waiting" : "confirmed",
+      // They signed up on the page as it is now, so they have nothing to be
+      // told about a change made before this.
+      toldNotice: event.noticeNumber,
       createdAt: at,
     })
     // Written first, then counted, so the answer includes this row and the
@@ -510,6 +524,7 @@ export async function addSignUpByHand(
       .select({
         seats: siteEvents.seats,
         signUpQuestion: siteEvents.signUpQuestion,
+        noticeNumber: siteEvents.noticeNumber,
       })
       .from(siteEvents)
       .where(and(eq(siteEvents.id, eventId), eq(siteEvents.workspaceId, siteId)))
@@ -550,6 +565,8 @@ export async function addSignUpByHand(
       email,
       answer: event.signUpQuestion ? cleanSignUpAnswer(input.answer ?? "") : "",
       status: waiting ? "waiting" : "confirmed",
+      // The admin adding them knows the event as it is now.
+      toldNotice: event.noticeNumber,
       createdAt: at,
     })
     return waiting

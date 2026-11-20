@@ -28,6 +28,11 @@ export type CalendarEvent = EventWhen & {
   placeAddress: string
   /** The event page's full address, like https://site.test/events/night-market. */
   url: string
+  /**
+   * Called off (task events/27). The entry says so, and a subscribed
+   * calendar marks it cancelled at its next check rather than dropping it.
+   */
+  cancelled?: boolean
 }
 
 /** "2026-09-27" for "2026-09-26". */
@@ -151,6 +156,7 @@ function eventLines(
     textLine("DESCRIPTION", description(event)),
     ...(where ? [textLine("LOCATION", where)] : []),
     textLine("URL", event.url),
+    ...(event.cancelled ? ["STATUS:CANCELLED"] : []),
     "END:VEVENT",
   ]
 }

@@ -2,10 +2,13 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  cleanCustomFields,
+  CUSTOM_SECTION_KINDS,
   CUSTOM_SECTION_LAYOUTS,
   CUSTOM_SECTION_NAME_MAX,
   MAX_CUSTOM_SECTIONS,
   type CustomSection,
+  type CustomSectionKind,
 } from "@/lib/directory/custom-fields"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -20,16 +23,17 @@ import {
   updateCustomSection,
   type CustomSectionSummary,
 } from "@/server/directory/custom-sections"
-import { cleanCustomFields } from "@/lib/directory/custom-fields"
 
 import { describeAuthError } from "../error-message"
 
-export type { CustomSection, CustomSectionSummary }
+export type { CustomSection, CustomSectionKind, CustomSectionSummary }
 
 /**
- * The doors for the screen where a site invents its own listing fields. All
- * admin-only: a visitor reads the *answers* through the public listing page,
- * never these.
+ * The doors for the screens where a site invents its own listing fields and,
+ * as a list of their own, its own event fields. All admin-only: a visitor
+ * reads the *answers* through the public listing or event page, never these.
+ * Every door that lists or makes sections names the kind; the ones given a
+ * section's id read the kind off the section itself.
  *
  * The field definitions arrive as an unchecked tree and are cleaned by
  * `cleanCustomFields` rather than described twice — the rule is "keep only
@@ -49,28 +53,38 @@ export function getCustomSectionErrorMessage(error: unknown) {
   )
 }
 
+const kindInput = z.object({ kind: z.enum(CUSTOM_SECTION_KINDS) })
+
 const loadCustomSectionsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<CustomSection[]> => {
-    return listCustomSections(await workspaceIdForRequest(context.user.id))
+  .inputValidator(kindInput)
+  .handler(async ({ data, context }): Promise<CustomSection[]> => {
+    return listCustomSections(
+      await workspaceIdForRequest(context.user.id),
+      undefined,
+      data.kind
+    )
   })
 
-/** Just the definitions — what the listing form needs to draw its fields. */
-export function loadCustomSections() {
-  return loadCustomSectionsFn()
+/** Just the definitions: what the listing or event form needs to draw its fields. */
+export function loadCustomSections(kind: CustomSectionKind) {
+  return loadCustomSectionsFn({ data: { kind } })
 }
 
 const loadCustomSectionRowsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<CustomSectionSummary[]> => {
+  .inputValidator(kindInput)
+  .handler(async ({ data, context }): Promise<CustomSectionSummary[]> => {
     return listCustomSectionSummaries(
-      await workspaceIdForRequest(context.user.id)
+      await workspaceIdForRequest(context.user.id),
+      undefined,
+      data.kind
     )
   })
 
-/** The definitions plus how many listings use each, for the fields screen. */
-export function loadCustomSectionRows() {
-  return loadCustomSectionRowsFn()
+/** The definitions plus how many listings or events use each, for the Custom fields row. */
+export function loadCustomSectionRows(kind: CustomSectionKind) {
+  return loadCustomSectionRowsFn({ data: { kind } })
 }
 
 const createCustomSectionFn = createServerFn({ method: "POST" })
@@ -79,6 +93,7 @@ const createCustomSectionFn = createServerFn({ method: "POST" })
     z.object({
       name: z.string().min(1).max(CUSTOM_SECTION_NAME_MAX),
       layout: z.enum(CUSTOM_SECTION_LAYOUTS).optional(),
+      kind: z.enum(CUSTOM_SECTION_KINDS),
     })
   )
   .handler(async ({ data, context }): Promise<CustomSection> => {
@@ -91,6 +106,7 @@ const createCustomSectionFn = createServerFn({ method: "POST" })
 export function saveNewCustomSection(input: {
   name: string
   layout?: (typeof CUSTOM_SECTION_LAYOUTS)[number]
+  kind: CustomSectionKind
 }) {
   return createCustomSectionFn({ data: input })
 }
@@ -151,7 +167,8 @@ const customFieldsRemovalImpactFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     // A read, but a POST: the field list it asks about is a whole tree, which
-    // has no honest place in a query string.
+    // has no honest place in a query string. Only the keys are compared, so
+    // cleaning it as a listing's or an event's makes no difference.
     return customFieldsRemovalImpact(
       await workspaceIdForRequest(context.user.id),
       data.id,
@@ -159,25 +176,32 @@ const customFieldsRemovalImpactFn = createServerFn({ method: "POST" })
     )
   })
 
-/** Which fields this save would drop, and how many listings would lose one. */
+/** Which fields this save would drop, and how many listings or events would lose one. */
 export function loadCustomFieldsRemovalImpact(id: string, fields: unknown) {
   return customFieldsRemovalImpactFn({ data: { id, fields } })
 }
 
 const customSectionDeleteImpactFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .inputValidator(z.object({ slug: z.string().min(1).max(80) }))
-  .handler(async ({ data, context }): Promise<{ listings: number }> => {
-    const listings = await customSectionUsage(
+  .inputValidator(
+    z.object({
+      slug: z.string().min(1).max(80),
+      kind: z.enum(CUSTOM_SECTION_KINDS),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ used: number }> => {
+    const used = await customSectionUsage(
       await workspaceIdForRequest(context.user.id),
-      data.slug
+      data.slug,
+      undefined,
+      data.kind
     )
-    return { listings }
+    return { used }
   })
 
-/** How many listings would lose their answers if this section went. */
-export function loadCustomSectionDeleteImpact(slug: string) {
-  return customSectionDeleteImpactFn({ data: { slug } })
+/** How many listings or events would lose their answers if this section went. */
+export function loadCustomSectionDeleteImpact(slug: string, kind: CustomSectionKind) {
+  return customSectionDeleteImpactFn({ data: { slug, kind } })
 }
 
 const deleteCustomSectionFn = createServerFn({ method: "POST" })

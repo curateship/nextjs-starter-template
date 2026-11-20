@@ -4,11 +4,13 @@ import {
   cleanCustomFields,
   customKeyFromLabel,
   freeCustomKey,
+  isCustomSectionKind,
   isCustomSectionLayout,
   CUSTOM_SECTION_NAME_MAX,
   MAX_CUSTOM_SECTIONS,
   type CustomField,
   type CustomSection,
+  type CustomSectionKind,
   type CustomSectionLayout,
 } from "@/lib/directory/custom-fields"
 import { db, type CustomShellDb } from "@/server/db"
@@ -19,28 +21,55 @@ import {
   directoryListings,
   type DirectoryCustomSectionRow,
 } from "@/server/directory/schema"
+import { siteEvents } from "@/server/events/schema"
 
 /**
- * The sections of extra fields a site invented for its listings.
+ * The sections of extra fields a site invented for its listings and, as a
+ * list of their own, for its events (task events/07).
  *
  * Everything here is scoped to one site, the same way the rest of the
  * directory is: a section id from another site is simply not found. What a
  * field may be and what a value may hold is decided in
  * `lib/directory/custom-fields.ts`, which both this and the browser use, so
  * the two can never disagree about what was saved.
+ *
+ * The functions that list or make sections take the kind, and default to
+ * listings, so every listing page that was here before the events kind asks
+ * for exactly what it always did. The ones that take a section's id read the
+ * kind off that section's own row.
  */
 
 function toSection(row: DirectoryCustomSectionRow): CustomSection {
+  const kind = isCustomSectionKind(row.kind) ? row.kind : "listing"
   return {
     id: row.id,
+    kind,
     name: row.name,
     slug: row.slug,
     layout: isCustomSectionLayout(row.layout) ? row.layout : "stack",
     displayOrder: row.displayOrder,
     // Cleaned on the way out as well as in: a row edited straight in the
     // database still only describes fields this app knows how to draw.
-    fields: cleanCustomFields(row.fields),
+    fields: cleanCustomFields(row.fields, { filterable: kind === "listing" }),
   }
+}
+
+/** The answers column a kind's values are kept in, and the rows it is on. */
+function answersOf(kind: CustomSectionKind) {
+  return kind === "event"
+    ? { table: siteEvents, values: siteEvents.customValues, site: siteEvents.workspaceId }
+    : {
+        table: directoryListings,
+        values: directoryListings.customValues,
+        site: directoryListings.workspaceId,
+      }
+}
+
+function sameKind(workspaceId: string, kind: CustomSectionKind) {
+  return and(
+    eq(directoryCustomSections.workspaceId, workspaceId),
+    eq(directoryCustomSections.kind, kind)
+  )
 }
 
 function cleanName(raw: string): string {
@@ -51,12 +80,13 @@ function cleanName(raw: string): string {
 
 export async function listCustomSections(
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind: CustomSectionKind = "listing"
 ): Promise<CustomSection[]> {
   const rows = await database
     .select()
     .from(directoryCustomSections)
-    .where(eq(directoryCustomSections.workspaceId, workspaceId))
+    .where(sameKind(workspaceId, kind))
     // The id breaks ties so the order is the same on every read — two sections
     // added in the same second must not swap places between page loads.
     .orderBy(
@@ -66,8 +96,11 @@ export async function listCustomSections(
   return rows.map(toSection)
 }
 
-/** A section plus how many listings have filled anything in under it. */
-export type CustomSectionSummary = CustomSection & { listings: number }
+/**
+ * A section plus how many listings, or events for an event section, have
+ * filled anything in under it.
+ */
+export type CustomSectionSummary = CustomSection & { used: number }
 
 /**
  * The admin screen's rows.
@@ -79,51 +112,70 @@ export type CustomSectionSummary = CustomSection & { listings: number }
  */
 export async function listCustomSectionSummaries(
   workspaceId: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind: CustomSectionKind = "listing"
 ): Promise<CustomSectionSummary[]> {
-  const sections = await listCustomSections(workspaceId, database)
+  const sections = await listCustomSections(workspaceId, database, kind)
   const counts = await Promise.all(
     sections.map((section) =>
-      customSectionUsage(workspaceId, section.slug, database)
+      customSectionUsage(workspaceId, section.slug, database, kind)
     )
   )
   return sections.map((section, index) => ({
     ...section,
-    listings: counts[index] ?? 0,
+    used: counts[index] ?? 0,
   }))
 }
 
+/**
+ * Every slug on the site, both kinds: the unique index is on the site and the
+ * slug, so an event section can't take a listing section's slug either.
+ */
 async function takenSlugs(
   workspaceId: string,
   database: CustomShellDb
-): Promise<string[]> {
-  const rows = await database
-    .select({ slug: directoryCustomSections.slug })
+): Promise<{ slug: string; kind: string }[]> {
+  return database
+    .select({
+      slug: directoryCustomSections.slug,
+      kind: directoryCustomSections.kind,
+    })
     .from(directoryCustomSections)
     .where(eq(directoryCustomSections.workspaceId, workspaceId))
-  return rows.map((row) => row.slug)
 }
 
 export async function createCustomSection(
   workspaceId: string,
-  input: { name: string; layout?: CustomSectionLayout },
+  input: {
+    name: string
+    layout?: CustomSectionLayout
+    kind?: CustomSectionKind
+  },
   database: CustomShellDb = db
 ): Promise<CustomSection> {
   const name = cleanName(input.name)
-  const existing = await takenSlugs(workspaceId, database)
+  const kind = input.kind ?? "listing"
+  const taken = await takenSlugs(workspaceId, database)
+  // The limit is per kind: a site's twelve listing sections leave its events
+  // their own twelve.
+  const existing = taken.filter((row) => row.kind === kind)
   if (existing.length >= MAX_CUSTOM_SECTIONS) {
     throw new Error(
       `A site can have ${MAX_CUSTOM_SECTIONS} sections of extra fields. Delete one before adding another.`
     )
   }
 
-  const slug = freeCustomKey(customKeyFromLabel(name) || "section", existing)
+  const slug = freeCustomKey(
+    customKeyFromLabel(name) || "section",
+    taken.map((row) => row.slug)
+  )
   const at = now()
   const [row] = await database
     .insert(directoryCustomSections)
     .values({
       id: uuid(),
       workspaceId,
+      kind,
       name,
       slug,
       layout: input.layout ?? "stack",
@@ -152,7 +204,13 @@ export async function updateCustomSection(
   if (input.layout !== undefined) values.layout = input.layout
   // The slug is deliberately never in here. It is the key every listing's
   // answers are stored under, so moving it would lose every one of them.
-  if (input.fields !== undefined) values.fields = cleanCustomFields(input.fields)
+  if (input.fields !== undefined) {
+    const current = await findCustomSection(workspaceId, id, database)
+    if (!current) throw new Error("That section no longer exists.")
+    values.fields = cleanCustomFields(input.fields, {
+      filterable: current.kind === "listing",
+    })
+  }
 
   const [row] = await database
     .update(directoryCustomSections)
@@ -215,40 +273,44 @@ export async function reorderCustomSections(
   clearPublicDirectoryCache(workspaceId)
 }
 
-/** How many listings have filled anything in under this section. */
+/** How many listings, or events, have filled anything in under this section. */
 export async function customSectionUsage(
   workspaceId: string,
   slug: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind: CustomSectionKind = "listing"
 ): Promise<number> {
+  const answers = answersOf(kind)
   const [row] = await database
     .select({ count: sql<number>`count(*)::int` })
-    .from(directoryListings)
+    .from(answers.table)
     .where(
       and(
-        eq(directoryListings.workspaceId, workspaceId),
+        eq(answers.site, workspaceId),
         // Blank answers are never stored, so the key being there *is* the
         // question — see `cleanCustomValues`.
-        sql`jsonb_exists(${directoryListings.customValues}, ${slug})`
+        sql`jsonb_exists(${answers.values}, ${slug})`
       )
     )
   return row?.count ?? 0
 }
 
-/** How many listings have filled in one particular field. */
+/** How many listings, or events, have filled in one particular field. */
 export async function customFieldUsage(
   workspaceId: string,
   slug: string,
   key: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  kind: CustomSectionKind = "listing"
 ): Promise<number> {
+  const answers = answersOf(kind)
   const [row] = await database
     .select({ count: sql<number>`count(*)::int` })
-    .from(directoryListings)
+    .from(answers.table)
     .where(
       and(
-        eq(directoryListings.workspaceId, workspaceId),
-        sql`jsonb_exists(${directoryListings.customValues} -> ${slug}, ${key})`
+        eq(answers.site, workspaceId),
+        sql`jsonb_exists(${answers.values} -> ${slug}, ${key})`
       )
     )
   return row?.count ?? 0
@@ -263,7 +325,7 @@ export async function customFieldsRemovalImpact(
   id: string,
   nextFields: CustomField[],
   database: CustomShellDb = db
-): Promise<{ removed: { label: string; listings: number }[] }> {
+): Promise<{ removed: { label: string; used: number }[] }> {
   const section = await findCustomSection(workspaceId, id, database)
   if (!section) return { removed: [] }
 
@@ -273,16 +335,22 @@ export async function customFieldsRemovalImpact(
 
   const counts = await Promise.all(
     going.map((field) =>
-      customFieldUsage(workspaceId, section.slug, field.key, database)
+      customFieldUsage(
+        workspaceId,
+        section.slug,
+        field.key,
+        database,
+        section.kind
+      )
     )
   )
   return {
     removed: going
       .map((field, index) => ({
         label: field.label,
-        listings: counts[index] ?? 0,
+        used: counts[index] ?? 0,
       }))
-      .filter((entry) => entry.listings > 0),
+      .filter((entry) => entry.used > 0),
   }
 }
 
@@ -307,7 +375,7 @@ export async function findCustomSection(
 /**
  * Deletes the section and the answers underneath it, together.
  *
- * The answers live in each listing's own column, so nothing tidies up after a
+ * The answers live in each listing's or event's own column, so nothing tidies up after a
  * deleted section on its own. Leaving them would be worse than untidy: a new
  * section that happened to be given the same slug would inherit a stranger's
  * answers.
@@ -320,6 +388,7 @@ export async function deleteCustomSection(
   const section = await findCustomSection(workspaceId, id, database)
   if (!section) throw new Error("That section no longer exists.")
 
+  const answers = answersOf(section.kind)
   await database.transaction(async (tx) => {
     await tx
       .delete(directoryCustomSections)
@@ -330,14 +399,12 @@ export async function deleteCustomSection(
         )
       )
     await tx
-      .update(directoryListings)
-      .set({
-        customValues: sql`${directoryListings.customValues} - ${section.slug}`,
-      })
+      .update(answers.table)
+      .set({ customValues: sql`${answers.values} - ${section.slug}` })
       .where(
         and(
-          eq(directoryListings.workspaceId, workspaceId),
-          sql`jsonb_exists(${directoryListings.customValues}, ${section.slug})`
+          eq(answers.site, workspaceId),
+          sql`jsonb_exists(${answers.values}, ${section.slug})`
         )
       )
   })

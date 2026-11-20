@@ -21,7 +21,7 @@ import { PAGE_MAX_LENGTH, storedPageBody, type StoredPage } from "@/lib/notes/pa
 import { readCoverImages } from "@/lib/notes/page-cover"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { categories, categoryRelationships, directoryFeaturedEntitlements } from "@/server/directory/schema"
+import { categories, categoryRelationships, directoryCustomSections, directoryFeaturedEntitlements } from "@/server/directory/schema"
 import { siteTimeZone } from "@/server/directory/settings"
 import { eventTabFilters, listEvents, notOverOn } from "@/server/events/events"
 import { directoryEventPages, EVENT_CONTENT_TYPE, eventSignUps, siteEvents } from "@/server/events/schema"
@@ -148,14 +148,14 @@ export type EventsSectionCounts = Record<EventsListSection, number>
 /**
  * Each pill counts what its row opens on: Events every event, a repeat once;
  * Sign-ups everyone coming, the row's default filter; Featured events the
- * spots running now.
+ * spots running now; Custom fields every event section.
  */
 export async function eventsSectionCounts(
   workspaceId: string,
   database: CustomShellDb = db,
   at: Date = now()
 ): Promise<EventsSectionCounts> {
-  const [events, signups, featured] = await Promise.all([
+  const [events, signups, featured, fields] = await Promise.all([
     database
       .select({ total })
       .from(siteEvents)
@@ -165,11 +165,16 @@ export async function eventsSectionCounts(
       .from(eventSignUps)
       .where(and(eq(eventSignUps.workspaceId, workspaceId), eq(eventSignUps.status, "confirmed"))),
     featuredEvents(workspaceId, { spots: "running", limit: 1, offset: 0 }, database, at),
+    database
+      .select({ total })
+      .from(directoryCustomSections)
+      .where(and(eq(directoryCustomSections.workspaceId, workspaceId), eq(directoryCustomSections.kind, "event"))),
   ])
   return {
     events: events[0]?.total ?? 0,
     signups: signups[0]?.total ?? 0,
     featured: featured.total,
+    fields: fields[0]?.total ?? 0,
   }
 }
 

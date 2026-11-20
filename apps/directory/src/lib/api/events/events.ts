@@ -13,6 +13,10 @@ import {
   SIGN_UP_QUESTION_MAX,
 } from "@/lib/events/sign-up-fields"
 import { TICKETS_URL_MAX } from "@/lib/events/tickets-url"
+import { SCHEDULE_STATUSES } from "@/lib/events/schedule-status"
+import { changeEventSchedule, type ScheduleChange } from "@/server/events/schedule"
+import { cleanCustomValues, type CustomSection, type CustomValues } from "@/lib/directory/custom-fields"
+import { listCustomSections } from "@/server/directory/custom-sections"
 import {
   bulkIdsInput,
   categoryChangeInput,
@@ -31,6 +35,7 @@ import {
   createEvent,
   deleteEvents,
   duplicateEvent,
+  eventCustomValues,
   findEvent,
   listEvents,
   MAX_EVENT_SUMMARY,
@@ -67,7 +72,7 @@ import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { getListingErrorMessage } from "../directory/listings"
 
-export type { EventSeries, EventSignUp, EventSummary, EventWaitingPerson }
+export type { EventSeries, EventSignUp, EventSummary, EventWaitingPerson, SiteEvent }
 
 /**
  * The Events screen's doors. All admin-only, and all work on the site the
@@ -159,6 +164,9 @@ export type EventForEdit = {
   signUps: EventSignUp[]
   /** Who is waiting for a seat, front of the queue first. */
   waitingList: EventWaitingPerson[]
+  /** The site's own event fields, and this event's answers cleaned against them. */
+  customSections: CustomSection[]
+  customValues: CustomValues
 }
 
 const loadEventForEditFn = createServerFn({ method: "GET" })
@@ -179,6 +187,8 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       paidSpot,
       signUps,
       waitingList,
+      customSections,
+      rawCustomValues,
     ] = await Promise.all([
       listingChoicesForBody(site, event.body),
       seriesForEdit(site, event),
@@ -188,6 +198,8 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       activeEventSpot(site, event.id),
       listSignUps(site, event.id),
       listWaitingList(site, event.id),
+      listCustomSections(site, undefined, "event"),
+      eventCustomValues(site, event.id),
     ])
     return {
       event,
@@ -199,6 +211,8 @@ const loadEventForEditFn = createServerFn({ method: "GET" })
       paidSpot,
       signUps,
       waitingList,
+      customSections,
+      customValues: cleanCustomValues(customSections, rawCustomValues),
     }
   })
 
@@ -255,6 +269,9 @@ const updateEventFn = createServerFn({ method: "POST" })
       signUpQuestion: z.string().max(SIGN_UP_QUESTION_MAX).optional(),
       signUpQuestionRequired: z.boolean().optional(),
       ticketsUrl: z.string().max(TICKETS_URL_MAX).optional(),
+      // Cleaned against the site's own event fields on the server, the way a
+      // listing's answers are.
+      customValues: z.unknown().optional(),
       // A tree whose rule is "keep only what is allowed", which the server's
       // cleaner says better than a schema.
       body: z.unknown().optional(),
@@ -306,12 +323,36 @@ export function saveEvent(input: {
   signUpQuestion?: string
   signUpQuestionRequired?: boolean
   ticketsUrl?: string
+  customValues?: unknown
   body?: unknown
   categoryIds?: string[]
   /** Null stops repeating; left out keeps the repeat as it is. */
   repeat?: RepeatRule | null
 }) {
   return updateEventFn({ data: input })
+}
+
+const changeEventScheduleFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      id: idInput,
+      status: z.enum(SCHEDULE_STATUSES),
+      when: z.object({ startDate: z.string().max(10), startTime: z.string().max(8) }).optional(),
+    })
+  )
+  .handler(async ({ data, context }): Promise<SiteEvent> => {
+    const { id, ...change } = data
+    return changeEventSchedule(await workspaceIdForRequest(context.user.id), id, change)
+  })
+
+/**
+ * Cancels, postpones or reschedules an event, after the admin confirmed. Its
+ * own door rather than part of the record's save, so it never happens without
+ * the confirm. Everybody on the event's list is emailed by the background pass.
+ */
+export function setEventSchedule(input: ScheduleChange & { id: string }) {
+  return changeEventScheduleFn({ data: input })
 }
 
 const duplicateEventFn = createServerFn({ method: "POST" })

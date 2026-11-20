@@ -221,7 +221,7 @@ export function ListingsDashboard({ loaded, search }: { loaded: ListingsLoaded; 
   } else if (loaded.section === "categories") {
     middle = <CategoriesSection key="categories" {...props} data={loaded.categories} />
   } else if (loaded.section === "fields") {
-    middle = <FieldsSection key="fields" {...props} data={loaded.sections} />
+    middle = <FieldsSection key="fields" kind="listing" {...props} data={loaded.sections} />
   } else if (loaded.section === "guides") {
     middle = <GuidesSection key="guides" {...props} data={loaded.page} />
   } else if (loaded.section === "promotions") {

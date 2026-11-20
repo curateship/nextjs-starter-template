@@ -3,6 +3,10 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
+import {
+  createCustomSection,
+  updateCustomSection,
+} from "@/server/directory/custom-sections"
 import { createListing, updateListing } from "@/server/directory/listings"
 import { setContentCategories } from "@/server/directory/content-categories"
 import type { VisitorSite } from "@/server/directory/public"
@@ -119,6 +123,53 @@ describe("an event's page", () => {
       { name: "Markets", slug: markets.slug },
     ])
     expect(page?.timeZone).toBe("America/Vancouver")
+  })
+
+  it("shows the site's own event fields that were filled in, and no others", async () => {
+    const made = await createCustomSection(
+      site.id,
+      { name: "Good to know", kind: "event" },
+      database
+    )
+    const section = await updateCustomSection(
+      site.id,
+      made.id,
+      {
+        fields: [
+          { label: "Age limit", type: "text" },
+          { label: "Dress code", type: "text" },
+        ],
+      },
+      database
+    )
+    // A section nobody filled in on this event never reaches the page.
+    await createCustomSection(site.id, { name: "Parking", kind: "event" }, database)
+    // A listing section with an answer stored under the same shape is not an event's.
+    await createCustomSection(site.id, { name: "The wine" }, database)
+    const live = await event(site.id, "Late show", "published")
+    await updateEvent(
+      site.id,
+      live.id,
+      { customValues: { [section.slug]: { age_limit: "19+" } } },
+      database
+    )
+
+    const page = await readPublicEvent(site, live.slug, database)
+    expect(page?.event.customSections).toEqual([
+      {
+        name: "Good to know",
+        slug: section.slug,
+        layout: "stack",
+        fields: [{ key: "age_limit", label: "Age limit", type: "text", value: "19+", rows: [] }],
+      },
+    ])
+  })
+
+  it("draws no field boxes for an event with nothing filled in", async () => {
+    await createCustomSection(site.id, { name: "Good to know", kind: "event" }, database)
+    const live = await event(site.id, "Plain show", "published")
+    const page = await readPublicEvent(site, live.slug, database)
+    expect(page?.event.customSections).toEqual([])
   })
 })
 

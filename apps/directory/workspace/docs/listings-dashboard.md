@@ -134,7 +134,9 @@ Every row has the same header and table, the shell's `CrmListHeader` and
   a heading over itself and every category under it. Categories with no
   parent and no children sit last under "On their own". Pressing a count opens
   Listings narrowed to that category.
-- **Custom fields** keep the order they have on a listing's page. Move up and
+- **Custom fields** lists the listing sections only; the Events dashboard has
+  the same row for the events' own list (`events.md`). They keep the order
+  they have on a listing's page. Move up and
   Move down are in a row's right-click menu and its ⋮. New section never
   greys out: at twelve sections it opens and says "A site can have 12
   sections. Delete one to add another."

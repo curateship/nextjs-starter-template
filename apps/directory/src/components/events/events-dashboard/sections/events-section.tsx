@@ -34,6 +34,7 @@ import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useListSort, useOpenRecord } from "@/lib/nav/list-search"
+import { SCHEDULE_STATUS_LABELS } from "@/lib/events/schedule-status"
 
 type Data = Extract<EventsLoaded, { section: "events" }>
 
@@ -393,6 +394,8 @@ function rowLine(event: EventSummary): string {
   if (event.visibility === "private") parts.push("Private")
   if (event.featuredNow) parts.push("Featured")
   if (!parts.length) parts.push(event.placeName || (event.categories.length ? event.categories.join(", ") : `/events/${event.slug}`))
+  // Cancelled or postponed goes first, so it is never cut off (task events/27).
+  if (event.scheduleStatus !== "scheduled") parts.unshift(SCHEDULE_STATUS_LABELS[event.scheduleStatus])
   return parts.join(" · ")
 }
 

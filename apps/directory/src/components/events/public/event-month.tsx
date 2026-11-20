@@ -23,6 +23,7 @@ import { EVENTS_PER_DAY_CELL } from "@/lib/events/events-page"
 import { formatEventClock, formatEventShortDay } from "@/lib/events/event-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
+import { SCHEDULE_STATUS_LABELS } from "@/lib/events/schedule-status"
 
 /**
  * The Events page's month. On a wide screen each day shows up to three events
@@ -113,6 +114,13 @@ export function EventMonth({
                         />
                         <span className="sr-only">Featured: </span>
                       </>
+                    ) : null}
+                    {/* Cancelled or postponed stays in the month, named first
+                        (task events/27). */}
+                    {event.scheduleStatus !== "scheduled" ? (
+                      <span className="mr-1 font-semibold">
+                        {SCHEDULE_STATUS_LABELS[event.scheduleStatus]}:
+                      </span>
                     ) : null}
                     {/* The start time goes on the first day only. */}
                     {event.startDate === cell.date ? (

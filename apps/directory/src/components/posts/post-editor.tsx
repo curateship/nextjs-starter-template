@@ -70,6 +70,7 @@ export function PostEditor({
   listings,
   onListingPicked,
   disabled,
+  flush = false,
 }: {
   value: PostBody
   onChange: (body: PostBody) => void
@@ -78,6 +79,14 @@ export function PostEditor({
   /** A listing was picked for a new card, so the form can remember its name. */
   onListingPicked: (listing: ListingChoice) => void
   disabled?: boolean
+  /**
+   * No box of its own: the text and the Listing card row run to the edges of
+   * the panel card around it, as the event's Body card has them (Tyler, 20
+   * Nov 2026: "remove the container so the editor is edge to edge"), and the
+   * Listing card row sits under the text. The post window keeps the box, with
+   * the row above.
+   */
+  flush?: boolean
 }) {
   /** Same reason as the shell's editor: tidying "" is not an edit. */
   const untouched = React.useRef(postBodyText(value).trim() === "")
@@ -105,11 +114,47 @@ export function PostEditor({
     editor?.setEditable(!disabled)
   }, [editor, disabled])
 
+  const cardRow = editor ? (
+    <div
+      className={cn(
+        "flex items-center gap-2",
+        flush ? "border-t px-4 py-3" : "border-b p-2"
+      )}
+    >
+      <ListingPicker
+        label="Listing card"
+        inputId="post-listing-card-search"
+        size="sm"
+        onPick={(listing) => {
+          onListingPicked(listing)
+          editor
+            .chain()
+            .focus()
+            .insertContent({
+              type: LISTING_CARD_NODE,
+              attrs: { listingId: listing.id },
+            })
+            .run()
+          // A placed card is left selected, so the next letter typed
+          // would replace it. Move the cursor to the line after the
+          // card, making one when there is none.
+          const after = editor.state.selection.to
+          if (editor.state.doc.resolve(after).nodeAfter?.isTextblock) {
+            editor.commands.setTextSelection(after + 1)
+          } else {
+            editor.commands.createParagraphNear()
+          }
+        }}
+      />
+    </div>
+  ) : null
+
   return (
     <ListingChoicesContext.Provider value={listings}>
       <div
         className={cn(
-          "rounded-md border bg-background",
+          // Out past the panel card's 16px tile, to its sides and bottom.
+          flush ? "post-rte-flush -mx-4 -mb-4" : "rounded-md border bg-background",
           disabled && "opacity-60"
         )}
       >
@@ -125,43 +170,21 @@ export function PostEditor({
           .post-rte .tiptap li { margin: 0.2em 0; }
           .post-rte .tiptap blockquote { border-left: 3px solid var(--border); padding-left: 0.9em; color: var(--muted-foreground); margin: 0 0 0.8em 0; }
           .post-rte .tiptap a { color: var(--primary); text-decoration: underline; }
+          .post-rte-flush .tiptap { padding: 0 16px 16px; }
           .post-rte .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--muted-foreground); float: left; height: 0; pointer-events: none; }
         `}</style>
         {editor && !disabled ? (
           <>
-            <div className="flex items-center gap-2 border-b p-2">
-              <ListingPicker
-                label="Listing card"
-                inputId="post-listing-card-search"
-                size="sm"
-                onPick={(listing) => {
-                  onListingPicked(listing)
-                  editor
-                    .chain()
-                    .focus()
-                    .insertContent({
-                      type: LISTING_CARD_NODE,
-                      attrs: { listingId: listing.id },
-                    })
-                    .run()
-                  // A placed card is left selected, so the next letter typed
-                  // would replace it. Move the cursor to the line after the
-                  // card, making one when there is none.
-                  const after = editor.state.selection.to
-                  if (editor.state.doc.resolve(after).nodeAfter?.isTextblock) {
-                    editor.commands.setTextSelection(after + 1)
-                  } else {
-                    editor.commands.createParagraphNear()
-                  }
-                }}
-              />
-            </div>
+            {flush ? null : cardRow}
             <SelectionToolbar editor={editor} />
           </>
         ) : null}
         <div className="post-rte">
           <EditorContent editor={editor} />
         </div>
+        {/* Under the text in the event's Body card (Tyler, 20 Nov 2026: "add
+            the listing card button below the editor"). */}
+        {editor && !disabled && flush ? cardRow : null}
       </div>
     </ListingChoicesContext.Provider>
   )

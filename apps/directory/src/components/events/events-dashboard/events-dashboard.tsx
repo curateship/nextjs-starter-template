@@ -7,6 +7,7 @@ import { EVENTS_APP_BLOCKS, EventsBlocksProvider, EventsSectionsBlock, type Even
 import { EventsOverview } from "@/components/events/events-dashboard/events-overview"
 import type { EventsLoaded } from "@/components/events/events-dashboard/load-section"
 import { NewEventDropdown } from "@/components/events/events-dashboard/new-event-dropdown"
+import { FieldsSection } from "@/components/directory/listings-dashboard/sections/fields-section"
 import { EventsSection as EventsRow } from "@/components/events/events-dashboard/sections/events-section"
 import { FeaturedSection } from "@/components/events/events-dashboard/sections/featured-section"
 import { SignUpsSection } from "@/components/events/events-dashboard/sections/signups-section"
@@ -66,7 +67,8 @@ const WIDGETS: WidgetStore = {
  * laid out piece for piece as the Listings dashboard is.
  *
  * - **Left:** the site's page of blocks. Its fixed Dashboards block picks the
- *   row (Overview, Events, Sign-ups, Featured events) and counts each one.
+ *   row (Overview, Events, Sign-ups, Featured events, Custom fields) and
+ *   counts each one.
  *   Coming up lists the next five events, and Categories narrows Events to
  *   one. Its ⋮ holds General (cover, Lock the notes) and Widgets. The + adds
  *   an event.
@@ -139,6 +141,7 @@ export function EventsDashboard({ loaded, search }: { loaded: EventsLoaded; sear
       events: counts?.events ?? null,
       signups: counts?.signups ?? null,
       featured: counts?.featured ?? null,
+      fields: counts?.fields ?? null,
     },
     coming: pageRead.data?.coming ?? null,
     // A date of a repeat opens on its own; the Events row keeps it open
@@ -167,6 +170,8 @@ export function EventsDashboard({ loaded, search }: { loaded: EventsLoaded; sear
     middle = <SignUpsSection key="signups" {...props} data={loaded} />
   } else if (loaded.section === "featured") {
     middle = <FeaturedSection key="featured" {...props} data={loaded} />
+  } else if (loaded.section === "fields") {
+    middle = <FieldsSection key="fields" kind="event" {...props} data={loaded.sections} />
   } else {
     middle = widgets.layout ? (
       <EventsOverview layout={widgets.layout} onChange={widgets.change} />

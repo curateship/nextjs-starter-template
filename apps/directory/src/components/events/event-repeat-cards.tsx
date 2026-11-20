@@ -1,12 +1,8 @@
-import { CalendarDaysIcon, RepeatIcon } from "lucide-react"
-
-import { PanelCard } from "@/components/shared/panel-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { FieldLabel } from "@/components/ui/field-label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -40,11 +36,13 @@ const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]
 const PREVIEW_DATES = 4
 
 /**
- * The schedule box: none, weekly on chosen days, or monthly like "first
+ * The schedule: none, weekly on chosen days, or monthly like "first
  * Tuesday", with an optional end day. Under it, the plain sentence and the
- * first dates it makes, worked out by the same code that makes them.
+ * first dates it makes, worked out by the same code that makes them. It
+ * opens from the Repeat row in the event's ⋮, so it stacks in one column:
+ * the box is narrow whatever the screen is.
  */
-export function EventRepeatCard({
+export function EventRepeatFields({
   repeat,
   startDate,
   disabled,
@@ -60,13 +58,12 @@ export function EventRepeatCard({
   const problem = repeat && hasStart ? repeatProblem(repeat, startDate) : null
 
   return (
-    <PanelCard storageId="event-repeat" icon={<RepeatIcon />} title="Repeat">
-      <div className="grid gap-4">
+    <div className="grid gap-4">
       <p className="text-sm text-muted-foreground">
         Each date gets its own page. A change here reaches every future date
         that was not changed on its own.
       </p>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="flex flex-col gap-4">
         <div className="grid gap-2">
           <FieldLabel htmlFor="event-repeat">Repeats</FieldLabel>
           <Select
@@ -80,7 +77,7 @@ export function EventRepeatCard({
               )
             }
           >
-            <SelectTrigger id="event-repeat" className="w-full sm:w-fit">
+            <SelectTrigger id="event-repeat" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -160,7 +157,7 @@ export function EventRepeatCard({
       ) : null}
 
       {repeat?.freq === "monthly" ? (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-4">
           <div className="grid gap-2">
             <FieldLabel htmlFor="event-repeat-week">Week</FieldLabel>
             <Select
@@ -170,7 +167,7 @@ export function EventRepeatCard({
                 onChange({ ...repeat, week: Number(value) as RepeatWeek })
               }
             >
-              <SelectTrigger id="event-repeat-week" className="w-full sm:w-fit">
+              <SelectTrigger id="event-repeat-week" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -193,7 +190,7 @@ export function EventRepeatCard({
             >
               <SelectTrigger
                 id="event-repeat-weekday"
-                className="w-full sm:w-fit"
+                className="w-full"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -212,8 +209,7 @@ export function EventRepeatCard({
       {repeat ? (
         <RepeatSummary repeat={repeat} startDate={startDate} problem={problem} />
       ) : null}
-      </div>
-    </PanelCard>
+    </div>
   )
 }
 
@@ -258,10 +254,11 @@ function RepeatSummary({
 }
 
 /**
- * A main event's dates, soonest first. Each one opens in its own window, where
- * a change applies to that date only.
+ * A main event's later dates, soonest first, as the Later dates tab of the
+ * event's ⋮. Pressing one opens it on the right, where a change applies to
+ * that date only. The tab scrolls, so the list has no scroll of its own.
  */
-export function EventDatesCard({
+export function EventDatesList({
   series,
   disabled,
   onOpenDate,
@@ -271,19 +268,12 @@ export function EventDatesCard({
   onOpenDate: (id: string) => void
 }) {
   return (
-    <PanelCard
-      storageId="event-dates"
-      icon={<CalendarDaysIcon />}
-      title="Later dates"
-      meta={series.dates.length}
-    >
       <div className="grid gap-4">
         <p className="text-sm text-muted-foreground">
           This event is the first date. Open a later one to change it on its
           own.
         </p>
-        <ScrollArea className="max-h-72 rounded-md border">
-          <ul className="divide-y">
+          <ul className="divide-y overflow-hidden rounded-md border">
             {series.dates.map((date) => {
               const past = date.startDate < series.today
               return (
@@ -315,14 +305,12 @@ export function EventDatesCard({
               )
             })}
           </ul>
-        </ScrollArea>
       </div>
-    </PanelCard>
   )
 }
 
 /** On one date of a repeating event: whose date it is, and a way back. */
-export function SeriesDateCard({
+export function SeriesDateNote({
   main,
   editedAlone,
   disabled,
@@ -334,7 +322,6 @@ export function SeriesDateCard({
   onOpenMain: () => void
 }) {
   return (
-    <PanelCard storageId="event-series-date" icon={<RepeatIcon />} title="Repeat">
       <div className="grid gap-3">
         <p className="text-sm text-muted-foreground">
           One date of {main.title}.{" "}
@@ -352,6 +339,5 @@ export function SeriesDateCard({
           Open main event
         </Button>
       </div>
-    </PanelCard>
   )
 }

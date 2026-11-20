@@ -194,7 +194,11 @@ export async function listingsSectionCounts(
     countOf(database.select({ total }).from(directoryListings).where(eq(directoryListings.workspaceId, workspaceId))),
     countOf(database.select({ total }).from(categories).where(eq(categories.workspaceId, workspaceId))),
     countOf(
-      database.select({ total }).from(directoryCustomSections).where(eq(directoryCustomSections.workspaceId, workspaceId))
+      database
+        .select({ total })
+        .from(directoryCustomSections)
+        // The event sections have a row of their own on the Events dashboard.
+        .where(and(eq(directoryCustomSections.workspaceId, workspaceId), eq(directoryCustomSections.kind, "listing")))
     ),
     countOf(database.select({ total }).from(directoryGuides).where(eq(directoryGuides.workspaceId, workspaceId))),
     countOf(database.select({ total }).from(sitePromotions).where(eq(sitePromotions.workspaceId, workspaceId))),
