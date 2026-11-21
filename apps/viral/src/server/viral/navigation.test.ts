@@ -9,7 +9,7 @@ import { viralNavigationAdded } from "@/server/viral/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
 import { addViralNavigation } from "@/server/viral/navigation"
 
-/** Projects and Vault reach each left menu once, and stay gone once removed (task part 1). */
+/** The Viral dashboard's one link reaches each left menu once, and stays gone once removed (task features/03). */
 
 let client: PGlite
 let database: CustomShellDb
@@ -28,8 +28,11 @@ function viralSections(sections: unknown) {
   return (Array.isArray(sections) ? sections : []).filter((section: { id?: string }) => section?.id === VIRAL_NAV_SECTION_ID)
 }
 
+const linksOf = (section: { entries: { label: string; href: string }[] }) =>
+  section.entries.map((entry) => [entry.label, entry.href])
+
 describe("the left menu job", () => {
-  it("adds Projects and Vault to every menu once, however often it runs", async () => {
+  it("adds the one Viral link to every menu once, however often it runs", async () => {
     const user = await insertUser(database)
     const workspace = await insertWorkspace(database, { userId: user.id })
     await database
@@ -43,12 +46,11 @@ describe("the left menu job", () => {
     const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
     const added = viralSections((row.settings as { sections?: unknown }).sections)
     expect(added).toHaveLength(1)
-    const links = added[0].entries.map((entry: { label: string; href: string }) => [entry.label, entry.href])
-    expect(links[0]).toEqual(["Today", "/admin/today"])
-    expect(links).toEqual(expect.arrayContaining([["Projects", "/admin/projects"], ["Vault", "/admin/vault"]]))
-    expect(links.filter(([label]: string[]) => label === "Today")).toHaveLength(1)
+    expect(linksOf(added[0])).toEqual([["Viral", "/admin/viral"]])
     const [members] = await database.select().from(customShellSettings).where(eq(customShellSettings.key, "default"))
-    expect(viralSections((members.settings as { memberSections?: unknown }).memberSections)).toHaveLength(1)
+    const memberSections = viralSections((members.settings as { memberSections?: unknown }).memberSections)
+    expect(memberSections).toHaveLength(1)
+    expect(linksOf(memberSections[0])).toEqual([["Viral", "/admin/viral"]])
   })
 
   it("never puts the section back after an admin removed it", async () => {
@@ -62,13 +64,20 @@ describe("the left menu job", () => {
     expect(viralSections((row.settings as { sections?: unknown }).sections)).toHaveLength(0)
   })
 
-  it("puts Today first in a section made before Today existed, once", async () => {
+  it("swaps Today, Projects, Vault and Library for the one link, once, keeping the admin's own links", async () => {
     const user = await insertUser(database)
     const workspace = await insertWorkspace(database, { userId: user.id })
+    const item = (id: string, label: string, href: string) => ({ type: "item", id, label, href, icon: "flame", visible: true })
     const older = {
       id: VIRAL_NAV_SECTION_ID,
       title: "Viral",
-      entries: [{ type: "item", id: "item-viral-projects", label: "Projects", href: "/admin/projects", icon: "flame", visible: true }],
+      entries: [
+        item("item-mine", "Mine", "/admin/mine"),
+        item("item-viral-today", "Today", "/admin/today"),
+        item("item-viral-projects", "Projects", "/admin/projects"),
+        item("item-viral-vault", "Vault", "/admin/vault"),
+        item("item-viral-library", "Library", "/admin/library"),
+      ],
     }
     await database.update(customShellWorkspaces).set({ settings: { sections: [older] } }).where(eq(customShellWorkspaces.id, workspace.id))
     await database.insert(viralNavigationAdded).values([
@@ -81,33 +90,36 @@ describe("the left menu job", () => {
 
     const [row] = await database.select().from(customShellWorkspaces).where(eq(customShellWorkspaces.id, workspace.id))
     const [section] = viralSections((row.settings as { sections?: unknown }).sections)
-    const labels = section.entries.map((entry: { label: string }) => entry.label)
-    expect(labels.slice(0, 2)).toEqual(["Today", "Projects"])
-    expect(labels.filter((label: string) => label === "Today")).toHaveLength(1)
+    expect(linksOf(section)).toEqual([
+      ["Mine", "/admin/mine"],
+      ["Viral", "/admin/viral"],
+    ])
   })
 
-  it("makes Today the home page once, and only when nobody chose one", async () => {
-    await database.insert(customShellSettings).values({ key: "default", settings: {}, createdAt: new Date(), updatedAt: new Date() })
+  it("moves a home page still on Today to the dashboard, once", async () => {
+    await database
+      .insert(customShellSettings)
+      .values({ key: "default", settings: { adminRoute: "/admin/today" }, createdAt: new Date(), updatedAt: new Date() })
     await addViralNavigation(database)
     const [first] = await database.select().from(customShellSettings).where(eq(customShellSettings.key, "default"))
-    expect((first.settings as { adminRoute?: string }).adminRoute).toBe("/admin/today")
+    expect((first.settings as { adminRoute?: string }).adminRoute).toBe("/admin/viral")
 
     // An admin picks another page later: the job never takes it back.
     await database
       .update(customShellSettings)
-      .set({ settings: { ...(first.settings as object), adminRoute: "/admin/projects" } })
+      .set({ settings: { ...(first.settings as object), adminRoute: "/admin/dashboard" } })
       .where(eq(customShellSettings.key, "default"))
     await addViralNavigation(database)
     const [later] = await database.select().from(customShellSettings).where(eq(customShellSettings.key, "default"))
-    expect((later.settings as { adminRoute?: string }).adminRoute).toBe("/admin/projects")
+    expect((later.settings as { adminRoute?: string }).adminRoute).toBe("/admin/dashboard")
   })
 
   it("leaves a home page somebody already chose alone", async () => {
     await database
       .insert(customShellSettings)
-      .values({ key: "default", settings: { adminRoute: "/admin/vault" }, createdAt: new Date(), updatedAt: new Date() })
+      .values({ key: "default", settings: { adminRoute: "/admin/dashboard" }, createdAt: new Date(), updatedAt: new Date() })
     await addViralNavigation(database)
     const [row] = await database.select().from(customShellSettings).where(eq(customShellSettings.key, "default"))
-    expect((row.settings as { adminRoute?: string }).adminRoute).toBe("/admin/vault")
+    expect((row.settings as { adminRoute?: string }).adminRoute).toBe("/admin/dashboard")
   })
 })

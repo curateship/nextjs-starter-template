@@ -67,6 +67,19 @@ export function engagementPer100(video: Pick<ViralVideo, "views" | "likes" | "co
  * Where the Videos view's videos come from. "both" is every source; it kept
  * its name when pasted links joined, because saved views and addresses hold it.
  */
+/**
+ * Filter's Show row on a project's Videos (Tyler, 19 Nov 2026: "We dont need
+ * analyzed and downloaded its own tab when it can be sectioned or
+ * filtered"): every video is the default and stays out of the address.
+ */
+export const VIRAL_SHOWS = ["downloaded", "analysed"] as const
+export type ViralShow = (typeof VIRAL_SHOWS)[number]
+export const viralShowLabels: Record<ViralShow | "all", string> = {
+  all: "All videos",
+  downloaded: "Downloaded",
+  analysed: "Analysed",
+}
+
 export const VIRAL_SOURCES = ["search", "creators", "links", "both"] as const
 export type ViralSource = (typeof VIRAL_SOURCES)[number]
 

@@ -10,9 +10,9 @@ import { markVideoSeen } from "@/server/viral/seen"
 import { loadViralToday, searchEveryProject, type ViralSearchHit, type ViralToday } from "@/server/viral/today"
 
 /**
- * Finding winners: the Today page and its search across every project, the
- * New mark, Top comments and "same idea, other creators"
- * (`workspace/docs/today-page.md`, `workspace/docs/finding-content.md`).
+ * Finding winners: the Viral dashboard's Overview and its search across every
+ * project, the New mark, Top comments and "same idea, other creators"
+ * (`workspace/docs/viral-dashboard.md`, `workspace/docs/finding-content.md`).
  * Admin only, like every Viral door. The owner comes from the session, never
  * from the request, and every project id is checked to be theirs.
  */

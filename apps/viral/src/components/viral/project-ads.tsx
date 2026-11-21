@@ -2,9 +2,12 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { CopyIcon, ExternalLinkIcon, Loader2Icon, MegaphoneIcon, PenLineIcon, SearchIcon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
+import { EmptyRecord, RecordFrame } from "@/components/crm/record-frame"
 import { PanelCard } from "@/components/shared/panel-card"
+import { RecordMenu } from "@/components/viral/dashboard/section-parts"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -32,7 +35,7 @@ export function AdsMiddle({
   onSearch,
   onRetry,
   onPick,
-  onBack,
+  lead,
 }: {
   ads: AdsState
   searching: boolean
@@ -41,25 +44,36 @@ export function AdsMiddle({
   onSearch: () => void
   onRetry: () => void
   onPick: (ad: WinningAd) => void
-  onBack: () => void
+  /** The arrow back to the Viral dashboard, at the header's start, as Promo's project page has it. */
+  lead?: React.ReactNode
 }) {
   const list = ads.state === "ready" ? ads.ads : []
   return (
     <>
-      <DashboardCardTitleHeader
-        back={{ label: "Back to the videos", onClick: onBack }}
-        title="Winning ads"
-        meta={
-          ads.state === "ready"
-            ? `${ads.ads.length} ${plural(ads.ads.length, "ad")}${ads.searchedAt ? ` · searched ${formatShortDay(ads.searchedAt)}` : ""}`
-            : undefined
+      {/* The one middle header (the Admin 3 panel design): Winning ads is a row of the left page's Dashboards block, so no back arrow. */}
+      <CrmListHeader
+        tabs={
+          <span className="flex min-w-0 items-center gap-2">
+            <PanelReopenButton side="left" label="Show the project" />
+            {lead}
+            <MiddleHeading icon={MegaphoneIcon} label="Winning ads" />
+            {ads.state === "ready" ? (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                {`${ads.ads.length} ${plural(ads.ads.length, "ad")}${ads.searchedAt ? ` · searched ${formatShortDay(ads.searchedAt)}` : ""}`}
+              </span>
+            ) : null}
+          </span>
         }
-        action={
+        end={<PanelReopenButton side="right" label="Show the ad" />}
+        menuLabel="More for the ads"
+        search={null}
+        massSelect={null}
+        primary={
           sample ? undefined : (
-            <Button type="button" variant="outline" size="sm" disabled={searching} onClick={onSearch}>
-              {searching ? <Loader2Icon className="animate-spin" /> : <SearchIcon />}
+            <DashboardToolbarButton type="button" disabled={searching} onClick={onSearch}>
+              {searching ? <Loader2Icon className="size-4 animate-spin" /> : <SearchIcon className="size-4" />}
               <span className="@max-3xl:sr-only">Search ads</span>
-            </Button>
+            </DashboardToolbarButton>
           )
         }
       />
@@ -128,14 +142,8 @@ export function AdsMiddle({
  * long, and Write an ad like this.
  */
 export function AdPanel({ ad, projectId, sample }: { ad: WinningAd | null; projectId: string; sample: boolean }) {
-  const [menuOpen, setMenuOpen] = React.useState(false)
   if (!ad) {
-    return (
-      <>
-        <DashboardCardTitleHeader icon={<MegaphoneIcon />} title="Ad" />
-        <p className="px-3 py-8 text-center text-sm text-muted-foreground">Click an ad to read it here.</p>
-      </>
-    )
+    return <EmptyRecord title="Ad" icon={<MegaphoneIcon aria-hidden />} line="Click an ad to read it here." hideLabel="Hide the ad" />
   }
 
   async function copy(current: WinningAd) {
@@ -147,40 +155,27 @@ export function AdPanel({ ad, projectId, sample }: { ad: WinningAd | null; proje
   }
 
   return (
-    <>
-      <DashboardCardTitleHeader
-        icon={<MegaphoneIcon />}
-        title={
-          <span className="grid leading-tight">
-            <span className="truncate">{ad.pageName || "An ad"}</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">{ad.daysRunning} days running</span>
-          </span>
-        }
-        action={
-          <FoldingMenu label="More for this ad" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-            <MenuAction
-              icon={<ExternalLinkIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                window.open(ad.libraryUrl, "_blank", "noopener,noreferrer")
-              }}
-            >
-              Open in Meta's ad library
-            </MenuAction>
-            <MenuAction
-              icon={<CopyIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                void copy(ad)
-              }}
-            >
-              Copy the text
-            </MenuAction>
-          </FoldingMenu>
-        }
-      />
-      <ScrollArea className="min-h-0 flex-1">
-        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+    <RecordFrame
+      avatar={<MegaphoneIcon />}
+      title={ad.pageName || "An ad"}
+      line={`${ad.daysRunning} days running`}
+      hideLabel="Hide the ad"
+      bodyClassName="gap-3.75 pt-3.75"
+      actions={
+        <RecordMenu
+          label="Ad menu"
+          actions={[
+            {
+              label: "Open in Meta's ad library",
+              icon: <ExternalLinkIcon className="size-4" />,
+              onSelect: () => window.open(ad.libraryUrl, "_blank", "noopener,noreferrer"),
+            },
+            { label: "Copy the text", icon: <CopyIcon className="size-4" />, onSelect: () => void copy(ad) },
+          ]}
+        />
+      }
+      body={
+        <>
           <PanelCard storageId="viral-ad-words" title="The ad">
             <div className="grid gap-2 text-sm break-words">
               {ad.title ? <p className="font-medium">{ad.title}</p> : null}
@@ -196,17 +191,17 @@ export function AdPanel({ ad, projectId, sample }: { ad: WinningAd | null; proje
             </dl>
           </PanelCard>
           <AdCopyCards projectId={projectId} adArchiveId={ad.adArchiveId} sample={sample} />
-        </div>
-      </ScrollArea>
-      <div className="shrink-0 border-t p-3">
+        </>
+      }
+      footer={
         <Button asChild variant="outline" className="w-full min-w-0">
           <a href={ad.libraryUrl} target="_blank" rel="noopener noreferrer">
             <ExternalLinkIcon />
             <span className="min-w-0 truncate">See its picture or video on Meta</span>
           </a>
         </Button>
-      </div>
-    </>
+      }
+    />
   )
 }
 

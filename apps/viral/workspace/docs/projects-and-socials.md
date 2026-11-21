@@ -8,17 +8,16 @@ analyses and the vault.
 
 - **The topic.** The New project window asks for Your topic, one line such
   as "a meal-prep course for busy dads". Every analysis writes its script for
-  this topic. The topic can be changed in place on the left panel, or in its
-  ⋮ under Your topic. The Analyse box can change it for
+  this topic. The topic is changed in the project's ⋮ under Your topic. The Analyse box can change it for
   one video only (`viral_projects.topic`).
-- **The notes.** A written page behind the notes icon in the left panel's
-  header (`viral_projects.notes`, `drizzle/0099_viral_project_notes.sql`).
+- **The notes.** The project's page on the left of its dashboard, holding
+  its blocks (`viral_projects.notes`, `project-page.md`).
 - **The socials.** A list in the order they were added
   (`viral_projects.socials`). The New project window ticks both YouTube and
   TikTok by default.
 - **The filters and limits copied from Video.** Days searched (7, 30 or 90
   days, 6 months or 1 year), video length, minimum views, minimum score, and
-  the AI spend limit. All of them are rows in the left panel's ⋮ and save as
+  the AI spend limit. All of them are rows in the project's ⋮ and save as
   they change (`project-page.md`). 6 months and 1 year came on 6 Nov 2026
   (Tyler: "6 months and 1 year").
 - **Country and language.** What YouTube searches as, Anywhere until one is
@@ -64,8 +63,9 @@ through the connection on Settings → Promo connection (`promo-connection.md`).
   - **Reddit:** searches and subreddits. A subreddit is its top posts of the
     week.
   - **LinkedIn:** searches, hashtags, people and companies.
-- **One card per social.** The left panel has "X searches and accounts",
-  "Reddit searches and subreddits" and "LinkedIn searches and people". Add to X
+- **One Sources dropdown per social.** With X, Reddit or LinkedIn picked,
+  the posts header has a Sources dropdown listing what Promo reads there
+  (`project-page.md`). Add to X
   opens a choice of what to read and a field. Adding one keeps it and asks
   Promo to read it at once.
 - **How each one stands.** A row's second line says what it is and how its
@@ -75,8 +75,8 @@ through the connection on Settings → Promo connection (`promo-connection.md`).
   kind and value says how it stands (`src/server/viral/social-watches.ts`).
 - **The same one twice.** "r/Fitness" and "fitness" are one subreddit, and
   "@dad" and "dad" one account, so adding it again is refused.
-- **Promo not connected.** The social's row in the Socials card says "Promo
-  not connected", and its card links to Settings → Promo connection. A watch
+- **Promo not connected.** The social's row in the Socials block says "Promo
+  not connected", and its block links to Settings → Promo connection. A watch
   added then is kept, and read once Promo is connected.
 - **Read again and remove.** The arrow on a row asks Promo to read it again
   now, refused while its last read still waits. The × takes it off with the
@@ -103,8 +103,8 @@ be read because Promo has no Threads.
 
 ## The sample project
 
-A new account gets one sample project the first time its Projects list
-opens (`ensureSampleViralProject`). It has made-up results, one analysed
+A new account gets one sample project the first time its list of projects
+is read (`ensureSampleViralProject`). It has made-up results, one analysed
 video, three ideas in the vault (Idea, Scripted and Posted, so the board has
 cards), two made-up Winning ads, one saved format on Library → Formats, and
 X and Reddit with two X searches and accounts, one subreddit and three

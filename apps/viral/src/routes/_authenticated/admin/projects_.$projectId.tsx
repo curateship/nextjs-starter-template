@@ -14,19 +14,29 @@ import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
 import {
   readSubscriberStep,
   VIRAL_FIT_CHOICES,
+  VIRAL_SHOWS,
   VIRAL_SORTS,
   VIRAL_SOURCES,
   type ViralFit,
   type ViralSource,
 } from "@/lib/viral/viral-view"
 
-/** The middle panel's tabs other than Videos, which is the default, and the project's vault. */
-const VIRAL_PROJECT_TABS = ["downloaded", "analysed", "hooks", "sounds", "vault", "ads"] as const
+/**
+ * The middle panel's tabs other than Videos, which is the default, and the
+ * Dashboards block's Vault and Winning ads. Downloaded and Analysed were tabs
+ * until 21 Nov 2026 (Tyler: "We dont need analyzed and downloaded its own tab
+ * when it can be sectioned or filtered"); an old link naming one opens Videos
+ * with Filter's Show set to it.
+ */
+const VIRAL_PROJECT_TABS = ["hooks", "sounds", "creators", "vault", "ads"] as const
+const OLD_SHOW_TABS = ["downloaded", "analysed"] as const
 
 type ViralProjectSearch = {
   /** Videos is the default and stays out of the address. */
   view?: (typeof VIRAL_PROJECT_TABS)[number]
-  /** The open video, `platform:id`; on the vault view the open vault item's id; with X, Reddit or LinkedIn picked, the open post's id. */
+  /** Filter's Show: every video (the default), the downloaded ones, or the analysed ones. */
+  show?: (typeof VIRAL_SHOWS)[number]
+  /** The open video, `platform:id`; on the vault view the open vault item's id; on Creators the open creator, `platform:channel`; with X, Reddit or LinkedIn picked, the open post's id. */
   open?: string
   /** Where the open video starts, in milliseconds: its hook, opened from Hooks. */
   at?: number
@@ -75,8 +85,14 @@ function readFit(value: unknown): ViralFit | undefined {
  * only; it never asks YouTube.
  */
 export const Route = createFileRoute("/_authenticated/admin/projects_/$projectId")({
+  // Drawn in the browser only, as the Viral dashboard is: on the server the
+  // shell's three-panel frame has no Settings → Styling to read, and drew the
+  // side panels at other widths than the browser then did, so every load
+  // failed to hydrate.
+  ssr: false,
   validateSearch: (search: Record<string, unknown>): ViralProjectSearch => ({
     view: readOneOf(search.view, VIRAL_PROJECT_TABS),
+    show: readOneOf(search.show, VIRAL_SHOWS) ?? readOneOf(search.view, OLD_SHOW_TABS),
     open: readKey(search.open),
     at: readStartMs(search.at),
     creator: readKey(search.creator),

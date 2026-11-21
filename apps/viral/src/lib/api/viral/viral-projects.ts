@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { coverImagesSchema, SKY_COVER } from "@/lib/notes/page-cover"
+
 import { getViralErrorMessage } from "./viral"
 import { adminGet, adminPost } from "@/server/guards"
 import {
@@ -33,6 +35,7 @@ import {
   viralDeleteSummary,
   type ViralDeleteSummary,
   type ViralFolderSummary,
+  setViralProjectNotesLock,
 } from "@/server/viral/projects"
 import { queueViralSearch } from "@/server/viral/project-search"
 import { loadViralProjectScreen } from "@/server/viral/project-view"
@@ -570,26 +573,43 @@ const coverFn = createServerFn({ method: "POST" })
       url: z
         .string()
         .max(2_000)
-        .refine(isWebAddress, "A cover must be a web address.")
+        .refine((value) => value === SKY_COVER || isWebAddress(value), "A cover must be a web address.")
         .nullable(),
+      images: coverImagesSchema.optional(),
     })
   )
   .handler(
     async ({ data, context }): Promise<ViralProjectItem> =>
-      saveViralProjectCover(context.user.id, data.projectId, data.url)
+      saveViralProjectCover(context.user.id, data.projectId, data.url, data.images)
   )
 
-/** The cover photo picked in the project's ⋮; null hands it back to the best result's thumbnail. */
-export function saveViralProjectCoverFn(projectId: string, url: string | null) {
-  return coverFn({ data: { projectId, url } })
+/**
+ * The cover photo picked in the project's ⋮ (the shell's Cover photo row:
+ * None, Sky, or a picture), with the pictures the page has had; null hands
+ * the banner back to the best result's thumbnail.
+ */
+export function saveViralProjectCoverFn(projectId: string, url: string | null, images?: string[]) {
+  return coverFn({ data: { projectId, url, images } })
 }
+
+
 
 const notesFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(z.object({ projectId: id, notes: z.string().max(VIRAL_PROJECT_NOTES_MAX) }))
   .handler(async ({ data, context }) => saveViralProjectNotes(context.user.id, data.projectId, data.notes))
 
-/** The notes behind the project page's notes icon, saved as they are typed. */
+/** The project's page on the left of its dashboard, saved as it is typed. */
 export function saveViralProjectNotesFn(projectId: string, notes: string) {
   return notesFn({ data: { projectId, notes } })
+}
+
+const notesLockFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ projectId: id, locked: z.boolean() }))
+  .handler(async ({ data, context }) => setViralProjectNotesLock(context.user.id, data.projectId, data.locked))
+
+/** Lock blocks in the project's ⋮. */
+export function lockViralProjectNotesFn(projectId: string, locked: boolean) {
+  return notesLockFn({ data: { projectId, locked } })
 }

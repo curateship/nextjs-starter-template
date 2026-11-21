@@ -115,7 +115,7 @@ describe("sending a vault item", () => {
     expect(message.body.title).toBe("Dinner in 10")
     expect(message.body.script).toBe("Hook (3s)\nDads, listen\n\nThe ask (2s)\nFollow")
     expect(message.body.notes).toBe("Film Sunday")
-    expect(String(message.body.vaultItemUrl)).toContain(`/admin/vault?open=${id}`)
+    expect(String(message.body.vaultItemUrl)).toContain(`/admin/viral?section=vault&open=${id}`)
     expect(message.body.viralProjectName).toBe("Meal prep")
     const file = message.body.file as { token: string; size: number; contentType: string }
     expect(file.size).toBe(12_345)

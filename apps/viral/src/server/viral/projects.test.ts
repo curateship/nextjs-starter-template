@@ -9,6 +9,11 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 import { listSavedViews, saveSavedView } from "@/server/saved-views"
 import { savedViewScreen } from "@/lib/saved-views"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
+import {
+  PROJECT_PAGE_ERRORS,
+  PROJECT_SOCIALS_NODE,
+  PROJECT_VAULT_NODE,
+} from "@/lib/viral/project-page"
 import type { ViralProjectItem } from "@/lib/viral/viral"
 import { viralSavedViewScreen } from "@/server/viral/saved-views"
 import {
@@ -39,6 +44,7 @@ import {
   removeViralKeyword,
   saveViralProjectNotes,
   saveViralProjectSettings,
+  setViralProjectNotesLock,
   viralDeleteSummary,
 } from "@/server/viral/projects"
 import { loadViralProjectScreen } from "@/server/viral/project-view"
@@ -478,15 +484,65 @@ describe("the project's notes", () => {
     return row.notes
   }
 
-  it("keeps the editor's document, cleaned, and nothing for an empty or unreadable one", async () => {
+  it("keeps the editor's document, cleaned, with its fixed Socials and Vault blocks put back", async () => {
     const project = await newProject()
     const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Try hooks" }] }] }
     await saveViralProjectNotes(user.id, project.id, JSON.stringify(doc))
-    expect(JSON.parse(await storedNotesOf(project.id))).toMatchObject({ type: "doc" })
+    const stored = JSON.parse(await storedNotesOf(project.id))
+    expect(stored.content.slice(0, 3)).toEqual([{ type: "paragraph" }, { type: PROJECT_SOCIALS_NODE }, { type: PROJECT_VAULT_NODE }])
     expect(await storedNotesOf(project.id)).toContain("Try hooks")
 
     await saveViralProjectNotes(user.id, project.id, "<img src=x onerror=alert(1)>")
-    expect(await storedNotesOf(project.id)).toBe("")
+    expect(JSON.parse(await storedNotesOf(project.id))).toEqual({
+      type: "doc",
+      // A line to write in above the blocks, since the editor puts no cursor above a block at the top.
+      content: [{ type: "paragraph" }, { type: PROJECT_SOCIALS_NODE }, { type: PROJECT_VAULT_NODE }],
+    })
+  })
+
+  it("gives a page from before the blocks the fixed ones on top, then its words", async () => {
+    // No social brings a block: the creators are a tab and the sources a dropdown in the middle.
+    const project = await newProject()
+    await database
+      .update(viralProjects)
+      .set({ notes: JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Old notes" }] }] }) })
+      .where(eq(viralProjects.id, project.id))
+    const item = await getViralProjectItem(user.id, project.id)
+    const types = (JSON.parse(item.notes).content as { type: string }[]).map((node) => node.type)
+    expect(types).toEqual(["paragraph", PROJECT_SOCIALS_NODE, PROJECT_VAULT_NODE, "paragraph", "paragraph"])
+  })
+
+  it("drops the creators and posts blocks a page kept from before they moved to the middle", async () => {
+    const project = await newProject()
+    const old = {
+      type: "doc",
+      content: [
+        { type: PROJECT_SOCIALS_NODE },
+        { type: PROJECT_VAULT_NODE },
+        { type: "noteViralProjectYoutubeCreators" },
+        { type: "paragraph", content: [{ type: "text", text: "Kept" }] },
+        { type: "noteViralProjectTiktokCreators" },
+        { type: "noteViralProjectXPosts" },
+        { type: "noteViralProjectRedditPosts" },
+      ],
+    }
+    await database.update(viralProjects).set({ notes: JSON.stringify(old) }).where(eq(viralProjects.id, project.id))
+    const item = await getViralProjectItem(user.id, project.id)
+    expect((JSON.parse(item.notes).content as { type: string }[]).map((node) => node.type)).toEqual([
+      "paragraph",
+      PROJECT_SOCIALS_NODE,
+      PROJECT_VAULT_NODE,
+      "paragraph",
+    ])
+  })
+
+  it("refuses a save while the page is locked", async () => {
+    const project = await newProject()
+    await setViralProjectNotesLock(user.id, project.id, true)
+    await expect(saveViralProjectNotes(user.id, project.id, JSON.stringify({ type: "doc", content: [] }))).rejects.toThrow(
+      PROJECT_PAGE_ERRORS.locked
+    )
+    expect((await getViralProjectItem(user.id, project.id)).notes_locked).toBe(true)
   })
 
   it("refuses somebody else's project", async () => {

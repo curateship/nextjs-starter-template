@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  ArrowLeftIcon,
   CopyPlusIcon,
   DownloadIcon,
   EyeOffIcon,
@@ -14,8 +15,10 @@ import {
 } from "lucide-react"
 
 import { PanelCard } from "@/components/shared/panel-card"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
+import { EmptyRecord } from "@/components/crm/record-frame"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
+import { SidePanelCollapseButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -26,6 +29,7 @@ import { AnalyseSection } from "@/components/viral/analyse-section"
 import { DeleteSavedVideosDialog } from "@/components/viral/delete-saved-videos-dialog"
 import { OutlierBadge } from "@/components/viral/outlier-badge"
 import { RisingBadge } from "@/components/viral/rising-badge"
+import { RecordMenu, type MenuAction } from "@/components/viral/dashboard/section-parts"
 import { SocialIcon } from "@/components/viral/social-icon"
 import { ViralScoreBlock } from "@/components/viral/viral-score-parts"
 import {
@@ -35,7 +39,9 @@ import {
   saveVideos,
   type SavedVideoDetail,
 } from "@/lib/api/viral/viral-videos"
+import { PANEL_FOOTER_PADDING, PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import {
   creatorPlatformLabels,
   formatCount,
@@ -73,14 +79,7 @@ export function PlayerPanel({
   emptyText?: string
 }) {
   if (!video) {
-    return (
-      <>
-        <DashboardCardTitleHeader icon={<PlayIcon />} title="Video" />
-        <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-          {emptyText}
-        </p>
-      </>
-    )
+    return <EmptyRecord title="Video" icon={<PlayIcon aria-hidden />} line={emptyText} hideLabel="Hide the video" />
   }
   // Keyed on the video, so picking another starts from nothing: no breakdown
   // of the last video can show beside this one's title.
@@ -134,7 +133,7 @@ function PlayerBody({
   const [saved, setSavedHere] = React.useState<SavedVideoDetail | null>(null)
   const [busy, setBusy] = React.useState<"download" | "analyse" | "retry" | null>(null)
   const [deleting, setDeleting] = React.useState(false)
-  const [menuOpen, setMenuOpen] = React.useState(false)
+  const cover = useRightCover()
   const [copying, setCopying] = React.useState<CopyTarget | null>(null)
   // The sticky footer the Analyse section draws its vault buttons into.
   const [footer, setFooter] = React.useState<HTMLDivElement | null>(null)
@@ -264,109 +263,68 @@ function PlayerBody({
   const perFollower = viewsPerFollower(video)
   const engagement = engagementPer100(video)
 
+  const actions: MenuAction[] = [
+    ...(video.sample
+      ? []
+      : [
+          { label: `Open on ${platform}`, icon: <ExternalLinkIcon className="size-4" />, onSelect: () => window.open(video.url, "_blank", "noopener,noreferrer") },
+          { label: "Copy link", icon: <LinkIcon className="size-4" />, onSelect: () => void copyLink() },
+          {
+            label: "Copy to another project",
+            icon: <CopyPlusIcon className="size-4" />,
+            onSelect: () => setCopying({ kind: "video", url: video.url, title: video.title }),
+          },
+        ]),
+    ...(video.sample || saved
+      ? []
+      : [{ label: "Download, no AI", icon: <DownloadIcon className="size-4" />, disabled: busy !== null, onSelect: () => void onSave(false) }]),
+    // Shown only while Viral keeps a copy (Tyler, 6 Nov 2026: "Both ⋮ menus").
+    ...(saved?.playbackUrl
+      ? [{ label: "Download to computer", icon: <HardDriveDownloadIcon className="size-4" />, onSelect: () => downloadToComputer("video", saved.id) }]
+      : []),
+    ...(saved?.status === "failed"
+      ? [{ label: "Try the download again", icon: <RotateCwIcon className="size-4" />, disabled: busy !== null, onSelect: () => void onTryAgain() }]
+      : []),
+    ...(onSameIdea ? [{ label: "Same idea, other creators", icon: <UsersIcon className="size-4" />, onSelect: () => onSameIdea(video) }] : []),
+    ...(onHideChannel
+      ? [{ label: `Hide ${video.channelName || "this channel"}`, icon: <EyeOffIcon className="size-4" />, onSelect: () => onHideChannel(video) }]
+      : []),
+    ...(saved && onDeleted
+      ? [{ label: "Delete the saved video", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleting(true) }]
+      : []),
+  ]
+
   return (
-    <>
-      <DashboardCardTitleHeader
-        icon={onBack ? undefined : <SocialIcon social={video.platform} />}
-        back={onBack ? { label: "Back to the creator", onClick: onBack } : undefined}
-        title={
-          <span className="grid leading-tight">
-            <span className="truncate">{video.title}</span>
+    // The left page's cover carries on behind this header (the Admin 3 panel design: "always connect right panel to the left panel bg").
+    <div className="relative isolate flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <RightPanelCover />
+      <div>
+        <DashboardCardHeader className={cn("gap-2", cover && "border-b-transparent")}>
+          {onBack ? (
+            <Button type="button" variant="ghost" size="icon" className="shrink-0 rounded-lg" aria-label="Back to the creator" onClick={onBack}>
+              <ArrowLeftIcon className="size-4" />
+            </Button>
+          ) : (
+            <span className="ml-1 flex size-6 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4">
+              <SocialIcon social={video.platform} />
+            </span>
+          )}
+          <span className="grid min-w-0 flex-1 leading-tight">
+            <h2 className="font-heading truncate text-[0.891rem] font-medium">{video.title}</h2>
             {video.channelName && onOpenChannel ? (
-              <span className="truncate text-xs font-normal text-muted-foreground">
-                {platform} ·{" "}
+              <span className="truncate text-xs text-muted-foreground">
                 <button type="button" className="hover:text-foreground hover:underline" onClick={() => onOpenChannel(video)}>
                   {video.channelName}
                 </button>
               </span>
             ) : (
-              <span className="truncate text-xs font-normal text-muted-foreground">
-                {video.channelName ? `${platform} · ${video.channelName}` : platform}
-              </span>
+              <span className="truncate text-xs text-muted-foreground">{video.channelName || platform}</span>
             )}
           </span>
-        }
-        action={
-          <FoldingMenu label="More for this video" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-            {video.sample ? null : (
-              <MenuAction icon={<ExternalLinkIcon className="size-4" />} onClick={() => {
-                setMenuOpen(false)
-                window.open(video.url, "_blank", "noopener,noreferrer")
-              }}>
-                Open on {platform}
-              </MenuAction>
-            )}
-            {video.sample ? null : (
-              <MenuAction icon={<LinkIcon className="size-4" />} onClick={() => {
-                setMenuOpen(false)
-                void copyLink()
-              }}>
-                Copy link
-              </MenuAction>
-            )}
-            {video.sample ? null : (
-              <MenuAction icon={<CopyPlusIcon className="size-4" />} onClick={() => {
-                setMenuOpen(false)
-                setCopying({ kind: "video", url: video.url, title: video.title })
-              }}>
-                Copy to another project
-              </MenuAction>
-            )}
-            {video.sample || saved ? null : (
-              <MenuAction icon={<DownloadIcon className="size-4" />} disabled={busy !== null} onClick={() => {
-                setMenuOpen(false)
-                void onSave(false)
-              }}>
-                Download, no AI
-              </MenuAction>
-            )}
-            {/* Shown only while Viral keeps a copy (Tyler, 6 Nov 2026: "Both ⋮ menus"). */}
-            {saved?.playbackUrl ? (
-              <MenuAction icon={<HardDriveDownloadIcon className="size-4" />} onClick={() => {
-                setMenuOpen(false)
-                downloadToComputer("video", saved.id)
-              }}>
-                Download to computer
-              </MenuAction>
-            ) : null}
-            {saved?.status === "failed" ? (
-              <MenuAction icon={<RotateCwIcon className="size-4" />} disabled={busy !== null} onClick={() => {
-                setMenuOpen(false)
-                void onTryAgain()
-              }}>
-                Try the download again
-              </MenuAction>
-            ) : null}
-            {onSameIdea ? (
-              <MenuAction icon={<UsersIcon className="size-4" />} onClick={() => {
-                setMenuOpen(false)
-                onSameIdea(video)
-              }}>
-                Same idea, other creators
-              </MenuAction>
-            ) : null}
-            {onHideChannel ? (
-              <MenuAction icon={<EyeOffIcon className="size-4" />} onClick={() => {
-                setMenuOpen(false)
-                onHideChannel(video)
-              }}>
-                Hide {video.channelName || "this channel"}
-              </MenuAction>
-            ) : null}
-            {saved && onDeleted ? (
-              <>
-                <MenuLine />
-                <MenuAction icon={<Trash2Icon className="size-4" />} destructive onClick={() => {
-                  setMenuOpen(false)
-                  setDeleting(true)
-                }}>
-                  Delete the saved video
-                </MenuAction>
-              </>
-            ) : null}
-          </FoldingMenu>
-        }
-      />
+          <RecordMenu label="Video menu" actions={actions} />
+          <SidePanelCollapseButton side="right" label="Hide the video" />
+        </DashboardCardHeader>
+      </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)]">
           <Player
@@ -379,7 +337,7 @@ function PlayerBody({
           />
 
           {/* Everything under the player is a card, like the AI's (Tyler, 4 Nov 2026: "all these should be in cards"). */}
-          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75", PANEL_GUTTER)}>
           {/* What is said comes first, right under the video, and a click on a line plays from it (Tyler, 4 Nov
               2026: "the what is said card should be under video and clicking on the text takes me to that part of
               the video"). */}
@@ -457,7 +415,7 @@ function PlayerBody({
       </ScrollArea>
       {/* The sticky footer, as Project's task panel has one: Save to vault and Send to Video, drawn by the
           Analyse section. */}
-      <div ref={setFooter} className="shrink-0 border-t p-3 empty:hidden" />
+      <div ref={setFooter} className={cn("shrink-0 border-t empty:hidden", PANEL_FOOTER_PADDING)} />
       <CopyToProjectDialog target={copying} currentProjectId={projectId} onClose={() => setCopying(null)} />
 
       {onDeleted ? (
@@ -473,7 +431,7 @@ function PlayerBody({
           }}
         />
       ) : null}
-    </>
+    </div>
   )
 }
 

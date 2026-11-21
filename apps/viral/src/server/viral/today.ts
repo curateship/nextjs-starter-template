@@ -16,11 +16,12 @@ import {
 } from "@/server/viral/schema"
 
 /**
- * Today, Viral's home page (`workspace/docs/today-page.md`). Tyler, 4 Nov
- * 2026: "Viral's home page". It reads every project that isn't archived and
- * shows the best videos that arrived or took off since yesterday, then how
- * many vault ideas sit in each status. Its search looks through every
- * project's videos at once. Nothing here calls YouTube.
+ * The Viral dashboard's Overview widgets (`workspace/docs/viral-dashboard.md`),
+ * which were the Today page's two tables. It reads every project that isn't
+ * archived and gives the best videos that arrived or took off since
+ * yesterday, then how many vault ideas sit in each status. Its search looks
+ * through every project's videos at once, for the Projects row. Nothing here
+ * calls YouTube.
  */
 
 /** How many videos each project shows on Today. */

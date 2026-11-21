@@ -10,12 +10,13 @@ import {
   MessagesSquareIcon,
   PlusIcon,
   RefreshCwIcon,
+  RssIcon,
   SparklesIcon,
   XIcon,
 } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
+import { EmptyRecord, RecordFrame } from "@/components/crm/record-frame"
+import { FoldingMenu } from "@/components/shared/folding-menu"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -24,13 +25,15 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { RecordMenu } from "@/components/viral/dashboard/section-parts"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SocialIcon } from "@/components/viral/social-icon"
 import type { TextSocialsState } from "@/components/viral/use-text-socials"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import { askPromoForThread, loadSocialPostFn, refreshPromoReadFn } from "@/lib/api/viral/viral-promo"
 import { addSocialWatchFn, readSocialWatchFn, removeSocialWatchFn } from "@/lib/api/viral/viral-socials"
 import { loadVaultWritingPrices, savePostToVaultFn } from "@/lib/api/viral/viral-vault"
-import { plural } from "@/lib/format/plural"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -50,12 +53,6 @@ import { figureName, postAuthor, postHeadline } from "@/lib/viral/text-posts"
 import { formatShortDay } from "@/lib/viral/viral-view"
 import { writerPriceWords, type WriterPrice } from "@/lib/viral/writers"
 
-const CARD_TITLES: Record<TextSocial, string> = {
-  x: "X searches and accounts",
-  reddit: "Reddit searches and subreddits",
-  linkedin: "LinkedIn searches and people",
-}
-
 /** Where Promo's address and key are filled in. */
 function PromoSettingsLink() {
   return (
@@ -66,13 +63,16 @@ function PromoSettingsLink() {
 }
 
 /**
- * The left panel's card for one of X, Reddit and LinkedIn: what the project
- * keeps reading there through Promo, and how each one's newest read went.
- * Picking a row is not a filter; the middle shows everything the social
- * found. Its arrow reads it again now, and its cross takes it off with the
- * posts only it brought.
+ * The Sources dropdown in the X, Reddit and LinkedIn posts header (Tyler,
+ * 21 Nov 2026, of the blocks that were on the left: "these belong in the
+ * middle panel"), shaped like YouTube's Keywords dropdown: the button shows
+ * how many sources there are, and opens what the project keeps reading on
+ * that social through Promo, with how each one's newest read went. A row is
+ * not a filter; the middle shows everything the social found. Its arrow
+ * reads it again now, and its cross takes it off with the posts only it
+ * brought. Add sits under the list.
  */
-export function SocialWatchesCard({
+export function SocialSourcesDropdown({
   projectId,
   social,
   data,
@@ -93,6 +93,8 @@ export function SocialWatchesCard({
   const watches = data.state === "ready" ? data.watches.filter((watch) => watch.network === social) : []
   const connected = data.state === "ready" ? data.connected : true
   const name = SOCIAL_NAMES[social]
+  const [open, setOpen] = React.useState(false)
+  const reading = watches.some((watch) => watch.status === "waiting")
 
   async function add() {
     if (!value.trim()) {
@@ -139,7 +141,22 @@ export function SocialWatchesCard({
   }
 
   return (
-    <PanelCard storageId={`viral-project-watches-${social}`} title={CARD_TITLES[social]} meta={String(watches.length)}>
+    <Popover open={open} onOpenChange={setOpen}>
+      {/* Its word hides in a narrow header, so a tooltip names it there. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <DashboardToolbarButton type="button" variant="outline" aria-label={`${name} sources, ${watches.length}`}>
+              {reading ? <Loader2Icon className="size-4 animate-spin" /> : <RssIcon className="size-4" />}
+              <span className="@max-6xl:sr-only">Sources</span>
+              <span className="text-muted-foreground tabular-nums">{watches.length}</span>
+            </DashboardToolbarButton>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>What Promo reads on {name} for this project</TooltipContent>
+      </Tooltip>
+      <PopoverContent align="end" collisionPadding={16} className="grid w-80 gap-3 p-3">
+      <p className="text-sm font-medium text-muted-foreground">{name} sources</p>
       {!connected && !sample ? (
         <p className="text-sm text-muted-foreground">
           Promo reads {name} for Viral, and it isn't connected yet. Fill in <PromoSettingsLink />.
@@ -147,7 +164,7 @@ export function SocialWatchesCard({
       ) : null}
       {data.state === "failed" ? <ErrorRow message={data.error} onRetry={onChanged} /> : null}
       {watches.length ? (
-        <ul className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
+        <ul className="-mx-1 grid max-h-72 grid-cols-[minmax(0,1fr)] gap-0.5 overflow-y-auto">
           {watches.map((watch) => (
             <WatchRow
               key={watch.id}
@@ -223,7 +240,8 @@ export function SocialWatchesCard({
           Add to {name}
         </Button>
       )}
-    </PanelCard>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -322,15 +340,15 @@ function figuresLine(post: SocialPost): string {
 
 /**
  * The middle panel while X, Reddit or LinkedIn is picked: the posts its reads
- * found, already searched, filtered and sorted by the screen, under the
- * toolbar of search, Filter and Views the screen hands over.
+ * found, already searched, filtered and sorted by the screen, under the one
+ * middle header (search, Filter and Views) the screen hands over.
  */
 export function TextPostsMiddle({
   social,
   data,
   posts,
   filtered,
-  toolbar,
+  header,
   sample,
   openId,
   onPick,
@@ -342,7 +360,7 @@ export function TextPostsMiddle({
   posts: SocialPost[]
   /** Whether a search or filter is set, so an empty list says that instead. */
   filtered: boolean
-  toolbar: React.ReactNode
+  header: React.ReactNode
   sample: boolean
   openId: string | null
   onPick: (post: SocialPost) => void
@@ -352,13 +370,7 @@ export function TextPostsMiddle({
   const watching = data.state === "ready" && data.watches.some((watch) => watch.network === social)
   return (
     <>
-      <DashboardCardTitleHeader
-        className="group/title @container"
-        icon={<SocialIcon social={social} />}
-        title={`${name} posts`}
-        meta={data.state === "ready" ? `${posts.length} ${plural(posts.length, "post")}` : undefined}
-        action={toolbar}
-      />
+      {header}
       <ScrollArea className="min-h-0 flex-1">
         {data.state === "loading" ? (
           <LoadingRow label={`Reading the ${name} posts`} />
@@ -431,7 +443,6 @@ export function PostThreadPanel({
   /** Save to vault kept the post: the screen reads its vault again. */
   onSavedToVault?: () => void | Promise<void>
 }) {
-  const [menuOpen, setMenuOpen] = React.useState(false)
   const [fresh, setFresh] = React.useState<SocialPost | null>(null)
   const [read, setRead] = React.useState<ThreadRead>({ state: "idle" })
   const shown = fresh && post && fresh.id === post.id ? fresh : post
@@ -478,12 +489,7 @@ export function PostThreadPanel({
   }, [onThreadRead, postId, readingId])
 
   if (!shown) {
-    return (
-      <>
-        <DashboardCardTitleHeader icon={<MessagesSquareIcon />} title="Post" />
-        <p className="px-3 py-8 text-center text-sm text-muted-foreground">Click a post to read its thread here.</p>
-      </>
-    )
+    return <EmptyRecord title="Post" icon={<MessagesSquareIcon aria-hidden />} line="Click a post to read its thread here." hideLabel="Hide the post" />
   }
 
   const current = shown
@@ -503,51 +509,36 @@ export function PostThreadPanel({
   })
 
   return (
-    <>
-      <DashboardCardTitleHeader
-        icon={<SocialIcon social={current.network} />}
-        title={
-          <span className="grid leading-tight">
-            <span className="truncate">{postAuthor(current)}</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
-              {[current.community ? `r/${current.community}` : name, formatShortDay(current.postedAt ?? current.firstSeenAt)].join(" · ")}
-            </span>
-          </span>
-        }
-        action={
-          <FoldingMenu label="More for this post" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-            <MenuAction
-              icon={<ExternalLinkIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                window.open(current.url, "_blank", "noopener,noreferrer")
-              }}
-            >
-              Open on {name}
-            </MenuAction>
-            <MenuAction
-              icon={<CopyIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                void copy(current.url)
-              }}
-            >
-              Copy link
-            </MenuAction>
-            <MenuAction
-              icon={<CopyIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                void copy([current.title, current.text].filter(Boolean).join("\n\n"))
-              }}
-            >
-              Copy the text
-            </MenuAction>
-          </FoldingMenu>
-        }
-      />
-      <ScrollArea className="min-h-0 flex-1">
-        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+    <RecordFrame
+      avatar={<SocialIcon social={current.network} />}
+      title={postAuthor(current)}
+      line={[current.community ? `r/${current.community}` : name, formatShortDay(current.postedAt ?? current.firstSeenAt)].join(" · ")}
+      hideLabel="Hide the post"
+      bodyClassName="gap-3.75 pt-3.75"
+      actions={
+        <RecordMenu
+          label="Post menu"
+          actions={[
+            { label: `Open on ${name}`, icon: <ExternalLinkIcon className="size-4" />, onSelect: () => window.open(current.url, "_blank", "noopener,noreferrer") },
+            { label: "Copy link", icon: <CopyIcon className="size-4" />, onSelect: () => void copy(current.url) },
+            {
+              label: "Copy the text",
+              icon: <CopyIcon className="size-4" />,
+              onSelect: () => void copy([current.title, current.text].filter(Boolean).join("\n\n")),
+            },
+          ]}
+        />
+      }
+      footer={
+        // The sticky footer, as a video's right panel has one (more-features task part 2).
+        onSavedToVault ? (
+          <div className="min-w-0 flex-1">
+            <SavePostToVault post={current} sample={sample} inVault={Boolean(vaultItemId)} onSaved={onSavedToVault} />
+          </div>
+        ) : undefined
+      }
+      body={
+        <>
           <PanelCard storageId="viral-post-words" title="The post">
             <div className="grid gap-2 text-sm break-words">
               {current.title ? <p className="font-medium">{current.title}</p> : null}
@@ -596,15 +587,9 @@ export function PostThreadPanel({
               <p className="text-sm text-muted-foreground">No replies yet.</p>
             )}
           </PanelCard>
-        </div>
-      </ScrollArea>
-      {/* The sticky footer, as a video's right panel has one (more-features task part 2). */}
-      {onSavedToVault ? (
-        <div className="shrink-0 border-t p-3">
-          <SavePostToVault post={current} sample={sample} inVault={Boolean(vaultItemId)} onSaved={onSavedToVault} />
-        </div>
-      ) : null}
-    </>
+        </>
+      }
+    />
   )
 }
 

@@ -34,7 +34,8 @@ import {
 import { savedViewScreen } from "@/lib/saved-views"
 import { VIRAL_SAVED_VIEW_KIND } from "@/lib/viral/viral-saved-views"
 import { ANALYSIS_TOPIC_MAX, type AnalysisPieces } from "@/lib/viral/analysis"
-import { storedNotes } from "@/lib/viral/notes"
+import { PROJECT_PAGE_ERRORS, projectPageBody, storedProjectPage } from "@/lib/viral/project-page"
+import { readCoverImages } from "@/lib/notes/page-cover"
 import { VIRAL_COUNTRY_CODES, VIRAL_LANGUAGE_CODES } from "@/lib/viral/places"
 import { isTextSocial, readSocials, socialHasKeywords, SOCIAL_NAMES, type Social } from "@/lib/viral/socials"
 import { now, uuid } from "@/server/auth/security"
@@ -176,7 +177,8 @@ async function serializeProjects(
       id: row.id,
       name: row.name,
       description: row.description,
-      notes: row.notes,
+      notes: JSON.stringify(projectPageBody(row.notes)),
+      notes_locked: row.notesLocked,
       topic: row.topic,
       socials: readSocials(row.socials),
       paused_socials: readSocials(row.pausedSocials),
@@ -194,6 +196,7 @@ async function serializeProjects(
       sample: row.isSample,
       cover_url: row.coverUrl,
       cover_chosen: row.coverChosen,
+      cover_images: readCoverImages(row.coverImages),
       result_count: videoCounts.get(row.id) ?? 0,
       units_spent: row.unitsSpent,
       spend_limit_cents: row.spendLimitCents,
@@ -1184,13 +1187,20 @@ export async function setViralSocialPaused(
 }
 
 /**
- * The project's notes, saved as they are typed. Kept as the cleaned editor
- * document, holding only what the shell's written-page rules allow, or ""
- * when nothing is written.
+ * The project's page, saved as it is typed: the cleaned editor document with
+ * the project's blocks (`project-page.ts`), its fixed Socials and Vault
+ * blocks put back if they went. Refused while the page is locked.
  */
 export async function saveViralProjectNotes(ownerId: string, projectId: string, notes: string): Promise<void> {
+  const project = await requireOwnedViralProject(ownerId, projectId)
+  if (project.notesLocked) throw new Error(PROJECT_PAGE_ERRORS.locked)
+  await db.update(viralProjects).set({ notes: storedProjectPage(notes), updatedAt: now() }).where(eq(viralProjects.id, projectId))
+}
+
+/** Lock blocks in the project's ⋮: the page reads only, blocks and all, until unlocked. */
+export async function setViralProjectNotesLock(ownerId: string, projectId: string, locked: boolean): Promise<void> {
   await requireOwnedViralProject(ownerId, projectId)
-  await db.update(viralProjects).set({ notes: storedNotes(notes), updatedAt: now() }).where(eq(viralProjects.id, projectId))
+  await db.update(viralProjects).set({ notesLocked: locked, updatedAt: now() }).where(eq(viralProjects.id, projectId))
 }
 
 /** The sample project's cover: a stretch at sunset, from Unsplash. */
@@ -1201,11 +1211,16 @@ export const SAMPLE_COVER_URL = "https://images.unsplash.com/photo-1544367567-0f
  * taking it away hands the banner back to the best result's thumbnail, from
  * the next search on.
  */
-export async function saveViralProjectCover(ownerId: string, projectId: string, url: string | null): Promise<ViralProjectItem> {
+export async function saveViralProjectCover(
+  ownerId: string,
+  projectId: string,
+  url: string | null,
+  images?: string[]
+): Promise<ViralProjectItem> {
   await requireOwnedViralProject(ownerId, projectId)
   await db
     .update(viralProjects)
-    .set({ coverUrl: url, coverChosen: url !== null, updatedAt: now() })
+    .set({ coverUrl: url, coverChosen: url !== null, ...(images ? { coverImages: images } : {}), updatedAt: now() })
     .where(eq(viralProjects.id, projectId))
   return getViralProjectItem(ownerId, projectId)
 }

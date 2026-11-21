@@ -4,11 +4,14 @@ import { formatCount } from "@/lib/viral/creators"
 import {
   readSubscriberStep,
   VIRAL_FIT_CHOICES,
+  VIRAL_SHOWS,
   VIRAL_SORTS,
   VIRAL_SOURCES,
+  viralShowLabels,
   viralSortLabels,
   viralSourceLabels,
   type ViralFit,
+  type ViralShow,
   type ViralSort,
   type ViralSource,
 } from "@/lib/viral/viral-view"
@@ -31,6 +34,8 @@ export type ViralViewFilters = {
   fmax?: number
   sort?: Exclude<ViralSort, "score">
   direction?: "asc"
+  /** Filter's Show: the downloaded or the analysed videos. */
+  show?: ViralShow
 }
 
 export const VIRAL_SAVED_VIEW_KIND = "viral-project"
@@ -53,6 +58,8 @@ export function viralViewFilters(values: SavedViewValues): ViralViewFilters {
   const sort = readOneOf(values.sort, VIRAL_SORTS)
   if (sort && sort !== "score") kept.sort = sort
   if (readDirection(values.direction) === "asc") kept.direction = "asc"
+  const show = readOneOf(values.show, VIRAL_SHOWS)
+  if (show) kept.show = show
   return kept
 }
 
@@ -60,6 +67,7 @@ export function viralViewFilters(values: SavedViewValues): ViralViewFilters {
 export function describeViralView(filters: ViralViewFilters) {
   const parts: string[] = []
   if (filters.q) parts.push(`"${filters.q}"`)
+  if (filters.show) parts.push(viralShowLabels[filters.show])
   if (filters.from) parts.push(viralSourceLabels[filters.from])
   if (filters.fit) parts.push(`Fits ${filters.fit} or more`)
   if (filters.keyword) parts.push(`Keyword: ${filters.keyword}`)

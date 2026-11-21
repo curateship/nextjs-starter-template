@@ -1,114 +1,170 @@
-# The Projects list and the project page
+# The project page
 
-Tyler picked Travel's trip page as the pattern for Viral on 4 Nov 2026. The
-project page copies it: the project on the left, what it found in the
-middle, and the open video on the right. A project's settings live in a ⋮
-menu, not a window.
+Each project has its own three-panel dashboard at `/admin/projects/<id>`,
+copied from Promo's project page (Tyler, 21 Nov 2026: "Copy the pattern of
+the promo app instead"; `apps/promo/workspace/docs/projects-dashboard.md`,
+"A project's own page"). The project's page on the left, what it found in
+the middle, and the open video on the right. It is drawn on the shell's
+three-panel design (`.agents/skills/Design/admin-3-panel-design/SKILL.md`).
+The YouTube keywords are in the middle header, and Socials and the vault
+are on the left (Tyler, 21 Nov 2026: "keep the keywords moved to the middle
+but creators, vaults, and socials are not"). The creators moved to a tab in
+the middle the same day (Tyler, 21 Nov 2026: "Move the creators block into
+the middle tab here"), which replaces the earlier words for the creators
+only.
 
-## The Projects list
+## The left panel: the project's page
 
-`/admin/projects` is a table of projects, with pinned ones first. It has
-folders, search, Pin, Archive, Duplicate and Delete, all copied from Video's
-Viral list.
+Code: `src/components/viral/project-page-panel.tsx` and
+`project-page-blocks.tsx`, with the page's rules in
+`src/lib/viral/project-page.ts`.
 
-- **New project** opens a window with four fields. Name. Your topic, the
-  one line every script is written for, such as "a meal-prep course for busy
-  dads"; its hint says so (Tyler, 4 Nov 2026: "dont know what this is"). A description, which
-  the AI reads to suggest keywords and judge fit. Socials, with YouTube and
-  TikTok both ticked.
-- **Keywords are optional.** The keywords card shows only while YouTube is
-  ticked, because only YouTube is searched by keyword.
-- **The cog on a row** opens the project, because the settings are in its ⋮.
-- Code: `src/components/viral/viral-projects-page.tsx` and
-  `viral-project-dialog.tsx`. The route is
-  `src/routes/_authenticated/admin/projects.index.tsx`.
+- **The header:** the collapse button, the name (cut short with "…", all of
+  it on hover), and the ⋮. The arrow back to the Viral dashboard starts the
+  middle's header, as Promo's does.
+- **The cover** lies faintly behind the header and the top of the panel,
+  and carries on behind the right panel's header. It is the one picked under
+  Cover photo in the ⋮, or, with none picked, the best result's thumbnail
+  from the last search.
+- **The page** is the project's notes, written in the shell's editor and
+  saved 700ms after the last letter (`viral_projects.notes`). It starts with
+  a line to write in, kept above the blocks, because the editor puts no
+  cursor above a block at the very top (Tyler, 21 Nov 2026, pointing above
+  Socials: "I cant click here for the editor"). It holds:
+  - **Socials**, fixed at the top, as Promo's Networks block: each social the
+    project uses on one line, its mark and name, Paused while paused, and its
+    new videos in the pill. Pressing one keeps the middle to it
+    (`?social=`) and opens its first video; pressing it again shows every
+    social. The picked one is dark with the sliding bar.
+  - **Vault**, fixed under it, as Promo's Archive block: All ideas, with its
+    count, and Winning ads, each opening in the middle and right panels.
+  - The two fixed blocks are never in the "/" list, can't be deleted, are
+    put back if a save lost them, and move with Move up and Move down.
+- **A page from before the blocks** keeps what was written, with Socials and
+  Vault put above it.
+- **The creators and the X, Reddit and LinkedIn lists are in the middle**,
+  not on the page (Tyler, 21 Nov 2026: "Move the creators block into the
+  middle tab here", then of the X and Reddit blocks: "these belong in the
+  middle panel"): the Creators tab, and each social's Sources dropdown. A
+  page that still holds one of those old blocks loses it when read.
 
-## The left panel: the project
+## The ⋮
 
-- **The header.** It has the back arrow to the list, the name, the notes
-  icon, and the ⋮.
-- **The banner.** The project's cover lies faintly behind the top of the
-  panel. The cover is the one picked under Cover photo in the ⋮, or, with
-  none picked, the best result's thumbnail from the last search. A picked
-  cover stays through searches (`viral_projects.cover_chosen`, added by
-  `drizzle/0100_viral_project_cover.sql`). The sample project has a stretching
-  photo of its own, because its made-up videos have no thumbnails.
-- **Your topic is not on the left panel** (Tyler, 4 Nov 2026: "remove this
-  from the left panel"). It is set in the New project window, changed in the
-  ⋮ under Your topic, and changed for one video in the Analyse box.
-- **The notes icon.** It bends into an × while the project's notes replace
-  the panel's body. The notes are written in the shell's editor and save
-  700ms after the last letter. They are kept in `viral_projects.notes`,
-  added by `drizzle/0099_viral_project_notes.sql`, as the editor document
-  cleaned to what the shell's written-page rules allow.
-- **The ⋮ holds the settings.** Cover photo, Name, Your topic, Posted within,
-  Country, Language, Videos, Minimum views, Minimum score and AI spend limit
-  are folding rows, and each one saves itself.
-  - **Posted within** offers 7, 30 and 90 days, 6 months and 1 year.
-  - **Country and Language** each open a list you can type into, with
-    Anywhere first (Tyler, 6 Nov 2026: "Every country + language"). The row
-    shows the name picked, such as United Kingdom, or Anywhere. The picker is
-    copied from Travel's time zone picker (`place-select.tsx`). Under a line are Duplicate, Archive and Delete project.
-  Delete asks first and says what goes.
-- **The body.** First the description, written in
-  place. Then come these cards:
-  - **Socials.** Each social is a row with Pause and an ×, and + adds a
-    missing one. Picking a row keeps the middle panel to that social
-    (`?social=`). Pick it again to see every social.
-  - **The Vault row.** It shows the count and opens the project's vault in
-    the middle.
-  - **YouTube keywords.**
-  - **One creators card each for YouTube and TikTok,** each with Add creator.
-  - **One card each for X, Reddit and LinkedIn,** listing what Promo reads
-    there (`projects-and-socials.md`).
-- Code: `src/components/viral/project-details-panel.tsx`, `project-menu.tsx`,
-  `keywords-card.tsx` and `creators-card.tsx`.
+The shell's tabbed menu (`project-menu.tsx`), every row saving itself.
+
+- **General:**
+  - **Page:** Cover photo, the shell's row: None, Sky, each picture it has
+    had, and + from the media library (`viral_projects.cover_url`,
+    `cover_chosen` and `cover_images`). Lock blocks is the tab's footer, as
+    Promo's Lock description is; locked, the page reads only, blocks and
+    all, until unlocked (`viral_projects.notes_locked`).
+  - **Project:** Name and Your topic. Your topic is not on the left panel
+    (Tyler, 4 Nov 2026: "remove this from the left panel"); it is also set in
+    the New project window and changed for one video in the Analyse box.
+  - **Search:** Niche first, then Posted within (7, 30 and 90 days, 6
+    months and 1 year), Country, Language, Videos, Minimum views and Minimum score. Country and
+    Language each open a list you can type into, with Anywhere first (Tyler,
+    6 Nov 2026: "Every country + language").
+    - **Niche** is the description, moved here from the left panel and
+      named for what it does (Tyler, 21 Nov 2026: "The discription should
+      be in the 3 dots dropdown here and it needs better clarification",
+      then "because it belongs to search isnt it?"): the kind of videos to
+      find. The AI suggests keywords from it and scores how well each video
+      fits it, the Fits column. Changing it clears those scores until the
+      next search. Your topic is different: what you make, which every
+      script is written for.
+  - **AI:** Spend limit.
+  - Then Pin, Duplicate, Archive, and Delete project in red, which asks first
+    and says what goes.
+- **Socials,** as Promo's Networks tab: each social the project uses, with
+  Pause (or Check daily again) and Take off, which the server refuses while
+  it still holds keywords or creators; then the socials it doesn't use, each
+  a row to add it.
 
 ## The middle panel: what the socials found
 
-- **Tabs.** Videos, Downloaded, Analysed, Hooks and Sounds, each with a
-  count.
-  - **Analysed** lists videos that Analyse with AI has written about.
+- **One header** (the Admin 3 panel design, "Middle panel"). From left to
+  right: the button that brings a shut left panel back, the arrow back to the
+  Viral dashboard (its Projects, with this project shown on the right), the
+  tabs, "N
+  selected" while rows are ticked, the search box, Select, Filter, Views,
+  Keywords, "+ Add", a ⋮ when a channel is hidden, and the button that
+  brings a shut right panel back. Every button but + Add has the outline
+  look. On a narrow middle the tabs give way first and scroll sideways, and
+  the buttons drop their words.
+- **Tabs.** Videos, Hooks, Sounds and Creators, each with a count. Downloaded and
+  Analysed were tabs until 21 Nov 2026 (Tyler, 19 Nov 2026: "This is too
+  many tabs. We dont need analyzed and downloaded its own tab when it can be
+  sectioned or filtered"); they are Filter's Show now.
   - **Hooks** lists the opening line of each analysed video. Clicking a line
     plays the video from that moment.
   - **Sounds** lists the TikTok sounds under the videos, most winners first
     (`finding-content.md`). With no video open, the tab opens the top
     sound's first video on the right, or the picked sound's, so the right
-    panel is never empty.
-- **The ⋮ after the tabs.** It shows the hidden channels, each with Show
-  again.
-- **The toolbar.** From left to right: the "N selected" button while rows are
-  ticked, Mass select, search, Filter, Views, and "+ Add".
-  - **Filter** opens with Sort by and Order. Then come From, Fits the topic,
-    Keyword and Followers, then Show as (List or Grid) and, for the grid,
-    Card size.
-    Show as lives here rather than in the header so the four tabs and their
-    ⋮ fit beside the toolbar (Tyler, 4 Nov 2026: "middle header alignment is
-    wrong").
-  - **Views** are the shell's saved views.
-- **The list's columns.** Score, Outlier, Rising, Fits, Views, Views a day,
-  Posted and Length. Each one sorts when its heading is clicked.
+    panel is never empty. A picked sound's name and its back arrow take the
+    tabs' place in the one header.
+  - **Creators** lists the YouTube and TikTok creators behind the results
+    and the ones followed, most hits first, on the shell's table: picture,
+    name, Following or Paused, the social's mark and handle, then
+    Subscribers, Hits, Typical score, when the watch timer last checked, and
+    the New posts switch for a followed creator. The columns drop as the
+    middle narrows. It shows only for a project with YouTube or TikTok, and
+    a social picked in the Socials block narrows it to that social's.
+    - **The header** searches creators by name, and Filter holds their
+      Subscribers from and up to. There is no Select and no Views. Follow a
+      creator is in + Add.
+    - **A row opens the creator page** below, their videos in the middle
+      (Tyler, 21 Nov 2026: "clicking on the creators row lead to the videos
+      view"). **The eye** in the action column shows the creator on the
+      right and leaves the list in place (21 Nov 2026: "add eye"), as the
+      Viral dashboard's Projects rows do. Its back arrow returns to Creators, with that creator open on
+      the right (`?open=platform:channel`). With none open, the first is.
+- **Filter** opens 384px wide, so every picked value shows whole (Tyler,
+  21 Nov 2026: "the filter dropdown to be wider so the text can show"), with Show first on Videos: All videos,
+  Downloaded and Analysed, each with its count (`?show=`). An old link with
+  `view=downloaded` or `view=analysed` opens Videos with Show set to match.
+  Then come Sort by and Order, From, Fits the topic, Keyword and Followers,
+  then Show as (List or Grid) and, for the grid, Card size. Show as lives in
+  Filter so the tabs fit beside the buttons (Tyler, 4 Nov 2026: "middle
+  header alignment is wrong").
+- **Views** are the shell's saved views, and keep Show too.
+- **Keywords** (Tyler, 21 Nov 2026: "keep the keywords moved to the middle").
+  A dropdown with the number of YouTube keywords, shown only while the
+  project has YouTube. It lists each keyword and how its last search went; a
+  keyword narrows the list to the videos it found, its arrow searches it
+  again, and its × takes it off. Under the list sit Add keywords and Search
+  all (`src/components/viral/keywords-dropdown.tsx`).
+- **The ⋮** last in the header lists the hidden channels, each with Show
+  again. It shows only while a channel is hidden.
+- **The list** is the shell's table: grey titles that turn dark while pointed
+  at and while open, the sliding bar before the open video, and grey chips.
+  - **Columns** Score, Rising, Views, Outlier, Fits, Views a day, Posted and
+    Length drop out as the middle narrows, each only once there is room for
+    every column before it, so the table never runs past its panel. Each one
+    sorts when its heading is clicked.
   - **New and dimmer.** A video nobody has opened says New; an opened one's
     title is grey (`finding-content.md`).
   - **The channel's name** under a title opens the creator page, when the
     channel is one this project knows.
   - **The Outlier badge** reads "40x usual". Its hover names the typical
     video's views.
+  - **Nothing left** by the search or a filter says "No video matches" with
+    Clear filters.
+- **Right-click** a video for Select, Break it down, Download with no AI, and
+  Hide the channel.
 - **"+ Add"** opens a menu of Add a keyword, Follow a creator and Paste a
   link.
   - **Add a keyword and Follow a creator** turn the same dropdown into a
     one-field form.
   - **Paste a link** opens its window.
   - **Add a keyword** is left out when the project has no YouTube.
-- **Mass select.** The "Mass select" chip sits in the middle header's
-  toolbar, after "N selected" and before the search, as Travel's trip page
-  has it. It shows while the header is pointed at, and always on a phone.
-  Hooks has none, because nobody ticks a list of words. Ticked rows can be
-  broken down, downloaded or have their channels hidden. On Downloaded and
-  Analysed, ticked rows can also be deleted.
-- **The creator page.** Tyler, 4 Nov 2026: "In the middle panel". Picking a
-  creator on the left, or clicking a channel's name, turns the middle panel
-  into that creator's page (`?creator=`).
+- **Select** comes right after the search box. Hooks has none, because
+  nobody ticks a list of words. Ticked rows can be broken down, downloaded or
+  have their channels hidden. Shown as Downloaded or Analysed, ticked rows can
+  also be deleted.
+- **The creator page.** Tyler, 4 Nov 2026: "In the middle panel". A row on the
+  Creators tab, or clicking a channel's name,
+  turns the middle panel into that creator's page (`?creator=`).
   - **The top** has their picture, followers, typical video's views, and
     how often a recent video doubles it, such as "Doubles their usual 1 time
     in 3". Doubling is the Outlier badge's bar
@@ -120,17 +176,28 @@ Viral list.
 - **The same idea.** "Same idea, other creators" in the right panel's ⋮
   turns the middle panel into the other creators' versions (`?same=`), with
   a back arrow and Search again (`finding-content.md`).
-- **The vault.** With the Vault row picked, the middle panel lists the
-  project's ideas and the right panel shows the open one. The first idea
-  opens on arrival. Its header has the same Mass select as the Vault page,
-  then "+ New idea", which opens on this project. A sample project has no
-  New idea.
+- **The vault.** With All ideas picked in the Vault block, the middle panel
+  lists the project's ideas on the shell's table and the right panel shows
+  the open one. The first idea opens on arrival. Its header has Select and
+  "+ New idea", which opens on this project. A sample project has no New
+  idea.
+- **Winning ads** picked in the Vault block lists the ads, with Search
+  ads in the header (`winning-ads.md`).
 - Code: `src/components/viral/viral-project-screen.tsx`, `video-grid.tsx`,
   `hook-board.tsx` and `vault-list.tsx`. The route is
   `src/routes/_authenticated/admin/projects_.$projectId.tsx`.
 
 ## The right panel: the open video
 
+- **A creator's panel** has their name, social and handle in the header,
+  then their numbers; the picture and name repeated under the header were
+  taken off (Tyler, 21 Nov 2026: "remove this").
+- **Every right panel** (the video, an idea, a post, a creator, an ad) draws
+  the left page's cover behind its header, as one picture (Tyler, 12 Nov
+  2026: "always connect right panel to the left panel bg"), ends its header
+  with the collapse button, and has the shell's tabbed ⋮ (General: the
+  record's rows, then its actions, then the red one under a line). With
+  nothing open it says what will show there.
 - **The header.** It has the social's mark, the title and channel, and a ⋮.
   The channel's name opens the creator page. The ⋮ holds Open on YouTube,
   Copy link, Copy to another project, Download with no AI, Download to
@@ -170,23 +237,23 @@ Viral list.
   last.
 - Code: `src/components/viral/player-panel.tsx`, `analyse-section.tsx`,
   `analysis-cards.tsx` and `send-to-video.tsx`.
-- **A vault idea** opens in `vault-item-panel.tsx`, which the Vault page
-  also uses. A video idea shows the kept copy first. Then come cards: Idea
-  (Status, Tags, Notes), The post for a saved post, Numbers from when it was
+- **A vault idea** opens in `vault-item-panel.tsx`, which the Viral
+  dashboard's Vault row also uses, in the shell's record frame. A video idea
+  shows the kept copy first. Then come cards: Idea (Tags, Notes), The post for a saved post, Numbers from when it was
   saved, with your own posts' views under them, and the analysis. An idea
   with no video has no player. Send to Video and Post for Promo share its
-  sticky footer (`promo-connection.md`). Its ⋮ holds Open on the original,
-  Copy link, Copy to another project, Download to computer while Viral keeps
-  a copy, and Delete. The Script card's pencil edits the script
+  sticky footer (`promo-connection.md`). Its ⋮ holds Status as a row, then
+  Open on the original, Copy link, Copy to another project, Download to
+  computer while Viral keeps a copy, and Delete from the vault. The Script card's pencil edits the script
   (`vault.md`).
 
 ## X, Reddit and LinkedIn posts
 
-Picking X, Reddit or LinkedIn in the Socials card turns the middle and right
+Picking X, Reddit or LinkedIn in the Socials block turns the middle and right
 panels into that social's posts (`src/components/viral/text-socials.tsx`).
 
-- **The middle.** "X posts" with a count, then search, Filter and Views, as
-  every list of records has (UI standard). Each row is the writer, the
+- **The middle.** The one header: "X posts" with a count, then the search
+  box, Filter and Views, as every list of records has (UI standard). Each row is the writer, the
   subreddit for Reddit, the day, the words, and the numbers in that social's
   own words. Reddit says upvotes and comments, and LinkedIn says reactions.
 - **Search** looks in the words, the title, the writer and the subreddit. It
@@ -201,6 +268,12 @@ panels into that social's posts (`src/components/viral/text-socials.tsx`).
   the posts' menu never lists a video view. A view keeps its social, the
   search, the sort, the order and the likes row, and opening one picks its
   social (`src/lib/viral/text-posts.ts`).
+- **Sources**, beside Views, as Keywords sits on the videos (Tyler, 21 Nov
+  2026: "these belong in the middle panel"): the button shows how many
+  searches, accounts or subreddits Promo reads on this social for the
+  project, and opens them, each with how its last read went, its arrow to
+  read it again and its cross to take it off (`projects-and-socials.md`).
+  Add to X sits under the list.
 - **The sorts.** Newest, then each number the social shows, biggest first.
   X has Views, Likes, Replies and Reposts. Reddit has Upvotes and Comments.
   LinkedIn has Reactions, Comments and Reposts. A post missing the number goes

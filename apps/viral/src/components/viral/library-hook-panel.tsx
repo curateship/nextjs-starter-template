@@ -1,13 +1,11 @@
-import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { CopyIcon, ExternalLinkIcon, FilmIcon, PlayIcon, QuoteIcon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
+import { RecordFrame } from "@/components/crm/record-frame"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { CoverImage } from "@/components/viral/cover-image"
+import { RecordMenu } from "@/components/viral/dashboard/section-parts"
 import { HookIdeasCards } from "@/components/viral/library-hook-ideas"
 import { OwnHookMenu } from "@/components/viral/library-own-hook"
 import { SocialIcon } from "@/components/viral/social-icon"
@@ -52,7 +50,6 @@ export function LibraryHookPanel({
   onDeleted: (hook: OwnLibraryHook) => void
 }) {
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = React.useState(false)
   const typeLabel = hookTypeLabel(hook.typeId, choices)
 
   async function copy() {
@@ -85,66 +82,39 @@ export function LibraryHookPanel({
   const home = hook.kind === "video" ? (hook.projects[0] ?? null) : null
 
   return (
-    <>
-      {hook.kind === "video" ? (
-        <DashboardCardTitleHeader
-          icon={<SocialIcon social={hook.platform} />}
-          title={
-            <span className="grid leading-tight">
-              <span className="truncate">{hook.title}</span>
-              <span className="truncate text-xs font-normal text-muted-foreground">
-                {hook.channelName ? `${creatorPlatformLabels[hook.platform]} · ${hook.channelName}` : creatorPlatformLabels[hook.platform]}
-              </span>
-            </span>
-          }
-          action={
-            <FoldingMenu label="More for this hook" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-              <MenuAction
-                icon={<CopyIcon className="size-4" />}
-                onClick={() => {
-                  setMenuOpen(false)
-                  void copy()
-                }}
-              >
-                Copy the hook
-              </MenuAction>
-              {hook.projects.map((project) => (
-                <MenuAction
-                  key={project.id}
-                  icon={<PlayIcon className="size-4" />}
-                  onClick={() => {
-                    setMenuOpen(false)
-                    openIn(project.id)
-                  }}
-                >
-                  Open in {project.name}
-                </MenuAction>
-              ))}
-            </FoldingMenu>
-          }
-        />
-      ) : (
-        <DashboardCardTitleHeader
-          icon={<QuoteIcon />}
-          title={
-            <span className="grid leading-tight">
-              <span className="truncate">Your hook</span>
-              <span className="truncate text-xs font-normal text-muted-foreground">{typeLabel ?? "No type yet"}</span>
-            </span>
-          }
-          action={
-            <OwnHookMenu hook={hook} choices={choices} onCopy={() => void copy()} onChanged={onChanged} onDeleted={onDeleted} />
-          }
-        />
-      )}
-      <ScrollArea className="min-h-0 flex-1">
-        {/* A side panel's body, so its first card follows Settings -> Styling ->
-            Panel cards -> Opacity. The cover is a figure, not a div, so that
-            card is still the body's first div (UI standard, "A side panel's
-            body"). */}
-        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+    <RecordFrame
+      avatar={hook.kind === "video" ? <SocialIcon social={hook.platform} /> : <QuoteIcon />}
+      title={hook.kind === "video" ? hook.title : "Your hook"}
+      line={
+        hook.kind === "video"
+          ? hook.channelName
+            ? `${creatorPlatformLabels[hook.platform]} · ${hook.channelName}`
+            : creatorPlatformLabels[hook.platform]
+          : (typeLabel ?? "No type yet")
+      }
+      hideLabel="Hide the hook"
+      bodyClassName="gap-3.75"
+      actions={
+        hook.kind === "video" ? (
+          <RecordMenu
+            label="Hook menu"
+            actions={[
+              { label: "Copy the hook", icon: <CopyIcon className="size-4" />, onSelect: () => void copy() },
+              ...hook.projects.map((project) => ({
+                label: `Open in ${project.name}`,
+                icon: <PlayIcon className="size-4" />,
+                onSelect: () => openIn(project.id),
+              })),
+            ]}
+          />
+        ) : (
+          <OwnHookMenu hook={hook} choices={choices} onCopy={() => void copy()} onChanged={onChanged} onDeleted={onDeleted} />
+        )
+      }
+      body={
+        <>
           {hook.kind === "video" ? (
-            <figure className="mx-auto aspect-[9/16] w-32 overflow-hidden rounded-md bg-muted">
+            <figure className="mx-auto mb-3.75 aspect-[9/16] w-32 overflow-hidden rounded-md bg-muted">
               <CoverImage
                 src={hook.thumbnailUrl}
                 className="size-full object-cover"
@@ -195,17 +165,17 @@ export function LibraryHookPanel({
               </dl>
             </PanelCard>
           ) : null}
-        </div>
-      </ScrollArea>
-      {home ? (
-        <div className="shrink-0 border-t p-3">
+        </>
+      }
+      footer={
+        home ? (
           <Button type="button" className="w-full" onClick={() => openIn(home.id)}>
             <PlayIcon />
             Open in {home.name}
           </Button>
-        </div>
-      ) : null}
-    </>
+        ) : undefined
+      }
+    />
   )
 }
 

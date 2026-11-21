@@ -2,30 +2,36 @@ import { and, eq, sql } from "drizzle-orm"
 
 import { createDefaultMemberSections, type ShellSection } from "@/lib/custom-shell"
 import {
-  VIRAL_LIBRARY_ITEM_ID,
+  VIRAL_DASHBOARD_ITEM_ID,
+  VIRAL_DASHBOARD_PATH,
   VIRAL_NAV_SECTION_ID,
-  VIRAL_TODAY_ITEM_ID,
-  VIRAL_TODAY_PATH,
-  viralLibraryItem,
+  VIRAL_OLD_HOME_PATH,
+  VIRAL_OLD_ITEM_IDS,
+  viralDashboardItem,
   viralNavSection,
-  viralTodayItem,
 } from "@/lib/viral/menu"
 import { db, type CustomShellDb } from "@/server/db"
 import { viralNavigationAdded } from "@/server/viral/schema"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
 
 /**
- * Puts Today, Projects and Vault in the left menu, copied from Travel's
- * `navigation.ts`, and makes Today the home page once.
+ * Puts Viral's section in the left menu, copied from Travel's
+ * `navigation.ts`, and makes the Viral dashboard the home page once.
  *
  * The shell keeps its menus in the database, not in code, and an app may not
- * edit the shell code that writes them. So this job adds Viral's section
+ * edit the shell code that writes them. So this job changes Viral's section
  * itself, once per menu, and writes down that it did. An admin who later
  * removes the link in Settings keeps it removed.
  *
  * It runs on the shell's background loop rather than in a migration because a
  * menu may not exist yet when migrations run: a new install makes its first
  * workspace when its first admin signs in.
+ *
+ * Today, Projects, Vault and Library became one dashboard on 21 Nov 2026
+ * (task features/03), so every menu has its four links swapped for the one,
+ * once (`dashboard:` scopes), and a home page still on Today moves to the
+ * dashboard (`home:dashboard`). The steps that once added Today and Library
+ * are gone, so they never put the old links back.
  */
 export async function addViralNavigation(database: CustomShellDb = db) {
   const done = new Set(
@@ -39,46 +45,46 @@ export async function addViralNavigation(database: CustomShellDb = db) {
     const scope = `workspace:${workspace.id}`
     if (!done.has(scope)) await changeWorkspaceMenu(scope, workspace.id, withViralSection, database)
   }
-  // Today joined the section after menus already had it (task "Viral
-  // features", part 6), so each menu gets it once, first in the section.
-  if (!done.has("today:members")) await changeMemberMenu("today:members", withTodayItem, database)
+  if (!done.has("dashboard:members")) await changeMemberMenu("dashboard:members", withDashboardItem, database)
   for (const workspace of workspaces) {
-    const scope = `today:workspace:${workspace.id}`
-    if (!done.has(scope)) await changeWorkspaceMenu(scope, workspace.id, withTodayItem, database)
+    const scope = `dashboard:workspace:${workspace.id}`
+    if (!done.has(scope)) await changeWorkspaceMenu(scope, workspace.id, withDashboardItem, database)
   }
-  if (!done.has("home:today")) await makeTodayHome(database)
-  // Library joined the section later still (part 17), so each menu gets it once, at the end of the section.
-  if (!done.has("library:members")) await changeMemberMenu("library:members", withLibraryItem, database)
-  for (const workspace of workspaces) {
-    const scope = `library:workspace:${workspace.id}`
-    if (!done.has(scope)) await changeWorkspaceMenu(scope, workspace.id, withLibraryItem, database)
-  }
-}
-
-/** Library goes last in Viral's section, unless the section already has it or is gone. */
-function withLibraryItem(sections: unknown): ShellSection[] | null {
-  if (!Array.isArray(sections)) return null
-  const list = sections as ShellSection[]
-  return list.map((section) =>
-    section?.id === VIRAL_NAV_SECTION_ID &&
-    Array.isArray(section.entries) &&
-    !section.entries.some((entry) => entry?.id === VIRAL_LIBRARY_ITEM_ID)
-      ? { ...section, entries: [...section.entries, viralLibraryItem()] }
-      : section
-  )
+  if (!done.has("home:dashboard")) await makeDashboardHome(database)
 }
 
 /**
- * Today is Viral's home page (Tyler, 4 Nov 2026: "Viral's home page"). The
- * shell's own Home route setting (Settings → General) says where an admin
- * lands, so this sets it once, and only while nobody has chosen one. An admin
- * who picks another page later keeps it.
+ * Viral's section with the four old links taken out and the dashboard's one
+ * put where the first of them was, or first when none was left. A section
+ * that already has the dashboard's link keeps it where it is. A section the
+ * admin removed stays gone.
  */
-async function makeTodayHome(database: CustomShellDb) {
+function withDashboardItem(sections: unknown): ShellSection[] | null {
+  if (!Array.isArray(sections)) return null
+  const list = sections as ShellSection[]
+  const old: readonly string[] = VIRAL_OLD_ITEM_IDS
+  return list.map((section) => {
+    if (section?.id !== VIRAL_NAV_SECTION_ID || !Array.isArray(section.entries)) return section
+    const entries = section.entries
+    const at = entries.findIndex((entry) => old.includes(entry?.id))
+    const kept = entries.filter((entry) => !old.includes(entry?.id))
+    if (kept.some((entry) => entry?.id === VIRAL_DASHBOARD_ITEM_ID)) return { ...section, entries: kept }
+    const place = at === -1 ? 0 : entries.slice(0, at).filter((entry) => !old.includes(entry?.id)).length
+    return { ...section, entries: [...kept.slice(0, place), viralDashboardItem(), ...kept.slice(place)] }
+  })
+}
+
+/**
+ * The Viral dashboard is Viral's home page. The shell's own Home route
+ * setting (Settings → General) says where an admin lands, so this sets it
+ * once, and only while nobody has chosen one or it is still the old Today
+ * page, which is gone. An admin who picks another page keeps it.
+ */
+async function makeDashboardHome(database: CustomShellDb) {
   await database.transaction(async (tx) => {
     const claimed = await tx
       .insert(viralNavigationAdded)
-      .values({ scope: "home:today", addedAt: new Date() })
+      .values({ scope: "home:dashboard", addedAt: new Date() })
       .onConflictDoNothing()
       .returning({ scope: viralNavigationAdded.scope })
     if (!claimed.length) return
@@ -90,29 +96,16 @@ async function makeTodayHome(database: CustomShellDb) {
     await tx
       .update(customShellSettings)
       .set({
-        settings: sql`jsonb_set(${customShellSettings.settings}, '{adminRoute}', to_jsonb(${VIRAL_TODAY_PATH}::text), true)`,
+        settings: sql`jsonb_set(${customShellSettings.settings}, '{adminRoute}', to_jsonb(${VIRAL_DASHBOARD_PATH}::text), true)`,
         updatedAt: at,
       })
       .where(
         and(
           eq(customShellSettings.key, "default"),
-          sql`coalesce(${customShellSettings.settings}->>'adminRoute', '') = ''`
+          sql`coalesce(${customShellSettings.settings}->>'adminRoute', '') in ('', ${VIRAL_OLD_HOME_PATH})`
         )
       )
   })
-}
-
-/** Today goes first in Viral's section, unless the section already has it or is gone. */
-function withTodayItem(sections: unknown): ShellSection[] | null {
-  if (!Array.isArray(sections)) return null
-  const list = sections as ShellSection[]
-  return list.map((section) =>
-    section?.id === VIRAL_NAV_SECTION_ID &&
-    Array.isArray(section.entries) &&
-    !section.entries.some((entry) => entry?.id === VIRAL_TODAY_ITEM_ID)
-      ? { ...section, entries: [viralTodayItem(), ...section.entries] }
-      : section
-  )
 }
 
 /** The section goes first, ahead of whatever the menu already holds. */

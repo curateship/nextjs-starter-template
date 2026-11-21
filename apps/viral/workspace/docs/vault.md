@@ -1,6 +1,6 @@
 # The vault
 
-Every project has a vault of viral ideas, and the Vault page in the left menu
+Every project has a vault of viral ideas, and the Viral dashboard's Vault row
 shows every project's vault in one place. Tyler, 4 Nov 2026: "Per project +
 all-vault page", "Keep a downloaded copy", "Status and tags", "Vault replaces
 them" (Video's Favourites). The code is `src/server/viral/vault.ts`.
@@ -22,7 +22,7 @@ video at all, so their right panel has no player and its cards start with
 Idea. Everything else works the same for all three: List, Board, Filter,
 search, Mass select, Copy to another project, Send to Video, Post for Promo
 and delete. Send to Video sends a draft with no file. Deleting one has no
-file to throw away. Today counts them by status like any other idea.
+file to throw away. Overview's Vault by status counts them like any other idea.
 
 ## What a video idea keeps
 
@@ -75,8 +75,8 @@ with the writer's name, before anything runs.
 
 ## Your own idea
 
-"+ New idea" sits last in the Vault page's middle header and in a project's
-vault header, where every list's primary add sits. In a narrow panel it is
+"+ New idea" sits in the Viral dashboard's Vault header and in a project's
+vault header, where every list's primary add sits. In a narrow header it is
 the + alone. A sample project has none.
 
 - **The window.** The project, a title, and notes in the shell's editor. The
@@ -163,7 +163,7 @@ keeps a copy of the video.
   post shows "Your Reddit upvotes" and "Your Reddit comments" instead, the
   first linking to it, because Reddit shows no views. Both read "-" for now,
   because Promo doesn't read a Reddit post's numbers after it goes up.
-- **The board.** Filter's Show as on the Vault page has List and Board
+- **The board.** Filter's Show as on the Vault row has List and Board
   (Tyler, 4 Nov 2026: "List or Board switch"). Board draws a column for each
   status, and dragging a card to another column changes its status, in one
   request through `changeVaultItems`. Sent refuses a drop and says it turns
@@ -183,7 +183,7 @@ keeps a copy of the video.
   toast says it in one line: "2 ideas set to Posted, 1 was already set to
   Posted. 1 was no longer in the vault." (`src/lib/viral/vault-bulk.ts`).
   The menu is `src/components/viral/vault-selected-menu.tsx`, the same on the
-  Vault page and on a project's vault.
+  Vault row and on a project's vault.
 
 ## Copy to another project
 
@@ -208,34 +208,34 @@ window listing your other projects, leaving out archived ones and samples
 
 ## Where it shows
 
-- **Per project.** The project's left panel has a Vault row with a count
-  (`vault_count`). Picking it lists that project's ideas in the middle panel
-  (`?view=vault`) and opens the first one on the right
+- **Per project.** The Vault block on the project's page has an All ideas
+  row with a count (`vault_count`). Picking it lists that project's ideas in
+  the middle panel (`?view=vault`) and opens the first one on the right
   (`src/components/viral/vault-list.tsx`, `vault-item-panel.tsx`). A video
   already in the vault says "In vault · save again" under Analyse with AI,
   and saving again updates that idea.
-- **The Vault page.** `/admin/vault`, the Vault entry in the left menu, is
-  a three-column dashboard drawn like the project page
-  (`src/components/viral/vault-page.tsx`, route
-  `src/routes/_authenticated/admin/vault.tsx`).
-  - **Left.** "All projects" first, then every project that isn't archived,
-    each with how many ideas its vault holds. Picking one keeps the middle to
-    it (`?project=`).
-  - **Middle.** The ideas, newest first, with the project's name under each
-    title while All projects is picked. The header holds "N selected", Mass
-    select, search, Filter, Views and "+ New idea". New idea opens on the
-    project picked on the left.
+- **The Vault row** of the Viral dashboard (`viral-dashboard.md`;
+  `src/components/viral/dashboard/sections/vault-section.tsx`) lists every
+  project's ideas, or one project's, picked in the left page's Projects
+  block (`?project=`).
+  - **Middle.** The ideas on the shell's table, newest first, with the
+    project's name under each title while All projects is picked. The one
+    header holds "N selected", the search box, Select, Filter, Views and
+    "+ New idea". New idea opens on the project picked on the left.
   - **Filter.** Status and Tag, which combine: Posted with the tag "hooks"
     shows only ideas that are both (`filterVaultItems` in
-    `src/lib/viral/vault-view.ts`). The search looks in the title, the
-    channel, the notes and a post's words. All of it lives in the address.
+    `src/lib/viral/vault-view.ts`), then Show as, List or Board. The search
+    looks in the title, the channel, the notes and a post's words. All of it
+    lives in the address.
   - **Views.** Kind `viral-vault`, with no record. A view keeps the search,
     status, tag and project. A view whose project was deleted, or whose tag
     no idea carries any more, says so and opens without it.
-  - **Right.** The open idea (`?open=`), the same panel a project's vault
-    opens. The first idea shown opens on arrival and after picking a
-    project, and the page goes back to where it was when opened from the
-    left menu.
+  - **Right.** The open idea (`?open=`) in the shell's record frame, the same
+    panel a project's vault opens. Its ⋮ holds Status as a row. The first
+    idea shown opens on arrival and after picking a project, and the
+    dashboard goes back to where it was.
+  - **Right-click** an idea for Select and Delete from the vault.
   - **Empty.** With no ideas anywhere, the middle says "Save a video or a
     post to the vault from a project's right panel, or press New idea to type
-    your own."
+    your own." A search or filter that leaves nothing says so with Clear
+    filters.

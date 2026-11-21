@@ -1,9 +1,8 @@
 import * as React from "react"
-import { getRouteApi, useRouter } from "@tanstack/react-router"
+import { getRouteApi, Link, useRouter } from "@tanstack/react-router"
 import {
   ArrowLeftIcon,
   DownloadIcon,
-  EllipsisVerticalIcon,
   EyeIcon,
   EyeOffIcon,
   GridIcon,
@@ -15,17 +14,14 @@ import {
   SparklesIcon,
   Trash2Icon,
   UserPlusIcon,
+  VaultIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { useOptionalShellRuntime } from "@/components/shell/shell-layout"
-import { DEFAULT_DASHBOARD_TABS } from "@/lib/layout/styling-values"
-import { cn } from "@/lib/utils"
-
-import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { FilterPopover } from "@/components/shared/filter-popover"
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
+import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { MassSelectChip, SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import {
   SaveViewDialog,
@@ -33,8 +29,11 @@ import {
   type EditFields,
   type SavedViewsScreen,
 } from "@/components/shared/saved-views"
-import { SearchToggle } from "@/components/shared/search-toggle"
-import { ThreePanels } from "@/components/shared/three-panels"
+import { MiddleHeading, middleGutterClassName, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
+import { cn } from "@/lib/utils"
+import { RightCoverProvider } from "@/components/shared/notes/page-cover"
+import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -47,26 +46,27 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { CreatorCard } from "@/components/viral/creator-card"
 import { CreatorSummary } from "@/components/viral/creator-summary"
-import { CreatorsCard } from "@/components/viral/creators-card"
 import { DeleteSavedVideosDialog } from "@/components/viral/delete-saved-videos-dialog"
 import { HookBoard } from "@/components/viral/hook-board"
-import { KeywordsCard } from "@/components/viral/keywords-card"
+import { KeywordsDropdown } from "@/components/viral/keywords-dropdown"
 import { PasteLinkDialog } from "@/components/viral/paste-link-dialog"
 import { PlayerPanel } from "@/components/viral/player-panel"
 import { SoundBoard } from "@/components/viral/sound-board"
 import { ProjectProvider, type ProjectContextValue } from "@/components/viral/project-context"
-import { ProjectDetailsPanel } from "@/components/viral/project-details-panel"
+import { ProjectPagePanel } from "@/components/viral/project-page-panel"
+import { SocialIcon } from "@/components/viral/social-icon"
+import type { ProjectBlocks } from "@/components/viral/project-page-blocks"
 import { useKeyedAction } from "@/components/viral/use-keyed-action"
 import { useSavedProgress } from "@/components/viral/use-saved-progress"
 import { AdPanel, AdsMiddle } from "@/components/viral/project-ads"
 import { useProjectAds } from "@/components/viral/use-project-ads"
-import { PostThreadPanel, SocialWatchesCard, TextPostsMiddle } from "@/components/viral/text-socials"
+import { PostThreadPanel, SocialSourcesDropdown, TextPostsMiddle } from "@/components/viral/text-socials"
 import { useTextSocials } from "@/components/viral/use-text-socials"
 import { VaultItemPanel } from "@/components/viral/vault-item-panel"
 import { VaultList } from "@/components/viral/vault-list"
 import { VaultSelectedMenu } from "@/components/viral/vault-selected-menu"
-import { NewIdeaButton, NewIdeaDialog } from "@/components/viral/new-idea-dialog"
-import { VideoGrid, VideoList } from "@/components/viral/video-grid"
+import { NewIdeaDialog } from "@/components/viral/new-idea-dialog"
+import { CreatorTable, VideoGrid, VideoList } from "@/components/viral/video-grid"
 import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import {
@@ -91,12 +91,12 @@ import {
   type SameIdeaView,
 } from "@/lib/api/viral/viral-finding"
 import { plural } from "@/lib/format/plural"
-import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
+import { useListSearchNavigate } from "@/lib/nav/list-search"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { SAVED_VIEW_ERRORS, savedViewScreen, type SavedViewValues } from "@/lib/saved-views"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { creatorPlatformLabels, formatCount } from "@/lib/viral/creators"
-import { isTextSocial, isVideoSocial, SOCIAL_NAMES, socialHasKeywords, type Social, type TextSocial } from "@/lib/viral/socials"
+import { isTextSocial, SOCIAL_NAMES, socialHasKeywords, type Social, type TextSocial } from "@/lib/viral/socials"
 import {
   describeTextPostsView,
   filterTextPosts,
@@ -140,9 +140,11 @@ import {
   VIRAL_LAYOUTS,
   VIRAL_SORTS,
   VIRAL_SOURCES,
+  viralShowLabels,
   viralSortLabels,
   viralSourceLabels,
   type SubscriberRange,
+  type ViralShow,
   type ViralCardSize,
   type ViralSort,
   type ViralSource,
@@ -157,11 +159,16 @@ const LAYOUT_STORAGE_KEY = "viral-layout"
 const SIZE_STORAGE_KEY = "viral-card-size"
 
 /**
+ * Where this browser keeps the panels' widths. The number is bumped whenever
+ * the default widths move.
+ */
+const LAYOUT_KEY = "viral-project-horizontal-2"
+
+/**
  * Where this browser keeps the panels' widths, and where the page was. App
  * keys, so they live here rather than in the shell's `panelLayoutKey`. The
  * number is bumped whenever the default widths move.
  */
-const LAYOUT_KEY = "viral-project-horizontal-1"
 const placeKey = (projectId: string) => `viral-project-place-${projectId}`
 
 type ChannelUploads =
@@ -177,14 +184,15 @@ type SameIdeaState =
 type ProjectVault = { state: "loading" } | { state: "ready"; items: VaultItem[]; tags: string[] } | { state: "failed"; error: string }
 
 /**
- * One project's page, drawn as Travel's trip page (Tyler, 4 Nov 2026): the
- * project, its socials, keywords and creators on the left, what they found
- * in the middle, the open video on the right. The Vault row on the left turns
- * the middle into the project's saved ideas and the right into the open one.
- * Everything the address can hold lives there (the tab, the open video, the
- * picked social and creator, the sort, the filters), so a reload or a shared
- * link opens the same thing. Nothing here calls YouTube except the buttons
- * that say what they cost.
+ * One project's own dashboard (`workspace/docs/project-page.md`), drawn on
+ * the shell's three-panel design (task features/03): the project's page of
+ * blocks on the left (Dashboards with Videos, Vault and Winning ads; Socials;
+ * the creators; what Promo reads), what was found in the middle under one
+ * header with the Keywords dropdown, and the open video, idea, post, creator
+ * or ad on the right. Everything the address can hold lives there (the tab,
+ * Filter's Show, the open video, the picked social and creator, the sort,
+ * the filters), so a reload or a shared link opens the same thing. Nothing
+ * here calls YouTube except the buttons that say what they cost.
  */
 export function ViralProjectScreenView({
   screen,
@@ -201,6 +209,8 @@ export function ViralProjectScreenView({
   const setSearch = useListSearchNavigate()
   const { project } = screen
   const view = search.view ?? "videos"
+  // Filter's Show on Videos: every video, or only the downloaded or analysed ones (Tyler, 19 Nov 2026).
+  const show = view === "videos" ? (search.show ?? null) : null
   const vaultView = view === "vault"
   // The Winning ads row on the left (features task part 23, `project-ads.tsx`).
   const adsView = view === "ads"
@@ -241,10 +251,25 @@ export function ViralProjectScreenView({
   // "Same idea, other creators" searches, by the video they were run for.
   const [sameIdeas, setSameIdeas] = React.useState<Record<string, SameIdeaState>>({})
   const { run, isBusy } = useKeyedAction(getViralErrorMessage)
-  // Typing stays instant; the address catches up a moment later.
-  const [searchText, setSearchText] = useSearchBoxText(text, (next) => setSearch({ q: next.trim() ? next : undefined }))
 
   const refresh = React.useCallback(() => router.invalidate(), [router])
+
+  /**
+   * The arrow back to the Viral dashboard, with this project shown on the right, starting every middle header
+   * before its tabs, as Promo's project page has it (Tyler, 12 Nov 2026, of Promo: "put the arrow back again").
+   */
+  const projectLead = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" className="shrink-0 rounded-lg" asChild>
+          <Link to="/admin/viral" search={{ open: project.id }} aria-label="Back to Projects">
+            <ArrowLeftIcon className="size-4" />
+          </Link>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Back to Projects</TooltipContent>
+    </Tooltip>
+  )
 
   // The project's vault is read when it is opened, and again when it changes.
   const readVault = React.useCallback(async () => {
@@ -343,6 +368,18 @@ export function ViralProjectScreenView({
   )
 
   const pickedCreator = screen.creators.find((creator) => creator.key === search.creator) ?? null
+
+  // The Creators tab (Tyler, 21 Nov 2026: "Move the creators block into the
+  // middle tab here"): YouTube's and TikTok's creators in the middle, with
+  // the social picked in the Socials block narrowing them, and the open one
+  // (`open`, `platform:channel`) on the right. A creator's own page of
+  // videos (`creator`) still replaces the list.
+  const creatorsList = view === "creators" && !pickedCreator && !sameKey && !textSocial
+  const usesCreator = (creator: ViralCreator) =>
+    (project.socials as readonly string[]).includes(creator.platform) && (!social || creator.platform === social)
+  const creatorCount = screen.creators.filter(usesCreator).length
+  const creatorsHere = creators.filter(usesCreator)
+  const openCreator = creatorsList && search.open ? (screen.creators.find((creator) => creator.key === search.open) ?? null) : null
   // A sample channel is made up and has no uploads to read, so its videos are
   // the sample results that are its. Anyone else's are read once and kept.
   const creatorUploads: ChannelUploads | undefined = pickedCreator
@@ -390,16 +427,16 @@ export function ViralProjectScreenView({
         : []
       : pickedCreator
         ? creatorVideos
-        : view === "analysed"
-          ? shown.filter(isAnalysed)
-          : view === "downloaded"
-            ? shown.map(progress.apply).filter(isDownloaded)
-            : view === "hooks"
-              ? shown.filter(hasHook)
-              : view === "sounds"
-                ? pickedSound
-                  ? shown.filter((video) => video.sound && soundKey(video.sound) === pickedSound.key)
-                  : []
+        : view === "hooks"
+          ? shown.filter(hasHook)
+          : view === "sounds"
+            ? pickedSound
+              ? shown.filter((video) => video.sound && soundKey(video.sound) === pickedSound.key)
+              : []
+            : show === "analysed"
+              ? shown.filter(isAnalysed)
+              : show === "downloaded"
+                ? shown.map(progress.apply).filter(isDownloaded)
                 : shown
   ).map((video) => markSeen(progress.apply(video)))
 
@@ -408,7 +445,7 @@ export function ViralProjectScreenView({
 
   // The open video is looked for everywhere this screen has videos, so a
   // filter that hides it does not stop it playing.
-  const found = !vaultView && !adsView && !textSocial && search.open ? allVideos.find((video) => video.key === search.open) : undefined
+  const found = !vaultView && !adsView && !textSocial && !creatorsList && search.open ? allVideos.find((video) => video.key === search.open) : undefined
   const pickedVideo = found ? markSeen(progress.apply(found)) : null
 
   // Opening a video clears its New mark for this person (Tyler, 4 Nov 2026:
@@ -447,7 +484,7 @@ export function ViralProjectScreenView({
   // An address naming a video that is no longer in the results (a re-run
   // replaced it, or its channel was hidden) drops it rather than failing.
   const missingVideo =
-    !vaultView && !adsView && !textSocial && Boolean(search.open) && !pickedVideo && creatorUploads?.state !== "loading" && !(sameKey && sameIdea?.state !== "ready")
+    !vaultView && !adsView && !textSocial && !creatorsList && Boolean(search.open) && !pickedVideo && creatorUploads?.state !== "loading" && !(sameKey && sameIdea?.state !== "ready")
   const missingItem = vaultView && vault.state === "ready" && Boolean(search.open) && !openItem
   const projectAds = useProjectAds(project.id, adsView)
   const adList = adsView && projectAds.ads.state === "ready" ? projectAds.ads.ads : []
@@ -499,6 +536,12 @@ export function ViralProjectScreenView({
     if (firstItemId) setSearch({ open: firstItemId })
   }, [firstItemId, setSearch])
 
+  // The Creators tab opens its first creator, so the right panel is never empty.
+  const firstCreatorKey = creatorsList && !openCreator ? (creatorsHere[0]?.key ?? null) : null
+  React.useEffect(() => {
+    if (firstCreatorKey) setSearch({ open: firstCreatorKey })
+  }, [firstCreatorKey, setSearch])
+
   // A picked creator's uploads are read when they are first picked, and on a
   // reload with a creator in the address. A read already on its way is not
   // asked for twice.
@@ -529,10 +572,6 @@ export function ViralProjectScreenView({
       )
       .finally(() => asking.current.delete(creator.key))
   }, [project.id, wanted])
-
-  function pickCreator(creator: ViralCreator) {
-    setSearch({ creator: creator.key, open: undefined, view: undefined })
-  }
 
   function retryUploads(creator: ViralCreator) {
     setUploads((was) => {
@@ -874,113 +913,105 @@ export function ViralProjectScreenView({
     )
   }
 
-  const postsToolbar = textSocial ? (
-    <div className="flex shrink-0 items-center gap-1">
-      <SearchToggle
-        name="viral-in-posts"
-        label={`Search these ${SOCIAL_NAMES[textSocial]} posts`}
-        placeholder="Search posts, writers and subreddits…"
-        value={searchText}
-        onChange={setSearchText}
-      />
-      <FilterPopover
-        count={search.pmin ? 1 : 0}
-        open={filterOpen}
-        onOpenChange={setFilterOpen}
-        onClear={() => setSearch({ pmin: undefined })}
-        save={
-          <Button type="button" onClick={savePostsView}>
-            Save as view
-          </Button>
-        }
-      >
-        <TextPostFilterRows
-          idPrefix="posts-filter"
-          social={textSocial}
-          values={currentPostsView}
-          onChange={(patch) => setSearch(patch)}
-        />
-      </FilterPopover>
-      <SavedViewsControls
-        here={postsViewsHere}
-        views={postViews}
-        filters={currentPostsView as SavedViewValues}
-        onOpen={openPostsView}
-        editFields={editPostsViewFields}
-        saveButton={false}
-        buttonVariant="ghost"
-      />
-    </div>
-  ) : null
-
-  // ------------------------------------------------------------- Panels --
-
-  const creatorCards = project.socials.filter(isVideoSocial).map((one) => (
-    <CreatorsCard
-      key={one}
-      title={`${SOCIAL_NAMES[one]} creators`}
-      storageId={`viral-project-creators-${one}`}
-      placeholder={one === "tiktok" ? "https://www.tiktok.com/@creator" : "https://www.youtube.com/@creator"}
-      creators={creators.filter((creator) => creator.platform === one)}
-      total={screen.creators.filter((creator) => creator.platform === one).length}
-      selectedKey={pickedCreator?.key ?? null}
-      onPick={pickCreator}
-      onWatchChange={project.sample ? undefined : (creator, watch) => void changeWatch(creator, watch)}
-      search={creatorSearch}
-      onSearch={setCreatorSearch}
-      range={range}
-      onRange={setRange}
-      projectId={project.id}
-      sample={project.sample}
-      onAdded={refresh}
-    />
-  ))
-
-  const left = (
-    <ProjectDetailsPanel
-      activeSocial={social}
-      onPickSocial={(next) => setSearch({ social: next ?? undefined, creator: undefined, open: undefined, psort: undefined, pdir: undefined, pmin: undefined })}
-      promoMissing={textSocials.data.state === "ready" && !textSocials.data.connected}
-      vaultOpen={vaultView}
-      onOpenVault={() => {
-        setTicked(new Set())
-        setSearch({ view: vaultView ? undefined : "vault", open: undefined, creator: undefined })
+  const postsHeader = textSocial ? (
+    <CrmListHeader
+      tabs={
+        <span className="flex min-w-0 items-center gap-2">
+          <PanelReopenButton side="left" label="Show the project" />
+          {projectLead}
+          <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
+            <SocialIcon social={textSocial} />
+          </span>
+          <h2 className="min-w-0 truncate text-[0.891rem] font-medium">{SOCIAL_NAMES[textSocial]} posts</h2>
+          {textSocials.data.state === "ready" ? <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{textPosts.length}</span> : null}
+        </span>
+      }
+      end={<PanelReopenButton side="right" label="Show the post" />}
+      menuLabel="More for these posts"
+      search={{
+        name: "viral-in-posts",
+        label: `Search these ${SOCIAL_NAMES[textSocial]} posts`,
+        placeholder: "Search posts",
+        value: text,
+        onChange: (next) => setSearch({ q: next.trim() ? next : undefined }),
       }}
-      adsOpen={adsView}
-      onOpenAds={() => {
-        setTicked(new Set())
-        setSearch({ view: adsView ? undefined : "ads", open: undefined, creator: undefined })
-      }}
-    >
-      {hasYoutube && (!social || socialHasKeywords(social)) ? (
-        <KeywordsCard
-          project={project}
-          keywords={screen.keywords}
-          activeKeyword={keywordFilter}
-          isBusy={isBusy}
-          onPickKeyword={(keyword) => setSearch({ keyword: keyword ?? undefined, creator: undefined })}
-          onSearchAll={() => void searchAll()}
-          onRefreshKeyword={(keyword) => void refreshKeyword(keyword)}
-          onRemoveKeyword={setRemoving}
-          onAddKeyword={addKeyword}
-        />
-      ) : null}
-      {creatorCards.filter((card) => !social || card.key === social)}
-      {project.socials
-        .filter(isTextSocial)
-        .filter((one) => !social || one === social)
-        .map((one) => (
-          <SocialWatchesCard
-            key={one}
+      massSelect={null}
+      filter={
+        <FilterPopover
+          count={search.pmin ? 1 : 0}
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          onClear={() => setSearch({ pmin: undefined })}
+          save={
+            <Button type="button" onClick={savePostsView}>
+              Save as view
+            </Button>
+          }
+        >
+          <TextPostFilterRows idPrefix="posts-filter" social={textSocial} values={currentPostsView} onChange={(patch) => setSearch(patch)} />
+        </FilterPopover>
+      }
+      view={
+        <>
+          <SavedViewsControls
+            here={postsViewsHere}
+            views={postViews}
+            filters={currentPostsView as SavedViewValues}
+            onOpen={openPostsView}
+            editFields={editPostsViewFields}
+            saveButton={false}
+            buttonVariant="ghost"
+          />
+          {/* What Promo reads here, beside Views as Keywords sits on the videos (Tyler, 21 Nov 2026: "these belong in the middle panel"). */}
+          <SocialSourcesDropdown
+            key={textSocial}
             projectId={project.id}
-            social={one}
+            social={textSocial}
             data={textSocials.data}
             sample={project.sample}
             onChanged={textSocials.reload}
           />
-        ))}
-    </ProjectDetailsPanel>
-  )
+        </>
+      }
+    />
+  ) : null
+
+  // ------------------------------------------------------------- Panels --
+
+  // What the project's page draws in its blocks (`project-page-blocks.tsx`).
+  const blocks: ProjectBlocks = {
+    socials: project.socials,
+    paused: project.paused_socials,
+    newCounts: Object.fromEntries(
+      project.socials.map((one) => [one, screen.videos.filter((video) => video.platform === one && video.isNew).length])
+    ),
+    social,
+    section: vaultView ? "vault" : adsView ? "ads" : "videos",
+    // A social keeps the middle to what it found, on the videos.
+    onSocial: (next) => {
+      setTicked(new Set())
+      setSearch({
+        social: next ?? undefined,
+        view: undefined,
+        creator: undefined,
+        open: undefined,
+        show: undefined,
+        sound: undefined,
+        psort: undefined,
+        pdir: undefined,
+        pmin: undefined,
+      })
+    },
+    onSection: (next) => {
+      setTicked(new Set())
+      setSearch({ view: next === "videos" ? undefined : next, open: undefined, creator: undefined, show: undefined, sound: undefined })
+    },
+    vaultCount: project.vault_count,
+    promoMissing: textSocials.data.state === "ready" && !textSocials.data.connected && !project.sample,
+  }
+
+  // The project's own page on the left, as Promo's project page (Tyler, 21 Nov 2026: "Copy the pattern of the promo app instead").
+  const left = <ProjectPagePanel blocks={blocks} />
 
   // A pair like the tabs, list first, as Tyler drew it on 20 Oct 2026.
   const layoutToggle = (
@@ -1010,9 +1041,9 @@ export function ViralProjectScreenView({
     </Tabs>
   )
 
-  // On the Downloaded and Analysed tabs every ticked video is saved, so Delete
+  // Shown as Downloaded or Analysed, every ticked video is saved, so Delete
   // is offered there. A sample's videos are made up, so nothing is saved from one.
-  const savedTab = !pickedCreator && (view === "downloaded" || view === "analysed")
+  const savedTab = !pickedCreator && show !== null
   const tickedSaved = tickedVideos.filter((video) => video.savedVideoId)
   const selectedMenu =
     selecting && tickedVideos.length ? (
@@ -1023,7 +1054,7 @@ export function ViralProjectScreenView({
         pages={{}}
         main={(menu) => (
           <>
-            {view === "analysed" || project.sample ? null : (
+            {show === "analysed" || project.sample ? null : (
               <SelectedMenuRow
                 onClick={() => {
                   menu.close()
@@ -1070,90 +1101,220 @@ export function ViralProjectScreenView({
       />
     ) : null
 
-  const filterCount = [search.from, search.fit, search.keyword, search.fmin || search.fmax].filter(Boolean).length
+  const filterCount = [search.from, search.fit, search.keyword, search.fmin || search.fmax, show].filter(Boolean).length
+  const clearFilters = () =>
+    setSearch({ q: undefined, from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined, show: undefined })
 
-  // In the toolbar after "N selected", as Travel's trip page has it (UI
-  // standard, "Three-panel guide"). Hooks is a list of words nobody ticks.
+  // Select comes right after the search box (Tyler, 9 Nov 2026: "mass select should be after saerch field").
+  // Hooks is a list of words nobody ticks.
+  const massSelect =
+    view === "hooks" || (view === "sounds" && !pickedSound) ? null : { on: selecting, onToggle: toggleSelecting }
+  // Kept for the vault's header, which has no search of its own here.
   const selectChip = <MassSelectChip on={selecting} onToggle={toggleSelecting} />
 
-  const toolbar = (
-    <div className="flex shrink-0 items-center gap-1">
-      {selectedMenu}
-      {view === "hooks" || (view === "sounds" && !pickedSound) ? null : selectChip}
-      <SearchToggle
-        name="viral-in-results"
-        label="Search these videos"
-        placeholder="Search titles and channels…"
-        value={searchText}
-        onChange={setSearchText}
+  const filter = (
+    // Wide enough for every picked value to show whole, Followers' two
+    // included (Tyler, 21 Nov 2026: "the filter dropdown to be wider so the
+    // text can show").
+    <FilterPopover
+      contentClassName="w-96"
+      count={filterCount}
+      open={filterOpen}
+      onOpenChange={setFilterOpen}
+      onClear={() => setSearch({ from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined, show: undefined })}
+      save={
+        <Button type="button" onClick={saveAsView}>
+          Save as view
+        </Button>
+      }
+    >
+      {/* Downloaded and Analysed were tabs (Tyler, 19 Nov 2026: "We dont need analyzed and downloaded its own tab when it can be sectioned or filtered"). */}
+      {view === "videos" ? (
+        <FilterRow id="viral-filter-show" label="Show">
+          <Select
+            value={show ?? "all"}
+            onValueChange={(next) => {
+              setTicked(new Set())
+              setSearch({ show: next === "all" ? undefined : (next as ViralShow) })
+            }}
+          >
+            <SelectTrigger id="viral-filter-show" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{viralShowLabels.all}</SelectItem>
+              <SelectItem value="downloaded">{viralShowLabels.downloaded} · {downloadedCount}</SelectItem>
+              <SelectItem value="analysed">{viralShowLabels.analysed} · {analysedCount}</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterRow>
+      ) : null}
+      <SortRows idPrefix="viral-filter" values={currentView} onChange={(patch) => setSearch(patch)} />
+      <ViralFilterRows
+        idPrefix="viral-filter"
+        values={currentView}
+        keywords={screen.keywords}
+        onChange={(patch) => setSearch({ ...patch, creator: undefined })}
       />
-      <FilterPopover
-        count={filterCount}
-        open={filterOpen}
-        onOpenChange={setFilterOpen}
-        onClear={() => setSearch({ from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined })}
-        save={
-          <Button type="button" onClick={saveAsView}>
-            Save as view
-          </Button>
-        }
-      >
-        <SortRows idPrefix="viral-filter" values={currentView} onChange={(patch) => setSearch(patch)} />
-        <ViralFilterRows
-          idPrefix="viral-filter"
-          values={currentView}
-          keywords={screen.keywords}
-          onChange={(patch) => setSearch({ ...patch, creator: undefined })}
-        />
-        {/* How the videos are drawn, not what they hold, so Clear and views leave it alone. It sits here
-            rather than in the header so the four tabs and their ⋮ fit beside the toolbar (Tyler, 4 Nov 2026:
-            "middle header alignment is wrong"). Hooks is one list of words, drawn the same either way. */}
-        {view === "hooks" || view === "sounds" ? null : (
-          <FilterRow id="viral-filter-layout" label="Show as">
-            <Select value={layout} onValueChange={(next) => setLayout(next as typeof layout)}>
-              <SelectTrigger id="viral-filter-layout" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="list">List</SelectItem>
-                <SelectItem value="grid">Grid</SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterRow>
-        )}
-        {layout === "grid" && view !== "hooks" && view !== "sounds" ? (
-          <FilterRow id="viral-filter-size" label="Card size">
-            <Select value={size} onValueChange={(next) => setSize(next as ViralCardSize)}>
-              <SelectTrigger id="viral-filter-size" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="small">Small</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="large">Large</SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterRow>
-        ) : null}
-      </FilterPopover>
-      <SavedViewsControls
-        here={viewsHere}
-        views={views}
-        filters={currentView as SavedViewValues}
-        onOpen={openView}
-        editFields={editViewFields}
-        saveButton={false}
-        buttonVariant="ghost"
-      />
-      <AddMenu
-        canSearch={hasYoutube}
-        sample={project.sample}
-        busy={isBusy("add-keyword") || isBusy("follow-link")}
+      {/* How the videos are drawn, not what they hold, so Clear and views leave it alone. It sits here
+          rather than in the header so the tabs fit beside the toolbar (Tyler, 4 Nov 2026:
+          "middle header alignment is wrong"). Hooks is one list of words, drawn the same either way. */}
+      {view === "hooks" || view === "sounds" ? null : (
+        <FilterRow id="viral-filter-layout" label="Show as">
+          <Select value={layout} onValueChange={(next) => setLayout(next as typeof layout)}>
+            <SelectTrigger id="viral-filter-layout" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="list">List</SelectItem>
+              <SelectItem value="grid">Grid</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterRow>
+      )}
+      {layout === "grid" && view !== "hooks" && view !== "sounds" ? (
+        <FilterRow id="viral-filter-size" label="Card size">
+          <Select value={size} onValueChange={(next) => setSize(next as ViralCardSize)}>
+            <SelectTrigger id="viral-filter-size" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="small">Small</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="large">Large</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterRow>
+      ) : null}
+    </FilterPopover>
+  )
+
+  // The Creators tab's Filter: their subscribers, the block's range before it moved.
+  const creatorsFilter = (
+    <FilterPopover
+      count={range.min !== null || range.max !== null ? 1 : 0}
+      open={filterOpen}
+      onOpenChange={setFilterOpen}
+      onClear={() => setRange({ min: null, max: null })}
+      save={
+        <Button type="button" onClick={() => setFilterOpen(false)}>
+          Done
+        </Button>
+      }
+    >
+      <FilterRow id="viral-creators-min" label="Subscribers">
+        <div className="grid grid-cols-2 gap-2">
+          <FollowerSelect
+            id="viral-creators-min"
+            noun="Subscribers"
+            label="From"
+            value={range.min}
+            onChange={(min) => setRange((was) => ({ ...was, min }))}
+          />
+          <FollowerSelect
+            id="viral-creators-max"
+            noun="Subscribers"
+            label="Up to"
+            value={range.max}
+            onChange={(max) => setRange((was) => ({ ...was, max }))}
+          />
+        </div>
+      </FilterRow>
+    </FilterPopover>
+  )
+
+  const savedViews = (
+    <SavedViewsControls
+      here={viewsHere}
+      views={views}
+      filters={currentView as SavedViewValues}
+      onOpen={openView}
+      editFields={editViewFields}
+      saveButton={false}
+      buttonVariant="ghost"
+    />
+  )
+
+  // The keywords sit in the middle header (Tyler, 21 Nov 2026: "keep the keywords moved to the middle").
+  const keywordsDropdown =
+    hasYoutube && (!social || socialHasKeywords(social)) ? (
+      <KeywordsDropdown
+        project={project}
+        keywords={screen.keywords}
+        activeKeyword={keywordFilter}
+        isBusy={isBusy}
+        onPickKeyword={(keyword) => setSearch({ keyword: keyword ?? undefined, creator: undefined })}
+        onSearchAll={() => void searchAll()}
+        onRefreshKeyword={(keyword) => void refreshKeyword(keyword)}
+        onRemoveKeyword={setRemoving}
         onAddKeyword={addKeyword}
-        onFollow={followLink}
-        onPaste={addLink}
       />
-    </div>
+    ) : null
+
+  const addMenu = (
+    <AddMenu
+      canSearch={hasYoutube}
+      sample={project.sample}
+      busy={isBusy("add-keyword") || isBusy("follow-link")}
+      onAddKeyword={addKeyword}
+      onFollow={followLink}
+      onPaste={addLink}
+    />
+  )
+
+  // The channels hidden from this project, each with Show again, in the ⋮ last in the header.
+  const hiddenItems = screen.hidden.map((channel) => ({
+    label: `Show ${channel.channelName || channel.channelId} again`,
+    icon: <EyeIcon className="size-4" />,
+    onClick: () => void showChannel(channel),
+  }))
+
+  /** The one middle header (the Admin 3 panel design, "Middle panel"), with `tabs` at its start. */
+  const listHeader = (tabs: React.ReactNode) => (
+    <CrmListHeader
+      tabs={
+        // The tabs give way first on a narrow middle and scroll sideways, so the buttons never run past the edge.
+        <span className="flex min-w-0 shrink-[20] items-center gap-1 self-stretch overflow-x-auto [scrollbar-width:none]">
+          <PanelReopenButton side="left" label="Show the project" />
+          {projectLead}
+          <span className="flex shrink-0 self-stretch">{tabs}</span>
+        </span>
+      }
+      end={<PanelReopenButton side="right" label={creatorsList ? "Show the creator" : "Show the video"} />}
+      menuLabel="More for these videos"
+      selected={selectedMenu}
+      search={
+        creatorsList
+          ? {
+              name: "viral-creator-search",
+              label: "Search creators",
+              placeholder: "Search creators",
+              value: creatorSearch,
+              onChange: setCreatorSearch,
+            }
+          : {
+              name: "viral-in-results",
+              label: "Search these videos",
+              placeholder: "Search videos",
+              value: text,
+              onChange: (next) => setSearch({ q: next.trim() ? next : undefined }),
+            }
+      }
+      massSelect={creatorsList ? null : massSelect}
+      filter={creatorsList ? creatorsFilter : filter}
+      view={
+        creatorsList ? (
+          keywordsDropdown
+        ) : (
+          <>
+            {savedViews}
+            {keywordsDropdown}
+          </>
+        )
+      }
+      primary={addMenu}
+      menuItems={hiddenItems}
+    />
   )
 
   const gridProps = {
@@ -1166,24 +1327,56 @@ export function ViralProjectScreenView({
     hasChannel,
   }
 
-  const videoContent = (emptyText: string) =>
-    view === "sounds" && !pickedCreator && !sameKey && !pickedSound ? (
-      sounds.length ? (
-        <SoundBoard sounds={sounds} onPick={(key) => setSearch({ sound: key })} />
+  // A row's right-click menu (the Admin 3 panel design): Select first, then what the row can do.
+  const [rowMenu, setRowMenu] = React.useState<{ video: ViralVideo; x: number; y: number } | null>(null)
+
+  /**
+   * The videos in the middle: the shell's table, which scrolls itself, or the
+   * grid, the hooks or the sounds in a scrolling body. With nothing left by a
+   * search or a filter, it says so with Clear filters.
+   */
+  const videoBody = (emptyText: string) => {
+    const narrowed = Boolean(text.trim()) || filterCount > 0
+    const empty: React.ReactNode =
+      narrowed && view !== "sounds" ? (
+        <span className="grid justify-items-center gap-2">
+          {text.trim() ? `No video matches "${text.trim()}".` : "No video matches those filters."}
+          <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        </span>
       ) : (
-        <p className="px-3 py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
+        emptyText
       )
-    ) : middleVideos.length === 0 ? (
-      <p className="px-3 py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
-    ) : view === "hooks" && !pickedCreator && !sameKey ? (
-      <HookBoard videos={middleVideos} selectedKey={pickedVideo?.key ?? null} onOpen={openAtHook} />
-    ) : layout === "grid" ? (
-      <VideoGrid size={size} {...gridProps} />
-    ) : (
+    const quiet = <div className="px-3 py-10 text-center text-sm text-muted-foreground">{empty}</div>
+    if (view === "sounds" && !pickedCreator && !sameKey && !pickedSound) {
+      return (
+        <ScrollArea className={bodyClassName}>
+          {sounds.length ? <SoundBoard sounds={sounds} onPick={(key) => setSearch({ sound: key })} /> : quiet}
+        </ScrollArea>
+      )
+    }
+    if (view === "hooks" && !pickedCreator && !sameKey) {
+      return (
+        <ScrollArea className={bodyClassName}>
+          {middleVideos.length ? <HookBoard videos={middleVideos} selectedKey={pickedVideo?.key ?? null} onOpen={openAtHook} /> : quiet}
+        </ScrollArea>
+      )
+    }
+    if (layout === "grid") {
+      return <ScrollArea className={bodyClassName}>{middleVideos.length ? <VideoGrid size={size} {...gridProps} /> : quiet}</ScrollArea>
+    }
+    return (
       <VideoList
         {...gridProps}
         sort={sort}
         direction={direction}
+        empty={empty}
+        onTickAll={() => {
+          const keys = middleVideos.map((video) => video.key)
+          setTicked((was) => (keys.every((key) => was.has(key)) ? new Set() : new Set(keys)))
+        }}
+        onRightClick={(video, x, y) => setRowMenu({ video, x, y })}
         onSort={(column) =>
           setSearch(
             column === sort
@@ -1193,6 +1386,36 @@ export function ViralProjectScreenView({
         }
       />
     )
+  }
+
+  const rowMenuDrawn = rowMenu ? (
+    <CrmRowMenu
+      key={`${rowMenu.video.key}-${rowMenu.x}-${rowMenu.y}`}
+      at={rowMenu}
+      massSelect={
+        massSelect
+          ? {
+              on: selecting,
+              onToggle: () => {
+                const on = !selecting
+                setSelecting(on)
+                setTicked(on ? new Set([rowMenu.video.key]) : new Set())
+              },
+            }
+          : null
+      }
+      items={[
+        ...(project.sample
+          ? []
+          : [
+              { label: "Break it down", icon: <SparklesIcon className="size-4" />, onSelect: () => void saveMany([rowMenu.video], true) },
+              { label: "Download with no AI", icon: <DownloadIcon className="size-4" />, onSelect: () => void saveMany([rowMenu.video], false) },
+            ]),
+        { label: "Hide the channel", icon: <EyeOffIcon className="size-4" />, destructive: true, onSelect: () => void hideChannels([rowMenu.video]) },
+      ]}
+      onClose={() => setRowMenu(null)}
+    />
+  ) : null
 
   const analysedEmpty = analysedCount
     ? "No analysed video matches these filters."
@@ -1222,7 +1445,7 @@ export function ViralProjectScreenView({
         : !hasSearched && !screen.videos.length
           ? searching
             ? "Searching. The videos arrive as each keyword finishes."
-            : "Nothing searched yet. Press Search all on the left."
+            : "Nothing searched yet. Press Search all under Keywords."
           : screen.videos.length
             ? "No video matches these filters."
             : "The searches found nothing. Try other keywords or a longer window."
@@ -1237,7 +1460,7 @@ export function ViralProjectScreenView({
         data={textSocials.data}
         posts={textPosts}
         filtered={Boolean(text.trim() || search.pmin)}
-        toolbar={postsToolbar}
+        header={postsHeader}
         sample={project.sample}
         openId={openPost?.id ?? null}
         onPick={(post) => setSearch({ open: post.id })}
@@ -1254,70 +1477,76 @@ export function ViralProjectScreenView({
         onSearch={() => void projectAds.search()}
         onRetry={projectAds.retry}
         onPick={(ad) => setSearch({ open: ad.id })}
-        onBack={() => setSearch({ view: undefined, open: undefined })}
+        lead={projectLead}
       />
     )
   } else if (vaultView) {
     middle = (
       <>
-        <DashboardCardTitleHeader
-          className="group/title @container"
-          back={{
-            label: "Back to the videos",
-            onClick: () => {
-              setTicked(new Set())
-              setSearch({ view: undefined, open: undefined })
-            },
-          }}
-          title="Vault"
-          meta={vault.state === "ready" ? `${vault.items.length} ${plural(vault.items.length, "idea")}` : undefined}
-          action={
-            <div className="flex items-center gap-1">
-              {vault.state === "ready" && vault.items.length ? (
-                <>
-                  {tickedVaultIds.length ? (
-                    <VaultSelectedMenu
-                      ids={tickedVaultIds}
-                      tags={vault.tags}
-                      onClear={() => setTicked(new Set())}
-                      onDone={async (change) => {
-                        if (change.kind === "delete") {
-                          setTicked(new Set())
-                          if (search.open && tickedVaultIds.includes(search.open)) setSearch({ open: undefined })
-                        }
-                        await afterVaultChange()
-                      }}
-                    />
-                  ) : null}
-                  {selectChip}
-                </>
-              ) : null}
-              {/* Your own idea (more-features task part 3). A sample keeps nothing new. */}
-              {project.sample ? null : <NewIdeaButton onPress={() => setNewIdea(true)} />}
-            </div>
+        <CrmListHeader
+          tabs={
+            <span className="flex min-w-0 items-center gap-1">
+              <PanelReopenButton side="left" label="Show the project" />
+              {projectLead}
+              <MiddleHeading icon={VaultIcon} label="Vault" />
+            </span>
+          }
+          end={<PanelReopenButton side="right" label="Show the idea" />}
+          menuLabel="More for the vault"
+          selected={
+            tickedVaultIds.length ? (
+              <VaultSelectedMenu
+                ids={tickedVaultIds}
+                tags={vault.state === "ready" ? vault.tags : []}
+                onClear={() => setTicked(new Set())}
+                onDone={async (change) => {
+                  if (change.kind === "delete") {
+                    setTicked(new Set())
+                    if (search.open && tickedVaultIds.includes(search.open)) setSearch({ open: undefined })
+                  }
+                  await afterVaultChange()
+                }}
+              />
+            ) : null
+          }
+          search={null}
+          massSelect={vault.state === "ready" && vault.items.length ? { on: selecting, onToggle: toggleSelecting } : null}
+          primary={
+            // Your own idea (more-features task part 3). A sample keeps nothing new.
+            project.sample ? null : (
+              <DashboardToolbarButton type="button" aria-label="New idea" onClick={() => setNewIdea(true)}>
+                <PlusIcon className="size-4" />
+                <span className="@max-3xl:sr-only">New idea</span>
+              </DashboardToolbarButton>
+            )
           }
         />
-        <ScrollArea className="min-h-0 flex-1">
-          {vault.state === "loading" ? (
-            <LoadingRow label="Opening the vault" />
-          ) : vault.state === "failed" ? (
-            <div className="p-3">
-              <ErrorRow message={vault.error} onRetry={() => void readVault()} />
-            </div>
-          ) : vault.items.length ? (
-            <VaultList
-              items={vault.items}
-              selectedId={openItem?.id ?? null}
-              onPick={(item) => setSearch({ open: item.id })}
-              ticked={selecting ? ticked : undefined}
-              onTick={selecting ? toggleTick : undefined}
-            />
-          ) : (
-            <p className="px-3 py-10 text-center text-sm text-muted-foreground">
-              Nothing in this project's vault yet. Open a video or a post and press Save to vault, or press New idea.
-            </p>
-          )}
-        </ScrollArea>
+        {vault.state === "loading" ? (
+          <LoadingRow label="Opening the vault" />
+        ) : vault.state === "failed" ? (
+          <div className="p-3">
+            <ErrorRow message={vault.error} onRetry={() => void readVault()} />
+          </div>
+        ) : (
+          <VaultList
+            items={vault.items}
+            openId={openItem?.id ?? null}
+            onOpen={(item) => setSearch({ open: item.id })}
+            ticks={
+              selecting
+                ? {
+                    ticked,
+                    onTick: toggleTick,
+                    onTickAll: () => {
+                      const ids = vault.items.map((item) => item.id)
+                      setTicked((was) => (ids.every((id) => was.has(id)) ? new Set() : new Set(ids)))
+                    },
+                  }
+                : null
+            }
+            empty="Nothing in this project's vault yet. Open a video or a post and press Save to vault, or press New idea."
+          />
+        )}
       </>
     )
   } else if (sameKey) {
@@ -1341,8 +1570,7 @@ export function ViralProjectScreenView({
             ) : undefined
           }
         />
-        <ScrollArea className={bodyClassName}>
-          {!sameIdea || sameIdea.state === "searching" ? (
+        {!sameIdea || sameIdea.state === "searching" ? (
             <LoadingRow label={sameIdea ? "Asking the AI for a search line, then searching YouTube…" : "Opening the search"} />
           ) : sameIdea.state === "failed" ? (
             <div className="p-3">
@@ -1360,17 +1588,20 @@ export function ViralProjectScreenView({
                   : "No other creator made this."}{" "}
                 Searched YouTube for "{sameIdea.view.searchLine}".
               </p>
-              {videoContent("YouTube found no other creator's video for that search line.")}
+              {videoBody("YouTube found no other creator's video for that search line.")}
             </>
           )}
-        </ScrollArea>
       </>
     )
   } else if (pickedCreator) {
     middle = (
       <>
         <DashboardCardTitleHeader
-          back={{ label: "Back to every video", onClick: () => setSearch({ creator: undefined }) }}
+          back={
+            view === "creators"
+              ? { label: "Back to every creator", onClick: () => setSearch({ creator: undefined, open: pickedCreator.key }) }
+              : { label: "Back to every video", onClick: () => setSearch({ creator: undefined }) }
+          }
           title={pickedCreator.name}
           meta={
             pickedCreator.subscribers !== null
@@ -1388,37 +1619,54 @@ export function ViralProjectScreenView({
           }
         />
         <CreatorSummary creator={pickedCreator} />
-        <ScrollArea className={bodyClassName}>
-          {creatorUploads?.state === "loading" && !creatorVideos.length ? (
+        {creatorUploads?.state === "loading" && !creatorVideos.length ? (
             <LoadingRow label="Reading their newest uploads…" />
           ) : creatorUploads?.state === "failed" ? (
             <div className="p-3">
               <ErrorRow message={creatorUploads.error} onRetry={() => retryUploads(pickedCreator)} />
             </div>
           ) : (
-            videoContent(
+            videoBody(
               pickedCreator.followedId
                 ? "Nothing saved from them yet. Their videos arrive when the watch timer next checks."
                 : "They have no uploads to show."
             )
           )}
-        </ScrollArea>
       </>
     )
   } else {
     middle = (
       <>
-        {/* group/title: the Mass select chip shows while this header is pointed at. */}
-        <DashboardCardHeader className="group/title @container">
-          <DashboardTabs
+        {listHeader(
+          pickedSound ? (
+            // The picked sound in the one header (the Admin 3 panel design: "One header only").
+            <span className="flex min-w-0 items-center gap-2">
+              <Button type="button" variant="ghost" size="icon" className="shrink-0 rounded-lg" aria-label="Back to every sound" onClick={() => setSearch({ sound: undefined, open: undefined })}>
+                <ArrowLeftIcon className="size-4" />
+              </Button>
+              <span className="grid min-w-0 leading-tight">
+                <span className="truncate text-sm font-medium">{soundLabel(pickedSound.sound)}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {pickedSound.winners} {plural(pickedSound.winners, "winner")} of {countVideos(pickedSound.videos)}
+                </span>
+              </span>
+            </span>
+          ) : (
+            <DashboardTabs
               value={view}
               onValueChange={(next) => {
                 setTicked(new Set())
-                setSearch({ view: next === "videos" ? undefined : (next as typeof view), sound: undefined })
+                setSearch({
+                  view: next === "videos" ? undefined : (next as typeof view),
+                  sound: undefined,
+                  show: undefined,
+                  // A video's key means nothing on Creators, nor a creator's on the videos.
+                  ...(next === "creators" || view === "creators" ? { open: undefined } : {}),
+                })
               }}
               tabs={[
                 // The search's spinner rides on the tab its videos land in, so
-                // the toolbar never grows and shrinks around + Add.
+                // the header never grows and shrinks around + Add.
                 {
                   value: "videos",
                   label: searching ? (
@@ -1432,40 +1680,85 @@ export function ViralProjectScreenView({
                   count: projectVideos.length,
                   ariaLabel: searching ? `Videos, ${projectVideos.length}, still searching` : undefined,
                 },
-                { value: "downloaded", label: "Downloaded", count: downloadedCount },
-                { value: "analysed", label: "Analysed", count: analysedCount },
                 { value: "hooks", label: "Hooks", count: hookCount },
                 { value: "sounds", label: "Sounds", count: soundCount },
+                ...(project.socials.includes("youtube") || project.socials.includes("tiktok")
+                  ? [{ value: "creators", label: "Creators", count: creatorCount }]
+                  : []),
               ]}
-              after={<TabsMenu hidden={screen.hidden} isBusy={isBusy} onShow={(channel) => void showChannel(channel)} />}
             />
-          {toolbar}
-        </DashboardCardHeader>
-        {pickedSound ? (
-          <div className="flex items-center gap-2 border-b px-3 py-2 text-sm">
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Back to every sound" onClick={() => setSearch({ sound: undefined, open: undefined })}>
-              <ArrowLeftIcon />
-            </Button>
-            <span className="min-w-0 truncate font-medium">{soundLabel(pickedSound.sound)}</span>
-            <span className="shrink-0 text-muted-foreground">
-              {pickedSound.winners} {plural(pickedSound.winners, "winner")} of {countVideos(pickedSound.videos)}
-            </span>
-          </div>
-        ) : null}
-        <ScrollArea className={bodyClassName}>
-          {videoContent(
-            view === "analysed"
-              ? analysedEmpty
-              : view === "downloaded"
-                ? downloadedEmpty
-                : view === "hooks"
-                  ? hooksEmpty
-                  : view === "sounds"
-                    ? soundsEmpty
-                    : videosEmpty
-          )}
-        </ScrollArea>
+          )
+        )}
+        {creatorsList ? (
+          <CreatorTable
+            creators={creatorsHere}
+            openKey={openCreator?.key ?? null}
+            // A creator's row opens their page of videos (Tyler, 21 Nov 2026: "clicking on the creators row lead to the videos view").
+            onOpen={(creator) => setSearch({ creator: creator.key, open: undefined })}
+            // The eye shows them on the right (Tyler, 21 Nov 2026: "add eye").
+            onShow={(creator) => setSearch({ open: creator.key })}
+            onWatchChange={project.sample ? undefined : (creator, watch) => void changeWatch(creator, watch)}
+            empty={
+              creatorSearch.trim() || range.min !== null || range.max !== null ? (
+                <span className="grid justify-items-center gap-2">
+                  {creatorSearch.trim() ? `No creator matches "${creatorSearch.trim()}".` : "No creator matches those filters."}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCreatorSearch("")
+                      setRange({ min: null, max: null })
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                </span>
+              ) : (
+                "Creators show here once a search finds videos, or follow one with + Add."
+              )
+            }
+          />
+        ) : videoBody(
+          view === "hooks"
+            ? hooksEmpty
+            : view === "sounds"
+              ? soundsEmpty
+              : show === "analysed"
+                ? analysedEmpty
+                : show === "downloaded"
+                  ? downloadedEmpty
+                  : videosEmpty
+        )}
       </>
+    )
+  }
+
+  /** A creator on the right: the open one on the Creators tab, or beside their page of videos. */
+  const creatorPanel = (creator: ViralCreator) => {
+    const read = creator.key === pickedCreator?.key ? creatorUploads : uploads[creator.key]
+    return (
+      <CreatorCard
+        key={creator.key}
+        creator={creator}
+        postsPerWeek={read?.state === "ready" ? postsPerWeek(read.videos.map((video) => video.postedAt)) : null}
+        busy={isBusy(`creator:${creator.key}`)}
+        hiding={isBusy(`hide:${creator.key}`)}
+        onFollow={() => void follow(creator)}
+        onUnfollow={() => void unfollow(creator)}
+        onHide={() =>
+          void hideChannels(
+            [
+              {
+                platform: creator.platform,
+                channelId: creator.key.split(":").slice(1).join(":"),
+                channelName: creator.name,
+              },
+            ],
+            `hide:${creator.key}`
+          )
+        }
+      />
     )
   }
 
@@ -1508,6 +1801,15 @@ export function ViralProjectScreenView({
         <p className="px-3 py-8 text-center text-sm text-muted-foreground">Click an idea to play it and read its script here.</p>
       </>
     )
+  } else if (creatorsList) {
+    right = openCreator ? (
+      creatorPanel(openCreator)
+    ) : (
+      <>
+        <DashboardCardTitleHeader icon={<EyeIcon />} title="Creator" />
+        <p className="px-3 py-8 text-center text-sm text-muted-foreground">Click a creator to see them here.</p>
+      </>
+    )
   } else if (pickedVideo || !pickedCreator) {
     right = (
       <PlayerPanel
@@ -1526,44 +1828,26 @@ export function ViralProjectScreenView({
       />
     )
   } else {
-    right = (
-      <CreatorCard
-        creator={pickedCreator}
-        postsPerWeek={
-          creatorUploads?.state === "ready" ? postsPerWeek(creatorUploads.videos.map((video) => video.postedAt)) : null
-        }
-        busy={isBusy(`creator:${pickedCreator.key}`)}
-        hiding={isBusy(`hide:${pickedCreator.key}`)}
-        onFollow={() => void follow(pickedCreator)}
-        onUnfollow={() => void unfollow(pickedCreator)}
-        onHide={() =>
-          void hideChannels(
-            [
-              {
-                platform: pickedCreator.platform,
-                channelId: pickedCreator.key.split(":").slice(1).join(":"),
-                channelName: pickedCreator.name,
-              },
-            ],
-            `hide:${pickedCreator.key}`
-          )
-        }
-      />
-    )
+    right = creatorPanel(pickedCreator)
   }
 
   const context = React.useMemo<ProjectContextValue>(() => ({ screen, refresh }), [refresh, screen])
-  const rightIsVideo = !vaultView && !adsView && !textSocial && (pickedVideo || !pickedCreator)
+  const rightIsVideo = !vaultView && !adsView && !textSocial && !creatorsList && (pickedVideo || !pickedCreator)
 
   return (
     <ProjectProvider value={context}>
+      {/* The project's cover carries on behind the right panel, as an extension of the left (Tyler, 12 Nov 2026: "always connect right panel to the left panel bg"). */}
+      <RightCoverProvider value={project.cover_url}>
       <ThreePanels
         layoutKey={LAYOUT_KEY}
+        reopenInHeader
         place={{
           key: placeKey(project.id),
           search,
           ids: textSocial
             ? textPosts.map((post) => post.id)
+            : creatorsList
+            ? creatorsHere.map((creator) => creator.key)
             : adsView
             ? adList.map((ad) => ad.id)
             : vaultView
@@ -1576,11 +1860,21 @@ export function ViralProjectScreenView({
               : vaultView
                 ? vault.state !== "loading"
                 : undefined,
+          // A list picked in the Dashboards block (or a social picked in Socials) opens its first row, as every dashboard of sections does.
+          section: textSocial ?? (vaultView ? "vault" : adsView ? "ads" : creatorsList ? `creators-${social ?? "all"}` : `videos-${view}-${social ?? "all"}`),
         }}
-        showMiddleFor={`${search.creator ?? ""}${vaultView ? "vault" : ""}${adsView ? "ads" : ""}${social ?? ""}${sameKey ?? ""}${search.sound ?? ""}`}
+        showMiddleFor={`${search.creator ?? ""}${creatorsList ? "creators" : ""}${vaultView ? "vault" : ""}${adsView ? "ads" : ""}${social ?? ""}${sameKey ?? ""}${search.sound ?? ""}`}
         showRightFor={search.open}
         left={{ label: "Project", showLabel: "Show the project", content: left }}
-        middle={{ label: textSocial ? "Posts" : adsView ? "Ads" : vaultView ? "Vault" : "Videos", content: middle }}
+        middle={{
+          label: textSocial ? "Posts" : adsView ? "Ads" : vaultView ? "Vault" : "Videos",
+          // @container: the table's columns drop out by the middle's own width. 24px at its sides (`middleGutterClassName`).
+          content: (
+            <div className={cn("@container flex h-full min-h-0 flex-col overflow-hidden [&_td[colspan]]:whitespace-normal", middleGutterClassName)}>
+              {middle}
+            </div>
+          ),
+        }}
         right={{
           label: textSocial ? "Post" : adsView ? "Ad" : vaultView ? "Idea" : rightIsVideo ? "Video" : "Creator",
           showLabel: textSocial
@@ -1595,6 +1889,7 @@ export function ViralProjectScreenView({
           content: right,
         }}
       >
+        {rowMenuDrawn}
         <PasteLinkDialog
           open={pasting}
           projectId={project.id}
@@ -1663,6 +1958,7 @@ export function ViralProjectScreenView({
           onConfirm={confirmRemove}
         />
       </ThreePanels>
+      </RightCoverProvider>
     </ProjectProvider>
   )
 }
@@ -1723,10 +2019,10 @@ function AddMenu({
       open={open}
       onOpenChange={onOpenChange}
       trigger={
-        <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="Add">
+        <DashboardToolbarButton type="button" aria-label="Add">
           <PlusIcon className="size-4" />
-          <span className="@max-3xl:hidden">Add</span>
-        </Button>
+          <span className="@max-6xl:sr-only">Add</span>
+        </DashboardToolbarButton>
       }
     >
       {form ? (
@@ -1790,75 +2086,6 @@ function AddMenu({
         </>
       )}
     </FoldingMenu>
-  )
-}
-
-/**
- * The ⋮ after the tabs, for what is rarely needed (Travel's Bin sits there):
- * the channels hidden from this project, each with Show again.
- */
-function TabsMenu({
-  hidden,
-  isBusy,
-  onShow,
-}: {
-  hidden: ViralProjectScreen["hidden"]
-  isBusy: (key: string) => boolean
-  onShow: (channel: ViralProjectScreen["hidden"][number]) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-  const [shown, toggle] = useOpenSections<"hidden">()
-  const runtime = useOptionalShellRuntime()
-  const pills = (runtime?.config.styling.dashboardTabs ?? DEFAULT_DASHBOARD_TABS) === "pills"
-  return (
-    // Level with the tab names, as Travel's ScheduleMenu: underlined tabs carry a 2px see-through line under
-    // each, so the ⋮ gets the same line; pills are 28px, so the ⋮ is 28px.
-    <div className={cn("flex items-center", !pills && "border-b-2 border-transparent")}>
-    <FoldingMenu
-      label="More for these videos"
-      align="start"
-      open={open}
-      onOpenChange={setOpen}
-      trigger={
-        <Button type="button" variant="ghost" size={pills ? "icon-sm" : "icon"} aria-label="More for these videos">
-          <EllipsisVerticalIcon className="size-4" />
-        </Button>
-      }
-    >
-      <MenuSection
-        label="Hidden channels"
-        value={hidden.length ? String(hidden.length) : "None"}
-        open={shown.has("hidden")}
-        onToggle={() => toggle("hidden")}
-      >
-        {hidden.length ? (
-          <ul className="grid gap-1">
-            {hidden.map((channel) => (
-              <li key={`${channel.platform}:${channel.channelId}`} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate">
-                  {channel.channelName || channel.channelId}
-                  <span className="text-muted-foreground"> · {creatorPlatformLabels[channel.platform]}</span>
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isBusy(`unhide:${channel.platform}:${channel.channelId}`)}
-                  onClick={() => onShow(channel)}
-                >
-                  Show again
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-muted-foreground">Nothing is hidden. Hide a channel from a video's ⋮.</p>
-        )}
-      </MenuSection>
-      <MenuLine />
-      <p className="px-2.5 py-1.5 text-xs text-muted-foreground">To delete saved videos, tick them on Downloaded or Analysed.</p>
-    </FoldingMenu>
-    </div>
   )
 }
 
@@ -2063,18 +2290,21 @@ function ViralFilterRows({
 
 function FollowerSelect({
   id,
+  noun = "Followers",
   label,
   value,
   onChange,
 }: {
   id: string
+  /** What the steps count, for a screen reader: "Followers from". */
+  noun?: string
   label: string
   value: number | null
   onChange: (value: number | null) => void
 }) {
   return (
     <Select value={value === null ? ANY : String(value)} onValueChange={(next) => onChange(next === ANY ? null : Number(next))}>
-      <SelectTrigger id={id} aria-label={`Followers ${label.toLowerCase()}`} className="w-full">
+      <SelectTrigger id={id} aria-label={`${noun} ${label.toLowerCase()}`} className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

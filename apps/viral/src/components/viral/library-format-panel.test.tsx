@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { LibraryFormatPanel } from "@/components/viral/library-format-panel"
 import type { ViralFormat } from "@/lib/viral/formats"
 
@@ -45,15 +46,18 @@ afterEach(() => {
 })
 
 function draw(writeForId: string) {
+  // The record frame's buttons carry tooltips, as the app's shell provides them.
   return (
-    <LibraryFormatPanel
-      format={format}
-      projects={projects}
-      writeForId={writeForId}
-      price={{ cents: 1, writer: "Gemini Flash" }}
-      onChanged={() => undefined}
-      onDeleted={() => undefined}
-    />
+    <TooltipProvider>
+      <LibraryFormatPanel
+        format={format}
+        projects={projects}
+        writeForId={writeForId}
+        price={{ cents: 1, writer: "Gemini Flash" }}
+        onChanged={() => undefined}
+        onDeleted={() => undefined}
+      />
+    </TooltipProvider>
   )
 }
 

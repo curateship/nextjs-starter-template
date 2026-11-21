@@ -241,8 +241,10 @@ export type ViralProjectItem = ViralProjectFilters & {
   id: string
   name: string
   description: string
-  /** The notes behind the left panel's notes icon, as the shell editor's JSON, or "". */
+  /** The project's page on the left of its dashboard, as the shell editor's JSON, with its blocks (`project-page.ts`). */
   notes: string
+  /** Lock blocks: the page reads only until unlocked. */
+  notes_locked: boolean
   /** "What do you make, and for whom?" Every analysis writes for it. */
   topic: string
   /** The socials this project uses, in the order added. */
@@ -259,6 +261,8 @@ export type ViralProjectItem = ViralProjectFilters & {
   cover_url: string | null
   /** Picked in the project's ⋮, rather than the best result's thumbnail. */
   cover_chosen: boolean
+  /** The pictures the project has had as its cover, for the Cover photo row's tiles. */
+  cover_images: string[]
   result_count: number
   units_spent: number
   spend_limit_cents: number | null

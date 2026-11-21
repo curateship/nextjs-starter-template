@@ -1,7 +1,7 @@
 # Winning ads
 
-Tyler, 4 Nov 2026: "Meta's ad library". The Winning ads row on a project's
-left panel, under the Vault row, turns the middle panel into ads from Meta's
+Tyler, 4 Nov 2026: "Meta's ad library". The Winning ads row in the
+Vault block on a project's page, under All ideas, turns the middle panel into ads from Meta's
 ad library that match the project's keywords and have run 30 days or more.
 An ad somebody keeps paying for that long is making them money
 (`src/components/viral/project-ads.tsx`, `src/server/viral/meta-ads.ts`).

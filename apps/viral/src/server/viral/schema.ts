@@ -323,6 +323,10 @@ export const viralProjects = pgTable(
     coverUrl: text("cover_url"),
     /** True when someone picked the cover in the project's ⋮; a search then leaves it alone. */
     coverChosen: boolean("cover_chosen").notNull().default(false),
+    /** The pictures the project's page has had, for the Cover photo row's tiles (drizzle/0129). */
+    coverImages: jsonb("cover_images").$type<string[]>().notNull().default([]),
+    /** Lock blocks: the project's page reads only, blocks and all, until unlocked (drizzle/0129). */
+    notesLocked: boolean("notes_locked").notNull().default(false),
     /** Made by "Add a sample project": made-up videos, never searched. */
     isSample: boolean("is_sample").notNull().default(false),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
@@ -742,6 +746,28 @@ export type ViralProjectResultRow = typeof viralProjectResults.$inferSelect
 export type ViralAnalysisRow = typeof viralAnalyses.$inferSelect
 export type ViralVaultItemRow = typeof viralVaultItems.$inferSelect
 export type ViralSendRow = typeof viralSends.$inferSelect
+
+/**
+ * Each person's left page of the Viral dashboard (drizzle/0129, task
+ * features/03): what is written on it, its cover, its lock, Overview's
+ * widgets, and the Dashboards block's hidden rows and their order. One row
+ * per person, since every Viral record belongs to its owner.
+ */
+export const viralDashboardPages = pgTable("viral_dashboard_pages", {
+  ownerId: varchar("owner_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's rows left out and their dragged order. */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
 
 /** Which left menus the Viral section was added to, so it is added once (`navigation.ts`). */
 export const viralNavigationAdded = pgTable("viral_navigation_added", {

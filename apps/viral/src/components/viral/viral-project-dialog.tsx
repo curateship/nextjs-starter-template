@@ -210,9 +210,9 @@ export function ViralProjectDialog({
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="viral-project-description"
-                      hint="A sentence or two about the niche. The AI reads it to suggest keywords and to judge how well each video fits."
+                      hint="The kind of videos to find, in a sentence or two. The AI suggests keywords from it and scores how well each video fits it."
                     >
-                      Description
+                      Niche
                     </FieldLabel>
                     <Textarea
                       id="viral-project-description"

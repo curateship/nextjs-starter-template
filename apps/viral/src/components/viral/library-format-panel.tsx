@@ -1,17 +1,17 @@
 import * as React from "react"
 import { LayoutTemplateIcon, Loader2Icon, PenLineIcon, Trash2Icon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
+import { RecordFrame } from "@/components/crm/record-frame"
+import { PickGroup, PickRow } from "@/components/shared/notes/pick-rows"
 import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { RecordMenu } from "@/components/viral/dashboard/section-parts"
 import { SavingInput } from "@/components/viral/saving-fields"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
 import {
@@ -56,8 +56,6 @@ export function LibraryFormatPanel({
   onChanged: (format: ViralFormat) => void
   onDeleted: (format: ViralFormat) => void
 }) {
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  const [sections, toggle] = useOpenSections<"name">()
   const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState<"write" | "delete" | null>(null)
   const [projectId, setProjectId] = React.useState(writeForId ?? "")
@@ -136,38 +134,28 @@ export function LibraryFormatPanel({
 
   return (
     <>
-      <DashboardCardTitleHeader
-        icon={<LayoutTemplateIcon />}
+      <RecordFrame
+        avatar={<LayoutTemplateIcon />}
         title={format.name}
-        action={
-          <FoldingMenu label="More for this format" align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-            <MenuSection label="Name" value={format.name} open={sections.has("name")} onToggle={() => toggle("name")}>
-              <Label htmlFor={`format-name-${format.id}`} className="sr-only">
-                Name
-              </Label>
-              <SavingInput
-                id={`format-name-${format.id}`}
-                value={format.name}
-                maxLength={FORMAT_NAME_MAX}
-                onSave={rename}
-              />
-            </MenuSection>
-            <MenuLine />
-            <MenuAction
-              icon={<Trash2Icon className="size-4" />}
-              destructive
-              onClick={() => {
-                setMenuOpen(false)
-                setDeleting(true)
-              }}
-            >
-              Delete format
-            </MenuAction>
-          </FoldingMenu>
+        line={format.sourceTitle ? `From "${format.sourceTitle}"` : null}
+        hideLabel="Hide the format"
+        bodyClassName="gap-3.75"
+        actions={
+          <RecordMenu
+            label="Format menu"
+            groups={
+              <PickGroup title="Format">
+                <PickRow label="Name" value={format.name}>
+                  <Label htmlFor={`format-name-${format.id}`}>Name</Label>
+                  <SavingInput id={`format-name-${format.id}`} value={format.name} maxLength={FORMAT_NAME_MAX} onSave={rename} />
+                </PickRow>
+              </PickGroup>
+            }
+            actions={[{ label: "Delete format", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleting(true) }]}
+          />
         }
-      />
-      <ScrollArea className="min-h-0 flex-1">
-        <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+        body={
+          <>
           <PanelCard storageId="viral-format-parts" title="Parts" meta={`About ${total}s in all`}>
             <ol className="grid gap-2 text-sm break-words">
               {format.parts.map((part, index) => (
@@ -240,8 +228,9 @@ export function LibraryFormatPanel({
               <p className="text-sm text-muted-foreground">Nothing written from this format yet.</p>
             )}
           </PanelCard>
-        </div>
-      </ScrollArea>
+                  </>
+        }
+      />
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}

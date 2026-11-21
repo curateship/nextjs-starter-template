@@ -14,14 +14,14 @@ import {
 } from "lucide-react"
 
 import { PanelCard } from "@/components/shared/panel-card"
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { FoldingMenu, MenuAction, MenuLine } from "@/components/shared/folding-menu"
+import { RecordFrame } from "@/components/crm/record-frame"
+import { PickGroup, PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { RecordMenu, type MenuAction } from "@/components/viral/dashboard/section-parts"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AnalysisCards } from "@/components/viral/analysis-cards"
 import { CopyToProjectDialog, type CopyTarget } from "@/components/viral/copy-to-project-dialog"
 import { CoverImage } from "@/components/viral/cover-image"
@@ -39,7 +39,9 @@ import {
   writeOwnIdeaScriptFn,
   type VaultItem,
 } from "@/lib/api/viral/viral-vault"
+import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import { ANALYSIS_NOTES_MAX } from "@/lib/viral/analysis"
 import { formatCount, formatDuration } from "@/lib/viral/creators"
 import { isTextSocial } from "@/lib/viral/socials"
@@ -85,7 +87,6 @@ export function VaultItemPanel({
   onChanged: (item: VaultItem) => void
   onDeleted: (item: VaultItem) => void | Promise<void>
 }) {
-  const [menuOpen, setMenuOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [copying, setCopying] = React.useState<CopyTarget | null>(null)
@@ -154,77 +155,55 @@ export function VaultItemPanel({
         ? `"${item.title}" leaves the vault with its notes and its tags. The post stays on ${platform}.`
         : `"${item.title}" leaves the vault with its kept copy, its notes and its tags. The original stays on ${platform}.`
 
+  const actions: MenuAction[] = [
+    ...(sourceUrl
+      ? [
+          {
+            label: `Open on ${platform}`,
+            icon: <ExternalLinkIcon className="size-4" />,
+            onSelect: () => window.open(sourceUrl, "_blank", "noopener,noreferrer"),
+          },
+          { label: "Copy link", icon: <LinkIcon className="size-4" />, onSelect: () => void copyLink() },
+        ]
+      : []),
+    // Shown only while Viral keeps a copy (Tyler, 6 Nov 2026: "Both ⋮ menus").
+    ...(item.hasFile
+      ? [{ label: "Download to computer", icon: <HardDriveDownloadIcon className="size-4" />, onSelect: () => downloadToComputer("idea", item.id) }]
+      : []),
+    {
+      label: "Copy to another project",
+      icon: <CopyPlusIcon className="size-4" />,
+      onSelect: () => setCopying({ kind: "idea", itemId: item.id, title: item.title, post: item.kind === "post" }),
+    },
+    { label: "Delete from the vault", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleting(true) },
+  ]
+
   return (
     <>
-      <DashboardCardTitleHeader
-        icon={item.platform ? <SocialIcon social={item.platform} /> : <LightbulbIcon />}
-        title={
-          <span className="grid leading-tight">
-            <span className="truncate">{item.title}</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
-              {item.channelName ? `${platform} · ${item.channelName}` : platform}
-            </span>
-          </span>
+      <RecordFrame
+        avatar={item.platform ? <SocialIcon social={item.platform} /> : <LightbulbIcon />}
+        title={item.title}
+        line={item.channelName ? `${platform} · ${item.channelName}` : platform}
+        hideLabel="Hide the idea"
+        actions={
+          <RecordMenu
+            label="Idea menu"
+            groups={
+              <PickGroup title="Idea">
+                <PickMenuRow
+                  label="Status"
+                  value={vaultStatusLabels[item.status]}
+                  selected={item.status}
+                  options={VAULT_STATUSES.map((status) => ({ value: status, label: vaultStatusLabels[status] }))}
+                  onPick={(value) => void update({ status: value as VaultStatus })}
+                />
+              </PickGroup>
+            }
+            actions={actions}
+          />
         }
-        action={
-          <FoldingMenu label="More for this idea" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-            {sourceUrl ? (
-              <MenuAction
-                icon={<ExternalLinkIcon className="size-4" />}
-                onClick={() => {
-                  setMenuOpen(false)
-                  window.open(sourceUrl, "_blank", "noopener,noreferrer")
-                }}
-              >
-                Open on {platform}
-              </MenuAction>
-            ) : null}
-            {sourceUrl ? (
-              <MenuAction
-                icon={<LinkIcon className="size-4" />}
-                onClick={() => {
-                  setMenuOpen(false)
-                  void copyLink()
-                }}
-              >
-                Copy link
-              </MenuAction>
-            ) : null}
-            {/* Shown only while Viral keeps a copy (Tyler, 6 Nov 2026: "Both ⋮ menus"). */}
-            {item.hasFile ? (
-              <MenuAction
-                icon={<HardDriveDownloadIcon className="size-4" />}
-                onClick={() => {
-                  setMenuOpen(false)
-                  downloadToComputer("idea", item.id)
-                }}
-              >
-                Download to computer
-              </MenuAction>
-            ) : null}
-            <MenuAction
-              icon={<CopyPlusIcon className="size-4" />}
-              onClick={() => {
-                setMenuOpen(false)
-                setCopying({ kind: "idea", itemId: item.id, title: item.title, post: item.kind === "post" })
-              }}
-            >
-              Copy to another project
-            </MenuAction>
-            <MenuLine />
-            <MenuAction
-              icon={<Trash2Icon className="size-4" />}
-              destructive
-              onClick={() => {
-                setMenuOpen(false)
-                setDeleting(true)
-              }}
-            >
-              Delete from the vault
-            </MenuAction>
-          </FoldingMenu>
-        }
-      />
+        bare
+        body={
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid grid-cols-[minmax(0,1fr)]">
           {item.kind !== "video" ? null : item.playbackUrl ? (
@@ -245,24 +224,9 @@ export function VaultItemPanel({
           )}
 
           {/* Everything under the player is a card, as on the project page (Tyler, 4 Nov 2026: "all these should be in cards"). */}
-          <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">
+          <div data-side-panel-body="" className={cn("grid grid-cols-[minmax(0,1fr)] content-start gap-3.75", PANEL_GUTTER, item.kind !== "video" && "pt-3.75")}>
           <PanelCard storageId="viral-vault-idea" title="Idea">
           <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor={`vault-status-${item.id}`}>Status</Label>
-              <Select value={item.status} onValueChange={(value) => void update({ status: value as VaultStatus })}>
-                <SelectTrigger id={`vault-status-${item.id}`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VAULT_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {vaultStatusLabels[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <TagField id={`vault-tags-${item.id}`} value={item.tags} known={tags} onChange={(next) => update({ tags: next })} />
             {item.kind === "own" ? (
               // Your own idea's notes are written in the shell's editor, as a project's notes are.
@@ -354,15 +318,19 @@ export function VaultItemPanel({
           </div>
         </div>
       </ScrollArea>
-      {/* The sticky footer, as on the project page (Tyler, 4 Nov 2026: "this should be in the sticky footer"). */}
-      <div className="@container flex shrink-0 gap-2 border-t p-3">
-        <div className="min-w-0 flex-1">
-          <SendToVideoButton item={item} projectId={item.projectId} onChanged={onChanged} className="w-full" compact />
-        </div>
-        <div className="min-w-0 flex-1">
-          <WritePostForPromoButton itemId={item.id} className="w-full" />
-        </div>
-      </div>
+        }
+        footer={
+          // The sticky footer, as on the project page (Tyler, 4 Nov 2026: "this should be in the sticky footer").
+          <div className="@container flex min-w-0 flex-1 gap-2">
+            <div className="min-w-0 flex-1">
+              <SendToVideoButton item={item} projectId={item.projectId} onChanged={onChanged} className="w-full" compact />
+            </div>
+            <div className="min-w-0 flex-1">
+              <WritePostForPromoButton itemId={item.id} className="w-full" />
+            </div>
+          </div>
+        }
+      />
       <CopyToProjectDialog target={copying} currentProjectId={item.projectId} onClose={() => setCopying(null)} />
       <ConfirmDialog
         open={deleting}

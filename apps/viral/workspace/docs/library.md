@@ -1,11 +1,12 @@
-# The Library page
+# Hooks and Formats
 
-Tyler, 4 Nov 2026: "One Library page". The Library entry in the left menu
-opens `/admin/library`, with two tabs in the middle, Hooks and Formats. It is
-drawn like the Vault page: your projects on the left with "All projects"
-first, the list in the middle, and the open hook or format on the right
-(`src/components/viral/library-page.tsx`, route
-`src/routes/_authenticated/admin/library.tsx`).
+Tyler, 4 Nov 2026: "One Library page", with Hooks and Formats. Since 21 Nov
+2026 they are two rows of the Viral dashboard (`viral-dashboard.md`), picked
+in its Dashboards block: the Projects block on the left with "All projects"
+first, the list in the middle on the shell's table, and the open hook or
+format on the right in the shell's record frame
+(`src/components/viral/dashboard/sections/hooks-section.tsx` and
+`formats-section.tsx`).
 
 ## Hooks
 

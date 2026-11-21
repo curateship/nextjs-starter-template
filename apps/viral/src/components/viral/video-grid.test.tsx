@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { CreatorList, VideoGrid, VideoList } from "@/components/viral/video-grid"
+import { CreatorTable, VideoGrid, VideoList } from "@/components/viral/video-grid"
 import type { ViralCreator, ViralVideo } from "@/lib/viral/viral"
 import { scoreViralVideo } from "@/lib/viral/viral-score"
 
@@ -167,35 +167,36 @@ function creator(name: string, followed: Partial<ViralCreator> | null): ViralCre
   }
 }
 
-describe("the Creators list", () => {
-  it("gives followed rows the switch at the right and when they were last checked, and search-only rows neither", () => {
+describe("the Creators tab", () => {
+  it("gives followed rows the switch and when they were last checked, and search-only rows neither", () => {
     const changes: [string, boolean][] = []
+    const opened: string[] = []
     act(() =>
       root.render(
         <TooltipProvider>
-          <CreatorList
+          <CreatorTable
             creators={[
               creator("watched", { lastCheckedAt: new Date(Date.now() - 2 * 3_600_000).toISOString() }),
               creator("paused", { watch: false }),
               creator("found", null),
             ]}
-            selectedKey={null}
-            onPick={() => undefined}
+            openKey={null}
+            onOpen={(one) => opened.push(one.name)}
+            onShow={(one) => opened.push(`show ${one.name}`)}
             onWatchChange={(one, watch) => changes.push([one.name, watch])}
           />
         </TooltipProvider>
       )
     )
-    const rows = [...container.querySelectorAll("li")]
-    expect(rows[0].textContent).toContain("0 hits · - typical · 2h ago")
-    expect(rows[0].querySelector('[role="switch"]')?.getAttribute("aria-label")).toBe(
-      "Check watched for new posts"
-    )
+    const rows = [...container.querySelectorAll("tbody tr")]
+    expect(rows[0].textContent).toContain("Following")
+    expect(rows[0].textContent).toContain("2h ago")
+    expect(rows[0].querySelector('[role="switch"]')?.getAttribute("aria-label")).toBe("Check watched for new posts")
     expect(rows[1].textContent).toContain("Paused")
     expect(rows[1].textContent).toContain("not checked yet")
-    // Found by the search only: the typical score at the right, and no switch.
-    expect(rows[2].textContent).toContain("typical")
+    // Found by the search only: never checked, and no switch.
     expect(rows[2].textContent).not.toContain("checked")
+    expect(rows[2].textContent).not.toContain("Following")
     expect(rows[2].querySelector('[role="switch"]')).toBeNull()
 
     const switches = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')]
@@ -206,5 +207,9 @@ describe("the Creators list", () => {
       ["watched", false],
       ["paused", true],
     ])
+    // The switch is not a press on the row; the eye shows the creator on the right.
+    expect(opened).toEqual([])
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Show found here"]')?.click())
+    expect(opened).toEqual(["show found"])
   })
 })

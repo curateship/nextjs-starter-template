@@ -1,34 +1,36 @@
 import * as React from "react"
-import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
+import { CheckIcon, SearchIcon } from "lucide-react"
 
+import { keepOpenForInnerBoxes, RowButton, type RowLook } from "@/components/shared/notes/pick-rows"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { focusRing, focusRingInset } from "@/lib/layout/focus-ring"
+import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import { ANYWHERE, type PlaceOption } from "@/lib/viral/places"
 
 /**
  * One country or one language, picked from a list you can type into: "uni"
- * finds United Kingdom and United States. Copied from Travel's time zone
- * picker (`apps/travel/src/components/travel/time-zone-select.tsx`), which is
- * Travel's own file.
+ * finds United Kingdom and United States (Tyler, 6 Nov 2026: "Every country
+ * + language"). A row of the project's ⋮ that opens straight onto the list,
+ * as the Admin 3 panel design has a long list do ("A long list opens with a
+ * search box over it"), copied from Travel's `PickChoicesRow` with its time
+ * zone list (`apps/travel/src/components/travel/pick-rows.tsx`).
  *
  * Anywhere comes first and is null. A saved code the list doesn't have is
- * kept and shown at the top, so opening the picker never changes what is
+ * kept and shown at the top, so opening the list never changes what is
  * stored.
  */
-export function PlaceSelect({
-  id,
+export function PickPlaceRow({
   value,
   options,
-  onChange,
+  onPick,
   searchLabel,
   noMatch,
-}: {
-  id?: string
+  ...look
+}: Omit<RowLook, "value"> & {
   value: string | null
   options: readonly PlaceOption[]
-  onChange: (value: string | null) => void
+  onPick: (value: string | null) => void
   /** "Search countries", the search box's placeholder and name. */
   searchLabel: string
   /** "No country matches." */
@@ -43,15 +45,13 @@ export function PlaceSelect({
   }, [options, value])
 
   const needle = search.trim().toLowerCase()
-  const shown = needle
-    ? rows.filter((row) => row.label.toLowerCase().includes(needle) || row.value?.toLowerCase() === needle)
-    : rows
+  const shown = needle ? rows.filter((row) => row.label.toLowerCase().includes(needle) || row.value?.toLowerCase() === needle) : rows
   const current = rows.find((row) => row.value === value)
 
   function pick(next: string | null) {
     setOpen(false)
     setSearch("")
-    if (next !== value) onChange(next)
+    if (next !== value) onPick(next)
   }
 
   return (
@@ -62,26 +62,15 @@ export function PlaceSelect({
         if (!next) setSearch("")
       }}
     >
-      <PopoverTrigger asChild>
-        <button
-          id={id}
-          type="button"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "flex h-8 w-full cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm transition-colors outline-none select-none",
-            "dark:bg-input/30",
-            focusRing
-          )}
-        >
-          <span className="truncate">{current?.label ?? value ?? ANYWHERE}</span>
-          <ChevronDownIcon className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
-        </button>
+      <PopoverTrigger asChild disabled={look.disabled}>
+        <RowButton {...look} value={current?.label ?? value ?? ANYWHERE} empty={!value} open={open} />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-64 p-0">
+      <PopoverContent align="end" collisionPadding={16} onInteractOutside={keepOpenForInnerBoxes} className="w-72 gap-0 p-0">
         <div className="flex items-center gap-2 border-b px-3">
           <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
           <input
+            // An own Escape: the box's search empties first, the menu stays.
+            data-own-escape=""
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => {

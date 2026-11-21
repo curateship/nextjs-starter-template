@@ -92,7 +92,7 @@ export function SharePage({ link, projects }: { link: string | null; projects: S
             </Select>
           ) : (
             <p className="text-sm text-muted-foreground">
-              You have no project to add it to yet. <Link to="/admin/projects" className="underline">Make one first.</Link>
+              You have no project to add it to yet. <Link to="/admin/viral" className="underline">Make one first.</Link>
             </p>
           )}
         </div>

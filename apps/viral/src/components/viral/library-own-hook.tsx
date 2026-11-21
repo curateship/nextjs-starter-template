@@ -1,13 +1,14 @@
 import * as React from "react"
 import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { FoldingMenu, MenuAction, MenuLine, MenuSection, useOpenSections } from "@/components/shared/folding-menu"
+import { PickGroup, PickMenuRow, PickRow } from "@/components/shared/notes/pick-rows"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
-import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { RecordMenu } from "@/components/viral/dashboard/section-parts"
 import { SavingInput, SavingTextarea } from "@/components/viral/saving-fields"
 import { TagField } from "@/components/viral/vault-item-panel"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
@@ -114,10 +115,10 @@ export function NewHookDropdown({
       busy={busy}
       onSubmit={() => void create()}
       trigger={
-        <Button type="button" className="ml-1 @max-3xl:size-8 @max-3xl:px-0" aria-label="New hook">
+        <DashboardToolbarButton type="button" aria-label="New hook">
           <PlusIcon className="size-4" />
-          <span className="@max-3xl:hidden">New hook</span>
-        </Button>
+          <span className="@max-3xl:sr-only">New hook</span>
+        </DashboardToolbarButton>
       }
     >
       <div className="grid gap-2">
@@ -165,9 +166,9 @@ export function NewHookDropdown({
 }
 
 /**
- * Your own hook's ⋮: its words, link and type, each saving as it changes,
- * then Copy, then Delete in red. Deleting asks first, because the hooks
- * written from it go too and there is no bin.
+ * Your own hook's ⋮, the Admin 3 panel design's record menu: a General tab
+ * with Words, Link and Type as rows, each saving itself, then Copy the hook,
+ * and Delete hook in red under a line, which asks first.
  */
 export function OwnHookMenu({
   hook,
@@ -182,8 +183,6 @@ export function OwnHookMenu({
   onChanged: (hook: OwnLibraryHook) => void
   onDeleted: (hook: OwnLibraryHook) => void
 }) {
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  const [sections, toggle] = useOpenSections<"words" | "link" | "type">()
   const [deleting, setDeleting] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
@@ -211,71 +210,49 @@ export function OwnHookMenu({
     }
   }
 
+  const typeLabel = hookTypeLabel(hook.typeId, choices)
   return (
     <>
-      <FoldingMenu label="More for this hook" align="end" open={menuOpen} onOpenChange={setMenuOpen}>
-        <MenuSection label="Words" value={hook.text} open={sections.has("words")} onToggle={() => toggle("words")}>
-          <Label htmlFor={`own-hook-words-${hook.id}`} className="sr-only">
-            Words
-          </Label>
-          <SavingTextarea
-            id={`own-hook-words-${hook.id}`}
-            rows={1}
-            value={hook.text}
-            maxLength={OWN_HOOK_WORDS_MAX}
-            onSave={(words) => save({ words })}
-          />
-        </MenuSection>
-        <MenuSection label="Link" value={hook.link ? "Set" : "None"} open={sections.has("link")} onToggle={() => toggle("link")}>
-          <Label htmlFor={`own-hook-link-${hook.id}`} className="sr-only">
-            Link
-          </Label>
-          <SavingInput
-            id={`own-hook-link-${hook.id}`}
-            type="url"
-            value={hook.link ?? ""}
-            maxLength={OWN_HOOK_LINK_MAX}
-            placeholder="https://"
-            onSave={(link) => save({ link })}
-          />
-        </MenuSection>
-        <MenuSection
-          label="Type"
-          value={hookTypeLabel(hook.typeId, choices) ?? "None"}
-          open={sections.has("type")}
-          onToggle={() => toggle("type")}
-        >
-          <Label htmlFor={`own-hook-type-${hook.id}`} className="sr-only">
-            Type
-          </Label>
-          <HookTypeSelect
-            id={`own-hook-type-${hook.id}`}
-            value={hook.typeId}
-            choices={choices}
-            onChange={(typeId) => void save({ typeId })}
-          />
-        </MenuSection>
-        <MenuLine />
-        <MenuAction
-          icon={<CopyIcon className="size-4" />}
-          onClick={() => {
-            setMenuOpen(false)
-            onCopy()
-          }}
-        >
-          Copy the hook
-        </MenuAction>
-        <MenuAction
-          icon={<Trash2Icon className="size-4" />}
-          destructive
-          onClick={() => {
-            setMenuOpen(false)
-            setDeleting(true)
-          }}
-        >
-          Delete hook
-        </MenuAction>
-      </FoldingMenu>
+      <RecordMenu
+        label="Hook menu"
+        groups={
+          <PickGroup title="Hook">
+            <PickRow label="Words" value={hook.text}>
+              <Label htmlFor={`own-hook-words-${hook.id}`}>Words</Label>
+              <SavingTextarea
+                id={`own-hook-words-${hook.id}`}
+                rows={2}
+                value={hook.text}
+                maxLength={OWN_HOOK_WORDS_MAX}
+                onSave={(words) => save({ words })}
+              />
+            </PickRow>
+            <PickRow label="Link" value={hook.link ?? "None"} empty={!hook.link}>
+              <Label htmlFor={`own-hook-link-${hook.id}`}>Link</Label>
+              <SavingInput
+                id={`own-hook-link-${hook.id}`}
+                type="url"
+                value={hook.link ?? ""}
+                maxLength={OWN_HOOK_LINK_MAX}
+                placeholder="https://"
+                onSave={(link) => save({ link })}
+              />
+            </PickRow>
+            <PickMenuRow
+              label="Type"
+              value={typeLabel ?? "None"}
+              empty={!typeLabel}
+              selected={hook.typeId ?? NO_TYPE}
+              options={[{ value: NO_TYPE, label: "No type" }, ...choices.map((choice) => ({ value: choice.id, label: choice.label }))]}
+              onPick={(value) => void save({ typeId: value === NO_TYPE ? null : value })}
+            />
+          </PickGroup>
+        }
+        actions={[
+          { label: "Copy the hook", icon: <CopyIcon className="size-4" />, onSelect: onCopy },
+          { label: "Delete hook", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleting(true) },
+        ]}
+      />
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}

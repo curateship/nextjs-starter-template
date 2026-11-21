@@ -60,7 +60,6 @@ describe("the Winning ads list", () => {
           onSearch={() => undefined}
           onRetry={() => undefined}
           onPick={() => undefined}
-          onBack={() => undefined}
         />
       )
     )

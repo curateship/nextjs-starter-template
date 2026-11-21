@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   CircleAlertIcon,
+  KeyRoundIcon,
   Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
@@ -16,7 +17,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { PanelCard } from "@/components/shared/panel-card"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -30,13 +32,16 @@ import {
 import { formatShortDay } from "@/lib/viral/viral-view"
 
 /**
- * The left panel's YouTube keywords card: each keyword and how its last
- * search went. A keyword narrows the middle panel to the videos it found;
- * its arrow searches it again on its own, and its cross takes it off the
- * project. Only YouTube is searched by keyword (Tyler, 4 Nov 2026:
- * "Creators only for TikTok").
+ * The Keywords dropdown in the project page's middle header (Tyler, 21 Nov
+ * 2026: "keep the keywords moved to the middle"): the button shows how many
+ * keywords there are, and opens each keyword with how its last search went.
+ * A keyword narrows the middle panel to the videos it found; its arrow
+ * searches it again on its own, and its cross takes it off the project.
+ * Under the list sit Add keywords and Search all. Only YouTube is searched
+ * by keyword (Tyler, 4 Nov 2026: "Creators only for TikTok"), so the button
+ * shows only while the project has YouTube.
  */
-export function KeywordsCard({
+export function KeywordsDropdown({
   project,
   keywords,
   activeKeyword,
@@ -78,10 +83,33 @@ export function KeywordsCard({
     if (!adding.trim()) setFieldOpen(false)
   }
 
+  const [open, setOpen] = React.useState(false)
+  const picked = activeKeyword !== null
+
   return (
-    <PanelCard storageId="viral-project-keywords" title="YouTube keywords" meta={String(keywords.length)}>
+    <Popover open={open} onOpenChange={setOpen}>
+      {/* Its word hides in a narrow header, so a tooltip names it there. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              aria-label={`YouTube keywords, ${keywords.length}${picked ? `, showing ${activeKeyword}` : ""}`}
+              className={cn(picked && "bg-muted")}
+            >
+              {searching ? <Loader2Icon className="size-4 animate-spin" /> : <KeyRoundIcon className="size-4" />}
+              <span className="@max-6xl:sr-only">Keywords</span>
+              <span className="text-muted-foreground tabular-nums">{keywords.length}</span>
+            </DashboardToolbarButton>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>YouTube keywords</TooltipContent>
+      </Tooltip>
+      <PopoverContent align="end" collisionPadding={16} className="grid w-80 gap-3 p-3">
+      <p className="text-sm font-medium text-muted-foreground">YouTube keywords</p>
       {keywords.length ? (
-        <ul className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
+        <ul className="-mx-1 grid max-h-72 grid-cols-[minmax(0,1fr)] gap-0.5 overflow-y-auto">
           {keywords.map((keyword) => (
             <KeywordRow
               key={keyword.id}
@@ -173,7 +201,8 @@ export function KeywordsCard({
           {searching ? "Searching…" : "Search all"}
         </Button>
       </div>
-    </PanelCard>
+      </PopoverContent>
+    </Popover>
   )
 }
 

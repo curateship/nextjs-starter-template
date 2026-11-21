@@ -1,16 +1,6 @@
 import * as React from "react"
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  FolderIcon,
-  FolderInputIcon,
-  Loader2Icon,
-  PlusIcon,
-  SettingsIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 
-import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -22,26 +12,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ViralFolderSummary } from "@/lib/api/viral/viral-projects"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
-import {
-  ARCHIVED_PROJECTS,
-  cleanFolderName,
-  NO_FOLDER,
-  PROJECT_FOLDER_NAME_MAX,
-} from "@/lib/viral/project-folders"
+import { cleanFolderName, PROJECT_FOLDER_NAME_MAX } from "@/lib/viral/project-folders"
 
 /**
  * Folders on the projects list: the dropdown that picks one and makes, renames
@@ -207,154 +184,63 @@ function FolderNameDialog({
 // -------------------------------------------------------------- Menu ------
 
 /**
- * The one folder dropdown beside New project (Tyler, 17 Oct 2026): it picks
- * what the list shows (every project, the ones in no folder, one folder, or
- * the archived ones) and holds New folder. Every folder's row has its own
- * rename and delete buttons, always drawn, so a folder can be changed without
- * picking it first (Tyler, 17 Oct 2026: "there is no delete button").
+ * The folder windows the Folders block on the Viral dashboard's left page
+ * opens (task features/03): New folder and Rename from its ⋮ and a folder
+ * row's ⋯, and Delete, which asks first and says what happens to the
+ * projects inside. They were the folder dropdown's on the old Projects page
+ * (Tyler, 17 Oct 2026).
  */
-export function FolderMenu({
+export function FolderWindows({
   api,
-  folders,
-  value,
-  onChange,
+  naming,
+  onNamingChange,
+  deleting,
+  onDeletingChange,
   onFoldersChanged,
 }: {
-  /** Whose folders these are. Left out, the editor's. */
   api: FolderApi
-  folders: ViralFolderSummary[]
-  /** Absent for every project, `none`, `archived`, or a folder's id. */
-  value: string | undefined
-  onChange: (value: string | undefined) => void
-  /** A folder was made, renamed or deleted; resolves once the list reloaded. */
-  onFoldersChanged: () => Promise<void>
+  /** The folder being renamed, `{ folder: null }` for New folder, or null when the window is shut. */
+  naming: { folder: ViralFolderSummary | null } | null
+  onNamingChange: (naming: { folder: ViralFolderSummary | null } | null) => void
+  deleting: ViralFolderSummary | null
+  onDeletingChange: (folder: ViralFolderSummary | null) => void
+  /** A folder was made, renamed or deleted; resolves once the counts are read again. */
+  onFoldersChanged: (gone?: string) => Promise<void>
 }) {
-  const [naming, setNaming] = React.useState<{
-    folder: ViralFolderSummary | null
-  } | null>(null)
-  const [deleting, setDeleting] = React.useState<ViralFolderSummary | null>(
-    null
-  )
   const [deleteBusy, setDeleteBusy] = React.useState(false)
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  const active = folders.find((folder) => folder.id === value)
-  const label =
-    value === NO_FOLDER
-      ? "No folder"
-      : value === ARCHIVED_PROJECTS
-        ? "Archived"
-        : (active?.name ?? "All projects")
-
   async function confirmDelete() {
     if (!deleting) return
     setDeleteBusy(true)
     dismissErrorToast()
     try {
       await api.remove(deleting.id)
-      // The reload finds the picked folder gone and the route falls back to
-      // every project, so nothing here has to change the address.
-      await onFoldersChanged()
-      setDeleting(null)
+      await onFoldersChanged(deleting.id)
+      onDeletingChange(null)
     } catch (error) {
       showErrorToast(api.errorMessage(error))
     } finally {
       setDeleteBusy(false)
     }
   }
-
-  const choices: { id: string | undefined; label: string }[] = [
-    { id: undefined, label: "All projects" },
-    { id: NO_FOLDER, label: "No folder" },
-    ...folders.map((folder) => ({ id: folder.id, label: folder.name })),
-  ]
-
   return (
     <>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <DashboardToolbarButton
-            type="button"
-            variant="outline"
-            className="max-w-56"
-            aria-label={`Showing ${label}. Pick a folder`}
-          >
-            <FolderIcon className="size-4" />
-            <span className="truncate">{label}</span>
-            <ChevronDownIcon className="size-4 text-muted-foreground" />
-          </DashboardToolbarButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-60">
-          {choices.map((choice) => {
-            const folder = folders.find((item) => item.id === choice.id)
-            return (
-              <DropdownMenuItem
-                key={choice.id ?? "all"}
-                onSelect={() => onChange(choice.id)}
-              >
-                <CheckIcon
-                  className={cn(value === choice.id ? "opacity-100" : "opacity-0")}
-                />
-                <span className="min-w-0 flex-1 truncate">{choice.label}</span>
-                {folder ? (
-                  <span className="-my-1 flex shrink-0 items-center">
-                    <FolderRowButton
-                      label={`Rename ${folder.name}`}
-                      onPress={() => {
-                        setMenuOpen(false)
-                        setNaming({ folder })
-                      }}
-                    >
-                      <SettingsIcon />
-                    </FolderRowButton>
-                    <FolderRowButton
-                      label={`Delete ${folder.name}`}
-                      onPress={() => {
-                        setMenuOpen(false)
-                        setDeleting(folder)
-                      }}
-                    >
-                      <Trash2Icon />
-                    </FolderRowButton>
-                  </span>
-                ) : null}
-              </DropdownMenuItem>
-            )
-          })}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onChange(ARCHIVED_PROJECTS)}>
-            <CheckIcon
-              className={cn(
-                value === ARCHIVED_PROJECTS ? "opacity-100" : "opacity-0"
-              )}
-            />
-            Archived
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setNaming({ folder: null })}>
-            <PlusIcon />
-            New folder
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
       <FolderNameDialog
         api={api}
         open={naming !== null}
         onOpenChange={(open) => {
-          if (!open) setNaming(null)
+          if (!open) onNamingChange(null)
         }}
         folder={naming?.folder ?? null}
         onSaved={async () => {
           await onFoldersChanged()
         }}
       />
-
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleting(null)
+          if (!open) onDeletingChange(null)
         }}
-        title={`Delete “${deleting?.name ?? ""}”?`}
+        title={`Delete "${deleting?.name ?? ""}"?`}
         description={
           deleting?.project_count
             ? `The ${projectsWord(deleting.project_count)} in it ${plural(deleting.project_count, "stays", "stay")} on your list, in no folder. Only the folder goes.`
@@ -363,144 +249,6 @@ export function FolderMenu({
         confirmLabel="Delete folder"
         loading={deleteBusy}
         onConfirm={() => void confirmDelete()}
-      />
-    </>
-  )
-}
-
-/**
- * A small button inside a folder's menu row. It stops the press reaching the
- * row, so renaming or deleting a folder does not also pick it.
- */
-function FolderRowButton({
-  label,
-  onPress,
-  children,
-}: {
-  label: string
-  onPress: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-xs"
-      aria-label={label}
-      // The row picks itself when a press it saw start is let go, so neither
-      // half of the press may reach it.
-      onPointerDown={(event) => event.stopPropagation()}
-      onPointerUp={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        onPress()
-      }}
-      onKeyDown={(event) => event.stopPropagation()}
-    >
-      {children}
-    </Button>
-  )
-}
-
-// ------------------------------------------------------------- Moving -----
-
-
-/**
- * The toolbar menu shown while projects are ticked: one pick moves them all in
- * one request. "No folder" takes them out; "New folder" makes one and fills it
- * in the same go.
- */
-export function MoveToFolderMenu({
-  api,
-  projectIds,
-  folders,
-  disabled,
-  onMoved,
-}: {
-  /** Whose folders these are. Left out, the editor's. */
-  api: FolderApi
-  projectIds: string[]
-  folders: ViralFolderSummary[]
-  disabled?: boolean
-  /** Folders changed; resolves once the list reloaded. */
-  onMoved: () => Promise<void>
-}) {
-  const [busy, setBusy] = React.useState(false)
-  const [creating, setCreating] = React.useState(false)
-
-  async function move(folder: { id: string; name: string } | null) {
-    await api.move(projectIds, folder?.id ?? null)
-    await onMoved()
-  }
-
-  async function run(folder: { id: string; name: string } | null) {
-    if (busy) return
-    setBusy(true)
-    dismissErrorToast()
-    try {
-      await move(folder)
-    } catch (error) {
-      showErrorToast(api.errorMessage(error))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <DashboardToolbarButton
-            type="button"
-            variant="outline"
-            disabled={disabled || busy}
-          >
-            {busy ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <FolderInputIcon className="size-4" />
-            )}
-            Move to folder
-            <ChevronDownIcon className="size-4" />
-          </DashboardToolbarButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          {folders.map((folder) => (
-            <DropdownMenuItem key={folder.id} onSelect={() => void run(folder)}>
-              <span className="truncate">{folder.name}</span>
-            </DropdownMenuItem>
-          ))}
-          {folders.length ? (
-            <DropdownMenuItem onSelect={() => void run(null)}>
-              <span className="text-muted-foreground">No folder</span>
-            </DropdownMenuItem>
-          ) : null}
-          {folders.length ? <DropdownMenuSeparator /> : null}
-          <DropdownMenuItem onSelect={() => setCreating(true)}>
-            <PlusIcon />
-            New folder
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <FolderNameDialog
-        api={api}
-        open={creating}
-        onOpenChange={setCreating}
-        folder={null}
-        onSaved={async (created) => {
-          // The folder exists by now, so a failed move must not leave the
-          // window open offering to create it again.
-          try {
-            await move(created)
-          } catch (error) {
-            await onMoved()
-            showErrorToast(
-              `Created “${created.name}”, but the projects were not moved: ${api.errorMessage(error)}`
-            )
-          }
-        }}
       />
     </>
   )

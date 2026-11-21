@@ -45,23 +45,20 @@ import { Route as AuthenticatedAdminCrmRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDevOutboxRouteImport } from './routes/_authenticated/admin/dev-outbox'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminLibraryRouteImport } from './routes/_authenticated/admin/library'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminMembershipRouteImport } from './routes/_authenticated/admin/membership'
 import { Route as AuthenticatedAdminNewsletterRouteImport } from './routes/_authenticated/admin/newsletter'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminPagesRouteImport } from './routes/_authenticated/admin/pages'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin/plans'
-import { Route as AuthenticatedAdminProjectsRouteImport } from './routes/_authenticated/admin/projects'
 import { Route as AuthenticatedAdminReferralsRouteImport } from './routes/_authenticated/admin/referrals'
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminShareRouteImport } from './routes/_authenticated/admin/share'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
-import { Route as AuthenticatedAdminTodayRouteImport } from './routes/_authenticated/admin/today'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
-import { Route as AuthenticatedAdminVaultRouteImport } from './routes/_authenticated/admin/vault'
+import { Route as AuthenticatedAdminViralRouteImport } from './routes/_authenticated/admin/viral'
 import { Route as AuthenticatedChangelogWhatsNewRouteImport } from './routes/_authenticated/changelog_.whats-new'
 import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
@@ -69,7 +66,6 @@ import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/str
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminPagesEditRouteImport } from './routes/_authenticated/admin/pages_.edit'
-import { Route as AuthenticatedAdminProjectsIndexRouteImport } from './routes/_authenticated/admin/projects.index'
 import { Route as AuthenticatedAdminProjectsProjectIdRouteImport } from './routes/_authenticated/admin/projects_.$projectId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
@@ -273,12 +269,6 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminLibraryRoute =
-  AuthenticatedAdminLibraryRouteImport.update({
-    id: '/library',
-    path: '/library',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -312,12 +302,6 @@ const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminProjectsRoute =
-  AuthenticatedAdminProjectsRouteImport.update({
-    id: '/projects',
-    path: '/projects',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
 const AuthenticatedAdminReferralsRoute =
   AuthenticatedAdminReferralsRouteImport.update({
     id: '/referrals',
@@ -347,11 +331,6 @@ const AuthenticatedAdminSystemEmailsRoute =
     path: '/system-emails',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const AuthenticatedAdminTodayRoute = AuthenticatedAdminTodayRouteImport.update({
-  id: '/today',
-  path: '/today',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const AuthenticatedAdminTrafficRoute =
   AuthenticatedAdminTrafficRouteImport.update({
     id: '/traffic',
@@ -363,9 +342,9 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
-const AuthenticatedAdminVaultRoute = AuthenticatedAdminVaultRouteImport.update({
-  id: '/vault',
-  path: '/vault',
+const AuthenticatedAdminViralRoute = AuthenticatedAdminViralRouteImport.update({
+  id: '/viral',
+  path: '/viral',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const AuthenticatedChangelogWhatsNewRoute =
@@ -406,12 +385,6 @@ const AuthenticatedAdminPagesEditRoute =
     id: '/pages_/edit',
     path: '/pages/edit',
     getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminProjectsIndexRoute =
-  AuthenticatedAdminProjectsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedAdminProjectsRoute,
   } as any)
 const AuthenticatedAdminProjectsProjectIdRoute =
   AuthenticatedAdminProjectsProjectIdRouteImport.update({
@@ -532,23 +505,20 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/admin/library': typeof AuthenticatedAdminLibraryRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
-  '/admin/projects': typeof AuthenticatedAdminProjectsRouteWithChildren
   '/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/share': typeof AuthenticatedAdminShareRoute
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/admin/vault': typeof AuthenticatedAdminVaultRoute
+  '/admin/viral': typeof AuthenticatedAdminViralRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -567,7 +537,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/admin/projects/': typeof AuthenticatedAdminProjectsIndexRoute
   '/api/connect/video/file/$token': typeof ApiConnectVideoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
@@ -608,7 +577,6 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/admin/library': typeof AuthenticatedAdminLibraryRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
@@ -620,10 +588,9 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/share': typeof AuthenticatedAdminShareRoute
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/admin/vault': typeof AuthenticatedAdminVaultRoute
+  '/admin/viral': typeof AuthenticatedAdminViralRoute
   '/changelog/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -642,7 +609,6 @@ export interface FileRoutesByTo {
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/admin/projects': typeof AuthenticatedAdminProjectsIndexRoute
   '/api/connect/video/file/$token': typeof ApiConnectVideoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
@@ -686,23 +652,20 @@ export interface FileRoutesById {
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/dev-outbox': typeof AuthenticatedAdminDevOutboxRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
-  '/_authenticated/admin/library': typeof AuthenticatedAdminLibraryRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/membership': typeof AuthenticatedAdminMembershipRoute
   '/_authenticated/admin/newsletter': typeof AuthenticatedAdminNewsletterRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/pages': typeof AuthenticatedAdminPagesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
-  '/_authenticated/admin/projects': typeof AuthenticatedAdminProjectsRouteWithChildren
   '/_authenticated/admin/referrals': typeof AuthenticatedAdminReferralsRoute
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/share': typeof AuthenticatedAdminShareRoute
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
-  '/_authenticated/admin/today': typeof AuthenticatedAdminTodayRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
-  '/_authenticated/admin/vault': typeof AuthenticatedAdminVaultRoute
+  '/_authenticated/admin/viral': typeof AuthenticatedAdminViralRoute
   '/_authenticated/changelog_/whats-new': typeof AuthenticatedChangelogWhatsNewRoute
   '/api/auth/google': typeof ApiAuthGoogleRoute
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
@@ -721,7 +684,6 @@ export interface FileRoutesById {
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
   '/api/v1/traffic/view': typeof ApiV1TrafficViewRoute
-  '/_authenticated/admin/projects/': typeof AuthenticatedAdminProjectsIndexRoute
   '/api/connect/video/file/$token': typeof ApiConnectVideoFileTokenRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/crm/files/$messageId/$index': typeof ApiV1CrmFilesMessageIdIndexRoute
@@ -765,23 +727,20 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
-    | '/admin/library'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
     | '/admin/notifications'
     | '/admin/pages'
     | '/admin/plans'
-    | '/admin/projects'
     | '/admin/referrals'
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/share'
     | '/admin/system-emails'
-    | '/admin/today'
     | '/admin/traffic'
     | '/admin/users'
-    | '/admin/vault'
+    | '/admin/viral'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -800,7 +759,6 @@ export interface FileRouteTypes {
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/admin/projects/'
     | '/api/connect/video/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/crm/files/$messageId/$index'
@@ -841,7 +799,6 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/dev-outbox'
     | '/admin/feedback'
-    | '/admin/library'
     | '/admin/media'
     | '/admin/membership'
     | '/admin/newsletter'
@@ -853,10 +810,9 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/share'
     | '/admin/system-emails'
-    | '/admin/today'
     | '/admin/traffic'
     | '/admin/users'
-    | '/admin/vault'
+    | '/admin/viral'
     | '/changelog/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -875,7 +831,6 @@ export interface FileRouteTypes {
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/admin/projects'
     | '/api/connect/video/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/crm/files/$messageId/$index'
@@ -918,23 +873,20 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/dev-outbox'
     | '/_authenticated/admin/feedback'
-    | '/_authenticated/admin/library'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/membership'
     | '/_authenticated/admin/newsletter'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/pages'
     | '/_authenticated/admin/plans'
-    | '/_authenticated/admin/projects'
     | '/_authenticated/admin/referrals'
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/share'
     | '/_authenticated/admin/system-emails'
-    | '/_authenticated/admin/today'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
-    | '/_authenticated/admin/vault'
+    | '/_authenticated/admin/viral'
     | '/_authenticated/changelog_/whats-new'
     | '/api/auth/google'
     | '/api/webhooks/resend'
@@ -953,7 +905,6 @@ export interface FileRouteTypes {
     | '/api/v1/media/resized'
     | '/api/v1/notifications/stream'
     | '/api/v1/traffic/view'
-    | '/_authenticated/admin/projects/'
     | '/api/connect/video/file/$token'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/crm/files/$messageId/$index'
@@ -1253,13 +1204,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/library': {
-      id: '/_authenticated/admin/library'
-      path: '/library'
-      fullPath: '/admin/library'
-      preLoaderRoute: typeof AuthenticatedAdminLibraryRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/media': {
       id: '/_authenticated/admin/media'
       path: '/media'
@@ -1302,13 +1246,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/projects': {
-      id: '/_authenticated/admin/projects'
-      path: '/projects'
-      fullPath: '/admin/projects'
-      preLoaderRoute: typeof AuthenticatedAdminProjectsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/referrals': {
       id: '/_authenticated/admin/referrals'
       path: '/referrals'
@@ -1344,13 +1281,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/today': {
-      id: '/_authenticated/admin/today'
-      path: '/today'
-      fullPath: '/admin/today'
-      preLoaderRoute: typeof AuthenticatedAdminTodayRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/_authenticated/admin/traffic': {
       id: '/_authenticated/admin/traffic'
       path: '/traffic'
@@ -1365,11 +1295,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/_authenticated/admin/vault': {
-      id: '/_authenticated/admin/vault'
-      path: '/vault'
-      fullPath: '/admin/vault'
-      preLoaderRoute: typeof AuthenticatedAdminVaultRouteImport
+    '/_authenticated/admin/viral': {
+      id: '/_authenticated/admin/viral'
+      path: '/viral'
+      fullPath: '/admin/viral'
+      preLoaderRoute: typeof AuthenticatedAdminViralRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/changelog_/whats-new': {
@@ -1420,13 +1350,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/pages/edit'
       preLoaderRoute: typeof AuthenticatedAdminPagesEditRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/projects/': {
-      id: '/_authenticated/admin/projects/'
-      path: '/'
-      fullPath: '/admin/projects/'
-      preLoaderRoute: typeof AuthenticatedAdminProjectsIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminProjectsRoute
     }
     '/_authenticated/admin/projects_/$projectId': {
       id: '/_authenticated/admin/projects_/$projectId'
@@ -1548,20 +1471,6 @@ const AuthenticatedAccountRouteChildren: AuthenticatedAccountRouteChildren = {
 const AuthenticatedAccountRouteWithChildren =
   AuthenticatedAccountRoute._addFileChildren(AuthenticatedAccountRouteChildren)
 
-interface AuthenticatedAdminProjectsRouteChildren {
-  AuthenticatedAdminProjectsIndexRoute: typeof AuthenticatedAdminProjectsIndexRoute
-}
-
-const AuthenticatedAdminProjectsRouteChildren: AuthenticatedAdminProjectsRouteChildren =
-  {
-    AuthenticatedAdminProjectsIndexRoute: AuthenticatedAdminProjectsIndexRoute,
-  }
-
-const AuthenticatedAdminProjectsRouteWithChildren =
-  AuthenticatedAdminProjectsRoute._addFileChildren(
-    AuthenticatedAdminProjectsRouteChildren,
-  )
-
 interface AuthenticatedAdminSettingsRouteChildren {
   AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
 }
@@ -1587,23 +1496,20 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDevOutboxRoute: typeof AuthenticatedAdminDevOutboxRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
-  AuthenticatedAdminLibraryRoute: typeof AuthenticatedAdminLibraryRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminMembershipRoute: typeof AuthenticatedAdminMembershipRoute
   AuthenticatedAdminNewsletterRoute: typeof AuthenticatedAdminNewsletterRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPagesRoute: typeof AuthenticatedAdminPagesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
-  AuthenticatedAdminProjectsRoute: typeof AuthenticatedAdminProjectsRouteWithChildren
   AuthenticatedAdminReferralsRoute: typeof AuthenticatedAdminReferralsRoute
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminShareRoute: typeof AuthenticatedAdminShareRoute
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
-  AuthenticatedAdminTodayRoute: typeof AuthenticatedAdminTodayRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
-  AuthenticatedAdminVaultRoute: typeof AuthenticatedAdminVaultRoute
+  AuthenticatedAdminViralRoute: typeof AuthenticatedAdminViralRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   AuthenticatedAdminPagesEditRoute: typeof AuthenticatedAdminPagesEditRoute
@@ -1622,23 +1528,20 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
   AuthenticatedAdminDevOutboxRoute: AuthenticatedAdminDevOutboxRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRoute,
-  AuthenticatedAdminLibraryRoute: AuthenticatedAdminLibraryRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminMembershipRoute: AuthenticatedAdminMembershipRoute,
   AuthenticatedAdminNewsletterRoute: AuthenticatedAdminNewsletterRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPagesRoute: AuthenticatedAdminPagesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
-  AuthenticatedAdminProjectsRoute: AuthenticatedAdminProjectsRouteWithChildren,
   AuthenticatedAdminReferralsRoute: AuthenticatedAdminReferralsRoute,
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminShareRoute: AuthenticatedAdminShareRoute,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
-  AuthenticatedAdminTodayRoute: AuthenticatedAdminTodayRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
-  AuthenticatedAdminVaultRoute: AuthenticatedAdminVaultRoute,
+  AuthenticatedAdminViralRoute: AuthenticatedAdminViralRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,

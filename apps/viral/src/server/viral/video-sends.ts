@@ -134,7 +134,7 @@ export async function sendToVideo(
         title: item.analysis?.title.title || item.title,
         script,
         notes: vaultNotesText(item).slice(0, VIDEO_NOTES_MAX),
-        vaultItemUrl: `${viralAddress()}/admin/vault?open=${encodeURIComponent(item.id)}`,
+        vaultItemUrl: `${viralAddress()}/admin/viral?section=vault&open=${encodeURIComponent(item.id)}`,
         viralProjectName: project.name,
         file,
         ...(replacing && item.sentVideoId ? { replaceVideoId: item.sentVideoId } : {}),

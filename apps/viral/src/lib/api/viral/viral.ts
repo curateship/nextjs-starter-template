@@ -19,6 +19,8 @@ import {
   FOLDER_NOT_FOUND_MESSAGE,
 } from "@/lib/viral/project-folders"
 import { isProjectSpendLimitMessage } from "@/lib/viral/project-spend"
+import { VIRAL_PAGE_ERRORS } from "@/lib/viral/dashboard-page"
+import { PROJECT_PAGE_ERRORS } from "@/lib/viral/project-page"
 import { VIRAL_SAYS, YOUTUBE_DAILY_UNITS, YOUTUBE_QUOTA_MESSAGE } from "@/lib/viral/viral"
 
 /** Sentences other parts of the app already wrote for a person to read. */
@@ -26,6 +28,9 @@ const SHOWN_AS_IS: ReadonlySet<string> = new Set([
   FOLDER_NAME_REQUIRED_MESSAGE,
   FOLDER_NAME_TAKEN_MESSAGE,
   FOLDER_NOT_FOUND_MESSAGE,
+  VIRAL_PAGE_ERRORS.tooLong,
+  VIRAL_PAGE_ERRORS.locked,
+  PROJECT_PAGE_ERRORS.locked,
 ])
 
 /**

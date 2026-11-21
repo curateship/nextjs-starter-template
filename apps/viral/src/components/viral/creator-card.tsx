@@ -1,10 +1,8 @@
 import { ExternalLinkIcon, EyeOffIcon, Loader2Icon, UserIcon } from "lucide-react"
 
-import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { RecordFrame } from "@/components/crm/record-frame"
 import { PanelCard } from "@/components/shared/panel-card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   creatorPlatformLabels,
   formatCount,
@@ -40,34 +38,16 @@ export function CreatorCard({
   const platform = creatorPlatformLabels[creator.platform]
   const rate = creator.postsPerWeek ?? postsPerWeek
   return (
-    <>
-      <DashboardCardTitleHeader
-        icon={<UserIcon />}
-        title={creator.name}
-        meta={platform}
-      />
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-14">
-              {creator.avatarUrl ? (
-                <AvatarImage src={creator.avatarUrl} alt="" />
-              ) : null}
-              <AvatarFallback>
-                {creator.name.replace(/^@/, "").slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid min-w-0 gap-0.5">
-              <p className="truncate font-medium">{creator.name}</p>
-              {creator.handle ? (
-                <p className="truncate text-xs text-muted-foreground">
-                  @{creator.handle}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <dl className="grid grid-cols-3 gap-2 rounded-lg border p-2 text-center">
+    <RecordFrame
+      avatar={<UserIcon />}
+      title={creator.name}
+      // The name and handle are the header's alone: the picture and name repeated
+      // under it are gone (Tyler, 21 Nov 2026: "remove this").
+      line={creator.handle ? `${platform} · @${creator.handle}` : platform}
+      hideLabel="Hide the creator"
+      body={
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75">
+          <dl className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-2 rounded-lg border p-2 text-center">
             <Figure
               label="Subscribers"
               value={formatCount(creator.subscribers)}
@@ -84,7 +64,8 @@ export function CreatorCard({
             </p>
           ) : null}
 
-          <div className="grid gap-2">
+          {/* The buttons' words wrap rather than run past a narrow panel. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2 [&_[data-slot=button]]:h-auto [&_[data-slot=button]]:min-h-8 [&_[data-slot=button]]:min-w-0 [&_[data-slot=button]]:shrink [&_[data-slot=button]]:whitespace-normal">
             {creator.followedId ? (
               <Button variant="outline" disabled={busy || hiding} onClick={onUnfollow}>
                 {busy ? <Loader2Icon className="animate-spin" /> : null}
@@ -132,8 +113,8 @@ export function CreatorCard({
           </PanelCard>
           </div>
         </div>
-      </ScrollArea>
-    </>
+      }
+    />
   )
 }
 

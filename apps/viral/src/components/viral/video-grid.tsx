@@ -1,22 +1,15 @@
-import { FilmIcon, Loader2Icon } from "lucide-react"
+import type * as React from "react"
+import { EyeIcon, FilmIcon, Loader2Icon } from "lucide-react"
 
-import {
-  SortableTableHeader,
-  type TableHeaderColumn,
-} from "@/components/shared/sortable-table-header"
+import { Chip, CrmTable, CrmTableRow, OpenBar } from "@/components/crm/crm-table"
+
+import { type TableHeaderColumn } from "@/components/shared/sortable-table-header"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollBar } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table"
+import { TableCell } from "@/components/ui/table"
 import { ViralScoreCell } from "@/components/viral/viral-score-cell"
 import { formatDate } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -38,6 +31,7 @@ import { formatShortDay, type ViralCardSize, type ViralSort } from "@/lib/viral/
 import { CoverImage } from "@/components/viral/cover-image"
 import { OutlierBadge } from "@/components/viral/outlier-badge"
 import { RisingBadge } from "@/components/viral/rising-badge"
+import { SocialIcon } from "@/components/viral/social-icon"
 import { isRising } from "@/lib/viral/rising"
 
 /**
@@ -245,243 +239,252 @@ function SavedChip({ status }: { status: string | null }) {
   if (isSavedVideoWorking(saved)) return null
   return (
     <span>
-      <Badge
-        variant={
-          saved === "failed" ? "destructive" : saved === "ready" ? "default" : "secondary"
-        }
-      >
+      <Badge variant={saved === "failed" ? "destructive" : "outline"}>
         {savedVideoStatusLabels[saved] ?? status}
       </Badge>
     </span>
   )
 }
 
+/**
+ * The columns, each dropping out as the middle narrows, only once there is
+ * room for every column before it, so the table never runs past its panel
+ * (the Admin 3 panel design, "A table"). `md:hidden` keeps the table's own
+ * `md:table-cell` from showing them on any laptop.
+ */
 const LIST_COLUMNS: TableHeaderColumn<ViralSort>[] = [
-  // The video takes the spare width, so the figures sit together at the right.
-  { key: "video", label: "Video", sortable: false, column: "main", className: "w-full min-w-56" },
-  { key: "score", label: "Score", column: "meta" },
-  { key: "outlier", label: "Outlier", column: "meta" },
-  { key: "rising", label: "Rising", column: "meta" },
-  { key: "topic", label: "Fits", column: "meta" },
-  { key: "views", label: "Views", column: "meta" },
-  { key: "views_per_day", label: "Views a day", column: "meta" },
-  { key: "newest", label: "Posted", column: "meta" },
-  { key: "length", label: "Length", column: "meta" },
+  { key: "video", label: "Video", sortable: false, column: "main", className: "min-w-40" },
+  { key: "score", label: "Score", column: "meta", className: "hidden md:hidden @md:table-cell" },
+  { key: "rising", label: "Rising", column: "meta", className: "hidden md:hidden @lg:table-cell" },
+  { key: "views", label: "Views", column: "meta", className: "hidden md:hidden @xl:table-cell" },
+  { key: "outlier", label: "Outlier", column: "meta", className: "hidden md:hidden @2xl:table-cell" },
+  { key: "topic", label: "Fits", column: "meta", className: "hidden md:hidden @3xl:table-cell" },
+  { key: "views_per_day", label: "Views a day", column: "meta", className: "hidden md:hidden @4xl:table-cell" },
+  { key: "newest", label: "Posted", column: "meta", className: "hidden md:hidden @5xl:table-cell" },
+  { key: "length", label: "Length", column: "meta", className: "hidden md:hidden @6xl:table-cell" },
 ]
 
+/**
+ * The project's videos as a list, on the shell's table (`CrmTable`): grey
+ * titles that turn dark while pointed at and while open, the sliding bar
+ * before the open one, chips in grey, and a column heading that sorts. A
+ * video nobody opened says New. A row being saved or broken down says so
+ * under its title, in amber. Right-click opens the row's menu.
+ */
 export function VideoList({
   sort,
   direction,
   onSort,
+  onRightClick,
+  onTickAll,
+  empty,
   ...props
 }: GridProps & {
   sort: ViralSort
   direction: "asc" | "desc"
   onSort: (sort: ViralSort) => void
+  onRightClick?: (video: ViralVideo, x: number, y: number) => void
+  /** The heading's tick box, while Mass select is on. */
+  onTickAll?: () => void
+  empty?: React.ReactNode
 }) {
   const { videos, selectedKey, onPick, ticked, onTick, onPickChannel, hasChannel } = props
-  const columns = LIST_COLUMNS
+  const ticking = Boolean(ticked && onTick)
+  const keys = videos.map((video) => video.key)
+  const all = keys.length > 0 && keys.every((key) => ticked?.has(key))
+  const some = keys.some((key) => ticked?.has(key))
   return (
-    <>
-      <Table containerClassName="overflow-visible">
-        <SortableTableHeader
-          columns={columns}
-          sort={sort}
-          direction={direction}
-          onSort={onSort}
-          leading={ticked && onTick ? <TableHead column="select" /> : undefined}
-        />
-        <TableBody>
-          {videos.map((video) => (
-            <TableRow
-              key={video.key}
-              aria-current={video.key === selectedKey ? "true" : undefined}
-              data-processing={isProcessing(video) || undefined}
-              className={cn(
-                isProcessing(video) &&
-                  "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-400/10 dark:hover:bg-amber-400/15",
-                video.key === selectedKey && "bg-muted"
-              )}
-              rowAction={() => onPick(video)}
-            >
-              {ticked && onTick ? (
-                <TableCell column="select">
-                  <Checkbox
-                    checked={ticked.has(video.key)}
-                    onCheckedChange={() => onTick(video.key)}
-                    aria-label={`Tick ${video.title}`}
+    <CrmTable<ViralSort>
+      columns={LIST_COLUMNS}
+      sort={sort}
+      direction={direction}
+      onSort={onSort}
+      actions={false}
+      select={ticking && onTickAll ? { noun: "videos", checked: all ? true : some ? "indeterminate" : false, onToggle: onTickAll } : null}
+      empty={videos.length ? null : empty}
+    >
+      {videos.map((video) => (
+        <CrmTableRow
+          key={video.key}
+          open={video.key === selectedKey}
+          label={video.title}
+          tick={ticking ? { shown: true, ticked: ticked?.has(video.key) ?? false, onToggle: () => onTick?.(video.key) } : null}
+          onOpen={() => onPick(video)}
+          onRightClick={onRightClick ? (x, y) => onRightClick(video, x, y) : undefined}
+        >
+          <TableCell column="main" className="min-w-40">
+            <span data-processing={isProcessing(video) || undefined} className="flex min-w-0 items-center gap-2">
+              <OpenBar />
+              <span className="size-7 shrink-0 overflow-hidden rounded-md bg-muted">
+                <CoverImage
+                  src={video.thumbnailUrl}
+                  className="size-full object-cover"
+                  fallback={
+                    <span className="grid size-full place-items-center">
+                      <FilmIcon className="size-3.5 text-muted-foreground" />
+                    </span>
+                  }
+                />
+              </span>
+              <span className="grid min-w-0 leading-tight">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span data-row-name="" className="line-clamp-1 min-w-0 font-medium break-all">
+                    {video.title}
+                  </span>
+                  {showsNew(video) ? <Chip className="shrink-0">New</Chip> : null}
+                  {video.source === "link" ? <Chip className="shrink-0" muted>Pasted</Chip> : null}
+                </span>
+                {/* Where saving has got to sits with the channel, leaving the title its row. */}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <ChannelName
+                    video={video}
+                    onPickChannel={onPickChannel && (hasChannel?.(video) ?? true) ? onPickChannel : undefined}
                   />
-                </TableCell>
-              ) : null}
-              <TableCell column="main" className="w-full max-w-0 min-w-56">
-                <div className="flex items-center gap-3">
-                  <span className="size-8 shrink-0 overflow-hidden rounded-md bg-muted">
-                    <CoverImage
-                      src={video.thumbnailUrl}
-                      className="size-full object-cover"
-                      fallback={
-                        <span className="grid size-full place-items-center">
-                          <FilmIcon className="size-4 text-muted-foreground" />
-                        </span>
-                      }
-                    />
-                  </span>
-                  <span className="grid min-w-0 gap-0.5">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <button
-                        type="button"
-                        className={cn(
-                          "truncate text-left font-medium hover:underline",
-                          video.seen && "font-normal text-muted-foreground"
-                        )}
-                        onClick={() => onPick(video)}
-                      >
-                        {video.title}
-                      </button>
-                      {showsNew(video) ? <Badge>New</Badge> : null}
-                      <PastedChip video={video} />
+                  {isProcessing(video) ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                      {savedVideoStatusLabels[video.savedStatus as SavedVideoStatus]}…
                     </span>
-                    {/* Where saving has got to sits with the channel, leaving the title its row. */}
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <ChannelName
-                        video={video}
-                        onPickChannel={onPickChannel && (hasChannel?.(video) ?? true) ? onPickChannel : undefined}
-                      />
-                      {isProcessing(video) ? (
-                        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-                          <Loader2Icon className="size-3.5 animate-spin" />
-                          {savedVideoStatusLabels[video.savedStatus as SavedVideoStatus]}…
-                        </span>
-                      ) : (
-                        <SavedChip status={video.savedStatus} />
-                      )}
-                    </span>
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell column="actions">
-                <ViralScoreCell score={video.score} />
-              </TableCell>
-              <TableCell column="meta">
-                <OutlierBadge outlier={video.outlier} />
-              </TableCell>
-              <TableCell column="meta" className="whitespace-nowrap">
-                <RisingBadge growth={video.growth} />
-              </TableCell>
-              <TableCell column="meta" className="tabular-nums">
-                {video.topicMatch ?? "-"}
-              </TableCell>
-              <TableCell column="meta" className="tabular-nums">
-                {formatCount(video.views)}
-              </TableCell>
-              <TableCell column="meta" className="tabular-nums">
-                {formatCount(video.score.viewsPerDay)}
-              </TableCell>
-              <TableCell column="meta" className="whitespace-nowrap">
-                {formatShortDay(video.postedAt)}
-              </TableCell>
-              <TableCell column="meta" className="tabular-nums">
-                {formatDuration(video.durationSeconds) || "-"}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <ScrollBar orientation="horizontal" />
-    </>
+                  ) : (
+                    <SavedChip status={video.savedStatus} />
+                  )}
+                </span>
+              </span>
+            </span>
+          </TableCell>
+          <TableCell column="meta" className="hidden md:hidden @md:table-cell">
+            <ViralScoreCell score={video.score} />
+          </TableCell>
+          <TableCell column="meta" className="hidden whitespace-nowrap md:hidden @lg:table-cell">
+            <RisingBadge growth={video.growth} />
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @xl:table-cell">
+            {formatCount(video.views)}
+          </TableCell>
+          <TableCell column="meta" className="hidden md:hidden @2xl:table-cell">
+            <OutlierBadge outlier={video.outlier} />
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @3xl:table-cell">
+            {video.topicMatch ?? "-"}
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @4xl:table-cell">
+            {formatCount(video.score.viewsPerDay)}
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden whitespace-nowrap md:hidden @5xl:table-cell">
+            {formatShortDay(video.postedAt)}
+          </TableCell>
+          <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @6xl:table-cell">
+            {formatDuration(video.durationSeconds) || "-"}
+          </TableCell>
+        </CrmTableRow>
+      ))}
+    </CrmTable>
   )
 }
 
+const CREATOR_COLUMNS: TableHeaderColumn<"creator">[] = [
+  { key: "creator", label: "Creator", sortable: false, column: "main", className: "min-w-40" },
+  { key: "subscribers", label: "Subscribers", sortable: false, column: "meta", className: "hidden md:hidden @md:table-cell" },
+  { key: "hits", label: "Hits", sortable: false, column: "meta", className: "hidden md:hidden @lg:table-cell" },
+  { key: "typical", label: "Typical", sortable: false, column: "meta", className: "hidden md:hidden @xl:table-cell" },
+  { key: "checked", label: "Checked", sortable: false, column: "meta", className: "hidden md:hidden @2xl:table-cell" },
+  { key: "watch", label: "New posts", sortable: false, column: "meta" },
+]
+
 /**
- * The Creators view: one row per channel, most hits first. A followed
- * creator's row also carries the watch timer's switch and when it last
- * looked. Creators found only through search results are never checked, so
- * their rows have neither.
+ * The project's creators on the Creators tab, on the shell's table, most hits
+ * first (Tyler, 21 Nov 2026: "Move the creators block into the middle tab
+ * here"). YouTube's and TikTok's share the list, each marked with its
+ * social. A row opens their page of videos; the eye in the action column
+ * shows them on the right, as the Viral dashboard's Projects rows do. A followed creator's row has the watch timer's switch and when it
+ * last looked; a creator found only through search results is never checked,
+ * so their row has neither.
  */
-export function CreatorList({
+export function CreatorTable({
   creators,
-  selectedKey,
-  onPick,
+  openKey,
+  onOpen,
+  onShow,
   onWatchChange,
+  empty,
 }: {
   creators: ViralCreator[]
-  selectedKey: string | null
-  onPick: (creator: ViralCreator) => void
+  /** The creator shown on the right, marked open. */
+  openKey: string | null
+  /** A press on the row: their page of videos. */
+  onOpen: (creator: ViralCreator) => void
+  /** The eye in the action column: the creator on the right, the list staying put. */
+  onShow: (creator: ViralCreator) => void
   /** Check for new posts, switched on or off for one followed creator. */
   onWatchChange?: (creator: ViralCreator, watch: boolean) => void
+  empty?: React.ReactNode
 }) {
   return (
-    // Sized for the left panel's Creators section, as Tyler drew it. A
-    // followed creator's row carries its typical score and its last check in
-    // the muted line and the watch switch at the right (20 Oct 2026); one the
-    // search found has its typical score at the right instead.
-    <ul aria-label="Creators" className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
+    <CrmTable<"creator">
+      columns={CREATOR_COLUMNS}
+      sort="creator"
+      direction="desc"
+      onSort={() => undefined}
+      empty={creators.length ? null : empty}
+    >
       {creators.map((creator) => {
         const watched = Boolean(creator.followedId && onWatchChange)
         return (
-          <li
+          <CrmTableRow
             key={creator.key}
-            className={cn("flex min-w-0 items-center rounded-md", creator.key === selectedKey && "bg-muted")}
+            open={creator.key === openKey}
+            label={creator.name}
+            onOpen={() => onOpen(creator)}
+            cog={false}
+            buttons={[{ label: `Show ${creator.name} here`, icon: <EyeIcon className="size-4" />, onPress: () => onShow(creator) }]}
           >
-            <button
-              type="button"
-              aria-current={creator.key === selectedKey ? "true" : undefined}
-              onClick={() => onPick(creator)}
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left",
-                creator.key === selectedKey ? null : "hover:bg-muted/60",
-                focusRing
-              )}
-            >
-              <Avatar className="size-8 shrink-0">
-                {creator.avatarUrl ? (
-                  <AvatarImage src={creator.avatarUrl} alt="" />
-                ) : null}
-                <AvatarFallback className="text-xs font-medium">
-                  {initials(creator.name)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="grid min-w-0 flex-1 gap-0.5">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm font-medium">{creator.name}</span>
-                  {creator.followedId ? (
-                    <Badge variant="secondary">
-                      {creator.watch === false ? "Paused" : "Following"}
-                    </Badge>
-                  ) : null}
-                </span>
-                {/* "10m ago" is worked out on the server and again in the
-                    browser; a load that crosses a minute says "11m ago" the
-                    second time, which is not worth a hydration error. */}
-                <span className="truncate text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
-                  {[
-                    creator.subscribers !== null ? `${formatCount(creator.subscribers)} subs` : null,
-                    `${creator.hits} ${creator.hits === 1 ? "hit" : "hits"}`,
-                    watched ? `${creator.typicalScore ?? "-"} typical` : null,
-                    watched ? checkedAgo(creator.lastCheckedAt) : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+            <TableCell column="main" className="min-w-40">
+              <span className="flex min-w-0 items-center gap-2">
+                <OpenBar />
+                <Avatar className="size-7 shrink-0">
+                  {creator.avatarUrl ? <AvatarImage src={creator.avatarUrl} alt="" /> : null}
+                  <AvatarFallback className="text-[0.625rem] font-medium">{initials(creator.name)}</AvatarFallback>
+                </Avatar>
+                <span className="grid min-w-0 leading-tight">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span data-row-name="" className="line-clamp-1 min-w-0 font-medium break-all">
+                      {creator.name}
+                    </span>
+                    {creator.followedId ? (
+                      <Chip className="shrink-0" muted={creator.watch === false}>
+                        {creator.watch === false ? "Paused" : "Following"}
+                      </Chip>
+                    ) : null}
+                  </span>
+                  <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground [&_svg]:size-3 [&_svg]:shrink-0">
+                    <SocialIcon social={creator.platform} />
+                    <span className="truncate">{creator.handle ? `@${creator.handle}` : creatorPlatformLabels[creator.platform]}</span>
+                  </span>
                 </span>
               </span>
-              {watched ? null : (
-                <span className="grid shrink-0 text-right leading-tight">
-                  <span className="text-sm font-semibold tabular-nums">{creator.typicalScore ?? "-"}</span>
-                  <span className="text-xs text-muted-foreground">typical</span>
-                </span>
-              )}
-            </button>
-            {watched && onWatchChange ? (
-              <WatchSwitch creator={creator} onWatchChange={onWatchChange} />
-            ) : null}
-          </li>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @md:table-cell">
+              {creator.subscribers !== null ? formatCount(creator.subscribers) : "-"}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @lg:table-cell">
+              {creator.hits}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @xl:table-cell">
+              {creator.typicalScore ?? "-"}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden whitespace-nowrap md:hidden @2xl:table-cell">
+              {creator.followedId ? checkedAgo(creator.lastCheckedAt) : "-"}
+            </TableCell>
+            <TableCell column="meta">
+              {watched && onWatchChange ? <WatchSwitch creator={creator} onWatchChange={onWatchChange} /> : null}
+            </TableCell>
+          </CrmTableRow>
         )
       })}
-    </ul>
+    </CrmTable>
   )
 }
 
-/** "Five Minute Moves" → "FM", "@yayaxixi" → "YA": two letters for a creator with no picture. */
 function initials(name: string) {
   const words = name.replace(/^@/, "").trim().split(/\s+/).filter(Boolean)
   const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "").slice(0, 2)
