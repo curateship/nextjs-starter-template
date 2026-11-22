@@ -89,6 +89,33 @@ ignored the server's key, so systemeverything.com could send a sign-up link but
 not a test newsletter. `getSendableEmailConfig` and `getEmailSetupProblem` in
 `src/server/email/settings.ts`, tested in `sendable-email-config.test.ts`.
 
+## Who a Send sequence step starts
+
+A sequence holds only its emails and the waits between them. An automation
+decides who goes into it, with the Send sequence step. Who that step starts
+depends on what comes before it in the flow.
+
+- **After an Audience step**, it starts the sequence for everybody in that
+  audience, each on their own run, at email 1. This is the same rule Send email
+  follows. Tyler, 22 Nov 2026: "fix the message and the send sequence gap".
+- **Anybody already partway through the sequence is left alone.** Pressing Run
+  now a second time starts only the people who are new to the audience, so
+  nobody gets email 1 twice. The run's history names how many were skipped.
+- **Accounts that never confirmed their email are skipped**, as Send email
+  skips them.
+- **With no Audience step**, it starts the run's one person. That's the person
+  a Segment trigger or another person trigger started the run for.
+- **A test run starts only the tester**, even after an Audience step, so
+  pressing Test never puts a whole segment into the sequence.
+- **With neither an Audience step nor a person**, the step stops and says: "This
+  run has no person to start the sequence for. Put an Audience step before Send
+  sequence, or start the flow with the Segment trigger." Before 22 Nov 2026
+  Send sequence ignored an Audience step. It failed on every Run now with a
+  message that named a "Segment start" step, which doesn't exist by that name.
+
+`startSequenceForRun` in `src/server/email/sequences.ts`, tested in
+`sequences.test.ts`.
+
 ## The site name in an email's header
 
 The header block of a newsletter, sequence email or system email prints the
