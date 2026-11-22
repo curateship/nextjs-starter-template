@@ -64,6 +64,31 @@ So a send to everybody includes the quiet ones. A send that does not want them
 says so with a status rule in its segment, which also makes "who is this going
 to" readable rather than hidden in the sender.
 
+## What a send needs before it goes
+
+A newsletter, a sequence email, an automation email and every "Send myself a
+test" need two things, and Settings > Email is where both go.
+
+- **A Newsletter from address.** Nothing sends without one. The server's
+  `CUSTOM_SHELL_EMAIL_FROM` does not stand in for it. That address belongs to
+  sign-in and reset emails.
+- **A Resend key.** The key saved in Settings > Email is used first. With that
+  box empty, the send uses the server's `CUSTOM_SHELL_RESEND_API_KEY`, the same
+  key sign-up and reset emails use. A saved key the server can no longer read
+  counts as empty.
+- **Only a one-site app borrows the server's key.** On an app serving many
+  sites, set by `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`, each site saves its own
+  key. Otherwise any site owner could mail their list on the operator's Resend
+  account.
+
+When a send can't go, the message names the missing piece: "Add a Newsletter
+from address in Settings → Email first." or "Add a Resend API key in Settings →
+Email first." Before 22 Nov 2026 the screen always asked for a from address,
+even when the address was saved and only the key was missing. Test sends also
+ignored the server's key, so systemeverything.com could send a sign-up link but
+not a test newsletter. `getSendableEmailConfig` and `getEmailSetupProblem` in
+`src/server/email/settings.ts`, tested in `sendable-email-config.test.ts`.
+
 ## The gone-quiet rule
 
 After a run of sends that all went unopened, a contact's status becomes `cold`.

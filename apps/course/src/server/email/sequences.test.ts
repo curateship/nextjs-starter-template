@@ -330,12 +330,12 @@ describe("Send myself a test", () => {
     expect(sent).toHaveLength(0)
   })
 
-  it("sends nothing when email is not set up", async () => {
+  it("sends nothing when email is not set up, and says the from address is missing", async () => {
     emailSettings.getSendableEmailConfig.mockResolvedValue(null)
     const sequence = await makeReadySequence()
     await expect(
       sendSequenceTestEmail(workspaceId, { sequenceId: sequence.id, emailId: "one", toEmail: "a@example.test" }, database)
-    ).rejects.toThrow("EMAIL_NOT_CONFIGURED")
+    ).rejects.toThrow("EMAIL_FROM_MISSING")
     expect(sent).toHaveLength(0)
   })
 })

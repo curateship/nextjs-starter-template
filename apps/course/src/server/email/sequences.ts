@@ -23,7 +23,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
 import { getEmailProvider } from "@/server/email/provider"
 import { composeFromAddress } from "@/server/email/send"
-import { getSendableEmailConfig } from "@/server/email/settings"
+import { getEmailSetupProblem, getSendableEmailConfig } from "@/server/email/settings"
 import { buildUnsubscribeUrl, canBuildUnsubscribeLinks } from "@/server/email/unsubscribe"
 import {
   customShellAutomationRuns,
@@ -236,7 +236,7 @@ export async function sendSequenceTestEmail(
   if (email.blocks.length === 0) throw new Error("BLOCKS_REQUIRED")
 
   const config = await getSendableEmailConfig(workspaceId, database)
-  if (!config) throw new Error("EMAIL_NOT_CONFIGURED")
+  if (!config) throw new Error(await getEmailSetupProblem(workspaceId, database))
   if (!canBuildUnsubscribeLinks()) throw new Error("UNSUBSCRIBE_NOT_CONFIGURED")
 
   const sampleContact = { email: input.toEmail, firstName: "Test", lastName: "Contact" }
