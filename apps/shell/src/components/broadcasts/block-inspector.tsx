@@ -146,6 +146,17 @@ function HeaderFields({
           emptyLabel="Choose a logo"
           onChange={(value) => onContentChange("logoUrl", value)}
         />
+        {/* Only with a logo: a header with no logo has nothing else to show. */}
+        {content.logoUrl ? (
+          <SwitchField
+            id="header-show-name"
+            label="Show site name"
+            description="Off, only the logo shows."
+            checked={content.showName}
+            disabled={disabled}
+            onChange={(checked) => onContentChange("showName", checked)}
+          />
+        ) : null}
         <SliderField
           id="header-logo-width"
           label="Width"

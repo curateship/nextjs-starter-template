@@ -89,6 +89,25 @@ ignored the server's key, so systemeverything.com could send a sign-up link but
 not a test newsletter. `getSendableEmailConfig` and `getEmailSetupProblem` in
 `src/server/email/settings.ts`, tested in `sendable-email-config.test.ts`.
 
+## The site name in an email's header
+
+The header block of a newsletter, sequence email or system email prints the
+site's name as text above the logo. The name is text so an inbox that blocks
+images still shows who sent the email.
+
+- **"Show site name" switches it off.** The switch is in the header block's
+  Logo card and starts on. With it off, only the logo shows, and the logo's
+  hidden label becomes the site name, so a blocked image still names the
+  sender. Tyler, 22 Nov 2026: "how do I remove this title from the header
+  block".
+- **The switch only appears once a logo is chosen.** A header with no logo
+  always shows the name, or the band would be empty.
+- **Deleting the header block doesn't hide the name.** An email with no header
+  block prints the name across its top instead.
+
+`showName` on the header block in `src/lib/broadcasts/blocks.ts`, drawn in
+`src/lib/broadcasts/render.ts`, tested in `render.test.ts`.
+
 ## The gone-quiet rule
 
 After a run of sends that all went unopened, a contact's status becomes `cold`.
