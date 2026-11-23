@@ -11,7 +11,9 @@ export function readSendSequence(settings: Record<string, unknown>) {
 }
 
 /**
- * Puts the run's person into one of the CRM's sequences (Tyler, 16 Nov 2026:
+ * Puts the run's person, or everyone in an Audience step before it (Tyler,
+ * 22 Nov 2026: "fix the message and the send sequence gap"), into one of the
+ * CRM's sequences (Tyler, 16 Nov 2026:
  * "The trigger is set in automation. This just organizes sequence"). Email 1
  * goes straight away and the rest after their waits, on the sequence's own
  * run; this flow carries on to its next step at once.
@@ -21,7 +23,7 @@ export const sendSequenceNode = defineNode({
   palette: {
     key: "flow-send-sequence",
     group: "Flow",
-    description: "Start one of the CRM's sequences for this person",
+    description: "Start one of the CRM's sequences",
   },
   createSettings: () => ({ sequenceId: "", sequenceName: "" }),
   settingsSchema: z
@@ -35,7 +37,7 @@ export const sendSequenceNode = defineNode({
   name: () => "Send sequence",
   description: (settings) => {
     const { sequenceName } = readSendSequence(settings)
-    return sequenceName ? `Starts “${sequenceName}” for this person.` : "Choose which sequence to send."
+    return sequenceName ? `Starts “${sequenceName}”.` : "Choose which sequence to send."
   },
   icon: ListOrderedIcon,
   outputPorts: [{ id: "then", label: "Then" }],

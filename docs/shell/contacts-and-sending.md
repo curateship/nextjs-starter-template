@@ -64,6 +64,77 @@ So a send to everybody includes the quiet ones. A send that does not want them
 says so with a status rule in its segment, which also makes "who is this going
 to" readable rather than hidden in the sender.
 
+## What a send needs before it goes
+
+A newsletter, a sequence email, an automation email and every "Send myself a
+test" need two things, and Settings > Email is where both go.
+
+- **A Newsletter from address.** Nothing sends without one. The server's
+  `CUSTOM_SHELL_EMAIL_FROM` does not stand in for it. That address belongs to
+  sign-in and reset emails.
+- **A Resend key.** The key saved in Settings > Email is used first. With that
+  box empty, the send uses the server's `CUSTOM_SHELL_RESEND_API_KEY`, the same
+  key sign-up and reset emails use. A saved key the server can no longer read
+  counts as empty.
+- **Only a one-site app borrows the server's key.** On an app serving many
+  sites, set by `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`, each site saves its own
+  key. Otherwise any site owner could mail their list on the operator's Resend
+  account.
+
+When a send can't go, the message names the missing piece: "Add a Newsletter
+from address in Settings → Email first." or "Add a Resend API key in Settings →
+Email first." Before 22 Nov 2026 the screen always asked for a from address,
+even when the address was saved and only the key was missing. Test sends also
+ignored the server's key, so systemeverything.com could send a sign-up link but
+not a test newsletter. `getSendableEmailConfig` and `getEmailSetupProblem` in
+`src/server/email/settings.ts`, tested in `sendable-email-config.test.ts`.
+
+## Who a Send sequence step starts
+
+A sequence holds only its emails and the waits between them. An automation
+decides who goes into it, with the Send sequence step. Who that step starts
+depends on what comes before it in the flow.
+
+- **After an Audience step**, it starts the sequence for everybody in that
+  audience, each on their own run, at email 1. This is the same rule Send email
+  follows. Tyler, 22 Nov 2026: "fix the message and the send sequence gap".
+- **Anybody already partway through the sequence is left alone.** Pressing Run
+  now a second time starts only the people who are new to the audience, so
+  nobody gets email 1 twice. The run's history names how many were skipped.
+- **Accounts that never confirmed their email are skipped**, as Send email
+  skips them.
+- **With no Audience step**, it starts the run's one person. That's the person
+  a Segment trigger or another person trigger started the run for.
+- **A test run starts only the tester**, even after an Audience step, so
+  pressing Test never puts a whole segment into the sequence.
+- **With neither an Audience step nor a person**, the step stops and says: "This
+  run has no person to start the sequence for. Put an Audience step before Send
+  sequence, or start the flow with the Segment trigger." Before 22 Nov 2026
+  Send sequence ignored an Audience step. It failed on every Run now with a
+  message that named a "Segment start" step, which doesn't exist by that name.
+
+`startSequenceForRun` in `src/server/email/sequences.ts`, tested in
+`sequences.test.ts`.
+
+## The site name in an email's header
+
+The header block of a newsletter, sequence email or system email prints the
+site's name as text above the logo. The name is text so an inbox that blocks
+images still shows who sent the email.
+
+- **"Show site name" switches it off.** The switch is in the header block's
+  Logo card and starts on. With it off, only the logo shows, and the logo's
+  hidden label becomes the site name, so a blocked image still names the
+  sender. Tyler, 22 Nov 2026: "how do I remove this title from the header
+  block".
+- **The switch only appears once a logo is chosen.** A header with no logo
+  always shows the name, or the band would be empty.
+- **Deleting the header block doesn't hide the name.** An email with no header
+  block prints the name across its top instead.
+
+`showName` on the header block in `src/lib/broadcasts/blocks.ts`, drawn in
+`src/lib/broadcasts/render.ts`, tested in `render.test.ts`.
+
 ## The gone-quiet rule
 
 After a run of sends that all went unopened, a contact's status becomes `cold`.

@@ -213,13 +213,14 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
   },
 
   /**
-   * Starts one of the CRM's sequences for this run's person, and the flow
-   * carries on at once. The sequence's own run sends its emails and waits.
+   * Starts one of the CRM's sequences for this run's person, or for everyone
+   * in an Audience step before it, and the flow carries on at once. Each
+   * sequence run sends its own emails and waits.
    */
   [sendSequenceNode.kind]: async ({ database, run, nodeId, settings, now, testRun, dryRun }) => ({
     type: "next",
     summary: dryRun
-      ? "Would start the sequence for this person. Nothing was started in this dry run."
+      ? "Would start the sequence for this run's person, or everyone in its Audience step. Nothing was started in this dry run."
       : await startSequenceForRun({ run, nodeId, settings, now: now(), testRun: Boolean(testRun) }, database),
   }),
 
